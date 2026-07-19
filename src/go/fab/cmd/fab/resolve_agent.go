@@ -13,8 +13,10 @@ import (
 // resolveAgentCmd implements `fab resolve-agent <stage|tier>` — a pure query (no
 // side effects) in the same family as `fab resolve`. Its argument is either a
 // pipeline STAGE (mapped through the fixed stage→tier mapping) or a role-TIER name
-// directly (the two name sets are disjoint) — the latter serves `fab agent` and
-// the operator launcher's tier-level resolution. It resolves the tier to a
+// directly — the latter serves `fab agent` and the operator launcher's tier-level
+// resolution. A name shared by a stage and a tier (review, hydrate) is a fixed
+// point (that stage maps to that same-named tier), so tier-first dispatch resolves
+// it identically either way. It resolves the tier to a
 // concrete {provider, model, effort} (project agent.tiers override per-field
 // merged over the fab-kit default, with default-tier inheritance), and echoes the
 // result VERBATIM — no validation against any provider's accepted set (provider
@@ -89,9 +91,12 @@ func resolveAgentCmd() *cobra.Command {
 }
 
 // resolveStageOrTier accepts either a pipeline stage name (mapped via the fixed
-// stage→tier mapping) or a role-tier name (resolved directly). The two name sets
-// are disjoint, so a tier name is dispatched to ResolveTier and everything else to
+// stage→tier mapping) or a role-tier name (resolved directly). Tier names are
+// checked FIRST: a tier name is dispatched to ResolveTier and everything else to
 // Resolve (which surfaces the unknown-stage error for a genuinely unknown name).
+// A name shared by a stage and a tier (review, hydrate) is a fixed point
+// (stageTiers[name] == name), so this tier-first order resolves such a name to the
+// same profile either interpretation would — the order is immaterial for results.
 func resolveStageOrTier(cfg *config.Config, name string) (agent.Profile, error) {
 	if agent.IsTierName(name) {
 		return agent.ResolveTier(cfg, name)

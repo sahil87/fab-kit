@@ -267,9 +267,9 @@ Pure query (no side effects) — resolves a pipeline **stage** (or a role **tier
 fab resolve-agent <stage|tier> [--alias]
 ```
 
-The positional argument is either one of the six pipeline stages (`intake`, `apply`, `review`, `hydrate`, `ship`, `review-pr`) or one of the five role-tier names (`default`, `operator`, `doing`, `review`, `fast`). The two sets are **disjoint**, so a tier name is accepted positionally alongside a stage name: a stage maps through the fixed stage→tier mapping; a tier resolves directly.
+The positional argument is either one of the six pipeline stages (`intake`, `apply`, `review`, `hydrate`, `ship`, `review-pr`) or one of the six role-tier names (`default`, `operator`, `doing`, `review`, `hydrate`, `fast`). A tier name is accepted positionally alongside a stage name: a stage maps through the fixed stage→tier mapping; a tier resolves directly. The two name sets overlap only at **fixed points** — a name shared by a stage and a tier (`review`, `hydrate`) is one where the stage maps to that same-named tier (`stageTiers[name] == name`), so tier-first dispatch resolves such a name identically either way. (`ship` is a stage but not a tier — it maps to the `fast` tier.)
 
-**Resolution**: maps a stage → its tier via the FIXED fab-owned stage→tier mapping (`default`: intake (advisory) / `doing`: apply, review-pr, hydrate / `review`: review / `fast`: ship — NOT user-overridable), then resolves the tier → `{provider, model, effort}`: the project's `agent.tiers.<tier>` override **per-field merged** over the project's `default` tier, over fab-kit's built-in default (`default`: claude/claude-fable-5/xhigh, `operator`: claude/claude-sonnet-5/medium, `doing`: claude/claude-opus-4-8/xhigh, `review`: claude/claude-fable-5/xhigh, `fast`: claude/claude-sonnet-5/low). `agent.tiers` is the sole tier-override surface (no `stage_tiers`, no per-stage escape hatch); the command grammar lives in the top-level `providers:` table. See `docs/specs/stage-models.md`.
+**Resolution**: maps a stage → its tier via the FIXED fab-owned stage→tier mapping (`default`: intake (advisory) / `doing`: apply, review-pr / `review`: review / `hydrate`: hydrate / `fast`: ship — NOT user-overridable), then resolves the tier → `{provider, model, effort}`: the project's `agent.tiers.<tier>` override **per-field merged** over the project's `default` tier, over fab-kit's built-in default (`default`: claude/claude-fable-5/high, `operator`: claude/claude-sonnet-5/medium, `doing`: claude/claude-fable-5/xhigh, `review`: claude/claude-opus-4-8/xhigh, `hydrate`: claude/claude-opus-4-8/high, `fast`: claude/claude-sonnet-5/medium). `agent.tiers` is the sole tier-override surface (no `stage_tiers`, no per-stage escape hatch); the command grammar lives in the top-level `providers:` table. See `docs/specs/stage-models.md`.
 
 **Output** (a `model=` line always, then optional `effort=`, `provider=`, and `dispatch=` lines; byte-stable for the same config):
 
@@ -288,22 +288,22 @@ dispatch=<command>
 
 ```
 $ fab resolve-agent apply
-model=claude-opus-4-8
+model=claude-fable-5
 effort=xhigh
 provider=claude
 
 $ fab resolve-agent apply --alias
-model=opus
+model=fable
 effort=xhigh
 provider=claude
 
 # with the doing tier pointing at a provider that has a dispatch_command
 # (apply ∈ doing) — the dispatch= line appears, aliased model= but full-ID dispatch=:
 $ fab resolve-agent apply --alias
-model=opus
+model=fable
 effort=xhigh
 provider=codex
-dispatch=codex exec -m claude-opus-4-8 -c model_reasoning_effort=xhigh
+dispatch=codex exec -m claude-fable-5 -c model_reasoning_effort=xhigh
 ```
 
 **No validation — verbatim pass-through**: `fab resolve-agent` does NOT validate the provider, model, or effort against any provider's accepted set (provider neutrality — a fab-kit design principle). It echoes the strings as-is — `xhigh`, `reasoning_effort:high`, an empty effort, whatever. A misconfigured pair (e.g. Sonnet + `xhigh`) is NOT corrected by fab; it surfaces as a dispatch-time error in the harness. There is no effort-enum enforcement and no degrade-gracefully drop.
@@ -341,7 +341,7 @@ Only the `--json` flag; no positional arguments (`fab config reference extra-arg
 
 **`--json`**: emits the same field table as a flat, deterministic JSON array (table/rendering order) — per-field objects `{key, default, description, scope, advertise, renamed_from}` with `renamed_from` omitted when empty (empty on every row today). This is the tooling surface the config-upgrade cascade/upgrade commands and external tools consume. Without the flag, output is the commented YAML exactly as before. Both renderings are pure queries and byte-stable for a given binary version; the JSON key set is guarded against drift from the YAML reference's documented keys. All three metadata fields now have behavioral consumers: `scope` drives the cascade resolver's scope enforcement (`config show`/`show --origin` below) and the `config init --system` scaffold filter; `advertise` drives which fields `fab config upgrade` / `init --project` scaffold into the managed reference fence; `renamed_from` drives `fab config upgrade`'s mechanical rename carry-forward (empty on every row today — it serves future renames).
 
-**Full schema coverage**: covers BOTH the binary-consumed keys (modeled on the `Config` struct) AND the skill-consumed keys (read by markdown skills, invisible to Go reflection) — `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `providers.*` (`session_command`/`dispatch_command`), `agent.tiers.*` (`provider`/`model`/`effort`), `stage_hooks.*`, `branch_prefix`. (The retired `review_tools` block moved to `fab/project/code-review.md` § Review Tools; `agent.spawn_command` moved to `providers.claude.session_command`; `fab_version` moved OUT of config.yaml to the plain-text sibling `fab/.fab-version` in 2.15.0 and is no longer a config-file key.) Baseline keys appear live with example values (including the `providers:` claude entry and the five `agent.tiers`); the opt-in override blocks (`stage_hooks`, `branch_prefix`) appear commented-out with fab-kit's built-in defaults shown, so uncommenting is opting in. The `providers:` block ships as a **three-provider starter template** — `claude` (built-in default: `session_command` live, `dispatch_command` commented), plus fully-commented `codex` and `gemini` blocks each showing both command fields — so adding a non-claude provider is a copy-and-adapt rather than composing command grammar from scratch (codex/gemini remain template text only; no new built-in providers are added in Go). Gemini's commands carry no `{effort}` placeholder (the gemini CLI has no reasoning-effort flag) and no `-p` on `dispatch_command` (gemini reads the `fab dispatch` stdin-piped prompt in non-TTY mode).
+**Full schema coverage**: covers BOTH the binary-consumed keys (modeled on the `Config` struct) AND the skill-consumed keys (read by markdown skills, invisible to Go reflection) — `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `providers.*` (`session_command`/`dispatch_command`), `agent.tiers.*` (`provider`/`model`/`effort`), `stage_hooks.*`, `branch_prefix`. (The retired `review_tools` block moved to `fab/project/code-review.md` § Review Tools; `agent.spawn_command` moved to `providers.claude.session_command`; `fab_version` moved OUT of config.yaml to the plain-text sibling `fab/.fab-version` in 2.15.0 and is no longer a config-file key.) Baseline keys appear live with example values (including the `providers:` claude entry and the six `agent.tiers`); the opt-in override blocks (`stage_hooks`, `branch_prefix`) appear commented-out with fab-kit's built-in defaults shown, so uncommenting is opting in. The `providers:` block ships as a **three-provider starter template** — `claude` (built-in default: `session_command` live, `dispatch_command` commented), plus fully-commented `codex` and `gemini` blocks each showing both command fields — so adding a non-claude provider is a copy-and-adapt rather than composing command grammar from scratch (codex/gemini remain template text only; no new built-in providers are added in Go). Gemini's commands carry no `{effort}` placeholder (the gemini CLI has no reasoning-effort flag) and no `-p` on `dispatch_command` (gemini reads the `fab dispatch` stdin-piped prompt in non-TTY mode).
 
 **Output**: byte-stable for a given binary version (same convention as `fab resolve` / `fab resolve-agent`). The emitted document round-trips — its live keys parse cleanly back into `Config`.
 
@@ -1041,7 +1041,7 @@ fab agent [tier] [--print] [--repo <path>]
 
 Launch (or `--print`) the resolved agent **session** command in the current shell. Replaces `fab spawn-command`, with a semantic upgrade: the printed/exec'd command is **profile-resolved** (model/effort substituted), not placeholder-stripped.
 
-- Resolves the tier profile (`default` when the positional `[tier]` is omitted; any of the five role-tier names accepted: `default`, `operator`, `doing`, `review`, `fast`), then composes `providers.<profile.provider>.session_command` with `{model}`/`{effort}` substituted (or Claude-style `--model`/`--effort` appended for a non-templated command) via `internal/spawn.WithProfile` — the same substitution `fab resolve-agent`'s `dispatch=` line and the operator launcher use.
+- Resolves the tier profile (`default` when the positional `[tier]` is omitted; any of the six role-tier names accepted: `default`, `operator`, `doing`, `review`, `hydrate`, `fast`), then composes `providers.<profile.provider>.session_command` with `{model}`/`{effort}` substituted (or Claude-style `--model`/`--effort` appended for a non-templated command) via `internal/spawn.WithProfile` — the same substitution `fab resolve-agent`'s `dispatch=` line and the operator launcher use.
 - **Default (exec)**: replaces this process with the composed command via `sh -c` (so shell expansions like `$(basename "$(pwd)")` expand at invocation). `fab agent` starts the default-tier agent right here; `fab agent operator` starts the coordinator profile. **No TTY guard** — exec-and-let-the-agent-CLI-handle-it (document-don't-validate).
 - **`--print`**: prints the fully-resolved command instead of executing (the `fab spawn-command` replacement — profile-resolved, not stripped). Lets the operator compose a worker spawn from a real profile.
 - **`--repo <path>`**: reads `<path>/fab/project/config.yaml` instead of the current repo (the operator's fetch-another-repo's-command use case, carried over from `fab spawn-command --repo`).

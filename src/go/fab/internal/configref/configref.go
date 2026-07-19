@@ -169,17 +169,20 @@ type jsonField struct {
 	RenamedFrom string `json:"renamed_from,omitempty"`
 }
 
-// tierStages is the human-readable stage grouping shown next to each tier in the
-// reference comment. It restates the FIXED stage→tier mapping owned by
-// internal/agent (default={intake advisory}, operator={fab operator},
-// doing={apply,review-pr,hydrate}, review={review}, fast={ship}) — reference prose
-// only, not a behavioral second source.
+// tierStages is the human-readable referent grouping shown next to each tier in
+// the reference comment. It restates the FIXED stage→tier mapping owned by
+// internal/agent plus the non-stage referents (the /fab-proceed dispatches):
+// default={intake advisory, create-intake dispatch}, operator={fab operator},
+// doing={apply,review-pr}, review={review}, hydrate={hydrate},
+// fast={ship, /fab-proceed prefix steps} — reference prose only, not a behavioral
+// second source.
 var tierStages = map[string]string{
-	agent.TierDefault:  "intake (advisory), fab batch, fab agent",
+	agent.TierDefault:  "intake (advisory), fab batch, fab agent, /fab-proceed create-intake",
 	agent.TierOperator: "fab operator (coordinator session)",
-	agent.TierDoing:    "apply, review-pr, hydrate",
+	agent.TierDoing:    "apply, review-pr",
 	agent.TierReview:   "review",
-	agent.TierFast:     "ship",
+	agent.TierHydrate:  "hydrate",
+	agent.TierFast:     "ship, /fab-proceed prefix steps",
 }
 
 // tierProfileDefault is the structured canonical default for one agent tier —

@@ -1,0 +1,55 @@
+id: g55d
+name: 260719-g55d-stage-model-tier-defaults-v2
+created: 2026-07-19T18:46:26Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 20
+    acceptance_count: 22
+    acceptance_completed: 22
+confidence:
+    certain: 10
+    confident: 1
+    tentative: 0
+    unresolved: 0
+    score: 4.9
+    fuzzy: true
+    dimensions:
+        signal: 89.5
+        reversibility: 84.1
+        competence: 89.1
+        disambiguation: 89.5
+stage_metrics:
+    intake: {started_at: "2026-07-19T18:46:26Z", driver: fab-new, iterations: 1, completed_at: "2026-07-19T18:53:02Z"}
+    apply: {started_at: "2026-07-19T19:44:33Z", driver: fab-fff, iterations: 2, completed_at: "2026-07-19T19:47:46Z"}
+    review: {started_at: "2026-07-19T19:47:46Z", driver: fab-fff, iterations: 2, completed_at: "2026-07-19T19:57:12Z"}
+    hydrate: {started_at: "2026-07-19T19:57:12Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-19T20:09:52Z"}
+    ship: {started_at: "2026-07-19T20:09:52Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-19T20:11:16Z"}
+    review-pr: {started_at: "2026-07-19T20:11:16Z", driver: git-pr, iterations: 1, completed_at: "2026-07-19T20:21:29Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/508
+true_impact:
+    added: 915
+    deleted: 240
+    net: 675
+    excluding:
+        added: 167
+        deleted: 98
+        net: 69
+    tests:
+        added: 91
+        deleted: 47
+        net: 44
+    computed_at: "2026-07-19T20:11:16Z"
+    computed_at_stage: ship
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-19T20:21:29Z

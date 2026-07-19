@@ -16,12 +16,12 @@ func cfgWithTiers(tiers map[string]config.TierProfile) *config.Config {
 // tier's built-in default profile.
 func TestResolveDefaults(t *testing.T) {
 	cases := map[string]Profile{
-		"intake":    {Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"},  // default (advisory)
-		"apply":     {Provider: "claude", Model: "claude-opus-4-8", Effort: "xhigh"}, // doing
-		"review":    {Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"},  // review
-		"hydrate":   {Provider: "claude", Model: "claude-opus-4-8", Effort: "xhigh"}, // doing
-		"ship":      {Provider: "claude", Model: "claude-sonnet-5", Effort: "low"},   // fast
-		"review-pr": {Provider: "claude", Model: "claude-opus-4-8", Effort: "xhigh"}, // doing
+		"intake":    {Provider: "claude", Model: "claude-fable-5", Effort: "high"},    // default (advisory)
+		"apply":     {Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"},   // doing
+		"review":    {Provider: "claude", Model: "claude-opus-4-8", Effort: "xhigh"},  // review
+		"hydrate":   {Provider: "claude", Model: "claude-opus-4-8", Effort: "high"},   // hydrate (own tier)
+		"ship":      {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"}, // fast
+		"review-pr": {Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"},   // doing
 	}
 	for stage, want := range cases {
 		t.Run(stage, func(t *testing.T) {
@@ -65,9 +65,10 @@ func TestResolveFullOverride(t *testing.T) {
 // TestResolvePerFieldMerge: an override that sets only effort keeps the default
 // provider+model (per-field merge), and vice versa.
 func TestResolvePerFieldMerge(t *testing.T) {
-	// Only effort overridden → default provider+model survive.
+	// Only effort overridden → default provider+model survive. hydrate ∈ hydrate
+	// tier (opus/high), so overriding effort to medium keeps opus.
 	cfg := cfgWithTiers(map[string]config.TierProfile{
-		"doing": {Effort: "medium"},
+		"hydrate": {Effort: "medium"},
 	})
 	got, err := Resolve(cfg, "hydrate")
 	if err != nil {
@@ -77,7 +78,8 @@ func TestResolvePerFieldMerge(t *testing.T) {
 		t.Errorf("Resolve(hydrate) = %+v, want default provider+model + medium effort", got)
 	}
 
-	// Only model overridden → default effort survives.
+	// Only model overridden → default effort survives. ship ∈ fast tier
+	// (sonnet/medium), so overriding only the model keeps medium effort.
 	cfg = cfgWithTiers(map[string]config.TierProfile{
 		"fast": {Model: "claude-haiku-4-5"},
 	})
@@ -85,8 +87,8 @@ func TestResolvePerFieldMerge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if got.Model != "claude-haiku-4-5" || got.Effort != "low" {
-		t.Errorf("Resolve(ship) = %+v, want overridden model + default low effort", got)
+	if got.Model != "claude-haiku-4-5" || got.Effort != "medium" {
+		t.Errorf("Resolve(ship) = %+v, want overridden model + default medium effort", got)
 	}
 }
 
@@ -169,7 +171,7 @@ func TestResolveEmptyOverrideKeepsDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	want := Profile{Provider: "claude", Model: "claude-opus-4-8", Effort: "xhigh"}
+	want := Profile{Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"}
 	if got != want {
 		t.Errorf("Resolve(apply) with empty override = %+v, want built-in default %+v", got, want)
 	}
@@ -192,15 +194,20 @@ func TestResolveTier(t *testing.T) {
 	}
 }
 
-// TestIsTierName: the five role-tier names report true; stage names and unknowns
-// report false (disjoint sets — the resolve-agent positional-arg contract).
+// TestIsTierName: the six role-tier names report true; non-tier names (stages that
+// are NOT also tiers, plus unknowns) report false. The resolve-agent positional-arg
+// contract: a name shared by a stage and a tier (review, hydrate) IS a tier, so
+// those are not in the not-a-tier list. "ship" is a STAGE but not a tier — it maps
+// to the fast tier — so it stays in the not-a-tier list.
 func TestIsTierName(t *testing.T) {
 	for _, tier := range TierNames() {
 		if !IsTierName(tier) {
 			t.Errorf("IsTierName(%q) = false, want true", tier)
 		}
 	}
-	for _, notTier := range []string{"apply", "review-pr", "ship", "frobnicate", ""} {
+	// "hydrate" is a tier (added this change); "ship" is a stage that maps to the
+	// fast tier, so it is NOT a tier name.
+	for _, notTier := range []string{"apply", "review-pr", "intake", "ship", "frobnicate", ""} {
 		if IsTierName(notTier) {
 			t.Errorf("IsTierName(%q) = true, want false", notTier)
 		}
@@ -306,10 +313,46 @@ func TestTablesExhaustive(t *testing.T) {
 		t.Errorf("stage set = %q, want %q", stages, want)
 	}
 
-	// The tier set is exactly the five role tiers.
+	// The tier set is exactly the six role tiers.
 	tiers := strings.Join(TierNames(), ",")
-	wantTiers := "default,doing,fast,operator,review"
+	wantTiers := "default,doing,fast,hydrate,operator,review"
 	if tiers != wantTiers {
 		t.Errorf("tier set = %q, want %q", tiers, wantTiers)
+	}
+}
+
+// TestStageTierCollisionsAreFixedPoints: every name shared by the stage set and
+// the tier set (review, hydrate) must be a FIXED POINT — the stage maps to the
+// same-named tier (stageTiers[name] == name). This is what makes the tier-first
+// resolution order in cmd/fab.resolveStageOrTier immaterial for those names: a
+// shared name resolves identically whether read as a stage or a tier. It guards
+// that order from ever silently changing a stage's resolution. (ship is a stage
+// but NOT a tier — it maps to fast — so it is not a collision.)
+func TestStageTierCollisionsAreFixedPoints(t *testing.T) {
+	tierSet := make(map[string]bool)
+	for _, tier := range TierNames() {
+		tierSet[tier] = true
+	}
+	collisions := 0
+	for _, stage := range StageNames() {
+		if !tierSet[stage] {
+			continue // not a shared name
+		}
+		collisions++
+		tier, ok := TierForStage(stage)
+		if !ok {
+			t.Errorf("stage %q has no tier mapping", stage)
+			continue
+		}
+		if tier != stage {
+			t.Errorf("stage/tier name collision %q is NOT a fixed point: stageTiers[%q] = %q, want %q "+
+				"(a name shared by a stage and a tier must map the stage to the same-named tier, "+
+				"or the tier-first resolve order would change the stage's resolution)", stage, stage, tier, stage)
+		}
+	}
+	// Guard the guard: the intended collisions (review, hydrate) must exist —
+	// a zero-collision result would mean this test silently checks nothing.
+	if collisions == 0 {
+		t.Fatal("expected at least one stage/tier name collision (review, hydrate); found none")
 	}
 }

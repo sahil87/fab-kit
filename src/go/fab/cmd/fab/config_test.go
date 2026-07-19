@@ -66,10 +66,10 @@ func TestConfigReferenceRoundTrips(t *testing.T) {
 	if len(cfg.TrueImpactExclude) == 0 {
 		t.Error("true_impact_exclude should be a live key with a value in the reference")
 	}
-	// The five agent.tiers are shown LIVE with explicit providers (documented
+	// The six agent.tiers are shown LIVE with explicit providers (documented
 	// style — provider written on every line). They must parse to a populated map.
 	if _, ok := cfg.GetAgentTier("doing"); !ok {
-		t.Error("agent.tiers must be live in the reference (five role tiers with explicit providers)")
+		t.Error("agent.tiers must be live in the reference (six role tiers with explicit providers)")
 	}
 	// The opt-in override blocks must stay commented-out (uncommenting = opting in).
 	if len(cfg.StageHooks) != 0 {
@@ -387,7 +387,7 @@ func TestConfigReferenceJSONIsValidAndByteStable(t *testing.T) {
 // `""`). This is the single "cascade falls back to absent" signal Change 2's
 // resolver consumes; a typed empty would leak a Go-side implementation detail with
 // no cascade meaning. Conversely, a non-null `default` must denote a real built-in
-// value (the claude provider and the five tier profiles today).
+// value (the claude provider and the six tier profiles today).
 func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
 	out, err := configref.RenderJSON()
 	if err != nil {

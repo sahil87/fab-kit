@@ -43,20 +43,23 @@ A tier is a **named profile of `{provider, model, effort}`** — not a bare mode
 and what a user means by a tier is the provider, the model, *and* how hard it thinks. Bundling them
 keeps the tier name honest.
 
-Five **role tiers** form the vocabulary — concrete referents ("the operator", "the reviewer"), not
-cognitive modes:
+Six **role tiers** form the vocabulary — concrete referents ("the operator", "the reviewer"), not
+cognitive modes. A tier is **stage-named only where it maps 1:1 to a single referent** (`review`,
+`hydrate`); `default`, `doing`, and `fast` keep role names because each is **multi-referent** (`fast`
+governs the ship stage *and* the `/fab-proceed` prefix-step dispatches — see § Skill wiring):
 
 | Tier | Role |
 |------|------|
-| `default` | Spawned worker sessions (`fab batch`), `fab agent` with no tier, intake (advisory only — foreground). Also the **per-field fallback for every other tier**. |
+| `default` | Spawned worker sessions (`fab batch`), `fab agent` with no tier, intake (advisory only — foreground), and the `/fab-proceed` create-intake dispatch. Also the **per-field fallback for every other tier**. |
 | `operator` | The operator coordinator session (`fab operator`). |
-| `doing` | **Execution that must not err** — apply writes the diff; review-pr fixes already-articulated feedback; hydrate writes memory. |
-| `review` | **The critic** — review reads a diff and discovers what's wrong. Split from `doing` for author/critic separation (a different agent checks the work than does it). |
-| `fast` | **Speed on near-mechanical work** — ship's commit/push/PR mechanics plus a faithful PR-description summary. |
+| `doing` | **Execution that must not err** — apply writes the diff; review-pr fixes already-articulated feedback. |
+| `review` | **The critic** — review reads a diff and discovers what's wrong. Split from `doing` for author/critic separation (a different agent, and a different model family, checks the work than does it). |
+| `hydrate` | **Memory writing** — hydrate merges the change into `docs/memory/` as current truth. Its own tier so it can run on a different model/effort than apply. |
+| `fast` | **Speed on near-mechanical work** — ship's commit/push/PR mechanics plus a faithful PR-description summary, and the `/fab-proceed` prefix steps (`/fab-switch`, `/git-branch`). Multi-referent, so it keeps its role name. |
 
-`thinking` is **removed**, not split: with `review` its own tier, `thinking`'s only remaining stage
-would be intake, which never dispatches (it is pre-boundary, foreground). Intake rides `default`,
-honestly — it runs wherever the interactive session runs.
+There is no `thinking` tier: with `review` its own tier, `thinking`'s only remaining stage would be
+intake, which never dispatches (it is pre-boundary, foreground). Intake rides `default`, honestly — it
+runs wherever the interactive session runs.
 
 ### Default tier profiles
 
@@ -67,20 +70,28 @@ the safety net, not the style).
 
 | Tier | Provider | Model | Effort |
 |------|----------|-------|--------|
-| `default` | `claude` | `claude-fable-5` | `xhigh` |
+| `default` | `claude` | `claude-fable-5` | `high` |
 | `operator` | `claude` | `claude-sonnet-5` | `medium` |
-| `doing` | `claude` | `claude-opus-4-8` | `xhigh` |
-| `review` | `claude` | `claude-fable-5` | `xhigh` |
-| `fast` | `claude` | `claude-sonnet-5` | `low` |
+| `doing` | `claude` | `claude-fable-5` | `xhigh` |
+| `review` | `claude` | `claude-opus-4-8` | `xhigh` |
+| `hydrate` | `claude` | `claude-opus-4-8` | `high` |
+| `fast` | `claude` | `claude-sonnet-5` | `medium` |
 
 This is the verified mirror of the `defaultTiers` map in
 `src/go/fab/internal/agent/agent.go`. A drift-guard test fails if the two disagree (see § Drift guard).
 
-**Why these defaults.** `doing` runs Opus (the coupled apply/review-pr/hydrate work — see
-§ apply↔review coupling); `default` and `review` run Fable at `xhigh` (the Fable upgrade curve);
-`operator` runs Sonnet/medium (highest-volume coordinator, pattern-matching work, escalation
-discipline makes the cheaper model safe); `fast` sits at the mechanical floor on Sonnet/low.
-Cost-conscious projects opt any tier down themselves (see § Config schema).
+**Why these defaults.** `doing` runs Fable at `xhigh` — Anthropic's stated best setting for
+coding/agentic work; a strong author minimizes rework cycles per the apply↔review coupling (see
+§ apply↔review coupling). `review` runs Opus/`xhigh` for deliberate cross-model author/critic diversity
+— a different model family from the author avoids its blind spots, and code review is a named Opus 4.8
+strength. `hydrate` runs Opus/`high` — knowledge work and memory writing are named Opus 4.8 strengths,
+and `high` is the recommended default for intelligence-sensitive-but-not-hardest work. `default` runs
+Fable/`high` — interactive sessions want the quicker working style (Anthropic guidance: `high` is the
+sweet spot, and Fable at lower efforts still exceeds prior models' `xhigh`). `operator` runs
+Sonnet/`medium` (highest-volume coordinator, pattern-matching work, escalation discipline makes the
+cheaper model safe). `fast` sits at the mechanical floor on Sonnet/`medium` — effort at `medium` (not
+`low`) buys margin for faithful PR-description comprehension. Cost-conscious projects opt any tier down
+themselves (see § Config schema).
 
 ---
 
@@ -96,13 +107,15 @@ determinism). Users override what a tier *costs* (budget), never which stages be
 | `review` | `review` |
 | `apply` | `doing` |
 | `review-pr` | `doing` |
-| `hydrate` | `doing` |
+| `hydrate` | `hydrate` |
 | `ship` | `fast` |
 
 This is the verified mirror of the `stageTiers` map in `src/go/fab/internal/agent/agent.go`
 (drift-guarded). The mapping is exhaustive — every one of the six pipeline stages belongs to exactly
 one tier. `intake → default` is **advisory only**: intake runs foreground in the user's own session,
-which fab cannot re-model (see § Foreground limitation).
+which fab cannot re-model (see § Foreground limitation). Where a stage and a tier share a name
+(`review`, `hydrate`), the stage maps to that same-named tier — see § Resolution's fixed-point rule.
+(`ship` is a stage but not a tier — it maps to the multi-referent `fast` tier.)
 
 **Critical distinction — `review` vs `review-pr`.** They share the word "review" but not the role.
 `review` is **the critic** (reads a diff and discovers what's wrong from nothing → its own `review`
@@ -158,24 +171,26 @@ providers:
 agent:
   # The stage→tier mapping is OWNED BY FAB-KIT and is NOT overridable — shown
   # here only as reference so you know which stages each tier governs:
-  #   default:  intake (advisory), fab batch, fab agent   (+ per-field fallback)
+  #   default:  intake (advisory), fab batch, fab agent, /fab-proceed create-intake  (+ per-field fallback)
   #   operator: fab operator (coordinator session)
-  #   doing:    apply, review-pr, hydrate                 (execution that must not err)
+  #   doing:    apply, review-pr                          (execution that must not err)
   #   review:   review                                    (the critic)
-  #   fast:     ship                                      (near-mechanical work)
+  #   hydrate:  hydrate                                   (memory writing)
+  #   fast:     ship, /fab-proceed prefix steps           (near-mechanical work)
   #
   # You override only WHAT EACH TIER MEANS (provider + model + effort). Omit any
   # tier to use fab-kit's built-in default. fab-kit defaults today are:
-  #   default:  { provider: claude, model: claude-fable-5,  effort: xhigh }
+  #   default:  { provider: claude, model: claude-fable-5,  effort: high }
   #   operator: { provider: claude, model: claude-sonnet-5, effort: medium }
-  #   doing:    { provider: claude, model: claude-opus-4-8, effort: xhigh }
-  #   review:   { provider: claude, model: claude-fable-5,  effort: xhigh }
-  #   fast:     { provider: claude, model: claude-sonnet-5, effort: low }
+  #   doing:    { provider: claude, model: claude-fable-5,  effort: xhigh }
+  #   review:   { provider: claude, model: claude-opus-4-8, effort: xhigh }
+  #   hydrate:  { provider: claude, model: claude-opus-4-8, effort: high }
+  #   fast:     { provider: claude, model: claude-sonnet-5, effort: medium }
   tiers:
     doing: { provider: claude, model: claude-sonnet-5, effort: medium }   # example: run doing cheaper
 ```
 
-- Keys under `tiers:` are the five role-tier names: `default`, `operator`, `doing`, `review`, `fast`.
+- Keys under `tiers:` are the six role-tier names: `default`, `operator`, `doing`, `review`, `hydrate`, `fast`.
 - Each value is a `{provider, model, effort}` object (the command lives on the provider). Any field MAY
   be set; an omitted field falls back to the project's `default` tier, then fab-kit's built-in for that
   tier (**per-field merge with default-tier inheritance**).
@@ -207,9 +222,15 @@ fab resolve-agent <stage|tier> [--alias]
 effort the agent dispatch needs.)
 
 1. Take a **stage** name (`intake`/`apply`/`review`/`hydrate`/`ship`/`review-pr`) or a **role-tier**
-   name (`default`/`operator`/`doing`/`review`/`fast`) — the two sets are disjoint, so the positional
-   argument accepts either. A stage maps through the fixed stage→tier mapping; a tier resolves directly
-   (the path `fab agent` and the operator launcher use).
+   name (`default`/`operator`/`doing`/`review`/`hydrate`/`fast`) — the positional argument accepts
+   either. A stage maps through the fixed stage→tier mapping; a tier resolves directly (the path
+   `fab agent` and the operator launcher use). **Tier names are checked first.** The two name sets
+   overlap only at **fixed points**: a name shared by a stage and a tier (`review`, `hydrate`) is one
+   where the stage maps to that same-named tier (`stageTiers[name] == name`), so the tier-first check
+   resolves such a name to the same profile either interpretation would — the order is immaterial for
+   results. (A drift-guard test in `internal/agent` asserts every collision is a fixed point.) `ship`
+   is a stage but NOT a tier — it maps to the `fast` tier — so `resolve-agent ship` resolves the stage
+   while `resolve-agent fast` resolves the tier, both to the same profile.
 2. Resolve the tier → `{provider, model, effort}`: the project's `agent.tiers.<tier>` override
    **per-field merged** over the project's `default` tier, over fab-kit's built-in. Any field wins in
    that order.
@@ -264,8 +285,8 @@ fab's default choices, not a rule the resolver enforces on user overrides.
 Haiku is **absent from the default tiers**, for two reasons: it has no effort parameter (passing
 effort 400s), and the one stage that might want a fast/cheap model (the `ship` stage, governed by the
 `fast` tier) needs faithful PR-description comprehension that Haiku does unreliably — so the `fast`
-default is Sonnet/low. This is **exclusion from the defaults, not a prohibition**: a user MAY still
-override a tier to Haiku (pass-through doesn't forbid it); fab just doesn't ship it as a default.
+default is Sonnet/`medium`. This is **exclusion from the defaults, not a prohibition**: a user MAY
+still override a tier to Haiku (pass-through doesn't forbid it); fab just doesn't ship it as a default.
 
 ---
 
@@ -285,6 +306,27 @@ The **`review` stage resolves once** (on its own `review` tier) and applies the 
 `{provider, model, effort}` to its **single** review sub-agent — exactly like every other stage
 (260704-pag2 collapsed review to one sub-agent; there is no longer a second reviewer or a merge to
 resolve, so review carries no special resolution rule).
+
+### Caller-invariant resolution — every dispatched seam is tiered
+
+**A stage (or dispatched step) resolves the same tier regardless of which caller drives it** —
+`/fab-continue`, `/fab-ff`, `/fab-fff`, or `/fab-proceed`. Two seams that formerly dispatched at the
+inherited session model are now tiered like every other:
+
+- **`/fab-continue`'s ship and review-pr rows.** These delegate to `/git-pr` and `/git-pr-review`, and
+  now resolve `fab resolve-agent ship --alias` / `fab resolve-agent review-pr --alias` before
+  dispatching that sub-agent — surfacing `model=/effort=` and applying the two seams — **mirroring
+  `/fab-fff` Steps 4–5 exactly**. This closes the caller asymmetry where `/fab-fff` tiered ship/review-pr
+  but plain `/fab-continue` did not. `/git-pr` and `/git-pr-review` still self-manage their own
+  `fab status` transitions — only the model/effort seam is added.
+- **`/fab-proceed`'s prefix steps.** The prefix-step dispatches were previously exempt ("no
+  `fab resolve-agent` — they dispatch at the inherited model"). They now resolve a **tier by name**
+  (the resolver accepts a tier name positionally, the same path `fab agent <tier>` uses — no Go change):
+  `/fab-switch` and `/git-branch` resolve `fab resolve-agent fast --alias`; the `_intake` create-intake
+  dispatch resolves `fab resolve-agent default --alias`. (Intake itself remains advisory-only on the
+  foreground `/fab-new` path, which no resolution can govern.) Both surface `model=/effort=` and dispatch
+  through the two seams (empty ⇒ omit). This is why `fast` is multi-referent — it governs the ship stage
+  *and* these prefix-step dispatches.
 
 `_cli-fab.md` documents the `fab resolve-agent` command signature (Constitution constraint: CLI changes
 MUST update `_cli-fab.md`). `architecture.md` documents the `providers:` + `agent.tiers` config blocks
@@ -361,20 +403,33 @@ work more often, driving **more rework cycles** (capped at 3 per `code-review.md
 review rounds can cost more than running `apply` on the capable model once. "Cheaper apply = cheaper
 pipeline" is therefore *not* strictly true.
 
-This is why `apply` stays in `doing` (Opus/high) rather than dropping to Sonnet: apply has the highest
-output volume (which argues for the cheaper model), but the coupling argues louder. The savings on the
-`doing` tier come from **effort** (`high`, not `xhigh`), not a model downgrade.
+This is why `apply` stays in `doing` on a top-end author (Fable/`xhigh`) rather than dropping to a
+cheap model: apply has the highest output volume (which argues for the cheaper model), but the coupling
+argues louder — a strong author minimizes the rework cycles a sharp reviewer would otherwise trigger.
+`doing` and `review` sit at the same effort (`xhigh`) on **different model families** (Fable author,
+Opus critic): the split buys author/critic model diversity, not a cost saving on the author.
 
 ---
 
 ## Fable upgrade path
 
-Fable has landed: `default` and `review` now run `claude-fable-5`/`xhigh`, and `doing` runs
-Opus/`xhigh` (its effort rose to `xhigh` on the Fable curve). fab bumps the default tier→profile table
-in **one place** (the `defaultTiers` map) each release, and every non-overriding project upgrades for
-free. The tier→profile table is fab's curated judgment per release, not a fixed effort-per-tier-rank
-rule. A project that overrides a tier opts **out** of fab's upgrade curve for that tier (correct
-behavior — naming it here).
+Fable has landed: the author tiers `doing` and `default` now run `claude-fable-5` (at `xhigh` and
+`high`), while `review` and `hydrate` run Opus 4.8 (its knowledge-work and code-review strengths) at
+`xhigh` and `high`. fab bumps the default tier→profile table in **one place** (the `defaultTiers` map)
+each release, and every non-overriding project upgrades for free. The tier→profile table is fab's
+curated judgment per release, not a fixed effort-per-tier-rank rule. A project that overrides a tier
+opts **out** of fab's upgrade curve for that tier (correct behavior — naming it here).
+
+### Upgrade note — the hydrate split (no migration)
+
+Before this change, `hydrate` mapped to `doing`, so a project carrying an `agent.tiers.doing` override
+governed its hydrate stage through that override. After the split, `hydrate` is its own tier: a project
+with a `doing` override but **no** `hydrate` override now resolves the new `hydrate` kit default
+(`claude-opus-4-8`/`high`) for the hydrate stage, not its `doing` value. **No config key changes
+meaning or goes inert** — `agent.tiers.doing` still governs apply and review-pr exactly as before, and
+`agent.tiers.hydrate` is a newly-recognized key that was simply ignored before. Because nothing is
+restructured, this ships as an **upgrade note, not a migration**: a project that wants hydrate to keep
+tracking its old `doing` value adds an `agent.tiers.hydrate:` override with that value.
 
 ---
 

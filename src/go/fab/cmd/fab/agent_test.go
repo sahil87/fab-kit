@@ -37,7 +37,7 @@ func runAgentPrint(t *testing.T, args ...string) (string, error) {
 }
 
 // TestAgentPrintDefaultTier: `fab agent --print` with no tier arg resolves the
-// default tier (claude/claude-fable-5/xhigh) and appends the profile to the
+// default tier (claude/claude-fable-5/high) and appends the profile to the
 // non-templated claude session command.
 func TestAgentPrintDefaultTier(t *testing.T) {
 	agentTestRepo(t, `providers:
@@ -48,7 +48,7 @@ func TestAgentPrintDefaultTier(t *testing.T) {
 	if err != nil {
 		t.Fatalf("agent --print: %v", err)
 	}
-	want := "claude --dangerously-skip-permissions --model claude-fable-5 --effort xhigh\n"
+	want := "claude --dangerously-skip-permissions --model claude-fable-5 --effort high\n"
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
@@ -85,7 +85,7 @@ agent:
 	if err != nil {
 		t.Fatalf("agent --print: %v", err)
 	}
-	want := "codex -m claude-fable-5 -c model_reasoning_effort=xhigh\n"
+	want := "codex -m claude-fable-5 -c model_reasoning_effort=high\n"
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
@@ -102,8 +102,8 @@ func TestAgentPrintBuiltinFallback(t *testing.T) {
 		t.Fatalf("agent --print: %v", err)
 	}
 	// Pin the full resolved command: the built-in templated default with the
-	// default tier {claude-fable-5, xhigh} substituted into its placeholders.
-	want := "claude --dangerously-skip-permissions -n \"$(basename \"$(pwd)\")\" --model claude-fable-5 --effort xhigh\n"
+	// default tier {claude-fable-5, high} substituted into its placeholders.
+	want := "claude --dangerously-skip-permissions -n \"$(basename \"$(pwd)\")\" --model claude-fable-5 --effort high\n"
 	if out != want {
 		t.Errorf("output = %q, want the default-tier profile substituted into the templated built-in command %q", out, want)
 	}

@@ -142,30 +142,33 @@ Relevance judgment is performed by the invoking agent inline — no external cla
 
 Each prefix step (the `_intake` Create-Intake Procedure, `/fab-switch`, `/git-branch`) SHALL be dispatched as a subagent per `_preamble.md` § Subagent Dispatch (Agent tool, `subagent_type: "general-purpose"`, reading the standard subagent context files).
 
-> **Per-stage model**: the prefix steps are NOT pipeline stages, so they take **no** `fab resolve-agent` resolution — they dispatch at the inherited model. Per-stage model selection belongs to the pipeline `/fab-proceed` delegates to: the final `/fab-fff` invocation resolves `fab resolve-agent <stage>` for each of its own stages per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution.
+> **Per-stage model (prefix steps are tiered too)**: each prefix-step dispatch resolves a **tier by name** immediately before dispatching, then applies the resolved profile through the two seams per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution — the model on the Agent tool's `model` param (via `--alias`), the effort as an imperative prompt line (empty ⇒ omit either). The resolver accepts a tier name positionally (the same path `fab agent <tier>` uses), so this needs no Go change — it is skill wiring only. The tiers: **`/fab-switch` and `/git-branch` → `fab resolve-agent fast --alias`**; the **`_intake` create-intake dispatch → `fab resolve-agent default --alias`** (this closes the one intake path that is a dispatched subagent yet formerly ran untiered; intake itself stays advisory-only on the foreground `/fab-new` path). Each dispatch **surfaces** the resolved `model=/effort=` (compliance visibility) so a skipped/mis-resolved tier is visible rather than silent. This keeps the invariant that a dispatched step resolves the same tier regardless of caller; the final `/fab-fff` invocation resolves `fab resolve-agent <stage>` for each of its own pipeline stages as before.
 
 #### Create-Intake Dispatch
 
 Runs when the dispatch table selects the create-new path (`_intake`): either substantive conversation + no intake, or substantive conversation + ≥1 intake but none clearly relevant. The create-an-intake sub-operation is routed through the shared `_intake` Create-Intake Procedure (the same Steps 0–9 `/fab-new` runs) in its `promptless-defer` mode — `/fab-proceed` decides *whether* to create an intake; `_intake` performs it. After it returns (intake at `ready`, not activated), the dispatch table chains `/fab-switch` → `/git-branch` to activate and branch.
 
 1. Synthesize a description from the conversation (see Conversation Context Synthesis below). The synthesis MUST NOT pull from bypassed drafts — only the live conversation is the source.
-2. Dispatch subagent: read `.claude/skills/_intake/SKILL.md`, execute the **Create-Intake Procedure** with `{questioning-mode} = promptless-defer` and the synthesized description. `promptless-defer` is the defer-and-surface contract per `_srad.md` § Critical Rule (promptless-dispatch carve-out): the procedure asks NO questions; any would-be-asked decision lands in the intake's `## Assumptions` table as an Unresolved row with Rationale `Deferred — promptless dispatch`, and is listed in the subagent result. The procedure stops at intake `ready`; it does NOT activate or branch (those are `/fab-new`'s tail) — the `/fab-switch`/`/git-branch` prefix steps are dispatched separately per the dispatch table.
-3. Capture the created change folder name **and any deferred Unresolved decisions** from the subagent result
-4. **Surface deferred decisions**: before delegating to `/fab-fff`, emit one line per deferred decision (informational — `/fab-proceed` stays zero-prompt). The intake gate is the structural backstop: deferred Unresolved rows penalize the gate per `_preamble.md` § Confidence Scoring; a genuine unknown (scored with honestly-low dimensions) fails it and the pipeline stops normally for the user to resolve via `/fab-clarify`.
+2. **Resolve the tier**: run `fab resolve-agent default --alias` and surface the resolved `model=/effort=` (compliance visibility). Apply through the two seams — model on the Agent tool's `model` param (empty ⇒ omit/inherit), effort as an imperative prompt line (empty ⇒ omit).
+3. Dispatch subagent: read `.claude/skills/_intake/SKILL.md`, execute the **Create-Intake Procedure** with `{questioning-mode} = promptless-defer` and the synthesized description. `promptless-defer` is the defer-and-surface contract per `_srad.md` § Critical Rule (promptless-dispatch carve-out): the procedure asks NO questions; any would-be-asked decision lands in the intake's `## Assumptions` table as an Unresolved row with Rationale `Deferred — promptless dispatch`, and is listed in the subagent result. The procedure stops at intake `ready`; it does NOT activate or branch (those are `/fab-new`'s tail) — the `/fab-switch`/`/git-branch` prefix steps are dispatched separately per the dispatch table.
+4. Capture the created change folder name **and any deferred Unresolved decisions** from the subagent result
+5. **Surface deferred decisions**: before delegating to `/fab-fff`, emit one line per deferred decision (informational — `/fab-proceed` stays zero-prompt). The intake gate is the structural backstop: deferred Unresolved rows penalize the gate per `_preamble.md` § Confidence Scoring; a genuine unknown (scored with honestly-low dimensions) fails it and the pipeline stops normally for the user to resolve via `/fab-clarify`.
 
 #### fab-switch Dispatch
 
 Runs when the dispatch table selects `/fab-switch` (substantive + clearly relevant, or empty/thin + ≥1 intake).
 
-1. Dispatch subagent: read `.claude/skills/fab-switch/SKILL.md`, invoke `fab change switch "<change-name>"`
-2. Capture the switch confirmation from the subagent result
+1. **Resolve the tier**: run `fab resolve-agent fast --alias` and surface the resolved `model=/effort=` (compliance visibility). Apply through the two seams — model on the Agent tool's `model` param (empty ⇒ omit/inherit), effort as an imperative prompt line (empty ⇒ omit).
+2. Dispatch subagent: read `.claude/skills/fab-switch/SKILL.md`, invoke `fab change switch "<change-name>"`
+3. Capture the switch confirmation from the subagent result
 
 #### git-branch Dispatch
 
 Runs when the dispatch table selects `/git-branch`: the branch-mismatch row (active change, branch doesn't match), the `/fab-switch`-prefixed relevant-intake rows, and the `_intake`-prefixed create-new rows (which chain `/git-branch` after `/fab-switch` — see the dispatch-table note above).
 
-1. Dispatch subagent: read `.claude/skills/git-branch/SKILL.md`, follow its behavior for the active change
-2. Capture the branch creation/checkout result from the subagent result
+1. **Resolve the tier**: run `fab resolve-agent fast --alias` and surface the resolved `model=/effort=` (compliance visibility). Apply through the two seams — model on the Agent tool's `model` param (empty ⇒ omit/inherit), effort as an imperative prompt line (empty ⇒ omit).
+2. Dispatch subagent: read `.claude/skills/git-branch/SKILL.md`, follow its behavior for the active change
+3. Capture the branch creation/checkout result from the subagent result
 
 ### Conversation Context Synthesis
 

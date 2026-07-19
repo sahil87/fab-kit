@@ -245,20 +245,22 @@ providers:
 # agent.tiers (optional) is the per-role-model override surface. A tier is a named
 # {provider, model, effort} profile (the invocation command lives on the provider,
 # not the tier). fab owns a FIXED, non-overridable stage→tier mapping
-# (default: intake advisory / doing: apply, review-pr, hydrate / review: review /
-# fast: ship; operator: the fab operator coordinator session) and you override only
-# what each tier MEANS. Omit any tier (or the whole tiers: block) to use fab-kit's
-# built-in defaults. Any omitted field falls back to the project's `default` tier,
-# then fab-kit's built-in (per-field merge with default-tier inheritance).
-# Resolved per stage/tier by `fab resolve-agent <stage|tier>` at sub-agent dispatch
-# time; see docs/specs/stage-models.md.
+# (default: intake advisory / doing: apply, review-pr / review: review /
+# hydrate: hydrate / fast: ship + /fab-proceed prefix steps; operator: the fab
+# operator coordinator session) and you override only what each tier MEANS. Omit
+# any tier (or the whole tiers: block) to use fab-kit's built-in defaults. Any
+# omitted field falls back to the project's `default` tier, then fab-kit's built-in
+# (per-field merge with default-tier inheritance). Resolved per stage/tier by
+# `fab resolve-agent <stage|tier>` at sub-agent dispatch time; see
+# docs/specs/stage-models.md.
 agent:
   tiers:
-    default:  { provider: claude, model: claude-fable-5,  effort: xhigh }
+    default:  { provider: claude, model: claude-fable-5,  effort: high }
     operator: { provider: claude, model: claude-sonnet-5, effort: medium }
-    doing:    { provider: claude, model: claude-opus-4-8, effort: xhigh }
-    review:   { provider: claude, model: claude-fable-5,  effort: xhigh }
-    fast:     { provider: claude, model: claude-sonnet-5, effort: low }
+    doing:    { provider: claude, model: claude-fable-5,  effort: xhigh }
+    review:   { provider: claude, model: claude-opus-4-8, effort: xhigh }
+    hydrate:  { provider: claude, model: claude-opus-4-8, effort: high }
+    fast:     { provider: claude, model: claude-sonnet-5, effort: medium }
 
 # Optional branch prefix applied by fab batch switch when creating worktree branches.
 branch_prefix: ""

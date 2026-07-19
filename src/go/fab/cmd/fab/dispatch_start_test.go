@@ -118,11 +118,11 @@ func TestDispatchStart_LaunchesAndPersistsState(t *testing.T) {
 	}
 	// spawn.WithProfile appends the resolved --model/--effort to a non-templated
 	// command (append mode), so the persisted spawn_cmd carries the doing-tier
-	// profile (claude-opus-4-8 / xhigh) appended to the base command.
+	// profile (claude-fable-5 / xhigh) appended to the base command.
 	if !strings.HasPrefix(rec.SpawnCmd, "sh -c 'exit 0'") {
 		t.Errorf("spawn_cmd = %q, want the base command as prefix", rec.SpawnCmd)
 	}
-	if !strings.Contains(rec.SpawnCmd, "--model claude-opus-4-8") {
+	if !strings.Contains(rec.SpawnCmd, "--model claude-fable-5") {
 		t.Errorf("spawn_cmd = %q, want the resolved doing-tier model appended", rec.SpawnCmd)
 	}
 }
