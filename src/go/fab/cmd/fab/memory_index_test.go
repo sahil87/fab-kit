@@ -369,7 +369,10 @@ func TestMemoryIndexCmd_CheckJSON_WarningsArrayPopulated(t *testing.T) {
 	// Register an id so the narration meter's change-id occurrences resolve.
 	mustWrite(t, filepath.Join(repo, "fab", "changes", "260101-abcd-one", ".status.yaml"),
 		"id: abcd\nname: 260101-abcd-one\n")
-	// A narration-heavy topic file (≥5 markers): 3 stems + 2 change-id tokens.
+	// A narration-heavy topic file (≥5 markers): 4 stems + 1 prose change-id
+	// token. The `(abcd)` parenthesized citation is SANCTIONED and does NOT count
+	// (the position-aware meter), so the trailing bare `abcd` supplies the fifth
+	// marker.
 	mustWrite(t, filepath.Join(repo, "docs", "memory", "auth", "login.md"),
 		"---\ndescription: \"Login flow\"\n---\n# Login\n\n"+
 			"previously A; no longer B; renamed C; supersedes D (abcd) abcd.\n")
