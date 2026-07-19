@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 17
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-07-19T10:36:29Z", driver: fab-fff, iterations: 2, completed_at: "2026-07-19T10:40:38Z"}
     review: {started_at: "2026-07-19T10:40:38Z", driver: fab-fff, iterations: 2, completed_at: "2026-07-19T10:47:35Z"}
     hydrate: {started_at: "2026-07-19T10:47:35Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-19T10:52:05Z"}
-    ship: {started_at: "2026-07-19T10:52:05Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-07-19T10:52:05Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-19T10:54:17Z"}
+    review-pr: {started_at: "2026-07-19T10:54:17Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/506
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 589
+    deleted: 217
+    net: 372
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 179
+        deleted: 194
+        net: -15
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-07-19T10:52:05Z"
-    computed_at_stage: hydrate
+        added: 115
+        deleted: 109
+        net: 6
+    computed_at: "2026-07-19T10:54:17Z"
+    computed_at_stage: ship
 summary: 'Closed the one-compat-window config.yaml fab_version: fallback in both reader stacks; fab/.fab-version is the sole version source (fab-go Config.FabVersion is yaml:"-", fab-kit readFabVersion reads .fab-version only).'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-07-19T10:52:05Z
+last_updated: 2026-07-19T10:54:17Z
