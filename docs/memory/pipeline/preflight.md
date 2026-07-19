@@ -19,7 +19,7 @@ The preflight script (`src/kit/scripts/lib/preflight.sh`) validates the active c
 - `name` — the change folder name (resolved via `lib/changeman.sh resolve`)
 - `change_dir` — path to `fab/changes/{name}/`, relative to `fab/`
 - `stage` — routing stage: what `/fab-continue` will produce next (derived via `get_current_stage` from `lib/statusman.sh`)
-- `display_stage` — display stage: "where you are" in the pipeline (derived via `get_display_stage` from `lib/statusman.sh`). Five-tier walk: first `active`, else first `failed` (dkn3 — parked review/review-pr failures surface instead of falling through to the last done stage), else first `ready`, else last `done`/`skipped`, else first `pending` (`intake` if nothing started) — see [change-lifecycle.md](/pipeline/change-lifecycle.md) "Deriving display stage"
+- `display_stage` — display stage: "where you are" in the pipeline (derived via `get_display_stage` from `lib/statusman.sh`). Five-tier walk: first `active`, else first `failed` (parked review/review-pr failures surface instead of falling through to the last done stage) (dkn3), else first `ready`, else last `done`/`skipped`, else first `pending` (`intake` if nothing started) — see [change-lifecycle.md](/pipeline/change-lifecycle.md) "Deriving display stage"
 - `display_state` — the state of the display stage: `active`, `ready`, `done`, `failed`, `pending`, or `skipped`
 - `progress` — full progress map (all 6 stages with their status, via `get_progress_map`)
 - `checklist.generated` — boolean (via `get_checklist`)
@@ -38,7 +38,7 @@ Agents consume this output by running the script via Bash and parsing the stdout
 The script validates in this order, stopping at the first failure:
 
 1. `fab/project/config.yaml` and `fab/project/constitution.md` exist (project initialized)
-1b. Sync staleness check (non-blocking) — compares `$(fab kit-path)/VERSION` against `fab_version` in `fab/project/config.yaml` (read via the shared `internal/config` accessor — ye8r); emits stderr warning if they differ, silently skips if either is unreadable. Does NOT exit or alter stdout
+1b. Sync staleness check (non-blocking) — compares `$(fab kit-path)/VERSION` against `fab_version` in `fab/project/config.yaml` (read via the shared `internal/config` accessor) (ye8r); emits stderr warning if they differ, silently skips if either is unreadable. Does NOT exit or alter stdout
 2. Change name resolves (via `lib/changeman.sh resolve` — from `$1` override or `.fab-status.yaml`)
 3. Change directory `fab/changes/{name}/` exists
 4. `.status.yaml` exists within the change directory
@@ -84,7 +84,7 @@ Skills exempt from preflight: `setup`, `new`, `switch`, `status`, `discuss`, `he
 **Decision**: `lib/preflight.sh` invokes `lib/statusman.sh` via CLI subprocess calls (`$STATUSMAN progress-map`, `$STATUSMAN checklist`, etc.) instead of sourcing it.
 **Why**: Decouples preflight from statusman's internal function signatures. Enables future replacement of `statusman.sh` with a compiled binary (e.g., Rust) without modifying callers. The CLI interface is the stable contract.
 **Rejected**: Continuing to source `statusman.sh` — tight coupling to internal function names; not compatible with a binary replacement.
-*Updated by*: 260215-lqm5-statusman-cli-only (previously "Accessor Functions Over Inline Parsing")
+*Updated by*: 260215-lqm5-statusman-cli-only (formerly "Accessor Functions Over Inline Parsing")
 
 ### lib/ Subfolder for Internal Scripts
 **Decision**: All internal scripts (`preflight.sh`, `statusman.sh`, `changeman.sh`, `calc-score.sh`, `sync-workspace.sh`) live in `src/kit/scripts/lib/` without underscore prefix, replacing the previous `_`-prefixed convention in the parent `scripts/` directory.
@@ -96,4 +96,4 @@ Skills exempt from preflight: `setup`, `new`, `switch`, `status`, `discuss`, `he
 **Decision**: Change name resolution (fuzzy matching against `fab/changes/`) is a `resolve` subcommand of `lib/changeman.sh`, invoked as a CLI subprocess by `lib/preflight.sh`, batch scripts, and `/fab-switch` (via `changeman.sh switch` which calls `resolve` internally).
 **Why**: Resolution is a change lifecycle operation — it belongs with other change operations in changeman rather than as a standalone sourced library. The CLI subprocess pattern (`$CHANGEMAN resolve <override>`) is consistent with statusman's interface and enables future Rust rewrite. Error messages remain generic — callers add context-appropriate guidance.
 **Rejected**: Keeping as a standalone sourced library (`resolve-change.sh`) — the variable-setting pattern (`RESOLVED_CHANGE_NAME`) was inconsistent with the CLI subprocess convention used by all other lib/ scripts. Consolidating into statusman — change resolution is filesystem/string matching with no stage awareness.
-*Updated by*: 260216-oinh-DEV-1045-fold-resolve-into-changeman (previously "Shared Change Resolution Library" using `resolve-change.sh`)
+*Updated by*: 260216-oinh-DEV-1045-fold-resolve-into-changeman (formerly "Shared Change Resolution Library" using `resolve-change.sh`)
