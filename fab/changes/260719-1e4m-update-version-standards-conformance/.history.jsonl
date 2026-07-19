@@ -1,0 +1,10 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-19T23:04:08Z"}
+{"args":"Bring this repo into conformance with the shll toolkit 'update' and 'version' standards. Audit the update and --version subcommands against every MUST/SHOULD in both standards, fix any gaps found, and add/update tests pinning the fixed behavior. If fully conformant with no code changes needed, skip /git-pr.","cmd":"fab-new","event":"command","ts":"2026-07-19T23:04:08Z"}
+{"delta":"+4.7","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-07-19T23:06:03Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-19T23:09:48Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-19T23:09:55Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-07-19T23:10:57Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-19T23:17:19Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-19T23:20:05Z"}
+{"event":"review","result":"passed","ts":"2026-07-19T23:20:05Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-19T23:24:04Z"}

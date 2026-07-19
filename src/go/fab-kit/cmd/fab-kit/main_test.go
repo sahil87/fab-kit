@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab-kit/internal"
@@ -63,6 +66,68 @@ func TestVersion(t *testing.T) {
 	// The version variable should be set (defaults to "dev")
 	if version == "" {
 		t.Error("version should not be empty")
+	}
+}
+
+// TestRootVersionFlagShape pins the shll version standard's verify checklist:
+// `fab-kit --version` exits successfully with the version token on the first
+// stdout line, shaped `fab-kit version vX.Y.Z` (no banner above it).
+func TestRootVersionFlagShape(t *testing.T) {
+	orig := version
+	version = "2.16.5"
+	defer func() { version = orig }()
+
+	root := rootCmd()
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--version"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("--version returned error (must exit 0): %v", err)
+	}
+
+	firstLine := strings.SplitN(out.String(), "\n", 2)[0]
+	shape := regexp.MustCompile(`^fab-kit version v\d+(\.\d+)*$`)
+	if !shape.MatchString(firstLine) {
+		t.Errorf("--version first line = %q, want match for %s", firstLine, shape)
+	}
+}
+
+// TestUpdateHelpMentionsSkipBrewUpdate pins the shll update standard's frozen
+// textual contract: `update --help` output contains the literal substring
+// `--skip-brew-update` (substring presence, not regex).
+func TestUpdateHelpMentionsSkipBrewUpdate(t *testing.T) {
+	root := rootCmd()
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"update", "--help"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("update --help returned error: %v", err)
+	}
+	if !strings.Contains(out.String(), "--skip-brew-update") {
+		t.Errorf("update --help must contain the literal %q (got: %q)", "--skip-brew-update", out.String())
+	}
+}
+
+// TestUpdateNotBrewInstalledExitsZero pins the shll update standard's degrade
+// clause: on a non-brew install, `fab-kit update` prints the guidance and
+// exits 0 (RunE returns nil). Under `go test` the test binary's path never
+// contains /Cellar/, so the real isBrewInstalled guard fires naturally —
+// internal.Update returns ErrNotBrewInstalled (pinned separately by
+// internal's TestUpdate_NotBrewInstalledReturnsSentinel, which guards the
+// versionGuard contract) and updateCmd maps it to nil.
+func TestUpdateNotBrewInstalledExitsZero(t *testing.T) {
+	root := rootCmd()
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"update", "--skip-brew-update"})
+
+	if err := root.Execute(); err != nil {
+		t.Errorf("update on a non-brew install must exit 0 (RunE nil), got: %v", err)
 	}
 }
 

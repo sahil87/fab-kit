@@ -76,6 +76,44 @@ func TestUpdateSkipBrewUpdateGating(t *testing.T) {
 	}
 }
 
+// TestUpdate_AlreadyUpToDateExitsZero pins the shll update standard's
+// "exit 0 on success incl. already-up-to-date" clause: when brew's stable
+// version equals the running version, Update returns nil without ever
+// invoking `brew upgrade`.
+func TestUpdate_AlreadyUpToDateExitsZero(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	brewPath := filepath.Join(tmpDir, "brew")
+	if err := os.WriteFile(brewPath, []byte(fakeBrewScript), 0755); err != nil {
+		t.Fatalf("write fake brew: %v", err)
+	}
+	logPath := filepath.Join(tmpDir, "brew.log")
+	t.Setenv("FAB_BREW_LOG", logPath)
+	t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	orig := isBrewInstalled
+	isBrewInstalled = func() bool { return true }
+	defer func() { isBrewInstalled = orig }()
+
+	// fakeBrewScript reports stable 9.9.9 — pass the same as currentVersion
+	// so the up-to-date short-circuit fires.
+	if err := Update("9.9.9", false); err != nil {
+		t.Fatalf("Update returned error on already-up-to-date: %v", err)
+	}
+
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read brew log: %v", err)
+	}
+	log := string(data)
+	if strings.Contains(log, "upgrade") {
+		t.Errorf("already-up-to-date run must not invoke brew upgrade (log: %q)", log)
+	}
+	if !strings.Contains(log, "info") {
+		t.Errorf("brew log must contain %q (log: %q)", "info", log)
+	}
+}
+
 func TestUpdate_NotBrewInstalledReturnsSentinel(t *testing.T) {
 	orig := isBrewInstalled
 	isBrewInstalled = func() bool { return false }

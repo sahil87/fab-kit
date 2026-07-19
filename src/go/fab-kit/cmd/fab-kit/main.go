@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -109,7 +110,16 @@ func updateCmd() *cobra.Command {
 		Use:   "update",
 		Short: "Update fab-kit itself via Homebrew",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return internal.Update(version, skipBrewUpdate)
+			err := internal.Update(version, skipBrewUpdate)
+			if errors.Is(err, internal.ErrNotBrewInstalled) {
+				// Degrade with the already-printed guidance — not brew's to
+				// upgrade, so this is not a genuine failure (shll update
+				// standard: exit non-zero only on genuine failure). The
+				// sentinel itself stays intact inside internal for
+				// versionGuard's too-old-blocks-sync contract.
+				return nil
+			}
+			return err
 		},
 	}
 	cmd.Flags().BoolVar(&skipBrewUpdate, "skip-brew-update", false,

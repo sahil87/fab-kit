@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 const brewFormula = "fab-kit"
@@ -29,13 +28,17 @@ func Update(currentVersion string, skipBrewUpdate bool) error {
 
 	fmt.Printf("Current version: v%s\n", currentVersion)
 
-	// Refresh Homebrew index (unless skipped)
+	// Refresh Homebrew index (unless skipped). Brew runs unbounded with the
+	// terminal inherited — the shll update standard forbids SIGKILLing a
+	// package manager or capping `brew upgrade` with a short hard timeout
+	// (a 120s kill once landed mid-keg-swap and corrupted the install).
+	// A hung brew is visible to the user, and Ctrl-C (SIGINT) is brew-trapped.
 	if !skipBrewUpdate {
 		fmt.Println("Checking for updates...")
 		cmd := exec.Command("brew", "update", "--quiet")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		if err := runWithTimeout(cmd, 30*time.Second); err != nil {
+		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("could not check for updates (brew update failed): %w", err)
 		}
 	}
@@ -56,7 +59,7 @@ func Update(currentVersion string, skipBrewUpdate bool) error {
 	cmd := exec.Command("brew", "upgrade", brewFormula)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := runWithTimeout(cmd, 120*time.Second); err != nil {
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("brew upgrade failed: %w", err)
 	}
 
@@ -123,21 +126,4 @@ var installedBinaryVersion = func() (string, error) {
 		return "", fmt.Errorf("cannot parse fab-kit --version output %q", string(out))
 	}
 	return strings.TrimPrefix(fields[len(fields)-1], "v"), nil
-}
-
-// runWithTimeout runs a command with a timeout.
-func runWithTimeout(cmd *exec.Cmd, timeout time.Duration) error {
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
-
-	select {
-	case err := <-done:
-		return err
-	case <-time.After(timeout):
-		cmd.Process.Kill()
-		return fmt.Errorf("timed out after %s", timeout)
-	}
 }
