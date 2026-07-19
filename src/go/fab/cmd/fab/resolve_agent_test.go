@@ -43,11 +43,11 @@ func runResolveAgentCmd(t *testing.T, args ...string) (string, error) {
 func TestResolveAgentDefaultOutputExactBytes(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
 
-	out, err := runResolveAgentCmd(t, "intake") // default tier: claude/claude-fable-5/xhigh
+	out, err := runResolveAgentCmd(t, "intake") // default tier: claude/claude-fable-5/high
 	if err != nil {
 		t.Fatalf("resolve-agent intake: %v", err)
 	}
-	want := "model=claude-fable-5\neffort=xhigh\nprovider=claude\n"
+	want := "model=claude-fable-5\neffort=high\nprovider=claude\n"
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
@@ -57,14 +57,15 @@ func TestResolveAgentDefaultOutputExactBytes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve-agent ship: %v", err)
 	}
-	want = "model=claude-sonnet-5\neffort=low\nprovider=claude\n"
+	want = "model=claude-sonnet-5\neffort=medium\nprovider=claude\n"
 	if out != want {
 		t.Errorf("ship output = %q, want %q", out, want)
 	}
 }
 
 // TestResolveAgentAcceptsTierName: a role-tier name resolves directly (the
-// disjoint stage/tier positional-arg contract that serves fab agent / operator).
+// stage/tier positional-arg contract that serves fab agent / operator; shared
+// names are fixed points, so tier-first dispatch resolves them identically).
 func TestResolveAgentAcceptsTierName(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
 
@@ -89,7 +90,7 @@ func TestResolveAgentOverrideMerge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	want := "model=claude-opus-4-8\neffort=medium\nprovider=claude\n"
+	want := "model=claude-fable-5\neffort=medium\nprovider=claude\n"
 	if out != want {
 		t.Errorf("output = %q, want default model/provider + medium effort", out)
 	}
@@ -119,7 +120,7 @@ func TestResolveAgentVerbatimNoValidation(t *testing.T) {
   tiers:
     fast: { model: claude-sonnet-5, effort: xhigh }
 `)
-	out, err := runResolveAgentCmd(t, "ship")
+	out, err := runResolveAgentCmd(t, "ship") // ship ∈ fast
 	if err != nil {
 		t.Fatalf("resolve-agent ship must not error on an incompatible pair: %v", err)
 	}
@@ -180,11 +181,11 @@ func TestResolveAgentPrintsDispatchLine(t *testing.T) {
 func TestResolveAgentAliasEmitsShortAlias(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
 
-	out, err := runResolveAgentCmd(t, "apply", "--alias")
+	out, err := runResolveAgentCmd(t, "apply", "--alias") // apply ∈ doing → fable
 	if err != nil {
 		t.Fatalf("resolve-agent apply --alias: %v", err)
 	}
-	want := "model=opus\neffort=xhigh\nprovider=claude\n"
+	want := "model=fable\neffort=xhigh\nprovider=claude\n"
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
@@ -200,7 +201,7 @@ func TestResolveAgentNoAliasEmitsFullID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	want := "model=claude-opus-4-8\neffort=xhigh\nprovider=claude\n"
+	want := "model=claude-fable-5\neffort=xhigh\nprovider=claude\n"
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
@@ -230,7 +231,7 @@ func TestResolveAgentNoDispatchThreeLines(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	want := "model=claude-opus-4-8\neffort=xhigh\nprovider=claude\n"
+	want := "model=claude-fable-5\neffort=xhigh\nprovider=claude\n"
 	if out != want {
 		t.Errorf("output = %q, want the three-line contract (no dispatch= — session_command is NOT a fallback)", out)
 	}
@@ -252,7 +253,7 @@ agent:
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	want := "model=claude-opus-4-8\neffort=xhigh\nprovider=codex\ndispatch=codex exec -m claude-opus-4-8 -c model_reasoning_effort=xhigh\n"
+	want := "model=claude-fable-5\neffort=xhigh\nprovider=codex\ndispatch=codex exec -m claude-fable-5 -c model_reasoning_effort=xhigh\n"
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
@@ -273,7 +274,7 @@ agent:
 	if err != nil {
 		t.Fatalf("resolve-agent apply --alias: %v", err)
 	}
-	want := "model=opus\neffort=xhigh\nprovider=codex\ndispatch=codex exec -m claude-opus-4-8 -c model_reasoning_effort=xhigh\n"
+	want := "model=fable\neffort=xhigh\nprovider=codex\ndispatch=codex exec -m claude-fable-5 -c model_reasoning_effort=xhigh\n"
 	if out != want {
 		t.Errorf("output = %q, want aliased model= and full-ID dispatch=, got %q", out, want)
 	}
@@ -291,11 +292,11 @@ agent:
   tiers:
     fast: { provider: codex }
 `)
-	out, err := runResolveAgentCmd(t, "ship") // ship ∈ fast (sonnet/low), provider codex
+	out, err := runResolveAgentCmd(t, "ship") // ship ∈ fast (sonnet/medium), provider codex
 	if err != nil {
 		t.Fatalf("resolve-agent ship: %v", err)
 	}
-	want := "model=claude-sonnet-5\neffort=low\nprovider=codex\ndispatch=codex  exec  -m claude-sonnet-5  -c reasoning=low\n"
+	want := "model=claude-sonnet-5\neffort=medium\nprovider=codex\ndispatch=codex  exec  -m claude-sonnet-5  -c reasoning=medium\n"
 	if out != want {
 		t.Errorf("output = %q, want %q (whitespace preserved via spawn.WithProfile)", out, want)
 	}
@@ -323,7 +324,7 @@ agent:
 	if first != second {
 		t.Errorf("dispatch output not byte-stable: %q vs %q", first, second)
 	}
-	if !strings.Contains(first, "dispatch=codex exec -m claude-opus-4-8\n") {
+	if !strings.Contains(first, "dispatch=codex exec -m claude-fable-5\n") {
 		t.Errorf("output = %q, want a substituted dispatch= line", first)
 	}
 }

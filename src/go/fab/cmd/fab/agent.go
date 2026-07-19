@@ -19,7 +19,7 @@ import (
 // profile-resolved (model/effort substituted), not placeholder-stripped.
 //
 //   - Resolves the tier profile (default when the positional [tier] is omitted;
-//     any of the five role-tier names accepted), then composes
+//     any of the six role-tier names accepted), then composes
 //     providers.<profile.provider>.session_command with {model}/{effort}
 //     substituted (or Claude-style flags appended for a non-templated command),
 //     via internal/spawn.WithProfile.

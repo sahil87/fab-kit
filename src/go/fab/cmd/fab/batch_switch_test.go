@@ -405,7 +405,7 @@ func TestRunBatchSwitch_WtFailureSurfacesStderr(t *testing.T) {
 // command carries the default tier's {model}/{effort} PROFILE — substituted into a
 // templated session_command (no literal braces reach tmux), or appended as
 // --model/--effort to a non-templated command. The default tier resolves to
-// claude/claude-fable-5/xhigh.
+// claude/claude-fable-5/high.
 func TestRunBatchSwitch_SpawnCommandProfileInjection(t *testing.T) {
 	t.Run("templated session_command substituted with the default profile", func(t *testing.T) {
 		_, change := batchSwitchFixture(t, "codex -m {model} -c model_reasoning_effort={effort}")
@@ -427,7 +427,7 @@ func TestRunBatchSwitch_SpawnCommandProfileInjection(t *testing.T) {
 		if strings.Contains(got, "{model}") || strings.Contains(got, "{effort}") {
 			t.Errorf("literal placeholder braces reached tmux:\n%s", got)
 		}
-		if !strings.Contains(got, "codex -m claude-fable-5 -c model_reasoning_effort=xhigh '/fab-switch") {
+		if !strings.Contains(got, "codex -m claude-fable-5 -c model_reasoning_effort=high '/fab-switch") {
 			t.Errorf("templated session_command not substituted with the default profile:\n%s", got)
 		}
 	})
@@ -448,7 +448,7 @@ func TestRunBatchSwitch_SpawnCommandProfileInjection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("reading tmux capture: %v", err)
 		}
-		if !strings.Contains(string(args), "claude --dangerously-skip-permissions --model claude-fable-5 --effort xhigh '/fab-switch") {
+		if !strings.Contains(string(args), "claude --dangerously-skip-permissions --model claude-fable-5 --effort high '/fab-switch") {
 			t.Errorf("non-templated session_command missing the appended default profile:\n%s", string(args))
 		}
 	})

@@ -28,14 +28,17 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 )
 
-// Role-tier names. Five roles with concrete referents, replacing the old
-// thinking/doing/fast cognitive-mode vocabulary.
+// Role-tier names. Six tiers with concrete referents. A tier is stage-named only
+// where it maps 1:1 to a single referent (review, hydrate); default, doing, and
+// fast keep role names because each is multi-referent (fast governs the ship stage
+// AND the /fab-proceed prefix-step dispatches).
 const (
-	TierDefault  = "default"  // spawned worker sessions, `fab agent` with no tier, intake (advisory); per-field fallback for every other tier
+	TierDefault  = "default"  // spawned worker sessions, `fab agent` with no tier, intake (advisory), the /fab-proceed create-intake dispatch; per-field fallback for every other tier
 	TierOperator = "operator" // the operator coordinator session (`fab operator`)
-	TierDoing    = "doing"    // apply, review-pr, hydrate — execution that must not err
+	TierDoing    = "doing"    // apply, review-pr — execution that must not err
 	TierReview   = "review"   // review — author/critic separation
-	TierFast     = "fast"     // ship — speed on near-mechanical work
+	TierHydrate  = "hydrate"  // hydrate — memory writing
+	TierFast     = "fast"     // ship, the /fab-proceed prefix steps — speed on near-mechanical work
 )
 
 // DefaultProviderName is the built-in provider a fresh config resolves to when a
@@ -79,25 +82,31 @@ var defaultProviders = map[string]config.ProviderConfig{
 // every line (documented style; inheritance is the safety net). Mirrored in
 // docs/specs/stage-models.md § default-tier table (drift-guarded).
 var defaultTiers = map[string]Profile{
-	TierDefault:  {Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"},
+	TierDefault:  {Provider: "claude", Model: "claude-fable-5", Effort: "high"},
 	TierOperator: {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
-	TierDoing:    {Provider: "claude", Model: "claude-opus-4-8", Effort: "xhigh"},
-	TierReview:   {Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"},
-	TierFast:     {Provider: "claude", Model: "claude-sonnet-5", Effort: "low"},
+	TierDoing:    {Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"},
+	TierReview:   {Provider: "claude", Model: "claude-opus-4-8", Effort: "xhigh"},
+	TierHydrate:  {Provider: "claude", Model: "claude-opus-4-8", Effort: "high"},
+	TierFast:     {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
 }
 
 // stageTiers is the FIXED, fab-owned stage→tier mapping. Exhaustive over the six
 // pipeline stages (each stage belongs to exactly one tier). NOT user-overridable.
-// Note review (own tier — author/critic separation) and review-pr (responsive →
-// doing) are in DIFFERENT tiers despite sharing the word "review". intake maps to
-// default but is ADVISORY only — it runs foreground in the user's own session,
-// which fab cannot re-model. Mirrored in docs/specs/stage-models.md
-// § stage→tier table (drift-guarded).
+// Two stages share a name with their tier (review, hydrate) — each such collision
+// is a FIXED POINT (stageTiers[name] == name), which is what makes the tier-first
+// resolution order in cmd/fab.resolveStageOrTier immaterial for those names
+// (guarded by TestStageTierCollisionsAreFixedPoints). ship maps to the fast tier
+// (fast is multi-referent — it also governs the /fab-proceed prefix steps — so it
+// keeps its role name, not the stage name). Note review (own tier — author/critic
+// separation) and review-pr (responsive → doing) are in DIFFERENT tiers despite
+// sharing the word "review". intake maps to default but is ADVISORY only — it runs
+// foreground in the user's own session, which fab cannot re-model. Mirrored in
+// docs/specs/stage-models.md § stage→tier table (drift-guarded).
 var stageTiers = map[string]string{
 	"intake":    TierDefault,
 	"apply":     TierDoing,
 	"review":    TierReview,
-	"hydrate":   TierDoing,
+	"hydrate":   TierHydrate,
 	"ship":      TierFast,
 	"review-pr": TierDoing,
 }
@@ -117,8 +126,11 @@ func TierForStage(stage string) (string, bool) {
 }
 
 // IsTierName reports whether name is one of the known role-tier names. Used by
-// `fab resolve-agent` to accept a tier name positionally alongside a stage name
-// (the two sets are disjoint).
+// `fab resolve-agent` to accept a tier name positionally alongside a stage name.
+// The two sets overlap only at fixed points — a name shared by a stage and a tier
+// (review, hydrate) is one the stage maps to that same-named tier
+// (stageTiers[name] == name), so either interpretation resolves identically.
+// ("ship" is a stage but NOT a tier — it maps to the fast tier.)
 func IsTierName(name string) bool {
 	_, ok := defaultTiers[name]
 	return ok

@@ -356,7 +356,7 @@ func TestRunBatchNew_SpawnCommandProfileInjection(t *testing.T) {
 		if strings.Contains(got, "{model}") || strings.Contains(got, "{effort}") {
 			t.Errorf("literal placeholder braces reached tmux:\n%s", got)
 		}
-		if !strings.Contains(got, "codex -m claude-fable-5 -c model_reasoning_effort=xhigh '/fab-new") {
+		if !strings.Contains(got, "codex -m claude-fable-5 -c model_reasoning_effort=high '/fab-new") {
 			t.Errorf("templated session_command not substituted with the default profile:\n%s", got)
 		}
 	})
@@ -375,7 +375,7 @@ func TestRunBatchNew_SpawnCommandProfileInjection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("reading tmux capture: %v", err)
 		}
-		if !strings.Contains(string(args), "claude --dangerously-skip-permissions --model claude-fable-5 --effort xhigh '/fab-new") {
+		if !strings.Contains(string(args), "claude --dangerously-skip-permissions --model claude-fable-5 --effort high '/fab-new") {
 			t.Errorf("non-templated session_command missing the appended default profile:\n%s", string(args))
 		}
 	})
