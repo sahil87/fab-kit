@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 7
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-07-19T23:09:55Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-19T23:17:19Z"}
     review: {started_at: "2026-07-19T23:17:19Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-19T23:20:05Z"}
     hydrate: {started_at: "2026-07-19T23:20:05Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-19T23:24:04Z"}
-    ship: {started_at: "2026-07-19T23:24:04Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-07-19T23:24:04Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-19T23:26:13Z"}
+    review-pr: {started_at: "2026-07-19T23:26:13Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/509
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 483
+    deleted: 28
+    net: 455
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 122
+        deleted: 23
+        net: 99
     tests:
-        added: 0
+        added: 103
         deleted: 0
-        net: 0
-    computed_at: "2026-07-19T23:24:04Z"
-    computed_at_stage: hydrate
+        net: 103
+    computed_at: "2026-07-19T23:26:13Z"
+    computed_at_stage: ship
 summary: update command runs brew unbounded (no timeout/SIGKILL) and exits 0 on non-brew installs; versionGuard sentinel unchanged; conformant to shll update+version standards
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-07-19T23:24:04Z
+last_updated: 2026-07-19T23:26:13Z
