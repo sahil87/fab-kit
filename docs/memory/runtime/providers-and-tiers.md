@@ -63,7 +63,7 @@ fab-kit's built-in default profiles (owned by `defaultTiers` in `internal/agent`
 | `review` | `review` — the critic (author/critic separation) | `claude` / `claude-fable-5` / `xhigh` |
 | `fast` | `ship` — near-mechanical work | `claude` / `claude-sonnet-5` / `low` |
 
-**Per-field inheritance**: any tier field left unset (provider, model, effort) inherits from the project's `default` tier, then from fab-kit's built-in for that tier (`ResolveTier` middle-layer merge). Inheriting `{provider, model, effort}` is safe *because commands moved to `providers:`* — the dangerous cross-semantics command inheritance can no longer happen. **Documented style: write `provider:` explicitly on every tier line** even though inheritance makes it optional (per-line readability; inheritance is the safety net). Model IDs are written **versioned** (`claude-opus-4-8`) — bare family IDs fail both dispatch seams.
+**Per-field inheritance**: any tier field left unset (provider, model, effort) inherits from the project's `default` tier, then from fab-kit's built-in for that tier (`ResolveTier` middle-layer merge). Inheriting `{provider, model, effort}` is safe *because commands moved to `providers:`* — the dangerous cross-semantics command inheritance cannot happen. **Documented style: write `provider:` explicitly on every tier line** even though inheritance makes it optional (per-line readability; inheritance is the safety net). Model IDs are written **versioned** (`claude-opus-4-8`) — bare family IDs fail both dispatch seams.
 
 #### Scenario: an unset field inherits the default tier
 

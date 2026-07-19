@@ -10,9 +10,9 @@ description: "Agent-state divestment: fab reads the `@rk_agent_state` tmux pane 
 
 fab determines an agent's lifecycle state by **reading** a tmux pane user option, `@rk_agent_state`, with plain tmux commands. It does **not** produce that state, and it does **not** depend on run-kit software being installed — the option is a data convention in tmux, read with `tmux show-options`/`list-panes`, so fab reads it whether or not run-kit is present.
 
-This is a divestment (ioku, 2026-07): fab-kit **stopped producing** agent active/idle lifecycle state and became a **pure consumer** of a shared convention. Agent-state detection was never core fab — it is a tmux-context observation feature that got bolted onto fab because no owner existed. run-kit is that owner now: its `rk agent-setup` global agent-harness hooks write `@rk_agent_state` for Claude Code, Codex, Copilot, Gemini, and OpenCode. fab reads it in three places — `fab pane map` (Agent column), `fab pane send` (idle gate), and `fab pane capture` (header). See [pane-commands.md](/runtime/pane-commands.md) for those readers and [hooks-may-enhance-never-own.md](/pipeline/hooks-may-enhance-never-own.md) for the principle this strengthens.
+This is a divestment (ioku): fab-kit **stopped producing** agent active/idle lifecycle state and became a **pure consumer** of a shared convention. Agent-state detection was never core fab — it is a tmux-context observation feature that got bolted onto fab because no owner existed. run-kit is that owner now: its `rk agent-setup` global agent-harness hooks write `@rk_agent_state` for Claude Code, Codex, Copilot, Gemini, and OpenCode. fab reads it in three places — `fab pane map` (Agent column), `fab pane send` (idle gate), and `fab pane capture` (header). See [pane-commands.md](/runtime/pane-commands.md) for those readers and [hooks-may-enhance-never-own.md](/pipeline/hooks-may-enhance-never-own.md) for the principle this strengthens.
 
-> **Release gate.** The writer does not exist yet. When ioku shipped, the installed `rk` had no `agent-setup` command and no pane carried `@rk_agent_state`. The change's PR is therefore **explicitly held** from merge/release until `rk agent-setup` exists on Sahil's machines — otherwise `fab pane send` gating and the operator's Agent column go blind everywhere (pane map all `—`, send refuses without `--force`). fab is the consumer; the schema draft below is the working contract, and fab reading a not-yet-written option degrades to "unknown" — the correct fallback.
+> **Release gate.** The writer does not exist yet. At divestment ship time (ioku), the installed `rk` had no `agent-setup` command and no pane carried `@rk_agent_state`. The change's PR is therefore **explicitly held** from merge/release until `rk agent-setup` exists on Sahil's machines — otherwise `fab pane send` gating and the operator's Agent column go blind everywhere (pane map all `—`, send refuses without `--force`). fab is the consumer; the schema draft below is the working contract, and fab reading a not-yet-written option degrades to "unknown" — the correct fallback.
 
 ## Requirements
 
@@ -34,7 +34,7 @@ fab reads the tmux **pane user option** `@rk_agent_state`, whose value is `"<sta
 - The **epoch suffix is mandatory.** Consumers compute idle duration from it (`now - epoch`, formatted by `FormatIdleDuration`) and can apply staleness heuristics (an Esc-interrupted agent can leave a stale `active`). A value without a parseable `:epoch` suffix is **unknown**, not a bare state.
 - **Absent / unparseable / unknown-token → unknown.** An absent option, an unknown state token (outside `{active, waiting, idle}`), or a missing/non-integer epoch all resolve to unknown — displayed as `—`, gated by `fab pane send` as a distinct "unknown" refusal (see [pane-commands.md](/runtime/pane-commands.md)).
 
-**Schema ownership is run-kit's.** The `"<state>:<epoch_seconds>"` grammar above is the current working contract (drafted in the ioku pickup doc, recorded in run-kit constitution Principle X "Hooks Carry Only the Underivable", v1.4.0). If run-kit changes the format later, adapting fab's reader is a follow-up change — the divergence risk is accepted.
+**Schema ownership is run-kit's.** The `"<state>:<epoch_seconds>"` grammar above is the current working contract (drafted in the divestment pickup doc (ioku), recorded in run-kit constitution Principle X "Hooks Carry Only the Underivable", v1.4.0). If run-kit changes the format later, adapting fab's reader is a follow-up change — the divergence risk is accepted.
 
 **No run-kit software dependency.** fab reads the option with `tmux show-options -pv -t <pane> @rk_agent_state` (send/capture) and `#{@rk_agent_state}` in the `list-panes -F` format string (map). These are plain tmux commands against a pane option — a *data* convention, not a link against run-kit. fab works identically whether run-kit wrote the option or nobody did (nobody → unknown everywhere, the honest fallback). All commands behave identically **outside tmux** too: with no tmux server there is no pane to read, so there is simply no agent state — no runtime file is written or read anywhere.
 
@@ -61,7 +61,7 @@ The `"<state>:<epoch>"` parse lives in a **single pure function** `parseAgentSta
 
 ### The Deleted Producer Pipeline
 
-The entire `.fab-runtime.yaml` `_agents` producer subsystem was **deleted wholesale** in ioku. What is gone:
+The entire `.fab-runtime.yaml` `_agents` producer subsystem was **deleted wholesale** (ioku). What is gone:
 
 - **The hook write pipeline** (`cmd/fab/hook.go`): the whole `fab hook` command family — `fab hook stop|session-start|user-prompt`, plus `artifact-write` and `sync` — was **removed outright** (no shim period; see [hooks-may-enhance-never-own.md](/pipeline/hooks-may-enhance-never-own.md)), including `WriteAgent`/`ClearAgent`/`ClearAgentIdle`/`UpdateAgent`, the throttled GC sweep + `last_run_gc`, and the grandparent PID walker. `cmd/fab/hook.go` and `internal/hooklib/sync.go` are deleted; the plan-parsing helpers in `internal/hooklib/artifact.go` (change-type inference, section counting) survive — they feed `fab status refresh`, not any hook.
 - **`internal/runtime/`** — the whole `_agents` map and `.fab-runtime.yaml` read/write. Nothing else lived in the file (only `_agents` + top-level `last_run_gc`), so the file concept died wholesale.
@@ -76,7 +76,7 @@ The entire `.fab-runtime.yaml` `_agents` producer subsystem was **deleted wholes
 - **GIVEN** the `fab hook` command family was removed (no `stop`/`user-prompt`/`session-start`/`artifact-write`/`sync` subcommands)
 - **WHEN** an un-migrated `.claude/settings.local.json` still fires `fab hook <x>` (before the settings-cleanup migrations run)
 - **THEN** it errors with a cobra unknown-command message on stderr and a non-zero exit — no `.fab-runtime.yaml` is created (nothing writes it anymore); the `2.13.6-to-2.14.0` migration removes the entry in the checkout it runs in, and the `2.15.7-to-2.15.8` migration (weoh) re-sweeps it out of every worktree — including the main checkout, whose settings file every worktree session resolves through (see [distribution/migrations.md](/distribution/migrations.md) § `2.15.7-to-2.15.8`)
-- **AND** all three pane readers resolve agent state from `@rk_agent_state`, so a codex/copilot/gemini pane (previously invisible to the Claude-only pipeline) is now covered once its option is set
+- **AND** all three pane readers resolve agent state from `@rk_agent_state`, so a codex/copilot/gemini pane (invisible to the old Claude-only pipeline) is covered once its option is set
 
 ## Design Decisions
 

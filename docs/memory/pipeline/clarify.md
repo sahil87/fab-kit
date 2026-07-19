@@ -8,7 +8,7 @@ description: "`/fab-clarify` skill — intake-only, dual modes (suggest/auto), i
 
 ## Overview
 
-The `/fab-clarify` skill deepens and refines the **intake** artifact (`intake.md`) without advancing. It is **intake-only** (j6cs): clarification is the intake-time, human-facing activity where the developer's decisions and disambiguation happen, gated by the single intake confidence gate. There is no post-intake clarify — inside apply, the agent resolves ambiguity inline as graded SRAD assumptions in `plan.md`'s `## Assumptions`, not via this skill. It operates in two modes depending on call context: **suggest mode** for interactive user-driven clarification, and **auto mode** for autonomous resolution (machine-readable result; no orchestrator currently invokes it — j6cs).
+The `/fab-clarify` skill deepens and refines the **intake** artifact (`intake.md`) without advancing. It is **intake-only** (j6cs): clarification is the intake-time, human-facing activity where the developer's decisions and disambiguation happen, gated by the single intake confidence gate. There is no post-intake clarify — inside apply, the agent resolves ambiguity inline as graded SRAD assumptions in `plan.md`'s `## Assumptions`, not via this skill. It operates in two modes depending on call context: **suggest mode** for interactive user-driven clarification, and **auto mode** for autonomous resolution (machine-readable result; no orchestrator currently invokes it) (j6cs).
 
 ## Requirements
 
@@ -25,11 +25,11 @@ There SHALL be no `--suggest` or `--auto` flags on the clarify skill.
 
 #### Stage-Scoped Taxonomy Scan
 
-The skill SHALL perform a systematic scan of `intake.md` for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers. There is a single taxonomy (intake-only as of j6cs):
+The skill SHALL perform a systematic scan of `intake.md` for gaps, ambiguities, and `[NEEDS CLARIFICATION]` markers. There is a single taxonomy (intake-only (j6cs)):
 
 - **Intake**: scope boundaries, affected areas, blocking questions, impact completeness, affected memory coverage, Origin section completeness
 
-A passed `spec`, `plan`, or `tasks` argument is treated as a change name (no such targets exist — j6cs, qszh). At apply or later, `/fab-clarify` STOPs with a pointer to `/fab-continue` for rework or editing `plan.md`'s `## Requirements` directly.
+A passed `spec`, `plan`, or `tasks` argument is treated as a change name (no such targets exist) (j6cs) (qszh). At apply or later, `/fab-clarify` STOPs with a pointer to `/fab-continue` for rework or editing `plan.md`'s `## Requirements` directly.
 
 The scan also detects:
 - `<!-- assumed: ... -->` markers left by any planning skill — Tentative assumptions to confirm or override
@@ -76,7 +76,7 @@ In auto mode, the skill SHALL resolve gaps in `intake.md` using available contex
 
 #### Grade Reclassification
 
-When an assumption is resolved through the Step 3–4 Q&A path (a structured question answered directly by the user), the skill SHALL re-grade the corresponding row **by recomputed composite, not by fiat** — the same rule as bulk confirm: set S → 95 (R, A, D unchanged), recompute the composite per `_srad.md` § SRAD Scoring, and assign the grade by its half-open bands. A direct answer typically lands the row in Certain, but a row whose recomputed composite stays below the Certain band keeps its banded grade — the grade is derived from the dimensions, never forced (srad.md § Grades: a derived grade can never contradict its own S/R/A/D). This re-grading occurs immediately after each answer, before the next question is presented. **Bulk-confirmed rows are likewise NOT relabeled by fiat** (c5tr): the bulk-confirm Artifact Update sets S → 95 (R, A, D unchanged), recomputes the composite per `_srad.md` § SRAD Scoring, and assigns the grade by its half-open bands (Certain ≥ 80, Confident 50–80, Tentative 20–50, Unresolved < 20 — 4yi8) — a confirmed row whose recomputed composite stays below the Certain band remains Confident, with the confirmation recorded in Rationale. The skill restates no weights or thresholds — the formula is referenced, not inlined (c5tr).
+When an assumption is resolved through the Step 3–4 Q&A path (a structured question answered directly by the user), the skill SHALL re-grade the corresponding row **by recomputed composite, not by fiat** — the same rule as bulk confirm: set S → 95 (R, A, D unchanged), recompute the composite per `_srad.md` § SRAD Scoring, and assign the grade by its half-open bands. A direct answer typically lands the row in Certain, but a row whose recomputed composite stays below the Certain band keeps its banded grade — the grade is derived from the dimensions, never forced (srad.md § Grades: a derived grade can never contradict its own S/R/A/D). This re-grading occurs immediately after each answer, before the next question is presented. **Bulk-confirmed rows are likewise NOT relabeled by fiat** (c5tr): the bulk-confirm Artifact Update sets S → 95 (R, A, D unchanged), recomputes the composite per `_srad.md` § SRAD Scoring, and assigns the grade by its half-open bands (Certain ≥ 80, Confident 50–80, Tentative 20–50, Unresolved < 20) (4yi8) — a confirmed row whose recomputed composite stays below the Certain band remains Confident, with the confirmation recorded in Rationale. The skill restates no weights or thresholds — the formula is referenced, not inlined (c5tr).
 
 #### Confidence Recomputation
 
@@ -107,7 +107,7 @@ When not triggered: if Step 1.5's question queue is also empty (zero gaps), the 
 1. Display all Confident assumptions using original `#` column from the Assumptions table, with Decision and Rationale. Do NOT use `AskUserQuestion` — the list is plain text, and the user's next conversational message is the response.
 2. Parse the response: confirm (`✓`/`ok`/`yes`/bare number), change (free text), explain (`?`), range (`{start}-{end}`), or all (`all ✓`). Case-insensitive for keywords.
 3. For explanation requests: provide a brief inline explanation, then re-prompt for only the unexplained items (one round max).
-4. Update the Assumptions table in place: confirmed/changed items set S → 95 (R, A, D unchanged), Rationale updated (e.g., `Clarified — user confirmed`), and the **grade is assigned by the recomputed composite, not by fiat** (c5tr) — recompute per `_srad.md` § SRAD Scoring and map via its half-open bands; a row whose recomputed composite stays < 80 remains Confident (4yi8 — Certain band is ≥ 80). Unmentioned items stay Confident.
+4. Update the Assumptions table in place: confirmed/changed items set S → 95 (R, A, D unchanged), Rationale updated (e.g., `Clarified — user confirmed`), and the **grade is assigned by the recomputed composite, not by fiat** (c5tr) — recompute per `_srad.md` § SRAD Scoring and map via its half-open bands; a row whose recomputed composite stays < 80 remains Confident (Certain band is ≥ 80) (4yi8). Unmentioned items stay Confident.
 5. Append to Clarifications audit trail as `### Session {date} (bulk confirm)` — same placement/append rules as Step 5's Q&A trail (c5tr): append to an existing `## Clarifications` section; create it immediately before `## Assumptions` if absent; skip when 0 items were resolved.
 
 After bulk confirm completes, proceed to Step 3 (remaining taxonomy questions from Step 1.5's queue).
@@ -126,7 +126,7 @@ The clarify skill SHALL never advance the stage in `.status.yaml`. It only updat
 
 - **`intake`** — operates on the intake stage (`progress.intake` in `{active, ready, done}`), scanning `intake.md`.
 
-The pre-flight stage guard MUST allow only `intake`. At any post-intake stage (`apply`, `review`, `hydrate`, `ship`, `review-pr`), `/fab-clarify` does not apply and STOPs with: "Clarification is intake-only. At apply or later, run /fab-continue for rework, or edit plan.md `## Requirements` directly. To re-clarify the intake, reset with /fab-continue intake first." If `intake.md` is missing entirely, it STOPs with "No intake.md found. Run /fab-new to create the intake first." There are no `spec`/`plan`/`tasks` targets (j6cs, qszh); any such positional argument is treated as a change name.
+The pre-flight stage guard MUST allow only `intake`. At any post-intake stage (`apply`, `review`, `hydrate`, `ship`, `review-pr`), `/fab-clarify` does not apply and STOPs with: "Clarification is intake-only. At apply or later, run /fab-continue for rework, or edit plan.md `## Requirements` directly. To re-clarify the intake, reset with /fab-continue intake first." If `intake.md` is missing entirely, it STOPs with "No intake.md found. Run /fab-new to create the intake first." There are no `spec`/`plan`/`tasks` targets (j6cs) (qszh); any such positional argument is treated as a change name.
 
 ## Design Decisions
 
@@ -137,13 +137,13 @@ The pre-flight stage guard MUST allow only `intake`. At any post-intake stage (`
 *Introduced by*: 260601-j6cs-merge-spec-into-apply
 
 ### Mode Selection by `[AUTO-MODE]` Prefix
-**Decision**: Mode is determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (in `fab-clarify.md` itself since zc9m — see the next decision). Prefix present = auto mode; absent = suggest mode. No flags.
+**Decision**: Mode is determined by the `[AUTO-MODE]` prefix defined in the Skill Invocation Protocol (in `fab-clarify.md` itself (zc9m) — see the next decision). Prefix present = auto mode; absent = suggest mode. No flags.
 **Why**: Makes the contract explicit and testable rather than relying on implicit call-context interpretation. Avoids a confusing `--suggest`/`--auto` flag pair with no clear use case for user-invoked auto mode.
 **Rejected**: Flag-based mode selection — adds complexity, no user scenario requires it. Implicit call-context detection — unreliable, not testable.
 *Updated by*: 260210-nan4-define-auto-mode-signaling; 260611-zc9m-preamble-context-diet (protocol definition relocated into `fab-clarify.md`)
 
 ### `[AUTO-MODE]` Protocol Co-located with Its Sole Referencer (zc9m)
-**Decision**: The `[AUTO-MODE]` Skill Invocation Protocol (prefix, placement, detection, transitivity) moved from `_preamble.md` into `fab-clarify.md` § Skill Invocation Protocol — its sole referencer since j6cs removed the orchestrator auto-clarify steps. `_preamble.md` keeps a 2-line pointer, and its live § Subagent Dispatch section references the new location. `fab-clarify`'s Auto Mode is **retained** — zero behavior change.
+**Decision**: The `[AUTO-MODE]` Skill Invocation Protocol (prefix, placement, detection, transitivity) moved from `_preamble.md` into `fab-clarify.md` § Skill Invocation Protocol — its sole referencer (j6cs) removed the orchestrator auto-clarify steps. `_preamble.md` keeps a 2-line pointer, and its live § Subagent Dispatch section references the new location. `fab-clarify`'s Auto Mode is **retained** — zero behavior change.
 **Why**: The protocol is dormant (no skill currently invokes another with the prefix) yet was paid for by every skill on every invocation via the always-load preamble. Co-locating it with the only skill that consumes it keeps the contract fully specified while removing it from the universal tax. The user explicitly chose **move over delete** at intake: deleting both dormant halves (protocol + Auto Mode) would have been a behavior decision, and retention preserves the machine-readable auto-mode path for future orchestrators at zero cost.
 **Rejected**: Deleting the protocol and fab-clarify's Auto Mode (user decision — loses retained-for-future-use behavior). Leaving the protocol in the preamble (every skill pays for a protocol nothing live uses).
 *Introduced by*: 260611-zc9m-preamble-context-diet
