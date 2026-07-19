@@ -410,6 +410,56 @@ func TestUpgrade_NoFabVersionInstallPath(t *testing.T) {
 	}
 }
 
+// TestUpgrade_NoFabVersionFromSubdirectory: with the config.yaml fallback closed
+// (260719-kq7v), an unmigrated repo (no fab/.fab-version) makes ResolveConfig
+// error, so Upgrade hits its recovery branch. Run from a SUBDIRECTORY, that
+// branch must still walk up to locate fab/project/config.yaml and proceed —
+// rather than falsely reporting "not in a fab-managed repo" (Copilot #506).
+func TestUpgrade_NoFabVersionFromSubdirectory(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	populateRemoteCache(t, home, "2.0.0")
+
+	// config.yaml exists but there is no fab/.fab-version pin.
+	configDir := filepath.Join(repo, "fab", "project")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("project:\n    name: test\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Run from a nested subdirectory, not the repo root.
+	subDir := filepath.Join(repo, "src", "go", "fab-kit")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, subDir)
+
+	stubRunSync(t, func(string, string, bool, bool) error { return nil })
+
+	var err error
+	out := captureStdout(t, func() { err = Upgrade("1.5.0", "2.0.0", false) })
+	if err != nil {
+		t.Fatalf("Upgrade from subdirectory: %v", err)
+	}
+	if !strings.Contains(out, "Installed: 2.0.0") {
+		t.Errorf("expected 'Installed: 2.0.0' line, output:\n%s", out)
+	}
+
+	// The pin is stamped at the repo root (walked-up), not under the CWD.
+	v, err := readFabVersion(repo)
+	if err != nil {
+		t.Fatalf("readFabVersion: %v", err)
+	}
+	if v != "2.0.0" {
+		t.Errorf("resolved fab version = %q, want 2.0.0", v)
+	}
+	if _, statErr := os.Stat(filepath.Join(subDir, "fab", ".fab-version")); statErr == nil {
+		t.Errorf("pin must be stamped at repo root, not under the CWD subdirectory")
+	}
+}
+
 // --- Target resolution precedence (260613-1hmj, offline-first default) ---
 
 // stubGitHubAPINever points githubAPIURL at a server that fails the test if the

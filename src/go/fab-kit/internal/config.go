@@ -64,41 +64,64 @@ func RequireManagedRepo() (*ConfigResult, error) {
 	return cfg, nil
 }
 
-func resolveConfigFrom(startDir string) (*ConfigResult, error) {
+// findConfigDir walks up from startDir looking for fab/project/config.yaml and
+// returns the directory that contains the fab/ tree (the repo root) plus the
+// located config.yaml path. When no config.yaml is found up to the filesystem
+// root it returns ("", "") — "not a fab-managed repo". This is the walk-up
+// primitive shared by resolveConfigFrom and the Upgrade recovery path, so both
+// locate the repo root identically regardless of the CWD depth.
+func findConfigDir(startDir string) (repoRoot, configPath string) {
 	dir := startDir
 	for {
 		candidate := filepath.Join(dir, configRelPath)
 		if _, err := os.Stat(candidate); err == nil {
-			version, err := readFabVersion(dir)
-			if err != nil {
-				return nil, err
-			}
-			return &ConfigResult{
-				ConfigPath: candidate,
-				RepoRoot:   dir,
-				FabVersion: version,
-			}, nil
+			return dir, candidate
 		}
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			// Reached filesystem root
-			return nil, nil
+			return "", ""
 		}
 		dir = parent
 	}
 }
 
+func resolveConfigFrom(startDir string) (*ConfigResult, error) {
+	repoRoot, configPath := findConfigDir(startDir)
+	if repoRoot == "" {
+		// Reached filesystem root without finding config.yaml
+		return nil, nil
+	}
+	version, err := readFabVersion(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	return &ConfigResult{
+		ConfigPath: configPath,
+		RepoRoot:   repoRoot,
+		FabVersion: version,
+	}, nil
+}
+
 // readFabVersion resolves the pinned engine version for a repo from the plain-text
 // sibling fab/.fab-version (the sole source since 260708-j0qm; config.yaml is no
-// longer consulted). repoRoot anchors the lookup. An absent, empty, or unreadable
-// fab/.fab-version is a real error — the router needs a pinned version.
+// longer consulted). repoRoot anchors the lookup. An absent or empty file is a
+// real error with the init/upgrade guidance — the router needs a pinned version.
+// A non-ENOENT read error (permission denied, I/O error) is surfaced separately
+// with the path and underlying cause, so a present-but-unreadable pin is not
+// misreported as "run init/upgrade" (which would not help).
 func readFabVersion(repoRoot string) (string, error) {
-	data, err := os.ReadFile(filepath.Join(repoRoot, dotFabVersionRelPath))
-	if err == nil {
-		if v := strings.TrimSpace(string(data)); v != "" {
-			return v, nil
+	path := filepath.Join(repoRoot, dotFabVersionRelPath)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("no fab version found in fab/.fab-version. Run 'fab init' (new repo) or 'fab upgrade-repo' (existing repo) to set one")
 		}
+		return "", fmt.Errorf("cannot read %s: %w", path, err)
+	}
+	if v := strings.TrimSpace(string(data)); v != "" {
+		return v, nil
 	}
 	return "", fmt.Errorf("no fab version found in fab/.fab-version. Run 'fab init' (new repo) or 'fab upgrade-repo' (existing repo) to set one")
 }

@@ -3,6 +3,7 @@ package internal
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -156,6 +157,37 @@ func TestReadFabVersion_EmptyDotFile(t *testing.T) {
 	_, err := readFabVersion(repoRoot)
 	if err == nil {
 		t.Fatal("expected error for an empty fab/.fab-version")
+	}
+}
+
+// TestReadFabVersion_UnreadableSurfacesRealError: a present-but-unreadable
+// fab/.fab-version (permission denied / I/O error) surfaces the path and the
+// underlying cause — NOT the "run init/upgrade" guidance, which would mislead a
+// user whose pin file is present but unreadable (260719-kq7v).
+func TestReadFabVersion_UnreadableSurfacesRealError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root: file mode 0000 does not block reads")
+	}
+	repoRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repoRoot, "fab"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	pin := filepath.Join(repoRoot, "fab", ".fab-version")
+	if err := os.WriteFile(pin, []byte("2.16.0\n"), 0000); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := readFabVersion(repoRoot)
+	if err == nil {
+		t.Fatal("expected error for an unreadable fab/.fab-version")
+	}
+	// The path must appear so the failure is diagnosable, and the init/upgrade
+	// guidance must NOT — the file exists, so that advice would be wrong.
+	if !strings.Contains(err.Error(), pin) {
+		t.Errorf("expected error to name the path %q, got: %v", pin, err)
+	}
+	if strings.Contains(err.Error(), "Run 'fab init'") {
+		t.Errorf("unreadable file must not emit init/upgrade guidance, got: %v", err)
 	}
 }
 
