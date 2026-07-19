@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 4
@@ -33,13 +33,15 @@ stage_metrics:
     apply: {started_at: "2026-07-19T15:14:41Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-19T15:17:42Z"}
     review: {started_at: "2026-07-19T15:17:42Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-19T15:22:01Z"}
     hydrate: {started_at: "2026-07-19T15:22:01Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-19T15:23:55Z"}
-    ship: {started_at: "2026-07-19T15:23:55Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-07-19T15:23:55Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-19T15:26:59Z"}
+    review-pr: {started_at: "2026-07-19T15:26:59Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/507
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 260
+    deleted: 3
+    net: 257
     excluding:
         added: 0
         deleted: 0
@@ -48,8 +50,8 @@ true_impact:
         added: 0
         deleted: 0
         net: 0
-    computed_at: "2026-07-19T15:23:55Z"
-    computed_at_stage: hydrate
+    computed_at: "2026-07-19T15:26:59Z"
+    computed_at_stage: ship
 summary: Stamp fab-kit repo version 2.16.3 to 2.16.4 (mechanical carry-only upgrade; no behavior or memory change)
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-07-19T15:23:55Z
+last_updated: 2026-07-19T15:26:59Z
