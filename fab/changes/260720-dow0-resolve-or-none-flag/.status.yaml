@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 13
@@ -33,22 +33,24 @@ stage_metrics:
     apply: {started_at: "2026-07-20T16:30:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-20T16:46:44Z"}
     review: {started_at: "2026-07-20T16:46:44Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-20T16:50:53Z"}
     hydrate: {started_at: "2026-07-20T16:50:53Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-20T16:57:07Z"}
-    ship: {started_at: "2026-07-20T16:57:07Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-07-20T16:57:07Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-20T16:58:51Z"}
+    review-pr: {started_at: "2026-07-20T16:58:51Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/515
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 627
+    deleted: 54
+    net: 573
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 201
+        deleted: 25
+        net: 176
     tests:
-        added: 0
+        added: 140
         deleted: 0
-        net: 0
-    computed_at: "2026-07-20T16:57:07Z"
-    computed_at_stage: hydrate
+        net: 140
+    computed_at: "2026-07-20T16:58:51Z"
+    computed_at_stage: ship
 summary: add opt-in fab resolve --or-none flag mapping state-sentinel failures to (none)+exit 0; migrate the five resolve-as-probe sites to token-branching
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-07-20T16:57:07Z
+last_updated: 2026-07-20T16:58:51Z
