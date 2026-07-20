@@ -67,6 +67,13 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag, quietF
 		return fmt.Errorf("not inside a tmux session")
 	}
 
+	// Check wt upfront — one actionable error instead of N cryptic per-change
+	// exec failures. wt ships as a standalone formula (no longer a fab-kit
+	// Homebrew dependency), so it may legitimately be absent.
+	if _, err := exec.LookPath("wt"); err != nil {
+		return fmt.Errorf("wt is required for 'fab batch switch' — install it via: brew install sahil87/tap/wt")
+	}
+
 	// Collect change names
 	var changes []string
 	if allFlag {

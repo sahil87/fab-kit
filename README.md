@@ -107,7 +107,8 @@ brew install yq jq gh direnv
 
 | Tool | Purpose |
 |------|---------|
-| [fab-kit](https://github.com/sahil87/fab-kit) | The `fab` CLI router, workspace lifecycle (`init`/`upgrade-repo`/`sync`), `wt`, and `idea` |
+| [fab-kit](https://github.com/sahil87/fab-kit) | The `fab` CLI router and workspace lifecycle (`init`/`upgrade-repo`/`sync`) |
+| [wt](https://github.com/sahil87/wt), [idea](https://github.com/sahil87/idea) | Recommended companions (`brew install sahil87/tap/wt sahil87/tap/idea`) — worktree isolation and the idea backlog; see [Companion tools](#companion-tools) |
 | [yq](https://github.com/mikefarah/yq) | YAML processing for status files and schemas |
 | [jq](https://jqlang.github.io/jq/) | JSON processing for settings merge during sync |
 | [gh](https://cli.github.com/) | GitHub CLI - used for releases and PR workflows |
@@ -639,7 +640,13 @@ block-beta
 
 ## Companion tools
 
-fab-kit's Homebrew formula declares **wt** and **idea** as dependencies, so `brew install sahil87/tap/fab-kit` installs all four CLIs (`fab`, `fab-kit`, `wt`, `idea`) on PATH transitively. They're independent projects with their own release cadences:
+**wt** and **idea** are independent projects with their own release cadences, installed from their own formulas:
+
+```sh
+brew install sahil87/tap/wt sahil87/tap/idea
+```
+
+They are recommended, not required — fab degrades gracefully when they are absent. The worktree flows that need `wt` (`fab batch new`/`switch`, operator agent spawning) stop upfront with an install hint rather than failing mid-run; an absent `idea` costs nothing (`/fab-new` reads `fab/backlog.md` directly).
 
 | Tool | Role in the fab workflow | Repo |
 |------|--------------------------|------|

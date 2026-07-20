@@ -16,17 +16,29 @@ brew tap sahil87/tap
 brew install fab-kit
 ```
 
-This installs four CLIs on your `PATH`:
+This installs two CLIs on your `PATH`:
 
 | Binary | Role |
 |--------|------|
 | `fab` | The router — dispatches every subcommand to the right tool |
 | `fab-kit` | Workspace lifecycle: `init`, `upgrade-repo`, `sync` |
+
+Two independent companion projects pair with fab-kit and install from their own formulas:
+
+```bash
+brew install sahil87/tap/wt sahil87/tap/idea
+```
+
+| Binary | Role |
+|--------|------|
 | `wt` | Worktree manager — isolates each change in its own git worktree |
 | `idea` | Per-repo idea backlog (`fab/backlog.md`) that feeds `/fab-new` |
 
-`wt` and `idea` are independent projects declared as Homebrew dependencies of `fab-kit`, so the
-single `brew install` pulls all four transitively. See their repos at
+They are recommended, not required: fab degrades gracefully when they are absent. `wt` is needed
+for the worktree flows — `fab batch new`/`switch` and the operator's agent spawning stop upfront
+with an install hint (`wt is required for 'fab batch new' — install it via: brew install sahil87/tap/wt`)
+rather than failing mid-run — while an absent `idea` costs nothing (`/fab-new`
+reads `fab/backlog.md` directly). See their repos at
 [sahil87/wt](https://github.com/sahil87/wt) and [sahil87/idea](https://github.com/sahil87/idea).
 
 ## Install the companion utilities

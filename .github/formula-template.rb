@@ -4,9 +4,6 @@ class FabKit < Formula
   version "VERSION_PLACEHOLDER"
   license "MIT"
 
-  depends_on "sahil87/tap/wt"
-  depends_on "sahil87/tap/idea"
-
   on_macos do
     on_arm do
       url "https://github.com/sahil87/fab-kit/releases/download/v#{version}/brew-darwin-arm64.tar.gz"

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -56,6 +57,13 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 	// Check tmux
 	if os.Getenv("TMUX") == "" {
 		return fmt.Errorf("not inside a tmux session")
+	}
+
+	// Check wt upfront — one actionable error instead of N cryptic per-item
+	// exec failures. wt ships as a standalone formula (no longer a fab-kit
+	// Homebrew dependency), so it may legitimately be absent.
+	if _, err := exec.LookPath("wt"); err != nil {
+		return fmt.Errorf("wt is required for 'fab batch new' — install it via: brew install sahil87/tap/wt")
 	}
 
 	// Collect IDs

@@ -52,7 +52,7 @@ Start via `fab operator` (singleton tmux tab named `operator`). The launcher req
 
 ### Context Loading
 
-Load only `fab/project/config.yaml`, `fab/project/constitution.md`, and `fab/project/context.md` (optional — skip gracefully if missing). The operator is a listed exception to the `_preamble.md` §1 always-load layer: code-quality, code-review, and the doc indexes serve artifact generation and review, which the operator never does (§1 Context discipline) — and a long-lived session re-pays any loaded file after every `/clear`. Do not run preflight. Do not load change artifacts.
+Load only `fab/project/config.yaml`, `fab/project/constitution.md`, and `fab/project/context.md` (optional — skip gracefully if missing). The operator is a listed exception to the `_preamble.md` §1 always-load layer: code-quality, code-review, and the doc indexes serve artifact generation and review, which the operator never does (§1 Context discipline) — and a long-lived session re-pays any loaded file after every `/clear`. Do not run `fab preflight`. Do not load change artifacts.
 
 Helpers declared in frontmatter: `_cli-fab` (fab command reference) and `_cli-external` (wt, idea, tmux, /loop reference). Naming conventions are inlined in `_preamble.md` § Naming Conventions — already loaded.
 
@@ -71,6 +71,16 @@ If `$TMUX` is unset, STOP:
 ```
 Error: operator requires tmux. Start a tmux session first.
 ```
+
+### wt Gate
+
+`wt create` is the operator's first action for any new request (§1 Spawn-in-worktree), so probe it **once here** — not at each call site. `wt` ships as a standalone formula (not a `fab-kit` Homebrew dependency), so it may legitimately be absent. If `command -v wt >/dev/null 2>&1` fails, STOP:
+
+```
+Error: wt is required for operator spawning — install it via: brew install sahil87/tap/wt
+```
+
+This single preflight probe covers every later `wt create` call site; none is individually gated.
 
 ### Init
 
@@ -538,7 +548,7 @@ The operator accepts work in three forms. Each runs the §6 spawn sequence above
 |------------|------------------------|-----------------------------------------------------------|
 | **Existing change** (already has intake or further) | The change's `repo` (monitored entry or `branch_map`) | `/fab-fff <change>` — embed exactly **one** slash command in the spawn (do NOT send a `&&`-joined string like `/fab-switch <change> && /fab-fff`). The embedded command is delivered as a single prompt to the spawned agent, where `&&` is not a shell operator and Claude reads one leading `/command` per prompt — so the `&& …` tail is swallowed into `/fab-switch`'s argument rather than running as a second command. (Two sequential slash commands *are* achievable via separate Enter-terminated sends, but the operator deliberately avoids that here: a slash-command switch is a full agent round-trip for a one-line symlink write, and re-adding a post-spawn send would regress the single-dispatch-at-spawn property. The synchronous `fab change switch` CLI verb in spawn-sequence step 3 does the same write directly — see below.) The change-name override targets the change directly, no `/fab-switch` needed; the worktree's branch already matches (put on it by `wt create … --checkout <change-folder-name>` when it already exists, per the probe-and-route in `_cli-external.md` § wt); `/fab-fff` picks up from the change's current stage. The spawn sequence's existence-guarded step 3 **also activates the pointer** (`fab change switch <change>` in the new worktree) so the finished worktree is self-describing — but it is still the transient `<change>` override on `/fab-fff`, not the pointer, that targets the pipeline (the activation is an ergonomic add-on; the override remains the load-bearing mechanism) |
 | **Raw text** (e.g., "fix login after password reset") | The repo the user names; default the operator's launch repo | `/fab-new <shell_escaped_description>` — the raw description safely shell-escaped for inclusion in a single-quoted shell argument (do NOT insert unescaped raw text directly). No operator pointer-switch at spawn — the change folder doesn't exist yet, so §6 step 3's existence guard skips it; `/fab-new` creates and then activates the change inside the spawned agent (activation at fab-new Step 10) |
-| **Backlog ID or Linear issue** (structured) | Pre-step: look up the idea (`idea show <id>`) or resolve the Linear issue first | `/fab-new <id>` — same as raw text: no operator pointer-switch at spawn (§6 step 3's guard skips the not-yet-existing folder); `/fab-new` owns activation inside the spawned agent |
+| **Backlog ID or Linear issue** (structured) | Pre-step: look up the idea — gated, graceful skip: `command -v idea >/dev/null 2>&1 && idea show <id>` (`idea` is a standalone formula and may be absent; when it is, skip the lookup silently and proceed — `/fab-new` resolves the backlog ID from `fab/backlog.md` itself, so nothing is lost) — or resolve the Linear issue first | `/fab-new <id>` — same as raw text: no operator pointer-switch at spawn (§6 step 3's guard skips the not-yet-existing folder); `/fab-new` owns activation inside the spawned agent |
 
 On completion (all three): PR ready, optionally archive. Both raw text and backlog paths use `/fab-new` to generate a proper intake with traceability. `/fab-new` captures the raw input in the intake's Origin section — the user just says "fix [description]" and the operator does the rest.
 
@@ -693,7 +703,7 @@ Session-scoped — resets on `/clear` or session restart. The §4 operator state
 | Property | Value |
 |----------|-------|
 | Requires active change? | No |
-| Runs preflight? | No |
+| Runs `fab preflight`? | No |
 | Read-only? | No — sends commands, auto-answers, writes the operator state file |
 | Idempotent? | Yes — state re-derived every tick |
 | Advances stage? | No |
