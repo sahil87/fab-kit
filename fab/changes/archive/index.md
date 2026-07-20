@@ -1,5 +1,7 @@
 # Archive Index
 
+- **260423-xvaz-skip-tasks-simple-types** — Skip Tasks Stage for Simple Change Types
+- **260325-lhhk-brew-install-system-shim** — Brew Install System Shim
 - **260718-weoh-sweep-worktree-hook-settings** — Sweep Worktree Hook Settings
 - **260718-fskl-fab-skill-subcommand** — `fab skill` Subcommand + Canonical Skill Bundle
 - **260718-clix-slim-external-md** — Slim _cli-external.md to Fab-Owned Content

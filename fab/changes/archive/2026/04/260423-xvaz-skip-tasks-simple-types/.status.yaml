@@ -2,7 +2,7 @@ id: xvaz
 name: 260423-xvaz-skip-tasks-simple-types
 created: 2026-04-23T05:02:28Z
 created_by: sahil-weaver
-change_type: refactor
+change_type: fix
 issues: []
 progress:
     intake: ready
@@ -17,12 +17,11 @@ plan:
     acceptance_count: 0
     acceptance_completed: 0
 confidence:
-    certain: 3
-    confident: 4
+    certain: 4
+    confident: 5
     tentative: 2
-    unresolved: 2
-    score: 0.0
-    indicative: true
+    unresolved: 0
+    score: 2.4
     fuzzy: true
     dimensions:
         signal: 70.9
@@ -32,5 +31,4 @@ confidence:
 stage_metrics:
     intake: {started_at: "2026-04-23T05:02:28Z", driver: fab-new, iterations: 1}
 prs: []
-summary: ""
-last_updated: 2026-06-08T00:00:00Z
+last_updated: 2026-07-20T06:24:12Z

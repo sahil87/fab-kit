@@ -2,7 +2,7 @@ id: lhhk
 name: 260325-lhhk-brew-install-system-shim
 created: 2026-03-25T10:20:39Z
 created_by: sahil-weaver
-change_type: feat
+change_type: refactor
 issues: []
 progress:
     intake: ready
@@ -18,11 +18,10 @@ plan:
     acceptance_completed: 0
 confidence:
     certain: 4
-    confident: 2
-    tentative: 2
+    confident: 4
+    tentative: 0
     unresolved: 0
-    score: 2.4
-    indicative: true
+    score: 4.0
     fuzzy: true
     dimensions:
         signal: 73.1
@@ -32,5 +31,4 @@ confidence:
 stage_metrics:
     intake: {started_at: "2026-03-25T10:20:39Z", driver: fab-new, iterations: 1}
 prs: []
-summary: ""
-last_updated: 2026-06-08T00:00:00Z
+last_updated: 2026-07-20T06:24:12Z
