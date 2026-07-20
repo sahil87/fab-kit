@@ -206,7 +206,30 @@ func syncAgentSkills(agent agentConfig, skills []string, skillsDir string) error
 	return nil
 }
 
-// cleanStaleSkills removes skill entries not present in the canonical skills list.
+// isGitTracked reports whether relPath (relative to repoRoot) has any file
+// tracked by git under it. Fails open (false) when git is unavailable or
+// repoRoot is not a git work tree, so cleanStaleSkills' historical behavior
+// is only ever loosened for entries git can positively confirm as tracked —
+// never silenced wholesale by a missing/broken git.
+func isGitTracked(repoRoot, relPath string) bool {
+	cmd := exec.Command("git", "ls-files", "--error-unmatch", "--", relPath)
+	cmd.Dir = repoRoot
+	return cmd.Run() == nil
+}
+
+// isPreservedByGit reports whether baseDir/entryName is git-tracked in
+// repoRoot, and so should survive cleanStaleSkills rather than being removed
+// as stale.
+func isPreservedByGit(baseDir, entryName, repoRoot string) bool {
+	rel, err := filepath.Rel(repoRoot, filepath.Join(baseDir, entryName))
+	return err == nil && isGitTracked(repoRoot, rel)
+}
+
+// cleanStaleSkills removes skill entries not present in the canonical skills
+// list. An entry git-tracked in the consuming repo is a project-committed
+// custom skill (not one fab-kit deployed from its own kit cache) and is
+// preserved rather than deleted, even when its name isn't in the canonical
+// list.
 func cleanStaleSkills(baseDir, format string, skills []string, repoRoot string) {
 	if !dirExists(baseDir) {
 		return
@@ -225,6 +248,9 @@ func cleanStaleSkills(baseDir, format string, skills []string, repoRoot string) 
 				continue
 			}
 			if !skillSet[e.Name()] {
+				if isPreservedByGit(baseDir, e.Name(), repoRoot) {
+					continue
+				}
 				os.RemoveAll(filepath.Join(baseDir, e.Name()))
 				removed++
 			}
@@ -241,6 +267,9 @@ func cleanStaleSkills(baseDir, format string, skills []string, repoRoot string) 
 			}
 			stem := strings.TrimSuffix(name, ".md")
 			if !skillSet[stem] {
+				if isPreservedByGit(baseDir, name, repoRoot) {
+					continue
+				}
 				os.Remove(filepath.Join(baseDir, name))
 				removed++
 			}

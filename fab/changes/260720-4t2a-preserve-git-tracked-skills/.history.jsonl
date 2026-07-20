@@ -1,0 +1,10 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-20T11:39:37Z"}
+{"args":"cleanStaleSkills deletes any .claude/skills (and sibling agent dirs) entry not in fab-kit's own canonical skill list, including custom skills a consuming repo commits to its own git history. Fix: check git-tracking before removing; preserve tracked entries, still clean up genuinely stale/untracked ones.","cmd":"fab-new","event":"command","ts":"2026-07-20T11:39:37Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-07-20T11:40:59Z"}
+{"action":"enter","driver":"manual","event":"stage-transition","stage":"apply","ts":"2026-07-20T11:43:05Z"}
+{"action":"enter","driver":"manual","event":"stage-transition","stage":"review","ts":"2026-07-20T11:43:19Z"}
+{"action":"enter","driver":"manual","event":"stage-transition","stage":"hydrate","ts":"2026-07-20T11:48:27Z"}
+{"event":"review","result":"passed","ts":"2026-07-20T11:48:27Z"}
+{"action":"enter","driver":"manual","event":"stage-transition","stage":"ship","ts":"2026-07-20T11:49:18Z"}
+{"action":"enter","driver":"manual","event":"stage-transition","stage":"review-pr","ts":"2026-07-20T11:50:58Z"}
+{"event":"review","result":"passed","ts":"2026-07-20T11:52:23Z"}
