@@ -4,6 +4,7 @@ project:
     name: fab-kit
 source_paths:
     - src/
+    - scripts/
 test_paths:
     - '**/*_test.go'
 true_impact_exclude:
