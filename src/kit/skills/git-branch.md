@@ -94,7 +94,7 @@ branch_name = {resolved_change_name}
 
 ### Step 4: Context-Dependent Action
 
-<!-- Keep these cases in sync with fab-new.md Step 11 — same cases, same commands, same report strings (incl. the rename guard, the remote-only --track case, and the dirty-tree note). One deliberate divergence lives OUTSIDE the shared cases: fab-new derives {dirty_count} excluding fab/changes/{name}/ (its own just-created artifacts); git-branch counts the full porcelain output. -->
+<!-- Keep these cases in sync with fab-new.md Step 11 — same cases, same commands, same report strings (incl. the rename guard, the remote-only --track case, and the dirty-tree note). Two deliberate divergences: fab-new derives {dirty_count} excluding fab/changes/{name}/ (its own just-created artifacts) while git-branch counts the full porcelain output; and git-branch's rename-guard probe keeps the strict exit-code form `fab change resolve … 2>/dev/null` (this skill is deliberately NOT migrated to `--or-none` — its bare no-argument resolution is a hard stop by design; 260720-dow0) while fab-new's probe is the token-branching `fab resolve --folder … --or-none`. -->
 
 Get the current branch and the dirty-tree count:
 

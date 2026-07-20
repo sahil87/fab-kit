@@ -42,7 +42,8 @@ Consumer (fab-new / fab-draft / fab-proceed dispatch) reads _intake.md with {que
 ├─ Step 2: Gap Analysis (existing mechanisms / scope concerns)
 │
 ├─ Step 3: Create Change
-│  ├─ [backlog ID] collision pre-check: fab resolve --id {id} → EQUALITY with {id};
+│  ├─ [backlog ID] collision pre-check: fab resolve --id {id} --or-none → EQUALITY with {id}
+│  │  ("(none)" ⇒ no existing change — never equals a 4-char ID; 260720-dow0);
 │  │  on match, fab resolve --folder {id} names the existing change → route to resume
 │  ├─ [Linear ID] collision pre-check: grep -lw "{ISSUE_ID}" fab/changes/*/.status.yaml
 │  ├─ [existing non-archived change] → route to resume (/fab-switch + /fab-continue), STOP
@@ -80,7 +81,7 @@ Consumer (fab-new / fab-draft / fab-proceed dispatch) reads _intake.md with {que
 |------|---------|
 | Read | `_generation.md` (Step 5), `_srad.md` (Step 8 — both questioning modes), templates, backlog, project files |
 | Write | `intake.md` (via the Intake Generation Procedure) |
-| Bash | `fab change new`, `fab resolve --id`/`--folder` (collision pre-check), `fab status set-change-type` (override only), `fab score`, `fab status advance`, `fab status add-issue` |
+| Bash | `fab change new`, `fab resolve --id {id} --or-none`/`--folder` (collision pre-check — `(none)` ⇒ no existing change), `fab status set-change-type` (override only), `fab score`, `fab status advance`, `fab status add-issue` |
 | MCP (Linear) | Fetch issue details (optional path) |
 
 ### Sub-agents
