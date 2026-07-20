@@ -44,12 +44,15 @@ User invokes /fab-new <description>
    │  git rev-parse --verify "{name}" ·
    │  git rev-parse --verify "origin/{name}" ·
    │  git config branch.{current}.remote ·
-   │  fab change resolve "$(git branch --show-current)"
+   │  fab resolve --folder "$(git branch --show-current)" --or-none
+   │  (rename-guard probe — "(none)" ⇒ current branch belongs to
+   │   no change; 260720-dow0. git-branch.md's twin keeps the strict
+   │   fab change resolve form — a recorded deliberate divergence)
    ├─ Evaluate the 6-row table in order, first match wins (260612-g8st):
    │  already-on-target (no-op) / target-exists-locally (checkout) /
    │  target-on-remote-only (checkout --track origin/{name}) /
    │  on-main (checkout -b) / local-only + rename guard passes —
-   │  resolves to no change OR to this SAME change (branch -m) /
+   │  probe prints "(none)" (no change) OR this SAME change (branch -m) /
    │  different-change's local-only branch or pushed branch
    │  (checkout -b, leaving {old_branch} intact)
    └─ Dirty-tree note (260612-g8st): {dirty_count} > 0 on a
@@ -65,7 +68,7 @@ Steps 0–9 tool usage now lives in the shared procedure — see `SPEC-_intake.m
 | Tool | Purpose |
 |------|---------|
 | Read | `.claude/skills/_intake/SKILL.md` and the `helpers:` files (`_generation`, `_srad`); always-load layer |
-| Bash | `fab change switch` (Step 10) |
+| Bash | `fab change switch` (Step 10); `fab resolve --folder … --or-none` (Step 11 rename-guard probe — 260720-dow0) |
 | Bash (git) | `git rev-parse --is-inside-work-tree`, `git branch --show-current`, `git status --porcelain` (dirty count, excluding `fab/changes/{name}/`), `git rev-parse --verify` (local + `origin/{name}`), `git config branch.{current}.remote`, `git checkout -b`, `git checkout`, `git checkout --track`, `git branch -m` (Step 11) |
 
 ### Sub-agents

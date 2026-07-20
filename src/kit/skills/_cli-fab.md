@@ -243,7 +243,7 @@ fab log transition <change> <stage> <action> [from] [reason] [driver]
 Pure query, no side effects.
 
 ```
-fab resolve [--id|--folder|--dir|--status|--pane] [--server <name>] [<change>]
+fab resolve [--id|--folder|--dir|--status|--pane] [--or-none] [--server <name>] [<change>]
 ```
 
 | Flag | Output |
@@ -253,9 +253,14 @@ fab resolve [--id|--folder|--dir|--status|--pane] [--server <name>] [<change>]
 | `--dir` | Directory path (`fab/changes/.../`) |
 | `--status` | `.status.yaml` path |
 | `--pane` | Tmux pane ID (errors `ERROR: no tmux pane found for change "<folder>"` if no matching pane) |
+| `--or-none` | Absence-as-data opt-in: maps **state-sentinel** resolution failures to the exact token `(none)` on stdout + exit `0` — not-found always (bare and with an explicit `<change>` override); ambiguous **only bare** ("multiple changes exist, none active" IS the no-active-change state — a named-but-multi-matching override stays a non-zero error). Infrastructure errors (missing `fab/` root, I/O) stay non-zero, flag or no flag |
 | `--server <name>` / `-L <name>` | Pane mode only: target tmux socket (`tmux -L <name>`), searched server-wide across all sessions; skips the `$TMUX` requirement. Without it, pane lookup is current-session-only and requires `$TMUX` (`ERROR: not inside a tmux session` otherwise) |
 
-The five output-mode flags are **mutually exclusive** — passing two (e.g. `--status --folder`) exits `2` (a usage error — a flags-group conflict, caught before RunE) instead of silently picking one. `fab change resolve` is a thin wrapper over this same implementation with `--folder` mode fixed.
+The five output-mode flags are **mutually exclusive** — passing two (e.g. `--status --folder`) exits `2` (a usage error — a flags-group conflict, caught before RunE) instead of silently picking one. `--or-none` is **not** part of that group: it composes with every output mode and with `--server`, and on the none path `(none)` replaces the mode-specific output. In `--pane` mode the mapping applies to the **change-resolution** step only — a pane-lookup failure after successful resolution (`no tmux pane found …`, `not inside a tmux session`) is not a state sentinel and stays non-zero.
+
+The token is exactly `(none)` — not `none` (a legal 4-char change ID, so it would collide with `--id` output) and not empty output (illegible in transcripts, and hazardous in command substitution: `cd $(fab resolve --dir …)` with empty output cds to `$HOME`). Without the flag, absence stays an error (the hard stop `$(…)` consumers rely on) — absence-as-data is strictly opt-in. Conceptual split: **`fab preflight` is the validation gate (non-zero on a bad state by design); `fab resolve` is the pure query that can answer "none" when asked.**
+
+`fab change resolve` is a thin wrapper over this same implementation with `--folder` mode fixed — and deliberately flag-free (no `--or-none`; the query flags live on top-level `fab resolve` only). Callers needing the probe form use `fab resolve --folder --or-none`.
 
 ---
 

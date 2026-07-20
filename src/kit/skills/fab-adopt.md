@@ -59,7 +59,7 @@ gh pr view --json number,state,url 2>/dev/null || echo "NO_PR"
 2. **PR-state guard**: from `gh pr view`:
    - `state == MERGED` → STOP: `PR is already merged — that's retroactive backfill (scenario A), out of scope for /fab-adopt. Adopt operates on in-flight (open or not-yet-created) PRs.`
    - `OPEN` and `none` (no PR) both **proceed**. Capture `{pr_state}`, `{pr_url}`, `{pr_number}` for later steps.
-3. **Collision guard**: if a fab change already maps to this branch (`fab change resolve "$(git branch --show-current)" 2>/dev/null` succeeds), STOP: `Branch '{branch}' already maps to fab change '{name}' — it is already in the pipeline. Run /fab-continue (or /fab-fff) to advance it.`
+3. **Collision guard**: if a fab change already maps to this branch (`fab resolve --folder "$(git branch --show-current)" --or-none` prints a folder name — anything but `(none)`), STOP: `Branch '{branch}' already maps to fab change '{name}' — it is already in the pipeline. Run /fab-continue (or /fab-fff) to advance it.`
 4. **Resolve the diff base and capture the diff**:
    ```bash
    base=$(git merge-base HEAD "origin/$default_branch")

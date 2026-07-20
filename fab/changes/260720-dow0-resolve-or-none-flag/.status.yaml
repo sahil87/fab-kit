@@ -1,0 +1,54 @@
+id: dow0
+name: 260720-dow0-resolve-or-none-flag
+created: 2026-07-20T16:23:36Z
+created_by: Sahil Ahuja
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 13
+    acceptance_count: 15
+    acceptance_completed: 15
+confidence:
+    certain: 5
+    confident: 4
+    tentative: 0
+    unresolved: 0
+    score: 4.9
+    fuzzy: true
+    dimensions:
+        signal: 85.6
+        reversibility: 81.1
+        competence: 86.7
+        disambiguation: 81.7
+stage_metrics:
+    intake: {started_at: "2026-07-20T16:23:36Z", driver: fab-new, iterations: 1, completed_at: "2026-07-20T16:30:22Z"}
+    apply: {started_at: "2026-07-20T16:30:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-20T16:46:44Z"}
+    review: {started_at: "2026-07-20T16:46:44Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-20T16:50:53Z"}
+    hydrate: {started_at: "2026-07-20T16:50:53Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-20T16:57:07Z"}
+    ship: {started_at: "2026-07-20T16:57:07Z", driver: fab-fff, iterations: 1}
+prs: []
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-07-20T16:57:07Z"
+    computed_at_stage: hydrate
+summary: add opt-in fab resolve --or-none flag mapping state-sentinel failures to (none)+exit 0; migrate the five resolve-as-probe sites to token-branching
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-20T16:57:07Z
