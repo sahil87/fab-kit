@@ -154,7 +154,7 @@ Watchdog for a **left-open** Strategic prompt (rule 4's no-defensible-default br
 | Property | Value |
 |----------|-------|
 | Requires active change? | No |
-| Runs preflight? | No |
+| Runs `fab preflight`? | No |
 | Read-only? | No — sends commands to other agents, auto-answers questions |
 | Idempotent? | Yes — state is re-derived before every action |
 | Advances stage? | No |
