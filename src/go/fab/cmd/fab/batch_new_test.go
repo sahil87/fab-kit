@@ -200,6 +200,9 @@ func TestRunBatchNew_NoTmux(t *testing.T) {
 func TestRunBatchNew_NoPendingItems(t *testing.T) {
 	chdirBatchNewFixture(t, "# Backlog\n\n- [x] [done] 2026-03-30: Fix login page styling\n")
 	t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
+	// Stub wt onto PATH so the upfront wt guard passes and the test keeps
+	// asserting the empty-pending error on wt-less machines.
+	stubBatchNewBinaries(t, "exit 0", "exit 0")
 
 	_, _, err := runBatchNewCmd(t, "--all")
 	if err == nil {
@@ -207,6 +210,32 @@ func TestRunBatchNew_NoPendingItems(t *testing.T) {
 	}
 	if err.Error() != "No pending backlog items found." {
 		t.Errorf("error = %q, want %q", err.Error(), "No pending backlog items found.")
+	}
+}
+
+// TestRunBatchNew_WtMissingUpfrontError verifies the upfront exec.LookPath("wt")
+// guard: with wt absent from PATH, the command returns one actionable install
+// error before any per-item work (no item line, no per-item FAILED output) —
+// never N cryptic per-item exec failures. wt ships as a standalone formula,
+// no longer a fab-kit Homebrew depends_on.
+func TestRunBatchNew_WtMissingUpfrontError(t *testing.T) {
+	chdirBatchNewFixture(t, testBacklog)
+	t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
+	t.Setenv("PATH", t.TempDir()) // empty dir — no wt on PATH
+
+	out, stderr, err := runBatchNewCmd(t, "90g5")
+	if err == nil {
+		t.Fatal("expected upfront error when wt is absent from PATH, got nil")
+	}
+	if want := "wt is required for 'fab batch new' — install it via: brew install sahil87/tap/wt"; err.Error() != want {
+		t.Errorf("error = %q, want %q", err.Error(), want)
+	}
+	// The guard sits before any per-item work.
+	if out != "" {
+		t.Errorf("expected empty stdout (guard precedes per-item work), got:\n%s", out)
+	}
+	if stderr != "" {
+		t.Errorf("expected empty stderr (guard precedes per-item work), got:\n%s", stderr)
 	}
 }
 

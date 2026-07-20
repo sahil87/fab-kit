@@ -1,6 +1,6 @@
 # Companion Tools
 
-fab-kit composes with two standalone CLIs — **wt** and **idea** — that live in their own repositories and ship on their own release cadences. They are not bundled in fab-kit's source tree; fab-kit's Homebrew formula declares them as dependencies (`depends_on "sahil87/tap/wt"` and `depends_on "sahil87/tap/idea"`), so `brew install sahil87/tap/fab-kit` lands all four binaries (`fab`, `fab-kit`, `wt`, `idea`) on PATH in a single step. This page describes how the fab pipeline uses them — see each tool's README for its full command surface.
+fab-kit composes with two standalone CLIs — **wt** and **idea** — that live in their own repositories and ship on their own release cadences. They are not bundled in fab-kit's source tree, and fab-kit's Homebrew formula declares **no dependency** on them: each installs from its own formula (`brew install sahil87/tap/wt`, `brew install sahil87/tap/idea`), per the shll toolkit's no-inter-tool-brew-dependency decision. fab degrades gracefully when they are absent — informational skill/help-dump delegations are `command -v`-gated and skip silently, while the entry points that functionally require `wt` (`fab batch new`/`switch`, the operator's spawn sequence) stop upfront with an actionable install hint (e.g. `wt is required for 'fab batch new' — install it via: brew install sahil87/tap/wt`); an absent `idea` costs nothing (`/fab-new <id>` resolves backlog IDs from `fab/backlog.md` itself). This page describes how the fab pipeline uses them — see each tool's README for its full command surface.
 
 ## wt — worktree isolation
 
@@ -27,4 +27,4 @@ Distribution splits across three artifact families:
 - **`kit-{os}-{arch}.tar.gz`** — per-version cache containing the `fab-go` backend binary, fetched on demand by `fab-kit sync`.
 - **`kit.tar.gz`** — generic source-only tarball with skills, templates, and scripts; no compiled binaries.
 
-`wt` and `idea` are not part of any fab-kit release artifact. They ship from their own repositories via `sahil87/tap/wt` and `sahil87/tap/idea`, and Homebrew resolves them transitively when installing fab-kit.
+`wt` and `idea` are not part of any fab-kit release artifact. They ship from their own repositories via `sahil87/tap/wt` and `sahil87/tap/idea` and are installed independently — the fab-kit formula does not pull them in.

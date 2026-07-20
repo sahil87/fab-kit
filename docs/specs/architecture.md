@@ -426,7 +426,7 @@ Fab ships as Homebrew-installed binaries plus cached kit content — no kit dire
 | `fab-kit` | Workspace lifecycle — `init`, `sync`, `upgrade-repo`, `update`, `doctor`, `migrations-status` | Homebrew formula `sahil87/tap/fab-kit` |
 | `fab-go` | Workflow engine — everything else (`status`, `score`, `change`, `preflight`, `pane`, `batch`, hooks, …) | Per-version cache, auto-fetched from GitHub releases |
 
-The formula also declares `depends_on` for the standalone `wt` (worktree management) and `idea` (backlog) companion CLIs — see **[Companions](companions.md)**.
+The standalone `wt` (worktree management) and `idea` (backlog) companion CLIs are **not** formula dependencies — each installs from its own formula (`brew install sahil87/tap/wt`, `brew install sahil87/tap/idea`), and fab degrades gracefully when they are absent (`command -v`-gated skill delegations; upfront stop-with-install-hint on the `wt`-requiring entry points) — see **[Companions](companions.md)**.
 
 ### Cache Layout
 

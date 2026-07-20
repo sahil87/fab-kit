@@ -60,6 +60,50 @@ func TestRunBatchSwitch_NoTmuxReturnsError(t *testing.T) {
 	}
 }
 
+// stubWtOnPath prepends a temp dir carrying a no-op `wt` executable to $PATH,
+// so tests that only exercise pre-loop / warn-and-skip paths still pass the
+// upfront exec.LookPath("wt") guard on wt-less machines.
+func stubWtOnPath(t *testing.T) {
+	t.Helper()
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "wt"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+// TestRunBatchSwitch_WtMissingUpfrontError verifies the upfront
+// exec.LookPath("wt") guard: with wt absent from PATH, the command returns one
+// actionable install error before any per-change work (no resolved-name line,
+// no warn-and-skip output) — never N cryptic per-change exec failures. wt
+// ships as a standalone formula, no longer a fab-kit Homebrew depends_on.
+func TestRunBatchSwitch_WtMissingUpfrontError(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "fab", "changes", "260401-ab12-add-feature"), 0o755)
+	chdirTestEnv(t, root, map[string]string{"TMUX": "/tmp/tmux-test/default,123,0"})
+	t.Setenv("PATH", t.TempDir()) // empty dir — no wt on PATH
+
+	cmd := batchSwitchCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	err := runBatchSwitch(cmd, []string{"ab12"}, false, false, false)
+	if err == nil {
+		t.Fatal("expected upfront error when wt is absent from PATH, got nil")
+	}
+	if want := "wt is required for 'fab batch switch' — install it via: brew install sahil87/tap/wt"; err.Error() != want {
+		t.Errorf("error = %q, want %q", err.Error(), want)
+	}
+	// The guard sits before any per-change work.
+	if out.String() != "" {
+		t.Errorf("expected empty stdout (guard precedes per-change work), got:\n%s", out.String())
+	}
+	if errOut.String() != "" {
+		t.Errorf("expected empty stderr (guard precedes per-change work), got:\n%s", errOut.String())
+	}
+}
+
 // TestRunBatchSwitch_UnresolvableWarnsAndSkips verifies in-process resolution
 // (resolve.ToFolder, no `fab change resolve` subprocess): an unresolvable
 // name warns with the resolver's SPECIFIC error and the loop continues
@@ -68,6 +112,7 @@ func TestRunBatchSwitch_UnresolvableWarnsAndSkips(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "fab", "changes", "260401-ab12-add-feature"), 0o755)
 	chdirTestEnv(t, root, map[string]string{"TMUX": "/tmp/tmux-test/default,123,0"})
+	stubWtOnPath(t) // pass the upfront wt guard; wt itself is never invoked
 
 	cmd := batchSwitchCmd()
 	var out, errOut bytes.Buffer
@@ -490,6 +535,7 @@ func TestRunBatchSwitch_QuietRetainsStderr(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "fab", "changes", "260401-ab12-add-feature"), 0o755)
 	chdirTestEnv(t, root, map[string]string{"TMUX": "/tmp/tmux-test/default,123,0"})
+	stubWtOnPath(t) // pass the upfront wt guard; wt itself is never invoked
 
 	cmd := batchSwitchCmd()
 	var out, errOut bytes.Buffer

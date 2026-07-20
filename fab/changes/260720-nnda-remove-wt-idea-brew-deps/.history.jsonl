@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-20T06:21:50Z"}
+{"args":"Remove the wt and idea Homebrew dependencies from fab-kit and add graceful degradation for their absence (formula depends_on removal, _cli-external absent-binary reclass, batch new/switch LookPath guards, fab-operator preflight probe)","cmd":"fab-new","event":"command","ts":"2026-07-20T06:21:50Z"}
+{"delta":"+4.8","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-07-20T06:24:52Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-07-20T06:28:11Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-20T06:28:21Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-20T06:39:53Z"}
+{"event":"review","result":"failed","ts":"2026-07-20T06:44:23Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-20T06:44:23Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-20T06:46:25Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-20T06:49:51Z"}
+{"event":"review","result":"passed","ts":"2026-07-20T06:49:51Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-20T06:57:24Z"}
