@@ -15,14 +15,10 @@ AI agents write code fast. The bottleneck is now your clarity: did you define th
 ## Install
 
 ```sh
-curl -fsSL https://shll.ai/install | sh -s -- fab-kit
-```
-
-Installs fab-kit (plus the shll meta-CLI) via Homebrew, handling tap trust automatically. To install the entire shll toolkit instead:
-
-```sh
 curl -fsSL https://shll.ai/install | sh
 ```
+
+Installs the entire shll toolkit via Homebrew, handling tap trust automatically. fab-kit relies on its sibling tools (`wt` for worktrees, `idea` for the backlog), so the full-toolkit install is the supported path.
 
 ## The 6 Stages
 
