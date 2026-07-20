@@ -9,24 +9,32 @@ head to the [Workflows guide](./workflows.md) to learn how to drive the pipeline
 
 ## Install the CLI
 
-Fab Kit installs via [Homebrew](https://brew.sh/) (macOS and Linux):
+Fab Kit installs via the [shll toolkit](https://shll.ai) bootstrap (macOS and Linux):
 
-```bash
-brew tap sahil87/tap
-brew install fab-kit
+```sh
+curl -fsSL https://shll.ai/install | sh -s -- fab-kit
 ```
 
-This installs two CLIs on your `PATH`:
+Installs fab-kit (plus the `shll` meta-CLI) via Homebrew, handling tap trust automatically. To
+install the entire shll toolkit instead:
+
+```sh
+curl -fsSL https://shll.ai/install | sh
+```
+
+[shll.ai](https://shll.ai) is the canonical install reference for every toolkit tool. The fab-kit
+install puts two CLIs on your `PATH`:
 
 | Binary | Role |
 |--------|------|
 | `fab` | The router — dispatches every subcommand to the right tool |
 | `fab-kit` | Workspace lifecycle: `init`, `upgrade-repo`, `sync` |
 
-Two independent companion projects pair with fab-kit and install from their own formulas:
+Two independent companion projects (each with its own release cadence) pair with fab-kit and
+install via `shll install` (see [shll.ai](https://shll.ai)):
 
-```bash
-brew install sahil87/tap/wt sahil87/tap/idea
+```sh
+shll install wt idea
 ```
 
 | Binary | Role |
