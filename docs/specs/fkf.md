@@ -1,28 +1,29 @@
-# FKF — Fab Knowledge Format (v0.1)
+# FKF — Fab Knowledge Format (v0.1) — Design Companion
 
-> **What this is.** FKF is the format fab-kit uses for the `docs/memory/` knowledge tree:
-> a directory bundle of markdown files with YAML frontmatter, plus generated index and log
-> files. FKF is a **profile of [OKF v0.1](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)**
-> (Open Knowledge Format, GoogleCloudPlatform/knowledge-catalog): every FKF bundle is a
-> conforming OKF bundle, and FKF additionally *requires* and *fixes* a handful of things OKF
-> leaves open. A generic OKF consumer can read an FKF bundle; fab's tooling enforces more than
-> OKF requires.
+> **What this is.** The **non-normative design companion** to the FKF standard: design rationale,
+> OKF lineage, bundle organization, non-scope discussion, adoption/migration history, and the
+> glossary. The **normative standard** — the rules an agent must follow — lives at
+> [`docs/site/fkf.md`](../site/fkf.md), published at <https://shll.ai/fab-kit/fkf> and shipped
+> verbatim into the kit cache as `$(fab kit-path)/reference/fkf.md` (the copy deployed skills
+> cite). This file carries **zero normative text**: each former normative section below
+> (§2/§3/§5/§6/§7/§8) is a pointer stub at its original heading, with that section's design
+> rationale retained beneath it. Section numbering is original throughout — "FKF §N" citations
+> resolve against the standard, and the stubs here redirect in one hop.
 >
-> **Scope: `docs/memory/` only.** FKF governs the post-implementation memory tree. It does **not**
-> apply to `docs/specs/` — specs remain human-curated, frontmatter-free, and free-form per
-> a fab-kit design principle (specs are human-curated). See [§9 Non-Scope](#9-non-scope-docsspecs).
-
-> **Shipped normative extract.** This file is the dev-repo design doc (rationale + history). The
-> **normative subset** an agent must follow (§2/§3/§5/§6/§7/§8, original anchors preserved) is
-> shipped to the kit cache as `src/kit/reference/fkf.md`, reachable in every user repo via
-> `$(fab kit-path)/reference/fkf.md`; that is the file deployed skills cite. **Any change to FKF
-> normative rules MUST update both files** so they cannot silently diverge.
+> **Editing FKF.** Normative rule changes are made in `docs/site/fkf.md`, then synced by
+> `scripts/sync-fkf.sh` into `src/kit/reference/fkf.md`; the drift-guard test
+> `src/go/fab/cmd/fab/fkf_sync_test.go` fails CI on any divergence. This companion changes only
+> when the rationale or history changes.
 
 ---
 
 ## 1. Relationship to OKF
 
-FKF is a **profile**: a base format plus a set of additional constraints. The split:
+FKF is a **profile**: a base format plus a set of additional constraints. FKF profiles
+[OKF v0.1](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
+(Open Knowledge Format, GoogleCloudPlatform/knowledge-catalog) — every FKF bundle is a conforming
+OKF bundle; a generic OKF consumer can read an FKF bundle; fab's tooling enforces more than OKF
+requires. The split:
 
 | Concern | OKF v0.1 says | FKF additionally requires |
 |---------|---------------|---------------------------|
@@ -45,195 +46,46 @@ custom keys, and additional frontmatter.
 
 ## 2. Conformance
 
-A `docs/memory/` tree conforms to **FKF v0.1** if all of the following hold:
-
-1. Every non-reserved `.md` file carries a parseable YAML frontmatter block.
-2. Every such block contains `type: memory` and a non-empty `description`.
-3. Reserved filenames — `index.md` and `log.md` — follow their generated structures (§5, §6) and
-   are written only by `fab memory-index`.
-4. Cross-links between memory files use the bundle-relative form (§7).
-
-Items 1–2 are the OKF conformance floor (specialized: `type` is fixed, `description` is promoted
-to required). Items 3–4 are FKF's added strictness. As in OKF, consumers SHOULD degrade
-gracefully — a missing optional body section or an unknown extra frontmatter key does not make a
-file non-conforming.
+*Normative — moved to the [FKF standard](../site/fkf.md) §2.*
 
 ---
 
 ## 3. Concept Documents (memory files)
 
-A memory file = a YAML frontmatter block + a markdown body, at
-`docs/memory/{domain}/{name}.md` or `docs/memory/{domain}/{sub-domain}/{name}.md`.
+*Normative — moved to the [FKF standard](../site/fkf.md) §3.* Retained design rationale:
 
-### 3.1 `type` (required, constant)
+> **Why `type` is a constant, not sub-types (§3.1).** A per-file kind (`requirements` vs
+> `design-decision` vs `reference`) was rejected: a single memory file legitimately *mixes*
+> requirements, design decisions, and history in one document, so a per-file type would
+> misrepresent it. The organizing axis fab actually uses is the **domain** (the folder), not a
+> `type`. If a genuinely distinct second kind of memory document ever appears, FKF v0.2 may widen
+> the `type` vocabulary — driven by a real distinction, not anticipated up front.
 
-```yaml
-type: memory
-```
+> **Why the description lives on the file — the Starlight lesson (§3.2).** Co-locating the
+> `description:` with the file (rather than in the index) is deliberate: editing a description
+> never touches the hot, churn-prone index row. It cannot be auto-derived from the H1/Overview
+> without loss (Overview prose contains literal `|` pipes that break index tables, and an
+> extracted first sentence degrades the routing signal).
 
-`type` is OKF's sole required field — its machine-routing discriminator. fab's memory files are
-**homogeneous** (every file is "a documented area of system behavior"), so `type` carries no
-distinguishing signal and is **fixed to the constant `memory`**. The value is stamped by tooling
-(the memory-file template and every memory writer), never hand-curated — so "required" costs the
-author nothing.
+> **Why the length cap escalates to blocking (§3.2).** The blocking tier exists because the
+> advisory-only posture demonstrably failed: 33×/50×-cap descriptions (16,519 and 24,906
+> characters) shipped straight through the nag and bloated the always-load route tables. The
+> rationale for a cap at all: a giant single-line description bloats the hot, same-line
+> index-row merge surface and degrades the routing signal the description exists to provide.
 
-> **Why a constant, not sub-types.** A per-file kind (`requirements` vs `design-decision` vs
-> `reference`) was rejected: a single memory file legitimately *mixes* requirements, design
-> decisions, and history in one document, so a per-file type would misrepresent it. The
-> organizing axis fab actually uses is the **domain** (the folder), not a `type`. If a genuinely
-> distinct second kind of memory document ever appears, FKF v0.2 may widen the `type` vocabulary
-> — driven by a real distinction, not anticipated up front.
+> **Why conventional headings are recommended, not mandated (§3.3).** The pipeline's hydrate step
+> *writes into* `## Requirements` and `## Design Decisions`, and review/intake *read from* them —
+> so these headings remain the target shape and SHOULD be used wherever the content warrants. But
+> a small reference-pointer file should not be forced to invent a GIVEN/WHEN/THEN scenario. FKF
+> relaxes the former *MUST-have-these-sections* rule to
+> *SHOULD-use-these-conventional-headings-where-they-apply*, which keeps the hydrate-writes /
+> review-reads contract working without imposing ceremony on files that don't need it.
 
-### 3.2 `description` (required, curated)
-
-```yaml
-description: "One-line summary used by the generated domain-index row."
-```
-
-OKF *recommends* `description`; FKF **requires** it, because it is **load-bearing**: the generated
-domain index reads each file's row Description from this field, and the always-load context layer
-routes on it. It is the one hand-curated frontmatter field — authored by every memory writer
-(hydrate, `/docs-hydrate-memory`, `/docs-reorg-memory`, `/docs-distill-memory`) and kept accurate on every edit.
-
-**Length: a one-line index-row summary, capped at 500 characters (blocking past 1000).**
-`description:` is a routing signal, not a summary of record. It MUST be a single-line frontmatter
-scalar and SHOULD stay at or below **500 characters** — the unit is **characters (runes)**, measured
-on the value *after quote-stripping*. Detail (requirements, design decisions, prose) belongs in the
-file BODY (`## Overview`, `## Requirements`, `## Design Decisions`), never in the description. The cap
-enforces in **two tiers**: `fab memory-index` emits a **non-fatal advisory** stderr warning for a
-description in the **501–1000** range (over the soft cap — a trim nag that never fails
-`fab memory-index --check`), and **BLOCKS** — fails `--check`, joining the blocking class below — for a
-**gross over-cap** description strictly longer than **1000 characters** (2× the soft cap). The
-escalation exists because the advisory-only posture demonstrably failed: 33×/50×-cap descriptions
-(16,519 and 24,906 characters) shipped straight through the nag and bloated the always-load route
-tables. The rationale for a cap: a giant single-line description bloats the hot, same-line index-row
-merge surface and degrades the routing signal the description exists to provide.
-
-Co-locating the description with the file (rather than in the index) is deliberate — the
-**Starlight lesson**: editing a description never touches the hot, churn-prone index row. It
-cannot be auto-derived from the H1/Overview without loss (Overview prose contains literal `|`
-pipes that break index tables, and an extracted first sentence degrades the routing signal).
-
-**No change-ids in `description:` (enforced/blocking).** The description MUST NOT carry change-ids —
-neither a trailing `— xu0k`-style suffix nor a `(d9rs)`-style citation. It is a routing signal, not a
-provenance record; change-id citations belong in the body (§3.3), never in the description. This ban
-is **enforced**: `fab memory-index` **BLOCKS** (fails `--check`, joining the blocking class below) on a
-`description:` carrying a **registry-gated** change-id — a full `YYMMDD-XXXX-slug` folder-name token
-whose registered folder matches, or a bare registered 4-char id (the same false-positive-free registry
-gating the `log.md` change-id attribution uses, so `code`/`yaml`/any unregistered 4-char word never
-trips it). Detection covers topic files and domain/sub-domain `index.md` stubs alike.
-
-> **Blocking content class (§3.2 escalations + malformed frontmatter).** Because the index reads the
-> `description:` frontmatter verbatim, an *offending* description silently propagates into the
-> generated row (the drift check alone cannot catch it — committed byte-identical to regenerated).
-> `fab memory-index` treats **four** signatures as **BLOCKING** — they make `fab memory-index --check`
-> **fail (exit ≥ 1) independent of index drift**, enumerating the offending file(s): (a) an
-> **unclosed frontmatter block** (opens `---` with no subsequent standalone `---`); (b) a
-> `description:` value that **starts with a quote but fails quote-stripping** (an unterminated quote,
-> e.g. a closing fence glued on as `"…text…"---`); (c) a **registry-gated change-id** in
-> `description:` (the §3.2 ban above); and (d) a **gross over-cap** `description:` (> 1000 characters).
-> This is a **blocking** signal distinct from the advisory warnings (501–1000 length, and the §4
-> shape/debt meters) and from the destructive-loss tier (§6.4): each is fixed by editing the offending
-> file — repairing the frontmatter, or trimming/de-citing the `description:` — not by a reorg, so it is
-> **not** a `--check` tier-2 category and does not fire the refuse-before-regen guards (which key on
-> exit == 2; exit 2 still wins when a tier-2 loss co-occurs). Validation is stderr/exit-code only — it
-> never changes the rendered index bytes.
-
-### 3.3 Body (conventional headings, recommended — not mandated)
-
-The body is standard markdown. FKF adopts OKF's posture: **conventional headings are recommended
-where they apply, not required**. A file is conforming without any particular section. The
-conventional structure:
-
-```markdown
----
-type: memory
-description: "One-line summary used by the generated domain-index row."
----
-# {File Name}
-
-**Domain**: {domain}
-
-## Overview
-<!-- 1-2 sentences describing what this file covers. -->
-
-## Requirements
-### Requirement: {Name}
-{RFC 2119 text: MUST / SHALL / SHOULD / MAY}
-
-#### Scenario: {Name}
-- **GIVEN** {precondition}
-- **WHEN** {action}
-- **THEN** {expected outcome}
-
-## Design Decisions
-### {Decision Title}
-**Decision**: {chosen approach}
-**Why**: {rationale}
-**Rejected**: {alternative and why it was worse}
-*Introduced by*: {change-name}
-```
-
-> **Why recommended, not mandated.** The pipeline's hydrate step *writes into* `## Requirements`
-> and `## Design Decisions`, and review/intake *read from* them — so these headings remain the
-> target shape and SHOULD be used wherever the content warrants. But a small reference-pointer
-> file should not be forced to invent a GIVEN/WHEN/THEN scenario. FKF relaxes the former
-> *MUST-have-these-sections* rule to *SHOULD-use-these-conventional-headings-where-they-apply*,
-> which keeps the hydrate-writes / review-reads contract working without imposing ceremony on
-> files that don't need it.
-
-**Body style: state current truth in present tense (normative).** The body describes **what IS**,
-not how it came to be:
-
-- **Present tense, current truth.** Every statement describes the current contract. A memory file
-  is a statement of record, not an accumulated log of edits.
-- **No transition narration.** Never narrate a change *as* a change — no "renamed X→Y in {id}", no
-  "this inverts/supersedes {id}'s claim", no "was `old.value`". Describe the current value; the
-  previous one is not the body's concern.
-- **Superseded behavior is never described in the body.** The previous state belongs to the
-  per-folder generated `log.md` (§6, the dated *what*), git history (the diff), and archived change
-  folders (the full design) — the body carries only what IS. Consolidating a section to current
-  truth (dropping the superseded description) is the correct edit, not a loss. (Sole sanctioned
-  exception: `_shared/removed-domains.md`, whose body *is* removal records — a citation-carrying
-  tombstone ledger, not transition narration — protected by the `fab memory-index --check` tier-2
-  tombstone-loss guard and the `docs-reorg-memory` carve-out that authors it.)
-- **Provenance is citation-only, and headings carry none.** The sole permitted provenance in a body
-  is a trailing `(change-id)` citation and the `*Introduced by*: {change-name}` field on a Design
-  Decision. A citation marks *where a current fact came from*; it does not narrate a transition.
-  Citations are deliberately preserved — a 6-char `(id)` cheaply defends a deliberate,
-  easily-"fixed"-away behavior against future regressions. **Heading text names its topic, never a
-  change**: a heading is `## Dispatch States`, never `### Dispatch States (xu0k)` or
-  `## xu0k — dispatch states`. Change-ids appear only as trailing citations in body text — never in
-  heading text.
-- **No operational TODOs.** Follow-up work items — TODOs, "still needs X", next-step checklists — are
-  never memory-body content. They belong in the project backlog (`fab/backlog.md`) or the originating
-  change folder. A memory body states what IS, not what remains to be done.
-- **Rationale survives distillation — as Design Decisions entries.** "Don't re-break this" content
-  lives in Design Decisions' `Why` / `Rejected` as durable, present-tense design intent — a rejected
-  alternative is a design *fact*, not transition narration. Token savings come from dropping
-  narration, **never** rationale. Any *why*, rejected alternative, or constraint explanation goes
-  into a `## Design Decisions` entry in the four-field shape (**Decision** / **Why** / **Rejected** /
-  *Introduced by*), never as inline narration in Overview/Requirements prose. The **changelog-bullet
-  shape is banned inside `## Design Decisions`**: an entry like `- **{change-id} — retired X**` is
-  change history (`log.md`'s job, §6), not a design decision — a DD entry heading is a decision
-  *title*, never a change-id.
-
-> **Why present-truth.** Change-keyed delta narration duplicates what `log.md` (the dated *what*),
-> git (the diff), and archived change folders already record; it accumulates monotonically (nothing
-> ever consolidates a file back to current truth); it forces a reader to mentally replay a patch
-> series to learn the current contract; and it wastes tokens on every always-load/lookup read. The
-> body's job is the current contract, stated once.
-
-> **No `## Changelog` section.** Per-file changelog tables are **removed** in FKF — change history
-> lives in the per-folder generated `log.md` (§6). This is the single biggest FKF divergence from
-> the pre-FKF memory format; see [§6](#6-log-files-logmd) and the migration note in [§10](#10-adoption--migration).
-
-### 3.4 Optional frontmatter
-
-FKF neither requires nor forbids the other OKF-recommended fields (`title`, `tags`,
-`timestamp`, `resource`). `resource` (a URI to an underlying asset) is typically **absent** —
-memory files document *behavior*, not addressable assets. Per OKF, consumers MUST preserve
-unknown frontmatter keys on round-trip and MUST NOT reject a file for carrying them.
+> **Why present-truth body style (§3.3).** Change-keyed delta narration duplicates what `log.md`
+> (the dated *what*), git (the diff), and archived change folders already record; it accumulates
+> monotonically (nothing ever consolidates a file back to current truth); it forces a reader to
+> mentally replay a patch series to learn the current contract; and it wastes tokens on every
+> always-load/lookup read. The body's job is the current contract, stated once.
 
 ---
 
@@ -287,263 +139,58 @@ and warns, and (with `--check --json`) surfaces them on the additive `warnings` 
 
 ## 5. Index Files (`index.md`) — generated
 
-Every directory holding ≥1 non-index `.md` carries a generated `index.md`. **All index tiers are
-generated artifacts written solely by `fab memory-index`** — agents never hand-edit index rows.
-The render is a pure function of folder contents + each file's `description:` frontmatter — so
-the output is **byte-stable / idempotent**: two branches cannot produce conflicting
-hand-edits to the same row, and any residual textual conflict auto-resolves by re-running
-`fab memory-index` post-merge.
+*Normative — moved to the [FKF standard](../site/fkf.md) §5.* Retained design rationale:
 
-> FKF is stricter than OKF here: OKF permits hand-written, auto-generated, *or*
-> consumer-synthesized indexes. FKF **forbids** hand-editing — generation is the single writer.
-
-Three tiers:
-
-- **Root** (`docs/memory/index.md`) — **domains-only**: `| Domain | Description |`. Each domain
-  row's Description is read from that domain `index.md`'s `description:` frontmatter
-  (round-tripped by the generator). No inlined per-file column (it silently drifts).
-- **Domain** (`docs/memory/{domain}/index.md`) — file rows: `| File | Description |`.
-  Description from each topic file's frontmatter. The index carries no dates — it is a pure
-  function of content, so it is branch-independent and idempotent (recency lives in `log.md`).
-  Carries its own `description:` frontmatter (the source for the root row). When sub-domains exist, appends a
-  `## Sub-Domains` table (`| Sub-Domain | Description |`) — emitted **only when sub-domains
-  exist**, so a flat domain index is byte-identical to a sub-domain-free one.
-- **Sub-domain** (`docs/memory/{domain}/{sub-domain}/index.md`) — same file-row contract as a
-  domain index; carries its own `description:` frontmatter (the source for the parent's
-  `## Sub-Domains` row).
-
-The **one curated input** to index generation is the `description:` frontmatter on topic files
-and on domain/sub-domain index files. Everything else in an index is derived.
-
-> **Stub-before-index.** When a new domain/sub-domain is created, its `index.md` **stub**
-> (carrying only `description:` frontmatter) is written **before** `fab memory-index` runs; the
-> command fills the generated body and round-trips the description. This is the Index Ownership
-> model — it avoids the contradiction of one step hand-editing an index the next step both
-> generates and forbids editing.
-
-### Merge policy: regenerate, never hand-merge (normative)
-
-Because an `index.md` (and a `log.md`, §6) is a pure function of its folder's contents, two branches
-that both touch a folder produce **conflicting edits to the same generated rows** — and the topic
-file that drove the change conflicts on the *same line* too. On any merge conflict in a generated
-`docs/memory/**/index.md` or `log.md`, agents **MUST NOT hand-merge the generated file.** Hand-merging
-a generated file is the failure mode this rule exists to prevent — it is how a corrupted row gets
-carried from one branch onto another. The procedure is mechanical:
-
-1. Resolve the conflicts in the **topic files** only (and any `.status.yaml` / `log.seed.md` seed
-   inputs the generation reads) — never in the `index.md` / `log.md` itself.
-2. **Re-run `fab memory-index`.**
-3. Take its output **wholesale** as the resolution (`git add` the regenerated index/log files).
-
-`fab memory-index --check` at review-pr backstops staleness: a hand-merged or forgotten-regen index
-surfaces as drift there. This is the operational counterpart to the byte-stability guarantee above —
-byte-stability makes the regenerate-wholesale resolution *always correct*, so there is never a reason
-to reconcile a generated file by hand.
-
-> **Optional `.gitattributes` merge-driver (non-normative aside — documentation only).** A project MAY
-> reduce the friction of the above by registering a custom merge driver that resolves generated
-> index/log conflicts by taking either side and deferring to the next `fab memory-index` regen. This
-> is **not auto-installed** by fab-kit (no tooling change, no migration) — it is a convenience a
-> project opts into by hand. Example (in the repo's `.gitattributes` plus a one-time `git config`):
->
-> ```gitattributes
-> docs/memory/**/index.md merge=fab-regen
-> docs/memory/**/log.md   merge=fab-regen
-> ```
-> ```sh
-> # register the driver once per clone (or in a repo setup script):
-> git config merge.fab-regen.name "fab memory-index regenerates this"
-> git config merge.fab-regen.driver "true"   # accept either side; regen fixes it
-> ```
->
-> The driver's `true` accepts one side without a textual conflict; the mandatory `fab memory-index`
-> re-run (step 2 above) then produces the correct bytes regardless of which side was taken. The
-> merge-driver only *suppresses the conflict marker* — it does **not** replace the regenerate step.
-
-**`fkf_version` on the root index** — see §8.
+> **Why regenerate, never hand-merge (§5).** Hand-merging a generated file is the failure mode
+> the merge policy exists to prevent — it is how a corrupted row gets carried from one branch onto
+> another. `fab memory-index --check` at review-pr backstops staleness: a hand-merged or
+> forgotten-regen index surfaces as drift there. This is the operational counterpart to the
+> byte-stability guarantee — byte-stability makes the regenerate-wholesale resolution *always
+> correct*, so there is never a reason to reconcile a generated file by hand.
 
 ---
 
 ## 6. Log Files (`log.md`) — generated (C-lite)
 
-Each domain and sub-domain folder carries a generated `log.md` recording that folder's change
-history. **`log.md` is a generated artifact written solely by `fab memory-index`** (same
-single-writer, byte-stable discipline as `index.md`). It replaces the per-file `## Changelog`
-tables that FKF removes from memory files (§3.3).
+*Normative — moved to the [FKF standard](../site/fkf.md) §6.* Retained design rationale:
 
-### 6.1 The C-lite model
-
-`log.md` is assembled from **two sources**, neither of which any agent hand-edits:
-
-1. **Git history**, keyed to the folder — the *when*, the *which file*, and the change ID. This is
-   a projection of `git log` (the sole consumer of the batched git pass, now that the index is
-   dateless), so it is always accurate and never conflicts.
-2. **A per-change one-line summary** — the *what*, written **once** into the change's own
-   `.status.yaml` `summary:` field (§6.3). Because each change touches only *its own*
-   `.status.yaml`, the summary has **zero conflict surface**.
-
-The generator joins them: for each commit touching a file in the folder, it emits one entry
-under that commit's date, carrying the file, the change's `summary`, and the change ID.
-
-> **Why C-lite, not a hand-appended log or a slug-only projection.** A hand-appended `log.md`
-> (OKF's literal convention) just *relocates* the changelog merge-conflict from N memory files
-> into the folder's `log.md` — two same-day changes in one domain still collide. A pure git
+> **Why C-lite, not a hand-appended log or a slug-only projection (§6.1).** A hand-appended
+> `log.md` (OKF's literal convention) just *relocates* the changelog merge-conflict from N memory
+> files into the folder's `log.md` — two same-day changes in one domain still collide. A pure git
 > projection (slug only, no summary) is conflict-free but loses the *what-changed* signal an
 > agent needs for archaeology ("where did `cssMarker` go?") and migration-trajectory questions.
 > C-lite keeps the descriptive line **and** stays conflict-free, because the line lives in the
 > per-change `.status.yaml`, not in the shared `log.md`. The cost is one curated line per change
 > and generator plumbing in `fab memory-index`.
 
-### 6.2 Format
-
-```markdown
-# Log — {domain}
-<!-- Generated by `fab memory-index` from git history + per-change summaries. Do not hand-edit. -->
-
-## 2026-06-13
-- **Update** [migrations](/distribution/migrations.md) — surfaces the optional `agent.tiers`
-  per-stage-model override as a fully-commented config reference block; additive, no schema change. (260613-l3ja)
-
-## 2026-06-12
-- **Update** [migrations](/distribution/migrations.md) — drops the dead `stage_directives:` block. (260612-c5tr)
-- **Update** [migrations](/distribution/migrations.md) — path-cite conformance; no migration shipped. (260612-tb6f)
-```
-
-- Entries are **date-grouped, newest first**; ISO `YYYY-MM-DD` date headings (OKF convention).
-- Each entry: an optional leading bold verb (`**Update**` / `**Creation**` / `**Deprecation**` —
-  OKF-conventional, derived from the change's `change_type` / removal markers), a bundle-relative
-  link to the file that changed, the change's `summary`, and the `(change-id)` in parens.
-- The descriptive line is **one line per change per file** — deliberately not the paragraph-length
-  prose the pre-FKF changelog rows carried. Durable, long-form *why* belongs in the memory file's
-  `## Design Decisions` section (it is durable design intent, not dated history); `log.md` carries
-  the dated *what*.
-
-### 6.3 The `summary:` source field
-
-The per-change summary line lives in the change's `.status.yaml`:
-
-```yaml
-summary: "surfaces the optional agent.tiers per-stage-model override as a commented config block"
-```
-
-- Written once during the change (authored at hydrate, or carried from the intake), via the fab
-  CLI — single-change-touched, so conflict-free.
-- Read by `fab memory-index` when generating `log.md`.
-- Adding this field is a `.status.yaml` **schema change** → it MUST ship with a migration file in
-  `src/kit/migrations/` (per the project's data-migration rule). Absence degrades gracefully: a
-  change with no `summary` projects with the change slug in place of the descriptive line.
-
-### 6.4 Freeze-on-write generation
-
-`log.md` generation is **freeze-on-write**: the existing `log.md` is **authoritative and
-write-once**. A pure projection of *live* git history is not deterministic — squash-merge rewrites
-commit subjects and counts, and branch-deletion makes the original commits unreachable — so
-re-projecting from scratch on every run produces a different result per contributor and across time
-(merely touching `docs/memory/` would churn dozens of unrelated `log.md` files and keep `--check`
-permanently red, a Constitution III violation in practice). Freeze-on-write inverts the model from
-*"`log.md` is a pure function of git+status; regenerate freely"* to *"the existing log is
-authoritative; never re-derive what's already written."* It generalizes the `log.seed.md` mechanism
-(§6, the seed-merge): after first write the whole `log.md` behaves like the seed — a frozen,
-git-independent store the generator reads but never rewrites.
-
-The regeneration flow:
-
-1. **Read** the existing `log.md` and parse it back into entries (the inverse of the §6.2 render —
-   the same grammar `log.seed.md` uses).
-2. **Treat existing entries as immutable** — never reworded, re-dated, or dropped.
-3. **Project** current git history, but use the projection only to discover **new** entries to append.
-4. **Append only** entries whose identity is not already recorded.
-5. **Re-render** (§6.2) over the merged `existing ∪ appended ∪ seed` set.
-
-**Append/dedup key = `(file-base, change-id)`.** An *attributable* projected entry (its commit
-resolves to a registered change-id) is appended only when no existing entry already records that
-`(file-base, change-id)` pair. Re-running, or re-projecting after a squash that *preserved* the
-change token, is a no-op. The git commit hash (`%H`) is deliberately **not** the key: squash +
-branch-delete makes the hash unreachable — the exact operation being defended against — whereas the
-change-id survives in the change folder name and the registry, independent of git.
-
-**Unattributable commits are frozen, not re-projected.** A commit with no registry change-id
-(migrations, docs-reorgs, direct-`main` edits, or a squash-merge whose branch token was dropped) has
-no key to append on. Unattributable entries **already present** in `log.md` stay verbatim (frozen);
-a **new** unattributable commit is **not** projected into the log after first write. *Accepted
-tradeoff*: future migration/reorg commits leave no log trace — those are tooling commits, not
-memory-domain history. Without this rule, a squashed unattributable commit (whose subject text
-changed) would look like a *new* entry and be appended alongside the frozen old line — additive churn.
-
-**Bootstrap is not a special mode.** The first run on a folder with no `log.md` is simply the first
-append into an empty log (plus the `log.seed.md` seed-merge). Unattributable commits *are* projected
-at bootstrap (and frozen on first write); there is no `--first-generation` flag (it would invite a
-re-run that re-introduces churn). Bootstrap and every later run share one code path.
-
-**`--rebuild` — the destructive escape hatch.** `fab memory-index --rebuild` discards the
-accumulated frozen state and re-projects every `log.md` from current git (the pre-freeze behavior,
-made explicit and opt-in: it re-projects unattributable commits too). It can rewrite or drop frozen
-lines, so it is **destructive** — for a corrupted frozen log or a deliberate re-baseline, never the
-default path.
-
-**`--check` semantics under freeze-on-write.** `--check` compares the committed `log.md` against the
-freeze-on-write **merge** (not a from-scratch projection):
-
-- **PASS** when the committed log is a valid **superset** of the merge — it may carry frozen lines
-  the live history no longer shows (the case byte-equality false-fails today).
-- **FAIL** (benign drift) when a projected attributable `(file-base, change-id)` entry is **missing**
-  from the committed log (someone forgot to regenerate-and-commit — the report surfaces the gap).
-- **FAIL** (benign drift) when a frozen line was **hand-edited** in a render-unstable way (the
-  single-writer discipline was violated; a clean reword that round-trips through the §6.2 grammar is,
-  by design, accepted as the new frozen truth).
-
-All `log.md` `--check` drift remains **benign (tier 1)** — `log.md` introduces **no** destructive-loss
-(tier 2) category; the three index-only detectors (description / tombstone / grouping) never run on a
-`log.md` target.
-
-**Migration.** Existing projects carry `log.md` files generated under the old pure-projection model;
-they re-baseline onto freeze-on-write via a one-time `fab memory-index --rebuild` + commit, shipped as
-a migration in `src/kit/migrations/` (the standard upgrade ordering — new binary first, then
-`/fab-setup migrations` — applies, and the migration's pre-check verifies the binary understands
-`--rebuild` before rewriting anything). That re-baseline commit is the last churn the repo sees from
-the non-determinism; every run afterward is append-only stable.
+> **Why freeze-on-write generation (§6.4).** A pure projection of *live* git history is not
+> deterministic — squash-merge rewrites commit subjects and counts, and branch-deletion makes the
+> original commits unreachable — so re-projecting from scratch on every run produces a different
+> result per contributor and across time (merely touching `docs/memory/` would churn dozens of
+> unrelated `log.md` files and keep `--check` permanently red, a Constitution III violation in
+> practice). The existing `log.md` is therefore authoritative and write-once: the generator uses
+> the git projection only to discover **new** entries to append, never to re-derive what's already
+> written. The append/dedup key is `(file-base, change-id)`, deliberately **not** the git commit
+> hash — squash + branch-delete makes the hash unreachable (the exact operation being defended
+> against), whereas the change-id survives in the change folder name and the registry, independent
+> of git. New unattributable commits are not re-projected after first write (*accepted tradeoff*:
+> future migration/reorg commits leave no log trace — tooling commits, not memory-domain history).
+> There is deliberately no `--first-generation` flag (it would invite a re-run that re-introduces
+> churn); `--rebuild` is the explicit, destructive escape hatch for a corrupted frozen log or a
+> deliberate re-baseline, never the default path. Shipped semantics:
+> [pipeline/schemas.md](../memory/pipeline/schemas.md) § Freeze-on-Write `log.md` Generation.
 
 ---
 
 ## 7. Cross-links — bundle-relative
 
-Links between memory files use the **bundle-relative absolute** form: a path beginning with `/`,
-interpreted relative to the bundle root (`docs/memory/`).
-
-```markdown
-See [migrations](/distribution/migrations.md) and [configuration](/_shared/configuration.md).
-```
-
-> FKF picks OKF's *recommended* link form (over plain relative) for a concrete reason:
-> `docs-reorg-memory` **moves files between domains** (splits/merges). Bundle-relative links
-> survive a move — the reorg skill rewrites *far* fewer links — whereas plain relative links
-> break on every move and must be rewritten in bulk. As in OKF, the relationship *type*
-> (parent/child, references, depends-on) is conveyed by surrounding prose, not a typed link
-> field, and consumers MUST tolerate broken links (a missing target is not malformed).
-
-Links **out** of the bundle (to source files, specs, external URLs) use ordinary repo-relative
-or absolute-URL forms as appropriate — the bundle-relative rule governs memory↔memory links.
+*Normative — moved to the [FKF standard](../site/fkf.md) §7.*
 
 ---
 
 ## 8. Versioning
 
-The bundle declares its FKF version in the **root `index.md` frontmatter** — the only `index.md`
-permitted to carry frontmatter beyond the generator's own output:
-
-```yaml
----
-fkf_version: "0.1"
----
-```
-
-FKF emits **`fkf_version`**, not OKF's `okf_version`, because an FKF bundle is a *superset* of
-OKF — claiming bare `okf_version` would under-state what the bundle guarantees. The FKF↔OKF
-lineage lives in this spec (§1), not in a version field. `fab memory-index` writes
-`fkf_version` into the root index on generation.
-
-Minor versions add backward-compatible features; major versions may break. Per OKF, consumers
-SHOULD attempt best-effort consumption rather than refusing an unknown version.
+*Normative — moved to the [FKF standard](../site/fkf.md) §8.*
 
 ---
 

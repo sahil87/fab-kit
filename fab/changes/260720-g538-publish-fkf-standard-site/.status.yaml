@@ -1,0 +1,57 @@
+id: g538
+name: 260720-g538-publish-fkf-standard-site
+created: 2026-07-20T09:29:20Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 10
+    acceptance_count: 20
+    acceptance_completed: 0
+confidence:
+    certain: 3
+    confident: 6
+    tentative: 0
+    unresolved: 0
+    score: 4.5
+    fuzzy: true
+    dimensions:
+        signal: 63.3
+        reversibility: 85.0
+        competence: 85.0
+        disambiguation: 76.1
+stage_metrics:
+    intake: {started_at: "2026-07-20T09:29:20Z", driver: fab-new, iterations: 1, completed_at: "2026-07-20T09:32:02Z"}
+    apply: {started_at: "2026-07-20T09:32:02Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-20T09:48:43Z"}
+    review: {started_at: "2026-07-20T09:48:43Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-20T09:54:23Z"}
+    hydrate: {started_at: "2026-07-20T09:54:23Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-20T09:57:51Z"}
+    ship: {started_at: "2026-07-20T09:57:51Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-20T10:02:50Z"}
+    review-pr: {started_at: "2026-07-20T10:02:50Z", driver: git-pr, iterations: 1, completed_at: "2026-07-20T10:10:58Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/514
+change_type_source: explicit
+true_impact:
+    added: 913
+    deleted: 455
+    net: 458
+    excluding:
+        added: 75
+        deleted: 14
+        net: 61
+    tests:
+        added: 39
+        deleted: 0
+        net: 39
+    computed_at: "2026-07-20T10:02:50Z"
+    computed_at_stage: ship
+summary: FKF standard published canonically at docs/site/fkf.md (shll.ai/fab-kit/fkf); reference/fkf.md is a byte-copy synced by scripts/sync-fkf.sh + drift-guard test; docs/specs/fkf.md slimmed to rationale companion
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-20T10:10:58Z

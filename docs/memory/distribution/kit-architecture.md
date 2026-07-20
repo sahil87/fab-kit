@@ -59,7 +59,7 @@ src/kit/
 │   ├── memory.md           # Canonical FKF memory-file template (type: memory + description: + Overview/Requirements/Design Decisions skeleton, no ## Changelog) — read on demand by the doc skills (2fm8)
 │   └── status.yaml         # .status.yaml template (6-stage progress, plan: block, stage_metrics: {}, issues: [], prs: [])
 ├── reference/              # Reference-to-read contracts shipped to the cache, read via $(fab kit-path)/reference/... (frlo)
-│   └── fkf.md              # Shipped FKF normative extract (§2/§3/§5/§6/§7/§8); deployed skills cite $(fab kit-path)/reference/fkf.md
+│   └── fkf.md              # Byte-copy of docs/site/fkf.md (canonical FKF standard, published at shll.ai/fab-kit/fkf), synced by scripts/sync-fkf.sh + drift-guard test fkf_sync_test.go; deployed skills cite $(fab kit-path)/reference/fkf.md
 ├── scaffold/               # Overlay tree — paths mirror repo root destinations
 │   ├── fragment-.envrc     # .envrc required entries (line-ensuring merge)
 │   ├── fragment-.gitignore # .gitignore entries (line-ensuring merge)
@@ -427,6 +427,12 @@ Outputs the tmux pane ID for a change's worktree. Signature: `fab resolve <chang
 **Why**: Go implementation enables testability, cross-platform consistency, and eliminates the shell dependency chain. Cache-based resolution is consistent with how `fab-go` already runs from the cache, and is a step toward removing `src/kit/` from repos entirely. Clean cut — no transition period with dual implementations.
 **Rejected**: Keeping a `fab-sync.sh` alongside `fab-kit sync` (duplication, testing burden).
 *Introduced by*: 260402-3ac3-three-binary-architecture, 260402-ktbg-sync-from-cache
+
+### FKF Standard Published Canonically; Kit Copy Is a Byte-Copy
+**Decision**: The authoritative FKF standard lives at `docs/site/fkf.md` (published at `https://shll.ai/fab-kit/fkf` via the daily `docs/site/**` pull), and `src/kit/reference/fkf.md` is a byte-copy shipped into the kit cache. `scripts/sync-fkf.sh` (`cp -f docs/site/fkf.md → src/kit/reference/fkf.md`) is the one-line refresh; the drift-guard test `src/go/fab/cmd/fab/fkf_sync_test.go` fails CI on any divergence, naming `scripts/sync-fkf.sh` as the fix. `docs/specs/fkf.md` is the non-normative rationale/history companion (no normative rule text) linked from the standard's header.
+**Why**: The standard needs a stable public URL for the repos that consume the format (loom, run-kit), and `docs/site/**` publishes with zero infrastructure. Making the published page canonical and the shipped copy a byte-copy turns the former hand-synced two-prose-variant duty ("update BOTH files") into a mechanically-enforced one-line copy. The repo already proves the pattern with `docs/site/skill.md` + `scripts/sync-skill.sh` + its drift-guard, so no new machinery is introduced. `reference/fkf.md` keeps its path and section anchors, so every deployed-skill citation of `$(fab kit-path)/reference/fkf.md §N` stays valid unchanged.
+**Rejected**: A curated re-worded extract independent of the published page (the prior arrangement — two prose variants drift silently with no enforcement). A release/build step writing into `src/` (heavier than a copy script; the drift-guard test enforces equality without one). Publishing from `docs/specs/` (that tree is never pulled by shll.ai).
+*Introduced by*: 260720-g538-publish-fkf-standard-site
 
 ### Three-Binary Split for Testability
 **Decision**: The system `fab` shim is split into `fab` (router) and `fab-kit` (workspace lifecycle) as separate binaries. Together with `fab-go` (workflow engine), there are three independently-invocable binaries.

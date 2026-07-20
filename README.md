@@ -657,6 +657,7 @@ See [companions.md](https://github.com/sahil87/fab-kit/blob/main/docs/specs/comp
 - **[Design & Workflow Details](https://github.com/sahil87/fab-kit/blob/main/docs/specs/overview.md)** - principles, detailed stage descriptions, example workflows
 - **[User Flow Diagrams](https://github.com/sahil87/fab-kit/blob/main/docs/specs/user-flow.md)** - visual maps of the full pipeline, shortcuts, rework paths, and state machine
 - **[Full Command Reference](https://github.com/sahil87/fab-kit/blob/main/docs/specs/skills.md)** - detailed behavior for every `/fab-*` skill
+- **[FKF — Fab Knowledge Format](docs/site/fkf.md)** - the standard for the `docs/memory/` knowledge tree: frontmatter, generated indexes and logs, present-truth body style
 - **[SRAD Autonomy Framework](https://github.com/sahil87/fab-kit/blob/main/docs/specs/srad.md)** - how the pipeline handles ambiguity, confidence scoring, and autonomous execution gates
 - **[Glossary](https://github.com/sahil87/fab-kit/blob/main/docs/specs/glossary.md)** - all Fab terminology defined
 - **[Contributing](https://github.com/sahil87/fab-kit/blob/main/CONTRIBUTING.md)** - developing, extending, and releasing Fab Kit
