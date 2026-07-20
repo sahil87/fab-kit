@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "How src/kit/ is distributed — Homebrew formula (fab router + fab-kit direct; wt/idea standalone siblings, no depends_on), always-route policy, fab init bootstrap, fab upgrade-repo (offline-first, --latest opt-in), release workflow, auto-download (timeouts, flock, atomic rename, digest verify), fail-loud exit contracts (exit 3 = not-fab-managed), update brew-safety, the shll.ai README/docs-site pull surface, toolkit-standards conformance (incl. install-composition: install docs on shll.ai)."
+description: "How src/kit/ is distributed — Homebrew formula (fab router + fab-kit direct; wt/idea standalone siblings, no depends_on), always-route policy, fab init bootstrap, fab upgrade-repo (offline-first, --latest opt-in), release workflow, auto-download (timeouts, flock, atomic rename, digest verify), fail-loud exit contracts (exit 3 = not-a-fab-managed-repo), update brew-safety, the shll.ai README/docs-site pull surface, toolkit-standards conformance (incl. install-composition: install docs on shll.ai)."
 ---
 # Distribution
 

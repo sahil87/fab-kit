@@ -47,12 +47,12 @@ README.md's `## Companion tools` section (lines ~643–649) MUST replace the cod
 ### Docs: Conformance verification
 
 #### R5: No toolkit per-formula install instructions remain; keeps are untouched
-After the edits, a grep of README.md and docs/site/ for `brew install sahil87/tap/` MUST return exactly one occurrence: the mandated hint example in `docs/site/install.md` (the quoted `wt is required for 'fab batch new' — install it via: brew install sahil87/tap/wt` line). The third-party prerequisite blocks (`brew install yq jq gh direnv`, `brew install go just` in both files) MUST remain unchanged, README's `## Install` section MUST remain unchanged (already conformant), and no files outside README.md/docs/site/ are touched (no Go source, no docs/specs, no docs/memory — memory is hydrate's job).
+After the edits, a grep of README.md and docs/site/ for `brew install sahil87/tap/` MUST return exactly one occurrence: the mandated hint example in `docs/site/install.md` (the quoted `wt is required for 'fab batch new' — install it via: brew install sahil87/tap/wt` line). The third-party prerequisite blocks (`brew install yq jq gh direnv`, `brew install go just` in both files) MUST remain unchanged, README's `## Install` section MUST remain unchanged (already conformant), and the apply-stage diff touches no files outside README.md/docs/site/ (no Go source, no docs/specs, no docs/memory — memory is hydrate's job; later pipeline stages add their own files by design: hydrate updates docs/memory, and the change record under fab/changes/ evolves throughout, so this scope check applies to the apply stage only, not the full PR).
 
 - **GIVEN** all four replacements (R1–R4) are applied
 - **WHEN** `grep -rn 'brew install sahil87/tap/' README.md docs/site/` runs
 - **THEN** the only hit is the install.md error-hint example
-- **AND** `git status` shows only README.md and docs/site/install.md modified
+- **AND** `git status` at apply completion (before hydrate/ship) shows only README.md and docs/site/install.md modified
 
 ### Non-Goals
 
