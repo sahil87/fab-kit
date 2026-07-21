@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -432,6 +433,37 @@ func TestValidatePaneResult_PaneNotFoundErrorType(t *testing.T) {
 	}
 }
 
+// tmuxSocketPathBudget is a conservative cap for the full tmux socket path
+// ($TMUX_TMPDIR/tmux-$UID/<name>): macOS caps sun_path at 104 bytes
+// including the terminating NUL.
+const tmuxSocketPathBudget = 103
+
+// tmuxSocketPathLen returns the length of the socket path tmux would bind
+// for a server named name under TMUX_TMPDIR dir.
+func tmuxSocketPathLen(dir, name string) int {
+	return len(filepath.Join(dir, "tmux-"+strconv.Itoa(os.Getuid()), name))
+}
+
+// tmuxSocketDir returns a per-test private directory for TMUX_TMPDIR so the
+// test's tmux socket dies with the test — tmux never unlinks its socket on
+// server exit, so a socket in the shared /tmp/tmux-$UID would leak on every
+// run (change 0j0t). Prefers t.TempDir(); when the resulting socket path
+// would exceed the sun_path budget (long $TMPDIR bases on macOS), it falls
+// back to a short /tmp dir removed via t.Cleanup — never a skip.
+func tmuxSocketDir(t *testing.T, name string) string {
+	t.Helper()
+	dir := t.TempDir()
+	if tmuxSocketPathLen(dir, name) > tmuxSocketPathBudget {
+		short, err := os.MkdirTemp("/tmp", "fabtest-")
+		if err != nil {
+			t.Fatalf("create short TMUX_TMPDIR fallback: %v", err)
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(short) })
+		dir = short
+	}
+	return dir
+}
+
 // TestReadAgentStateOption_Integration drives the full reader against a real
 // tmux server, simulating run-kit's rk agent-setup writer via
 // `tmux set-option -p @rk_agent_state "<state>:<epoch>"` (the writer
@@ -445,7 +477,12 @@ func TestReadAgentStateOption_Integration(t *testing.T) {
 	}
 
 	// Ephemeral private server so the test never touches the user's tmux.
-	server := "fabtest-" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	// The private TMUX_TMPDIR (process env — the code under test shells out
+	// to `tmux -L` itself and must resolve the same socket dir) makes the
+	// socket die with the test; a short fixed name keeps the socket path
+	// inside the sun_path budget.
+	server := "fabtest"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
 	tmux := func(args ...string) (string, error) {
 		out, err := exec.Command("tmux", append([]string{"-L", server}, args...)...).CombinedOutput()
 		return strings.TrimSpace(string(out)), err
