@@ -615,7 +615,12 @@ func TestMapSendAgentAgreement_Integration(t *testing.T) {
 
 	nonGitCWD := t.TempDir() // pane cwd with no git repo / no fab dir
 
-	server := "fabtest-agree-" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	// Private TMUX_TMPDIR (process env — both readers under test shell out to
+	// `tmux -L` themselves and must resolve the same socket dir) makes the
+	// socket die with the test; a short fixed name keeps the path in budget.
+	// Helper shared from pane_send_test.go (same package).
+	server := "fabtest-agree"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
 	tmux := func(args ...string) (string, error) {
 		out, err := exec.Command("tmux", append([]string{"-L", server}, args...)...).CombinedOutput()
 		return strings.TrimSpace(string(out)), err
