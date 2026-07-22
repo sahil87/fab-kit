@@ -147,6 +147,8 @@ func changeListCmd() *cobra.Command {
 // changeResolveCmd is a thin wrapper over the shared resolve implementation
 // (runResolve in resolve.go) with the folder output mode fixed — the same
 // code path as `fab resolve --folder`, so the two spellings can never drift.
+// Deliberately flag-free (the query flags — including --or-none — live on
+// top-level `fab resolve` only), so orNone is always false here.
 func changeResolveCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "resolve [override]",
@@ -157,7 +159,7 @@ func changeResolveCmd() *cobra.Command {
 			if len(args) > 0 {
 				override = args[0]
 			}
-			return runResolve(cmd, override, "folder", "")
+			return runResolve(cmd, override, "folder", "", false)
 		},
 	}
 }

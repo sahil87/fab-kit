@@ -21,9 +21,12 @@ Conversation context is the interpretive lens for any unactivated intakes: an un
 User invokes /fab-proceed
 │
 ├─ Step 1: Active Change Check
-│  └─ Bash: fab resolve --folder 2>/dev/null
-│     ├─ exits 0 → active change found, go to Step 2
-│     └─ exits non-zero → run Steps 3 and 4 (order-independent)
+│  └─ Bash: fab resolve --folder --or-none
+│     ├─ prints folder name → active change found, go to Step 2
+│     └─ prints "(none)" → run Steps 3 and 4 (order-independent)
+│        (non-zero exit = real error, e.g. uninitialized project —
+│         surface stderr and stop, not the no-active-change branch;
+│         260720-dow0)
 │
 ├─ Step 2: Branch Check (only if active change found)
 │  └─ Bash: git branch --show-current

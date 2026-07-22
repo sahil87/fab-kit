@@ -43,10 +43,10 @@ Detect the current state by executing the following checks. The skill MUST NOT p
 ### Step 1: Active Change Check
 
 ```bash
-fab resolve --folder 2>/dev/null
+fab resolve --folder --or-none
 ```
 
-If exits 0, an active change exists. Capture the folder name and go to Step 2. If exits non-zero, skip Step 2 and proceed to Steps 3 and 4.
+If it prints a folder name, an active change exists — capture it and go to Step 2. If it prints `(none)`, no change is active — skip Step 2 and proceed to Steps 3 and 4. (A non-zero exit is a real error — e.g. `fab/ directory not found`, an uninitialized project — not the no-active-change state: STOP and surface stderr per `_preamble.md`'s failure rule.)
 
 ### Step 2: Branch Check
 

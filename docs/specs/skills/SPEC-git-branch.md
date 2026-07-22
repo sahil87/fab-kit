@@ -54,7 +54,7 @@ User invokes /git-branch [change-name]
 
 | Tool | Purpose |
 |------|---------|
-| Bash | `fab change resolve` (argument resolution — stderr-keyed multi-match STOP vs no-match fallback — plus the Step 4 rename guard on the current branch), all git operations |
+| Bash | `fab change resolve` (argument resolution — stderr-keyed multi-match STOP vs no-match fallback — plus the Step 4 rename guard on the current branch; deliberately kept on the strict exit-code form when the five probe sites migrated to `fab resolve … --or-none` — absence is a genuine STOP here, divergence recorded in the fab-new.md/git-branch.md twin sync comments, 260720-dow0), all git operations |
 
 ### Sub-agents
 
