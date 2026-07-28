@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 46
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-07-28T06:38:30Z", driver: fab-fff, iterations: 4, completed_at: "2026-07-28T06:48:42Z"}
     review: {started_at: "2026-07-28T06:48:42Z", driver: fab-fff, iterations: 4, completed_at: "2026-07-28T06:53:57Z"}
     hydrate: {started_at: "2026-07-28T06:53:57Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-28T07:17:01Z"}
-    ship: {started_at: "2026-07-28T07:17:01Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-07-28T07:17:01Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-28T07:19:09Z"}
+    review-pr: {started_at: "2026-07-28T07:19:09Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/520
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 1813
+    deleted: 69
+    net: 1744
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 480
+        deleted: 23
+        net: 457
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-07-28T07:17:01Z"
-    computed_at_stage: hydrate
+        added: 149
+        deleted: 6
+        net: 143
+    computed_at: "2026-07-28T07:19:09Z"
+    computed_at_stage: ship
 summary: Added /fab-dedupe — sweep/cluster/draft skill (new pipeline/dedupe.md memory file), the consolidate.detectors config key with its paired configscope entry, and the consumer-set-enumeration sweep discipline as a Design Decision.
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-07-28T07:17:01Z
+last_updated: 2026-07-28T07:19:09Z
