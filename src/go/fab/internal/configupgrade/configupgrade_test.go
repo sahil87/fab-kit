@@ -264,6 +264,37 @@ func TestRender_BHygieneSilentOnRealOverride(t *testing.T) {
 	}
 }
 
+// TestRender_FenceAdvertisesConsolidateDetectors: the `consolidate.detectors` key
+// added for /fab-dedupe (260728-4v91) is an advertised C field, so an un-overridden
+// project gets it scaffolded — fully commented — into the managed fence, and a
+// project that HAS overridden it keeps its live block with no fence duplicate
+// (presence=intent). Runs over the SHIPPED registry: this is the guard that the new
+// row actually reaches every user's config.yaml on the next `fab config upgrade`.
+func TestRender_FenceAdvertisesConsolidateDetectors(t *testing.T) {
+	fields := fieldsForTest(t)
+
+	// Un-overridden: scaffolded into the fence, commented.
+	out, _ := render("project:\n    name: t\n", fields, "2.15.0")
+	_, fenceBody, _ := sliceFence(t, out)
+	if !strings.Contains(fenceBody, "# consolidate.detectors") {
+		t.Errorf("fence must advertise the un-overridden consolidate.detectors field.\n--- fence ---\n%s", fenceBody)
+	}
+	if strings.Contains(fenceBody, "\nconsolidate:") {
+		t.Error("fence must not carry a LIVE consolidate: parent key (must be commented)")
+	}
+
+	// Overridden: the live block survives verbatim and is NOT re-advertised.
+	src := "consolidate:\n    detectors:\n        - jscpd {paths}\n"
+	out2, _ := render(src, fields, "2.15.0")
+	if !strings.Contains(out2, "- jscpd {paths}") {
+		t.Errorf("a live consolidate override must be preserved verbatim.\n--- got ---\n%s", out2)
+	}
+	_, fenceBody2, _ := sliceFence(t, out2)
+	if strings.Contains(fenceBody2, "consolidate") {
+		t.Errorf("fence must omit the already-overridden consolidate field.\n--- fence ---\n%s", fenceBody2)
+	}
+}
+
 // TestUpgrade_RefusesUnparseableOutput (SF-c): Upgrade validates the reconciled
 // bytes and REFUSES to overwrite the file when the result would not parse as YAML,
 // leaving the original file byte-untouched. Exercised via a live block whose value

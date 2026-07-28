@@ -110,7 +110,7 @@ teammates and CI.
 | scope | Meaning | Fields |
 |-------|---------|--------|
 | `both` | Overridable in either the project or the system layer (preference-class). | `agent.tiers`, `providers` |
-| `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, and (conservative default) `stage_hooks`, `branch_prefix` |
+| `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `consolidate.detectors`, and (conservative default) `stage_hooks`, `branch_prefix` |
 | `system` | Overridable only in the system layer. | *(none today; the value exists for completeness and [Change 2])* |
 
 Fields the decision-6 taxonomy does not enumerate (`stage_hooks`, `branch_prefix`) default to `project`
@@ -141,8 +141,8 @@ model, at [Change 3]'s `fab config upgrade` time, every field is one of:
   managed fence, so the user can discover and opt in.
 
 `advertise: true` marks the C-eligible fields — the optional override surfaces a project has typically
-*not* set live: `agent.tiers`, `providers`, `checklist.extra_categories`, `true_impact_exclude`,
-`stage_hooks`, `branch_prefix`, `test_paths`. `advertise: false` marks the init-seeded identity fields
+*not* set live: `agent.tiers`, `providers`, `checklist.extra_categories`, `consolidate.detectors`,
+`true_impact_exclude`, `stage_hooks`, `branch_prefix`, `test_paths`. `advertise: false` marks the init-seeded identity fields
 (`project.*`, `source_paths`), which are written live at `fab config init --project` time and not
 re-advertised in the fence. (`fab_version` is no longer a config-file field — it left `config.yaml` for
 `fab/.fab-version` in [Change 3 — landed], so it is neither advertised nor init-seeded.)

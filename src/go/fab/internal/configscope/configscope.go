@@ -68,6 +68,7 @@ var keyScopes = map[string]Scope{
 	"test_paths":          ScopeProject,
 	"true_impact_exclude": ScopeProject,
 	"checklist":           ScopeProject,
+	"consolidate":         ScopeProject,
 	"providers":           ScopeBoth,
 	"agent":               ScopeBoth,
 	"stage_hooks":         ScopeProject,

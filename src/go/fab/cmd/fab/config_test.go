@@ -523,6 +523,7 @@ func TestConfigReferenceScopeAssignments(t *testing.T) {
 		"test_paths":                 configref.ScopeProject,
 		"true_impact_exclude":        configref.ScopeProject,
 		"checklist.extra_categories": configref.ScopeProject,
+		"consolidate.detectors":      configref.ScopeProject,
 		"providers":                  configref.ScopeBoth,
 		"agent.tiers":                configref.ScopeBoth,
 		"stage_hooks":                configref.ScopeProject,
@@ -586,6 +587,120 @@ func TestConfigReferenceCommandJSONFlag(t *testing.T) {
 	cmdErr.SetArgs([]string{"reference", "--json", "extra"})
 	if err := cmdErr.Execute(); err == nil {
 		t.Error("`config reference --json extra` should be rejected (cobra.NoArgs)")
+	}
+}
+
+// TestConfigReferenceConsolidateDetectors pins the `consolidate.detectors`
+// registry row added for /fab-dedupe (260728-4v91). It is a SKILL-consumed key
+// (no Config struct field — markdown reads it), so no reflection-based coverage
+// test would catch its loss; this test is the guard. Three properties are pinned:
+// the row's metadata (nil default per the empty-default convention, project
+// scope, advertised), the commented-out rendering (a live `consolidate:` block
+// would opt every project in), and the deliberate ABSENCE of the
+// `consolidate.memory_file` key rejected at intake (the memory home is
+// hardcoded in the skill prose).
+func TestConfigReferenceConsolidateDetectors(t *testing.T) {
+	// Isolate HOME so the cascade cannot merge the developer's real system
+	// config over the reference (same discipline as TestConfigReferenceRoundTrips).
+	t.Setenv("HOME", t.TempDir())
+
+	fields, err := configref.Fields()
+	if err != nil {
+		t.Fatalf("Fields returned an error: %v", err)
+	}
+	var row *configref.Field
+	for i := range fields {
+		switch fields[i].Key {
+		case "consolidate.detectors":
+			row = &fields[i]
+		case "consolidate.memory_file":
+			t.Error("consolidate.memory_file was deliberately NOT shipped (the memory home is hardcoded to docs/memory/_shared/utilities.md); remove the row")
+		}
+	}
+	if row == nil {
+		t.Fatal("registry is missing the consolidate.detectors row")
+	}
+	if row.Default != nil {
+		t.Errorf("consolidate.detectors Default = %#v, want nil (empty-default convention: no built-in default)", row.Default)
+	}
+	if row.Scope != configref.ScopeProject {
+		t.Errorf("consolidate.detectors Scope = %q, want %q", row.Scope, configref.ScopeProject)
+	}
+	if !row.Advertise {
+		t.Error("consolidate.detectors must be advertised (it is scaffolded into the managed fence)")
+	}
+	if strings.TrimSpace(row.Segment) == "" {
+		t.Error("consolidate.detectors carries no rendered Segment, so `fab config reference` would not document it")
+	}
+
+	// The placeholders are substituted SHELL-QUOTED (PR #520 review). A template
+	// is run through a shell, so an unquoted {paths}/{out} would word-split — or
+	// execute — a scope path containing a space or a shell metacharacter. Both
+	// the prose description and the scaffolded comment must say so, since the
+	// substitution is performed by the agent reading this text.
+	if !strings.Contains(row.Description, "shell-quoted") {
+		t.Error("consolidate.detectors Description must state that {paths}/{out} are substituted shell-quoted")
+	}
+	if !strings.Contains(row.Segment, "shell-quoted") {
+		t.Error("consolidate.detectors Segment must state that {paths}/{out} are substituted shell-quoted")
+	}
+
+	// The YAML reference documents the key, and it is COMMENTED — a live
+	// `consolidate:` block would enable a detector sweep for every project.
+	out, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+	if !containsKeyToken(out, "detectors") {
+		t.Error("consolidate.detectors is not documented in `fab config reference`")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte(out), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		if strings.HasPrefix(line, "consolidate:") {
+			t.Error("the consolidate block must be commented-out in the reference (parsed as live)")
+		}
+	}
+
+	// The JSON dump carries the same row with the same metadata.
+	jsonOut, err := configref.RenderJSON()
+	if err != nil {
+		t.Fatalf("RenderJSON returned an error: %v", err)
+	}
+	var arr []struct {
+		Key       string `json:"key"`
+		Default   any    `json:"default"`
+		Scope     string `json:"scope"`
+		Advertise bool   `json:"advertise"`
+	}
+	if err := json.Unmarshal([]byte(jsonOut), &arr); err != nil {
+		t.Fatalf("--json output is not valid JSON: %v", err)
+	}
+	found := false
+	for _, e := range arr {
+		if e.Key != "consolidate.detectors" {
+			continue
+		}
+		found = true
+		if e.Default != nil {
+			t.Errorf("--json consolidate.detectors default = %#v, want null", e.Default)
+		}
+		if e.Scope != string(configref.ScopeProject) {
+			t.Errorf("--json consolidate.detectors scope = %q, want %q", e.Scope, configref.ScopeProject)
+		}
+		if !e.Advertise {
+			t.Error("--json consolidate.detectors advertise = false, want true")
+		}
+	}
+	if !found {
+		t.Error("--json dump is missing consolidate.detectors")
 	}
 }
 

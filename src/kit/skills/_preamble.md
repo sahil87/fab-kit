@@ -258,7 +258,7 @@ When a skill creates or restores a change without activating it (no `.fab-status
 Next: /fab-switch {name} to make it active, then {default}, {other commands}
 ```
 
-This applies to `/fab-draft` (always) and `/fab-archive restore` (without `--switch`). `/fab-new` auto-activates and does not need the activation preamble.
+This applies to `/fab-draft` (always), `/fab-dedupe` (per drafted intake — it stops at `ready` without activating, so every intake it drafts carries the preamble), and `/fab-archive restore` (without `--switch`). `/fab-new` auto-activates and does not need the activation preamble.
 
 ---
 
@@ -399,7 +399,7 @@ Per `docs/specs/harness-adapters.md` § Dispatch-prompt obligations, **whatever 
 
 ## SRAD Autonomy Framework (pointer)
 
-SRAD is the decision framework planning skills use to score decision points (Signal, Reversibility, Agent Competence, Disambiguation → Certain/Confident/Tentative/Unresolved) and decide when to ask vs. assume. The full framework — scoring dimensions, grade thresholds, Critical Rule, artifact markers, and the Assumptions Summary block — lives in the `_srad` helper, declared via `helpers:` by the six planning skills (`fab-new`, `fab-draft`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify`). Non-planning skills do not need it.
+SRAD is the decision framework planning skills use to score decision points (Signal, Reversibility, Agent Competence, Disambiguation → Certain/Confident/Tentative/Unresolved) and decide when to ask vs. assume. The full framework — scoring dimensions, grade thresholds, Critical Rule, artifact markers, and the Assumptions Summary block — lives in the `_srad` helper, declared via `helpers:` by the planning skills (`fab-new`, `fab-draft`, `fab-dedupe`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify`). Non-planning skills do not need it.
 
 ---
 
@@ -422,7 +422,7 @@ See `docs/specs/change-types.md` for the full taxonomy.
 ### Invocation
 
 Confidence is computed by `fab score` (reading `intake.md`), invoked by:
-- `/fab-new` and `/fab-draft` (after intake generation, `--stage intake`) — persist the intake score
+- `/fab-new`, `/fab-draft`, and `/fab-dedupe` (after intake generation, `--stage intake`) — persist the intake score. All three reach it through the shared `_intake` Create-Intake Procedure's Step 7; `/fab-dedupe` runs that step once per accepted cluster group, so one invocation persists N intake scores
 - `/fab-clarify` (**both modes** — Suggest Step 7 and Auto Mode step 4) — re-persists the intake score after resolving assumptions
 
 `/fab-continue` does NOT score at apply entry — intake is authoritative, and there is no scoring at any post-intake stage.

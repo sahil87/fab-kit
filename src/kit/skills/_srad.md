@@ -9,7 +9,7 @@ metadata:
 # SRAD Autonomy Framework
 
 > This file defines the SRAD decision framework used by the planning skills
-> (`fab-new`, `fab-draft`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify`), each of which
+> (`fab-new`, `fab-draft`, `fab-dedupe`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify`), each of which
 > declares `_srad` in its frontmatter `helpers:` list (see `_preamble.md` § Skill Helper Declaration).
 
 When generating artifacts, planning skills encounter decision points not explicitly addressed by user input. The SRAD framework provides a principled method for deciding when to ask, when to assume, and when to surface assumptions.
@@ -70,7 +70,7 @@ Each decision is labelled with an **indicative grade** derived from its composit
 | **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify`, `/fab-continue` (after rework cap) | `/fab-clarify`, `/fab-continue` (after rework cap) |
 | **Recomputes confidence?** | Yes (intake, via `fab score --stage intake`) | No (no scoring at apply — intake is authoritative) | No | No |
 
-The remaining two declaring skills are covered by these columns: **fab-draft** follows the fab-new column exactly (it is a thin delta over fab-new Steps 0–9 — same SRAD-driven posture and budget; it only skips activation/branch). **fab-clarify** is the escape valve itself: suggest-mode questions are SRAD-prioritized (max 5 per invocation), resolved assumptions are re-graded in the artifact's table, and it always recomputes the intake score (`fab score --stage intake`).
+The remaining three declaring skills are covered by these columns: **fab-draft** follows the fab-new column exactly (it is a thin delta over fab-new Steps 0–9 — same SRAD-driven posture and budget; it only skips activation/branch). **fab-dedupe** also follows the fab-new column (a thin call-site over the same Steps 0–9 with `{questioning-mode} = interactive` — same SRAD-driven posture, interruption budget, and `/fab-clarify` escape valve; it adds a cluster-analysis front end and runs the procedure once per accepted cluster group, which multiplies invocations of that posture rather than changing it). **fab-clarify** is the escape valve itself: suggest-mode questions are SRAD-prioritized (max 5 per invocation), resolved assumptions are re-graded in the artifact's table, and it always recomputes the intake score (`fab score --stage intake`).
 
 ## Worked Examples
 
@@ -92,7 +92,7 @@ Planning skills use HTML comment markers to flag assumptions for downstream scan
 
 | Marker | Grade | Placed by | Scanned by |
 |--------|-------|-----------|------------|
-| `<!-- assumed: {description} -->` | Tentative | All planning skills (fab-new, fab-draft, fab-continue, fab-ff, fab-fff, fab-clarify) | `/fab-clarify` (suggest + auto modes) |
+| `<!-- assumed: {description} -->` | Tentative | All planning skills (fab-new, fab-draft, fab-dedupe, fab-continue, fab-ff, fab-fff, fab-clarify) | `/fab-clarify` (suggest + auto modes) |
 | `<!-- clarified: {description} -->` | Resolved | `/fab-clarify` | Informational — not scanned |
 
 **Placement**: Insert the marker inline in the artifact, immediately after the assumed or guessed content. The `{description}` MUST be a concise summary of what was assumed/guessed and why.

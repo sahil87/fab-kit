@@ -2,15 +2,15 @@
 
 ## Summary
 
-Shared pre-boundary **Create-Intake Procedure** (fab-new Steps 0–9) used by three skills: `/fab-new`, `/fab-draft`, and `/fab-proceed`'s create-new dispatch (added in 260613-3xaj — extract-intake-helper). It completes the helper symmetry: the pre-boundary skill family (intake creation, which runs in the main session context because it needs the live conversation) now has a single shared body, mirroring the post-boundary `_pipeline.md`. Single authoritative source for Steps 0 (parse input) · 1 (generate slug) · 2 (gap analysis) · 3 (create change, incl. backlog/Linear collision pre-checks and `fab change new` flags) · 4 (conversation context mining — the load-bearing context-flush at the boundary) · 5 (generate `intake.md`, delegating to `_generation.md` § Intake Generation Procedure) · 6 (verify `change_type` — recomputed by `fab status refresh`, self-healed at the transition seams) · 7 (confidence, `fab score --stage intake`) · 8 (SRAD-based question selection — *the parameterized step*) · 9 (advance intake to `ready`).
+Shared pre-boundary **Create-Intake Procedure** (fab-new Steps 0–9) used by four skills: `/fab-new`, `/fab-draft`, `/fab-dedupe` (added in 260728-4v91 — the first *fan-out* consumer: it runs the procedure once per accepted cluster group, N times per invocation), and `/fab-proceed`'s create-new dispatch (added in 260613-3xaj — extract-intake-helper). It completes the helper symmetry: the pre-boundary skill family (intake creation, which runs in the main session context because it needs the live conversation) now has a single shared body, mirroring the post-boundary `_pipeline.md`. Single authoritative source for Steps 0 (parse input) · 1 (generate slug) · 2 (gap analysis) · 3 (create change, incl. backlog/Linear collision pre-checks and `fab change new` flags) · 4 (conversation context mining — the load-bearing context-flush at the boundary) · 5 (generate `intake.md`, delegating to `_generation.md` § Intake Generation Procedure) · 6 (verify `change_type` — recomputed by `fab status refresh`, self-healed at the transition seams) · 7 (confidence, `fab score --stage intake`) · 8 (SRAD-based question selection — *the parameterized step*) · 9 (advance intake to `ready`).
 
 **Parameter** (bound by each consumer's own file):
 
-| Parameter | `/fab-new` | `/fab-draft` | `/fab-proceed` dispatch |
-|-----------|-----------|--------------|-------------------------|
-| `{questioning-mode}` — how Step 8 resolves ambiguity | `interactive` | `interactive` | `promptless-defer` |
+| Parameter | `/fab-new` | `/fab-draft` | `/fab-dedupe` | `/fab-proceed` dispatch |
+|-----------|-----------|--------------|---------------|-------------------------|
+| `{questioning-mode}` — how Step 8 resolves ambiguity | `interactive` | `interactive` | `interactive` | `promptless-defer` |
 
-- **`interactive`** — Step 8 asks the user via SRAD (no fixed cap; conversational mode when 5+ Unresolved). The existing `/fab-new`/`/fab-draft` behavior.
+- **`interactive`** — Step 8 asks the user via SRAD (no fixed cap; conversational mode when 5+ Unresolved). The `/fab-new`/`/fab-draft`/`/fab-dedupe` behavior.
 - **`promptless-defer`** — Step 8 records each would-be-asked Unresolved decision as an Unresolved row with Rationale `Deferred — promptless dispatch` instead of asking, per the `_srad.md` § Critical Rule promptless-dispatch carve-out (quoted verbatim in the helper). The intake gate is the structural backstop: a deferred decision blocks by itself only when its composite is below 20 (a composite ≥ 20 row still adds penalty and can help fail the gate alongside other weak rows; emergent from the demerit curve, no special gate) — so a genuine unknown must be scored with honestly-low dimensions to land it there.
 
 This is the **only** behavioral fork in intake creation, and it is legitimately invocation-level (who resolves ambiguity: human-now vs. defer-and-surface) — exactly parallel to the post-boundary autonomy fork.
@@ -21,7 +21,7 @@ This is the **only** behavioral fork in intake creation, and it is legitimately 
 
 **Self-name genericization** (260613-3xaj): the lifted Step 4 refers to "the invoking skill" / "this invocation" rather than "this `/fab-new` invocation", structurally retiring `fab-draft`'s former "read self-name mentions as `/fab-draft`" prose instruction. No `{self-name}` parameter — the text is invocation-agnostic, not invocation-named.
 
-**Helpers**: carries NO `helpers:` frontmatter. It references `_generation` (Step 5) and `_srad` (Step 8) in-body and relies on the consumer having loaded them — the consumer-declared model, matching `_pipeline`/`_review`/`_generation` (none of which carry `helpers:`). `/fab-new` and `/fab-draft` declare `helpers: [_generation, _srad, _intake]`; `/fab-proceed` declares none and dispatches `_intake` to a subagent that loads them.
+**Helpers**: carries NO `helpers:` frontmatter. It references `_generation` (Step 5) and `_srad` (Step 8) in-body and relies on the consumer having loaded them — the consumer-declared model, matching `_pipeline`/`_review`/`_generation` (none of which carry `helpers:`). `/fab-new`, `/fab-draft`, and `/fab-dedupe` declare `helpers: [_generation, _srad, _intake]`; `/fab-proceed` declares none and dispatches `_intake` to a subagent that loads them.
 
 This is an internal partial (`user-invocable: false`, `disable-model-invocation: true`, `metadata: internal: true`) — never invoked directly. Canonical source is the flat `src/kit/skills/_intake.md`; `fab sync` deploys it to `.claude/skills/_intake/SKILL.md`.
 
@@ -30,7 +30,8 @@ This is an internal partial (`user-invocable: false`, `disable-model-invocation:
 ## Flow
 
 ```
-Consumer (fab-new / fab-draft / fab-proceed dispatch) reads _intake.md with {questioning-mode} bound
+Consumer (fab-new / fab-draft / fab-dedupe / fab-proceed dispatch) reads _intake.md with {questioning-mode} bound
+  (fab-dedupe re-enters here once per accepted cluster group — N runs per invocation)
 │
 ├─ Step 0: Parse Input
 │  ├─ Linear ID? ──► MCP: mcp__claude_ai_Linear__get_issue

@@ -45,7 +45,7 @@ helpers: [_generation, _review, _srad, _pipeline]
 
 | Skill | `helpers:` |
 |-------|------------|
-| `fab-new`, `fab-draft` | `[_generation, _srad, _intake]` |
+| `fab-new`, `fab-draft`, `fab-dedupe` | `[_generation, _srad, _intake]` |
 | `fab-ff`, `fab-fff` | `[_generation, _review, _srad, _pipeline]` (the shared bracket lives in `_pipeline.md`) |
 | `fab-adopt` | `[_srad, _generation, _review, _pipeline]` (orchestrator — reuses the diff-generation procedures, diff-only review, and the auto-rework budget) |
 | `fab-continue` | `[_srad]` (+ `_generation`/`_review` stage-conditionally, in-body) |
@@ -485,6 +485,38 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 7. Do **not** advance the stage or update `.status.yaml` stage field
 
 **Key property**: Idempotent and non-advancing. Calling `/fab-clarify` multiple times is safe — it refines further each time. It never transitions to the next stage. Use `/fab-continue` when satisfied.
+
+---
+
+## `/fab-dedupe [scope]`
+
+**Purpose**: Sweep a scoped area for duplicated utilities, cluster them by behavioral shape, and draft one change intake per accepted cluster group. Read-only until the user accepts clusters. It **does not refactor** — the consolidation runs through the normal pipeline with review in the loop.
+
+**Context**: config, constitution, `docs/memory/_shared/utilities.md` (if present — so the sweep does not re-propose finished work). No change artifacts — there is no active change. Runs **no** `fab preflight`.
+
+**Creates**: 0..N change folders with `.status.yaml` + `intake.md`, each at intake `ready`. No activation, no git branch. Zero is a valid outcome.
+
+**Arguments**:
+- `[scope]` *(optional)* — natural language (`"test setup helpers in src/go"`), or a path/glob. Natural language resolves against `source_paths`/`test_paths` and is confirmed with the user; a bare invocation defaults to `source_paths` with a length warning. Scope filters *where clusters may be found*, not *where their members may live* — out-of-scope members of an in-scope cluster MUST be reported.
+
+**Examples**:
+```
+/fab-dedupe src/go
+→ Consolidation sweep — src/go · Detectors: jscpd (skipped — not installed)
+→ 2 clusters. Which should become changes? (all / 1,3 / none)
+→ Drafted 1 change: 260728-a1b2-consolidate-test-fixtures  Confidence: 4.2 / 5.0
+```
+
+**Behavior** (5 steps, then the shared procedure):
+1. **Resolve scope** → concrete paths; echo the resolved set and file count.
+2. **Run detectors** — `consolidate.detectors` from project config (default: jscpd alone). Each is probed with `command -v` and **skipped silently when absent** (the `rk` fail-silent discipline); a **non-zero exit is a finding, not a STOP** — an explicit per-skill exception to `_preamble.md` § Common fab Commands' failure rule, which governs `fab` commands rather than third-party tools. `{paths}` and `{out}` are substituted before execution as **shell-quoted** values, so a scope path containing a space or a shell metacharacter stays one intact argument.
+3. **Cluster by behavioral shape** — seeded by detector output but not limited to it. Per cluster: members, shared behavior, divergences, canonical home, call sites, out-of-scope members, and a **layered decomposition** — a shared core plus named opt-in variation layers with their member lists, and the unified API expressing that shape. Never one flat signature per cluster. Do not cluster on name similarity; a cluster of one is not a cluster.
+4. **Rank and present** — call sites ↑ / divergence ↓, where a member needing only the base layer counts as **LOW** divergence even when its body reads differently. Then ask which clusters to act on as a **plain conversational reply** (`all` / `1,3` / `none`) — not a structured multi-select.
+5. **Draft intakes** — per accepted cluster group, execute the `_intake` **Create-Intake Procedure** (Steps 0–9, `{questioning-mode} = interactive`), preferring one intake per cluster, and **STOP after Step 9**.
+
+**Configuration**: one registry key, `consolidate.detectors` (project scope, advertised, no built-in default). The utilities memory home is **hardcoded** to `docs/memory/_shared/utilities.md` — there is no override key, and the skill never writes the file (hydrate does, on the normal pipeline path).
+
+**Key property**: read-only until Step 5; the sweep is idempotent but drafting is not (natural-language input creates a fresh change each run) — Step 2's gap analysis is the duplicate-work guard.
 
 ---
 

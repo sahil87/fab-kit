@@ -95,7 +95,7 @@ Planning skills use HTML comment markers to flag assumptions for downstream scan
 
 | Marker | Grade | Placed by | Scanned by |
 |--------|-------|-----------|------------|
-| `<!-- assumed: {description} -->` | Tentative | All planning skills (`/fab-new`, `/fab-draft`, `/fab-continue`, `/fab-ff`, `/fab-fff`, `/fab-clarify`) | `/fab-clarify` (suggest and auto modes) |
+| `<!-- assumed: {description} -->` | Tentative | All planning skills (`/fab-new`, `/fab-draft`, `/fab-dedupe`, `/fab-continue`, `/fab-ff`, `/fab-fff`, `/fab-clarify`) | `/fab-clarify` (suggest and auto modes) |
 | `<!-- clarified: {description} -->` | Resolved | `/fab-clarify` | Informational — not scanned |
 
 Markers are placed inline in the artifact, immediately after the assumed content:
@@ -248,7 +248,7 @@ When the user runs `/fab-ff` or `/fab-fff`:
 
 | Event | Trigger | Action |
 |-------|---------|--------|
-| Computation | `/fab-new`, `/fab-draft` (after intake generation) | `fab score --stage intake` scans `intake.md`, writes to `.status.yaml` |
+| Computation | `/fab-new`, `/fab-draft`, `/fab-dedupe` (after intake generation — all three via the shared `_intake` Step 7; `/fab-dedupe` once per accepted cluster group) | `fab score --stage intake` scans `intake.md`, writes to `.status.yaml` |
 | Recomputation | `/fab-clarify` (intake-only, both modes) | `fab score --stage intake` re-scans after resolved assumptions |
 | Gate check | `/fab-ff`, `/fab-fff` | `fab score --check-gate --stage intake` reads/compares against the flat 3.0 gate |
 
@@ -341,4 +341,4 @@ SRAD manifests differently depending on which skill is running. Skills closer to
 | **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify`, `/fab-continue` (after rework cap) | `/fab-clarify`, `/fab-continue` (after rework cap) |
 | **Recomputes confidence?** | Yes (intake, via `fab score --stage intake`) | No (no scoring at apply — intake is authoritative) | No | No |
 
-The remaining two skills that declare `_srad` are covered by these columns: **`/fab-draft`** follows the `/fab-new` column exactly (a thin delta over fab-new Steps 0–9 — same SRAD posture and budget, minus activation/branch). **`/fab-clarify`** is the escape valve itself: suggest-mode questions are SRAD-prioritized (max 5 per invocation), resolved assumptions are re-graded in the artifact's table, and the intake score is always recomputed.
+The remaining three skills that declare `_srad` are covered by these columns: **`/fab-draft`** follows the `/fab-new` column exactly (a thin delta over fab-new Steps 0–9 — same SRAD posture and budget, minus activation/branch). **`/fab-dedupe`** also follows the `/fab-new` column (a thin call-site over the same Steps 0–9 with `{questioning-mode} = interactive` — same SRAD posture, interruption budget, and `/fab-clarify` escape valve; its cluster-analysis front end runs the procedure once per accepted cluster group, which multiplies invocations of that posture rather than changing it). **`/fab-clarify`** is the escape valve itself: suggest-mode questions are SRAD-prioritized (max 5 per invocation), resolved assumptions are re-graded in the artifact's table, and the intake score is always recomputed.

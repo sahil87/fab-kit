@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -696,8 +697,10 @@ source_paths:
 }
 
 // TestScope_PruneAllProjectScopedFields walks every project-scoped top-level key
-// through the pruner and asserts each is dropped with a warning, while the two
-// both-scoped keys survive. fab_version is not a config key (it lives in
+// through the pruner and asserts each is dropped with a NAMED warning, while the
+// two both-scoped keys survive. The enumeration must track configscope.keyScopes:
+// a project-scoped key added there without being added here is silently
+// untested (consolidate, 4v91). fab_version is not a config key (it lives in
 // fab/.fab-version, 260708-j0qm), so a stale system-file fab_version: is an inert
 // unknown key — left in place SILENTLY like any other unknown key (nothing
 // unmarshals it, so it can never bleed into a repo's resolved version).
@@ -709,6 +712,7 @@ func TestScope_PruneAllProjectScopedFields(t *testing.T) {
 		"test_paths":          []any{"b"},
 		"true_impact_exclude": []any{"c"},
 		"checklist":           map[string]any{"extra_categories": []any{"d"}},
+		"consolidate":         map[string]any{"detectors": []any{"jscpd {paths}"}},
 		"stage_hooks":         map[string]any{"apply": map[string]any{"pre": "x"}},
 		"branch_prefix":       "p/",
 		"fab_version":         "1.0.0", // not a config key — an inert unknown key
@@ -717,9 +721,13 @@ func TestScope_PruneAllProjectScopedFields(t *testing.T) {
 	}
 	pruneProjectScoped(m, "/fake/system.yaml")
 
-	for _, gone := range []string{"project", "source_paths", "test_paths", "true_impact_exclude", "checklist", "stage_hooks", "branch_prefix"} {
+	for _, gone := range []string{"project", "source_paths", "test_paths", "true_impact_exclude", "checklist", "consolidate", "stage_hooks", "branch_prefix"} {
 		if _, ok := m[gone]; ok {
 			t.Errorf("project-scoped key %q must be pruned from the system layer", gone)
+		}
+		wantWarn := fmt.Sprintf("fab: warning: ignoring project-scoped field %q", gone)
+		if !strings.Contains(warnings(), wantWarn) {
+			t.Errorf("expected pruning warning %q, got %q", wantWarn, warnings())
 		}
 	}
 	for _, kept := range []string{"agent", "providers"} {
@@ -736,8 +744,8 @@ func TestScope_PruneAllProjectScopedFields(t *testing.T) {
 	if strings.Contains(warnings(), "fab_version") {
 		t.Errorf("an unknown key must be ignored silently (no warning), got %q", warnings())
 	}
-	if c := strings.Count(warnings(), "fab: warning:"); c != 7 {
-		t.Errorf("expected 7 pruning warnings (one per project-scoped key), got %d", c)
+	if c := strings.Count(warnings(), "fab: warning:"); c != 8 {
+		t.Errorf("expected 8 pruning warnings (one per project-scoped key), got %d", c)
 	}
 }
 
