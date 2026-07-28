@@ -1,0 +1,55 @@
+id: 4v91
+name: 260728-4v91-add-fab-dedupe-skill
+created: 2026-07-28T05:32:41Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 46
+    acceptance_count: 61
+    acceptance_completed: 61
+confidence:
+    certain: 16
+    confident: 4
+    tentative: 0
+    unresolved: 0
+    score: 4.0
+    fuzzy: true
+    dimensions:
+        signal: 84.8
+        reversibility: 81.3
+        competence: 86.5
+        disambiguation: 85.3
+stage_metrics:
+    intake: {started_at: "2026-07-28T05:32:41Z", driver: fab-new, iterations: 1, completed_at: "2026-07-28T05:42:06Z"}
+    apply: {started_at: "2026-07-28T06:38:30Z", driver: fab-fff, iterations: 4, completed_at: "2026-07-28T06:48:42Z"}
+    review: {started_at: "2026-07-28T06:48:42Z", driver: fab-fff, iterations: 4, completed_at: "2026-07-28T06:53:57Z"}
+    hydrate: {started_at: "2026-07-28T06:53:57Z", driver: fab-fff, iterations: 1, completed_at: "2026-07-28T07:17:01Z"}
+    ship: {started_at: "2026-07-28T07:17:01Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-07-28T07:17:01Z"
+    computed_at_stage: hydrate
+summary: Added /fab-dedupe — sweep/cluster/draft skill (new pipeline/dedupe.md memory file), the consolidate.detectors config key with its paired configscope entry, and the consumer-set-enumeration sweep discipline as a Design Decision.
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-07-28T07:17:01Z

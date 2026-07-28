@@ -1,6 +1,6 @@
 ---
 name: _intake
-description: "Shared pre-boundary Create-Intake Procedure (fab-new Steps 0–9) used by fab-new, fab-draft, and fab-proceed — parse input, slug, gap analysis, create change, conversation context mining, generate intake.md, verify change type, confidence, question selection, advance to ready. Parameterized by a single {questioning-mode} knob (interactive | promptless-defer)."
+description: "Shared pre-boundary Create-Intake Procedure (fab-new Steps 0–9) used by fab-new, fab-draft, fab-dedupe, and fab-proceed — parse input, slug, gap analysis, create change, conversation context mining, generate intake.md, verify change type, confidence, question selection, advance to ready. Parameterized by a single {questioning-mode} knob (interactive | promptless-defer)."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -8,15 +8,16 @@ metadata:
 ---
 # Shared Create-Intake Procedure
 
-> This file defines the shared **pre-boundary** intake-creation logic used by three skills:
-> `/fab-new`, `/fab-draft`, and `/fab-proceed` (its create-new subagent dispatch — `/fab-proceed`
+> This file defines the shared **pre-boundary** intake-creation logic used by four skills:
+> `/fab-new`, `/fab-draft`, `/fab-dedupe` (once per accepted cluster group — a fan-out call site),
+> and `/fab-proceed` (its create-new subagent dispatch — `/fab-proceed`
 > dispatches `_intake` directly, not `/fab-new`). The calling skill
 > (the **consumer**) binds one parameter before executing this procedure — read it from the
 > consumer's own file:
 >
 > - **`{questioning-mode}`** — how Step 8 resolves ambiguity:
->   - **`interactive`** — used by `/fab-new` and `/fab-draft`. Step 8 asks the user via SRAD
->     (SRAD-driven question selection, no fixed cap, conversational mode when 5+ Unresolved).
+>   - **`interactive`** — used by `/fab-new`, `/fab-draft`, and `/fab-dedupe`. Step 8 asks the user
+>     via SRAD (SRAD-driven question selection, no fixed cap, conversational mode when 5+ Unresolved).
 >   - **`promptless-defer`** — used by `/fab-proceed`'s dispatch. Step 8 records each would-be-asked
 >     Unresolved decision as a deferred Unresolved row instead of asking, per the `_srad.md`
 >     promptless-dispatch carve-out (quoted at Step 8).
@@ -123,7 +124,7 @@ The score is persisted to `.status.yaml` so that consumers (`/fab-switch`, `/fab
 
 This is the sole step that varies by `{questioning-mode}`.
 
-- **`{questioning-mode} = interactive`** (used by `/fab-new`, `/fab-draft`): Apply SRAD (`_srad.md`). No fixed question cap — SRAD scoring determines count. Zero questions for clear inputs. **Conversational mode**: when 5+ Unresolved, ask one at a time until resolved or user signals done.
+- **`{questioning-mode} = interactive`** (used by `/fab-new`, `/fab-draft`, `/fab-dedupe`): Apply SRAD (`_srad.md`). No fixed question cap — SRAD scoring determines count. Zero questions for clear inputs. **Conversational mode**: when 5+ Unresolved, ask one at a time until resolved or user signals done.
 
 - **`{questioning-mode} = promptless-defer`** (used by `/fab-proceed`'s dispatch): there is no user to ask. Apply SRAD, but instead of asking, record each would-be-asked Unresolved decision as a deferred Unresolved row, per the `_srad.md` § Critical Rule **promptless-dispatch carve-out** (verbatim):
 

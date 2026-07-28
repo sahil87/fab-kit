@@ -1,6 +1,6 @@
 ---
 name: _generation
-description: "Artifact generation procedures — Intake Generation (used by fab-new, fab-draft, and fab-continue's intake regeneration), Plan Generation (used by fab-continue, fab-ff, fab-fff at apply entry), and the diff-based Intake-from-Diff + Plan-from-Diff procedures (used by fab-adopt to reconstruct artifacts from an existing branch diff)."
+description: "Artifact generation procedures — Intake Generation (used by fab-new, fab-draft, fab-dedupe, and fab-continue's intake regeneration), Plan Generation (used by fab-continue, fab-ff, fab-fff at apply entry), and the diff-based Intake-from-Diff + Plan-from-Diff procedures (used by fab-adopt to reconstruct artifacts from an existing branch diff)."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -8,9 +8,11 @@ metadata:
 ---
 # Artifact Generation Procedures
 
-> This file defines the shared artifact generation logic used by five skills: `/fab-new`,
-> `/fab-draft`, and `/fab-continue` (its intake-`active` regeneration row) follow the
-> **Intake Generation Procedure**; `/fab-continue`, `/fab-ff`, and `/fab-fff` follow the
+> This file defines the shared artifact generation logic used by six skills: `/fab-new`,
+> `/fab-draft`, `/fab-dedupe`, and `/fab-continue` (its intake-`active` regeneration row) follow
+> the **Intake Generation Procedure** — `/fab-draft` and `/fab-dedupe` reach it through
+> `_intake.md` Step 5, and `/fab-dedupe` runs it once per accepted cluster group;
+> `/fab-continue`, `/fab-ff`, and `/fab-fff` follow the
 > **Plan Generation Procedure** (at apply entry) — `/fab-continue` belongs to both consumer
 > groups. The two **-from-Diff** procedures (Intake-from-Diff, Plan-from-Diff) are the
 > adoption variants used by `/fab-adopt` only — they reconstruct both artifacts from a fixed

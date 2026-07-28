@@ -211,7 +211,7 @@ There are **no hard-fail short-circuits** — no `Unresolved → 0.0` and no `R<
 
 ### Template
 
-The `status.yaml` template (in the kit cache at `$(fab kit-path)/templates/status.yaml`) includes the confidence block initialized to zero counts and score 0.0. `/fab-new` writes the intake score after intake generation; `/fab-clarify` re-writes it after resolving intake assumptions.
+The `status.yaml` template (in the kit cache at `$(fab kit-path)/templates/status.yaml`) includes the confidence block initialized to zero counts and score 0.0. `/fab-new`, `/fab-draft`, and `/fab-dedupe` write the intake score after intake generation (all three via the shared `_intake` Step 7; `/fab-dedupe` once per accepted cluster group); `/fab-clarify` re-writes it after resolving intake assumptions.
 
 ---
 

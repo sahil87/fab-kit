@@ -1,0 +1,18 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-07-28T05:32:41Z"}
+{"args":"Add /fab-dedupe skill — sweeps a scoped area for duplicate utilities, clusters them by behavioral shape, drafts one intake per accepted cluster. Includes new consolidate config keys in the Go config registry.","cmd":"fab-new","event":"command","ts":"2026-07-28T05:32:41Z"}
+{"delta":"+4.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-07-28T05:34:50Z"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-07-28T05:40:43Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-28T05:42:06Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-28T05:55:16Z"}
+{"event":"review","result":"failed","ts":"2026-07-28T06:00:35Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-28T06:00:36Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-28T06:12:09Z"}
+{"event":"review","result":"failed","ts":"2026-07-28T06:20:00Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-28T06:20:00Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-28T06:32:02Z"}
+{"event":"review","result":"failed","ts":"2026-07-28T06:38:30Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-07-28T06:38:30Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-07-28T06:48:42Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-07-28T06:53:57Z"}
+{"event":"review","result":"passed","ts":"2026-07-28T06:53:57Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-07-28T07:17:01Z"}

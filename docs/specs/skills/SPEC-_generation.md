@@ -2,7 +2,7 @@
 
 ## Summary
 
-Shared artifact generation procedures. The two **forward** procedures are used by five skills across two consumer groups: `/fab-new`, `/fab-draft`, and `/fab-continue` (its intake-`active` regeneration row) follow the **Intake Generation Procedure**; `/fab-continue`, `/fab-ff`, and `/fab-fff` follow the **Plan Generation Procedure** (invoked at apply entry, before any task executes) — `/fab-continue` belongs to both groups. Two **-from-Diff** procedures are the adoption variants used by `/fab-adopt` only: **Intake-from-Diff** reconstructs `intake.md` from a fixed existing branch diff + PR body (Origin = `adopted from {PR/branch}`, Affected Memory inferred from touched `docs/memory/` domains), and **Plan-from-Diff** writes a deliberately thin `plan.md` — plain-language `## Requirements` (the only part hydrate reads), all-`[x]` `## Tasks`/`## Acceptance` stubs, and **no** R#/T#/A# scaffolding or GIVEN/WHEN/THEN (the apply↔review traceability loop never runs for an adopted change). `/fab-adopt` runs both diff procedures in **one main-session pass** (same agent, reads the diff once). Each skill references these procedures instead of inlining them, so generation behavior is authoritative in one location. Orchestration (stage guards, the human-confirmation checkpoint, question handling, design decisions, resumability) stays in each consuming skill's own file.
+Shared artifact generation procedures. The two **forward** procedures are used by six skills across two consumer groups: `/fab-new`, `/fab-draft`, `/fab-dedupe` (added in 260728-4v91), and `/fab-continue` (its intake-`active` regeneration row) follow the **Intake Generation Procedure** — `/fab-draft` and `/fab-dedupe` reach it through `_intake.md` Step 5, and `/fab-dedupe` runs it once per accepted cluster group; `/fab-continue`, `/fab-ff`, and `/fab-fff` follow the **Plan Generation Procedure** (invoked at apply entry, before any task executes) — `/fab-continue` belongs to both groups. Two **-from-Diff** procedures are the adoption variants used by `/fab-adopt` only: **Intake-from-Diff** reconstructs `intake.md` from a fixed existing branch diff + PR body (Origin = `adopted from {PR/branch}`, Affected Memory inferred from touched `docs/memory/` domains), and **Plan-from-Diff** writes a deliberately thin `plan.md` — plain-language `## Requirements` (the only part hydrate reads), all-`[x]` `## Tasks`/`## Acceptance` stubs, and **no** R#/T#/A# scaffolding or GIVEN/WHEN/THEN (the apply↔review traceability loop never runs for an adopted change). `/fab-adopt` runs both diff procedures in **one main-session pass** (same agent, reads the diff once). Each skill references these procedures instead of inlining them, so generation behavior is authoritative in one location. Orchestration (stage guards, the human-confirmation checkpoint, question handling, design decisions, resumability) stays in each consuming skill's own file.
 
 This is an internal partial (`user-invocable: false`) — never invoked directly. Skills load it via `helpers: [_generation]` frontmatter.
 
@@ -15,7 +15,7 @@ This is an internal partial (`user-invocable: false`) — never invoked directly
 ```
 Consumer skill reads _generation.md (via helpers: declaration)
 │
-├─ Intake Generation Procedure (fab-new, fab-draft,
+├─ Intake Generation Procedure (fab-new, fab-draft, fab-dedupe,
 │                                fab-continue's intake regeneration)
 │  ├─ Read: $(fab kit-path)/templates/intake.md
 │  ├─ Fill metadata ({CHANGE_NAME}, {YYMMDD-XXXX-slug}, {DATE})

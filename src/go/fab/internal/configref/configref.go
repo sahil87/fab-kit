@@ -372,6 +372,21 @@ checklist:
   extra_categories: []               # example: [performance, accessibility, i18n]`,
 		},
 		{
+			Key:         "consolidate.detectors",
+			Default:     nil,
+			Description: "Duplicate-detection commands `/fab-dedupe` runs to seed its sweep. Each entry is a shell command template; `{paths}` and `{out}` are substituted at run time. Missing binaries are skipped silently.",
+			Scope:       ScopeProject,
+			Advertise:   true,
+			Segment: `# consolidate.detectors — duplicate-detection commands /fab-dedupe runs to seed
+# its sweep. Each entry is a shell command template; {paths} (the resolved scope)
+# and {out} (a scratch dir) are substituted at run time. A detector whose binary
+# is missing is skipped silently; a non-zero exit is treated as a finding, not an
+# error. Detectors only SEED the sweep — the agent does the clustering.
+# consolidate:
+#   detectors:
+#     - jscpd --reporters json --output {out} {paths}`,
+		},
+		{
 			Key:         "providers",
 			Default:     map[string]providerDefault{agent.DefaultProviderName: {SessionCommand: agent.DefaultSessionCommand}},
 			Description: "Named agent invocation grammars. Each provider MAY carry session_command (interactive session) and dispatch_command (headless stage task); the two are never merged and there is NO fallback between them. Provider names are opaque, user-chosen strings.",

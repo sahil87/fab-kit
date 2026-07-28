@@ -42,7 +42,7 @@ Current mapping:
 
 | Skill(s) | `helpers:` |
 |----------|------------|
-| `fab-new`, `fab-draft` | `[_generation, _srad, _intake]` (consumers declare underlying helpers rather than inheriting transitively — the `_pipeline` precedent) |
+| `fab-new`, `fab-draft`, `fab-dedupe` | `[_generation, _srad, _intake]` (consumers declare underlying helpers rather than inheriting transitively — the `_pipeline` precedent) |
 | `fab-continue` | `[_srad]` (+ point-of-use in-body reads of `_generation`/`_review`) |
 | `fab-ff`, `fab-fff` | `[_generation, _review, _srad, _pipeline]` (orchestrator-level rework edits `plan.md` sections directly, so `_generation` stays unconditional — finding f074 refuted; `_pipeline` is the shared ff/fff pipeline bracket and constitutes the wrappers' entire body, so its load is unconditional by construction (szxd)) |
 | `fab-clarify` | `[_srad]` |
@@ -55,9 +55,9 @@ Current mapping:
 
 | Phase | Helper | Knob(s) | Consumers |
 |-------|--------|---------|-----------|
-| artifact mechanics | `_generation` | — | `fab-new`, `fab-draft`, `fab-continue`, `fab-ff`, `fab-fff` |
+| artifact mechanics | `_generation` | — | `fab-new`, `fab-draft`, `fab-dedupe`, `fab-continue`, `fab-ff`, `fab-fff` |
 | review mechanics | `_review` | — | `fab-continue`, `fab-ff`, `fab-fff` |
-| **pre-intake orchestration** | **`_intake`** | `{questioning-mode}` | `fab-new`, `fab-draft`, `fab-proceed` |
+| **pre-intake orchestration** | **`_intake`** | `{questioning-mode}` | `fab-new`, `fab-draft`, `fab-dedupe`, `fab-proceed` |
 | post-intake orchestration | `_pipeline` | `{driver}`, `{terminal}` | `fab-ff`, `fab-fff` |
 
 `_intake` (3xaj) is the **pre-boundary** counterpart to the **post-boundary** `_pipeline` (szxd): intake is the single context-bearing boundary in the pipeline; everything up to and including intake creation runs in the main session context (pre-boundary: `_intake`), everything after runs as dispatched subagents over the intake artifact (post-boundary: `_pipeline`). Both extractions mirror the same shape (shared body + one-or-two knobs + call-site tails). See [pipeline/planning-skills.md](/pipeline/planning-skills.md) § The `_intake` Shared Create-Intake Procedure for the full pre-boundary decomposition.
@@ -143,7 +143,7 @@ This subsection documents *where the resolution call sits* and *how the profile 
 
 ### SRAD Protocol (via the `_srad` Helper)
 
-The SRAD autonomy framework lives in the dedicated `_srad.md` helper (zc9m), declared via frontmatter `helpers:` by the six planning skills — `fab-new`, `fab-draft`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify`. It is **not part of the always-load layer**: `_preamble.md` carries only a ~3-line pointer (§ SRAD Autonomy Framework (pointer)), so non-planning skills do not pay for the framework. The framework defines:
+The SRAD autonomy framework lives in the dedicated `_srad.md` helper (zc9m), declared via frontmatter `helpers:` by the planning skills — `fab-new`, `fab-draft`, `fab-dedupe` (4v91), `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify`. It is **not part of the always-load layer**: `_preamble.md` carries only a ~3-line pointer (§ SRAD Autonomy Framework (pointer)), so non-planning skills do not pay for the framework. The framework defines:
 - **SRAD scoring table** — four dimensions evaluated on a continuous 0–100 scale per decision point
 - **Fuzzy-to-grade mapping** — composite score via weighted mean (w_S=0.20, w_R=0.30, w_A=0.30, w_D=0.20) (4yi8), mapped to **indicative-only** grades via half-open bands: composite ≥ 80 Certain, 50 ≤ c < 80 Confident, 20 ≤ c < 50 Tentative, else Unresolved (the bands align with the demerit penalty-curve knees; the grade is derived from the composite and never read by the score formula) (4yi8)
 - **No Critical Rule, no hard-fail (4yi8)** — there is deliberately no "R < 25 AND A < 25 forces Unresolved" override and no "any Unresolved row → 0.0" short-circuit; blocking is emergent from the demerit penalty curve (a `composite < 20` row penalizes ≥ 2.0), and reversibility is carried by R's 0.30 weight rather than a separate rule
@@ -152,7 +152,7 @@ The SRAD autonomy framework lives in the dedicated `_srad.md` helper (zc9m), dec
 - **Artifact markers** — `<!-- assumed: ... -->` for Tentative, `<!-- clarified: ... -->` for resolved assumptions
 - **Assumptions Summary Block** — standard format with required `Scores` column for per-dimension data; all four grades (Certain, Confident, Tentative, Unresolved) recorded
 
-The companion confidence-scoring internals — the `.status.yaml` `confidence:` schema, the score formula (the demerit model (4yi8): `score = clamp(5.0 − Σ penalty(composite), 0, 5)`, no coverage factor and no `expected_min` in the score path), and the status-template notes — live in `_cli-fab.md` § fab score (extended) (zc9m). Agents never compute the score: `fab score` (Go) does, reading `intake.md` as the sole scoring source. `_preamble.md` § Confidence Scoring keeps only the **Gate Threshold** (single flat-3.0 intake gate via `fab score --check-gate --stage intake`) and **Invocation** (who scores, when (d9rs): `/fab-new` **and `/fab-draft`** persist the intake score after generation; `/fab-clarify` re-persists it in **both modes** — Suggest Step 7 and Auto Mode step 4 — not just suggest mode). The preamble's Bulk Confirm subsection is likewise a one-sentence pointer — `fab-clarify.md` (Step 2, Suggest Mode) is the sole authority for the trigger and semantics (see [pipeline/clarify.md](/pipeline/clarify.md)).
+The companion confidence-scoring internals — the `.status.yaml` `confidence:` schema, the score formula (the demerit model (4yi8): `score = clamp(5.0 − Σ penalty(composite), 0, 5)`, no coverage factor and no `expected_min` in the score path), and the status-template notes — live in `_cli-fab.md` § fab score (extended) (zc9m). Agents never compute the score: `fab score` (Go) does, reading `intake.md` as the sole scoring source. `_preamble.md` § Confidence Scoring keeps only the **Gate Threshold** (single flat-3.0 intake gate via `fab score --check-gate --stage intake`) and **Invocation** (who scores, when (d9rs): `/fab-new`, `/fab-draft`, **and `/fab-dedupe`** (4v91) persist the intake score after generation — all three through the shared `_intake` Step 7, `/fab-dedupe` once per accepted cluster group; `/fab-clarify` re-persists it in **both modes** — Suggest Step 7 and Auto Mode step 4 — not just suggest mode). The preamble's Bulk Confirm subsection is likewise a one-sentence pointer — `fab-clarify.md` (Step 2, Suggest Mode) is the sole authority for the trigger and semantics (see [pipeline/clarify.md](/pipeline/clarify.md)).
 
 ### Next Steps Convention (State Table, Scoped MUST)
 
@@ -161,7 +161,7 @@ The `_preamble.md` preamble defines a **state-keyed Next Steps Convention** that
 1. **State Table** — 10 states (none, initialized, intake, apply, review pass, review fail, hydrate, ship, review-pr pass, review-pr fail) each mapping to available commands and a default
 2. **State derivation rules** — how to determine the current state from `config.yaml` existence, `.fab-status.yaml`, and `.status.yaml` progress map
 3. **Lookup procedure** — determine state, look up in table, output default first
-4. **Activation preamble** — when a skill creates/restores a change without activating it (`/fab-draft` always, `/fab-archive restore` without `--switch`), the `Next:` line includes a `/fab-switch {name}` instruction before state-derived commands (`/fab-new` auto-activates and does not need it)
+4. **Activation preamble** — when a skill creates/restores a change without activating it (`/fab-draft` always, `/fab-dedupe` per drafted intake (4v91), `/fab-archive restore` without `--switch`), the `Next:` line includes a `/fab-switch {name}` instruction before state-derived commands (`/fab-new` auto-activates and does not need it)
 
 No skill duplicates or maintains its own suggestion logic — skills on the default path derive from this single canonical table.
 
@@ -201,6 +201,12 @@ The exception set is **declared by the skill files themselves** (the preamble ne
 **Why**: An enumerated exception list drifts: the preamble's list named four skips while the shipped override set was larger (`/fab-help`, `/fab-archive`, `/docs-hydrate-specs`, `/docs-reorg-memory`, `/docs-reorg-specs`, and `/fab-proceed` all declare their own context behavior). A rule keyed on the skill file is self-maintaining — a new self-exempting skill needs no preamble edit. Every exception skill carries its own override for the rule to key on (`/docs-hydrate-memory` carries an explicit `## Context Loading` section for exactly this reason).
 **Rejected**: Keeping the preamble enumeration in sync by hand — it had already drifted once when the rule replaced it.
 *Introduced by*: 260612-d9rs-docs-reality-sweep
+
+### A Live Consumer-Set Enumeration Is Swept as a CLASS, Not as a File List
+**Decision**: Adding a consumer to a shared helper obliges a sweep whose unit is the **class of prose constructs the addition invalidates**, not the set of files a reviewer named. The class is defined **behaviorally**: a file enumerates a consumer set whenever it lists *which skills do a thing the new consumer does* — not merely when it lists `helpers:` declarations. It spans name lists, **count words** ("all six declaring skills", "the remaining two"), **coverage notes** that assert a subset is accounted for by other means, **parallel twin tables** (the phase-symmetry table above exists byte-parallel in [memory-docs/templates.md](/memory-docs/templates.md) — every row moves together, including rows for helpers other than the one that prompted the edit), and **ASCII flow diagrams** (a diagram line is live prose and drifts identically). The binding procedure is enumerate-the-class-first, adjudicate every hit with explicit reasoning, sweep the parallel restatement of every line edited, then self-verify by re-running the greps. Append-only `log.md`/`log.seed.md` and dated finding archives are frozen historical records and are excluded. (4v91)
+**Why**: A coverage-note omission is a live *functional* defect, not a stale count — a skill declaring `helpers: [_srad]` that finds no posture, interruption budget, or escape valve for itself in `_srad.md` has an actual behavioral hole, and a skill reading that it places no `<!-- assumed: -->` artifact markers leaves its own Tentative rows invisible to `/fab-clarify`'s scan. One canonical sentence commonly has five or six live homes across `src/kit/skills/`, `docs/specs/`, and `docs/memory/`, each in different wording, so the sweep must grep the **claim** and not the phrase — the score-persister claim alone appears as "persist the intake score" / "Computation" / "Computed by" / "who scores, when" / "writes the intake score". A file-tracking sweep cannot terminate, because the defect is a property of the construct class rather than of any file.
+**Rejected**: Fixing the reported site list and shipping — three consecutive attempts did exactly that and the identical defect survived one hop out each time (name lists → count words → a byte-parallel spec copy). Name-matching rather than behavioral membership — it wrongly edits near-miss enumerations (an ID-collision set a natural-language-input consumer never joins; a change-creation inventory keyed on activation behavior).
+*Introduced by*: 260728-4v91-add-fab-dedupe-skill
 
 ### External Sub-Domain Addressing (Up-to-3-Hop Selective Load)
 **Decision**: When an over-wide domain is split into sub-domains, the sub-domain file is addressed **externally** — the Affected Memory contract, the always-load layer, and selective loading all gain a `{domain}/{sub-domain}/{file}` form. Selective domain loading becomes an up-to-3-hop walk: domain index → (only if the entry is sub-domained) sub-domain index → file. A flat domain stays the degenerate 2-hop case (no sub-domain index hop, byte-identical to pre-change behavior).
