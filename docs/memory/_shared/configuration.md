@@ -119,7 +119,7 @@ The `2.14.0-to-2.15.0` migration moves the value and deletes the key for a pre-2
 
 #### `consolidate`
 
-- `detectors` — duplicate-detection commands `/fab-dedupe` runs to **seed** its sweep (4v91). A list of shell command templates; `{paths}` (the resolved scope) and `{out}` (a scratch dir) are substituted at run time. Absent → the skill defaults to jscpd alone. **Skill-consumed** (invisible to Go reflection over `Config` — the scaffold key-superset test is what guards it), `Scope: project`, `Advertise: true`, `Default: nil`. A detector whose binary is missing is skipped **silently**; a non-zero exit is treated as a **finding, not an error**. See [pipeline/dedupe.md](/pipeline/dedupe.md) for the sweep contract.
+- `detectors` — duplicate-detection commands `/fab-dedupe` runs to **seed** its sweep (4v91). A list of shell command templates; `{paths}` (the resolved scope) and `{out}` (a scratch dir) are substituted at run time as **shell-quoted** values, so paths carrying spaces or shell metacharacters stay intact arguments rather than splitting or injecting into the command. Absent → the skill defaults to jscpd alone. **Skill-consumed** (invisible to Go reflection over `Config` — the scaffold key-superset test is what guards it), `Scope: project`, `Advertise: true`, `Default: nil`. A detector whose binary is missing is skipped **silently**; a non-zero exit is treated as a **finding, not an error**. See [pipeline/dedupe.md](/pipeline/dedupe.md) for the sweep contract.
 
 There is deliberately no `consolidate.memory_file` key — `/fab-dedupe`'s utilities memory home is hardcoded to `docs/memory/_shared/utilities.md`.
 

@@ -374,14 +374,16 @@ checklist:
 		{
 			Key:         "consolidate.detectors",
 			Default:     nil,
-			Description: "Duplicate-detection commands `/fab-dedupe` runs to seed its sweep. Each entry is a shell command template; `{paths}` and `{out}` are substituted at run time. Missing binaries are skipped silently.",
+			Description: "Duplicate-detection commands `/fab-dedupe` runs to seed its sweep. Each entry is a shell command template; `{paths}` and `{out}` are substituted at run time as shell-quoted values. Missing binaries are skipped silently.",
 			Scope:       ScopeProject,
 			Advertise:   true,
 			Segment: `# consolidate.detectors — duplicate-detection commands /fab-dedupe runs to seed
 # its sweep. Each entry is a shell command template; {paths} (the resolved scope)
-# and {out} (a scratch dir) are substituted at run time. A detector whose binary
-# is missing is skipped silently; a non-zero exit is treated as a finding, not an
-# error. Detectors only SEED the sweep — the agent does the clustering.
+# and {out} (a scratch dir) are substituted at run time as shell-quoted values,
+# so paths containing spaces or shell metacharacters stay intact arguments.
+# A detector whose binary is missing is skipped silently; a non-zero exit is
+# treated as a finding, not an error. Detectors only SEED the sweep — the agent
+# does the clustering.
 # consolidate:
 #   detectors:
 #     - jscpd --reporters json --output {out} {paths}`,

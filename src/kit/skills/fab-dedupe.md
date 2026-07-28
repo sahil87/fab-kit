@@ -83,8 +83,10 @@ Placeholders substituted before execution:
 
 | Placeholder | Value |
 |---|---|
-| `{paths}` | space-joined resolved scope paths |
-| `{out}` | a scratch directory the skill creates for this run |
+| `{paths}` | resolved scope paths, each **shell-quoted**, joined by single spaces |
+| `{out}` | a scratch directory the skill creates for this run, **shell-quoted** |
+
+**Quote both before substituting.** Substitute shell-quoted values — single-quote each path (`'…'`, with an embedded `'` written `'\''`) — so a path containing a space, `$`, `;`, or any other metacharacter reaches the detector as one intact argument instead of splitting the command or executing part of it. The values come from scope resolution and project config, not a trusted allowlist, so quoting is required, not defensive.
 
 **Probe before running, fail silent.** For each configured detector, check the binary with `command -v <bin> >/dev/null 2>&1` before invoking it. Missing → skip it silently and continue. This mirrors the `rk` discipline in `_preamble.md` § Run-Kit Reference: never error, never warn, on an absent optional tool. Report which detectors ran in the sweep report (§ Step 4) so a skipped one is visible as information, not as failure.
 

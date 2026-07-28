@@ -37,7 +37,7 @@ Detector tools find **Type-1/2** clones (literal / renamed). The clusters worth 
 
 Concretely: the four `setup*Fixture` helpers above share a common run of roughly four lines, split by divergent code — a token-based detector reports nothing on them, yet they are the target case.
 
-**Configuration** is `consolidate.detectors` in project config: a list of command templates with `{paths}` / `{out}` placeholders, defaulting to jscpd alone. Each is probed with `command -v` and **skipped silently when absent**, mirroring `_preamble.md` § Run-Kit Reference's fail-silent discipline. A repo with zero detectors installed still works.
+**Configuration** is `consolidate.detectors` in project config: a list of command templates with `{paths}` / `{out}` placeholders, defaulting to jscpd alone. Both placeholders are substituted **shell-quoted** (each path single-quoted) so scope paths containing spaces or shell metacharacters arrive as intact arguments rather than splitting or injecting into the command. Each detector is probed with `command -v` and **skipped silently when absent**, mirroring `_preamble.md` § Run-Kit Reference's fail-silent discipline. A repo with zero detectors installed still works.
 
 **Non-zero detector exit is not a STOP** — duplication tools conventionally exit non-zero to signal "threshold exceeded," which is a finding. This is an explicit per-skill exception to `_preamble.md`'s failure rule, which governs `fab` commands rather than third-party tools.
 

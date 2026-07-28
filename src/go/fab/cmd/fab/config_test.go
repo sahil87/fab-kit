@@ -633,6 +633,18 @@ func TestConfigReferenceConsolidateDetectors(t *testing.T) {
 		t.Error("consolidate.detectors carries no rendered Segment, so `fab config reference` would not document it")
 	}
 
+	// The placeholders are substituted SHELL-QUOTED (PR #520 review). A template
+	// is run through a shell, so an unquoted {paths}/{out} would word-split — or
+	// execute — a scope path containing a space or a shell metacharacter. Both
+	// the prose description and the scaffolded comment must say so, since the
+	// substitution is performed by the agent reading this text.
+	if !strings.Contains(row.Description, "shell-quoted") {
+		t.Error("consolidate.detectors Description must state that {paths}/{out} are substituted shell-quoted")
+	}
+	if !strings.Contains(row.Segment, "shell-quoted") {
+		t.Error("consolidate.detectors Segment must state that {paths}/{out} are substituted shell-quoted")
+	}
+
 	// The YAML reference documents the key, and it is COMMENTED — a live
 	// `consolidate:` block would enable a detector sweep for every project.
 	out, err := configref.Render()
