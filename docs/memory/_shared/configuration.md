@@ -177,29 +177,34 @@ Holds only the tier system. The invocation grammar lives in the top-level `provi
 
 - `tiers` — Optional map (l3ja) and the **sole per-stage-model override surface**. A **tier** is a named `{provider, model, effort}` agent profile — a tier carries no command; commands live in `providers:` (tykw). Keys under `tiers:` are the **six role-tier names**: `default`, `operator`, `doing`, `review`, `hydrate`, `fast` — roles with concrete referents. Each value is a `{provider, model, effort}` object (yaml keys `provider`, `model`, `effort`). Modeled on `AgentConfig.Tiers map[string]TierProfile` (`yaml:"tiers"`), and `TierProfile` is `{Provider, Model, Effort string}` (`yaml:"provider"`/`"model"`/`"effort"`); yaml.v3 ignores unknown keys, so widening the struct is free for existing configs. Read via the nil-safe accessor `GetAgentTier(tier) (TierProfile, bool)` — the bool distinguishes "no override" from "override present with empty fields", which the resolver needs for per-field merge.
 
+  Shape (one line per tier; every field optional — omitted fields inherit):
+
   ```yaml
   agent:
     tiers:
-      default:  { provider: claude, model: claude-fable-5,  effort: high }
-      operator: { provider: claude, model: claude-sonnet-5, effort: medium }
-      doing:    { provider: claude, model: claude-fable-5,  effort: xhigh }
-      review:   { provider: claude, model: claude-opus-4-8, effort: xhigh }
-      hydrate:  { provider: claude, model: claude-opus-4-8, effort: high }
-      fast:     { provider: claude, model: claude-sonnet-5, effort: medium }
+      doing: { provider: claude, model: <model-id>, effort: xhigh }   # example: shape only
   ```
+
+  > **For the current built-in values, run `fab config reference`** — it renders the
+  > live `defaultTiers` table, so it cannot go stale. This doc deliberately does not
+  > restate the per-tier model IDs; the one human-readable mirror is the
+  > drift-guarded table in [`docs/specs/stage-models.md`](../../specs/stage-models.md)
+  > § Default tier profiles.
 
   Intake rides the `default` tier — it is pre-boundary and never dispatches, so it runs wherever the interactive session runs.
 
   **What it overrides** — only *what each tier means* (provider + model + effort), never *which stages belong to a tier*. The stage→tier mapping is fab-owned and **NOT user-overridable**: there is no `stage_tiers` map and no per-stage escape hatch. The six tiers, their fixed stage groupings, and fab-kit's built-in default profiles are owned by the Go `internal/agent` package (mirrored in [`docs/specs/stage-models.md`](../../specs/stage-models.md), drift-guarded):
 
-  | Tier | Fixed referents / role (NOT overridable) | fab-kit default profile |
-  |------|------------------------------------------|-------------------------|
-  | `default` | intake (advisory only — foreground); spawned worker sessions (`fab batch`), `fab agent` with no tier; the `/fab-proceed` create-intake dispatch; **per-field fallback for every other tier** | `claude` / `claude-fable-5` / `high` |
-  | `operator` | the operator coordinator session (`fab operator`) | `claude` / `claude-sonnet-5` / `medium` |
-  | `doing` | `apply`, `review-pr` — execution that must not err | `claude` / `claude-fable-5` / `xhigh` |
-  | `review` | `review` — the critic (split from `doing` for author/critic separation) | `claude` / `claude-opus-4-8` / `xhigh` |
-  | `hydrate` | `hydrate` — memory writing (its own tier so it runs on a different model/effort than apply) | `claude` / `claude-opus-4-8` / `high` |
-  | `fast` | `ship` — near-mechanical work — plus the `/fab-proceed` prefix steps (`/fab-switch`, `/git-branch`) | `claude` / `claude-sonnet-5` / `medium` |
+  | Tier | Fixed referents / role (NOT overridable) |
+  |------|------------------------------------------|
+  | `default` | intake (advisory only — foreground); spawned worker sessions (`fab batch`), `fab agent` with no tier; the `/fab-proceed` create-intake dispatch; **per-field fallback for every other tier** |
+  | `operator` | the operator coordinator session (`fab operator`) |
+  | `doing` | `apply`, `review-pr` — execution that must not err |
+  | `review` | `review` — the critic (its own tier so its model/effort dial independently of the author's) |
+  | `hydrate` | `hydrate` — memory writing (its own tier so it runs on a different model/effort than apply) |
+  | `fast` | `ship` — near-mechanical work — plus the `/fab-proceed` prefix steps (`/fab-switch`, `/git-branch`) |
+
+  The **roles** above are stable; the **profiles** are not restated here (`fab config reference`, or stage-models.md § Default tier profiles).
 
   A tier is **stage-named only where it maps 1:1 to a single referent** (`review`, `hydrate`); `default`, `doing`, and `fast` keep role names because each is **multi-referent** (`fast` governs the ship stage AND the `/fab-proceed` prefix-step dispatches).
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
 )
 
@@ -118,11 +119,14 @@ func TestDispatchStart_LaunchesAndPersistsState(t *testing.T) {
 	}
 	// spawn.WithProfile appends the resolved --model/--effort to a non-templated
 	// command (append mode), so the persisted spawn_cmd carries the doing-tier
-	// profile (claude-fable-5 / xhigh) appended to the base command.
+	// profile appended to the base command. The model is derived from the doing
+	// tier's built-in default (pinned once in agent.TestDefaultTierProfilesArePinned)
+	// so a model bump does not touch this test.
+	doingDefault, _ := agent.DefaultTier(agent.TierDoing)
 	if !strings.HasPrefix(rec.SpawnCmd, "sh -c 'exit 0'") {
 		t.Errorf("spawn_cmd = %q, want the base command as prefix", rec.SpawnCmd)
 	}
-	if !strings.Contains(rec.SpawnCmd, "--model claude-fable-5") {
+	if !strings.Contains(rec.SpawnCmd, "--model "+doingDefault.Model) {
 		t.Errorf("spawn_cmd = %q, want the resolved doing-tier model appended", rec.SpawnCmd)
 	}
 }
