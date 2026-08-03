@@ -53,18 +53,20 @@ The two fields are deliberately unmerged because session and dispatch are **diff
 
 `agent.tiers` keys SHALL be the six **role tiers** — `default`, `operator`, `doing`, `review`, `hydrate`, `fast`. Each tier value SHALL be `{provider, model, effort}` (no command — the command lives on the provider). A tier is **stage-named only where it maps 1:1 to a single referent** (`review`, `hydrate`); `default`, `doing`, and `fast` keep role names because each is **multi-referent** — `fast` governs the ship stage AND the `/fab-proceed` prefix-step dispatches (`/fab-switch`, `/git-branch`), and `default` governs intake, `fab batch`/`fab agent`, the `/fab-proceed` create-intake dispatch, and the per-field fallback. There is no `thinking` tier: with `review` split into its own tier, `thinking`'s only remaining stage would be intake, which never dispatches.
 
-fab-kit's built-in default profiles (owned by `defaultTiers` in `internal/agent`, drift-guarded against `docs/specs/stage-models.md`):
+The six tiers and their fixed referents (the profiles themselves are owned by `defaultTiers` in `internal/agent` and drift-guarded against every doc that mirrors them):
 
-| Tier | Role | Built-in default profile |
-|------|------|--------------------------|
-| `default` | intake (advisory, foreground); `fab batch` worker sessions; `fab agent` with no tier; the `/fab-proceed` create-intake dispatch; **per-field fallback for every other tier** | `claude` / `claude-fable-5` / `high` |
-| `operator` | the operator coordinator session (`fab operator`) | `claude` / `claude-sonnet-5` / `medium` |
-| `doing` | `apply`, `review-pr` — execution that must not err | `claude` / `claude-fable-5` / `xhigh` |
-| `review` | `review` — the critic (author/critic separation, a different model family checks the work than does it) | `claude` / `claude-opus-4-8` / `xhigh` |
-| `hydrate` | `hydrate` — memory writing (its own tier so it runs on a different model/effort than apply) | `claude` / `claude-opus-4-8` / `high` |
-| `fast` | `ship` — near-mechanical work — plus the `/fab-proceed` prefix steps (`/fab-switch`, `/git-branch`) | `claude` / `claude-sonnet-5` / `medium` |
+| Tier | Role |
+|------|------|
+| `default` | intake (advisory, foreground); `fab batch` worker sessions; `fab agent` with no tier; the `/fab-proceed` create-intake dispatch; **per-field fallback for every other tier** |
+| `operator` | the operator coordinator session (`fab operator`) |
+| `doing` | `apply`, `review-pr` — execution that must not err |
+| `review` | `review` — the critic (its own tier so its model/effort dial independently of the author's) |
+| `hydrate` | `hydrate` — memory writing (its own tier so it runs on a different model/effort than apply) |
+| `fast` | `ship` — near-mechanical work — plus the `/fab-proceed` prefix steps (`/fab-switch`, `/git-branch`) |
 
-**Per-field inheritance**: any tier field left unset (provider, model, effort) inherits from the project's `default` tier, then from fab-kit's built-in for that tier (`ResolveTier` middle-layer merge). Inheriting `{provider, model, effort}` is safe *because commands moved to `providers:`* — the dangerous cross-semantics command inheritance cannot happen. **Documented style: write `provider:` explicitly on every tier line** even though inheritance makes it optional (per-line readability; inheritance is the safety net). Model IDs are written **versioned** (`claude-opus-4-8`) — bare family IDs fail both dispatch seams.
+**Current profiles**: run `fab config reference` (renders live from `defaultTiers`) or see the drift-guarded table in [stage-models.md](../../specs/stage-models.md) § Default tier profiles. Not restated here — this table owns the *roles*, which change far less often than the models.
+
+**Per-field inheritance**: any tier field left unset (provider, model, effort) inherits from the project's `default` tier, then from fab-kit's built-in for that tier (`ResolveTier` middle-layer merge). Inheriting `{provider, model, effort}` is safe *because commands moved to `providers:`* — the dangerous cross-semantics command inheritance cannot happen. **Documented style: write `provider:` explicitly on every tier line** even though inheritance makes it optional (per-line readability; inheritance is the safety net). Model IDs are written **versioned** (e.g. `claude-sonnet-5`, `claude-opus-4-8`) — bare family IDs (`claude-sonnet`) fail both dispatch seams.
 
 #### Scenario: an unset field inherits the default tier
 

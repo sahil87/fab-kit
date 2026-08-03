@@ -79,14 +79,27 @@ var defaultProviders = map[string]config.ProviderConfig{
 
 // defaultTiers is fab-kit's built-in tier→profile table (today). This is the ONE
 // place bumped when a new top model lands. Provider is written explicitly on
-// every line (documented style; inheritance is the safety net). Mirrored in
-// docs/specs/stage-models.md § default-tier table (drift-guarded).
+// every line (documented style; inheritance is the safety net).
+//
+// TO BUMP A MODEL: edit the line here, then run the tests. Every other place that
+// restates these values is drift-guarded and will name itself in the failure
+// output — you do not have to go find them:
+//
+//	TestDefaultTierProfilesArePinned      the deliberate-change pin (agent_test.go)
+//	TestDocTablesMatchAgentMaps           stage-models.md § default-tier TABLE
+//	TestMirrorDocsMatchDefaultTiers       stage-models.md inline-YAML sample
+//	TestCLIFabReferenceListsDefaultTiers  _cli-fab.md § resolve-agent enumeration
+//
+// No other test hardcodes these strings — the rest derive from DefaultTier(), so a
+// bump does not touch them. Docs that used to restate the profiles (architecture.md,
+// _shared/configuration.md, runtime/providers-and-tiers.md) now point at
+// `fab config reference`, which renders this map live and cannot go stale.
 var defaultTiers = map[string]Profile{
 	TierDefault:  {Provider: "claude", Model: "claude-fable-5", Effort: "high"},
 	TierOperator: {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
-	TierDoing:    {Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"},
-	TierReview:   {Provider: "claude", Model: "claude-opus-4-8", Effort: "xhigh"},
-	TierHydrate:  {Provider: "claude", Model: "claude-opus-4-8", Effort: "high"},
+	TierDoing:    {Provider: "claude", Model: "claude-opus-5", Effort: "xhigh"},
+	TierReview:   {Provider: "claude", Model: "claude-opus-5", Effort: "xhigh"},
+	TierHydrate:  {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
 	TierFast:     {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
 }
 

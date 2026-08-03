@@ -253,14 +253,11 @@ providers:
 # (per-field merge with default-tier inheritance). Resolved per stage/tier by
 # `fab resolve-agent <stage|tier>` at sub-agent dispatch time; see
 # docs/specs/stage-models.md.
+# Run `fab config reference` for the current built-in profiles (rendered live from
+# defaultTiers, so it cannot go stale). Shape:
 agent:
   tiers:
-    default:  { provider: claude, model: claude-fable-5,  effort: high }
-    operator: { provider: claude, model: claude-sonnet-5, effort: medium }
-    doing:    { provider: claude, model: claude-fable-5,  effort: xhigh }
-    review:   { provider: claude, model: claude-opus-4-8, effort: xhigh }
-    hydrate:  { provider: claude, model: claude-opus-4-8, effort: high }
-    fast:     { provider: claude, model: claude-sonnet-5, effort: medium }
+    doing: { provider: claude, model: <model-id>, effort: xhigh }   # example: shape only
 
 # Optional branch prefix applied by fab batch switch when creating worktree branches.
 branch_prefix: ""

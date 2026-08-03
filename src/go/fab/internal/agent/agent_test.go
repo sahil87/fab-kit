@@ -13,26 +13,64 @@ func cfgWithTiers(tiers map[string]config.TierProfile) *config.Config {
 }
 
 // TestResolveDefaults: with no overrides, every stage resolves to its fixed
-// tier's built-in default profile.
+// tier's built-in default profile. The expectation is DERIVED from the canonical
+// maps (stageTiers → defaultTiers) rather than restating model literals, so a
+// model bump touches only defaultTiers in agent.go and this test keeps asserting
+// what it is actually about: that resolution routes each stage to its fixed tier
+// and returns that tier's profile unmodified. The literals themselves are pinned
+// once, in TestDefaultTierProfilesArePinned below.
 func TestResolveDefaults(t *testing.T) {
-	cases := map[string]Profile{
-		"intake":    {Provider: "claude", Model: "claude-fable-5", Effort: "high"},    // default (advisory)
-		"apply":     {Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"},   // doing
-		"review":    {Provider: "claude", Model: "claude-opus-4-8", Effort: "xhigh"},  // review
-		"hydrate":   {Provider: "claude", Model: "claude-opus-4-8", Effort: "high"},   // hydrate (own tier)
-		"ship":      {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"}, // fast
-		"review-pr": {Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"},   // doing
-	}
-	for stage, want := range cases {
+	for _, stage := range StageNames() {
 		t.Run(stage, func(t *testing.T) {
+			tier, ok := TierForStage(stage)
+			if !ok {
+				t.Fatalf("stage %q has no tier mapping", stage)
+			}
+			want, ok := DefaultTier(tier)
+			if !ok {
+				t.Fatalf("tier %q has no default profile", tier)
+			}
 			got, err := Resolve(nil, stage)
 			if err != nil {
 				t.Fatalf("Resolve(%s): %v", stage, err)
 			}
 			if got != want {
-				t.Errorf("Resolve(%s) = %+v, want %+v", stage, got, want)
+				t.Errorf("Resolve(%s) = %+v, want %s-tier default %+v", stage, got, tier, want)
 			}
 		})
+	}
+}
+
+// TestDefaultTierProfilesArePinned is the ONE place the built-in default literals
+// are asserted. It exists so a model bump is a deliberate two-line edit
+// (defaultTiers + this table) instead of an unreviewed change that silently
+// repoints every stage — and so the other tests in this package can derive their
+// expectations from the maps without any of them pinning the values.
+//
+// When you bump a default: update defaultTiers in agent.go, then update this
+// table to match. Every doc mirror is guarded separately by
+// TestMirrorDocsMatchDefaultTiers / TestCLIFabReferenceListsDefaultTiers.
+func TestDefaultTierProfilesArePinned(t *testing.T) {
+	pinned := map[string]Profile{
+		TierDefault:  {Provider: "claude", Model: "claude-fable-5", Effort: "high"},
+		TierOperator: {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
+		TierDoing:    {Provider: "claude", Model: "claude-opus-5", Effort: "xhigh"},
+		TierReview:   {Provider: "claude", Model: "claude-opus-5", Effort: "xhigh"},
+		TierHydrate:  {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
+		TierFast:     {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
+	}
+	if len(pinned) != len(TierNames()) {
+		t.Fatalf("pinned table covers %d tiers, but %d tiers exist — add the new tier here", len(pinned), len(TierNames()))
+	}
+	for _, tier := range TierNames() {
+		want, ok := pinned[tier]
+		if !ok {
+			t.Errorf("tier %q has no pinned profile — add it to this table", tier)
+			continue
+		}
+		if got, _ := DefaultTier(tier); got != want {
+			t.Errorf("defaultTiers[%s] = %+v, pinned %+v — intentional bump? update this table too", tier, got, want)
+		}
 	}
 }
 
@@ -65,8 +103,9 @@ func TestResolveFullOverride(t *testing.T) {
 // TestResolvePerFieldMerge: an override that sets only effort keeps the default
 // provider+model (per-field merge), and vice versa.
 func TestResolvePerFieldMerge(t *testing.T) {
-	// Only effort overridden → default provider+model survive. hydrate ∈ hydrate
-	// tier (opus/high), so overriding effort to medium keeps opus.
+	// Only effort overridden → default provider+model survive. Derived from the
+	// hydrate tier's default so a model bump does not touch this test.
+	hydrateDefault, _ := DefaultTier(TierHydrate)
 	cfg := cfgWithTiers(map[string]config.TierProfile{
 		"hydrate": {Effort: "medium"},
 	})
@@ -74,8 +113,8 @@ func TestResolvePerFieldMerge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if got.Provider != "claude" || got.Model != "claude-opus-4-8" || got.Effort != "medium" {
-		t.Errorf("Resolve(hydrate) = %+v, want default provider+model + medium effort", got)
+	if got.Provider != hydrateDefault.Provider || got.Model != hydrateDefault.Model || got.Effort != "medium" {
+		t.Errorf("Resolve(hydrate) = %+v, want default provider+model (%s/%s) + medium effort", got, hydrateDefault.Provider, hydrateDefault.Model)
 	}
 
 	// Only model overridden → default effort survives. ship ∈ fast tier
@@ -171,7 +210,7 @@ func TestResolveEmptyOverrideKeepsDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	want := Profile{Provider: "claude", Model: "claude-fable-5", Effort: "xhigh"}
+	want, _ := DefaultTier(TierDoing) // apply ∈ doing
 	if got != want {
 		t.Errorf("Resolve(apply) with empty override = %+v, want built-in default %+v", got, want)
 	}

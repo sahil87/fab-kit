@@ -53,7 +53,7 @@ governs the ship stage *and* the `/fab-proceed` prefix-step dispatches — see �
 | `default` | Spawned worker sessions (`fab batch`), `fab agent` with no tier, intake (advisory only — foreground), and the `/fab-proceed` create-intake dispatch. Also the **per-field fallback for every other tier**. |
 | `operator` | The operator coordinator session (`fab operator`). |
 | `doing` | **Execution that must not err** — apply writes the diff; review-pr fixes already-articulated feedback. |
-| `review` | **The critic** — review reads a diff and discovers what's wrong. Split from `doing` for author/critic separation (a different agent, and a different model family, checks the work than does it). |
+| `review` | **The critic** — review reads a diff and discovers what's wrong. Its own tier (not folded into `doing`) so the critic's model and effort can be dialed independently of the author's; the separation that matters is the fresh context and adversarial framing, not a different model family. |
 | `hydrate` | **Memory writing** — hydrate merges the change into `docs/memory/` as current truth. Its own tier so it can run on a different model/effort than apply. |
 | `fast` | **Speed on near-mechanical work** — ship's commit/push/PR mechanics plus a faithful PR-description summary, and the `/fab-proceed` prefix steps (`/fab-switch`, `/git-branch`). Multi-referent, so it keeps its role name. |
 
@@ -72,20 +72,21 @@ the safety net, not the style).
 |------|----------|-------|--------|
 | `default` | `claude` | `claude-fable-5` | `high` |
 | `operator` | `claude` | `claude-sonnet-5` | `medium` |
-| `doing` | `claude` | `claude-fable-5` | `xhigh` |
-| `review` | `claude` | `claude-opus-4-8` | `xhigh` |
-| `hydrate` | `claude` | `claude-opus-4-8` | `high` |
+| `doing` | `claude` | `claude-opus-5` | `xhigh` |
+| `review` | `claude` | `claude-opus-5` | `xhigh` |
+| `hydrate` | `claude` | `claude-opus-5` | `high` |
 | `fast` | `claude` | `claude-sonnet-5` | `medium` |
 
 This is the verified mirror of the `defaultTiers` map in
 `src/go/fab/internal/agent/agent.go`. A drift-guard test fails if the two disagree (see § Drift guard).
 
-**Why these defaults.** `doing` runs Fable at `xhigh` — Anthropic's stated best setting for
-coding/agentic work; a strong author minimizes rework cycles per the apply↔review coupling (see
-§ apply↔review coupling). `review` runs Opus/`xhigh` for deliberate cross-model author/critic diversity
-— a different model family from the author avoids its blind spots, and code review is a named Opus 4.8
-strength. `hydrate` runs Opus/`high` — knowledge work and memory writing are named Opus 4.8 strengths,
-and `high` is the recommended default for intelligence-sensitive-but-not-hardest work. `default` runs
+**Why these defaults.** `doing` runs Opus at `xhigh` — the strongest setting for coding/agentic work; a
+strong author minimizes rework cycles per the apply↔review coupling (see § apply↔review coupling).
+`review` runs Opus/`xhigh` — code review is a named Opus strength, and the critic gets the same
+top-tier model as the author so it can actually catch what the author missed (author/critic separation
+is enforced by the *fresh context and adversarial framing*, not by a weaker model). `hydrate` runs
+Opus/`high` — knowledge work and memory writing are named Opus strengths, and `high` is the
+recommended default for intelligence-sensitive-but-not-hardest work. `default` runs
 Fable/`high` — interactive sessions want the quicker working style (Anthropic guidance: `high` is the
 sweet spot, and Fable at lower efforts still exceeds prior models' `xhigh`). `operator` runs
 Sonnet/`medium` (highest-volume coordinator, pattern-matching work, escalation discipline makes the
@@ -182,9 +183,9 @@ agent:
   # tier to use fab-kit's built-in default. fab-kit defaults today are:
   #   default:  { provider: claude, model: claude-fable-5,  effort: high }
   #   operator: { provider: claude, model: claude-sonnet-5, effort: medium }
-  #   doing:    { provider: claude, model: claude-fable-5,  effort: xhigh }
-  #   review:   { provider: claude, model: claude-opus-4-8, effort: xhigh }
-  #   hydrate:  { provider: claude, model: claude-opus-4-8, effort: high }
+  #   doing:    { provider: claude, model: claude-opus-5,   effort: xhigh }
+  #   review:   { provider: claude, model: claude-opus-5,   effort: xhigh }
+  #   hydrate:  { provider: claude, model: claude-opus-5,   effort: high }
   #   fast:     { provider: claude, model: claude-sonnet-5, effort: medium }
   tiers:
     doing: { provider: claude, model: claude-sonnet-5, effort: medium }   # example: run doing cheaper
