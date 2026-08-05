@@ -1,0 +1,16 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-05T15:49:53Z"}
+{"args":"fab dispatch start defaults to pane mode when running inside a tmux session (TMUX env set), headless otherwise; explicit --pane/--headless override; explicit --timeout selects headless","cmd":"fab-new","event":"command","ts":"2026-08-05T15:49:53Z"}
+{"delta":"+4.7","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-08-05T15:50:56Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-05T15:59:17Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-05T15:59:52Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-05T18:17:39Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-05T18:31:47Z"}
+{"event":"review","result":"failed","ts":"2026-08-05T18:48:10Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-05T18:48:10Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-05T19:06:15Z"}
+{"event":"review","result":"failed","ts":"2026-08-05T19:15:22Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-05T19:15:22Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-05T19:21:24Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-05T19:31:31Z"}
+{"event":"review","result":"passed","ts":"2026-08-05T19:31:31Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-05T19:36:42Z"}

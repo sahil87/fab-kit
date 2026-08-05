@@ -530,9 +530,13 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   **Resolution is unchanged by the pane mode**: it emits no new resolver line and needs no new provider
   field — pane mode composes the resolved provider's existing `session_command` (the same field
   `fab agent` and the operator launcher compose, through the same `internal/spawn` substitution), and mode
-  selection is **per-invocation** (`--pane`), never a property of a tier or provider. This is not a
-  cross-fallback: the no-fallback rule governs what `resolve-agent` emits for *dispatch*, and pane mode
-  reads the provider table itself rather than consuming a `dispatch=` line.
+  selection is **per-invocation** (an explicit-first ladder over `--pane`/`--headless`/`--timeout`/`--server`
+  ending in auto — pane inside tmux, headless outside), never a property of a tier or provider. This is not
+  a cross-fallback: the no-fallback rule governs what `resolve-agent` emits for *dispatch*, and pane mode
+  reads the provider table itself rather than consuming a `dispatch=` line. Nor does the auto default
+  weaken it: an auto-selected pane whose provider carries no `session_command` **soft-falls-back to
+  headless** (re-composing from `dispatch_command`), so a tier resolved to a `dispatch_command`-only
+  provider dispatches identically inside and outside tmux.
 - *Claude-flavored data (overridable):* fab-kit's shipped default table uses Claude model IDs/effort.
   These are documented as "fab-kit's Claude defaults," fully replaceable via `agent.tiers`.
 - *v1 scope is architecture-neutral + documented — NOT shipped/tested against a non-Claude harness.* No

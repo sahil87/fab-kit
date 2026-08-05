@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -67,6 +68,108 @@ func TestDerivePaneState(t *testing.T) {
 				t.Errorf("DerivePaneState produced %q, which is unreachable on the pane path", got)
 			}
 		})
+	}
+}
+
+// TestSelectMode exhausts the mode-selection ladder: every explicit rung, the
+// precedence pairs between rungs, and the two auto outcomes. The properties worth
+// pinning are that an explicit signal ALWAYS beats auto (so `$TMUX` can never
+// override a flag the caller typed), that only the auto rungs report a non-empty
+// AutoReason (an explicit selection's output line must stay byte-identical to
+// before auto existed), and that an empty `$TMUX` reads as unset.
+func TestSelectMode(t *testing.T) {
+	tests := []struct {
+		name                   string
+		paneFlag, headlessFlag bool
+		timeoutSet, serverSet  bool
+		tmuxEnv                string
+		wantMode               Mode
+		wantReason             AutoReason
+	}{
+		// Rung 5 — auto, the new default behavior.
+		{"auto: no tmux ⇒ headless", false, false, false, false, "", ModeHeadless, ReasonAutoNoTmux},
+		{"auto: tmux set ⇒ pane", false, false, false, false, "/tmp/tmux-1000/default,123,0", ModePane, ReasonAutoTmux},
+		{"auto: empty tmux reads as unset", false, false, false, false, "", ModeHeadless, ReasonAutoNoTmux},
+
+		// Rungs 1–4 — explicit signals, each beating auto in BOTH tmux states.
+		{"explicit --pane outside tmux", true, false, false, false, "", ModePane, ReasonExplicit},
+		{"explicit --pane inside tmux", true, false, false, false, "/tmp/s,1,0", ModePane, ReasonExplicit},
+		{"explicit --headless inside tmux", false, true, false, false, "/tmp/s,1,0", ModeHeadless, ReasonExplicit},
+		{"explicit --headless outside tmux", false, true, false, false, "", ModeHeadless, ReasonExplicit},
+		{"--timeout implies headless inside tmux", false, false, true, false, "/tmp/s,1,0", ModeHeadless, ReasonExplicit},
+		{"--timeout implies headless outside tmux", false, false, true, false, "", ModeHeadless, ReasonExplicit},
+		{"--server implies pane outside tmux", false, false, false, true, "", ModePane, ReasonExplicit},
+		{"--server implies pane inside tmux", false, false, false, true, "/tmp/s,1,0", ModePane, ReasonExplicit},
+
+		// Precedence between explicit rungs: an earlier rung wins.
+		{"--headless beats --timeout (same outcome)", false, true, true, false, "/tmp/s,1,0", ModeHeadless, ReasonExplicit},
+		{"--headless beats --server", false, true, false, true, "/tmp/s,1,0", ModeHeadless, ReasonExplicit},
+		{"--pane beats --server (same outcome)", true, false, false, true, "", ModePane, ReasonExplicit},
+		{"--timeout beats --server", false, false, true, true, "/tmp/s,1,0", ModeHeadless, ReasonExplicit},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mode, reason := SelectMode(tt.paneFlag, tt.headlessFlag, tt.timeoutSet, tt.serverSet, tt.tmuxEnv)
+			if mode != tt.wantMode || reason != tt.wantReason {
+				t.Errorf("SelectMode(pane=%v,headless=%v,timeout=%v,server=%v,TMUX=%q) = (%q,%q), want (%q,%q)",
+					tt.paneFlag, tt.headlessFlag, tt.timeoutSet, tt.serverSet, tt.tmuxEnv,
+					mode, reason, tt.wantMode, tt.wantReason)
+			}
+			// Any explicit signal must report ReasonExplicit, so the dispatched
+			// output line carries no `auto:` suffix.
+			explicit := tt.paneFlag || tt.headlessFlag || tt.timeoutSet || tt.serverSet
+			if explicit && reason != ReasonExplicit {
+				t.Errorf("explicit selection reported reason %q, want the empty ReasonExplicit", reason)
+			}
+			if !explicit && reason == ReasonExplicit {
+				t.Error("auto selection must report its source, got ReasonExplicit")
+			}
+		})
+	}
+}
+
+// TestSelectModeNeverReportsFallbackReasons pins that both SOFT-FALLBACK reasons
+// are the CALLER's post-validation verdicts, never SelectMode's: the selector is
+// pure — it performs no tmux query and reads no provider config — so it can know
+// neither reachability (shape (a)) nor whether a session_command exists (shape (b)).
+func TestSelectModeNeverReportsFallbackReasons(t *testing.T) {
+	fallbackOnly := []AutoReason{ReasonAutoUnreachable, ReasonAutoNoSessionCommand}
+	for _, tmuxEnv := range []string{"", "/tmp/tmux-1000/default,1,0"} {
+		_, reason := SelectMode(false, false, false, false, tmuxEnv)
+		for _, banned := range fallbackOnly {
+			if reason == banned {
+				t.Errorf("SelectMode(TMUX=%q) reported %q; that verdict belongs to the caller's validation", tmuxEnv, reason)
+			}
+		}
+	}
+}
+
+// TestFallbackReasonsAndNoticesAreDistinct pins that the two soft-fallback shapes
+// are separately explainable: a caller reading stderr or the `dispatched …` line
+// must be able to tell "tmux did not answer" from "the provider has no
+// session_command", since the two need different fixes.
+func TestFallbackReasonsAndNoticesAreDistinct(t *testing.T) {
+	if ReasonAutoUnreachable == ReasonAutoNoSessionCommand {
+		t.Error("the two soft-fallback reasons must differ; the output line is the only explanation of a surprising mode")
+	}
+	if FallbackNotice == FallbackNoticeNoSessionCommand {
+		t.Error("the two soft-fallback notices must differ; each names a different fix")
+	}
+	// Both reasons carry the shared `auto:` prefix the output line appends, and
+	// neither may be the empty ReasonExplicit (which suppresses the suffix).
+	for _, r := range []AutoReason{ReasonAutoUnreachable, ReasonAutoNoSessionCommand} {
+		if r == ReasonExplicit {
+			t.Errorf("fallback reason %q must not be ReasonExplicit; the suffix would be dropped", r)
+		}
+		if !strings.HasPrefix(string(r), "auto: ") {
+			t.Errorf("fallback reason %q must carry the `auto: ` prefix", r)
+		}
+	}
+	// Every notice names the degrade so stderr is self-explanatory.
+	for _, n := range []string{FallbackNotice, FallbackNoticeNoSessionCommand} {
+		if !strings.Contains(n, "falling back to headless") {
+			t.Errorf("notice %q must name the headless degrade", n)
+		}
 	}
 }
 
