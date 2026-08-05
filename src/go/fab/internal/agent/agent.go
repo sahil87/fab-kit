@@ -255,6 +255,29 @@ func Resolve(cfg *config.Config, stage string) (Profile, error) {
 	return ResolveTier(cfg, tier)
 }
 
+// ProviderNames returns the provider names ResolveProvider can resolve for cfg:
+// the union of fab-kit's built-in provider table and the project's own providers:
+// block, sorted (stable for error messages and tests). Exposed so a lookup failure
+// (`fab agent --provider <unknown>`) can name the available set rather than leaving
+// the caller to guess it. Listing the resolvable NAMES is not validation of any
+// command's CONTENT — the document-don't-validate contract is untouched.
+func ProviderNames(cfg *config.Config) []string {
+	seen := make(map[string]struct{}, len(defaultProviders))
+	for name := range defaultProviders {
+		seen[name] = struct{}{}
+	}
+	for _, name := range cfg.ProviderNames() {
+		seen[name] = struct{}{}
+	}
+
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 // ResolveProvider returns the {session_command, dispatch_command} for a provider
 // name: the project's providers.<name> override PER-FIELD merged over fab-kit's
 // built-in provider table (an override field that is set wins; an omitted field

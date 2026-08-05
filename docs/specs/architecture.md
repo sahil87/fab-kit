@@ -405,7 +405,7 @@ Skills are deployed to each detected agent by `fab sync`, sourcing from the kit 
 | Codex (`codex`) | `.agents/skills/{name}/SKILL.md` | Directory-based copies |
 | Gemini CLI (`gemini`) | `.gemini/skills/{name}/SKILL.md` | Directory-based copies |
 
-All `*.md` skill files are deployed, including underscore partials (`_preamble.md`, `_generation.md`, `_review.md`, `_srad.md`, `_pipeline.md`, `_cli-fab.md`, `_cli-external.md`), which carry `user-invocable: false` frontmatter to prevent direct invocation. The skill prompt files are agent-agnostic markdown; only the deployment locations and formats differ per agent.
+All `*.md` skill files are deployed, including underscore partials (`_preamble.md`, `_generation.md`, `_review.md`, `_srad.md`, `_pipeline.md`, `_intake.md`, `_cli-fab.md`, `_cli-external.md`, `_cli-agents.md`), which carry `user-invocable: false` frontmatter to prevent direct invocation. The skill prompt files are agent-agnostic markdown; only the deployment locations and formats differ per agent.
 
 Because Claude Code deployments are **copies** (not symlinks), they go stale when the kit updates — re-run `fab sync` after an upgrade (preflight warns when `$(fab kit-path)/VERSION` and the project's pinned version in `fab/.fab-version` diverge). In the fab-kit dev repo, never edit `.claude/skills/` directly — `src/kit/skills/` is canonical and `fab sync` overwrites the copies.
 

@@ -1036,16 +1036,31 @@ Duration is Go format (`3m`, `5m`, `2m`). Invalid → exit 1.
 ## fab agent
 
 ```
-fab agent [tier] [--print] [--repo <path>]
+fab agent [tier] [--provider <name> [--model <id>] [--effort <level>]] [--print] [--repo <path>]
 ```
 
 Launch (or `--print`) the resolved agent **session** command in the current shell. Replaces `fab spawn-command`, with a semantic upgrade: the printed/exec'd command is **profile-resolved** (model/effort substituted), not placeholder-stripped.
 
-- Resolves the tier profile (`default` when the positional `[tier]` is omitted; any of the six role-tier names accepted: `default`, `operator`, `doing`, `review`, `hydrate`, `fast`), then composes `providers.<profile.provider>.session_command` with `{model}`/`{effort}` substituted (or Claude-style `--model`/`--effort` appended for a non-templated command) via `internal/spawn.WithProfile` — the same substitution `fab resolve-agent`'s `dispatch=` line and the operator launcher use.
+Two **mutually exclusive addressing modes** compose the command:
+
+- **Tier-addressed** (the `[tier]` positional) — resolves the tier profile (`default` when the positional is omitted; any of the six role-tier names accepted: `default`, `operator`, `doing`, `review`, `hydrate`, `fast`), then composes `providers.<profile.provider>.session_command` with the tier's `{model}`/`{effort}` substituted (or Claude-style `--model`/`--effort` appended for a non-templated command) via `internal/spawn.WithProfile` — the same substitution `fab resolve-agent`'s `dispatch=` line and the operator launcher use.
+- **Provider-addressed** (`--provider <name>`) — **bypasses tier resolution entirely**: looks up `providers.<name>` directly (project config per-field merged over fab-kit's built-in provider table, exactly as the tier path's provider lookup does) and composes its `session_command` with the `--model`/`--effort` values through the same `WithProfile`. This is the "spawn a codex session right here" form — no tier need name the provider first.
+
+Common to both modes:
+
 - **Default (exec)**: replaces this process with the composed command via `sh -c` (so shell expansions like `$(basename "$(pwd)")` expand at invocation). `fab agent` starts the default-tier agent right here; `fab agent operator` starts the coordinator profile. **No TTY guard** — exec-and-let-the-agent-CLI-handle-it (document-don't-validate).
 - **`--print`**: prints the fully-resolved command instead of executing (the `fab spawn-command` replacement — profile-resolved, not stripped). Lets the operator compose a worker spawn from a real profile.
-- **`--repo <path>`**: reads `<path>/fab/project/config.yaml` instead of the current repo (the operator's fetch-another-repo's-command use case, carried over from `fab spawn-command --repo`).
-- **Error**: a resolved provider with no `session_command` (and not the built-in claude) errors with a config-key hint (`configure providers.<name>.session_command`); an unknown tier name errors and names it.
+- **`--repo <path>`**: reads `<path>/fab/project/config.yaml` instead of the current repo (the operator's fetch-another-repo's-command use case, carried over from `fab spawn-command --repo`). Composes with either addressing mode.
+
+Provider-mode specifics:
+
+- **Omitted `--model`/`--effort`** leave the value empty, which follows the existing `WithProfile` empty-value rule: in **template** mode the placeholder's whitespace-delimited token is dropped along with a preceding `-`-flag; in **append** mode the flag is simply not appended. So `fab agent --provider codex --print` against `codex -m {model} -c model_reasoning_effort={effort}` prints a bare `codex` and the installed CLI's own default model applies — which is how you spawn a provider whose current model IDs you do not know.
+- **`--model`/`--effort` require `--provider`.** Supplying either without it is a usage error (non-zero exit): on the tier path the model and effort ARE the resolved tier's, so a bare `--model` would either invent an undocumented tier-override surface or be silently ignored.
+- **`--provider` and the `[tier]` positional are mutually exclusive** — supplying both is a usage error (non-zero exit) naming the exclusion; a tier already names a provider, so mixing the two has no coherent semantics.
+- **Unknown provider name** → non-zero exit listing the **available** provider names (the project's `providers:` keys ∪ fab-kit's built-in table, sorted). This is a **lookup** failure, not validation of the command's content — resolved command strings still pass through verbatim (document-don't-validate; fab never infers a provider from a model string).
+- **Error**: a resolved provider with no `session_command` (and not the built-in claude) errors with a config-key hint (`configure providers.<name>.session_command`) on either path; an unknown tier name errors and names it.
+
+The procedural knowledge for *using* the composed command — opening it in a tmux window, delivering a prompt reliably, peeking, awaiting — plus the per-provider invocation grammar and model-discovery recipes live in the `_cli-agents` helper (`helpers: [_cli-agents]`).
 
 *(`fab spawn-command` is removed in this release with no deprecation alias — its only CLI consumer was the operator skill, updated in the same kit. `fab batch` and the operator launcher use the internal `spawn` package, not this CLI command.)*
 

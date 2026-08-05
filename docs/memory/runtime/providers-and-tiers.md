@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "The providers & role-tiers model (agent config v3) — the top-level `providers:` command table (opaque names → `session_command`/`dispatch_command`, claude built-in, absent `dispatch_command` = native, NO cross-fallback), the six role tiers (`default`/`operator`/`doing`/`review`/`hydrate`/`fast`) as `{provider, model, effort}` with per-field inheritance, the fixed stage→tier mapping + fixed-point name-collision rule, `fab resolve-agent`, the `fab agent` launcher, and the resolution's consumers."
+description: "The providers & role-tiers model (agent config v3) — the top-level `providers:` command table (opaque names → `session_command`/`dispatch_command`, claude built-in, absent `dispatch_command` = native, NO cross-fallback), the six role tiers as `{provider, model, effort}` with per-field inheritance, the fixed stage→tier mapping + fixed-point name rule, `fab resolve-agent`, the `fab agent` launcher's two addressing modes (tier, or `--provider` bypassing tiers), and the resolution's consumers."
 ---
 # Providers & Role Tiers
 
@@ -106,13 +106,42 @@ The stage→tier mapping is **fab-owned and NOT user-overridable** (`stageTiers`
 - **WHEN** `fab resolve-agent <stage> --alias` runs
 - **THEN** `model=` carries the short alias while `dispatch=` embeds the full model ID
 
-### Requirement: `fab agent [tier] [--print] [--repo <path>]` — session launcher
+### Requirement: `fab agent [tier] [--provider <name> [--model <id>] [--effort <level>]] [--print] [--repo <path>]` — session launcher
 
-`fab agent` SHALL resolve a tier profile (`default` when the tier is omitted; any of the six tier names accepted), compose `providers.<provider>.session_command` with `{model}`/`{effort}` substituted (or Claude-style flags appended for a non-templated command via `spawn.WithProfile`), and **exec it in the current shell** — `fab agent` starts the default-tier agent right here; `fab agent operator` starts the coordinator profile.
+`fab agent` SHALL compose an interactive session command in one of **two mutually exclusive addressing modes** and **exec it in the current shell**:
 
-- `--print` prints the fully-resolved command instead of executing — the output is **profile-resolved** (model/effort substituted), so callers that spawn from the printed command get the tier profile.
-- `--repo <path>` reads the target repo's config (the operator's fetch-another-repo's-command use case).
+- **Tier-addressed** (the `[tier]` positional) — resolve a tier profile (`default` when the tier is omitted; any of the six tier names accepted) and compose `providers.<profile.provider>.session_command` with the tier's `{model}`/`{effort}`. `fab agent` starts the default-tier agent right here; `fab agent operator` starts the coordinator profile.
+- **Provider-addressed** (`--provider <name>`) — **bypass tier resolution entirely**: look up `providers.<name>` directly via `agent.ResolveProvider` (project config per-field-merged over the built-in table, exactly as the tier path's provider lookup does) and compose its `session_command` with the `--model`/`--effort` values. This is the "give me a codex session right here" form — no tier need name the provider first.
+
+Both modes compose through the same `spawn.WithProfile` (template substitution or Claude-style flag append — see [configuration.md](/_shared/configuration.md) § `providers`) and share `--print`/`--repo`:
+
+- `--print` prints the fully-resolved command instead of executing — the output is **profile-resolved** (model/effort substituted), so callers that spawn from the printed command get the profile.
+- `--repo <path>` reads the target repo's config (the operator's fetch-another-repo's-command use case). Composes with either mode.
 - `fab agent` exec does NOT TTY-guard — exec-and-let-the-CLI-fail is acceptable (the underlying agent CLI already handles no-TTY), matching the document-don't-validate contract.
+
+Provider-mode rules:
+
+- **Omitted `--model`/`--effort`** leave the value empty and follow `WithProfile`'s empty-value rule (template mode drops the placeholder's token plus a preceding `-`-flag; append mode omits the flag), so a bare provider invocation results and the installed CLI's own default model applies — the way to spawn a provider whose current model IDs the caller does not know.
+- **`--model`/`--effort` require `--provider`** — supplying either alone is a usage error (non-zero exit).
+- **`--provider` and the `[tier]` positional are mutually exclusive** — supplying both is a usage error naming the exclusion (a hand-written `RunE` check, since cobra's `MarkFlagsMutuallyExclusive` relates only flags and the tier is a positional).
+- Both guards, and the mode selection itself, key on cobra's `Flag.Changed` — whether the flag was **supplied** — not on its value being non-empty, so `fab agent doing --provider=` and `fab agent --model= --print` still error rather than falling through to the tier path.
+- **An unknown provider name** is a non-zero-exit **lookup** failure listing the available names (`agent.ProviderNames`: fab-kit's built-in table ∪ the project's `providers:` keys via `config.ProviderNames`, sorted). Listing resolvable *names* is not validation of a command's *content* — resolved strings still pass through verbatim.
+- A provider that resolves but carries no `session_command` yields the `configure providers.<name>.session_command` hint error on either path.
+
+The procedural knowledge for *using* a composed command — opening it in a tmux window, delivering a prompt, peeking, awaiting — plus the per-provider invocation grammar and model-discovery recipes live in the `_cli-agents` helper: see [agent-primitives.md](/runtime/agent-primitives.md).
+
+#### Scenario: provider-addressed spawn with no model supplied
+
+- **GIVEN** `providers.codex.session_command: 'codex -m {model} -c model_reasoning_effort={effort}'`
+- **WHEN** `fab agent --provider codex --print` runs
+- **THEN** stdout is a bare `codex` — both placeholder tokens and their preceding flags dropped — so the CLI's own default model applies
+- **AND** `fab agent --provider codex --model gpt-5.3-codex --effort high --print` prints `codex -m gpt-5.3-codex -c model_reasoning_effort=high`
+
+#### Scenario: unknown provider name
+
+- **GIVEN** a config whose `providers:` block defines only `claude`
+- **WHEN** `fab agent --provider bogus --print` runs
+- **THEN** it exits non-zero, naming `bogus` and listing the available provider names, and prints no command
 
 ## Design Decisions
 
@@ -133,6 +162,18 @@ The stage→tier mapping is **fab-owned and NOT user-overridable** (`stageTiers`
 **Why**: Memory writing (hydrate) is knowledge work with a different cognitive profile than apply's diff work, so it deserves its own model/effort — grouped under `doing` it could never run cheaper or on a different model than apply. A stage name (`ship`) would misname `fast` once it also governs the prefix steps.
 **Rejected**: Renaming `fast`→`ship` (misnames a multi-referent tier and would force an unnecessary carry-forward migration); six stage-named tiers / dissolving role tiers entirely (`default`/`doing`/`fast` are genuinely multi-referent and the role names carry the why); a user-overridable `stage_tiers:` mapping or per-stage escape hatch (taxonomy stays fab-owned).
 *Introduced by*: 260719-g55d-stage-model-tier-defaults-v2
+
+### `--provider` Is a Sibling Addressing Mode, Not a Tier Override
+**Decision**: `fab agent --provider <name>` bypasses tier resolution entirely — a direct `providers.<name>` lookup with `--model`/`--effort` as the profile — rather than synthesizing an ad-hoc tier or overriding a named tier's fields. `--model`/`--effort` are usage errors without `--provider`, and `--provider` is mutually exclusive with the `[tier]` positional. All three guards key on cobra's `Flag.Changed` (was the flag supplied?) rather than value emptiness.
+**Why**: A tier is a `{provider, model, effort}` role profile owned by fab-kit's fixed mapping; provider-addressed spawning answers a different, mechanical question ("give me a codex session"), and a tier already names a provider, so mixing them has no coherent semantics. Bypass leaves `ResolveTier` untouched, so no existing path changes behavior. On the tier path the profile IS the tier's, resolved through inheritance, so a bare `--model` would either invent an undocumented tier-override surface or be silently ignored — an explicit usage error is the only honest option and is trivially relaxable later. Emptiness-based guards would let `--provider=` and `--model=` fall silently through to the tier path, so supplied-ness is the correct test.
+**Rejected**: A `--tier-provider`-style override (mutates role/budget policy to express a mechanics question); auto-creating a synthetic tier (invents state the config never declared); letting `--model` override a resolved tier's model (a second, undocumented tier-override surface); silently ignoring the flags (surprise-inducing CLI behavior); cobra's `MarkFlagsMutuallyExclusive` for the tier pairing (it relates flags only — the tier is a positional).
+*Introduced by*: 260805-nvad-cli-agents-helper-provider-spawn
+
+### Unknown Provider Is a Lookup Failure That Names the Resolvable Set
+**Decision**: An unknown `--provider` name exits non-zero listing the available provider names — the sorted union of fab-kit's built-in table and the project's `providers:` keys, exposed as `agent.ProviderNames(cfg)` over the nil-safe `config.ProviderNames()` accessor.
+**Why**: The union is exactly the set `ResolveProvider` will accept, so it is the only set whose listing is actionable; sorting makes the message stable for tests and for readers. Naming resolvable *names* is not validation of command *content* — resolved command strings still pass through verbatim, preserving document-don't-validate (fab never infers a provider from a model string).
+**Rejected**: Listing only the project's configured providers (omits the built-in `claude`, which resolves fine); a bare "unknown provider" error (leaves the caller to guess the config surface); validating the resolved command string (breaks the document-don't-validate contract).
+*Introduced by*: 260805-nvad-cli-agents-helper-provider-spawn
 
 ## Consumers
 

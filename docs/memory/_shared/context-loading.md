@@ -34,7 +34,7 @@ The only universal helper beyond the 7 project files is `_preamble.md`. Addition
 
 ### Skill Helper Declaration (Opt-In)
 
-Skills declare additional helper files via the `helpers:` frontmatter list. Allowed values (seven) (3xaj): `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`, `_pipeline`, `_intake`. The agent MUST read `.claude/skills/{helper}/SKILL.md` for each declared helper after reading `_preamble` and before executing the skill body.
+Skills declare additional helper files via the `helpers:` frontmatter list. Allowed values (eight): `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`. The agent MUST read `.claude/skills/{helper}/SKILL.md` for each declared helper after reading `_preamble` and before executing the skill body.
 
 **Stage-conditional loading** (260611-zc9m): a skill MAY instead load a helper at its point of use via an explicit in-body read instruction (e.g., "read `.claude/skills/_review/SKILL.md` before entering Review Behavior"). Frontmatter `helpers:` declares unconditional pre-body loads; in-body read instructions declare conditional ones — a helper loaded this way is intentionally absent from the frontmatter list, so the frontmatter contract stays honest. `/fab-continue` is the sole current user: `_generation` at apply entry / intake-`active` regeneration, `_review` at Review Behavior entry (see [pipeline/execution-skills.md](/pipeline/execution-skills.md)).
 
@@ -46,7 +46,7 @@ Current mapping:
 | `fab-continue` | `[_srad]` (+ point-of-use in-body reads of `_generation`/`_review`) |
 | `fab-ff`, `fab-fff` | `[_generation, _review, _srad, _pipeline]` (orchestrator-level rework edits `plan.md` sections directly, so `_generation` stays unconditional — finding f074 refuted; `_pipeline` is the shared ff/fff pipeline bracket and constitutes the wrappers' entire body, so its load is unconditional by construction (szxd)) |
 | `fab-clarify` | `[_srad]` |
-| `fab-operator` | `[_cli-fab, _cli-external]` |
+| `fab-operator` | `[_cli-agents, _cli-fab, _cli-external]` (`_cli-agents` carries the agent-CLI interaction primitives the operator's spawn/pre-send/peek steps reference — see [runtime/agent-primitives.md](/runtime/agent-primitives.md)) |
 | All others (16 skills) | omitted / `[]` (load only `_preamble`) |
 
 `_naming` and `_cli-rk` are NOT allowed values — their content is inlined into `_preamble`. `_preamble` itself is implicit and never listed. `/fab-proceed` declares **no** `helpers:` (it dispatches `_intake` as a subagent prompt — the subagent reads the helper) (3xaj). The internal helpers `_generation`, `_review`, `_pipeline`, and `_intake` themselves carry no `helpers:` frontmatter — they reference what they need in-body and rely on the consumer (or dispatched subagent) having loaded it.

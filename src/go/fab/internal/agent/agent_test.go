@@ -300,6 +300,34 @@ func TestResolveProvider(t *testing.T) {
 	}
 }
 
+// TestProviderNames: the resolvable provider set is the union of fab-kit's
+// built-in table and the project's providers: block, sorted and de-duplicated —
+// the set `fab agent --provider <unknown>` names in its lookup-failure error.
+func TestProviderNames(t *testing.T) {
+	// No project config → the built-in table alone.
+	if got := ProviderNames(nil); len(got) != 1 || got[0] != DefaultProviderName {
+		t.Errorf("ProviderNames(nil) = %v, want just %q", got, DefaultProviderName)
+	}
+
+	// Project providers union the built-in, de-duplicating the shared claude key
+	// and sorting for stable error output.
+	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
+		"codex":  {SessionCommand: "codex"},
+		"claude": {DispatchCommand: "claude -p"},
+		"gemini": {SessionCommand: "gemini"},
+	}}
+	got := ProviderNames(cfg)
+	want := []string{"claude", "codex", "gemini"}
+	if len(got) != len(want) {
+		t.Fatalf("ProviderNames = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("ProviderNames = %v, want %v (sorted, de-duplicated)", got, want)
+		}
+	}
+}
+
 // TestResolveUnknownStage: an unknown stage is the only Resolve-side error.
 func TestResolveUnknownStage(t *testing.T) {
 	_, err := Resolve(nil, "frobnicate")

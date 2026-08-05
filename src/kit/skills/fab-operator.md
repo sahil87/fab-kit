@@ -1,7 +1,7 @@
 ---
 name: fab-operator
 description: "Use when coordinating multiple fab agents across tmux panes — multi-agent monitoring, auto-answering prompts, routing commands, driving autopilot queues, and dependency-aware agent spawning."
-helpers: [_cli-fab, _cli-external]
+helpers: [_cli-agents, _cli-fab, _cli-external]
 ---
 
 # /fab-operator
@@ -54,7 +54,9 @@ Start via `fab operator` (singleton tmux tab named `operator`). The launcher req
 
 Load only `fab/project/config.yaml`, `fab/project/constitution.md`, and `fab/project/context.md` (optional — skip gracefully if missing). The operator is a listed exception to the `_preamble.md` §1 always-load layer: code-quality, code-review, and the doc indexes serve artifact generation and review, which the operator never does (§1 Context discipline) — and a long-lived session re-pays any loaded file after every `/clear`. Do not run `fab preflight`. Do not load change artifacts.
 
-Helpers declared in frontmatter: `_cli-fab` (fab command reference) and `_cli-external` (wt, idea, tmux, /loop reference). Naming conventions are inlined in `_preamble.md` § Naming Conventions — already loaded.
+Helpers declared in frontmatter: `_cli-agents` (the generic agent-CLI interaction procedures — spawn composition, pre-send validation, delivery probe, peek, await — plus the per-provider grammar/discovery dictionary), `_cli-fab` (fab command reference), and `_cli-external` (wt, idea, tmux, /loop reference). Naming conventions are inlined in `_preamble.md` § Naming Conventions — already loaded.
+
+The split between `_cli-agents` and this file is **agent primitives vs. operator orchestration**: `_cli-agents` owns *how* to talk to an agent CLI (the mechanics any session could reuse); this file owns *when and whether* to (confirmation tiers, retry budgets, repo targeting, enrollment, dependency resolution, autopilot).
 
 The operator needs full command vocabulary to make routing decisions (e.g., knowing a fresh idea needs `/fab-new` → `/fab-fff` — fab-new creates the branch inline — while a mis-aligned tab needs `/git-branch` first).
 
@@ -104,12 +106,14 @@ This single preflight probe covers every later `wt create` call site; none is in
 
 ### Pre-Send Validation
 
-Before sending keys to any pane:
+Before sending keys to any pane, run the two-step gate in **`_cli-agents.md` § Pre-Send Validation** (pane exists via a refreshed pane map → agent state is `idle` per the three-state `@rk_agent_state` read, the same gate `fab pane send` enforces), then apply the operator's own policy on its outcome plus the two operator-specific checks:
 
-1. **Verify pane exists** — refresh pane map. If gone: "Pane for {change} is gone." Do not send.
-2. **Check the agent is idle** — the Agent column is three-state now (`active` / `waiting` / `idle`) plus `—` unknown. Only `idle` is safe to send to unattended. If `active` or `waiting`: "{change} is {state}. Sending may corrupt its work / cut across a pending human answer. Send anyway?" — send only on explicit confirmation. If unknown (`—`, no `@rk_agent_state` on the pane): the agent isn't instrumented; confirm before sending (fab's own `fab pane send` refuses unknown without `--force`). This gate mirrors `fab pane send`'s three-state semantics (`_cli-fab.md` § fab pane → § agent state).
+1. **Pane gone** (gate step 1 fails) — report "Pane for {change} is gone." Do not send.
+2. **Agent not `idle`** (gate step 2) — the operator does **not** silently proceed. If `active` or `waiting`: "{change} is {state}. Sending may corrupt its work / cut across a pending human answer. Send anyway?" — send only on explicit confirmation. If unknown (`—`, no `@rk_agent_state` on the pane): the agent isn't instrumented; confirm before sending. Only `idle` sends unattended.
 3. **Check change is active** — if the target change isn't the active change in that tab, send `/fab-switch <change>` first.
 4. **Check branch alignment** — if the tab's git branch doesn't match the change folder name, send `/git-branch` to align it.
+
+When a send appears to land but the agent never starts working, apply the **delivery probe** in `_cli-agents.md` § Delivery Probe (the printed-prompt trap: probe with a literal sentinel, `C-u`, retype, Enter, confirm via a working indicator) rather than re-sending blind.
 
 ### Branch Fallback
 
@@ -332,6 +336,8 @@ The operator auto-answers routine prompts from monitored agents. The per-tick qu
 
 ### Question Detection
 
+Capture and state-read mechanics (including the uninstrumented-pane state-writer caveat that makes capture the universal fallback) are in `_cli-agents.md` § Peek; the patterns and guards below are the operator's own question-detection policy over that capture.
+
 1. **Capture**: `tmux capture-pane -t <pane> -p -S -20`
 2. **Claude turn boundary guard**: `^\s*>\s*$` in last 2 lines → skip (normal human-turn boundary)
 3. **Blank capture guard**: all blank → skip (treat as "cannot determine")
@@ -390,7 +396,7 @@ command -v rk >/dev/null 2>&1 && rk notify "{change}: {summary} ({repo})" --titl
 
 ### Sending Auto-Answers
 
-Before `tmux send-keys`: verify pane exists and agent is still idle (§3 steps 1-2), then re-capture the terminal. If output changed since detection, abort — agent is no longer waiting.
+Before `tmux send-keys`: run the §3 pre-send gate (`_cli-agents.md` § Pre-Send Validation — pane exists, agent still idle), then re-capture the terminal. If output changed since detection, abort — agent is no longer waiting. If the answer appears to land but the agent does not resume, apply the delivery probe (`_cli-agents.md` § Delivery Probe) instead of re-sending blind.
 
 ### Idle Auto-Default on Strategic Escalations
 
@@ -461,8 +467,8 @@ The spawn sequence is:
    - **Scoped to the new worktree — no cross-tab collision.** The switch runs with the just-created worktree as CWD, so it writes *that worktree's* `.fab-status.yaml` — never the operator's own checkout or any other worktree. Each operator worktree is a dedicated, single-change checkout that owns its own per-worktree pointer file, so there is zero cross-tab collision risk (the very concern the transient-override path protects against — parallel tabs targeting different changes via one shared pointer — does not arise within a single dedicated worktree).
    - **Fail-soft.** A `fab change switch` failure is non-fatal to the spawn — log one line and continue opening the agent tab. The transient `<change>` override on the embedded pipeline command still makes the pipeline resolve correctly even if the pointer write failed; the activation is an ergonomic enhancement, not a correctness prerequisite.
 4. **Resolve dependencies** — if the change has a non-empty `depends_on` list, resolve it per repo: same-repo deps cherry-pick into the worktree, cross-repo deps are ordering-only barriers (see Dependency Resolution below)
-5. **Read the target repo's session command** — run `fab agent --print --repo <target-repo>` to read **that repo's** profile-resolved session command (from `providers.claude.session_command`, whose built-in default is the template `claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`, printed with `{model}`/`{effort}` already substituted). Do NOT use the operator's own `config.yaml` — each repo may configure a different session command.
-6. **Open agent tab** — `tmux new-window -n "»<wt>" -c <worktree-path> "<spawn_cmd> '<command>'"` (where `<wt>` is the worktree name from step 2 and `<spawn_cmd>` is the target repo's command from step 5)
+5. **Read the target repo's session command** — compose it per `_cli-agents.md` § Spawn Composition, in the **tier-addressed** form with the target repo named: `fab agent --print --repo <target-repo>`. The operator-specific rule: **always pass `--repo <target-repo>`** — do NOT use the operator's own `config.yaml`, since each repo may configure a different provider/session command. (The provider-addressed form documented there is for ad-hoc cross-provider sessions, not operator worker spawns, which must carry the target repo's default-tier profile.)
+6. **Open agent tab** — open the composed command per `_cli-agents.md` § Spawn Composition ("Open it in a pane", incl. the one-prompt/no-`&&`-chaining rule), with the operator's window-marker name: `tmux new-window -n "»<wt>" -c <worktree-path> "<spawn_cmd> '<command>'"` (where `<wt>` is the worktree name from step 2 and `<spawn_cmd>` is the target repo's command from step 5)
 7. **Enroll in monitored set** — unconditionally and silently record pane, **repo** (the target repo from step 1), **session** (the tmux session the new window landed in), stage, branch, depends_on in the state file; add `{ branch, repo }` to `branch_map`. MUST NOT prompt the user about whether to monitor. (Enrollment calls `fab pane window-name ensure-prefix <pane> »` per §4; the `»<wt>` name produced in step 6 already satisfies the primitive's idempotent prefix check, so no duplicate rename occurs.)
 
 Window markers (`»` / `›`) are **unchanged** by the multi-repo model — they key on server-global pane IDs, which are unique across every repo and session on the server.

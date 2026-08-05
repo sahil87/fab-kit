@@ -452,10 +452,11 @@ func providersSegment() string {
 		"# invocations of the same binary):\n" +
 		"#   session_command  — opens an interactive agent SESSION (fab operator /\n" +
 		"#                       fab batch / fab agent). {model}/{effort} placeholders are\n" +
-		"#                       substituted from the resolved tier profile (the built-in\n" +
-		"#                       claude default below is templated this way); a command\n" +
-		"#                       carrying NO placeholder instead gets --model/--effort\n" +
-		"#                       appended.\n" +
+		"#                       substituted from the resolved tier profile, or from the\n" +
+		"#                       --model/--effort flags on `fab agent --provider <name>`\n" +
+		"#                       (which bypasses tier resolution); the built-in claude\n" +
+		"#                       default below is templated this way. A command carrying\n" +
+		"#                       NO placeholder instead gets --model/--effort appended.\n" +
 		"#   dispatch_command — runs ONE headless stage task via fab dispatch. ABSENT →\n" +
 		"#                      native Agent-tool dispatch (the default). There is NO\n" +
 		"#                      fallback from dispatch_command to session_command. fab\n" +

@@ -100,7 +100,7 @@ Skill files in `$(fab kit-path)/skills/` use YAML frontmatter with these fields:
 
 #### `helpers:` and the One-Shared-Helper-Per-Phase Decomposition
 
-A skill MAY declare additional helper files via a `helpers:` frontmatter list. The mechanism, the allowed-values allowlist (seven) (3xaj), and the per-skill mapping are authoritatively documented in [_shared/context-loading.md](/_shared/context-loading.md) § Skill Helper Declaration — not duplicated here. What matters for **skill-file structure** is the decomposition principle that mechanism enables: the workflow factors into **one shared internal helper per pipeline phase**, each a shared body parameterized by call-site-specific knobs, with call-site tails staying in the consumer files:
+A skill MAY declare additional helper files via a `helpers:` frontmatter list. The mechanism, the allowed-values allowlist, and the per-skill mapping are authoritatively documented in [_shared/context-loading.md](/_shared/context-loading.md) § Skill Helper Declaration — not duplicated here. What matters for **skill-file structure** is the decomposition principle that mechanism enables: the workflow factors into **one shared internal helper per pipeline phase**, each a shared body parameterized by call-site-specific knobs, with call-site tails staying in the consumer files:
 
 | Phase | Helper | Knob(s) | Consumers |
 |-------|--------|---------|-----------|

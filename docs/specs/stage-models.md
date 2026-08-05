@@ -50,7 +50,7 @@ governs the ship stage *and* the `/fab-proceed` prefix-step dispatches — see �
 
 | Tier | Role |
 |------|------|
-| `default` | Spawned worker sessions (`fab batch`), `fab agent` with no tier, intake (advisory only — foreground), and the `/fab-proceed` create-intake dispatch. Also the **per-field fallback for every other tier**. |
+| `default` | Spawned worker sessions (`fab batch`), `fab agent` with no tier, intake (advisory only — foreground), and the `/fab-proceed` create-intake dispatch. Also the **per-field fallback for every other tier**. *(`fab agent --provider <name>` deliberately resolves NO tier — it is a sibling addressing mode that bypasses this taxonomy entirely; see § Providers.)* |
 | `operator` | The operator coordinator session (`fab operator`). |
 | `doing` | **Execution that must not err** — apply writes the diff; review-pr fixes already-articulated feedback. |
 | `review` | **The critic** — review reads a diff and discovers what's wrong. Its own tier (not folded into `doing`) so the critic's model and effort can be dialed independently of the author's; the separation that matters is the fresh context and adversarial framing, not a different model family. |
@@ -135,7 +135,13 @@ The invocation **command grammar** lives in a top-level `providers:` table, not 
 provider is an opaque, user-chosen name mapping to up to two command fields:
 
 - **`session_command`** — opens an interactive agent **session** (`fab operator` / `fab batch` /
-  `fab agent`). This is the relocated `agent.spawn_command`.
+  `fab agent`). This is the relocated `agent.spawn_command`. It is reachable **two ways**: through a
+  tier (the tier names a provider, and its `{model, effort}` are substituted) or **directly**, via
+  `fab agent --provider <name> [--model <id>] [--effort <level>]`, which bypasses tier resolution
+  entirely — a provider-addressed spawn for the "give me a codex session right here" case, where no
+  tier need name the provider first. The direct form is a **lookup**, not a new validation surface: an
+  unknown name errors listing the available providers, while resolved command strings still pass
+  through verbatim. See `_cli-fab.md` § fab agent.
 - **`dispatch_command`** — runs ONE headless **stage task** via `fab dispatch`. **ABSENT
   `dispatch_command` = native Agent-tool dispatch** (the default). There is **NO fallback** between the
   two fields — absence of `dispatch_command` signals native dispatch, never "use `session_command`".
