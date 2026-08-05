@@ -318,8 +318,8 @@ func TestDispatchStart_PaneAndTimeoutMutuallyExclusive(t *testing.T) {
 	}
 }
 
-// TestDispatchStart_PaneWithoutTmuxServerErrors: --pane requires a reachable tmux
-// server and must leave no partial dispatch behind. Targeting a --server socket
+// TestDispatchStart_PaneWithoutTmuxServerErrors: pane mode requires a reachable
+// tmux server and must leave no partial dispatch behind. Targeting a --server socket
 // that has no running server is the deterministic way to force the failure
 // regardless of whether the test host has tmux running.
 func TestDispatchStart_PaneWithoutTmuxServerErrors(t *testing.T) {
@@ -333,7 +333,10 @@ func TestDispatchStart_PaneWithoutTmuxServerErrors(t *testing.T) {
 		t.Fatal("expected a hard error when no tmux server is reachable")
 	}
 	msg := err.Error()
-	for _, want := range []string{"--pane", "tmux"} {
+	// "pane mode", not "--pane": this invocation supplied only --server, and the
+	// message must not quote a flag the caller never passed. "--headless" is the
+	// actionable remedy the guidance owes.
+	for _, want := range []string{"pane mode", "tmux", "--headless"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("error = %q, want it to mention %q", msg, want)
 		}

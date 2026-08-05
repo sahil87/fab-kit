@@ -155,8 +155,12 @@ func ServerReachable(server string) error {
 	if server != "" {
 		target = fmt.Sprintf("tmux socket %q", server)
 	}
+	// The message names "pane mode" rather than `--pane`: pane can also be
+	// selected explicitly by `--server` alone (SelectMode rung 4), and a caller
+	// who passed only `--server` would be confused by guidance quoting a flag
+	// they never supplied. The remedy clause still names both flags to drop.
 	return pane.StderrError(fmt.Errorf(
-		"--pane requires a reachable tmux server, but %s is unreachable; start tmux (or pass --server <name>), or pass --headless (drop --pane/--server) to dispatch headless",
+		"pane mode requires a reachable tmux server, but %s is unreachable; start tmux (or pass --server <name>), or pass --headless (drop --pane/--server) to dispatch headless",
 		target), stderr)
 }
 
