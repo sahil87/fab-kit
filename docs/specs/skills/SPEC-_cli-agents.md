@@ -25,7 +25,7 @@ This is an internal partial (`user-invocable: false`, `disable-model-invocation:
 | Section | Covers |
 |---------|--------|
 | `## Scope Boundary` | States that only generic mechanics live here, and names the operator concerns that do not (repo targeting, worktrees, pointer activation, enrollment, dependency resolution, autopilot, confirmation tiers, retry budgets). Points at `_cli-fab.md` for the referenced `fab` commands' exhaustive flag surface |
-| `## Half A — Agent-Interaction Procedures` | The four procedures: Spawn Composition, Pre-Send Validation, Delivery Probe, Peek, Await |
+| `## Half A — Agent-Interaction Procedures` | The five procedures: Spawn Composition, Pre-Send Validation, Delivery Probe, Peek, Await |
 | `## Half B — Provider Dictionary` | Dictionary Discipline (the stable-grammar / discovery-recipe / confirmed-quirks-only rules) then one section per provider (claude, codex, gemini) plus the Codex MCP Bridge recipe |
 
 ## Half A — Agent-Interaction Procedures

@@ -47,7 +47,9 @@ import (
 //
 // An unknown `--provider` name is a LOOKUP failure (non-zero exit naming the
 // available providers), not validation of the command's content — resolved command
-// strings still pass through verbatim (document-don't-validate).
+// strings still pass through verbatim (document-don't-validate). The error's
+// config-key hint substitutes a `<name>` placeholder when the supplied name is
+// empty (`--provider=`), so the suggested `providers.<key>` path is never malformed.
 //
 // Common to both modes:
 //
@@ -130,8 +132,15 @@ func runAgent(cmd *cobra.Command, tier, provider string, providerSet bool, model
 
 	prov, known := agent.ResolveProvider(cfg, providerName)
 	if providerSet && !known {
+		// The hint names a config key path, so an explicitly-empty `--provider=`
+		// would otherwise render the malformed `providers.` — substitute a
+		// placeholder so the suggested path is always a valid key.
+		hintName := providerName
+		if hintName == "" {
+			hintName = "<name>"
+		}
 		return fmt.Errorf("unknown provider %q (available: %s); configure it under providers.%s in fab/project/config.yaml",
-			providerName, strings.Join(agent.ProviderNames(cfg), ", "), providerName)
+			providerName, strings.Join(agent.ProviderNames(cfg), ", "), hintName)
 	}
 	if !known || prov.SessionCommand == "" {
 		if providerSet {

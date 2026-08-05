@@ -296,6 +296,8 @@ func TestAgentEmptyProviderStillMutuallyExclusive(t *testing.T) {
 // TestAgentEmptyProviderAloneIsLookupFailure: a bare `--provider=` (no tier) takes
 // the PROVIDER path — the empty name resolves to nothing, so it is the
 // unknown-provider lookup failure, never a silent fallback to the default tier.
+// The error's config-key hint substitutes a `<name>` placeholder for the empty
+// name, so it never suggests the malformed `providers.` path.
 func TestAgentEmptyProviderAloneIsLookupFailure(t *testing.T) {
 	agentTestRepo(t, `providers:
   claude:
@@ -305,8 +307,15 @@ func TestAgentEmptyProviderAloneIsLookupFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a lookup error for an explicitly-empty --provider=")
 	}
-	if !strings.Contains(err.Error(), "unknown provider") {
+	msg := err.Error()
+	if !strings.Contains(msg, "unknown provider") {
 		t.Errorf("error should be the unknown-provider lookup failure, got: %v", err)
+	}
+	if !strings.Contains(msg, "providers.<name>") {
+		t.Errorf("hint should name the placeholder key path providers.<name>, got: %v", err)
+	}
+	if strings.Contains(msg, "providers. ") {
+		t.Errorf("hint must not suggest the malformed path %q, got: %v", "providers.", err)
 	}
 	if strings.Contains(out, "--dangerously-skip-permissions") {
 		t.Errorf("the tier path must not run for --provider=, got %q", out)

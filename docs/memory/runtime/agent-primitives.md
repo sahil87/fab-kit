@@ -20,16 +20,17 @@ description: "The `_cli-agents` helper — agent-CLI interaction primitives any 
 
 - **GIVEN** a skill or ad-hoc session that must spawn, prompt, peek at, or await an agent CLI
 - **WHEN** it reads `.claude/skills/_cli-agents/SKILL.md`
-- **THEN** it finds the four procedures plus the provider dictionary, and no operator-orchestration content
+- **THEN** it finds the five procedures plus the provider dictionary, and no operator-orchestration content
 
-### Requirement: Four agent-interaction procedures
+### Requirement: Five agent-interaction procedures
 
-The helper SHALL carry exactly four procedural sections, each stated once and referenced (never restated) by consumers:
+The helper SHALL carry exactly five procedural sections, each stated once and referenced (never restated) by consumers:
 
 1. **Spawn composition** — a session command is never hand-assembled. `fab agent --print` composes it profile-resolved, in either addressing form (tier: `fab agent [tier] --print [--repo <path>]`; provider: `fab agent --provider <name> --print [--model <id>] [--effort <level>]`), and the composed command is opened with `tmux new-window -n "<name>" -c "<dir>" "<composed-cmd> '<initial-prompt>'"`. The initial prompt is embedded at spawn as one shell-escaped quoted argument, and it carries **exactly one leading command**: an agent harness reads at most one leading `/command` and `&&` is not a shell operator in a prompt, so an `&&`-joined pair does not run two commands.
 2. **Pre-send validation** — a two-step gate before sending keys into an existing pane: the pane exists (refreshed pane map — a dead pane swallows keys silently, so a stale pane ID is a silent-failure hazard, not a visible error), and the agent is `idle` per the three-state `@rk_agent_state` read. `fab pane send` enforces the same gate (refusing `active`/`waiting`/unknown without `--force`), so consumers prefer it over raw `tmux send-keys` and let the binary hold the gate. Everything beyond the two mechanics — whether to ask the user, how many times to retry, whether the pane is on the right change or branch — is consumer policy.
 3. **Delivery probe** — the recovery for the printed-prompt trap (below).
-4. **Await** — a poll loop or a worker-announced signal (below).
+4. **Peek** — output and agent state read as two independent axes, with capture as the universal fallback (below).
+5. **Await** — a poll loop or a worker-announced signal (below).
 
 #### Scenario: the operator sends to a non-idle pane
 
