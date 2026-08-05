@@ -53,7 +53,10 @@ Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
 │   via two seams — model → Agent `model` param (empty ⇒ omit/inherit), effort →
 │   imperative instruction in the dispatch prompt (no Agent effort param; empty ⇒
 │   omit; 260613-m3d4); present ⇒ CLI adapter `fab dispatch` (profile rides the
-│   dispatch= command; _preamble.md § CLI-Adapter Dispatch) — 260613-l3ja established
+│   dispatch= command; _preamble.md § CLI-Adapter Dispatch), optionally with --pane
+│   INSIDE that arm on an explicit watch-and-steer directive (interactive tmux
+│   worker; three reachable states running/done/orphaned; requires a reachable tmux
+│   server; 260805-zxe0) — 260613-l3ja established
 │   the resolve call, 260613-yky7 added `--alias`; see _preamble.md § Subagent
 │   Dispatch → Per-Stage Model Resolution)
 │

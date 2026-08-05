@@ -1,0 +1,15 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-05T10:26:00Z"}
+{"args":"Third dispatch adapter: run a CLI-dispatched pipeline stage in a tmux pane the user can watch and steer, built on _cli-agents primitives","cmd":"fab-new","event":"command","ts":"2026-08-05T10:26:00Z"}
+{"delta":"+4.2","event":"confidence","score":4.2,"trigger":"calc-score","ts":"2026-08-05T10:27:17Z"}
+{"delta":"+0.4","event":"confidence","score":4.6,"trigger":"calc-score","ts":"2026-08-05T11:56:44Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-05T11:56:57Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-05T11:56:57Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-05T14:20:46Z"}
+{"event":"review","result":"failed","ts":"2026-08-05T14:26:44Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-05T14:26:44Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-05T14:33:46Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-05T14:38:45Z"}
+{"event":"review","result":"passed","ts":"2026-08-05T14:38:45Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-05T14:49:42Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-05T14:55:38Z"}
+{"event":"review","result":"passed","ts":"2026-08-05T15:12:21Z"}

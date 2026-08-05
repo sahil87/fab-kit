@@ -24,12 +24,23 @@ func dispatchStatusCmd() *cobra.Command {
 }
 
 // dispatchStatusJSON is the --json output shape for `fab dispatch status`.
+//
+// Mode discriminates the two observation models so a consumer knows which state
+// subset to expect: a `pane` dispatch can only ever report running / done /
+// orphaned (no exit-code channel), while a `headless` one can report all five.
+// The mode-specific identity fields are omitempty, so a headless object is
+// byte-identical to the pre-pane-mode shape apart from the added `mode` key —
+// this surface's documented contract is additive evolution with no
+// schema_version.
 type dispatchStatusJSON struct {
 	Change string `json:"change"`
 	Stage  string `json:"stage"`
 	State  string `json:"state"`
-	PID    int    `json:"pid"`
-	PGID   int    `json:"pgid"`
+	Mode   string `json:"mode"`
+	PID    int    `json:"pid,omitempty"`
+	PGID   int    `json:"pgid,omitempty"`
+	Pane   string `json:"pane,omitempty"`
+	Window string `json:"window,omitempty"`
 	Exit   *int   `json:"exit,omitempty"`
 }
 
@@ -47,25 +58,40 @@ func runDispatchStatus(cmd *cobra.Command, changeArg, stage string, jsonFlag boo
 		return err
 	}
 
-	exitPresent, exitCode, err := dispatch.ReadExit(dir, stage)
-	if err != nil {
-		return err
+	out := dispatchStatusJSON{
+		Change: id,
+		Stage:  stage,
+		Mode:   string(rec.Mode()),
 	}
-	resultPresent := dispatch.ResultPresent(dir, stage)
-	alive := dispatch.Alive(rec.PID)
-	state := dispatch.DeriveState(exitPresent, exitCode, resultPresent, alive)
 
-	if jsonFlag {
-		out := dispatchStatusJSON{
-			Change: id,
-			Stage:  stage,
-			State:  string(state),
-			PID:    rec.PID,
-			PGID:   rec.PGID,
+	var state dispatch.State
+	if rec.IsPane() {
+		// Pane mode: result-file presence + pane liveness, no exit file. An
+		// unobservable pane (killed, or its whole tmux server gone) reads as not
+		// alive, so a resultless pane dispatch degrades to `orphaned` rather than
+		// erroring out of status.
+		state = dispatch.DerivePaneState(
+			dispatch.ResultPresent(dir, stage),
+			dispatch.PaneAlive(rec.Pane, rec.Server),
+		)
+		out.Pane = rec.Pane
+		out.Window = rec.Window
+	} else {
+		exitPresent, exitCode, err := dispatch.ReadExit(dir, stage)
+		if err != nil {
+			return err
 		}
+		state = dispatch.DeriveState(exitPresent, exitCode,
+			dispatch.ResultPresent(dir, stage), dispatch.Alive(rec.PID))
+		out.PID = rec.PID
+		out.PGID = rec.PGID
 		if exitPresent {
 			out.Exit = &exitCode
 		}
+	}
+	out.State = string(state)
+
+	if jsonFlag {
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
 		return enc.Encode(out)

@@ -217,10 +217,12 @@ checklist:
 
 # Provider command grammar (top-level). Each provider maps an opaque, user-chosen
 # name to up to two command fields. session_command opens an interactive agent
-# SESSION (fab operator / fab batch / fab agent); dispatch_command runs ONE
+# SESSION (fab operator / fab batch / fab agent — and `fab dispatch start --pane`,
+# the interactive-pane stage adapter); dispatch_command runs ONE
 # headless STAGE task via `fab dispatch` (which pipes the stage prompt to the
 # command's STDIN). ABSENT dispatch_command → that provider's stages dispatch
-# natively via the Agent tool (there is NO fallback to session_command). fab-kit
+# natively via the Agent tool (there is NO fallback to session_command, in either
+# direction: --pane likewise never falls back to dispatch_command). fab-kit
 # ships the `claude` provider as the built-in default; codex and gemini are a
 # commented starter TEMPLATE (uncomment to add that provider). Anything whose
 # uncommenting changes default behavior ships commented: claude's dispatch_command

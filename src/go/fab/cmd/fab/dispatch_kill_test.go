@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -45,6 +46,82 @@ func TestDispatchKill_NoDispatchErrors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no dispatch") {
 		t.Errorf("error = %q", err.Error())
+	}
+}
+
+// TestDispatchKill_PaneAlreadyGoneIsBenign: a pane dispatch whose pane no longer
+// exists (here: an unreachable socket) is the pane-mode analogue of the dead-pid
+// case — a benign no-op with a clear report naming the pane, not an error.
+func TestDispatchKill_PaneAlreadyGoneIsBenign(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
+	server := "fabtest-nosrv-kill"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+	seedPaneDispatch(t, repoRoot, id, "apply", "%99", server)
+
+	out, err := runKill(t, "abcd", "apply")
+	if err != nil {
+		t.Fatalf("kill of a gone pane should be a benign no-op, got: %v", err)
+	}
+	if !strings.Contains(out, "already dead") || !strings.Contains(out, "%99") {
+		t.Errorf("output = %q, want the already-dead report naming the pane", out)
+	}
+}
+
+// TestDispatchKill_PaneMode_Integration kills a real pane dispatch: the pane dies
+// and the dispatch then reads `orphaned` (no result file, dead pane) — the
+// documented post-kill state, with no marker file written. Skipped when tmux is
+// unavailable.
+func TestDispatchKill_PaneMode_Integration(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not available")
+	}
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
+
+	server := "fabtest-pkill"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+	tmux := func(args ...string) (string, error) {
+		out, err := exec.Command("tmux", append([]string{"-L", server}, args...)...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	if out, err := tmux("new-session", "-d", "-s", "s", "-x", "80", "-y", "24"); err != nil {
+		t.Skipf("could not start tmux server (%v): %s", err, out)
+	}
+	t.Cleanup(func() { _, _ = tmux("kill-server") })
+
+	// A second window so killing the dispatch pane does not tear down the server.
+	paneID, err := tmux("new-window", "-P", "-F", "#{pane_id}", "-n", dispatch.WindowName(id, "apply"), "sleep 60")
+	if err != nil || paneID == "" {
+		t.Fatalf("create dispatch window: %v (%q)", err, paneID)
+	}
+	seedPaneDispatch(t, repoRoot, id, "apply", paneID, server)
+
+	if !dispatch.PaneAlive(paneID, server) {
+		t.Skip("created pane not observably alive; skipping liveness-dependent kill assertion")
+	}
+
+	out, err := runKill(t, "abcd", "apply")
+	if err != nil {
+		t.Fatalf("kill: %v", err)
+	}
+	if !strings.Contains(out, "killed") || !strings.Contains(out, paneID) {
+		t.Errorf("output = %q, want a killed report naming the pane", out)
+	}
+	if dispatch.PaneAlive(paneID, server) {
+		t.Errorf("pane %s should be gone after kill", paneID)
+	}
+
+	// Post-kill the dispatch reads orphaned (dead pane, no result file).
+	if st, err := runStatus(t, "abcd", "apply"); err != nil || strings.TrimSpace(st) != "orphaned" {
+		t.Errorf("post-kill status = %q (err %v), want orphaned", strings.TrimSpace(st), err)
+	}
+
+	// Idempotent re-kill.
+	out, err = runKill(t, "abcd", "apply")
+	if err != nil {
+		t.Fatalf("re-kill should be benign, got: %v", err)
+	}
+	if !strings.Contains(out, "already dead") {
+		t.Errorf("re-kill output = %q, want the already-dead report", out)
 	}
 }
 

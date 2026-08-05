@@ -16,8 +16,10 @@ Agent config v3 (260702-tykw) splits **provider mechanics** (how to invoke an ag
 
 `fab/project/config.yaml` SHALL support a top-level `providers:` map keyed by **opaque, user-chosen provider names**. Each provider MAY carry two command fields, which SHALL NOT be merged into one:
 
-- **`session_command`** — opens an interactive agent **session**. Consumed by `fab operator`, `fab batch new`/`batch switch`, and `fab agent`.
+- **`session_command`** — opens an interactive agent **session**. Consumed by `fab operator`, `fab batch new`/`batch switch`, `fab agent`, and `fab dispatch start --pane` (which runs a *stage* in an interactive session the user can watch and steer — see [dispatch.md](/runtime/dispatch.md)).
 - **`dispatch_command`** — runs ONE headless **stage task** via `fab dispatch`. **ABSENT `dispatch_command` = native Agent-tool dispatch** — there is **NO fallback** to `session_command`.
+
+**The no-cross-fallback rule holds in both directions**: headless dispatch never substitutes `session_command`, and `--pane` never substitutes `dispatch_command` — each mode errors naming the field it needs. `--pane` composing `session_command` is **not** a fallback and not a resolver change: mode selection is per-invocation, `fab resolve-agent`'s output is byte-identical either way, and pane mode reads the provider table itself exactly as `fab agent` does. No third command field exists — the interactive stage invocation *is* the provider's session invocation.
 
 fab-kit ships the **`claude` provider as the built-in default** (`defaultProviders` in `internal/agent`): the default `session_command`, no `dispatch_command` (native). A project's `providers:` block per-field-merges over the built-in via `agent.ResolveProvider(name)`.
 

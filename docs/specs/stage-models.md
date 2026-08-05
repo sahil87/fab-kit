@@ -387,12 +387,20 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   provider `dispatch_command` is the native-dispatch signal. *`fab resolve-agent` emits the line; the
   dispatch that RUNS it (`fab dispatch`) and the skill dispatch-seam wiring that consumes it both
   shipped.* **The
-  native Agent-tool adapter described in this section is now one of *two* dispatch adapters catalogued
-  in [`harness-adapters.md`](harness-adapters.md)** — the CLI adapter (`fab dispatch`, 3c) is the
-  other, and that spec fixes the cross-adapter dispatch protocol (dispatch-prompt obligations, the
-  five-state machine, hooks-enhance-never-own) both share; the skill
+  native Agent-tool adapter described in this section is now one of *three* dispatch adapters catalogued
+  in [`harness-adapters.md`](harness-adapters.md)** — the two `fab dispatch` modes are the others:
+  **headless CLI** (3c) and **interactive pane** (`fab dispatch start --pane`, 260805-zxe0, a worker in a
+  tmux window the user can watch and steer). That spec fixes the cross-adapter dispatch protocol
+  (dispatch-prompt obligations, the five-state machine plus each adapter's reachable subset,
+  hooks-enhance-never-own) all three share; the skill
   dispatch-seam wiring against it lives in `_preamble.md` § CLI-Adapter Dispatch + § Dispatch-Prompt
   Obligations (3d).
+  **Resolution is unchanged by the pane mode**: it emits no new resolver line and needs no new provider
+  field — pane mode composes the resolved provider's existing `session_command` (the same field
+  `fab agent` and the operator launcher compose, through the same `internal/spawn` substitution), and mode
+  selection is **per-invocation** (`--pane`), never a property of a tier or provider. This is not a
+  cross-fallback: the no-fallback rule governs what `resolve-agent` emits for *dispatch*, and pane mode
+  reads the provider table itself rather than consuming a `dispatch=` line.
 - *Claude-flavored data (overridable):* fab-kit's shipped default table uses Claude model IDs/effort.
   These are documented as "fab-kit's Claude defaults," fully replaceable via `agent.tiers`.
 - *v1 scope is architecture-neutral + documented — NOT shipped/tested against a non-Claude harness.* No

@@ -282,7 +282,7 @@ dispatch=<command>
 
 - The `effort=` line is **omitted** when the resolved tier has no effort (empty/absent); the `provider=` line is omitted when the resolved tier has no provider.
 - An **empty model** emits an empty `model=` line — signals "inherit the session/orchestrator model" (today's foreground/no-override behavior). Callers omit the dispatch `model` param in that case.
-- The `dispatch=` line is emitted **ONLY when the resolved tier's provider carries a `dispatch_command`** (the CLI-dispatch opt-in), mirroring the effort-omit rule. Its **absence** is the signal for **native Agent-tool dispatch** — and there is **NO fallback to a session command** (a provider's `session_command` is a separate, independent field; `resolve-agent` never falls back to it for dispatch). The emitted command has its `{model}`/`{effort}` placeholders **already substituted** via `internal/spawn`'s template resolution (reused, not reimplemented). Consumed by the `fab dispatch` command family; dispatch-seam skills that only inject `model=`/`effort=` do not read it.
+- The `dispatch=` line is emitted **ONLY when the resolved tier's provider carries a `dispatch_command`** (the CLI-dispatch opt-in), mirroring the effort-omit rule. Its **absence** is the signal for **native Agent-tool dispatch** — and there is **NO fallback to a session command** (a provider's `session_command` is a separate, independent field; `resolve-agent` never falls back to it for dispatch). The emitted command has its `{model}`/`{effort}` placeholders **already substituted** via `internal/spawn`'s template resolution (reused, not reimplemented). Consumed by the `fab dispatch` command family; dispatch-seam skills that only inject `model=`/`effort=` do not read it. *(`fab dispatch start --pane` composing the provider's `session_command` is not a fallback and not a resolver change: mode selection is per-invocation and `resolve-agent`'s output is identical either way — the pane mode reads the provider table itself, exactly as `fab agent` does. See § fab dispatch.)*
 
 **`--alias` (Claude-Code Agent-tool adapter)**: when set, the `model=` line emits the Claude-Code **short alias** (`opus` / `sonnet` / `haiku` / `fable`) instead of the full versioned ID. This exists because the Claude Code **Agent tool's `model` parameter is a hard enum** that rejects full IDs — sub-agent dispatch must pass an alias. The mapping is prefix-based (`claude-opus-` → `opus`, etc.), so dated variants like `claude-haiku-4-5-20251001` resolve to `haiku`. The **default (flag absent) is** the full ID (the `claude` CLI `--model` flag, used by the operator launcher / `fab agent`, accepts full IDs and keeps resolving WITHOUT `--alias`). The **`effort=`/`provider=` lines are unaffected** by `--alias`. **Empty / non-Claude models pass through verbatim** (an empty `model=` line stays empty — the inherit signal; an unrecognized/non-Claude ID like `gpt-5` is emitted unchanged) — `--alias` is a best-effort adapter, not a Claude-only validator. The **`dispatch=` line ALWAYS embeds the FULL model ID even under `--alias`** — CLI dispatch never aliases (an external CLI's `--model` flag takes a full ID); aliasing is the Agent-tool-only adaptation. So under `--alias` the `model=` line is aliased while the `dispatch=` command still carries the full resolved ID.
 
@@ -463,34 +463,56 @@ Guarded, idempotent rewrites of the tmux window name — used by `/fab-operator`
 
 ## fab dispatch
 
-Headless, tmux-independent process manager for CLI-dispatched pipeline stages — the **CLI adapter** for cross-harness stage dispatch (a stage running headless on a different agent CLI). Parallel to and independent of `fab pane` / `fab operator` (which stay the interactive path). `fab dispatch <start|status|logs|kill|clean> [args...]`. **POSIX-only (v1)** — `start` errors clearly on Windows (`fab dispatch requires a POSIX shell (setsid/timeout); Windows is not supported in v1`) rather than half-working. Full cross-adapter contract: `docs/specs/harness-adapters.md`.
+Process manager for CLI-dispatched pipeline stages, in **two modes** — the two non-native adapters of cross-harness stage dispatch. `fab dispatch <start|status|logs|kill|clean> [args...]`. Full cross-adapter contract (three adapters: native Agent-tool / headless CLI / interactive pane): `docs/specs/harness-adapters.md`.
 
-**State layout** — `.fab-dispatch/{4-char-change-id}/` at the **repo root** (alongside `.fab-status.yaml`, already gitignored via the scaffold `.fab-*` pattern — no gitignore/scaffold/migration work). Keyed by the stable 4-char change ID (stable across `fab change rename`); one dir per worktree. Per-stage files:
+| Mode | Flag | Worker | Command composed | Completion observed via | tmux |
+|------|------|--------|------------------|-------------------------|------|
+| **headless** (default) | — | detached `sh -c` process | the provider's `dispatch_command` | `{stage}.exit` + pid liveness + result file | never touched |
+| **pane** | `--pane` | an interactive agent session in a tmux window you can watch and steer | the provider's `session_command` | **result file** + pane liveness | **required** (hard error without) |
+
+The two provider command fields are **never merged and never fall back to each other in either direction**. Headless mode stays **tmux-independent** and is the default for unattended pipelines; pane mode is opt-in per invocation. Headless dispatch remains parallel to and independent of `fab pane` / `fab operator` (the interactive *operator-visibility* path); pane **dispatch** borrows tmux as a launch surface but does **not** join the operator's monitored set (see `--pane` below). **POSIX-only (v1)** — headless `start`/`kill` error clearly on Windows (`fab dispatch requires a POSIX shell (setsid/timeout); Windows is not supported in v1`) rather than half-working.
+
+**State layout** — `.fab-dispatch/{4-char-change-id}/` at the **repo root** (alongside `.fab-status.yaml`, already gitignored via the scaffold `.fab-*` pattern — no gitignore/scaffold/migration work). Keyed by the stable 4-char change ID (stable across `fab change rename`); one dir per worktree. Both modes share the dir, the loader, and the refuse-if-running check. Per-stage files:
 
 | File | Written by | Contents |
 |------|-----------|----------|
-| `{stage}-prompt.md` | `start` (from stdin) | the stage prompt piped to the dispatched command's stdin |
-| `{stage}.yaml` | `start` (via `internal/atomicfile`) | `pid`, `pgid`, `spawn_cmd` (resolved), `started_at`, `timeout` (secs, omitted when unset) |
-| `{stage}.log` | the wrapper | combined stdout+stderr of the dispatched command |
-| `{stage}.exit` | the wrapper | the exit code (`echo $? > ...`) — its presence is the "process finished" signal |
-| `{stage}-result.yaml` | the dispatched agent (contract) | the stage result; presence is required for `done` (see states) |
+| `{stage}-prompt.md` | `start` (from stdin) | the stage prompt — piped to the dispatched command's stdin (headless) or **pointed at** by the one-line prompt the pane worker receives (pane) |
+| `{stage}.yaml` | `start` (via `internal/atomicfile`) | `spawn_cmd` (resolved) + `started_at`, plus the mode's identity: `pid`/`pgid`/`timeout` (headless) or `pane`/`window`/`server` (pane). Every mode-specific key is omitted when empty, so a headless record's shape is unchanged and the mode is **derived** from which keys are present (no stored discriminator) |
+| `{stage}.log` | the wrapper | combined stdout+stderr of the dispatched command — **headless only** (a pane worker's output is tmux scrollback) |
+| `{stage}.exit` | the wrapper | the exit code (`echo $? > ...`) — its presence is the "process finished" signal; **headless only** |
+| `{stage}-result.yaml` | the dispatched agent (contract) | the stage result; presence is required for `done` in both modes, and is the **sole** completion signal in pane mode |
 
-### start — `fab dispatch start <change> <stage> [--timeout <secs>]`
+### start — `fab dispatch start <change> <stage> [--timeout <secs>] [--pane] [--server <name>]`
 
-Resolves `<change>` → 4-char ID; reads the stage prompt on **stdin** → `{stage}-prompt.md`; resolves the stage's tier → provider → `dispatch_command` internally (via `internal/agent` + `internal/spawn` `{model}`/`{effort}` substitution — the same resolution `fab resolve-agent` performs); launches it **DETACHED**, cwd = repo root:
+Resolves `<change>` → 4-char ID; reads the stage prompt on **stdin** → `{stage}-prompt.md`; resolves the stage's tier → provider internally (via `internal/agent` + `internal/spawn` `{model}`/`{effort}` substitution — the same resolution `fab resolve-agent` performs). Everything up to the launch is shared by both modes; the launch differs:
+
+**Headless (default)** — launches the resolved `dispatch_command` **DETACHED**, cwd = repo root:
 
 ```sh
 sh -c '<resolved-cmd> < {stage}-prompt.md > {stage}.log 2>&1; echo $? > {stage}.exit'
 ```
 
-The shell is launched with `setsid` semantics (Go's `SysProcAttr{Setsid:true}`, not a `setsid` binary prefix — prefixing it would double-fork and leave the recorded pid pointing at a process that exits immediately), detaching it into a new session/process group so the dispatch **survives the orchestrator dying** — no Go supervisor remains, the shell records the exit code itself and the recorded `pid`/`pgid` track the live worker. `start` writes `{stage}.yaml` before returning. `--timeout N` wraps the resolved command in POSIX `timeout N <cmd>` **inside the wrapper** (no Go timer/daemon); a timed-out command exits `124`, surfacing as `failed`.
+The shell is launched with `setsid` semantics (Go's `SysProcAttr{Setsid:true}`, not a `setsid` binary prefix — prefixing it would double-fork and leave the recorded pid pointing at a process that exits immediately), detaching it into a new session/process group so the dispatch **survives the orchestrator dying** — no Go supervisor remains, the shell records the exit code itself and the recorded `pid`/`pgid` track the live worker. `--timeout N` wraps the resolved command in POSIX `timeout N <cmd>` **inside the wrapper** (no Go timer/daemon); a timed-out command exits `124`, surfacing as `failed`.
 
-- **No `dispatch_command` → error, no fallback**: if the resolved tier's provider has no `dispatch_command`, `start` errors (`stage <stage> resolves to tier <tier> (provider <name>), which has no dispatch_command; configure providers.<name>.dispatch_command to dispatch this stage`) and does NOT fall back to that provider's `session_command`.
-- **Concurrency = refuse-if-running + last-attempt-only**: refuses if a dispatch for the exact `(change, stage)` pair is already `running` (`a dispatch for <change>/<stage> is already running (pid N); run fab dispatch kill first`). A `start` over a **completed** prior attempt (done / failed / orphaned) **overwrites** its files — no per-attempt history. Different stages of the same change share `.fab-dispatch/{id}/` via distinct `{stage}.*` filenames and do not collide.
+**`--pane`** — runs the worker **interactively in a tmux window** instead, composing the provider's `session_command` (the same string `fab agent` composes, so **no new provider config field** exists or is needed) and opening it as `tmux new-window -n fab-{id}-{stage} -c <repo-root> "<resolved-cmd> <shell-quoted-pointer>"`. The new window's **pane ID**, window name, and tmux socket label are persisted in `{stage}.yaml`. Specifics:
+
+- **Prompt delivery = file + pointer.** The full prompt still arrives on **stdin** and is persisted to `{stage}-prompt.md`; the worker receives only a **one-line pointer** to that path, embedded at spawn as the command's single **shell-quoted** prompt argument (per `_cli-agents.md` § Spawn Composition's "shell-escape any user-supplied text before embedding it" — the pointer names a repo-derived path, so a checkout under a directory containing a `'` must not break the `new-window` command). A multi-thousand-token prompt cannot ride `send-keys`/argv reliably, and embedding at spawn sidesteps the printed-prompt trap (there is no pre-existing buffer to probe). Prompt *content* is identical to the headless prompt. The resolved `session_command` itself is inserted **verbatim**, so its own shell expansions still expand inside the new window.
+- **tmux is required — hard error, nothing persisted.** `--pane` without a reachable tmux server exits non-zero (`--pane requires a reachable tmux server, but <target> is unreachable; start tmux (or pass --server <name>), or drop --pane to dispatch headless`) and launches nothing, writing no state. Reachability is a real tmux query, **not** an `$TMUX` env read, so a headless orchestrator can dispatch into a socket it names explicitly.
+- **`--server <name>` / `-L <name>`** targets a tmux socket (`tmux -L <name>`), mirroring the `fab pane` family's flag; defaults to `$TMUX` / tmux's default socket. Persisted in the record so `status`/`kill` reach the same server without re-supplying it. **Ignored without `--pane`** (headless touches no tmux).
+- **`--pane` + `--timeout` is a usage error** (`--pane and --timeout are mutually exclusive: --timeout is enforced by the headless launch wrapper (POSIX timeout), which pane mode does not use`) — pane mode builds no wrapper, so accepting the flag would advertise a bound nothing enforces.
+- **Not an operator enrollment.** The window name `fab-{id}-{stage}` deliberately carries **neither** the operator's `»` enrollment prefix **nor** its `›` done marker: those assert the operator owns the window's lifecycle, which a pipeline dispatch does not. An operator that genuinely enrolls the window adds the marker itself via `fab pane window-name ensure-prefix`.
+
+Common to both modes:
+
+- **Missing command field → error, no fallback**: if the resolved tier's provider lacks the field the mode needs, `start` errors naming the stage, tier, provider, and config key — `…which has no dispatch_command; configure providers.<name>.dispatch_command to dispatch this stage` (headless) or the same sentence with `session_command` (`--pane`) — and does **NOT** fall back to the other field.
+- **Concurrency = refuse-if-running + last-attempt-only**: refuses if a dispatch for the exact `(change, stage)` pair is already `running` (`a dispatch for <change>/<stage> is already running (pid N | pane %N); run fab dispatch kill first`), applying the **prior** record's own mode's finished signal — the same one `status` derives that mode's state from, so `start` and `status` can never disagree. Headless: `{stage}.exit` absent **and** the pid alive. Pane: `{stage}-result.yaml` absent **and** the pane alive — result presence wins over pane liveness there too, since an interactive worker sits at its prompt after finishing and a liveness-only rule would refuse forever after a successful pane run. A `start` over a **completed** prior attempt (done / failed / orphaned) **overwrites** its files — no per-attempt history. Different stages of the same change share `.fab-dispatch/{id}/` via distinct `{stage}.*` filenames and do not collide.
+- Output: `dispatched <id>/<stage> (pid N, pgid N)` (headless) or `dispatched <id>/<stage> (pane %N, window fab-<id>-<stage>)` (pane).
 
 ### status — `fab dispatch status <change> <stage> [--json]`
 
-Byte-stable poll surface. Reads `{stage}.yaml` / `{stage}.exit`, probes `pid` liveness (POSIX `kill(pid,0)`), and reports exactly one of five states:
+Byte-stable poll surface. Reads `{stage}.yaml`, then derives the state by the record's **mode**. The five state **strings are the cross-adapter contract** — identical in both modes; what differs is which are reachable.
+
+**Headless** — reads `{stage}.exit`, probes `pid` liveness (POSIX `kill(pid,0)`), reports one of all five:
 
 | State | Condition |
 |-------|-----------|
@@ -500,15 +522,34 @@ Byte-stable poll surface. Reads `{stage}.yaml` / `{stage}.exit`, probes `pid` li
 | `failed (no-result)` | `{stage}.exit` == `0` BUT `{stage}-result.yaml` absent — a **contract violation, NOT done** |
 | `orphaned` | pid dead AND `{stage}.exit` absent (reboot / `kill -9` / crash) |
 
-A clean exit (code 0) is necessary but **not sufficient** for `done` — the result file must exist. Human output is the bare state string on stdout; `--json` emits `{change, stage, state, pid, pgid, exit?}`.
+A clean exit (code 0) is necessary but **not sufficient** for `done` — the result file must exist.
+
+**Pane** — reads result-file presence and **pane** liveness (no exit file is ever written or consulted), reporting a **subset of three**:
+
+| State | Condition |
+|-------|-----------|
+| `done` | `{stage}-result.yaml` present |
+| `running` | result absent AND the pane is alive |
+| `orphaned` | result absent AND the pane is dead (killed / crashed / tmux server gone) |
+
+**Result presence WINS over pane liveness** — an interactive worker that produced its result and is still sitting at its prompt reads `done`, not `running` (a liveness-first rule would never terminate). **`failed` and `failed (no-result)` are UNREACHABLE in pane mode**: there is no exit-code channel, so a crashed or killed worker collapses into `orphaned`.
+
+Human output is the bare state string on stdout. `--json` emits `{change, stage, state, mode, …}` where `mode` is `headless` or `pane` and the mode's identity keys follow: `pid`, `pgid`, `exit?` (headless) or `pane`, `window` (pane). Keys for the other mode are **omitted**, so a headless object is unchanged apart from the added `mode`.
 
 ### logs — `fab dispatch logs <change> <stage> [--tail N]`
 
 Prints `.fab-dispatch/{id}/{stage}.log`. `--tail N` prints the last N lines (Go-side, no external `tail`). Missing log → `no dispatch log for <change>/<stage>`.
 
+**Pane dispatches keep no log file** — an interactive worker's output is tmux scrollback, not a redirected stream — so `logs` reports that and names the equivalent: `<change>/<stage> is a --pane dispatch and keeps no log file (an interactive worker's output is tmux scrollback); read it with 'fab pane capture <pane>'`. When the record carries a `server` (the dispatch was started with `--server`/`-L`), the suggested command carries the socket too — `fab pane capture -L <server> <pane>` — since a socket-scoped pane is unreachable from a default-socket capture. This report is therefore the copy-pasteable source for the capture command; `status --json` exposes `pane` but not `server`.
+
 ### kill — `fab dispatch kill <change> <stage>`
 
-Sends `SIGTERM` to the **process group** (`pgid` from `{stage}.yaml`) so the detached command and its children die together. Idempotent: killing an already-dead dispatch is a benign no-op with a clear report (`dispatch <change>/<stage> already dead (pid N); nothing to kill`).
+Terminates the dispatch by the mechanism its recorded **mode** implies, idempotently in both cases (an already-dead target is a benign no-op with a clear report; a missing record is a clear error `no dispatch for <change>/<stage>`):
+
+- **Headless** — `SIGTERM` to the **process group** (`pgid` from `{stage}.yaml`) so the detached command and its children die together. Already dead → `dispatch <change>/<stage> already dead (pid N); nothing to kill`.
+- **Pane** — kills the **tmux pane** (`tmux kill-pane -t <pane>`), taking the interactive worker down with it. Already gone → `dispatch <change>/<stage> already dead (pane %N); nothing to kill`.
+
+No marker file is written in either mode: with no result file present, a killed dispatch simply reads `orphaned` on the next `status`.
 
 ### clean — `fab dispatch clean [<change>] [--orphans]`
 
@@ -517,6 +558,8 @@ Manual cleanup — one of exactly **two** cleanup paths (the other is archive-ti
 - `fab dispatch clean <change>` — removes `.fab-dispatch/{id}/` for the named change.
 - `fab dispatch clean` (no arg) — removes all `.fab-dispatch/*/` dirs.
 - `fab dispatch clean --orphans` — prunes any `.fab-dispatch/{id}/` whose ID no longer resolves to a non-archived change (covers a change archived/deleted upstream leaving a local state dir orphaned).
+
+`clean` is **mode-blind** — it removes state dirs and never inspects a record's mode, so a pane dispatch's dir (prompt file included) is cleaned exactly like a headless one's. As with a live headless process, cleaning a **live** pane dispatch removes the state without killing the worker; `kill` is the verb for that.
 
 ---
 
