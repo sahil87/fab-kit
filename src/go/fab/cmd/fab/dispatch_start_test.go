@@ -449,6 +449,81 @@ func TestDispatchStart_PaneMode_Integration(t *testing.T) {
 	}
 }
 
+// TestDispatchStart_PaneRefuseIfRunningHonorsTheResultFile pins that
+// refuse-if-running reads the SAME finished-signal `fab dispatch status` derives
+// pane state from: result presence wins over pane liveness. An interactive worker
+// never exits on completion — it sits at its prompt — so a liveness-only refusal
+// would report `done` from `status` while `start` refused forever, permanently
+// stranding a completed attempt that the overwrite contract says is replaceable.
+// Skipped when tmux is unavailable (a genuinely live pane is the whole point:
+// with a dead pane the old rule would pass too).
+func TestDispatchStart_PaneRefuseIfRunningHonorsTheResultFile(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not available")
+	}
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", `sh -c 'sleep 30' _`)
+
+	server := "fabtest-pdone"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+	tmux := func(args ...string) (string, error) {
+		out, err := exec.Command("tmux", append([]string{"-L", server}, args...)...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	if out, err := tmux("new-session", "-d", "-s", "s", "-x", "80", "-y", "24"); err != nil {
+		t.Skipf("could not start tmux server (%v): %s", err, out)
+	}
+	t.Cleanup(func() { _, _ = tmux("kill-server") })
+
+	dir := dispatch.DirFor(repoRoot, id)
+	if _, err := runStart(t, "first prompt", "abcd", "apply", "--pane", "--server", server); err != nil {
+		t.Fatalf("first pane start failed: %v", err)
+	}
+	first, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !dispatch.PaneAlive(first.Pane, server) {
+		t.Fatalf("pane %s should be alive; the test needs a live pane to be meaningful", first.Pane)
+	}
+
+	// While that pane is still ALIVE and carries NO result: genuinely running, so
+	// a second start must refuse.
+	if _, err := runStart(t, "second prompt", "abcd", "apply", "--pane", "--server", server); err == nil {
+		t.Fatal("expected refusal while the pane is alive with no result file")
+	} else if !strings.Contains(err.Error(), "already running") {
+		t.Errorf("error = %q, want the already-running refusal", err.Error())
+	}
+
+	// The worker finishes: it writes its result and sits at its prompt (pane still
+	// alive). status derives `done`, so start must now OVERWRITE rather than refuse.
+	mustWrite(t, dispatch.ResultPath(dir, "apply"), "stage: apply\nstatus: success\n")
+	if !dispatch.PaneAlive(first.Pane, server) {
+		t.Fatalf("pane %s died; the finished-but-alive case is what this test covers", first.Pane)
+	}
+
+	if _, err := runStart(t, "third prompt", "abcd", "apply", "--pane", "--server", server); err != nil {
+		t.Fatalf("start over a completed pane attempt should succeed, got: %v", err)
+	}
+	second, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load after overwrite: %v", err)
+	}
+	if second.Pane == first.Pane {
+		t.Errorf("record still names the old pane %s; the attempt was not overwritten", first.Pane)
+	}
+	// The completed attempt's stale result was cleared for the new run.
+	if _, err := os.Stat(dispatch.ResultPath(dir, "apply")); !os.IsNotExist(err) {
+		t.Error("stale result file should have been cleared by the overwrite")
+	}
+	promptData, err := os.ReadFile(dispatch.PromptPath(dir, "apply"))
+	if err != nil {
+		t.Fatalf("prompt not persisted: %v", err)
+	}
+	if string(promptData) != "third prompt" {
+		t.Errorf("prompt = %q, want the new attempt's prompt", string(promptData))
+	}
+}
+
 // TestDispatchStart_PanePointerCarriesRepoRelativePromptPath asserts the pointer
 // composition independent of tmux: the worker is told to read the repo-relative
 // prompt path (the window's cwd is the repo root), not the prompt body.

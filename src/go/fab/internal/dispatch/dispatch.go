@@ -353,6 +353,26 @@ func PointerPrompt(promptPath string) string {
 	return "Read " + promptPath + " and execute it."
 }
 
+// WindowCommand composes the tmux new-window shell-command argument for a pane
+// dispatch: the resolved session command followed by the pointer prompt as its
+// single QUOTED argument (the `_cli-agents.md` § Spawn Composition form).
+//
+// The pointer is shell-quoted rather than wrapped in bare single quotes, because
+// the prompt path is derived from the repository path and a repo checked out
+// under a directory containing a single quote (`/home/me/sahil's-repo/...`) would
+// otherwise terminate the quoted argument early — breaking the new-window command
+// and letting the remainder of the path be interpreted by the window's shell.
+// § Spawn Composition states the rule directly ("shell-escape any user-supplied
+// text before embedding it"); this is the one place pane mode embeds such text.
+//
+// resolvedCmd is inserted VERBATIM, per the resolver's pass-through philosophy:
+// it is the provider's own session_command and carries deliberate shell
+// expansions (e.g. `$(basename "$(pwd)")` in the built-in claude default) that
+// must expand inside the new window.
+func WindowCommand(resolvedCmd, pointer string) string {
+	return resolvedCmd + " " + shellQuote(pointer)
+}
+
 // Tail returns the last n lines of data (Go-side, no external `tail`). n <= 0
 // returns the whole content unchanged. A trailing newline is treated as a line
 // terminator, not an empty final line, so `Tail(data, 1)` on "a\nb\n" yields

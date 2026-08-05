@@ -99,14 +99,16 @@ Mechanics, all fixed by this spec:
   why pane mode needs **no new provider config field**: the interactive invocation is already in the
   provider table. It MUST NOT read or fall back to `dispatch_command`.
 - **Window**: created via the `_cli-agents.md` § Spawn Composition form
-  (`tmux new-window -n <name> -c <dir> "<composed-cmd> '<prompt>'"`), cwd = the repo root, and the new
-  window's **pane ID** recorded in `.fab-dispatch/{id}/{stage}.yaml` alongside the window name and tmux
-  socket label.
+  (`tmux new-window -n <name> -c <dir> "<composed-cmd> <shell-quoted-prompt>"`), cwd = the repo root, and
+  the new window's **pane ID** recorded in `.fab-dispatch/{id}/{stage}.yaml` alongside the window name and
+  tmux socket label.
 - **Prompt delivery**: the full stage prompt is persisted to `.fab-dispatch/{id}/{stage}-prompt.md` (the
   same path the headless mode uses) and the worker receives a **one-line pointer** to that path as its
-  single quoted spawn argument. A multi-thousand-token prompt cannot ride `send-keys` or argv reliably,
-  and embedding the pointer *at spawn* also sidesteps the printed-prompt trap entirely — there is no
-  pre-existing input buffer to probe.
+  single spawn argument, **shell-quoted** per § Spawn Composition's escape rule (the pointer is
+  repo-path-derived, so a `'` in the checkout path must not break out of the argument); the composed
+  command itself is inserted verbatim so its own expansions still apply. A multi-thousand-token prompt
+  cannot ride `send-keys` or argv reliably, and embedding the pointer *at spawn* also sidesteps the
+  printed-prompt trap entirely — there is no pre-existing input buffer to probe.
 - **tmux is REQUIRED, and only here**: `--pane` without a reachable tmux server is a **hard error**
   (non-zero exit, actionable stderr, nothing launched and no state persisted), established by a real
   tmux query rather than an `$TMUX` environment read so a headless orchestrator can target a socket

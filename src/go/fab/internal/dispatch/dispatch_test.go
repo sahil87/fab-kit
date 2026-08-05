@@ -2,6 +2,7 @@ package dispatch
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -111,6 +112,50 @@ func TestPointerPromptNamesThePromptFile(t *testing.T) {
 	if contains(got, "\n") {
 		t.Errorf("PointerPrompt = %q, want a single line", got)
 	}
+}
+
+// TestWindowCommandShellQuotesThePointer pins that the pointer rides as ONE
+// safely-quoted argument. A repo path containing a single quote — the realistic
+// case, e.g. a checkout under `/home/me/sahil's-repo/` — must not terminate the
+// quoted argument early, which would both break the tmux new-window command and
+// hand the remainder of the path to the window's shell.
+func TestWindowCommandShellQuotesThePointer(t *testing.T) {
+	// The resolved session command is inserted verbatim (its shell expansions are
+	// deliberate and must expand inside the new window).
+	const resolved = `claude -n "$(basename "$(pwd)")" --model m`
+	got := WindowCommand(resolved, PointerPrompt("sahil's-repo/.fab-dispatch/abcd/apply-prompt.md"))
+
+	if !hasPrefix(got, resolved+" ") {
+		t.Errorf("WindowCommand = %q, want the resolved command inserted verbatim as a prefix", got)
+	}
+	// The quote is escaped via the '\'' idiom, so the argument stays a single
+	// shell word — the naive "'%s'" form would yield a bare `'` here.
+	if contains(got, `'\''`) == false {
+		t.Errorf("WindowCommand = %q, want the embedded single quote escaped", got)
+	}
+	// Prove it by round-tripping through a real shell: the pointer must arrive as
+	// exactly one argument with the quote intact.
+	arg := shellRoundTrip(t, got, resolved)
+	if arg != PointerPrompt("sahil's-repo/.fab-dispatch/abcd/apply-prompt.md") {
+		t.Errorf("shell parsed the pointer as %q, want it byte-identical to the pointer", arg)
+	}
+}
+
+// shellRoundTrip runs `sh -c 'printf ... <quoted-pointer>'` — the windowCmd with
+// its verbatim command prefix swapped for a printf that echoes its single
+// argument — to prove the quoted tail parses as exactly one shell word.
+func shellRoundTrip(t *testing.T, windowCmd, resolvedPrefix string) string {
+	t.Helper()
+	quotedTail := windowCmd[len(resolvedPrefix)+1:]
+	out, err := exec.Command("sh", "-c", `printf '%s' `+quotedTail).Output()
+	if err != nil {
+		t.Fatalf("shell could not parse the quoted pointer %q: %v", quotedTail, err)
+	}
+	return string(out)
+}
+
+func hasPrefix(s, prefix string) bool {
+	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
 }
 
 // TestSaveOmitsHeadlessFieldsForPaneRecord pins the on-disk shape of both modes:

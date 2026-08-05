@@ -204,13 +204,15 @@ func modeCommand(paneMode bool, prov config.ProviderConfig, stage, providerName 
 // tmux, and embedding at spawn sidesteps the printed-prompt trap entirely.
 //
 // The pointer path is repo-relative because the window's cwd IS the repo root.
+// dispatch.WindowCommand shell-quotes the pointer, so a repo path containing a
+// single quote cannot break out of the embedded argument.
 func launchPane(rec *dispatch.Dispatch, resolvedCmd, repoRoot, promptPath, id, stage, server string) (string, error) {
 	relPrompt, err := filepath.Rel(repoRoot, promptPath)
 	if err != nil {
 		relPrompt = promptPath
 	}
 	window := dispatch.WindowName(id, stage)
-	windowCmd := fmt.Sprintf("%s '%s'", resolvedCmd, dispatch.PointerPrompt(relPrompt))
+	windowCmd := dispatch.WindowCommand(resolvedCmd, dispatch.PointerPrompt(relPrompt))
 
 	paneID, err := dispatch.OpenWindow(server, window, repoRoot, windowCmd)
 	if err != nil {
@@ -239,12 +241,22 @@ func launchHeadless(rec *dispatch.Dispatch, resolvedCmd, repoRoot, dir, stage, p
 
 // priorRunning reports whether a prior dispatch record is still live, reading
 // liveness per that record's OWN mode (a prior pane dispatch may predate or
-// follow a headless one for the same stage). A recorded result file is not
-// consulted here: refuse-if-running guards against clobbering a worker that is
-// still executing, and the headless path's "exit file present ⇒ finished" rule
-// plus the pane path's pane-liveness rule are the two liveness signals.
+// follow a headless one for the same stage). In BOTH modes it applies the same
+// finished-signal `fab dispatch status` derives its state from, so the two
+// commands can never disagree about whether an attempt is still going:
+//
+//	headless — {stage}.exit present ⇒ finished (the shell recorded a code), so
+//	           running is "no exit file AND the pid is alive" (DeriveState).
+//	pane     — {stage}-result.yaml present ⇒ finished, and result presence WINS
+//	           over pane liveness (DerivePaneState): an interactive worker never
+//	           exits on completion, it sits at its prompt, so a liveness-only
+//	           rule would refuse forever after a successful pane run and make a
+//	           `done` attempt un-overwritable.
 func priorRunning(dir, stage string, prior *dispatch.Dispatch) (bool, error) {
 	if prior.IsPane() {
+		if dispatch.ResultPresent(dir, stage) {
+			return false, nil
+		}
 		return dispatch.PaneAlive(prior.Pane, prior.Server), nil
 	}
 	exitPresent, _, err := dispatch.ReadExit(dir, stage)

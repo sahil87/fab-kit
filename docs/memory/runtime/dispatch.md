@@ -79,7 +79,7 @@ Output names the mode's identity: `dispatched <id>/<stage> (pid N, pgid N)` (hea
 - **THEN** the prompt is persisted, the command is launched detached in a new session/process group, and `{stage}.yaml` records the pid/pgid/spawn_cmd/started_at
 - **AND** with `--timeout N`, the resolved command is wrapped in POSIX `timeout N` inside the same `sh -c` wrapper
 
-**`--pane` tail — an interactive tmux window.** With `--pane`, `start` SHALL compose the resolved provider's **`session_command`** (the same string `fab agent` composes) and open it as `tmux new-window -n fab-{id}-{stage} -c <repo-root> "<resolved-cmd> '<pointer>'"`, persisting the new window's **pane ID**, window name, and tmux socket label in `{stage}.yaml`. The composed command is passed as `new-window`'s shell-command argument, so shell expansions it carries (e.g. `$(basename "$(pwd)")` in the built-in claude `session_command`) expand at invocation inside the new window — the `_cli-agents.md` § Spawn Composition contract. The **pane ID**, not the window name, is the recorded identity: it is server-global, stable for the pane's lifetime, and exempt from tmux's target-grammar prefix/glob resolution, so liveness probes and kills are exact where a name-based target could resolve to a window the user renamed into place. `new-window -P -F '#{pane_id}'` prints it, avoiding a follow-up lookup that could race a fast-exiting worker.
+**`--pane` tail — an interactive tmux window.** With `--pane`, `start` SHALL compose the resolved provider's **`session_command`** (the same string `fab agent` composes) and open it as `tmux new-window -n fab-{id}-{stage} -c <repo-root> "<resolved-cmd> <shell-quoted-pointer>"`, persisting the new window's **pane ID**, window name, and tmux socket label in `{stage}.yaml`. The composed command is passed as `new-window`'s shell-command argument, so shell expansions it carries (e.g. `$(basename "$(pwd)")` in the built-in claude `session_command`) expand at invocation inside the new window — the `_cli-agents.md` § Spawn Composition contract. The **pane ID**, not the window name, is the recorded identity: it is server-global, stable for the pane's lifetime, and exempt from tmux's target-grammar prefix/glob resolution, so liveness probes and kills are exact where a name-based target could resolve to a window the user renamed into place. `new-window -P -F '#{pane_id}'` prints it, avoiding a follow-up lookup that could race a fast-exiting worker.
 
 `--server <name>` / `-L <name>` targets a tmux socket (`tmux -L <name>`), mirroring the `fab pane` family's persistent flag, and is persisted so `status`/`kill` reach the same server without re-supplying it. It is **ignored without `--pane`** (headless touches no tmux).
 
@@ -91,13 +91,21 @@ Output names the mode's identity: `dispatched <id>/<stage> (pid N, pgid N)` (hea
 
 ### Requirement: Prompt delivery is a file plus a one-line pointer in pane mode
 
-In **both** modes the full stage prompt arrives on **stdin** and is persisted to `{stage}-prompt.md`. Headless mode pipes that file into the dispatched command's stdin; pane mode SHALL instead hand the worker a **one-line pointer** naming the repo-relative prompt path, embedded at spawn as the interactive command's single quoted prompt argument. The prompt **content** is composed identically for every adapter — nothing about the block prompt is written differently for `--pane`; only the hand-over differs. No `send-keys` delivery and no printed-prompt probe is required for the initial delivery.
+In **both** modes the full stage prompt arrives on **stdin** and is persisted to `{stage}-prompt.md`. Headless mode pipes that file into the dispatched command's stdin; pane mode SHALL instead hand the worker a **one-line pointer** naming the repo-relative prompt path, embedded at spawn as the interactive command's single prompt argument. The prompt **content** is composed identically for every adapter — nothing about the block prompt is written differently for `--pane`; only the hand-over differs. No `send-keys` delivery and no printed-prompt probe is required for the initial delivery.
+
+**The pointer SHALL be shell-quoted; the resolved command SHALL stay verbatim.** The two halves of the window command are quoted differently on purpose. The pointer names a *repo-derived* path, so a checkout under a directory containing a single quote (`/home/me/sahil's-repo/…`) would terminate a naively-single-quoted argument early — breaking the `new-window` command and handing the path's remainder to the window's shell. It therefore rides through the package's `shellQuote` (the `'\''` idiom the headless wrapper's paths already use), composed in one place by `dispatch.WindowCommand`, honoring `_cli-agents.md` § Spawn Composition's "shell-escape any user-supplied text before embedding it". The resolved `session_command` is inserted **verbatim** — its shell expansions are deliberate and must expand inside the new window (per the pass-through philosophy: the command's own quoting is the resolver's/user's concern).
 
 #### Scenario: a multi-thousand-token prompt reaches an interactive worker
 
 - **GIVEN** a full stage prompt on stdin
 - **WHEN** `fab dispatch start <change> <stage> --pane` runs
 - **THEN** the full prompt lands in `{stage}-prompt.md` and the window's command carries only the one-line pointer to that path, readable from the window's cwd (the repo root)
+
+#### Scenario: a repo path containing a single quote does not break the window command
+
+- **GIVEN** a repository whose path contains a `'` character, so the repo-relative pointer inherits it
+- **WHEN** `fab dispatch start <change> <stage> --pane` composes the window command
+- **THEN** the pointer is shell-escaped and parses as exactly one shell word, arriving at the worker byte-identical to the composed pointer
 
 ### Requirement: `--pane` requires a reachable tmux server — hard error, nothing written
 
@@ -135,7 +143,16 @@ If the resolved tier's provider lacks the field the mode needs, `start` SHALL er
 
 ### Requirement: Refuse-if-running + last-attempt-only concurrency
 
-`start` SHALL refuse if a dispatch for the exact `(change, stage)` pair is already `running` — reporting the live identity (`pid N` or `pane %N`) and directing to `fab dispatch kill` — leaving the running dispatch untouched. Liveness is read per the **prior record's own mode**, so a pane dispatch is guarded by its pane's liveness and a headless one by its pid's. A `start` over a **completed** prior attempt (done / failed / orphaned) SHALL overwrite its files — there is **no per-attempt history** (last-attempt-only: it removes the stale exit/result/log then re-saves `{stage}.yaml`), and the new attempt MAY use either mode regardless of the prior one's. Refuse-if-running is scoped per `(change, stage)`: different stages of the same change share `.fab-dispatch/{id}/` via distinct `{stage}.*` filenames and do not collide.
+`start` SHALL refuse if a dispatch for the exact `(change, stage)` pair is already `running` — reporting the live identity (`pid N` or `pane %N`) and directing to `fab dispatch kill` — leaving the running dispatch untouched. The check SHALL apply the **prior record's own mode's finished signal** — the *same* signal `status` derives that mode's state from, so `start` and `status` can never disagree about whether an attempt is still going:
+
+| Prior record's mode | Still running when | Finished when |
+|---|---|---|
+| headless | `{stage}.exit` absent **and** pid alive | `{stage}.exit` present (the shell recorded a code) |
+| pane | `{stage}-result.yaml` absent **and** pane alive | `{stage}-result.yaml` present — **result presence wins over pane liveness** |
+
+The pane row's result-presence precedence mirrors `DerivePaneState` and is load-bearing: an interactive worker never exits on task completion, it sits at its prompt, so a liveness-only refusal would fire forever after a successful pane run and make a `done` attempt permanently un-overwritable — `status` reporting `done` while `start` insisted it was still running.
+
+A `start` over a **completed** prior attempt (done / failed / orphaned) SHALL overwrite its files — there is **no per-attempt history** (last-attempt-only: it removes the stale exit/result/log then re-saves `{stage}.yaml`), and the new attempt MAY use either mode regardless of the prior one's. Refuse-if-running is scoped per `(change, stage)`: different stages of the same change share `.fab-dispatch/{id}/` via distinct `{stage}.*` filenames and do not collide.
 
 #### Scenario: refuses a live dispatch, overwrites a completed one
 
@@ -143,6 +160,14 @@ If the resolved tier's provider lacks the field the mode needs, `start` SHALL er
 - **WHEN** `fab dispatch start` runs again for the same pair
 - **THEN** it refuses with a clear error and leaves the running dispatch untouched
 - **AND** GIVEN a completed prior attempt, a new `start` overwrites the prior `{stage}.*` files with no history retained
+
+#### Scenario: a finished-but-still-alive pane worker is overwritable
+
+- **GIVEN** a pane dispatch whose pane is still alive (the worker is sitting at its prompt) and whose `{stage}-result.yaml` is absent
+- **WHEN** `fab dispatch start` runs again for the same pair
+- **THEN** it refuses — the worker is genuinely still executing
+- **AND** GIVEN that worker then writes `{stage}-result.yaml` while its pane remains alive
+- **THEN** `status` reports `done` **and** a new `start` overwrites the attempt rather than refusing
 
 ### Requirement: Five byte-stable states, derived per mode
 
@@ -294,8 +319,8 @@ Cleanup SHALL happen at exactly **two deterministic moments** and never on a tim
 *Introduced by*: 260805-zxe0-interactive-pane-stage-dispatch
 
 ### Prompt file plus a one-line pointer, embedded at spawn
-**Decision**: The full stage prompt is persisted to `{stage}-prompt.md` — the path the headless path already writes — and the pane worker receives a one-line pointer to it, embedded as the interactive command's single quoted prompt argument at window creation. Prompt *content* is composed identically for every adapter.
-**Why**: A multi-thousand-token stage prompt cannot ride `send-keys` or argv reliably, and embedding the pointer at spawn sidesteps the printed-prompt trap entirely — there is no pre-existing buffer to probe when the window is created with its prompt already attached. The file doubles as a debugging artifact and rides the existing cleanup paths, so `.fab-dispatch/` gains no new file type and no GC change.
+**Decision**: The full stage prompt is persisted to `{stage}-prompt.md` — the path the headless path already writes — and the pane worker receives a one-line pointer to it, embedded as the interactive command's single **shell-quoted** prompt argument at window creation (composed by `dispatch.WindowCommand`, which reuses the package's `shellQuote`; the resolved command itself stays verbatim). Prompt *content* is composed identically for every adapter.
+**Why**: A multi-thousand-token stage prompt cannot ride `send-keys` or argv reliably, and embedding the pointer at spawn sidesteps the printed-prompt trap entirely — there is no pre-existing buffer to probe when the window is created with its prompt already attached. The file doubles as a debugging artifact and rides the existing cleanup paths, so `.fab-dispatch/` gains no new file type and no GC change. Quoting the pointer (rather than wrapping it in bare `'…'`) is what keeps the asymmetry honest: the pointer is repo-path-derived text fab composes, so it gets escaped per § Spawn Composition, while the `session_command` is the user's own string whose expansions must survive — one composer holds both rules so neither drifts.
 **Rejected**: Sending the whole prompt via `fab pane send` after spawn (the printed-prompt trap plus send-keys length limits). Passing the prompt on the interactive command's stdin (an interactive TUI reads stdin as keystrokes, not as a prompt). Composing a shorter prompt for pane mode (would fork the dispatch-prompt obligations that bind all three adapters).
 *Introduced by*: 260805-zxe0-interactive-pane-stage-dispatch
 
