@@ -48,8 +48,41 @@ import (
 // dispatch never aliases (an external CLI's --model flag takes a full ID); the
 // {model}/{effort} placeholders are substituted via internal/spawn.WithProfile
 // (reused, not reimplemented) using the tier's own resolved model/effort.
+//
+// INVOCATION-TIME OVERRIDES (260805-j3cm): `--provider <name>`, `--model <id>`,
+// and `--effort <level>` are the top rung of the fill precedence
+//
+//	invocation flag  >  explicit tier field  >  provider default fill  >  empty
+//
+// applied to the resolved profile by agent.ApplyOverrides (the precedence lives in
+// internal/agent, not here). `--provider` swaps the provider and re-derives the
+// `dispatch=` line from the NAMED provider's dispatch_command — so the emitted
+// `dispatch=` presence can differ from the stage's unoverridden one. That is a
+// QUERY RESULT, not an adapter move: this command only reports what the named
+// provider's dispatch_command is. `fab dispatch start` takes no override flags and
+// re-resolves the stage from config itself, so relocating a stage between native
+// Agent-tool dispatch and CLI dispatch takes a config/tier override, never an
+// invocation flag. A swap does not retain the tier's model/effort (they belong to
+// the old provider); an unoverridden field refills from the new provider's default
+// fill, then empty.
+//
+// `--model`/`--effort` are valid WITHOUT `--provider` here — a within-tier
+// override of the profile this pure query would otherwise print. This is a
+// deliberate, documented asymmetry with `fab agent`, where they remain usage
+// errors without `--provider`: `fab agent` is a session launcher with two mutually
+// exclusive addressing modes, where a bare `--model` would invent an undocumented
+// tier-override surface.
+//
+// An unknown `--provider` name is a LOOKUP failure (non-zero exit naming the
+// resolvable providers) — not validation of any command's content
+// (document-don't-validate stands: resolved strings still pass through verbatim).
+// The error is byte-identical to `fab agent`'s because both call the shared
+// unknownProviderError helper (agent.go).
 func resolveAgentCmd() *cobra.Command {
 	var alias bool
+	var provider string
+	var model string
+	var effort string
 	cmd := &cobra.Command{
 		Use:   "resolve-agent <stage|tier>",
 		Short: "Resolve a pipeline stage (or role tier) to its {provider, model, effort} agent profile",
@@ -70,11 +103,32 @@ func resolveAgentCmd() *cobra.Command {
 				return err
 			}
 
+			// Overrides key on whether the flag was SUPPLIED (cobra's
+			// Flag.Changed), not on value emptiness — so `--model=` explicitly
+			// clears the tier's model (emitting the inherit signal) instead of
+			// being silently ignored.
+			providerSet := cmd.Flags().Changed("provider")
+			profile = agent.ApplyOverrides(cfg, profile, agent.Overrides{
+				Provider:    provider,
+				ProviderSet: providerSet,
+				Model:       model,
+				ModelSet:    cmd.Flags().Changed("model"),
+				Effort:      effort,
+				EffortSet:   cmd.Flags().Changed("effort"),
+			})
+
+			prov, known := agent.ResolveProvider(cfg, profile.Provider)
+			if providerSet && !known {
+				// A supplied --provider that resolves to nothing is a lookup
+				// failure naming the resolvable set — shared verbatim with
+				// `fab agent` via unknownProviderError.
+				return unknownProviderError(cfg, profile.Provider)
+			}
 			// The dispatch= command ALWAYS embeds the full resolved model ID (CLI
 			// dispatch never aliases), so substitute placeholders from the full
 			// model BEFORE --alias overwrites profile.Model with the short alias.
 			var dispatchLine string
-			if prov, ok := agent.ResolveProvider(cfg, profile.Provider); ok && prov.DispatchCommand != "" {
+			if known && prov.DispatchCommand != "" {
 				dispatchLine = spawn.WithProfile(prov.DispatchCommand, profile.Model, profile.Effort)
 			}
 
@@ -87,6 +141,9 @@ func resolveAgentCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&alias, "alias", false, "emit the Claude-Code short model alias (opus/sonnet/haiku/fable) on the model= line instead of the full ID (Agent-tool adapter)")
+	cmd.Flags().StringVar(&provider, "provider", "", "override the resolved provider (re-derives dispatch= from that provider; unoverridden model/effort refill from its default fill, then empty)")
+	cmd.Flags().StringVar(&model, "model", "", "override the resolved model (valid without --provider — a within-tier override)")
+	cmd.Flags().StringVar(&effort, "effort", "", "override the resolved effort (valid without --provider — a within-tier override)")
 	return cmd
 }
 

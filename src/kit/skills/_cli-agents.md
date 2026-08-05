@@ -57,9 +57,11 @@ fab agent --provider codex --print                                  # bare invoc
 fab agent --provider codex --model <id> --effort <level> --print     # explicit profile
 ```
 
-**Which form to use.** Use the **tier** form when the spawn should inherit fab's role/budget policy (a pipeline-shaped worker, the operator's own coordinator). Use the **provider** form when the question is mechanical — "give me a codex session right here" — with no tier to speak of. `--provider` is mutually exclusive with the `[tier]` positional, and `--model`/`--effort` are only valid alongside `--provider` (see `_cli-fab.md` § fab agent).
+**Which form to use.** Use the **tier** form when the spawn should inherit fab's role/budget policy (a pipeline-shaped worker, the operator's own coordinator). Use the **provider** form when the question is mechanical — "give me a codex session right here" — with no tier to speak of. `--provider` is mutually exclusive with the `[tier]` positional, and `--model`/`--effort` are only valid alongside `--provider` (see `_cli-fab.md` § fab agent — note `fab resolve-agent` deliberately allows them bare, being a pure query). **No `providers:` block is needed for either form**: `claude`, `codex`, and `gemini` are built-in providers.
 
 **Empty model/effort is a feature.** Omitting `--model`/`--effort` on the provider form leaves the value empty, and the composition rule drops the placeholder's token *and* a preceding `-`-flag — so `fab agent --provider codex --print` against `codex -m {model} -c model_reasoning_effort={effort}` yields a bare `codex` and the installed CLI's own default model applies. This is how you spawn a provider whose current model IDs you do not know.
+
+> **Caveat — the provider form bypasses BOTH fill sources.** `fab agent --provider <name>` skips tier resolution *and* the provider's default fill: `providers.<name>.model`/`.effort` are deliberately **not** consulted here, so the composed profile is exactly the flags you pass. The fill rungs (invocation flag > tier field > provider fill > empty) apply to *tier* resolution and to `fab resolve-agent`, not to this path. So a project with `providers.codex.model` set still gets a bare `codex` from `fab agent --provider codex --print` — pass `--model` explicitly, or use the tier form, when the fill should apply. (Same caveat as `_cli-fab.md` § fab agent.)
 
 **Open it in a pane:**
 
@@ -126,7 +128,7 @@ Each entry below carries only **stable invocation grammar** and **discovery reci
 - **Model IDs are NOT recorded.** Model catalogs rot in weeks. Instead each entry carries a *discovery recipe*: what to run against the **installed** binary to learn which models it accepts. Never assume a model ID from memory; run the recipe.
 - **Quirks accrete from real encounters only.** An entry records an interactive quirk (first-run trust prompt, submit-key behavior) only once it has actually been hit and confirmed. Speculating about an uninstalled CLI's behavior is worse than silence — it reads as verified.
 
-The command strings below are consistent with the `providers:` starter template fab-kit ships (see `fab config reference`), whose codex/gemini blocks are commented until a user opts in. The Go built-in provider table stays claude-only — this dictionary is markdown, so it updates with the kit and carries no behavior risk.
+The command strings below are the same grammars fab-kit ships as **built-in providers** — `claude`, `codex`, and `gemini` are all in the Go built-in provider table, so naming one (in a tier, or via `fab agent --provider` / `fab resolve-agent --provider`) resolves with **no `providers:` config at all**. The built-ins are **grammar only**: they carry no model ID, because model IDs rot at CLI cadence. Pin the volatile half in config — `providers.<name>.model` / `.effort` (a default fill, settable once per machine in `~/.fab-kit/config.yaml`) — or per invocation with `--model`/`--effort`. Discover the ID with the per-entry recipe below; never assume one. (This dictionary is markdown, so it updates with the kit and carries no behavior risk; a `providers:` block is now for *overriding* a grammar or supplying fill, not for registering codex/gemini in the first place.)
 
 ### claude
 
@@ -150,7 +152,7 @@ The command strings below are consistent with the `providers:` starter template 
 | Structured output | `codex exec --json` |
 | Profile flags | `-m <id>` for the model; reasoning effort rides a config override: `-c model_reasoning_effort=<level>` |
 | MCP server mode | `codex mcp-server` — starts codex AS a stdio MCP server (distinct from `codex mcp`, which *manages* the external MCP servers codex itself connects to); see § Codex MCP Bridge below |
-| Model discovery | Capability-probe the installed binary: `codex --version`, then `codex --help` / `codex exec --help` for the `-m` flag's accepted values. Substitute the discovered ID for `{model}` in the `providers.codex` template — fab does not validate it |
+| Model discovery | Capability-probe the installed binary: `codex --version`, then `codex --help` / `codex exec --help` for the `-m` flag's accepted values. Pin the discovered ID as `providers.codex.model` (the default fill) or pass `--model` per invocation — fab ships no codex model ID and does not validate one |
 
 **Why the session/dispatch split matters here.** `codex` (TUI) and `codex exec` (headless) are different invocations of the same binary, which is exactly why `providers.<name>` carries `session_command` and `dispatch_command` as two unmerged fields — no single template expresses both.
 
@@ -160,11 +162,11 @@ The command strings below are consistent with the `providers:` starter template 
 |--------|-------|
 | Interactive | `gemini` |
 | Headless | `gemini` with the prompt on **stdin** — in a non-TTY context it reads stdin as the prompt |
-| `-p` caveat | `gemini -p` takes prompt **TEXT** (appended after stdin), so it is **not** the headless flag you want when piping — the shipped `providers.gemini` template deliberately omits `-p` |
-| Profile flags | `-m <id>` for the model. **No effort flag** — the gemini CLI has no reasoning-effort knob, so the shipped template omits `{effort}` entirely |
-| Model discovery | `gemini --help` on the installed binary for the `-m` flag's accepted values |
+| `-p` caveat | `gemini -p` takes prompt **TEXT** (appended after stdin), so it is **not** the headless flag you want when piping — the built-in `gemini` `dispatch_command` deliberately omits `-p` |
+| Profile flags | `-m <id>` for the model. **No effort flag** — the gemini CLI has no reasoning-effort knob, so the built-in grammar omits `{effort}` entirely |
+| Model discovery | `gemini --help` on the installed binary for the `-m` flag's accepted values. Pin it as `providers.gemini.model` or pass `--model` per invocation — fab ships no gemini model ID |
 
-**Template consequence.** Because the gemini template carries no `{effort}` placeholder, the substitution is all-or-nothing per placeholder present: a resolved effort simply has nowhere to go and is not injected. That is the intended behavior — provider grammar lives in the config, and fab never appends a flag the CLI does not have.
+**Template consequence.** Because the gemini grammar carries no `{effort}` placeholder, the substitution is all-or-nothing per placeholder present: a resolved effort simply has nowhere to go and is not injected. That is the intended behavior — provider grammar is the provider's, and fab never appends a flag the CLI does not have.
 
 ### Codex MCP Bridge (recipe)
 

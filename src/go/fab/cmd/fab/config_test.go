@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configref"
 )
@@ -51,9 +52,12 @@ func TestConfigReferenceRoundTrips(t *testing.T) {
 	if prov.DispatchCommand != "" {
 		t.Errorf("providers.claude.dispatch_command must parse as absent (commented template), got %q", prov.DispatchCommand)
 	}
-	// codex and gemini are commented starter-template blocks only — never Go
-	// defaults and never live in the reference. They must parse as absent so the
-	// three-provider template text can never accidentally register a provider.
+	// codex and gemini are Go BUILT-IN providers (260805-j3cm), so their reference
+	// blocks merely RESTATE a built-in default and ship commented like every other
+	// non-overridden default. They must parse as absent from Config: a commented
+	// block registers no project override (presence=intent for behavior — a
+	// built-in provider is inert until a tier or flag names it, and
+	// agent.ResolveProvider resolves it from the Go table either way).
 	if _, ok := cfg.GetProvider("codex"); ok {
 		t.Error("providers.codex must be commented-out in the reference (parsed as live)")
 	}
@@ -298,36 +302,35 @@ func TestConfigReferenceDocumentsProviders(t *testing.T) {
 	}
 }
 
-// TestConfigReferenceDocumentsThreeProviderTemplate is the ho9y contract: the
-// providers block ships as a three-provider starter template — claude (built-in
-// default), codex, and gemini — each with both command fields present as text,
-// so a user adding a non-claude provider copies and adapts rather than composing
-// grammar from scratch. Gemini carries no {effort} placeholder (the gemini CLI
-// has no reasoning-effort flag).
-func TestConfigReferenceDocumentsThreeProviderTemplate(t *testing.T) {
+// TestConfigReferenceDocumentsThreeBuiltInProviders is the j3cm contract (which
+// supersedes ho9y's starter-template contract): the providers block documents
+// fab-kit's THREE BUILT-IN providers — claude (the default), codex, and gemini —
+// with every command string sourced from its canonical agent constant. Gemini
+// carries no {effort} placeholder (the gemini CLI has no reasoning-effort flag).
+func TestConfigReferenceDocumentsThreeBuiltInProviders(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
 	}
 
-	// All three provider names appear as text in the providers template.
+	// All three provider names appear as text in the providers block.
 	for _, provider := range []string{"claude:", "codex:", "gemini:"} {
 		if !strings.Contains(out, provider) {
-			t.Errorf("providers template must document the %q provider block", provider)
+			t.Errorf("providers block must document the %q provider", provider)
 		}
 	}
 
-	// Both command fields are documented for the non-claude template providers.
-	// codex and gemini each carry a session_command AND a dispatch_command line
-	// (present as commented text). Assert on the distinctive command bodies so a
-	// single generic session_command/dispatch_command elsewhere can't satisfy this.
+	// Both command fields are documented for the non-claude built-ins. The
+	// expectations are DERIVED from the agent constants (never literal copies), so
+	// a grammar change touches only internal/agent.
 	for _, cmd := range []string{
-		"codex -m {model} -c model_reasoning_effort={effort}",      // codex session_command
-		"codex exec -m {model} -c model_reasoning_effort={effort}", // codex dispatch_command
-		"gemini -m {model}", // gemini session + dispatch
+		agent.DefaultCodexSessionCommand,
+		agent.DefaultCodexDispatchCommand,
+		agent.DefaultGeminiSessionCommand,
+		agent.DefaultGeminiDispatchCommand,
 	} {
 		if !strings.Contains(out, cmd) {
-			t.Errorf("providers template must document the command %q", cmd)
+			t.Errorf("providers block must document the built-in command %q", cmd)
 		}
 	}
 
@@ -349,7 +352,99 @@ func TestConfigReferenceDocumentsThreeProviderTemplate(t *testing.T) {
 	// claude's dispatch_command ships commented (uncommenting flips native→CLI
 	// dispatch), so it must be present as text but parse as absent from Config.
 	if !strings.Contains(out, "claude -p --dangerously-skip-permissions --model {model} --effort {effort}") {
-		t.Error("providers template must document claude's (commented) dispatch_command")
+		t.Error("providers block must document claude's (commented) dispatch_command")
+	}
+
+	// The superseded ho9y framing must not survive: codex/gemini are no longer
+	// "template text only" awaiting an uncomment, and the Go table is no longer
+	// claude-only. These literals render into every project's config fence, so a
+	// stale claim there is a user-facing documentation inaccuracy.
+	for _, retired := range []string{
+		"No new built-in providers are added in Go",
+		"template text only until you uncomment them",
+		"uncomment and adapt a block to add that provider",
+		"starter\n# TEMPLATE",
+	} {
+		if strings.Contains(out, retired) {
+			t.Errorf("providers block still carries the retired ho9y claim %q", retired)
+		}
+	}
+
+	// The three built-ins are named as built-in, and the grammar-only rule (no
+	// baked model IDs for non-claude providers) is stated.
+	for _, phrase := range []string{
+		"THREE built-in providers",
+		"GRAMMAR ONLY",
+	} {
+		if !strings.Contains(out, phrase) {
+			t.Errorf("providers block must state %q (the built-in providers are grammar-only)", phrase)
+		}
+	}
+}
+
+// TestConfigReferenceDocumentsProviderFill is the j3cm fill contract: the providers
+// block documents the per-provider `model`/`effort` default-fill fields and the fill
+// precedence, and the registry row's Default exposes NO fill for any built-in
+// (fab-kit ships grammar, never a model ID — a non-nil Default always denotes a real
+// built-in value).
+func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
+	out, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+	for _, phrase := range []string{
+		"model / effort",
+		"DEFAULT FILL",
+		"invocation flag > explicit tier field > provider fill >",
+	} {
+		if !strings.Contains(out, phrase) {
+			t.Errorf("providers block must document %q (the per-provider fill fields and their precedence)", phrase)
+		}
+	}
+
+	// The JSON registry row must advertise all three built-ins and no fill values.
+	jsonOut, err := configref.RenderJSON()
+	if err != nil {
+		t.Fatalf("RenderJSON returned an error: %v", err)
+	}
+	// Decode leniently (row defaults have per-field shapes) and pick the providers
+	// row out of the array.
+	var rows []map[string]any
+	if err := json.Unmarshal([]byte(jsonOut), &rows); err != nil {
+		t.Fatalf("--json output did not decode: %v", err)
+	}
+	var row map[string]any
+	for _, r := range rows {
+		if r["key"] == "providers" {
+			row = r
+			break
+		}
+	}
+	if row == nil {
+		t.Fatal("--json output has no `providers` row")
+	}
+	defaults, ok := row["default"].(map[string]any)
+	if !ok {
+		t.Fatalf("providers row default = %v, want an object of built-in providers", row["default"])
+	}
+	for _, name := range []string{"claude", "codex", "gemini"} {
+		entry, ok := defaults[name].(map[string]any)
+		if !ok {
+			t.Errorf("providers default must advertise the built-in %q, got %v", name, defaults[name])
+			continue
+		}
+		if _, ok := entry["model"]; ok {
+			t.Errorf("built-in %q must carry no model fill in the registry default", name)
+		}
+		if _, ok := entry["effort"]; ok {
+			t.Errorf("built-in %q must carry no effort fill in the registry default", name)
+		}
+	}
+	desc, _ := row["description"].(string)
+	for _, phrase := range []string{"model/effort fill", "grammar-only built-ins"} {
+		if !strings.Contains(desc, phrase) {
+			t.Errorf("providers row description must mention %q, got %q", phrase, desc)
+		}
 	}
 }
 

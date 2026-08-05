@@ -281,8 +281,23 @@ adapter as **one of three** dispatch adapters and adds the two `fab dispatch` mo
 `fab dispatch` adapters consume; `stage-models.md` § Harness-adapter boundary points here for the runtime
 that RUNS it.
 
-Resolution stays **adapter-independent** across all three: the pane mode adds no resolver output and no
-provider config field — it composes the resolved provider's existing `session_command` (the same field
+Resolution stays **adapter-independent** across all three, but it does **select** which of them runs: the
+adapter follows from whether the *resolved* provider carries a `dispatch_command`. What selects the adapter
+is therefore the **config** a dispatch resolves from — `agent.tiers.<tier>.provider` plus the `providers:`
+table — not an invocation flag. An invocation-time `fab resolve-agent <stage> --provider <name>` override
+(`260805-j3cm`) binds the **native adapter only**: `fab dispatch start` accepts no override flags and
+re-resolves the stage from config itself, so an overridden profile never reaches either `fab dispatch` mode
+(the headless mode would compose — or fail on the absence of — the *unoverridden* provider's
+`dispatch_command`, and `--pane` the unoverridden provider's `session_command`). Dispatch sites still
+re-read the resolved `dispatch=` line after an override — the branch rule is unchanged (it has always keyed
+on `dispatch=` presence) — but a `dispatch=` line that appears *only* because of an override is **not
+actionable**, and the two remedies are **not interchangeable**: dispatching that stage natively with the
+overridden model/effort is executable only for a **within-claude** `--model`/`--effort` override, since
+the native adapter's model seam is the Agent tool's `model` param — a Claude-alias enum
+(`opus`/`sonnet`/`haiku`/`fable`) with no room for a non-Claude ID. So for a **cross-provider
+`--provider` override** the **sole executable path** is a config/tier override that `dispatch start`'s
+own re-resolution will see. Nothing else moves: the pane mode adds no resolver output and no provider
+config field — it composes the resolved provider's existing `session_command` (the same field
 `fab agent` and the operator launcher compose) through the same `internal/spawn` substitution. Mode
 selection is therefore **per-invocation** (`fab dispatch start … --pane`), not a property of a tier or a
 provider. A provider whose interactive grammar genuinely diverges from its `session_command` would be the

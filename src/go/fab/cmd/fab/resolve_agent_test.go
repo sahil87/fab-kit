@@ -49,6 +49,22 @@ func wantTierModel(t *testing.T, tier string) string {
 	return p.Model
 }
 
+// pinnedTierLine renders an `agent.tiers` YAML line for `tier` that points at
+// `provider` while PINNING the tier's own built-in model/effort. Pointing a tier at
+// a non-claude provider is a cross-provider switch, and such a tier no longer
+// inherits the built-in's (claude-shaped) model/effort — 260805-j3cm's
+// cross-provider cutoff. Pinning the same values the built-in carries keeps each
+// test's expectation ("the resolved tier profile rides the output") true while
+// staying DERIVED from the canonical map, so a model bump touches no test.
+func pinnedTierLine(t *testing.T, tier, provider string) string {
+	t.Helper()
+	p, ok := agent.DefaultTier(tier)
+	if !ok {
+		t.Fatalf("unknown tier %q", tier)
+	}
+	return "    " + tier + ": { provider: " + provider + ", model: " + p.Model + ", effort: " + p.Effort + " }\n"
+}
+
 // runResolveAgentCmd executes a fresh resolveAgentCmd with the given args.
 func runResolveAgentCmd(t *testing.T, args ...string) (string, error) {
 	t.Helper()
@@ -271,8 +287,7 @@ func TestResolveAgentDispatchFourLines(t *testing.T) {
     dispatch_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
 agent:
   tiers:
-    doing: { provider: codex }
-`)
+`+pinnedTierLine(t, agent.TierDoing, "codex"))
 	out, err := runResolveAgentCmd(t, "apply") // apply ∈ doing → provider codex
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
@@ -293,8 +308,7 @@ func TestResolveAgentAliasDispatchUsesFullModelID(t *testing.T) {
     dispatch_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
 agent:
   tiers:
-    doing: { provider: codex }
-`)
+`+pinnedTierLine(t, agent.TierDoing, "codex"))
 	out, err := runResolveAgentCmd(t, "apply", "--alias")
 	if err != nil {
 		t.Fatalf("resolve-agent apply --alias: %v", err)
@@ -315,8 +329,7 @@ func TestResolveAgentDispatchSubstitutionReusesSpawnPackage(t *testing.T) {
     dispatch_command: "codex  exec  -m {model}  -c reasoning={effort}"
 agent:
   tiers:
-    fast: { provider: codex }
-`)
+`+pinnedTierLine(t, agent.TierFast, "codex"))
 	out, err := runResolveAgentCmd(t, "ship") // ship ∈ fast (sonnet/medium), provider codex
 	if err != nil {
 		t.Fatalf("resolve-agent ship: %v", err)
@@ -335,8 +348,7 @@ func TestResolveAgentDispatchByteStable(t *testing.T) {
     dispatch_command: "codex exec -m {model}"
 agent:
   tiers:
-    doing: { provider: codex }
-`
+` + pinnedTierLine(t, agent.TierDoing, "codex")
 	resolveAgentTestRepo(t, body)
 	first, err := runResolveAgentCmd(t, "apply")
 	if err != nil {
@@ -369,5 +381,244 @@ func TestResolveAgentByteStable(t *testing.T) {
 	}
 	if first != second {
 		t.Errorf("output not byte-stable: %q vs %q", first, second)
+	}
+}
+
+// --- Invocation-time overrides (260805-j3cm) ---
+
+// TestResolveAgentOverrideProviderNoFill: `--provider codex` on a default config
+// swaps the provider, re-derives dispatch= from the codex BUILT-IN's
+// dispatch_command, and — because a swap does not retain the old provider's
+// model/effort and no codex fill is configured — resolves an empty model with the
+// effort= line omitted. Both placeholder tokens (and their preceding flags) drop out
+// of the dispatch command, so the codex CLI's own default model applies.
+func TestResolveAgentOverrideProviderNoFill(t *testing.T) {
+	resolveAgentTestRepo(t, "project:\n  name: test\n")
+
+	out, err := runResolveAgentCmd(t, "apply", "--provider", "codex")
+	if err != nil {
+		t.Fatalf("resolve-agent apply --provider codex: %v", err)
+	}
+	want := "model=\nprovider=codex\ndispatch=codex exec\n"
+	if out != want {
+		t.Errorf("output = %q, want %q (no claude model may leak across the swap)", out, want)
+	}
+}
+
+// TestResolveAgentOverrideFullTriple: --provider + --model + --effort is the
+// top precedence rung — each value lands verbatim on its line and in the
+// substituted dispatch= command.
+func TestResolveAgentOverrideFullTriple(t *testing.T) {
+	resolveAgentTestRepo(t, "project:\n  name: test\n")
+
+	out, err := runResolveAgentCmd(t, "apply", "--provider", "codex", "--model", "gpt-5.3-codex", "--effort", "high")
+	if err != nil {
+		t.Fatalf("resolve-agent with overrides: %v", err)
+	}
+	want := "model=gpt-5.3-codex\neffort=high\nprovider=codex\n" +
+		"dispatch=codex exec -m gpt-5.3-codex -c model_reasoning_effort=high\n"
+	if out != want {
+		t.Errorf("output = %q, want %q", out, want)
+	}
+}
+
+// TestResolveAgentOverrideProviderTakesFill: an unoverridden model/effort on a
+// provider SWAP refills from that provider's default fill (providers.<name>.model /
+// .effort) — precedence rung 3.
+func TestResolveAgentOverrideProviderTakesFill(t *testing.T) {
+	resolveAgentTestRepo(t, `providers:
+  codex:
+    model: gpt-5.3-codex
+    effort: high
+`)
+	out, err := runResolveAgentCmd(t, "apply", "--provider", "codex")
+	if err != nil {
+		t.Fatalf("resolve-agent apply --provider codex: %v", err)
+	}
+	want := "model=gpt-5.3-codex\neffort=high\nprovider=codex\n" +
+		"dispatch=codex exec -m gpt-5.3-codex -c model_reasoning_effort=high\n"
+	if out != want {
+		t.Errorf("output = %q, want the provider fill %q", out, want)
+	}
+}
+
+// TestResolveAgentOverrideModelWithoutProvider: --model/--effort are valid WITHOUT
+// --provider here (a within-tier override) — the documented asymmetry with
+// `fab agent`, where they are a usage error without --provider.
+func TestResolveAgentOverrideModelWithoutProvider(t *testing.T) {
+	resolveAgentTestRepo(t, "project:\n  name: test\n")
+
+	out, err := runResolveAgentCmd(t, "apply", "--effort", "high")
+	if err != nil {
+		t.Fatalf("bare --effort must be valid on the pure query: %v", err)
+	}
+	want := "model=" + wantTierModel(t, agent.TierDoing) + "\neffort=high\nprovider=claude\n"
+	if out != want {
+		t.Errorf("output = %q, want the tier's provider+model with the overridden effort %q", out, want)
+	}
+
+	out, err = runResolveAgentCmd(t, "apply", "--model", "claude-haiku-4-5")
+	if err != nil {
+		t.Fatalf("bare --model must be valid on the pure query: %v", err)
+	}
+	want = "model=claude-haiku-4-5\neffort=xhigh\nprovider=claude\n"
+	if out != want {
+		t.Errorf("output = %q, want the overridden model with the tier's effort %q", out, want)
+	}
+}
+
+// TestResolveAgentOverrideAliasKeepsNonClaudeVerbatim: --alias is a best-effort
+// adapter — an overridden non-Claude model passes through verbatim on model=, and
+// dispatch= always embeds the full ID.
+func TestResolveAgentOverrideAliasKeepsNonClaudeVerbatim(t *testing.T) {
+	resolveAgentTestRepo(t, "project:\n  name: test\n")
+
+	out, err := runResolveAgentCmd(t, "apply", "--provider", "codex", "--model", "gpt-5.3-codex", "--alias")
+	if err != nil {
+		t.Fatalf("resolve-agent with overrides --alias: %v", err)
+	}
+	want := "model=gpt-5.3-codex\nprovider=codex\ndispatch=codex exec -m gpt-5.3-codex\n"
+	if out != want {
+		t.Errorf("output = %q, want %q (non-Claude model verbatim; full ID in dispatch=)", out, want)
+	}
+}
+
+// TestResolveAgentOverrideDispatchDisappearsOnNativeSwap: swapping TO a provider
+// with no dispatch_command drops the dispatch= line — the QUERY reports the named
+// provider's dispatch_command (or its absence), which is all this assertion covers.
+// It is NOT an adapter move: `fab dispatch start` takes no override flags and
+// re-resolves the stage from config, so only a config/tier override relocates a
+// stage between native Agent-tool dispatch and CLI dispatch.
+func TestResolveAgentOverrideDispatchDisappearsOnNativeSwap(t *testing.T) {
+	resolveAgentTestRepo(t, `agent:
+  tiers:
+`+pinnedTierLine(t, agent.TierDoing, "codex"))
+
+	// Baseline: the codex tier emits a dispatch= line.
+	out, err := runResolveAgentCmd(t, "apply")
+	if err != nil {
+		t.Fatalf("resolve-agent apply: %v", err)
+	}
+	if !strings.Contains(out, "dispatch=") {
+		t.Fatalf("baseline output = %q, want a dispatch= line", out)
+	}
+
+	// Swapping to claude (no built-in dispatch_command) drops it.
+	out, err = runResolveAgentCmd(t, "apply", "--provider", "claude", "--model", "claude-opus-5", "--effort", "xhigh")
+	if err != nil {
+		t.Fatalf("resolve-agent apply --provider claude: %v", err)
+	}
+	want := "model=claude-opus-5\neffort=xhigh\nprovider=claude\n"
+	if out != want {
+		t.Errorf("output = %q, want %q (no dispatch= — native Agent-tool dispatch)", out, want)
+	}
+}
+
+// TestResolveAgentOverrideUnknownProviderErrors: a supplied --provider that
+// resolves to nothing is a LOOKUP failure naming the resolvable set — mirroring
+// `fab agent`'s error. An explicitly-empty --provider= is the same failure (the
+// guard keys on supplied-ness), with a placeholder in the config-key hint so the
+// suggested path is never malformed.
+func TestResolveAgentOverrideUnknownProviderErrors(t *testing.T) {
+	resolveAgentTestRepo(t, "project:\n  name: test\n")
+
+	out, err := runResolveAgentCmd(t, "apply", "--provider", "bogus")
+	if err == nil {
+		t.Fatal("expected an error for an unknown provider")
+	}
+	// No profile is emitted on the lookup failure. cobra prints its usage block to
+	// the same buffer (and that block's own prose mentions `model=`), so assert that
+	// no LINE is a contract line rather than that the buffer is empty.
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "model=") || strings.HasPrefix(line, "dispatch=") {
+			t.Errorf("output = %q, want no resolved profile printed on the lookup failure", out)
+			break
+		}
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "bogus") {
+		t.Errorf("error should name the unknown provider, got: %v", err)
+	}
+	for _, want := range []string{"claude", "codex", "gemini"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error should list the resolvable provider %q, got: %v", want, err)
+		}
+	}
+
+	_, err = runResolveAgentCmd(t, "apply", "--provider=")
+	if err == nil {
+		t.Fatal("expected an error for an explicitly-empty --provider=")
+	}
+	if !strings.Contains(err.Error(), "providers.<name>") {
+		t.Errorf("error = %q, want the placeholder config-key hint for an empty name", err.Error())
+	}
+}
+
+// TestResolveCrossScopeCascadeLimitation PINS THE R7 DOCUMENTED LIMITATION
+// (260805-j3cm, rework cycle 3) — it asserts CURRENT behavior, not desired
+// behavior. The cross-provider cutoff computes ownership over the MERGED config:
+// internal/config.LoadPath deep-merges the system layer (~/.fab-kit/config.yaml)
+// and the project layer per-key BEFORE internal/agent resolves, so agent.ResolveTier
+// sees ONE `agent.tiers.doing` map and cannot tell which scope contributed which
+// key. When both scopes name DIFFERENT providers for the same tier, the merged
+// tier's model/effort are attributed to the merged layer's `provider:` and the
+// cutoff does not fire across the scope boundary — here a codex model ID rides a
+// gemini invocation.
+//
+// This test exists so the limitation is reproducible and cannot change silently:
+// if a follow-up change makes ownership cascade-aware (folding the per-scope layers
+// in ResolveTier), this test SHOULD fail and be rewritten to the new — correct —
+// expectation of an empty model refilled from providers.gemini. It lives in cmd/fab
+// because this is the layer that can compose both scopes end-to-end (TestMain
+// already isolates HOME for the package; this test points it at its own tree so it
+// can WRITE a system config). Documented in internal/agent's ResolveTier comment
+// (§ SCOPE OF OWNERSHIP) and docs/specs/stage-models.md.
+func TestResolveCrossScopeCascadeLimitation(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	sysDir := filepath.Join(home, ".fab-kit")
+	if err := os.MkdirAll(sysDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// System scope: a fully-pinned codex tier plus the codex fill.
+	systemConfig := `providers:
+  codex:
+    model: gpt-5.3-codex
+    effort: high
+agent:
+  tiers:
+    doing: { provider: codex, model: gpt-5.3-codex, effort: high }
+`
+	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"), []byte(systemConfig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Project scope: switch the SAME tier to gemini, supplying only the provider.
+	// resolveAgentTestRepo chdirs into the new repo; it does not touch HOME, so the
+	// t.Setenv above stands.
+	resolveAgentTestRepo(t, `project:
+  name: test
+providers:
+  gemini:
+    model: gemini-2.5-pro
+agent:
+  tiers:
+    doing: { provider: gemini }
+`)
+
+	out, err := runResolveAgentCmd(t, "apply")
+	if err != nil {
+		t.Fatalf("resolve-agent apply: %v", err)
+	}
+
+	// CURRENT (limitation) behavior: the system scope's codex model/effort survive
+	// the project scope's switch to gemini, because the two scopes were merged into
+	// one tier before resolution. The CORRECT behavior would be
+	// model=gemini-2.5-pro with no effort= line (refilled from providers.gemini).
+	want := "model=gpt-5.3-codex\neffort=high\nprovider=gemini\ndispatch=gemini -m gpt-5.3-codex\n"
+	if out != want {
+		t.Errorf("output = %q, want %q\n(this test PINS the documented cross-scope cascade limitation — "+
+			"if ownership became cascade-aware, update this expectation to the refilled gemini values "+
+			"and drop the limitation note from internal/agent's ResolveTier comment and stage-models.md)", out, want)
 	}
 }

@@ -237,11 +237,20 @@ func TestRender_InteriorColumn0CommentInLiveBlock(t *testing.T) {
 
 // TestRender_BHygieneFlagsEqualsDefault (SF-d): a live field whose value equals the
 // built-in default is flagged in the advisory report — but never removed
-// (presence=intent). Uses providers, whose default is the built-in claude session
-// command.
+// (presence=intent). Uses providers, whose default is fab-kit's THREE built-in
+// providers (claude's session command; codex/gemini's command pairs) — so the live
+// fixture must restate all three to be an equals-default case.
 func TestRender_BHygieneFlagsEqualsDefault(t *testing.T) {
 	fields := fieldsForTest(t)
-	src := "providers:\n    claude:\n        session_command: '" + agent.DefaultSessionCommand + "'\n"
+	src := "providers:\n" +
+		"    claude:\n" +
+		"        session_command: '" + agent.DefaultSessionCommand + "'\n" +
+		"    codex:\n" +
+		"        session_command: '" + agent.DefaultCodexSessionCommand + "'\n" +
+		"        dispatch_command: '" + agent.DefaultCodexDispatchCommand + "'\n" +
+		"    gemini:\n" +
+		"        session_command: '" + agent.DefaultGeminiSessionCommand + "'\n" +
+		"        dispatch_command: '" + agent.DefaultGeminiDispatchCommand + "'\n"
 	out, report := render(src, fields, "2.15.0")
 
 	if !strings.Contains(out, "providers:") {

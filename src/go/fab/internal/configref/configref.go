@@ -19,8 +19,9 @@
 // (Changes 2-3). See docs/specs/config.md.
 //
 // GENERATED, NOT HAND-WRITTEN. Every default value that has a canonical Go
-// constant is sourced from that constant, never copied — the default provider
-// session command (agent.DefaultSessionCommand), the per-tier default profiles
+// constant is sourced from that constant, never copied — the three built-in
+// providers' command grammars (agent.DefaultSessionCommand and the
+// agent.DefaultCodex*/DefaultGemini* constants), the per-tier default profiles
 // via agent.DefaultTier over agent.TierNames, and the pipeline stage names via
 // agent.StageNames. The dynamic segments (providers, agent.tiers, stage_hooks)
 // interpolate those same constants when the row is built, so the reference text
@@ -38,8 +39,10 @@
 // uniform "no built-in default — the cascade falls back to absent" signal the
 // downstream resolver (Change 2) consumes; distinguishing []string{} from nil
 // would leak an implementation detail with no cascade meaning. A non-nil Default
-// therefore always denotes a real built-in value (the claude provider, the five
-// tier profiles). See docs/specs/config.md § Default semantics.
+// therefore always denotes a real built-in value (the three built-in providers'
+// command grammars, the six tier profiles) — which is why no provider's Default
+// carries a model/effort fill: fab-kit ships none. See docs/specs/config.md
+// § Default semantics.
 //
 // Render() output is BYTE-STABLE for a given binary version: the field table is
 // fixed and ordered, the interpolated tier/stage lists come from the
@@ -194,11 +197,35 @@ type tierProfileDefault struct {
 	Effort   string `json:"effort"`
 }
 
-// providerDefault is the structured canonical default for the providers row: the
-// built-in claude provider with its session command (dispatch_command absent =
-// native Agent-tool dispatch). Sourced from agent.DefaultSessionCommand.
+// providerDefault is the structured canonical default for ONE built-in provider.
+// Both command fields are `omitempty` because a built-in may legitimately carry
+// only one (claude ships no dispatch_command — absent = native Agent-tool
+// dispatch). There are deliberately NO model/effort keys: fab-kit's built-ins are
+// GRAMMAR ONLY, and the registry's empty-default convention says a non-nil Default
+// always denotes a real built-in value — emitting an empty model would assert a
+// built-in fill that does not exist. Sourced from the agent command constants.
 type providerDefault struct {
-	SessionCommand string `json:"session_command"`
+	SessionCommand  string `json:"session_command,omitempty"`
+	DispatchCommand string `json:"dispatch_command,omitempty"`
+}
+
+// providerDefaults is the structured canonical default for the providers row: all
+// three of fab-kit's built-in providers, sourced from the agent constants (never a
+// literal copy). It mirrors internal/agent.defaultProviders — claude with a
+// session command only, codex/gemini with both — so the JSON dump advertises
+// exactly the set `agent.ResolveProvider` resolves with no config.
+func providerDefaults() map[string]providerDefault {
+	return map[string]providerDefault{
+		agent.DefaultProviderName: {SessionCommand: agent.DefaultSessionCommand},
+		"codex": {
+			SessionCommand:  agent.DefaultCodexSessionCommand,
+			DispatchCommand: agent.DefaultCodexDispatchCommand,
+		},
+		"gemini": {
+			SessionCommand:  agent.DefaultGeminiSessionCommand,
+			DispatchCommand: agent.DefaultGeminiDispatchCommand,
+		},
+	}
 }
 
 // tierRow is one resolved tier: its name, its fixed stage grouping (reference
@@ -390,8 +417,8 @@ checklist:
 		},
 		{
 			Key:         "providers",
-			Default:     map[string]providerDefault{agent.DefaultProviderName: {SessionCommand: agent.DefaultSessionCommand}},
-			Description: "Named agent invocation grammars. Each provider MAY carry session_command (interactive session) and dispatch_command (headless stage task); the two are never merged and there is NO fallback between them. Provider names are opaque, user-chosen strings.",
+			Default:     providerDefaults(),
+			Description: "Named agent invocation grammars plus their optional default fill. Each provider MAY carry session_command (interactive session) and dispatch_command (headless stage task) — never merged, no fallback between them — plus optional model/effort fill values that supply the {model}/{effort} placeholders (precedence: invocation flag > tier field > provider fill > empty). fab-kit ships claude, codex, and gemini as grammar-only built-ins (no fill). Provider names are opaque, user-chosen strings.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
 			Segment:     providersSegment(),
@@ -442,44 +469,66 @@ const referenceHeader = `# Full reference of all available options: fab config r
 # commented-out with fab-kit's built-in defaults. Uncomment a block to opt in.
 # Values here are examples/defaults, not your project's settings.`
 
-// providersSegment renders the providers block. The claude session_command is
-// interpolated from agent.DefaultSessionCommand (no literal copy); the codex and
-// gemini blocks are commented starter-template text, and claude's
-// dispatch_command ships commented (uncommenting flips native → CLI dispatch).
+// providersSegment renders the providers block. Every command string is
+// interpolated from its canonical agent constant (no literal copy):
+// agent.DefaultSessionCommand for claude, and the four
+// agent.DefaultCodex*/DefaultGemini* constants for the other two built-ins.
+//
+// Presentation (260805-j3cm): all three providers are BUILT-IN, so codex/gemini
+// are rendered as commented reference-style defaults — the same presentation every
+// other non-overridden default uses — not as uncomment-to-opt-in blocks. The
+// commented form still registers no project override (presence=intent holds for
+// BEHAVIOR: a built-in provider is inert until a tier or flag names it), and
+// whole-block uncommenting still yields valid YAML because all per-provider prose
+// stays above the `providers:` key.
 func providersSegment() string {
-	return "# providers — named agent invocation grammars. Each provider MAY carry two\n" +
-		"# command fields (they are NOT merged — session and dispatch are different\n" +
-		"# invocations of the same binary):\n" +
+	return "# providers — named agent invocation grammars plus their optional default fill.\n" +
+		"# Each provider MAY carry two command fields (they are NOT merged — session and\n" +
+		"# dispatch are different invocations of the same binary):\n" +
 		"#   session_command  — opens an interactive agent SESSION (fab operator /\n" +
 		"#                       fab batch / fab agent). {model}/{effort} placeholders are\n" +
 		"#                       substituted from the resolved tier profile, or from the\n" +
 		"#                       --model/--effort flags on `fab agent --provider <name>`\n" +
-		"#                       (which bypasses tier resolution); the built-in claude\n" +
-		"#                       default below is templated this way. A command carrying\n" +
+		"#                       (which bypasses tier resolution); the built-in commands\n" +
+		"#                       below are all templated this way. A command carrying\n" +
 		"#                       NO placeholder instead gets --model/--effort appended.\n" +
 		"#   dispatch_command — runs ONE headless stage task via fab dispatch. ABSENT →\n" +
 		"#                      native Agent-tool dispatch (the default). There is NO\n" +
 		"#                      fallback from dispatch_command to session_command. fab\n" +
 		"#                      dispatch pipes the stage prompt to the command's STDIN.\n" +
+		"# and two optional fill fields that supply those placeholders by default:\n" +
+		"#   model / effort   — this provider's DEFAULT FILL. Position in the precedence:\n" +
+		"#                      invocation flag > explicit tier field > provider fill >\n" +
+		"#                      empty (empty drops the placeholder's token, so the CLI's\n" +
+		"#                      own default applies). Scope `both`, so a machine-wide fill\n" +
+		"#                      is settable once in ~/.fab-kit/config.yaml.\n" +
 		"# Provider names are opaque, user-chosen strings — fab NEVER infers a provider\n" +
-		"# from a model string. The one footgun (documented, not validated): if you\n" +
-		"# override a tier's model to another provider, override that tier's provider too.\n" +
+		"# from a model string. The cutoff is by provider NAME, not by vendor: a tier that\n" +
+		"# explicitly sets `provider:` to a name differing from the built-in tier's loses\n" +
+		"# that tier's model/effort inheritance and fills its unset fields from THAT\n" +
+		"# provider's own fill, then empty — even when the two names front the same vendor\n" +
+		"# (a second claude entry under another name still loses the inheritance). Pin\n" +
+		"# `model:` on the tier to be explicit.\n" +
 		"#\n" +
-		"# fab-kit ships the claude provider as the built-in default (session_command\n" +
-		"# shown LIVE below). codex and gemini are shown fully commented as a starter\n" +
-		"# TEMPLATE — uncomment and adapt a block to add that provider. Anything whose\n" +
-		"# uncommenting would change default BEHAVIOR ships commented: claude's\n" +
-		"# dispatch_command (uncommenting flips claude's stages from native Agent-tool\n" +
-		"# dispatch to headless CLI dispatch) and the whole codex/gemini blocks (opt-in\n" +
-		"# providers). No new built-in providers are added in Go — codex/gemini are\n" +
-		"# template text only until you uncomment them.\n" +
+		"# fab-kit ships THREE built-in providers — claude (the default), codex, and\n" +
+		"# gemini — as GRAMMAR ONLY: the command templates are built into the binary, but\n" +
+		"# no built-in carries a model/effort fill (non-claude model IDs rot at CLI\n" +
+		"# cadence, so they belong in config, not in a release). Naming codex or gemini in\n" +
+		"# a tier (or via `fab agent --provider` / `fab resolve-agent --provider`) resolves\n" +
+		"# with NO providers: block at all; set providers.<name>.model to pin its fill.\n" +
+		"# Every block below is shown commented because it merely restates a built-in\n" +
+		"# default — except claude's session_command, shown live as the baseline example.\n" +
+		"# Note codex/gemini DO carry a dispatch_command, so naming one flips that tier's\n" +
+		"# stages from native Agent-tool dispatch to headless CLI dispatch; claude's\n" +
+		"# dispatch_command is deliberately absent from the built-in (uncommenting the\n" +
+		"# line below flips claude's stages the same way).\n" +
 		"#\n" +
 		"# Per-provider notes (kept out of the blocks below so uncommenting a whole block\n" +
 		"# yields valid YAML — strip the leading '# ' from every line of a block):\n" +
 		"#   claude.dispatch_command — claude -p reads the prompt from stdin; uncommenting\n" +
 		"#     runs claude's stages as headless CLI processes instead of native sub-agents.\n" +
-		"#   codex — codex exec reads the prompt from stdin. Substitute a current model ID\n" +
-		"#     for {model} (e.g. gpt-5.3-codex); {model}/{effort} come from the tier.\n" +
+		"#   codex — codex exec reads the prompt from stdin. Set providers.codex.model to a\n" +
+		"#     current model ID (e.g. gpt-5.3-codex) — fab ships none and does not validate it.\n" +
 		"#   gemini — no {effort} (the gemini CLI has no reasoning-effort flag) and no -p:\n" +
 		"#     gemini's -p takes prompt TEXT (appended after stdin), whereas fab dispatch\n" +
 		"#     pipes the prompt to stdin, which gemini reads as the prompt in non-TTY mode.\n" +
@@ -488,11 +537,14 @@ func providersSegment() string {
 		"    session_command: '" + agent.DefaultSessionCommand + "'\n" +
 		"    # dispatch_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'\n" +
 		"  # codex:\n" +
-		"  #   session_command: 'codex -m {model} -c model_reasoning_effort={effort}'\n" +
-		"  #   dispatch_command: 'codex exec -m {model} -c model_reasoning_effort={effort}'\n" +
+		"  #   session_command: '" + agent.DefaultCodexSessionCommand + "'\n" +
+		"  #   dispatch_command: '" + agent.DefaultCodexDispatchCommand + "'\n" +
+		"  #   model: gpt-5.3-codex                    # example fill — fab ships no model ID for codex\n" +
+		"  #   effort: high\n" +
 		"  # gemini:\n" +
-		"  #   session_command: 'gemini -m {model}'\n" +
-		"  #   dispatch_command: 'gemini -m {model}'   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)"
+		"  #   session_command: '" + agent.DefaultGeminiSessionCommand + "'\n" +
+		"  #   dispatch_command: '" + agent.DefaultGeminiDispatchCommand + "'   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)\n" +
+		"  #   model: gemini-2.5-pro                   # example fill — fab ships no model ID for gemini"
 }
 
 // agentTiersSegment renders the agent.tiers block. The FIXED stage→tier mapping

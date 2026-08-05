@@ -55,15 +55,31 @@ type StageHook struct {
 //     fields: absence of DispatchCommand signals native dispatch, never "use
 //     SessionCommand".
 //
-// The two fields are deliberately NOT merged into one command: session and
+// The two command fields are deliberately NOT merged into one: session and
 // dispatch are different invocations of the same binary (claude interactive `-n`
 // vs headless `-p`; codex TUI vs `codex exec`), and no single template expresses
 // both. Both strings pass through verbatim — fab applies NO validation against any
 // provider's accepted set (provider neutrality, Constitution Principle I). The
 // {model}/{effort} placeholders are substituted at resolve time via internal/spawn.
+//
+// Model and Effort are the provider's optional DEFAULT FILL for those placeholders
+// (260805-j3cm) — the "extra set of config that fills the templates". They exist
+// because grammar and fill values rot at different rates: fab-kit ships the
+// non-claude grammar as Go built-ins (internal/agent.defaultProviders) but NEVER
+// their model IDs, which change at CLI cadence. Their position in the fill
+// precedence is third:
+//
+//	invocation flag  >  explicit tier field  >  provider default fill  >  empty
+//
+// An empty resolved value keeps its existing meaning (spawn.WithProfile's
+// token-drop → the CLI's own default; an empty resolve-agent `model=` line =
+// "inherit the session model"). Both fields are scope `both`, so a machine-wide
+// fill is settable once in ~/.fab-kit/config.yaml.
 type ProviderConfig struct {
 	SessionCommand  string `yaml:"session_command"`
 	DispatchCommand string `yaml:"dispatch_command"`
+	Model           string `yaml:"model"`
+	Effort          string `yaml:"effort"`
 }
 
 // TierProfile is a named `{provider, model, effort}` agent profile. Every field

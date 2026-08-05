@@ -248,6 +248,85 @@ providers:
 	}
 }
 
+// TestLoad_WithProviderFill (260805-j3cm): the per-provider default-fill fields
+// `model`/`effort` parse off a provider entry, independently of the command fields
+// (a provider entry MAY carry fill only — the commands then inherit the built-in in
+// internal/agent's merge).
+func TestLoad_WithProviderFill(t *testing.T) {
+	isolateSystemConfig(t)
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "project")
+	os.MkdirAll(projectDir, 0o755)
+
+	configYAML := `
+providers:
+  codex:
+    model: gpt-5.3-codex
+    effort: high
+  gemini:
+    model: gemini-2.5-pro
+`
+	os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(configYAML), 0o644)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	codex, ok := cfg.GetProvider("codex")
+	if !ok {
+		t.Fatal("expected a 'codex' provider entry (fill-only is a valid entry)")
+	}
+	if codex.Model != "gpt-5.3-codex" || codex.Effort != "high" {
+		t.Errorf("codex fill = {%q, %q}, want {gpt-5.3-codex, high}", codex.Model, codex.Effort)
+	}
+	if codex.SessionCommand != "" || codex.DispatchCommand != "" {
+		t.Errorf("codex commands = {%q, %q}, want empty here (the built-in merge is internal/agent's job)", codex.SessionCommand, codex.DispatchCommand)
+	}
+
+	// Effort may be omitted independently (gemini has no reasoning-effort knob).
+	gemini, ok := cfg.GetProvider("gemini")
+	if !ok {
+		t.Fatal("expected a 'gemini' provider entry")
+	}
+	if gemini.Model != "gemini-2.5-pro" || gemini.Effort != "" {
+		t.Errorf("gemini fill = {%q, %q}, want {gemini-2.5-pro, \"\"}", gemini.Model, gemini.Effort)
+	}
+}
+
+// TestCascade_ProviderFillFromSystemLayer (260805-j3cm): `providers` is scope
+// `both`, so a machine-wide fill set once in ~/.fab-kit/config.yaml reaches every
+// repo — and a project entry per-key deep-merges over it (the fill value survives a
+// project entry that only sets a command).
+func TestCascade_ProviderFillFromSystemLayer(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, `
+providers:
+  codex:
+    model: gpt-5.3-codex
+    effort: high
+`)
+	fabRoot := writeProjectConfig(t, `
+providers:
+  codex:
+    dispatch_command: 'codex exec --json'
+`)
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	codex, ok := cfg.GetProvider("codex")
+	if !ok {
+		t.Fatal("expected a merged 'codex' provider entry")
+	}
+	if codex.Model != "gpt-5.3-codex" || codex.Effort != "high" {
+		t.Errorf("codex fill = {%q, %q}, want the system layer's {gpt-5.3-codex, high}", codex.Model, codex.Effort)
+	}
+	if codex.DispatchCommand != "codex exec --json" {
+		t.Errorf("codex dispatch_command = %q, want the project layer's override", codex.DispatchCommand)
+	}
+}
+
 func TestGetProvider_NilAndEmptyConfig(t *testing.T) {
 	var nilCfg *Config
 	if _, ok := nilCfg.GetProvider("claude"); ok {

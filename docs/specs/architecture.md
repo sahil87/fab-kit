@@ -223,16 +223,23 @@ checklist:
 # command's STDIN). ABSENT dispatch_command → that provider's stages dispatch
 # natively via the Agent tool (there is NO fallback to session_command, in either
 # direction: --pane likewise never falls back to dispatch_command). fab-kit
-# ships the `claude` provider as the built-in default; codex and gemini are a
-# commented starter TEMPLATE (uncomment to add that provider). Anything whose
-# uncommenting changes default behavior ships commented: claude's dispatch_command
-# (flips claude native→headless CLI dispatch) and the codex/gemini blocks.
+# ships THREE built-in providers — claude (the default), codex, and gemini — as
+# GRAMMAR ONLY: the command templates are in the binary, but no built-in carries a
+# model/effort fill (non-claude model IDs rot at CLI cadence). So naming codex or
+# gemini needs no providers: block at all; the blocks below merely restate a
+# built-in default and therefore ship commented, like every other default. Each
+# provider MAY also carry optional model/effort DEFAULT FILL for the {model}/{effort}
+# placeholders (precedence: invocation flag > tier field > provider fill > empty).
+# claude's dispatch_command ships commented because uncommenting it changes default
+# behavior (flips claude native→headless CLI dispatch); codex/gemini's built-in
+# dispatch_commands mean naming one flips that tier's stages to CLI dispatch.
 # (Automated PR reviewer toggles moved to code-review.md § Review Tools — absent = enabled.)
 # Per-provider notes (kept out of the blocks below so uncommenting a whole block
 # stays valid YAML): claude -p and codex exec both read the prompt from stdin;
-# substitute a current codex model ID for {model} (e.g. gpt-5.3-codex); gemini
-# carries no {effort} (no reasoning-effort flag) and no -p (it reads the
-# stdin-piped prompt in non-TTY mode; -p would take prompt text appended after stdin).
+# set providers.codex.model to a current codex model ID (e.g. gpt-5.3-codex) — fab
+# ships none; gemini carries no {effort} (no reasoning-effort flag) and no -p (it
+# reads the stdin-piped prompt in non-TTY mode; -p would take prompt text appended
+# after stdin).
 providers:
   claude:
     session_command: claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}
@@ -240,9 +247,12 @@ providers:
   # codex:
   #   session_command: codex -m {model} -c model_reasoning_effort={effort}
   #   dispatch_command: codex exec -m {model} -c model_reasoning_effort={effort}
+  #   model: gpt-5.3-codex                 # example fill — fab ships no codex model ID
+  #   effort: high
   # gemini:
   #   session_command: gemini -m {model}
   #   dispatch_command: gemini -m {model}   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)
+  #   model: gemini-2.5-pro                 # example fill — fab ships no gemini model ID
 
 # agent.tiers (optional) is the per-role-model override surface. A tier is a named
 # {provider, model, effort} profile (the invocation command lives on the provider,
@@ -312,7 +322,7 @@ The constitution is the **architectural DNA** of a Fab project. It defines immut
 - Constitution violations found during review are flagged as high-severity issues
 
 **Relationship to `config.yaml`**:
-- `config.yaml` holds **factual project context** (identity, source/test paths, provider session/dispatch commands (`providers:`), agent tiers)
+- `config.yaml` holds **factual project context** (identity, source/test paths, provider session/dispatch commands and default fill (`providers:`), agent tiers)
 - `constitution.md` holds **principles and constraints** (what MUST/SHOULD/MUST NOT happen)
 - Think: config says *what you use*, constitution says *how you use it*
 
