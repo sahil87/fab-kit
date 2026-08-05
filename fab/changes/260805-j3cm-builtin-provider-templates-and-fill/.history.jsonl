@@ -21,3 +21,4 @@
 {"cmd":"fab-continue","event":"command","ts":"2026-08-05T20:01:21Z"}
 {"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-05T20:12:40Z"}
 {"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-05T20:14:49Z"}
+{"event":"review","result":"passed","ts":"2026-08-05T20:23:23Z"}

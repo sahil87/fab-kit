@@ -5,53 +5,53 @@ created_by: sahil-noon
 change_type: feat
 issues: []
 progress:
-    intake: done
-    apply: done
-    review: done
-    hydrate: done
-    ship: done
-    review-pr: active
+  intake: done
+  apply: done
+  review: done
+  hydrate: done
+  ship: done
+  review-pr: done
 plan:
-    generated: true
-    task_count: 23
-    acceptance_count: 32
-    acceptance_completed: 32
+  generated: true
+  task_count: 23
+  acceptance_count: 32
+  acceptance_completed: 32
 confidence:
-    certain: 2
-    confident: 6
-    tentative: 0
-    unresolved: 0
-    score: 4.5
-    fuzzy: true
-    dimensions:
-        signal: 70.0
-        reversibility: 76.3
-        competence: 83.1
-        disambiguation: 77.5
+  certain: 2
+  confident: 6
+  tentative: 0
+  unresolved: 0
+  score: 4.5
+  fuzzy: true
+  dimensions:
+    signal: 70.0
+    reversibility: 76.3
+    competence: 83.1
+    disambiguation: 77.5
 stage_metrics:
-    intake: {started_at: "2026-08-05T13:39:26Z", driver: fab-new, iterations: 1, completed_at: "2026-08-05T15:42:39Z"}
-    apply: {started_at: "2026-08-05T19:32:11Z", driver: fab-fff, iterations: 4, completed_at: "2026-08-05T19:47:09Z"}
-    review: {started_at: "2026-08-05T19:47:09Z", driver: fab-fff, iterations: 4, completed_at: "2026-08-05T20:00:45Z"}
-    hydrate: {started_at: "2026-08-05T20:00:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-05T20:12:40Z"}
-    ship: {started_at: "2026-08-05T20:12:40Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-05T20:14:49Z"}
-    review-pr: {started_at: "2026-08-05T20:14:49Z", driver: git-pr, iterations: 1}
+  intake: {started_at: "2026-08-05T13:39:26Z", driver: fab-new, iterations: 1, completed_at: "2026-08-05T15:42:39Z"}
+  apply: {started_at: "2026-08-05T19:32:11Z", driver: fab-fff, iterations: 4, completed_at: "2026-08-05T19:47:09Z"}
+  review: {started_at: "2026-08-05T19:47:09Z", driver: fab-fff, iterations: 4, completed_at: "2026-08-05T20:00:45Z"}
+  hydrate: {started_at: "2026-08-05T20:00:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-05T20:12:40Z"}
+  ship: {started_at: "2026-08-05T20:12:40Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-05T20:14:49Z"}
+  review-pr: {started_at: "2026-08-05T20:14:49Z", driver: git-pr, iterations: 1, completed_at: "2026-08-05T20:23:23Z", reviewer: '@copilot-pull-request-reviewer[bot]'}
 prs:
-    - https://github.com/sahil87/fab-kit/pull/526
+  - https://github.com/sahil87/fab-kit/pull/526
 change_type_source: explicit
 true_impact:
-    added: 2349
-    deleted: 244
-    net: 2105
-    excluding:
-        added: 1451
-        deleted: 159
-        net: 1292
-    tests:
-        added: 959
-        deleted: 69
-        net: 890
-    computed_at: "2026-08-05T20:14:49Z"
-    computed_at_stage: ship
+  added: 2349
+  deleted: 244
+  net: 2105
+  excluding:
+    added: 1451
+    deleted: 159
+    net: 1292
+  tests:
+    added: 959
+    deleted: 69
+    net: 890
+  computed_at: "2026-08-05T20:14:49Z"
+  computed_at_stage: ship
 summary: Promoted codex/gemini to grammar-only Go built-in providers, added per-provider model/effort default fill with a per-field cross-provider inheritance cutoff (merged-config scope limit documented), and added native-arm-only --provider/--model/--effort overrides to fab resolve-agent.
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-05T20:14:49Z
+last_updated: 2026-08-05T20:23:23Z
