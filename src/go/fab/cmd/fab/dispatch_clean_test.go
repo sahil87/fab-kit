@@ -78,6 +78,23 @@ func TestDispatchClean_Orphans(t *testing.T) {
 	}
 }
 
+// TestDispatchClean_PaneDispatchNeedsNoModeAwareness pins the documented
+// pane-mode `clean` behavior: clean removes state dirs and never inspects a
+// record's mode, so a pane dispatch's dir is removed exactly like a headless
+// one's — and (as with a live headless process) the worker itself is NOT killed,
+// which is why `kill` exists as the separate verb.
+func TestDispatchClean_PaneDispatchNeedsNoModeAwareness(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
+	dir := seedPaneDispatch(t, repoRoot, id, "apply", "%42", "")
+
+	if _, err := runClean(t, "abcd"); err != nil {
+		t.Fatalf("clean over a pane dispatch: %v", err)
+	}
+	if exists(dir) {
+		t.Error("a pane dispatch's state dir should be removed like any other")
+	}
+}
+
 func TestDispatchClean_NoState(t *testing.T) {
 	setupDispatchRepo(t, "sh -c 'exit 0'")
 	// No .fab-dispatch/ dir at all.

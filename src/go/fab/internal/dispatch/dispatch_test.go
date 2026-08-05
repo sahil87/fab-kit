@@ -38,6 +38,130 @@ func TestDeriveState(t *testing.T) {
 	}
 }
 
+// TestDerivePaneState exhausts the pane-mode three-state subset. Two properties
+// are asserted deliberately: result presence WINS over pane liveness (an
+// interactive worker sits at its prompt after finishing, so liveness-first would
+// read `running` forever), and no input combination can produce the two
+// exit-code-derived states — pane mode has no exit-code channel.
+func TestDerivePaneState(t *testing.T) {
+	tests := []struct {
+		name          string
+		resultPresent bool
+		paneAlive     bool
+		want          State
+	}{
+		{"running: alive, no result", false, true, StateRunning},
+		{"orphaned: dead, no result", false, false, StateOrphaned},
+		{"done: result present, pane dead", true, false, StateDone},
+		{"done wins while the pane still lives", true, true, StateDone},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DerivePaneState(tt.resultPresent, tt.paneAlive)
+			if got != tt.want {
+				t.Errorf("DerivePaneState(%v,%v) = %q, want %q",
+					tt.resultPresent, tt.paneAlive, got, tt.want)
+			}
+			if got == StateFailed || got == StateFailedNoResult {
+				t.Errorf("DerivePaneState produced %q, which is unreachable on the pane path", got)
+			}
+		})
+	}
+}
+
+func TestModeAccessors(t *testing.T) {
+	headless := &Dispatch{PID: 10, PGID: 10, SpawnCmd: "codex exec", StartedAt: "t"}
+	if headless.IsPane() {
+		t.Error("a record with no pane id must not read as pane mode")
+	}
+	if got := headless.Mode(); got != ModeHeadless {
+		t.Errorf("Mode() = %q, want %q", got, ModeHeadless)
+	}
+
+	panedisp := &Dispatch{Pane: "%17", Window: "fab-abcd-apply", SpawnCmd: "claude", StartedAt: "t"}
+	if !panedisp.IsPane() {
+		t.Error("a record carrying a pane id must read as pane mode")
+	}
+	if got := panedisp.Mode(); got != ModePane {
+		t.Errorf("Mode() = %q, want %q", got, ModePane)
+	}
+}
+
+func TestWindowNameCarriesNoOperatorMarker(t *testing.T) {
+	got := WindowName("abcd", "apply")
+	if got != "fab-abcd-apply" {
+		t.Errorf("WindowName = %q, want fab-abcd-apply", got)
+	}
+	// The operator's `»` enrollment prefix and `›` done marker assert operator
+	// ownership of a window's lifecycle, which a pipeline dispatch does not have.
+	for _, marker := range []string{"\u00bb", "\u203a"} {
+		if contains(got, marker) {
+			t.Errorf("WindowName = %q, must not carry the operator marker %q", got, marker)
+		}
+	}
+}
+
+func TestPointerPromptNamesThePromptFile(t *testing.T) {
+	got := PointerPrompt(".fab-dispatch/abcd/apply-prompt.md")
+	if !contains(got, ".fab-dispatch/abcd/apply-prompt.md") {
+		t.Errorf("PointerPrompt = %q, want it to name the prompt path", got)
+	}
+	// One line: the pointer is embedded as a single quoted spawn argument, and a
+	// newline in it would break the one-prompt/one-command spawn contract.
+	if contains(got, "\n") {
+		t.Errorf("PointerPrompt = %q, want a single line", got)
+	}
+}
+
+// TestSaveOmitsHeadlessFieldsForPaneRecord pins the on-disk shape of both modes:
+// a headless record carries pid/pgid and NO pane keys (byte-identical to the
+// pre-pane-mode format), and a pane record carries the pane identity and no
+// meaningless `pid: 0`.
+func TestSaveOmitsHeadlessFieldsForPaneRecord(t *testing.T) {
+	base := filepath.Join(t.TempDir(), ".fab-dispatch", "abcd")
+
+	if err := Save(base, "apply", &Dispatch{PID: 7, PGID: 7, SpawnCmd: "codex exec", StartedAt: "t"}); err != nil {
+		t.Fatalf("Save headless: %v", err)
+	}
+	headlessYAML, _ := os.ReadFile(YAMLPath(base, "apply"))
+	for _, key := range []string{"pid:", "pgid:"} {
+		if !contains(string(headlessYAML), key) {
+			t.Errorf("headless record missing %q:\n%s", key, headlessYAML)
+		}
+	}
+	for _, key := range []string{"pane:", "window:", "server:"} {
+		if contains(string(headlessYAML), key) {
+			t.Errorf("headless record must omit %q:\n%s", key, headlessYAML)
+		}
+	}
+
+	if err := Save(base, "review", &Dispatch{
+		Pane: "%17", Window: "fab-abcd-review", Server: "work", SpawnCmd: "claude", StartedAt: "t",
+	}); err != nil {
+		t.Fatalf("Save pane: %v", err)
+	}
+	paneYAML, _ := os.ReadFile(YAMLPath(base, "review"))
+	for _, key := range []string{"pane:", "window:", "server:"} {
+		if !contains(string(paneYAML), key) {
+			t.Errorf("pane record missing %q:\n%s", key, paneYAML)
+		}
+	}
+	for _, key := range []string{"pid:", "pgid:"} {
+		if contains(string(paneYAML), key) {
+			t.Errorf("pane record must omit %q:\n%s", key, paneYAML)
+		}
+	}
+
+	// Round-trip: the derived mode survives a save/load cycle.
+	got, err := Load(base, "review")
+	if err != nil {
+		t.Fatalf("Load pane: %v", err)
+	}
+	if got.Mode() != ModePane || got.Pane != "%17" || got.Window != "fab-abcd-review" || got.Server != "work" {
+		t.Errorf("pane round-trip = %+v", *got)
+	}
+}
+
 func TestWrapperArgv(t *testing.T) {
 	tests := []struct {
 		name       string

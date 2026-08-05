@@ -58,7 +58,9 @@ User invokes /fab-adopt [<slug>]
 │
 ├─ Step 3: Review — dispatched, mode: diff-only (resolve + branch on dispatch= — native Agent tool / CLI adapter)
 │  ├─ Bash: fab resolve-agent review --alias (surface model=/effort=/dispatch=;
-│  │        branch on dispatch= — native or CLI adapter, 260702-aetz)
+│  │        branch on dispatch= — native or CLI adapter, 260702-aetz;
+│  │        --pane within the CLI arm only on an explicit
+│  │        watch-and-steer directive, 260805-zxe0)
 │  ├─ Dispatch /fab-continue Review Behavior, mode: diff-only
 │  │        (prompt carries the block-contract carve-out: no fab status
 │  │         TRANSITION commands, terminal fab status refresh required,

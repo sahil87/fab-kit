@@ -66,6 +66,21 @@ const (
 // dir lives directly under the repository root (filepath.Dir(fabRoot)).
 const DirName = ".fab-dispatch"
 
+// Mode is the launch mechanism a dispatch used. It is DERIVED from the persisted
+// record (see Dispatch.Mode), never stored, so a record written before pane mode
+// existed reads as ModeHeadless without a migration.
+type Mode string
+
+const (
+	// ModeHeadless: the detached `sh -c` wrapper — the default, tmux-independent
+	// path observed via {stage}.exit + pid liveness (the five-state machine).
+	ModeHeadless Mode = "headless"
+	// ModePane: an interactive worker in a tmux window (`fab dispatch start
+	// --pane`), observed via {stage}-result.yaml presence + pane liveness (the
+	// three-state subset — see DerivePaneState).
+	ModePane Mode = "pane"
+)
+
 // File-suffix components. Each per-stage file is "{stage}" + suffix.
 const (
 	promptSuffix = "-prompt.md"
@@ -78,14 +93,64 @@ const (
 // Dispatch is the persisted state of one (change, stage) dispatch — the content
 // of {stage}.yaml. File paths are derived from the dir + stage (see the Path
 // helpers), never stored, so the record stays a pure descriptor of the launched
-// process. Timeout is the --timeout value in seconds, omitted (zero) when unset.
+// worker. Timeout is the --timeout value in seconds, omitted (zero) when unset.
+//
+// The record covers BOTH launch modes with one loader, one save path, and one
+// refuse-if-running check — the mode is DERIVED from which identity fields are
+// populated (see Mode), so there is no stored mode discriminator to fall out of
+// sync with the fields:
+//
+//	headless — PID/PGID identify the detached worker shell; Pane/Window/Server empty
+//	pane     — Pane/Window(/Server) identify the tmux window; PID/PGID unset
+//	           (liveness is a pane property, not a pid property)
+//
+// Every mode-specific field is `omitempty`, so a headless record serializes
+// byte-identically to before pane mode existed and a pane record carries no
+// meaningless `pid: 0`.
 type Dispatch struct {
-	PID       int    `yaml:"pid"`
-	PGID      int    `yaml:"pgid"`
+	PID       int    `yaml:"pid,omitempty"`
+	PGID      int    `yaml:"pgid,omitempty"`
 	SpawnCmd  string `yaml:"spawn_cmd"`
 	StartedAt string `yaml:"started_at"`
 	Timeout   int    `yaml:"timeout,omitempty"`
+	// Pane is the tmux pane ID (e.g. "%17") of an interactive pane dispatch. Its
+	// presence IS the pane-mode signal (see Mode/IsPane).
+	Pane string `yaml:"pane,omitempty"`
+	// Window is the tmux window name the pane dispatch was opened under
+	// (WindowName(id, stage)) — recorded for identification/debugging; the pane
+	// ID is what liveness and kill target.
+	Window string `yaml:"window,omitempty"`
+	// Server is the tmux socket label (`tmux -L <name>`) the pane lives on, empty
+	// for the default socket. Persisted so status/kill reach the same server the
+	// start reached, without the caller re-supplying --server.
+	Server string `yaml:"server,omitempty"`
 }
+
+// IsPane reports whether this record describes an interactive pane dispatch. The
+// pane ID's presence is the signal — a record written before pane mode existed
+// has none and therefore reads as headless.
+func (d *Dispatch) IsPane() bool { return d.Pane != "" }
+
+// Mode returns the derived launch mode (ModePane when a pane ID is recorded, else
+// ModeHeadless).
+func (d *Dispatch) Mode() Mode {
+	if d.IsPane() {
+		return ModePane
+	}
+	return ModeHeadless
+}
+
+// WindowName composes the tmux window name for a pane dispatch:
+// "fab-{4-char-change-id}-{stage}".
+//
+// This is a DEDICATED dispatch-window convention and deliberately carries
+// neither the operator's `»` (U+00BB) enrollment prefix nor its `›` (U+203A)
+// done marker: those assert that a window is in the operator's monitored set and
+// that the operator owns its lifecycle, which a pipeline dispatch does not have.
+// Pre-marking would make the operator's tab bar misreport what it tracks. An
+// operator that genuinely enrolls the window still adds the marker through its
+// own idempotent `fab pane window-name ensure-prefix` primitive.
+func WindowName(id, stage string) string { return "fab-" + id + "-" + stage }
 
 // DirFor returns the .fab-dispatch/{id}/ directory for a change ID, rooted at
 // repoRoot (the repository root, i.e. filepath.Dir(fabRoot)).
@@ -235,6 +300,57 @@ func DeriveState(exitPresent bool, exitCode int, resultPresent, alive bool) Stat
 		return StateDone
 	}
 	return StateFailedNoResult
+}
+
+// DerivePaneState computes the reported status of an INTERACTIVE PANE dispatch —
+// the pure three-state subset (kept free of I/O so it is exhaustively
+// table-testable, exactly like DeriveState):
+//
+//	result present            → done
+//	result absent, pane alive → running
+//	result absent, pane dead  → orphaned
+//
+// Two properties are load-bearing:
+//
+//   - RESULT PRESENCE WINS over pane liveness. An interactive worker never exits
+//     on task completion — it finishes and sits at its prompt — so a
+//     liveness-first rule would report `running` forever. The result file is
+//     already the contract's success token for the other adapters, so reusing it
+//     keeps ONE success definition across all three.
+//   - StateFailed and StateFailedNoResult are UNREACHABLE here. There is no
+//     exit-code channel in pane mode, so a crashed or killed worker collapses
+//     into orphaned. The five state STRINGS stay byte-stable (they are the
+//     cross-adapter contract); a pane dispatch simply emits a subset of three.
+//
+// This is deliberately a separate function rather than extra parameters on
+// DeriveState: the headless five-state machine is a byte-stable documented
+// contract, and threading pane liveness through it would couple two different
+// observation models in one function.
+func DerivePaneState(resultPresent, paneAlive bool) State {
+	if resultPresent {
+		return StateDone
+	}
+	if paneAlive {
+		return StateRunning
+	}
+	return StateOrphaned
+}
+
+// PointerPrompt composes the one-line prompt a pane worker receives at spawn.
+//
+// The FULL stage prompt is never delivered through tmux: a multi-thousand-token
+// prompt cannot ride send-keys or argv reliably, so `start` persists it to
+// {stage}-prompt.md (the same path and writer the headless path uses) and the
+// worker gets a pointer to that path instead. Embedding the pointer at window
+// creation — as the interactive command's single quoted prompt argument, per
+// `_cli-agents.md` § Spawn Composition — also sidesteps the printed-prompt trap
+// entirely: there is no pre-existing input buffer to probe when the window is
+// created with its prompt already attached.
+//
+// promptPath should be REPO-RELATIVE: the window's cwd is the repo root, and a
+// relative path keeps the pointer readable and portable across worktrees.
+func PointerPrompt(promptPath string) string {
+	return "Read " + promptPath + " and execute it."
 }
 
 // Tail returns the last n lines of data (Go-side, no external `tail`). n <= 0

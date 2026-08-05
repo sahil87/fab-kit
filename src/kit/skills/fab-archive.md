@@ -73,7 +73,7 @@ Where `<change>` is the change ID or name from preflight. Pass no `--description
 
 The command handles everything mechanically:
 - **Move**: `fab/changes/{name}/` → `fab/changes/archive/yyyy/mm/{name}/` (date-bucketed)
-- **Dispatch state**: Delete `.fab-dispatch/{id}/` (the change's headless-dispatch state dir) — dispatch artifacts are transient comms, not history, so they are removed on archive (one of the two `fab dispatch` cleanup paths) and **not recreated on restore**. Best-effort: an absent dir is a no-op.
+- **Dispatch state**: Delete `.fab-dispatch/{id}/` (the change's dispatch state dir, shared by both `fab dispatch` modes — headless and `--pane`) — dispatch artifacts are transient comms, not history, so they are removed on archive (one of the two `fab dispatch` cleanup paths) and **not recreated on restore**. Best-effort: an absent dir is a no-op.
 - **Index**: Create/update `fab/changes/archive/index.md` with entry + backfill
 - **Backlog**: Mark the originating backlog item done (`- [ ]` → `- [x]`) by exact change-ID match, in place
 - **Pointer**: Remove `.fab-status.yaml` symlink if this was the active change
