@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 19
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-08-05T19:15:22Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-05T19:21:24Z"}
     review: {started_at: "2026-08-05T19:21:24Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-05T19:31:31Z"}
     hydrate: {started_at: "2026-08-05T19:31:31Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-05T19:36:42Z"}
-    ship: {started_at: "2026-08-05T19:36:42Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-05T19:36:42Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-05T19:40:34Z"}
+    review-pr: {started_at: "2026-08-05T19:40:34Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/525
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 1421
+    deleted: 145
+    net: 1276
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 871
+        deleted: 91
+        net: 780
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-08-05T19:36:42Z"
-    computed_at_stage: hydrate
+        added: 563
+        deleted: 24
+        net: 539
+    computed_at: "2026-08-05T19:40:34Z"
+    computed_at_stage: ship
 summary: fab dispatch start resolves its launch mode from an explicit-first ladder ending in auto ($TMUX ⇒ pane, else headless), adds --headless as the opt-out, and soft-falls-back to headless when an auto-selected pane lacks a reachable tmux server or a session_command
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-05T19:36:42Z
+last_updated: 2026-08-05T19:40:34Z
