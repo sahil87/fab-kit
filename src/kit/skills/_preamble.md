@@ -116,7 +116,7 @@ helpers: [_generation, _review, _srad, _pipeline]
 ---
 ```
 
-**Allowed values**: `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_srad`, `_pipeline`, `_intake`.
+**Allowed values**: `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`.
 
 **Not allowed** (inlined into this preamble): `_naming`, `_cli-rk`.
 

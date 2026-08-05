@@ -249,6 +249,34 @@ func TestConfigReferenceMentionsCommandPlaceholders(t *testing.T) {
 	}
 }
 
+// TestConfigReferenceDocumentsBothSubstitutionSources is the nvad contract: the
+// session_command comment must name BOTH sources of the {model}/{effort}
+// substitution — the resolved tier profile (tier path) and the --model/--effort
+// flags on `fab agent --provider <name>`, which bypasses tier resolution. This
+// literal renders into every project's config.yaml reference fence, so a
+// tier-only claim there is a user-facing documentation inaccuracy.
+func TestConfigReferenceDocumentsBothSubstitutionSources(t *testing.T) {
+	out, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+	// The rendered comment is hard-wrapped with "# " prefixes, so assert on
+	// within-line phrases rather than a spanning sentence.
+	for _, phrase := range []string{
+		"substituted from the resolved tier profile, or from the",
+		"--model/--effort flags on `fab agent --provider <name>`",
+		"(which bypasses tier resolution)",
+	} {
+		if !strings.Contains(out, phrase) {
+			t.Errorf("session_command comment must document %q (both substitution sources)", phrase)
+		}
+	}
+	// The superseded tier-only claim must not survive anywhere in the reference.
+	if strings.Contains(out, "substituted from the resolved tier profile (the built-in") {
+		t.Error("session_command comment still carries the tier-only substitution claim")
+	}
+}
+
 // TestConfigReferenceDocumentsProviders guards that the generated reference
 // documents the providers table with both command fields and the load-bearing
 // no-cross-fallback semantic (absent dispatch_command → native dispatch; NO

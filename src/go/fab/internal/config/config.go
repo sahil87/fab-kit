@@ -426,6 +426,22 @@ func (c *Config) GetProvider(name string) (ProviderConfig, bool) {
 	return p, ok
 }
 
+// ProviderNames returns the provider names configured in the project's
+// `providers:` block, in unspecified order (callers that need stability sort).
+// Nil-safe: a nil *Config or an absent providers block yields nil. Callers that
+// want the RESOLVABLE set (project ∪ fab-kit's built-in table) use
+// internal/agent.ProviderNames, which owns the built-in table.
+func (c *Config) ProviderNames() []string {
+	if c == nil || c.Providers == nil {
+		return nil
+	}
+	names := make([]string, 0, len(c.Providers))
+	for name := range c.Providers {
+		names = append(names, name)
+	}
+	return names
+}
+
 // GetAgentTier returns the configured override profile for a tier name and
 // whether one was set. Nil-safe: a nil *Config, an absent agent.tiers block, or
 // an unconfigured tier all report (zero, false). The bool lets a caller
