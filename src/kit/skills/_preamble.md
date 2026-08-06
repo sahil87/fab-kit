@@ -345,7 +345,7 @@ This is the **canonical** cross-harness dispatch procedure. Dispatch sites (`_pi
 
 **CLI-adapter procedure** (when `dispatch=` is present):
 
-1. **Start.** `fab dispatch start <change> <stage>` with the full stage prompt on **stdin** — the same block prompt the Agent tool would receive, composed per § Dispatch-Prompt Obligations below. `start` resolves the tier → provider → `dispatch_command` internally and launches it detached. **No `--timeout` in v1** (orphan detection + `fab dispatch kill` cover the failure modes).
+1. **Start.** `fab dispatch start <change> <stage>` with the full stage prompt on **stdin** — the same block prompt the Agent tool would receive, composed per § Dispatch-Prompt Obligations below. `start` resolves the tier → provider → `dispatch_command` internally and launches it detached. **The wiring passes no `--timeout`** — the flag exists on `start`/`restart` (a POSIX `timeout` inside the headless wrapper; see `_cli-fab.md` § start), but the pipeline sets no default bound, because orphan detection, peek-on-suspicion, and `fab dispatch kill` cover the failure modes. Pass one only on an explicit directive.
 2. **Poll.** `fab dispatch status <change> <stage>` with `sleep 30` between polls (fixed cadence, no backoff in v1) until a terminal state.
 3. **Five-state handling** (observed via `fab dispatch status`) — a dispatch that does not reach `done` gets **bounded recovery** rather than an unconditional stop, per § Recovery policy below:
    - `running` → keep polling — **and take a read-only peek every 10th result-less poll** (§ Recovery policy → *Peek on suspicion*), since a wedged or parked worker reads `running` forever.
