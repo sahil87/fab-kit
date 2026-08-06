@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "Smart context loading convention — the 7-file always-load layer (skill file wins; rule-derived exceptions), opt-in `helpers:` + stage-conditional loading, standard subagent context, selective up-to-3-hop domain loading, the SRAD pointer, the Next Steps Convention, and the non-zero-exit STOP rule. Per-stage model resolution at the dispatch seam: model via the Agent `model` param, effort via a prompt line, `dispatch=` branching native vs CLI dispatch (mode auto-resolves from `$TMUX`), and native-arm-only override flags."
+description: "Smart context loading convention — the 7-file always-load layer (skill file wins; rule-derived exceptions), opt-in `helpers:` + stage-conditional loading, standard subagent context, up-to-3-hop domain loading, SRAD pointer, Next Steps Convention, and non-zero-exit STOP rule. Per-stage model resolution at the dispatch seam: model via the Agent `model` param, effort via a prompt line, `dispatch=` branching native vs CLI dispatch (mode auto-resolves from `$TMUX`), native-arm-only override flags."
 ---
 # Context Loading
 
