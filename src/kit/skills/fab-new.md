@@ -76,12 +76,12 @@ git status --porcelain | grep -v "fab/changes/{name}/" | wc -l                  
 git rev-parse --verify "{name}" >/dev/null 2>&1                                            # does the target branch exist locally?
 git rev-parse --verify "origin/{name}" >/dev/null 2>&1                                     # does it exist on the remote?
 upstream=$(git config "branch.$(git branch --show-current).remote" 2>/dev/null || true)    # empty = local-only branch
-fab change resolve "$(git branch --show-current)" 2>/dev/null                              # which change (if any) does the current branch belong to?
+fab resolve --folder "$(git branch --show-current)" --or-none                              # which change (if any) does the current branch belong to? "(none)" = none
 ```
 
 > **fab-new-specific `{dirty_count}` derivation**: the porcelain count excludes `fab/changes/{name}/` — this change's own just-created artifacts (`intake.md`, `.status.yaml`, `.history.jsonl`) always exist uncommitted by Step 11, so counting them would fire the dirty-tree note on every run. Only *pre-existing* uncommitted work should trigger the note.
 
-<!-- Keep this table in sync with git-branch.md Step 4 — same cases, same commands, same report strings (incl. the rename guard, the remote-only --track case, and the dirty-tree note). One deliberate divergence lives OUTSIDE the shared rows: fab-new derives {dirty_count} excluding fab/changes/{name}/ (see the derivation note above); git-branch counts the full porcelain output. -->
+<!-- Keep this table in sync with git-branch.md Step 4 — same cases, same commands, same report strings (incl. the rename guard, the remote-only --track case, and the dirty-tree note). Two deliberate divergences: fab-new derives {dirty_count} excluding fab/changes/{name}/ (see the derivation note above) while git-branch counts the full porcelain output; and fab-new's rename-guard probe is the token-branching `fab resolve --folder … --or-none` (`(none)` vs a folder name — 260720-dow0) while git-branch keeps the strict exit-code form `fab change resolve … 2>/dev/null` (not migrated — its bare no-argument resolution is a hard stop by design). -->
 
 **Evaluate in order, first match wins:**
 
@@ -91,8 +91,8 @@ fab change resolve "$(git branch --show-current)" 2>/dev/null                   
 | 2 | Target branch `{name}` exists locally (`git rev-parse --verify "{name}"` succeeds) | `git checkout "{name}"` | `Branch: {name} (checked out)` |
 | 3 | Target exists only on the remote (`origin/{name}` verify succeeds) — do NOT recreate a divergent local | `git checkout --track "origin/{name}"` | `Branch: {name} (checked out, tracking origin/{name})` |
 | 4 | On `main` or `master` | `git checkout -b "{name}"` | `Branch: {name} (created)` |
-| 5 | Local-only branch (`upstream` empty) AND the **rename guard** passes: the current branch belongs to no change (`fab change resolve` fails — e.g., a disposable `wt create` name) or resolves to this SAME change (e.g., a worktree placeholder named with the change's own ID) | `git branch -m "{name}"` | `Branch: {name} (renamed from {old_branch})` |
-| 6 | Local-only branch belonging to a different change (`fab change resolve` succeeds with another change — e.g., after `/fab-switch`; do NOT rename it away, caveat: the new branch inherits the old change's HEAD) OR pushed branch (`upstream` non-empty) | `git checkout -b "{name}"` | `Branch: {name} (created, leaving {old_branch} intact)` |
+| 5 | Local-only branch (`upstream` empty) AND the **rename guard** passes: the current branch belongs to no change (the probe prints `(none)` — e.g., a disposable `wt create` name) or resolves to this SAME change (e.g., a worktree placeholder named with the change's own ID) | `git branch -m "{name}"` | `Branch: {name} (renamed from {old_branch})` |
+| 6 | Local-only branch belonging to a different change (the probe prints another change's folder — e.g., after `/fab-switch`; do NOT rename it away, caveat: the new branch inherits the old change's HEAD) OR pushed branch (`upstream` non-empty) | `git checkout -b "{name}"` | `Branch: {name} (created, leaving {old_branch} intact)` |
 
 > **Dirty-tree note** (non-blocking — never prompt, never stash): when `{dirty_count}` > 0 AND the matched row runs `git checkout -b` or `git branch -m`, the uncommitted work rides onto the new branch. Append to the report line: ` — note: {dirty_count} uncommitted change(s) carried over from {old_branch}`.
 

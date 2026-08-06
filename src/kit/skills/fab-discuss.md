@@ -29,8 +29,8 @@ Do **not** run preflight. Do **not** load change-specific artifacts.
 
 After loading the always-load layer, check for an active change:
 
-1. Run `fab resolve --folder 2>/dev/null` — if it exits non-zero, note "No active change"
-2. If resolution succeeds, use the returned folder name to read `fab/changes/{name}/.status.yaml` and derive the current stage from its `progress` map — the stage holding `active` or `ready` (or `failed` for a parked review/review-pr); all stages `done`/`skipped` means the change is complete
+1. Run `fab resolve --folder --or-none` — if it prints `(none)`, note "No active change" (an expected state, not an error; a non-zero exit is a real error — surface it per `_preamble.md`'s failure rule)
+2. If it prints a folder name, use it to read `fab/changes/{name}/.status.yaml` and derive the current stage from its `progress` map — the stage holding `active` or `ready` (or `failed` for a parked review/review-pr); all stages `done`/`skipped` means the change is complete
 3. Do **not** load change artifacts (intake, spec, plan)
 
 ---
@@ -50,7 +50,7 @@ This is best-effort — the command always exits 0 (failures surface only as a s
 ## Behavior
 
 1. Load the always-load layer per `_preamble.md` §1 (skip optional files gracefully)
-2. Resolve active change via `fab resolve`
+2. Resolve active change via `fab resolve --folder --or-none` (`(none)` ⇒ no active change)
 3. Output the **Orientation Summary** (see format below)
 
 ---

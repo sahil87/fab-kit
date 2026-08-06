@@ -29,8 +29,9 @@ User invokes /fab-adopt [<slug>]
 │  ├─ Bash: gh pr view --json number,state,url
 │  │        → MERGED → STOP (scenario A, out of scope)
 │  │        → OPEN / none → proceed (capture {pr_state}, {pr_url}, {pr_number})
-│  ├─ Collision guard: fab change resolve "$(git branch --show-current)"
-│  │        succeeds → STOP (already in the pipeline → /fab-continue)
+│  ├─ Collision guard: fab resolve --folder "$(git branch --show-current)" --or-none
+│  │        prints a folder name (≠ "(none)") → STOP
+│  │        (already in the pipeline → /fab-continue; 260720-dow0)
 │  └─ Bash: base=$(git merge-base HEAD origin/{default});
 │           git diff {base}...HEAD + --name-only
 │           empty diff → STOP (nothing to adopt)
