@@ -132,15 +132,7 @@ func runAgent(cmd *cobra.Command, tier, provider string, providerSet bool, model
 
 	prov, known := agent.ResolveProvider(cfg, providerName)
 	if providerSet && !known {
-		// The hint names a config key path, so an explicitly-empty `--provider=`
-		// would otherwise render the malformed `providers.` — substitute a
-		// placeholder so the suggested path is always a valid key.
-		hintName := providerName
-		if hintName == "" {
-			hintName = "<name>"
-		}
-		return fmt.Errorf("unknown provider %q (available: %s); configure it under providers.%s in fab/project/config.yaml",
-			providerName, strings.Join(agent.ProviderNames(cfg), ", "), hintName)
+		return unknownProviderError(cfg, providerName)
 	}
 	if !known || prov.SessionCommand == "" {
 		if providerSet {
@@ -161,6 +153,29 @@ func runAgent(cmd *cobra.Command, tier, provider string, providerSet bool, model
 	// at invocation time and the agent CLI replaces this process. No TTY guard:
 	// the agent CLI surfaces its own error when stdin is not a terminal.
 	return syscall.Exec("/bin/sh", []string{"/bin/sh", "-c", resolvedCmd}, os.Environ())
+}
+
+// unknownProviderError is the shared `--provider <name>` LOOKUP failure for the
+// two commands that accept the flag (`fab agent`'s provider-addressed mode and
+// `fab resolve-agent`'s invocation-time override). Both need byte-identical
+// phrasing — the error is a user-facing contract documented once in
+// `_cli-fab.md` — so it lives here rather than being restated at each call site.
+//
+// It is a lookup failure, NOT validation of the resolved command's content
+// (document-don't-validate stands). The `providers.<name>` hint names a config key
+// path, so an explicitly-empty `--provider=` would otherwise render the malformed
+// `providers.` — a `<name>` placeholder is substituted so the suggested path is
+// always a valid key.
+//
+// Callers gate on cobra's Flag.Changed (the flag was SUPPLIED) together with a
+// failed agent.ResolveProvider lookup; this helper only formats the error.
+func unknownProviderError(cfg *config.Config, name string) error {
+	hintName := name
+	if hintName == "" {
+		hintName = "<name>"
+	}
+	return fmt.Errorf("unknown provider %q (available: %s); configure it under providers.%s in fab/project/config.yaml",
+		name, strings.Join(agent.ProviderNames(cfg), ", "), hintName)
 }
 
 // loadRepoConfig loads the config from an explicit repo root (--repo) or the

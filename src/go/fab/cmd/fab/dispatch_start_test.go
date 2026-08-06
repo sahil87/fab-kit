@@ -54,7 +54,16 @@ func setupDispatchRepoWithCommands(t *testing.T, dispatchCmd, sessionCmd string)
 		if sessionCmd != "" {
 			body += "    session_command: \"" + sessionCmd + "\"\n"
 		}
-		body += "agent:\n  tiers:\n    doing: { provider: cli }\n"
+		// The tier PINS the doing-tier default profile explicitly. `cli` is a
+		// cross-provider switch (the built-in doing tier names claude), and a tier
+		// that switches provider no longer inherits the built-in's model/effort
+		// (260805-j3cm's cross-provider cutoff — an inherited claude model would be
+		// the footgun that fix closes). Pinning the same values the built-in carries
+		// keeps every dispatch test's expectation ("the resolved doing-tier profile
+		// rides the spawn command") true and still derived from the canonical map, so
+		// a model bump does not touch these tests.
+		doingDefault, _ := agent.DefaultTier(agent.TierDoing)
+		body += "agent:\n  tiers:\n    doing: { provider: cli, model: " + doingDefault.Model + ", effort: " + doingDefault.Effort + " }\n"
 	}
 	mustWrite(t, filepath.Join(projectDir, "config.yaml"), body)
 

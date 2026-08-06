@@ -72,11 +72,39 @@ func TestAgentPrintOperatorTier(t *testing.T) {
 }
 
 // TestAgentPrintTemplatedSessionCommand: a templated session_command has the
-// default profile substituted (not appended); no literal braces survive.
+// resolved profile substituted (not appended); no literal braces survive. The tier
+// pins the model/effort because `codex` is a cross-provider switch off the
+// claude-shaped default tier, and such a tier no longer inherits the built-in's
+// model/effort (260805-j3cm) — the fill comes from the tier, a provider fill, or a
+// flag.
 func TestAgentPrintTemplatedSessionCommand(t *testing.T) {
 	agentTestRepo(t, `providers:
   codex:
     session_command: "codex -m {model} -c model_reasoning_effort={effort}"
+agent:
+  tiers:
+    default: { provider: codex, model: gpt-5.3-codex, effort: high }
+`)
+	out, err := runAgentPrint(t)
+	if err != nil {
+		t.Fatalf("agent --print: %v", err)
+	}
+	want := "codex -m gpt-5.3-codex -c model_reasoning_effort=high\n"
+	if out != want {
+		t.Errorf("output = %q, want %q", out, want)
+	}
+}
+
+// TestAgentPrintProviderFillSuppliesTemplate (260805-j3cm): a cross-provider tier
+// that pins no model/effort takes them from the named provider's DEFAULT FILL
+// (`providers.<name>.model`/`.effort`) — the "extra set of config that fills the
+// templates". This is the fill-precedence rung between an explicit tier field and
+// empty.
+func TestAgentPrintProviderFillSuppliesTemplate(t *testing.T) {
+	agentTestRepo(t, `providers:
+  codex:
+    model: gpt-5.3-codex
+    effort: high
 agent:
   tiers:
     default: { provider: codex }
@@ -85,9 +113,30 @@ agent:
 	if err != nil {
 		t.Fatalf("agent --print: %v", err)
 	}
-	want := "codex -m claude-fable-5 -c model_reasoning_effort=high\n"
+	// The command grammar comes from the codex BUILT-IN (no session_command
+	// configured), the fill from the provider entry.
+	want := "codex -m gpt-5.3-codex -c model_reasoning_effort=high\n"
 	if out != want {
-		t.Errorf("output = %q, want %q", out, want)
+		t.Errorf("output = %q, want the built-in codex grammar filled from providers.codex %q", out, want)
+	}
+}
+
+// TestAgentPrintBuiltinCodexNoFill (260805-j3cm): naming the codex BUILT-IN with no
+// fill anywhere composes a bare `codex` — the cross-provider cutoff leaves
+// model/effort empty and WithProfile drops each placeholder's token plus its
+// preceding flag, so the installed CLI's own default model applies. Crucially it
+// does NOT leak the claude-shaped default-tier model across the provider switch.
+func TestAgentPrintBuiltinCodexNoFill(t *testing.T) {
+	agentTestRepo(t, `agent:
+  tiers:
+    default: { provider: codex }
+`)
+	out, err := runAgentPrint(t)
+	if err != nil {
+		t.Fatalf("agent --print: %v", err)
+	}
+	if out != "codex\n" {
+		t.Errorf("output = %q, want a bare \"codex\\n\" (no fill configured; no claude model inherited)", out)
 	}
 }
 
@@ -122,20 +171,23 @@ func TestAgentPrintUnknownTierErrors(t *testing.T) {
 }
 
 // TestAgentPrintNoSessionCommandErrors: a resolved provider with no
-// session_command (and not the built-in claude) errors with a config-key hint.
+// session_command errors with a config-key hint. The fixture uses a project-only
+// provider (`myagent`) — every BUILT-IN provider now carries a session_command
+// (claude, codex, gemini — 260805-j3cm), so only a user-defined dispatch-only
+// provider can reach this error.
 func TestAgentPrintNoSessionCommandErrors(t *testing.T) {
 	agentTestRepo(t, `providers:
-  codex:
-    dispatch_command: "codex exec"
+  myagent:
+    dispatch_command: "myagent run"
 agent:
   tiers:
-    default: { provider: codex }
+    default: { provider: myagent }
 `)
 	_, err := runAgentPrint(t)
 	if err == nil {
 		t.Fatal("expected an error when the resolved provider has no session_command")
 	}
-	if !strings.Contains(err.Error(), "providers.codex.session_command") {
+	if !strings.Contains(err.Error(), "providers.myagent.session_command") {
 		t.Errorf("error = %q, want the config-key hint", err.Error())
 	}
 }
@@ -371,18 +423,43 @@ func TestAgentUnknownProviderNamesAvailable(t *testing.T) {
 
 // TestAgentProviderNoSessionCommandErrors: a provider that resolves but carries no
 // session_command errors with the config-key hint (the provider-path counterpart of
-// TestAgentPrintNoSessionCommandErrors).
+// TestAgentPrintNoSessionCommandErrors). Uses a project-only dispatch-only provider
+// for the same reason: all three built-ins now ship a session_command.
 func TestAgentProviderNoSessionCommandErrors(t *testing.T) {
 	agentTestRepo(t, `providers:
-  codex:
-    dispatch_command: "codex exec"
+  myagent:
+    dispatch_command: "myagent run"
 `)
-	_, err := runAgentPrint(t, "--provider", "codex")
+	_, err := runAgentPrint(t, "--provider", "myagent")
 	if err == nil {
 		t.Fatal("expected an error when the named provider has no session_command")
 	}
-	if !strings.Contains(err.Error(), "providers.codex.session_command") {
+	if !strings.Contains(err.Error(), "providers.myagent.session_command") {
 		t.Errorf("error = %q, want the config-key hint", err.Error())
+	}
+}
+
+// TestAgentProviderBuiltinCodexNoConfig (260805-j3cm): `fab agent --provider codex`
+// works with NO providers: block at all — codex is a built-in. With no --model the
+// composition drops both placeholder tokens, so a bare `codex` results and the
+// installed CLI's own default model applies.
+func TestAgentProviderBuiltinCodexNoConfig(t *testing.T) {
+	agentTestRepo(t, "project:\n  name: test\n")
+
+	out, err := runAgentPrint(t, "--provider", "codex")
+	if err != nil {
+		t.Fatalf("agent --provider codex --print: %v", err)
+	}
+	if out != "codex\n" {
+		t.Errorf("output = %q, want a bare \"codex\\n\" from the built-in grammar", out)
+	}
+
+	out, err = runAgentPrint(t, "--provider", "gemini", "--model", "gemini-2.5-pro")
+	if err != nil {
+		t.Fatalf("agent --provider gemini --print: %v", err)
+	}
+	if out != "gemini -m gemini-2.5-pro\n" {
+		t.Errorf("output = %q, want the built-in gemini grammar with the model substituted", out)
 	}
 }
 

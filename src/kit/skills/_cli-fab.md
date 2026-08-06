@@ -264,12 +264,22 @@ The five output-mode flags are **mutually exclusive** — passing two (e.g. `--s
 Pure query (no side effects) — resolves a pipeline **stage** (or a role **tier** name) to its `{provider, model, effort}` agent profile for sub-agent dispatch. Consumed by the orchestrators (`/fab-ff`, `/fab-fff`, `/fab-proceed`) and `/fab-continue`'s sub-agent dispatch, which call it immediately before dispatching each stage's sub-agent, and by `fab agent` / the operator launcher (tier-name resolution).
 
 ```
-fab resolve-agent <stage|tier> [--alias]
+fab resolve-agent <stage|tier> [--alias] [--provider <name>] [--model <id>] [--effort <level>]
 ```
 
 The positional argument is either one of the six pipeline stages (`intake`, `apply`, `review`, `hydrate`, `ship`, `review-pr`) or one of the six role-tier names (`default`, `operator`, `doing`, `review`, `hydrate`, `fast`). A tier name is accepted positionally alongside a stage name: a stage maps through the fixed stage→tier mapping; a tier resolves directly. The two name sets overlap only at **fixed points** — a name shared by a stage and a tier (`review`, `hydrate`) is one where the stage maps to that same-named tier (`stageTiers[name] == name`), so tier-first dispatch resolves such a name identically either way. (`ship` is a stage but not a tier — it maps to the `fast` tier.)
 
 **Resolution**: maps a stage → its tier via the FIXED fab-owned stage→tier mapping (`default`: intake (advisory) / `doing`: apply, review-pr / `review`: review / `hydrate`: hydrate / `fast`: ship — NOT user-overridable), then resolves the tier → `{provider, model, effort}`: the project's `agent.tiers.<tier>` override **per-field merged** over the project's `default` tier, over fab-kit's built-in default (`default`: claude/claude-fable-5/high, `operator`: claude/claude-sonnet-5/medium, `doing`: claude/claude-opus-5/xhigh, `review`: claude/claude-opus-5/xhigh, `hydrate`: claude/claude-opus-5/high, `fast`: claude/claude-sonnet-5/medium). `agent.tiers` is the sole tier-override surface (no `stage_tiers`, no per-stage escape hatch); the command grammar lives in the top-level `providers:` table. See `docs/specs/stage-models.md`.
+
+**Fill precedence** — where the resolved `{model, effort}` comes from, most specific first:
+
+```
+invocation flag  >  explicit tier field  >  named provider's default fill  >  empty
+```
+
+The provider fill rung is `providers.<name>.model` / `.effort` (see § fab config → `providers`); `empty` keeps its existing meaning (an empty `model=` line = "inherit the session model"; on a `dispatch=` command the placeholder's token, plus a preceding `-`-flag, is dropped so the CLI's own default applies).
+
+**Cross-provider fill (the footgun fix)**: when a tier **explicitly sets `provider:`** to a provider **NAME** differing from the built-in tier's, its unset `model`/`effort` fill from **that provider's** default fill and then empty — **never** from the built-in/default-tier values, which belong to the other provider name. The cutoff is **name-based, not vendor-based**: fab compares the two provider names and knows nothing about which vendor a name fronts, so a second entry naming the same vendor under a different name (say `providers.claude-alt`) also loses the tier's model/effort inheritance. A tier that sets no `provider:` inherits exactly as before, and the all-claude default world is byte-unchanged. So `agent.tiers.doing: { provider: codex }` with no `providers.codex.model` resolves an empty `model=` (not a claude model). Pin `model:` on the tier to be explicit.
 
 **Output** (a `model=` line always, then optional `effort=`, `provider=`, and `dispatch=` lines; byte-stable for the same config):
 
@@ -297,18 +307,48 @@ model=opus
 effort=xhigh
 provider=claude
 
-# with the doing tier pointing at a provider that has a dispatch_command
-# (apply ∈ doing) — the dispatch= line appears, aliased model= but full-ID dispatch=:
+# with the doing tier pinned to a dispatch-carrying provider
+# (`agent.tiers.doing: { provider: codex, model: gpt-5.3-codex, effort: high }`) —
+# the dispatch= line appears; --alias leaves a non-Claude model= verbatim:
 $ fab resolve-agent apply --alias
-model=opus
-effort=xhigh
+model=gpt-5.3-codex
+effort=high
 provider=codex
-dispatch=codex exec -m claude-opus-5 -c model_reasoning_effort=xhigh
+dispatch=codex exec -m gpt-5.3-codex -c model_reasoning_effort=high
 ```
 
-**No validation — verbatim pass-through**: `fab resolve-agent` does NOT validate the provider, model, or effort against any provider's accepted set (provider neutrality — a fab-kit design principle). It echoes the strings as-is — `xhigh`, `reasoning_effort:high`, an empty effort, whatever. A misconfigured pair (e.g. Sonnet + `xhigh`) is NOT corrected by fab; it surfaces as a dispatch-time error in the harness. There is no effort-enum enforcement and no degrade-gracefully drop.
+**Invocation-time overrides** — `--provider <name>`, `--model <id>`, `--effort <level>` are the top rung of the fill precedence above:
 
-**Exit code**: non-zero only on a real error — an unreadable/malformed config, or an unknown stage/tier name. A stage/tier resolving to a default is success (exit 0).
+- **`--provider`** swaps the resolved provider and **re-derives `dispatch=` from the NAMED provider's `dispatch_command`** — so the emitted `dispatch=` presence can differ from the stage's unoverridden one. That is a **query result, not an adapter move**: `fab dispatch start` accepts no override flags and re-resolves the stage from config itself, so only a **config/tier** override (`agent.tiers.<tier>.provider` + a `providers:` entry) actually relocates a stage between native Agent-tool dispatch and CLI dispatch. An override-only `dispatch=` line is not actionable, and the two remedies are **not interchangeable**: dispatching the stage natively with the overridden model/effort works only for a **within-claude** `--model`/`--effort` override (the native seam is the Agent tool's `model` param, a Claude-alias enum), so for a cross-provider `--provider` override the config/tier override above is the **sole executable path** (see § fab dispatch and `_preamble.md` § Per-Stage Model Resolution). A swap does **not** retain the tier's `model`/`effort` (they belong to the old provider): an unoverridden field refills from the new provider's default fill, then empty — the same cross-provider rule tier resolution applies, and the same **name-based** comparison (a swap to a differently-named provider fronting the same vendor still drops the tier's model/effort). **Swapping *back* to `claude` from a non-claude tier lands on an empty `model=`**: claude's fill lives on the **built-in tiers**, not on the provider, so there is no `providers.claude.model` rung for the swap to refill from. So "run this one stage on claude" needs an explicit `--model` alongside `--provider claude` (or a `providers.claude.model` fill added to config) — otherwise the stage inherits the session model. (`--provider claude` against a tier that *already* resolves to claude is not a swap at all — nothing refills and the tier's model stands.)
+- **`--model` / `--effort` are valid WITHOUT `--provider`** here — a within-tier override of the profile this pure query would otherwise print. **Deliberate asymmetry with `fab agent`**, where they stay a usage error without `--provider`: `resolve-agent` is a pure query whose whole output is a profile (overriding one field is unambiguous), while `fab agent` is a session launcher with two mutually exclusive addressing modes, where a bare `--model` would invent an undocumented tier-override surface. See § fab agent.
+- All three guards key on whether the flag was **supplied** (not on value emptiness), so `--model=` explicitly clears the model (emitting the inherit signal) rather than being ignored.
+- **An unknown `--provider` name is a LOOKUP failure** — non-zero exit naming the resolvable set (fab-kit's built-in table ∪ the project's `providers:` keys, sorted), mirroring `fab agent`'s error. It is not validation of any command's content: resolved strings still pass through verbatim.
+
+```
+# swap a single stage onto codex for this run (no config change):
+$ fab resolve-agent review --provider codex --model gpt-5.3-codex --effort high
+model=gpt-5.3-codex
+effort=high
+provider=codex
+dispatch=codex exec -m gpt-5.3-codex -c model_reasoning_effort=high
+
+# no fill configured for the swapped-to provider → empty model, no effort line,
+# and both placeholder tokens drop out of the dispatch command:
+$ fab resolve-agent apply --provider codex
+model=
+provider=codex
+dispatch=codex exec
+
+# a bare within-tier override (valid here; a usage error on `fab agent`):
+$ fab resolve-agent apply --effort medium
+model=claude-opus-5
+effort=medium
+provider=claude
+```
+
+**No validation — verbatim pass-through**: `fab resolve-agent` does NOT validate the provider, model, or effort against any provider's accepted set (provider neutrality — a fab-kit design principle). It echoes the strings as-is — `xhigh`, `reasoning_effort:high`, an empty effort, whatever. A misconfigured pair (e.g. Sonnet + `xhigh`) is NOT corrected by fab; it surfaces as a dispatch-time error in the harness. There is no effort-enum enforcement and no degrade-gracefully drop. (An unknown `--provider` NAME is the one lookup-shaped exception above — naming the resolvable set is not validating a command's content.)
+
+**Exit code**: non-zero only on a real error — an unreadable/malformed config, an unknown stage/tier name, or a supplied `--provider` that resolves to no provider. A stage/tier resolving to a default is success (exit 0).
 
 ---
 
@@ -341,7 +381,9 @@ Only the `--json` flag; no positional arguments (`fab config reference extra-arg
 
 **`--json`**: emits the same field table as a flat, deterministic JSON array (table/rendering order) — per-field objects `{key, default, description, scope, advertise, renamed_from}` with `renamed_from` omitted when empty (empty on every row today). This is the tooling surface the config-upgrade cascade/upgrade commands and external tools consume. Without the flag, output is the commented YAML exactly as before. Both renderings are pure queries and byte-stable for a given binary version; the JSON key set is guarded against drift from the YAML reference's documented keys. All three metadata fields now have behavioral consumers: `scope` drives the cascade resolver's scope enforcement (`config show`/`show --origin` below) and the `config init --system` scaffold filter; `advertise` drives which fields `fab config upgrade` / `init --project` scaffold into the managed reference fence; `renamed_from` drives `fab config upgrade`'s mechanical rename carry-forward (empty on every row today — it serves future renames).
 
-**Full schema coverage**: covers BOTH the binary-consumed keys (modeled on the `Config` struct) AND the skill-consumed keys (read by markdown skills, invisible to Go reflection) — `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `providers.*` (`session_command`/`dispatch_command`), `agent.tiers.*` (`provider`/`model`/`effort`), `stage_hooks.*`, `branch_prefix`. (The retired `review_tools` block moved to `fab/project/code-review.md` § Review Tools; `agent.spawn_command` moved to `providers.claude.session_command`; `fab_version` moved OUT of config.yaml to the plain-text sibling `fab/.fab-version` in 2.15.0 and is no longer a config-file key.) Baseline keys appear live with example values (including the `providers:` claude entry and the six `agent.tiers`); the opt-in override blocks (`stage_hooks`, `branch_prefix`) appear commented-out with fab-kit's built-in defaults shown, so uncommenting is opting in. The `providers:` block ships as a **three-provider starter template** — `claude` (built-in default: `session_command` live, `dispatch_command` commented), plus fully-commented `codex` and `gemini` blocks each showing both command fields — so adding a non-claude provider is a copy-and-adapt rather than composing command grammar from scratch (codex/gemini remain template text only; no new built-in providers are added in Go). Gemini's commands carry no `{effort}` placeholder (the gemini CLI has no reasoning-effort flag) and no `-p` on `dispatch_command` (gemini reads the `fab dispatch` stdin-piped prompt in non-TTY mode).
+**Full schema coverage**: covers BOTH the binary-consumed keys (modeled on the `Config` struct) AND the skill-consumed keys (read by markdown skills, invisible to Go reflection) — `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `providers.*` (`session_command`/`dispatch_command`/`model`/`effort`), `agent.tiers.*` (`provider`/`model`/`effort`), `stage_hooks.*`, `branch_prefix`. (The retired `review_tools` block moved to `fab/project/code-review.md` § Review Tools; `agent.spawn_command` moved to `providers.claude.session_command`; `fab_version` moved OUT of config.yaml to the plain-text sibling `fab/.fab-version` in 2.15.0 and is no longer a config-file key.) Baseline keys appear live with example values (including the `providers:` claude `session_command` and the six `agent.tiers`); the opt-in override blocks (`stage_hooks`, `branch_prefix`) appear commented-out with fab-kit's built-in defaults shown, so uncommenting is opting in.
+
+The `providers:` block documents fab-kit's **three built-in providers** — `claude` (the default), `codex`, and `gemini` — as **grammar only**: their command templates live in the binary (`internal/agent`'s built-in provider table), so **naming `codex`/`gemini` in a tier or on a `--provider` flag resolves with no `providers:` block at all**. No built-in carries a `model`/`effort` fill: non-claude model IDs rot at CLI cadence, so the fill belongs in config (`providers.<name>.model`/`.effort`, scope `both` — settable once per machine in `~/.fab-kit/config.yaml`). The codex/gemini blocks render **commented** because they merely restate a built-in default, exactly like every other non-overridden default — a commented block registers no project override, and a built-in provider is inert until a tier or flag names it. Note codex/gemini DO carry a `dispatch_command` (so naming one flips that tier's stages to CLI dispatch) while claude's built-in deliberately does not (native Agent-tool dispatch; its commented `dispatch_command` line flips claude's stages the same way when uncommented). Gemini's commands carry no `{effort}` placeholder (the gemini CLI has no reasoning-effort flag) and no `-p` on `dispatch_command` (gemini reads the `fab dispatch` stdin-piped prompt in non-TTY mode).
 
 **Output**: byte-stable for a given binary version (same convention as `fab resolve` / `fab resolve-agent`). The emitted document round-trips — its live keys parse cleanly back into `Config`.
 
@@ -484,7 +526,7 @@ The two provider command fields are **never merged and never fall back to each o
 
 ### start — `fab dispatch start <change> <stage> [--timeout <secs>] [--pane] [--server <name>]`
 
-Resolves `<change>` → 4-char ID; reads the stage prompt on **stdin** → `{stage}-prompt.md`; resolves the stage's tier → provider internally (via `internal/agent` + `internal/spawn` `{model}`/`{effort}` substitution — the same resolution `fab resolve-agent` performs). Everything up to the launch is shared by both modes; the launch differs:
+Resolves `<change>` → 4-char ID; reads the stage prompt on **stdin** → `{stage}-prompt.md`; resolves the stage's tier → provider internally (via `internal/agent` + `internal/spawn` `{model}`/`{effort}` substitution — the same resolution `fab resolve-agent` performs). **This re-resolution reads CONFIG ONLY — `start` has no `--provider`/`--model`/`--effort` surface**, so `fab resolve-agent`'s invocation-time overrides do NOT reach it: an override binds the **native Agent-tool arm** only, and moving a stage onto CLI dispatch requires a config/tier override (`agent.tiers.<tier>.provider` + a `providers:` entry) rather than a flag (see § fab resolve-agent → Invocation-time overrides). Everything up to the launch is shared by both modes; the launch differs:
 
 **Headless (default)** — launches the resolved `dispatch_command` **DETACHED**, cwd = repo root:
 
@@ -1087,7 +1129,7 @@ Launch (or `--print`) the resolved agent **session** command in the current shel
 Two **mutually exclusive addressing modes** compose the command:
 
 - **Tier-addressed** (the `[tier]` positional) — resolves the tier profile (`default` when the positional is omitted; any of the six role-tier names accepted: `default`, `operator`, `doing`, `review`, `hydrate`, `fast`), then composes `providers.<profile.provider>.session_command` with the tier's `{model}`/`{effort}` substituted (or Claude-style `--model`/`--effort` appended for a non-templated command) via `internal/spawn.WithProfile` — the same substitution `fab resolve-agent`'s `dispatch=` line and the operator launcher use.
-- **Provider-addressed** (`--provider <name>`) — **bypasses tier resolution entirely**: looks up `providers.<name>` directly (project config per-field merged over fab-kit's built-in provider table, exactly as the tier path's provider lookup does) and composes its `session_command` with the `--model`/`--effort` values through the same `WithProfile`. This is the "spawn a codex session right here" form — no tier need name the provider first.
+- **Provider-addressed** (`--provider <name>`) — **bypasses tier resolution entirely**: looks up `providers.<name>` directly (project config per-field merged over fab-kit's built-in provider table, exactly as the tier path's provider lookup does) and composes its `session_command` with the `--model`/`--effort` values through the same `WithProfile`. This is the "spawn a codex session right here" form — no tier need name the provider first, and no `providers:` block either: `codex` and `gemini` are **built-in** providers, so `fab agent --provider codex` works on a fresh project.
 
 Common to both modes:
 
@@ -1098,10 +1140,11 @@ Common to both modes:
 Provider-mode specifics:
 
 - **Omitted `--model`/`--effort`** leave the value empty, which follows the existing `WithProfile` empty-value rule: in **template** mode the placeholder's whitespace-delimited token is dropped along with a preceding `-`-flag; in **append** mode the flag is simply not appended. So `fab agent --provider codex --print` against `codex -m {model} -c model_reasoning_effort={effort}` prints a bare `codex` and the installed CLI's own default model applies — which is how you spawn a provider whose current model IDs you do not know.
-- **`--model`/`--effort` require `--provider`.** Supplying either without it is a usage error (non-zero exit): on the tier path the model and effort ARE the resolved tier's, so a bare `--model` would either invent an undocumented tier-override surface or be silently ignored.
+- **`--model`/`--effort` require `--provider`.** Supplying either without it is a usage error (non-zero exit): on the tier path the model and effort ARE the resolved tier's, so a bare `--model` would either invent an undocumented tier-override surface or be silently ignored. **Deliberate asymmetry with `fab resolve-agent`**, where a bare `--model`/`--effort` IS valid — that command is a pure query whose whole output is a profile, so overriding one printed field is unambiguous; this one is a session launcher with two mutually exclusive addressing modes. See § fab resolve-agent.
+- **Omitted `--model` on a provider with a default fill**: `fab agent --provider <name>` does NOT read `providers.<name>.model`/`.effort` — the provider mode's profile is exactly the flags. The fill rungs apply to *tier* resolution and to `fab resolve-agent` (see its § Fill precedence); here an omitted value stays empty and the CLI's own default applies.
 - **`--provider` and the `[tier]` positional are mutually exclusive** — supplying both is a usage error (non-zero exit) naming the exclusion; a tier already names a provider, so mixing the two has no coherent semantics.
 - **Unknown provider name** → non-zero exit listing the **available** provider names (the project's `providers:` keys ∪ fab-kit's built-in table, sorted). This is a **lookup** failure, not validation of the command's content — resolved command strings still pass through verbatim (document-don't-validate; fab never infers a provider from a model string).
-- **Error**: a resolved provider with no `session_command` (and not the built-in claude) errors with a config-key hint (`configure providers.<name>.session_command`) on either path; an unknown tier name errors and names it.
+- **Error**: a resolved provider with no `session_command` errors with a config-key hint (`configure providers.<name>.session_command`) on either path — reachable only for a provider name that has **no built-in row at all** (a wholly user-defined, dispatch-only `providers:` entry). Naming one of the three built-ins can never reach it: `ResolveProvider` per-field merges over the built-in row, so `providers.codex: {dispatch_command: …}` still inherits the built-in `session_command` and still launches a session. An unknown tier name errors and names it.
 
 The procedural knowledge for *using* the composed command — opening it in a tmux window, delivering a prompt reliably, peeking, awaiting — plus the per-provider invocation grammar and model-discovery recipes live in the `_cli-agents` helper (`helpers: [_cli-agents]`).
 

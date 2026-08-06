@@ -10,6 +10,13 @@
 // MEANS, via agent.tiers in config.yaml (per-field merge over the default), and
 // which command grammars exist, via the top-level providers: table.
 //
+// The built-in provider table carries GRAMMAR for three providers (claude, codex,
+// gemini) and fill values for NONE of them: a non-claude provider's model ID rots
+// at CLI cadence, so it lives in user config (providers.<name>.model/.effort, a
+// tier field, or an invocation flag). The fill precedence — invocation flag >
+// explicit tier field > provider default fill > empty — is implemented once, in
+// ResolveTier (config path) and ApplyOverrides (invocation path).
+//
 // Resolution applies NO validation — it echoes the resolved {provider, model,
 // effort} verbatim, whatever they are (provider neutrality, Constitution
 // Principle I). Compatibility is the runtime/harness's concern, not fab's.
@@ -59,6 +66,39 @@ const DefaultProviderName = "claude"
 // the codex/gemini starter templates).
 const DefaultSessionCommand = `claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`
 
+// The codex and gemini built-in provider commands (260805-j3cm). These are
+// GRAMMAR ONLY — the invocation templates, carrying no model or effort fill
+// values. Grammar changes at binary-release cadence and is safe to ship; model
+// IDs rot in weeks, so a non-claude built-in NEVER carries one (a project or the
+// system config supplies it via providers.<name>.model / .effort, a tier field,
+// or an invocation flag — see the fill precedence in ResolveTier/ApplyOverrides).
+//
+// Both providers carry a dispatch_command (unlike claude, which carries none),
+// so naming one in a tier flips that tier's stages from native Agent-tool
+// dispatch to CLI dispatch — which is exactly what selecting a non-claude
+// provider means.
+//
+// These are the canonical constants internal/configref interpolates into the
+// rendered reference, so the reference text carries no literal copy (the same
+// no-duplicate-literal rule DefaultSessionCommand follows).
+const (
+	// DefaultCodexSessionCommand opens an interactive codex TUI session.
+	DefaultCodexSessionCommand = `codex -m {model} -c model_reasoning_effort={effort}`
+	// DefaultCodexDispatchCommand runs one headless codex task. `codex exec` is a
+	// SUBCOMMAND (not a flag) and reads the prompt from stdin, which is where
+	// `fab dispatch` pipes it.
+	DefaultCodexDispatchCommand = `codex exec -m {model} -c model_reasoning_effort={effort}`
+	// DefaultGeminiSessionCommand opens an interactive gemini session. It carries
+	// NO {effort} placeholder — the gemini CLI has no reasoning-effort flag, so a
+	// resolved effort has nowhere to go and is simply not injected.
+	DefaultGeminiSessionCommand = `gemini -m {model}`
+	// DefaultGeminiDispatchCommand runs one headless gemini task. Deliberately has
+	// no `-p`: gemini's -p takes prompt TEXT (appended after stdin), whereas
+	// `fab dispatch` pipes the prompt to stdin, which gemini reads as the prompt in
+	// non-TTY mode. Like the session command, it carries no {effort}.
+	DefaultGeminiDispatchCommand = `gemini -m {model}`
+)
+
 // Profile is a concrete {provider, model, effort} triple. An empty Provider names
 // no provider (resolution falls through to the built-in default provider at
 // command-composition time); an empty Model signals "inherit the
@@ -69,12 +109,33 @@ type Profile struct {
 	Effort   string
 }
 
-// defaultProviders is fab-kit's built-in provider table: the claude provider,
-// explicit and shipped as the default, with the default session command and NO
-// dispatch_command (native Agent-tool dispatch). A project extends/overrides via
-// its own providers: block, per-field merged over this.
+// defaultProviders is fab-kit's built-in provider table: three providers, all
+// GRAMMAR ONLY (no model/effort fill values — see the command constants above).
+//
+//   - claude — the default: the default session command and NO dispatch_command
+//     (native Agent-tool dispatch).
+//   - codex, gemini — session AND dispatch commands (260805-j3cm). Naming either
+//     in a tier or on an invocation flag resolves with ZERO providers: config, and
+//     flips those stages to CLI dispatch (the dispatch_command is present).
+//
+// A built-in provider is INERT until a tier or a flag names it — adding a row
+// changes no default behavior, which is why the presence=intent rule that keeps
+// behavior-changing config commented does not force these rows out of Go
+// (260805-j3cm reverses ho9y's "no new built-in providers in Go" narrowly, for
+// grammar strings only).
+//
+// A project extends/overrides via its own providers: block, per-field merged over
+// this (including the model/effort fill fields).
 var defaultProviders = map[string]config.ProviderConfig{
 	DefaultProviderName: {SessionCommand: DefaultSessionCommand},
+	"codex": {
+		SessionCommand:  DefaultCodexSessionCommand,
+		DispatchCommand: DefaultCodexDispatchCommand,
+	},
+	"gemini": {
+		SessionCommand:  DefaultGeminiSessionCommand,
+		DispatchCommand: DefaultGeminiDispatchCommand,
+	},
 }
 
 // defaultTiers is fab-kit's built-in tier→profile table (today). This is the ONE
@@ -209,30 +270,177 @@ func ModelAlias(model string) string {
 // inheriting {provider, model, effort} is safe; the dangerous cross-semantics
 // command inheritance can no longer happen.
 //
+// CROSS-PROVIDER CUTOFF (260805-j3cm). Field inheritance is safe WITHIN a
+// provider but not ACROSS one: a tier that sets `provider: codex` and omits
+// `model` used to inherit a CLAUDE model through the same per-field merge — the
+// footgun fab documented rather than fixed, because there was no correct value to
+// fill with. There is one now (the provider's default fill), so when the config
+// explicitly names a provider DIFFERENT from the built-in tier profile's, every
+// model/effort OWNED BY ANOTHER PROVIDER fills from:
+//
+//	that provider's default fill  →  empty
+//
+// never from the built-in tier's foreign values.
+//
+// A value's OWNER is the provider in effect at the layer that supplied it (see
+// cutForeignFields): the layer's own `provider:` if it names one, else whatever
+// the layers below it resolved. So a model written on the project `default` tier
+// with no provider beside it is owned by the built-in's claude and does NOT
+// survive a codex switch made on the requested tier, while a model written at (or
+// above) that switch is owned by codex and does. Anchoring per field is what keeps
+// the rule correct across the three layers — a single flattened "the config set
+// this" bit cannot tell the two apart.
+//
+// SCOPE OF OWNERSHIP — a DOCUMENTED LIMITATION (260805-j3cm). The three layers
+// above are the only ones ownership can see: `cfg` is the MERGED config, and
+// config.LoadPath has already deep-merged the system layer (~/.fab-kit/config.yaml)
+// and the project layer per-key BEFORE resolution runs. So per-SCOPE ownership is
+// NOT tracked. When both scopes contribute to the SAME tier and name DIFFERENT
+// providers, the merged tier reads as one layer and its values are attributed to
+// the merged layer's `provider:` — the cutoff does not fire across that scope
+// boundary. Concretely: a system-scope `agent.tiers.doing: {provider: codex, model:
+// gpt-5.3-codex}` plus a project-scope `agent.tiers.doing: {provider: gemini}`
+// resolves model=gpt-5.3-codex under provider=gemini (a codex model ID handed to
+// the gemini CLI). This is pinned, not endorsed, by
+// TestResolveCrossScopeCascadeLimitation (cmd/fab, which can compose both scopes)
+// and stated in docs/specs/stage-models.md. Cascade-aware ownership (folding the
+// per-scope layers here rather than consuming a pre-merged tree) is deferred to a
+// follow-up change. Pin `model:`/`effort:` in the SAME scope as the `provider:`
+// switch to stay unaffected.
+//
+// A tier that does not set `provider:` inherits exactly as before, and the
+// all-claude default world is byte-unchanged (every built-in tier pins an explicit
+// model, and an explicit `provider: claude` equals the built-in's provider, so it
+// is not a switch at all — plan Assumption 2).
+//
 // NO validation: the resolved fields are returned verbatim. An unknown tier is
 // the only tier-resolution error.
 func ResolveTier(cfg *config.Config, tier string) (Profile, error) {
-	resolved, ok := defaultTiers[tier]
+	builtin, ok := defaultTiers[tier]
 	if !ok {
 		return Profile{}, fmt.Errorf("unknown tier %q (valid: %s)", tier, strings.Join(TierNames(), ", "))
 	}
 
-	// The project's `default` tier fills any field the built-in leaves unset AND
-	// any field the requested tier's own override leaves unset. Apply it as the
-	// middle layer (below the requested tier's override, above the built-in).
+	// Fold the config layers over the built-in profile in precedence order (the
+	// project's `default` tier is the middle layer — below the requested tier's
+	// own override, above the built-in), recording each value's OWNING provider
+	// as it is set. Values that come from the built-in are owned by the built-in's
+	// provider.
+	resolved := builtin
+	modelOwner, effortOwner := builtin.Provider, builtin.Provider
+	var configuredProvider string
+
+	applyLayer := func(layer config.TierProfile) {
+		// Provider first, so a model/effort written in the SAME layer as the
+		// switch is owned by the provider that layer names.
+		if layer.Provider != "" {
+			resolved.Provider = layer.Provider
+			configuredProvider = layer.Provider
+		}
+		if layer.Model != "" {
+			resolved.Model = layer.Model
+			modelOwner = resolved.Provider
+		}
+		if layer.Effort != "" {
+			resolved.Effort = layer.Effort
+			effortOwner = resolved.Provider
+		}
+	}
 	if def, ok := cfg.GetAgentTier(TierDefault); ok {
-		mergeTierField(&resolved.Provider, def.Provider)
-		mergeTierField(&resolved.Model, def.Model)
-		mergeTierField(&resolved.Effort, def.Effort)
+		applyLayer(def)
+	}
+	if override, ok := cfg.GetAgentTier(tier); ok {
+		applyLayer(override)
 	}
 
-	if override, ok := cfg.GetAgentTier(tier); ok {
-		mergeTierField(&resolved.Provider, override.Provider)
-		mergeTierField(&resolved.Model, override.Model)
-		mergeTierField(&resolved.Effort, override.Effort)
+	// Cross-provider cutoff: the config explicitly named a provider other than
+	// the built-in tier profile's, so every value still owned by a DIFFERENT
+	// provider is foreign — refill it from the named provider (then empty). The
+	// gate is the net configured provider vs the built-in's (Assumption 2): a
+	// chain that ends back on the built-in's provider is not a switch at all.
+	if configuredProvider != "" && configuredProvider != builtin.Provider {
+		cutForeignFields(cfg, &resolved, modelOwner, effortOwner)
 	}
 
 	return resolved, nil
+}
+
+// cutForeignFields is the single implementation of the cross-provider cutoff,
+// shared by ResolveTier (config layers) and ApplyOverrides (invocation flags). For
+// each of model/effort whose OWNING provider differs from the one p now names, it
+// replaces the value with the fill precedence's lower two rungs:
+//
+//	p.Provider's default fill (providers.<p.Provider>.model/.effort)  →  empty
+//
+// A field owned by p.Provider is kept verbatim — including an explicitly-empty one
+// (ownership, not emptiness, is the test). Callers that swap a provider therefore
+// need only record where each value came from; the rule itself lives here once.
+//
+// An unknown provider name is not an error here (resolution applies no
+// validation): ResolveProvider reports ok=false with a zero config, so the fill is
+// empty — the correct terminal state either way. Naming a provider is a lookup the
+// CALLER may choose to error on (`fab agent` / `fab resolve-agent --provider` do);
+// resolution does not.
+func cutForeignFields(cfg *config.Config, p *Profile, modelOwner, effortOwner string) {
+	prov, _ := ResolveProvider(cfg, p.Provider)
+	if modelOwner != p.Provider {
+		p.Model = prov.Model
+	}
+	if effortOwner != p.Provider {
+		p.Effort = prov.Effort
+	}
+}
+
+// Overrides is an invocation-time {provider, model, effort} override set — the
+// top rung of the fill precedence, supplied by flags rather than config
+// (`fab resolve-agent <stage> [--provider] [--model] [--effort]`). Each field is
+// applied only when its Set companion is true, so an explicitly-empty flag value
+// is distinguishable from an absent flag (the same Flag.Changed discipline
+// `fab agent` uses).
+type Overrides struct {
+	Provider    string
+	ProviderSet bool
+	Model       string
+	ModelSet    bool
+	Effort      string
+	EffortSet   bool
+}
+
+// ApplyOverrides applies an invocation-time override set to an already-resolved
+// profile, completing the fill precedence:
+//
+//	invocation flag  >  explicit tier field  >  provider default fill  >  empty
+//
+// The first two rungs are already baked into `p` by ResolveTier; this adds the
+// flag rung and re-runs the lower rungs when the provider is SWAPPED. A provider
+// swap does NOT retain the tier's model/effort — those belong to the old provider,
+// so they are foreign and refill from the NEW provider's default fill, then empty.
+// This is the SAME cutoff ResolveTier applies, through the same cutForeignFields
+// helper: the flag set is just one more layer, whose incoming values are owned by
+// p.Provider and whose own values are owned by the (possibly swapped) provider.
+// Swapping to the provider the profile already names is not a swap and refills
+// nothing (every value stays owned by it).
+//
+// NO validation: overridden strings pass through verbatim. An unknown provider
+// name is a LOOKUP concern for the caller (which lists ProviderNames and exits
+// non-zero), not a resolution error here.
+func ApplyOverrides(cfg *config.Config, p Profile, o Overrides) Profile {
+	modelOwner, effortOwner := p.Provider, p.Provider
+	if o.ProviderSet {
+		p.Provider = o.Provider
+	}
+	if o.ModelSet {
+		p.Model = o.Model
+		modelOwner = p.Provider
+	}
+	if o.EffortSet {
+		p.Effort = o.Effort
+		effortOwner = p.Provider
+	}
+	if o.ProviderSet {
+		cutForeignFields(cfg, &p, modelOwner, effortOwner)
+	}
+	return p
 }
 
 // mergeTierField overwrites *dst with v only when v is non-empty (per-field merge:
@@ -278,15 +486,20 @@ func ProviderNames(cfg *config.Config) []string {
 	return names
 }
 
-// ResolveProvider returns the {session_command, dispatch_command} for a provider
-// name: the project's providers.<name> override PER-FIELD merged over fab-kit's
-// built-in provider table (an override field that is set wins; an omitted field
-// inherits the built-in). A provider present in neither the project config nor the
-// built-in table resolves to a zero ProviderConfig with ok=false — the caller
-// decides whether that is an error (a session with no session_command, or a
-// dispatch with no dispatch_command, are the two failure surfaces).
+// ResolveProvider returns the {session_command, dispatch_command, model, effort}
+// for a provider name: the project's providers.<name> override PER-FIELD merged
+// over fab-kit's built-in provider table (an override field that is set wins; an
+// omitted field inherits the built-in). A provider present in neither the project
+// config nor the built-in table resolves to a zero ProviderConfig with ok=false —
+// the caller decides whether that is an error (a session with no session_command,
+// or a dispatch with no dispatch_command, are the two failure surfaces).
 //
-// NO validation: command strings are returned verbatim.
+// The model/effort fields are the provider's DEFAULT FILL (260805-j3cm) and merge
+// identically to the commands. fab-kit's built-ins supply fill for NO provider
+// (grammar only — model IDs rot at CLI cadence), so a non-empty resolved fill
+// always came from user config.
+//
+// NO validation: all four strings are returned verbatim.
 func ResolveProvider(cfg *config.Config, name string) (config.ProviderConfig, bool) {
 	resolved, known := defaultProviders[name]
 
@@ -294,6 +507,8 @@ func ResolveProvider(cfg *config.Config, name string) (config.ProviderConfig, bo
 		known = true
 		mergeTierField(&resolved.SessionCommand, override.SessionCommand)
 		mergeTierField(&resolved.DispatchCommand, override.DispatchCommand)
+		mergeTierField(&resolved.Model, override.Model)
+		mergeTierField(&resolved.Effort, override.Effort)
 	}
 
 	return resolved, known
