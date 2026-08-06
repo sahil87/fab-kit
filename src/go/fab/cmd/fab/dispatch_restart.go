@@ -16,9 +16,11 @@ import (
 // .fab-dispatch/{id}/{stage}-prompt.md instead of stdin, because the orchestrator
 // that needs to restart may have lost the multi-thousand-token block prompt to
 // compaction. Everything else is `start`'s — the same flags with the same
-// exclusions, the same mode-selection ladder (mode re-derived from the CURRENT
-// environment, so restarting an orphaned pane dispatch after a tmux server death
-// correctly soft-falls-back to headless), the same refuse-if-running check, and the
+// exclusions, the same mode-selection ladder AND the same pane-shape decision
+// (both re-derived from the CURRENT environment — so restarting an orphaned pane
+// dispatch after a tmux server death correctly soft-falls-back to headless, and a
+// restart issued from inside a tmux pane splits THAT pane's window even if the
+// original attempt opened a window), the same refuse-if-running check, and the
 // same output/record shape. A restart is a fresh attempt under the existing
 // last-attempt-only semantics, so it introduces no new state string, no attempt
 // history, and no `restarted:` marker.
@@ -43,15 +45,15 @@ func dispatchRestartCmd() *cobra.Command {
   # Force the relaunched worker headless even inside tmux
   fab dispatch restart b91h apply --headless
 
-  # Relaunch into a watchable tmux window
+  # Relaunch into a watchable tmux pane
   fab dispatch restart b91h review --pane`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			mode, reason, err := f.resolveMode(cmd)
+			mode, reason, target, err := f.resolveMode(cmd)
 			if err != nil {
 				return err
 			}
-			return runDispatchLaunch(cmd, args[0], args[1], f.timeout, mode, reason, f.server, promptFromStateDir)
+			return runDispatchLaunch(cmd, args[0], args[1], f.timeout, mode, reason, f.server, target, promptFromStateDir)
 		},
 	}
 	f = addLaunchFlags(cmd)

@@ -189,7 +189,14 @@ Skill reads _preamble.md
 │  │    — include the socket whenever --server was used; the
 │  │    fab dispatch logs report prints the exact command, since
 │  │    status --json carries pane but not server); steering is
-│  │    contract-neutral; window fab-{id}-{stage}, no »/› marker.
+│  │    contract-neutral; TWO-TIER tmux hierarchy (260806-mnri):
+│  │    operator→agents = windows (unchanged), agent→workers =
+│  │    PANES splitting the agent's own window, stacked in a
+│  │    right column (-v off the last fab- sibling, else -h off
+│  │    $TMUX_PANE); new window fab-{id}-{stage} is the FALLBACK
+│  │    ($TMUX_PANE unset, or --server naming another socket);
+│  │    identity fab-{id}-{stage} rides the pane TITLE (split) or
+│  │    the window NAME (fallback), no »/› marker in either.
 │  │  Recovery policy (260806-mnri) — bounded, orchestrator-owned,
 │  │    composed OVER the five states (none added or renamed):
 │  │    restart is tier 2's ONLY recovery verb (never a nudge —

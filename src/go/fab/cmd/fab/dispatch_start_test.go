@@ -39,6 +39,12 @@ func setupDispatchRepoWithCommands(t *testing.T, dispatchCmd, sessionCmd string)
 	// exercise auto selection re-set it themselves (t.Setenv is per-test and
 	// restores on cleanup).
 	t.Setenv("TMUX", "")
+	// $TMUX_PANE is the second env signal — it picks the pane SHAPE (split the
+	// dispatcher's window vs. open a new one). Neutralized for the same hermeticity
+	// reason: a suite run from inside a tmux pane would otherwise inherit a real
+	// pane id and every pane test's expected shape would depend on where the suite
+	// runs. Tests that exercise the split path set it themselves.
+	t.Setenv("TMUX_PANE", "")
 	repoRoot = t.TempDir()
 	folder := "260310-abcd-my-change"
 	id = "abcd"
@@ -969,6 +975,369 @@ func TestDispatchStart_ServerFlagImpliesPaneUnderAuto(t *testing.T) {
 	}
 	if _, err := dispatch.Load(dispatch.DirFor(repoRoot, id), "apply"); !os.IsNotExist(err) {
 		t.Errorf("no dispatch record should exist, got %v", err)
+	}
+}
+
+// startPrivateTmuxWithPane starts an ephemeral tmux server on a PRIVATE socket,
+// verifies the socket really is private, registers a socket-scoped teardown, and
+// then points $TMUX/$TMUX_PANE at that server's first pane — the environment a
+// worktree AGENT dispatching its own stage workers actually has. It returns a
+// tmux runner pinned to the verified socket path and the dispatcher's pane ID.
+//
+// SAFETY (the recorded repo discipline — none of these steps is optional):
+//  1. $TMUX must be EMPTY on entry. A set $TMUX makes every tmux client target
+//     ITS socket and ignore TMUX_TMPDIR entirely, which would put this test's
+//     session on — and later KILL — the developer's real server. Hard-fail, never
+//     skip: skipping would silently stop covering the split path.
+//  2. TMUX_TMPDIR points at a private per-test dir, relocating tmux's default
+//     socket out of the shared /tmp/tmux-$UID.
+//  3. The server's binding of that private socket is VERIFIED (os.Stat) before any
+//     destructive cleanup is registered — if tmux bound something else, the server
+//     may be the real one and killing it is unsafe.
+//  4. Every later call, kill-server included, is scoped by explicit `-S <verified
+//     path>`. No unscoped kill-server is ever issued.
+//
+// The default socket NAME (rather than a `-L` label) is deliberate: the split path
+// is only reachable without `--server`, so the dispatch must find the server
+// through tmux's own default-socket resolution under this TMUX_TMPDIR — exactly as
+// a real agent's dispatch inside its own tmux session does.
+func startPrivateTmuxWithPane(t *testing.T) (tmuxScoped func(args ...string) (string, error), dispatcherPane string) {
+	t.Helper()
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not available")
+	}
+	socketDir := tmuxSocketDir(t, "default")
+	t.Setenv("TMUX_TMPDIR", socketDir)
+	if v := os.Getenv("TMUX"); v != "" {
+		t.Fatalf("refusing to run: $TMUX = %q must be empty so TMUX_TMPDIR isolates "+
+			"this test's unscoped tmux calls from the real server", v)
+	}
+	if out, err := exec.Command("tmux", "new-session", "-d", "-s", "s", "-x", "200", "-y", "50").CombinedOutput(); err != nil {
+		t.Skipf("could not start tmux server (%v): %s", err, strings.TrimSpace(string(out)))
+	}
+	privateSocket := filepath.Join(socketDir, "tmux-"+strconv.Itoa(os.Getuid()), "default")
+	if _, err := os.Stat(privateSocket); err != nil {
+		t.Fatalf("refusing to continue: tmux did not bind the private socket %s (%v) — "+
+			"the server may be the real one, and killing it is unsafe", privateSocket, err)
+	}
+	tmuxScoped = func(args ...string) (string, error) {
+		out, err := exec.Command("tmux", append([]string{"-S", privateSocket}, args...)...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	t.Cleanup(func() { _, _ = tmuxScoped("kill-server") })
+
+	// The session's sole pane stands in for the dispatching agent's own pane.
+	dispatcherPane, err := tmuxScoped("list-panes", "-t", "s", "-F", "#{pane_id}")
+	if err != nil || dispatcherPane == "" {
+		t.Fatalf("could not read the dispatcher pane id: %v (%q)", err, dispatcherPane)
+	}
+
+	// $TMUX/$TMUX_PANE are set only NOW — after the destructive cleanup is scoped by
+	// the verified socket path. $TMUX's real shape is "<socket>,<pid>,<session>";
+	// only its PRESENCE drives mode selection, while $TMUX_PANE is the split anchor.
+	t.Setenv("TMUX", privateSocket+",1,0")
+	t.Setenv("TMUX_PANE", dispatcherPane)
+	return tmuxScoped, dispatcherPane
+}
+
+// paneWindow reads a pane's window id through the verified socket.
+func paneWindow(t *testing.T, tmuxScoped func(...string) (string, error), paneID string) string {
+	t.Helper()
+	out, err := tmuxScoped("display-message", "-p", "-t", paneID, "#{window_id}")
+	if err != nil {
+		t.Fatalf("read window id for %s: %v (%q)", paneID, err, out)
+	}
+	return out
+}
+
+// paneTitle reads a pane's title through the verified socket.
+func paneTitle(t *testing.T, tmuxScoped func(...string) (string, error), paneID string) string {
+	t.Helper()
+	out, err := tmuxScoped("display-message", "-p", "-t", paneID, "#{pane_title}")
+	if err != nil {
+		t.Fatalf("read pane title for %s: %v (%q)", paneID, err, out)
+	}
+	return out
+}
+
+// TestDispatchStart_SplitPane_Integration is the change's core case: a dispatcher
+// that IS a tmux pane gets its stage worker as a PANE SPLIT INTO ITS OWN WINDOW,
+// not as a separate window. The worker's identity rides the pane TITLE (a split
+// pane has no window name of its own), the pane ID is what the record stores, and
+// the dispatcher's window count is unchanged — which is the reported problem this
+// change fixes (every worker used to surface as another run-kit window).
+func TestDispatchStart_SplitPane_Integration(t *testing.T) {
+	// TEMPLATED with {model}/{effort} (as the built-in claude session_command is), so
+	// spawn.WithProfile SUBSTITUTES rather than appending flags after the prompt
+	// argument — which would otherwise make $1 the appended `--model`.
+	repoRoot, id := setupDispatchRepoWithCommands(t, "",
+		`sh -c 'echo \"m={model} e={effort}\"; echo \"got: $1\"; sleep 30' _`)
+	tmuxScoped, dispatcherPane := startPrivateTmuxWithPane(t)
+
+	windowsBefore, err := tmuxScoped("list-windows", "-a", "-F", "#{window_id}")
+	if err != nil {
+		t.Fatalf("list windows: %v", err)
+	}
+
+	out, err := runStart(t, "the stage prompt\n", "abcd", "apply")
+	if err != nil {
+		t.Fatalf("split dispatch failed: %v", err)
+	}
+	// The split shape's own report: "split, title …" rather than "window …".
+	title := dispatch.WindowName(id, "apply")
+	if !strings.Contains(out, "split") || !strings.Contains(out, "title "+title) {
+		t.Errorf("output = %q, want the split report naming the pane title %q", out, title)
+	}
+	// Auto selection still explains itself.
+	if !strings.Contains(out, string(dispatch.ReasonAutoTmux)) {
+		t.Errorf("output = %q, want the %q selection source", out, dispatch.ReasonAutoTmux)
+	}
+
+	rec, err := dispatch.Load(dispatch.DirFor(repoRoot, id), "apply")
+	if err != nil {
+		t.Fatalf("state not persisted: %v", err)
+	}
+	if !rec.IsPane() || rec.Mode() != dispatch.ModePane {
+		t.Fatalf("record reads as %q, want pane mode (%+v)", rec.Mode(), *rec)
+	}
+	// The record keeps storing the SAME identity string — no schema change.
+	if rec.Window != title {
+		t.Errorf("window = %q, want the identity string %q", rec.Window, title)
+	}
+
+	// THE CLAIM: the worker's pane lives in the DISPATCHER's window.
+	if got, want := paneWindow(t, tmuxScoped, rec.Pane), paneWindow(t, tmuxScoped, dispatcherPane); got != want {
+		t.Errorf("worker pane %s is in window %s, want the dispatcher's window %s", rec.Pane, got, want)
+	}
+	// And no new window was opened.
+	windowsAfter, err := tmuxScoped("list-windows", "-a", "-F", "#{window_id}")
+	if err != nil {
+		t.Fatalf("list windows: %v", err)
+	}
+	if windowsAfter != windowsBefore {
+		t.Errorf("window list changed from %q to %q; a split dispatch must open NO window", windowsBefore, windowsAfter)
+	}
+	if names, err := tmuxScoped("list-windows", "-a", "-F", "#W"); err == nil && strings.Contains(names, title) {
+		t.Errorf("a window named %q exists (%q); the identity must ride the pane title in the split shape", title, names)
+	}
+
+	// Identity rides the pane title, unmarked by the operator's prefixes.
+	if got := paneTitle(t, tmuxScoped, rec.Pane); got != title {
+		t.Errorf("pane title = %q, want %q", got, title)
+	}
+	for _, marker := range []string{"»", "›"} {
+		if strings.Contains(title, marker) {
+			t.Errorf("pane title %q must not carry the operator marker %q", title, marker)
+		}
+	}
+
+	// The pane is alive and received the POINTER, not the prompt body — the pane-id
+	// keyed probes work identically in the split shape.
+	if !dispatch.PaneAlive(rec.Pane, "") {
+		t.Errorf("pane %s should be alive right after start", rec.Pane)
+	}
+	captured, err := tmuxScoped("capture-pane", "-p", "-t", rec.Pane)
+	if err != nil {
+		t.Fatalf("capture pane: %v", err)
+	}
+	if !strings.Contains(captured, ".fab-dispatch/"+id+"/apply-prompt.md") {
+		t.Errorf("pane received %q, want the pointer naming the prompt file", captured)
+	}
+}
+
+// TestDispatchStart_SplitPanesStackInTheRightColumn is the placement rule: with a
+// live titled sibling already present, the SECOND dispatch splits THAT pane rather
+// than the dispatcher's, so workers stack down a right-hand column instead of each
+// one halving the dispatcher's pane again. All three panes share one window.
+func TestDispatchStart_SplitPanesStackInTheRightColumn(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", `sh -c 'sleep 30' _`)
+	tmuxScoped, dispatcherPane := startPrivateTmuxWithPane(t)
+	dir := dispatch.DirFor(repoRoot, id)
+	dispatcherWindow := paneWindow(t, tmuxScoped, dispatcherPane)
+
+	if _, err := runStart(t, "apply prompt", "abcd", "apply"); err != nil {
+		t.Fatalf("first split dispatch failed: %v", err)
+	}
+	first, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load apply: %v", err)
+	}
+	if !dispatch.PaneAlive(first.Pane, "") {
+		t.Fatalf("pane %s must be alive for the sibling probe to find it", first.Pane)
+	}
+
+	// A DIFFERENT stage, so this is a second concurrent worker rather than an
+	// overwrite of the first. It must be the OTHER doing-tier stage (review-pr):
+	// the fixture points only the doing tier at the `cli` provider, so a stage
+	// outside it (e.g. review → the review tier) resolves the BUILT-IN claude
+	// provider and launches the real `claude` CLI — alive on a dev box where
+	// claude exists (a false local pass, plus a stray real agent session in the
+	// test server), dead instantly on CI where it doesn't.
+	if _, err := runStart(t, "review-pr prompt", "abcd", "review-pr"); err != nil {
+		t.Fatalf("second split dispatch failed: %v", err)
+	}
+	second, err := dispatch.Load(dir, "review-pr")
+	if err != nil {
+		t.Fatalf("Load review-pr: %v", err)
+	}
+
+	// All three panes in ONE window: the dispatcher plus both workers.
+	for _, p := range []struct{ label, id string }{{"first worker", first.Pane}, {"second worker", second.Pane}} {
+		if got := paneWindow(t, tmuxScoped, p.id); got != dispatcherWindow {
+			t.Errorf("%s pane %s is in window %s, want the dispatcher's window %s", p.label, p.id, got, dispatcherWindow)
+		}
+	}
+	panes, err := tmuxScoped("list-panes", "-t", dispatcherPane, "-F", "#{pane_id}")
+	if err != nil {
+		t.Fatalf("list panes: %v", err)
+	}
+	if n := len(strings.Split(panes, "\n")); n != 3 {
+		t.Errorf("window holds %d panes (%q), want 3 (dispatcher + two workers)", n, panes)
+	}
+
+	// The stacking rule: the second worker split the FIRST WORKER, not the
+	// dispatcher — so it sits directly below the first worker and shares its left
+	// edge, while the dispatcher (which was split horizontally) does not.
+	firstLeft := paneFormat(t, tmuxScoped, first.Pane, "#{pane_left}")
+	secondLeft := paneFormat(t, tmuxScoped, second.Pane, "#{pane_left}")
+	dispatcherLeft := paneFormat(t, tmuxScoped, dispatcherPane, "#{pane_left}")
+	if secondLeft != firstLeft {
+		t.Errorf("second worker's left edge = %s, want the first worker's %s (it must split the SIBLING, stacking the column)",
+			secondLeft, firstLeft)
+	}
+	if firstLeft == dispatcherLeft {
+		t.Errorf("worker column left edge %s equals the dispatcher's %s; the first split must be horizontal (-h), carving a right column",
+			firstLeft, dispatcherLeft)
+	}
+	if paneFormat(t, tmuxScoped, second.Pane, "#{pane_top}") == paneFormat(t, tmuxScoped, first.Pane, "#{pane_top}") {
+		t.Error("both workers share a top edge; the second split must be vertical (-v), stacking below the first")
+	}
+
+	// Both titles are set, so a THIRD dispatch would find the newest sibling.
+	if got := paneTitle(t, tmuxScoped, second.Pane); got != dispatch.WindowName(id, "review-pr") {
+		t.Errorf("second worker's pane title = %q, want %q", got, dispatch.WindowName(id, "review-pr"))
+	}
+
+	// Killing one worker pane leaves the dispatcher's window (and the other worker)
+	// intact — plain tmux kill-pane semantics, which is why KillPane needed no change.
+	if err := dispatch.KillPane(second.Pane, ""); err != nil {
+		t.Fatalf("KillPane: %v", err)
+	}
+	if dispatch.PaneAlive(second.Pane, "") {
+		t.Errorf("pane %s should be gone after KillPane", second.Pane)
+	}
+	if !dispatch.PaneAlive(dispatcherPane, "") {
+		t.Error("killing a split worker pane must leave the dispatcher's pane alive")
+	}
+	if !dispatch.PaneAlive(first.Pane, "") {
+		t.Error("killing one worker pane must leave the sibling worker alive")
+	}
+	if got := paneWindow(t, tmuxScoped, dispatcherPane); got != dispatcherWindow {
+		t.Errorf("dispatcher window changed to %s, want %s intact", got, dispatcherWindow)
+	}
+}
+
+// paneFormat reads any tmux format string for a pane through the verified socket.
+func paneFormat(t *testing.T, tmuxScoped func(...string) (string, error), paneID, format string) string {
+	t.Helper()
+	out, err := tmuxScoped("display-message", "-p", "-t", paneID, format)
+	if err != nil {
+		t.Fatalf("read %s for %s: %v (%q)", format, paneID, err, out)
+	}
+	return out
+}
+
+// TestDispatchStart_ServerFlagKeepsTheNewWindowShape: `--server <name>` targets a
+// possibly DIFFERENT tmux socket, on which the caller's own $TMUX_PANE id is
+// meaningless — so naming one keeps the pre-split new-window shape even when the
+// caller is itself sitting in a pane. $TMUX_PANE is deliberately set to a pane id
+// from ANOTHER (private, `-L`-labelled) server here, which is exactly the
+// cross-socket confusion the rule prevents.
+func TestDispatchStart_ServerFlagKeepsTheNewWindowShape(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not available")
+	}
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", `sh -c 'sleep 30' _`)
+
+	server := "fabtest-splitsrv"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+	tmux := func(args ...string) (string, error) {
+		out, err := exec.Command("tmux", append([]string{"-L", server}, args...)...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	if out, err := tmux("new-session", "-d", "-s", "s", "-x", "80", "-y", "24"); err != nil {
+		t.Skipf("could not start tmux server (%v): %s", err, out)
+	}
+	t.Cleanup(func() { _, _ = tmux("kill-server") })
+
+	// A pane id that exists on THIS server but is not the target of a --server run
+	// on a different socket; setting it proves --server, not its emptiness, is what
+	// keeps the window shape.
+	t.Setenv("TMUX_PANE", "%0")
+
+	out, err := runStart(t, "prompt", "abcd", "apply", "--pane", "--server", server)
+	if err != nil {
+		t.Fatalf("--server pane dispatch failed: %v", err)
+	}
+	title := dispatch.WindowName(id, "apply")
+	// Byte-identical to the pre-split report shape.
+	if !strings.Contains(out, "window "+title) || strings.Contains(out, "split") {
+		t.Errorf("output = %q, want the unchanged new-window report %q", out, "window "+title)
+	}
+
+	rec, err := dispatch.Load(dispatch.DirFor(repoRoot, id), "apply")
+	if err != nil {
+		t.Fatalf("state not persisted: %v", err)
+	}
+	// A real WINDOW carries the name (the window shape's carrier).
+	windowName, err := tmux("display-message", "-p", "-t", rec.Pane, "#W")
+	if err != nil {
+		t.Fatalf("read window name: %v", err)
+	}
+	if windowName != title {
+		t.Errorf("tmux window name = %q, want %q — --server must keep the new-window shape", windowName, title)
+	}
+	// And that window is the pane's ONLY pane: nothing was split.
+	panes, err := tmux("list-panes", "-t", rec.Pane, "-F", "#{pane_id}")
+	if err != nil {
+		t.Fatalf("list panes: %v", err)
+	}
+	if panes != rec.Pane {
+		t.Errorf("worker window holds panes %q, want only the worker's own %q", panes, rec.Pane)
+	}
+}
+
+// TestDispatchStart_NoTmuxPaneKeepsTheNewWindowShape: a headless orchestrator
+// dispatching with an explicit --pane has no pane of its own to split, so the
+// new-window shape is unchanged — byte-identically, report included. This is the
+// pre-split behavior TestDispatchStart_PaneMode_Integration already covers via
+// --server; this test pins the OTHER window rung (no $TMUX_PANE) on the DEFAULT
+// socket, where a stray $TMUX_PANE would otherwise be honored.
+func TestDispatchStart_NoTmuxPaneKeepsTheNewWindowShape(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", `sh -c 'sleep 30' _`)
+	tmuxScoped, _ := startPrivateTmuxWithPane(t)
+	// The orchestrator is not a pane: unset the anchor the helper just set.
+	t.Setenv("TMUX_PANE", "")
+
+	out, err := runStart(t, "prompt", "abcd", "apply")
+	if err != nil {
+		t.Fatalf("dispatch failed: %v", err)
+	}
+	title := dispatch.WindowName(id, "apply")
+	if !strings.Contains(out, "window "+title) || strings.Contains(out, "split") {
+		t.Errorf("output = %q, want the unchanged new-window report %q", out, "window "+title)
+	}
+
+	rec, err := dispatch.Load(dispatch.DirFor(repoRoot, id), "apply")
+	if err != nil {
+		t.Fatalf("state not persisted: %v", err)
+	}
+	windowName, err := tmuxScoped("display-message", "-p", "-t", rec.Pane, "#W")
+	if err != nil {
+		t.Fatalf("read window name: %v", err)
+	}
+	if windowName != title {
+		t.Errorf("tmux window name = %q, want %q — an unset $TMUX_PANE must keep the new-window shape", windowName, title)
 	}
 }
 
