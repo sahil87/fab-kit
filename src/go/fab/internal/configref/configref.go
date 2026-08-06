@@ -40,9 +40,12 @@
 // downstream resolver (Change 2) consumes; distinguishing []string{} from nil
 // would leak an implementation detail with no cascade meaning. A non-nil Default
 // therefore always denotes a real built-in value (the three built-in providers'
-// command grammars, the six tier profiles) — which is why no provider's Default
-// carries a model/effort fill: fab-kit ships none. See docs/specs/config.md
-// § Default semantics.
+// command grammars, the six tier profiles, dispatch.watchable's false) — which is
+// why no provider's Default carries a model/effort fill: fab-kit ships none.
+// dispatch.watchable is the convention's boundary case: for a BOOL there is no
+// "absent" distinguishable from false, so false is a real built-in value rather
+// than the typed-empty placeholder the convention forbids. See
+// docs/specs/config.md § Default semantics.
 //
 // Render() output is BYTE-STABLE for a given binary version: the field table is
 // fixed and ordered, the interpolated tier/stage lists come from the
@@ -432,6 +435,17 @@ checklist:
 			Segment:     agentTiersSegment(tiers),
 		},
 		{
+			Key: "dispatch.watchable",
+			// false IS the canonical built-in default (a real value, not "no
+			// default"), so it is carried typed rather than as nil: the cascade
+			// bottoms out at false and the JSON dump must advertise that.
+			Default:     false,
+			Description: "Watchable-pane opt-in. When true AND the orchestrator sits inside tmux, a session_command-only provider (e.g. the built-in claude) becomes CLI-dispatch-eligible, so its stages run in a watchable tmux pane; outside tmux they stay on native Agent-tool dispatch. A provider's own dispatch_command always wins. Scope both — settable once machine-wide. Default false.",
+			Scope:       ScopeBoth,
+			Advertise:   true,
+			Segment:     dispatchSegment(),
+		},
+		{
 			Key:         "stage_hooks",
 			Default:     nil,
 			Description: "Optional per-stage pre/post shell commands honored by fab status start/finish. Each runs as sh -c from the repo root; a failing pre hook blocks start. Not seeded by the scaffold — add by hand.",
@@ -584,6 +598,26 @@ func agentTiersSegment(tiers []tierRow) string {
 	}
 	// Trim the trailing newline: Render() re-inserts the inter-field separator.
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// dispatchSegment renders the dispatch.watchable block — the watchable-pane
+// opt-in. Prose only (no constant to interpolate): the default is the Go zero
+// value, so there is no literal copy to drift.
+func dispatchSegment() string {
+	return "# dispatch.watchable — opt in to WATCHABLE-PANE dispatch for providers that\n" +
+		"# carry only a session_command (e.g. the built-in claude). When true, TMUX\n" +
+		"# PRESENCE decides the adapter: inside tmux (`$TMUX` set) `fab resolve-agent`\n" +
+		"# emits a `dispatch=` line for such a provider, so the stage dispatches into a\n" +
+		"# tmux pane you can watch and steer; outside tmux the line is omitted and the\n" +
+		"# stage stays on native Agent-tool dispatch. HEADLESS CLI dispatch is never\n" +
+		"# reached this way — it stays gated on a real dispatch_command.\n" +
+		"# A provider's own dispatch_command always WINS (unchanged); watchable only\n" +
+		"# ADDS eligibility for providers that have none — so it replaces uncommenting\n" +
+		"# claude's dispatch_command, which would also flip every OUT-of-tmux dispatch\n" +
+		"# to headless CLI. Scope `both`, so it is settable once machine-wide in\n" +
+		"# ~/.fab-kit/config.yaml. Default false (byte-stable current behavior).\n" +
+		"# dispatch:\n" +
+		"#   watchable: false"
 }
 
 // stageHooksSegment renders the stage_hooks block. The valid stage-keys list is

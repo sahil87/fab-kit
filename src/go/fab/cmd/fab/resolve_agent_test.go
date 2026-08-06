@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 )
 
 // resolveAgentTestRepo creates a temp repo with fab/project/config.yaml holding
@@ -620,5 +621,240 @@ agent:
 		t.Errorf("output = %q, want %q\n(this test PINS the documented cross-scope cascade limitation — "+
 			"if ownership became cascade-aware, update this expectation to the refilled gemini values "+
 			"and drop the limitation note from internal/agent's ResolveTier comment and stage-models.md)", out, want)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// dispatch.watchable — the watchable-pane opt-in (tmux presence decides pane vs
+// native for a session_command-only provider).
+// ---------------------------------------------------------------------------
+
+// TestDispatchLineFor_Matrix is the full emission matrix over the PURE helper: the
+// provider's two command fields × the opt-in × $TMUX. It pins the precedence (a
+// dispatch_command always wins), the three-way AND the watchable trigger requires,
+// and the unknown-provider short-circuit.
+func TestDispatchLineFor_Matrix(t *testing.T) {
+	const sess = "claude -n {model}"
+	const disp = "codex exec -m {model}"
+
+	tests := []struct {
+		name      string
+		prov      config.ProviderConfig
+		known     bool
+		watchable bool
+		tmux      string
+		want      string
+	}{
+		// Trigger 1 — a dispatch_command wins in every combination.
+		{"dispatch_command, watchable off, no tmux", config.ProviderConfig{SessionCommand: sess, DispatchCommand: disp}, true, false, "", disp},
+		{"dispatch_command, watchable off, in tmux", config.ProviderConfig{SessionCommand: sess, DispatchCommand: disp}, true, false, "/tmp/tmux-1000/default,1,0", disp},
+		{"dispatch_command, watchable on, in tmux", config.ProviderConfig{SessionCommand: sess, DispatchCommand: disp}, true, true, "/tmp/tmux-1000/default,1,0", disp},
+		{"dispatch_command only (no session), watchable on, in tmux", config.ProviderConfig{DispatchCommand: disp}, true, true, "/tmp/tmux-1000/default,1,0", disp},
+
+		// Trigger 2 — session_command-only provider needs ALL of watchable + $TMUX.
+		{"session only, watchable off, no tmux", config.ProviderConfig{SessionCommand: sess}, true, false, "", ""},
+		{"session only, watchable off, in tmux", config.ProviderConfig{SessionCommand: sess}, true, false, "/tmp/tmux-1000/default,1,0", ""},
+		// An EMPTY $TMUX reads as unset — Go cannot distinguish the two and tmux
+		// never exports an empty value (the SelectMode reading).
+		{"session only, watchable on, no tmux", config.ProviderConfig{SessionCommand: sess}, true, true, "", ""},
+		{"session only, watchable on, in tmux ⇒ session_command", config.ProviderConfig{SessionCommand: sess}, true, true, "/tmp/tmux-1000/default,1,0", sess},
+
+		// Neither field: nothing to emit, opt-in or not.
+		{"no commands, watchable on, in tmux", config.ProviderConfig{}, true, true, "/tmp/tmux-1000/default,1,0", ""},
+
+		// An unknown provider short-circuits before either trigger.
+		{"unknown provider, watchable on, in tmux", config.ProviderConfig{SessionCommand: sess}, false, true, "/tmp/tmux-1000/default,1,0", ""},
+		{"unknown provider with dispatch_command", config.ProviderConfig{DispatchCommand: disp}, false, false, "", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := dispatchLineFor(tc.prov, tc.known, tc.watchable, tc.tmux); got != tc.want {
+				t.Errorf("dispatchLineFor = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestResolveAgentWatchableEmitsSessionCommandInTmux: end-to-end, `dispatch.watchable:
+// true` inside tmux makes the built-in claude tier (session_command only, NO
+// dispatch_command) emit a dispatch= line carrying the PROFILE-SUBSTITUTED
+// session_command — the watchable pane opt-in.
+func TestResolveAgentWatchableEmitsSessionCommandInTmux(t *testing.T) {
+	resolveAgentTestRepo(t, `dispatch:
+  watchable: true
+providers:
+  claude:
+    session_command: "claude -n {model} --effort {effort}"
+`)
+	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+
+	out, err := runResolveAgentCmd(t, "apply") // apply ∈ doing → claude
+	if err != nil {
+		t.Fatalf("resolve-agent apply: %v", err)
+	}
+	doingModel := wantTierModel(t, agent.TierDoing)
+	want := "model=" + doingModel + "\neffort=xhigh\nprovider=claude\n" +
+		"dispatch=claude -n " + doingModel + " --effort xhigh\n"
+	if out != want {
+		t.Errorf("output = %q, want %q (watchable + $TMUX ⇒ dispatch= from session_command)", out, want)
+	}
+}
+
+// TestResolveAgentWatchableOmitsLineOutsideTmux: with the SAME config but $TMUX
+// unset, the line is omitted — the stage stays on NATIVE Agent-tool dispatch (not
+// headless CLI). tmux presence is what decides pane-vs-native.
+func TestResolveAgentWatchableOmitsLineOutsideTmux(t *testing.T) {
+	resolveAgentTestRepo(t, `dispatch:
+  watchable: true
+providers:
+  claude:
+    session_command: "claude -n {model} --effort {effort}"
+`)
+	// resolveAgentTestRepo already unsets TMUX; assert the no-tmux arm explicitly.
+	out, err := runResolveAgentCmd(t, "apply")
+	if err != nil {
+		t.Fatalf("resolve-agent apply: %v", err)
+	}
+	want := wantTierBytes(t, agent.TierDoing)
+	if out != want {
+		t.Errorf("output = %q, want the three-line contract %q (no $TMUX ⇒ native dispatch, never headless CLI)", out, want)
+	}
+}
+
+// TestResolveAgentWatchableOffInTmuxOmitsLine: the DEFAULT (opt-in absent) is
+// byte-stable even inside tmux — the whole point of defaulting to false.
+func TestResolveAgentWatchableOffInTmuxOmitsLine(t *testing.T) {
+	resolveAgentTestRepo(t, `providers:
+  claude:
+    session_command: "claude -n {model} --effort {effort}"
+`)
+	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+
+	out, err := runResolveAgentCmd(t, "apply")
+	if err != nil {
+		t.Fatalf("resolve-agent apply: %v", err)
+	}
+	want := wantTierBytes(t, agent.TierDoing)
+	if out != want {
+		t.Errorf("output = %q, want the three-line contract %q (watchable defaults to false)", out, want)
+	}
+}
+
+// TestResolveAgentWatchableDispatchCommandPrecedence: a provider that DOES carry a
+// dispatch_command emits that command, not its session_command, even with the
+// opt-in on inside tmux. Watchable only ADDS eligibility; it never rewrites an
+// existing CLI-dispatch opt-in.
+func TestResolveAgentWatchableDispatchCommandPrecedence(t *testing.T) {
+	resolveAgentTestRepo(t, `dispatch:
+  watchable: true
+providers:
+  codex:
+    session_command: "codex -m {model}"
+    dispatch_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
+agent:
+  tiers:
+`+pinnedTierLine(t, agent.TierDoing, "codex"))
+	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+
+	out, err := runResolveAgentCmd(t, "apply")
+	if err != nil {
+		t.Fatalf("resolve-agent apply: %v", err)
+	}
+	doingModel := wantTierModel(t, agent.TierDoing)
+	want := "model=" + doingModel + "\neffort=xhigh\nprovider=codex\n" +
+		"dispatch=codex exec -m " + doingModel + " -c model_reasoning_effort=xhigh\n"
+	if out != want {
+		t.Errorf("output = %q, want the dispatch_command %q (dispatch_command wins over watchable)", out, want)
+	}
+}
+
+// TestResolveAgentWatchableAliasKeepsFullModelIDInDispatch: --alias aliases the
+// model= line while the watchable dispatch= line still embeds the FULL model ID —
+// the same rule the dispatch_command path follows (the flag's behavior is
+// unaffected by the new trigger).
+func TestResolveAgentWatchableAliasKeepsFullModelIDInDispatch(t *testing.T) {
+	resolveAgentTestRepo(t, `dispatch:
+  watchable: true
+providers:
+  claude:
+    session_command: "claude -n {model} --effort {effort}"
+`)
+	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+
+	out, err := runResolveAgentCmd(t, "apply", "--alias")
+	if err != nil {
+		t.Fatalf("resolve-agent apply --alias: %v", err)
+	}
+	doingModel := wantTierModel(t, agent.TierDoing)
+	want := "model=" + agent.ModelAlias(doingModel) + "\neffort=xhigh\nprovider=claude\n" +
+		"dispatch=claude -n " + doingModel + " --effort xhigh\n"
+	if out != want {
+		t.Errorf("output = %q, want aliased model= with a full-ID dispatch= %q", out, want)
+	}
+}
+
+// TestResolveAgentWatchableFromSystemConfig: dispatch.watchable is scope `both`, so
+// setting it ONCE in ~/.fab-kit/config.yaml applies to a repo whose project config
+// never mentions it — the machine-wide-opt-in requirement. (Cascade pruning would
+// silently drop a project-scoped key here; this is the guard that it is not.)
+func TestResolveAgentWatchableFromSystemConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	sysDir := filepath.Join(home, ".fab-kit")
+	if err := os.MkdirAll(sysDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"), []byte("dispatch:\n  watchable: true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// resolveAgentTestRepo chdirs but does not touch HOME, so the t.Setenv stands.
+	resolveAgentTestRepo(t, `project:
+  name: test
+providers:
+  claude:
+    session_command: "claude -n {model} --effort {effort}"
+`)
+	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+
+	out, err := runResolveAgentCmd(t, "apply")
+	if err != nil {
+		t.Fatalf("resolve-agent apply: %v", err)
+	}
+	doingModel := wantTierModel(t, agent.TierDoing)
+	want := "model=" + doingModel + "\neffort=xhigh\nprovider=claude\n" +
+		"dispatch=claude -n " + doingModel + " --effort xhigh\n"
+	if out != want {
+		t.Errorf("output = %q, want %q (dispatch.watchable is scope `both` — honored from the system layer)", out, want)
+	}
+}
+
+// TestResolveAgentWatchableProjectOverridesSystem: the project layer wins over the
+// system layer for a `both`-scoped field — a machine-wide `true` is switchable off
+// per repo.
+func TestResolveAgentWatchableProjectOverridesSystem(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	sysDir := filepath.Join(home, ".fab-kit")
+	if err := os.MkdirAll(sysDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"), []byte("dispatch:\n  watchable: true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resolveAgentTestRepo(t, `dispatch:
+  watchable: false
+providers:
+  claude:
+    session_command: "claude -n {model} --effort {effort}"
+`)
+	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+
+	out, err := runResolveAgentCmd(t, "apply")
+	if err != nil {
+		t.Fatalf("resolve-agent apply: %v", err)
+	}
+	want := wantTierBytes(t, agent.TierDoing)
+	if out != want {
+		t.Errorf("output = %q, want the three-line contract %q (project `false` must beat system `true`)", out, want)
 	}
 }

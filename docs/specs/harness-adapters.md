@@ -345,12 +345,15 @@ pass-through, provider neutrality) and describes the
 **native Agent-tool adapter** as its harness-specific injection layer. This spec catalogs that native
 adapter as **one of three** dispatch adapters and adds the two `fab dispatch` modes — **headless CLI** and
 **interactive pane** — alongside it, plus the cross-adapter protocol all three share. The `dispatch=` line
-`fab resolve-agent` emits (when the resolved tier's provider carries a `dispatch_command`) is the seam the
+`fab resolve-agent` emits (when the resolved tier's provider carries a `dispatch_command` — or, with
+`dispatch.watchable: true` and the orchestrator inside tmux, for a `session_command`-only provider: the
+watchable pane opt-in, `stage-models.md` § Watchable pane dispatch) is the seam the
 `fab dispatch` adapters consume; `stage-models.md` § Harness-adapter boundary points here for the runtime
 that RUNS it.
 
 Resolution stays **adapter-independent** across all three, but it does **select** which of them runs: the
-adapter follows from whether the *resolved* provider carries a `dispatch_command`. What selects the adapter
+adapter follows from whether the *resolved* provider carries a `dispatch_command` (or qualifies under the
+`dispatch.watchable` opt-in above). What selects the adapter
 is therefore the **config** a dispatch resolves from — `agent.tiers.<tier>.provider` plus the `providers:`
 table — not an invocation flag. An invocation-time `fab resolve-agent <stage> --provider <name>` override
 (`260805-j3cm`) binds the **native adapter only**: `fab dispatch start` accepts no override flags and

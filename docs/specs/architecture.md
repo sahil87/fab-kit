@@ -221,8 +221,10 @@ checklist:
 # the interactive-pane stage adapter); dispatch_command runs ONE
 # headless STAGE task via `fab dispatch` (which pipes the stage prompt to the
 # command's STDIN). ABSENT dispatch_command → that provider's stages dispatch
-# natively via the Agent tool (there is NO fallback to session_command, in either
-# direction: --pane likewise never falls back to dispatch_command). fab-kit
+# natively via the Agent tool (there is NO fallback to session_command for a
+# HEADLESS dispatch, in either direction: --pane likewise never falls back to
+# dispatch_command) — unless dispatch.watchable (below) is set and the orchestrator
+# is inside tmux, which makes such a provider pane-eligible instead. fab-kit
 # ships THREE built-in providers — claude (the default), codex, and gemini — as
 # GRAMMAR ONLY: the command templates are in the binary, but no built-in carries a
 # model/effort fill (non-claude model IDs rot at CLI cadence). So naming codex or
@@ -231,7 +233,8 @@ checklist:
 # provider MAY also carry optional model/effort DEFAULT FILL for the {model}/{effort}
 # placeholders (precedence: invocation flag > tier field > provider fill > empty).
 # claude's dispatch_command ships commented because uncommenting it changes default
-# behavior (flips claude native→headless CLI dispatch); codex/gemini's built-in
+# behavior (set dispatch.watchable below instead when you only want a watchable
+# pane; flips claude native→headless CLI dispatch); codex/gemini's built-in
 # dispatch_commands mean naming one flips that tier's stages to CLI dispatch.
 # (Automated PR reviewer toggles moved to code-review.md § Review Tools — absent = enabled.)
 # Per-provider notes (kept out of the blocks below so uncommenting a whole block
@@ -270,6 +273,17 @@ providers:
 agent:
   tiers:
     doing: { provider: claude, model: <model-id>, effort: xhigh }   # example: shape only
+
+# dispatch.watchable (optional, default false) — the WATCHABLE-PANE opt-in. When
+# true AND the orchestrator sits inside tmux ($TMUX set), a provider carrying only
+# a session_command (the built-in claude) becomes CLI-dispatch-eligible, so
+# `fab resolve-agent` emits a dispatch= line and the stage runs in a tmux pane you
+# can watch and steer. Outside tmux the line is omitted and the stage stays on
+# native Agent-tool dispatch — never headless CLI, which stays gated on a real
+# dispatch_command. A provider's own dispatch_command always wins. Scope `both`, so
+# it is settable once machine-wide in ~/.fab-kit/config.yaml.
+dispatch:
+  watchable: false
 
 # Optional branch prefix applied by fab batch switch when creating worktree branches.
 branch_prefix: ""

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
@@ -33,11 +34,13 @@ import (
 // The effort line is omitted when the resolved tier has no effort; the provider
 // line is omitted when the resolved tier has no provider. An empty model emits an
 // empty `model=` line, signaling "inherit the session/orchestrator model". The
-// dispatch line is emitted ONLY when the resolved tier's provider carries a
-// dispatch_command (the CLI-dispatch opt-in) — its absence signals native
-// Agent-tool dispatch, and there is NO fallback to a session command. Non-zero
-// exit only on a real error: malformed/unreadable config, or an unknown
-// stage/tier name.
+// dispatch line is emitted when the resolved tier's provider carries a
+// dispatch_command (the CLI-dispatch opt-in) — or, with `dispatch.watchable: true`
+// and the orchestrator inside tmux, from a session_command-only provider (the
+// watchable pane opt-in; see dispatchLineFor). Its absence signals native
+// Agent-tool dispatch, and a HEADLESS dispatch never falls back to a session
+// command. Non-zero exit only on a real error: malformed/unreadable config, or an
+// unknown stage/tier name.
 //
 // The optional `--alias` flag is the Claude-Code Agent-tool adapter: when set,
 // the resolved model is mapped to its short alias (opus/sonnet/haiku/fable) on the
@@ -127,9 +130,11 @@ func resolveAgentCmd() *cobra.Command {
 			// The dispatch= command ALWAYS embeds the full resolved model ID (CLI
 			// dispatch never aliases), so substitute placeholders from the full
 			// model BEFORE --alias overwrites profile.Model with the short alias.
+			// $TMUX is read HERE (the cobra layer) so dispatchLineFor stays pure —
+			// the internal/dispatch.SelectMode precedent.
 			var dispatchLine string
-			if known && prov.DispatchCommand != "" {
-				dispatchLine = spawn.WithProfile(prov.DispatchCommand, profile.Model, profile.Effort)
+			if cmdTemplate := dispatchLineFor(prov, known, cfg.GetDispatchWatchable(), os.Getenv("TMUX")); cmdTemplate != "" {
+				dispatchLine = spawn.WithProfile(cmdTemplate, profile.Model, profile.Effort)
 			}
 
 			if alias {
@@ -145,6 +150,51 @@ func resolveAgentCmd() *cobra.Command {
 	cmd.Flags().StringVar(&model, "model", "", "override the resolved model (valid without --provider — a within-tier override)")
 	cmd.Flags().StringVar(&effort, "effort", "", "override the resolved effort (valid without --provider — a within-tier override)")
 	return cmd
+}
+
+// dispatchLineFor returns the UNSUBSTITUTED provider command the `dispatch=` line
+// should carry, or "" to omit the line (native Agent-tool dispatch). It is a PURE
+// function — the caller reads $TMUX and the config and passes them in, the
+// internal/dispatch.SelectMode precedent — so the whole emission matrix is
+// table-testable.
+//
+// Two triggers, in precedence order:
+//
+//  1. The resolved provider carries a dispatch_command ⇒ emit it. Unchanged
+//     behavior, and it wins outright: a provider that opted into CLI dispatch is
+//     dispatched by its own headless command regardless of tmux or the opt-in.
+//  2. WATCHABLE PANE OPT-IN: the provider has NO dispatch_command, but
+//     `dispatch.watchable: true` AND $TMUX is set AND the provider carries a
+//     session_command ⇒ emit the session_command.
+//
+// Why trigger 2 is sound even though it emits a SESSION command on a line named
+// `dispatch=`: the skills' dispatch seam branches on the line's PRESENCE and never
+// executes its value — `fab dispatch start` re-resolves the stage from config
+// itself. Inside tmux, start's auto ladder selects PANE mode, which composes the
+// provider's session_command (a session_command-only provider dispatches fine
+// under pane mode — shipped l9ng/zxe0 behavior). So the emitted value is
+// informational and matches what start will actually run.
+//
+// Why $TMUX and not a tmux probe: this is a DEFAULTING signal, exactly as in
+// SelectMode — "would a pane be visible to the caller?". With $TMUX unset the line
+// is omitted, so the stage stays on NATIVE Agent-tool dispatch (never headless CLI:
+// headless remains gated on a real dispatch_command). tmux presence is what decides
+// pane-vs-native, which is the whole point of the opt-in.
+//
+// Known edge (documented, not solved): if tmux dies between this resolve and
+// `fab dispatch start`, start's auto ladder soft-falls-back to headless and then
+// errors on the missing dispatch_command. Rare, self-explaining at the CLI.
+func dispatchLineFor(prov config.ProviderConfig, known, watchable bool, tmuxEnv string) string {
+	if !known {
+		return ""
+	}
+	if prov.DispatchCommand != "" {
+		return prov.DispatchCommand
+	}
+	if watchable && tmuxEnv != "" && prov.SessionCommand != "" {
+		return prov.SessionCommand
+	}
+	return ""
 }
 
 // resolveStageOrTier accepts either a pipeline stage name (mapped via the fixed

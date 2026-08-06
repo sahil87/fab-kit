@@ -120,6 +120,29 @@ type ProjectConfig struct {
 	LinearWorkspace string `yaml:"linear_workspace"`
 }
 
+// DispatchConfig models the `dispatch:` section of config.yaml — machine-level
+// dispatch preferences (scope `both`, so a single ~/.fab-kit/config.yaml setting
+// covers every repo on the machine).
+//
+// Watchable is the WATCHABLE-PANE OPT-IN: when true, `fab resolve-agent` treats a
+// session_command-only provider (e.g. the built-in claude, which deliberately
+// ships NO dispatch_command) as CLI-dispatch-eligible — but ONLY when the
+// orchestrator itself sits inside tmux ($TMUX set). The rationale is that pane
+// mode composes `session_command`, not `dispatch_command`, so pane eligibility was
+// gated on a field pane mode never uses; before this flag the only way to get a
+// watchable claude worker was to uncomment claude's dispatch_command, which ALSO
+// flipped every out-of-tmux dispatch to headless CLI. With the opt-in, TMUX
+// PRESENCE decides: inside tmux the stage dispatches into a watchable pane,
+// outside it falls back to native Agent-tool dispatch (never headless CLI —
+// headless stays gated on a real dispatch_command).
+//
+// Default false ⇒ byte-stable behavior for every existing config. A provider's own
+// dispatch_command always wins; watchable only ADDS eligibility for providers that
+// have none.
+type DispatchConfig struct {
+	Watchable bool `yaml:"watchable"`
+}
+
 // Config holds the parsed project config relevant to the fab binary. It is
 // the single owner of fab/project/config.yaml parsing — every key the fab
 // module consumes is modeled here and read through a nil-safe accessor, so no
@@ -146,6 +169,7 @@ type Config struct {
 	Providers  map[string]ProviderConfig `yaml:"providers"`
 	Agent      AgentConfig               `yaml:"agent"`
 	Project    ProjectConfig             `yaml:"project"`
+	Dispatch   DispatchConfig            `yaml:"dispatch"`
 }
 
 // Load reads fab/project/config.yaml from fabRoot and returns the parsed config.
@@ -470,6 +494,17 @@ func (c *Config) GetAgentTier(tier string) (TierProfile, bool) {
 	}
 	p, ok := c.Agent.Tiers[tier]
 	return p, ok
+}
+
+// GetDispatchWatchable returns dispatch.watchable — the watchable-pane opt-in — or
+// false when unset (nil-safe). False is the byte-stable default: a stage whose
+// provider carries no dispatch_command stays on native Agent-tool dispatch exactly
+// as before. See DispatchConfig for the tmux-presence semantics.
+func (c *Config) GetDispatchWatchable() bool {
+	if c == nil {
+		return false
+	}
+	return c.Dispatch.Watchable
 }
 
 // GetLinearWorkspace returns project.linear_workspace, or "" when unset (nil-safe).
