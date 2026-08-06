@@ -113,6 +113,85 @@ func TestRender_FenceFullyComments(t *testing.T) {
 	}
 }
 
+// TestCommentOutSegment_MarkersAtColumnZero: EVERY non-blank line of a commented
+// segment carries its comment marker at column 0 — the alignment defect. A
+// deliberately-commented CONTENT line (an indented `#`, e.g. claude's
+// `    # dispatch_command:` or the `  # codex:` block) must gain the fence-level
+// `# ` prefix like any live line; only a line whose `#` is ALREADY at column 0 is
+// fence-level prose and is left as-is.
+func TestCommentOutSegment_MarkersAtColumnZero(t *testing.T) {
+	segment := "# prose at column 0\n" +
+		"#\n" +
+		"live_key:\n" +
+		"  child: 1\n" +
+		"    # deliberately-commented content at column 4\n" +
+		"  # commented block at column 2\n" +
+		"  #   nested: value"
+	want := "# prose at column 0\n" +
+		"#\n" +
+		"# live_key:\n" +
+		"#   child: 1\n" +
+		"#     # deliberately-commented content at column 4\n" +
+		"#   # commented block at column 2\n" +
+		"#   #   nested: value"
+	if got := CommentOutSegment(segment); got != want {
+		t.Errorf("comment markers must all land at column 0.\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+// TestCommentOutSegment_ShippedRegistryAlignment: over the SHIPPED registry, every
+// non-blank line of every commented segment starts with `#` at column 0 — the
+// property the fence's visual alignment rests on. The guard that a new registry row
+// carrying deliberately-commented content (the providers block's
+// dispatch_command/codex/gemini lines) cannot reintroduce a ragged fence.
+func TestCommentOutSegment_ShippedRegistryAlignment(t *testing.T) {
+	for _, f := range fieldsForTest(t) {
+		if f.Segment == "" {
+			continue
+		}
+		for i, ln := range strings.Split(CommentOutSegment(f.Segment), "\n") {
+			if strings.TrimSpace(ln) == "" {
+				continue
+			}
+			if !strings.HasPrefix(ln, "#") {
+				t.Errorf("field %q line %d is not commented at column 0: %q", f.Key, i, ln)
+			}
+		}
+	}
+}
+
+// TestCommentOutSegment_BlockStripRestoresSegment: the reverse operation
+// `configref.providersSegment`'s prose promises — "strip the leading '# ' from every
+// line of a block" — restores the segment's YAML block BYTE-EXACTLY, so a user who
+// uncomments a whole block gets valid YAML with claude's dispatch_command and the
+// codex/gemini blocks still commented at their original indent. Verified over the
+// shipped registry; the fence-level prose lines (already column-0) are unchanged by
+// the commenting and so are not part of the strip.
+func TestCommentOutSegment_BlockStripRestoresSegment(t *testing.T) {
+	for _, f := range fieldsForTest(t) {
+		if f.Segment == "" {
+			continue
+		}
+		orig := strings.Split(f.Segment, "\n")
+		got := strings.Split(CommentOutSegment(f.Segment), "\n")
+		for i, want := range orig {
+			if strings.TrimSpace(want) == "" || strings.HasPrefix(want, "#") {
+				if got[i] != want {
+					t.Errorf("field %q line %d: a blank/prose line must pass through unchanged: %q → %q", f.Key, i, want, got[i])
+				}
+				continue
+			}
+			if !strings.HasPrefix(got[i], "# ") {
+				t.Errorf("field %q line %d: a block line must gain the `# ` prefix: %q", f.Key, i, got[i])
+				continue
+			}
+			if restored := strings.TrimPrefix(got[i], "# "); restored != want {
+				t.Errorf("field %q line %d: stripping `# ` must restore the segment byte-exactly: %q, want %q", f.Key, i, restored, want)
+			}
+		}
+	}
+}
+
 // TestRender_ParksUnknownLiveKey: a live top-level key absent from the registry is
 // removed from the live YAML and parked in a comment block below the fence, its
 // value serialized. The live key must be gone from the active config.

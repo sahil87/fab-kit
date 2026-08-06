@@ -276,7 +276,12 @@ overridden), delimited by byte-exact `>>>`/`<<<` splice anchors carrying a kit-v
 (`# >>> fab reference (kit X.Y.Z) >>> …` / `# <<< end fab reference <<< …`, dash-padded). Upgrade
 rewrites ONLY between the markers; everything outside — including the user's own comments on A-fields —
 is the user's. Every scaffolded block is **fully commented including its parent keys** (a live `agent:`
-over comment-only children is exactly the `agent: null` the old whole-file masher produced); the fence
+over comment-only children is exactly the `agent: null` the old whole-file masher produced), with every
+comment marker at **column 0**: the comment-out helper skips only a line whose `#` is ALREADY at column
+0 (fence-level prose), so a line the segment ships deliberately commented at an INDENT (claude's
+`# dispatch_command:`, the `# codex:` / `# gemini:` blocks) gains the fence prefix like a live line —
+which both keeps the fence visually flush and makes "strip the leading `# ` from every line of a block"
+restore the segment byte-exactly. The fence
 **omits fields already overridden** above it. Omission is at **top-level-key granularity**: a live
 top-level key (e.g. `agent:`) suppresses the entire scaffolded block for every registry row under that
 key, since the override unit and the system-file merge both land at the top-level key — the fence never

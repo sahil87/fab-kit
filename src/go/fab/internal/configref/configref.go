@@ -481,6 +481,13 @@ const referenceHeader = `# Full reference of all available options: fab config r
 // BEHAVIOR: a built-in provider is inert until a tier or flag names it), and
 // whole-block uncommenting still yields valid YAML because all per-provider prose
 // stays above the `providers:` key.
+//
+// This segment carries the registry's only DELIBERATELY-COMMENTED content lines —
+// claude's indented `# dispatch_command:` and the `# codex:` / `# gemini:` blocks.
+// configupgrade.CommentOutSegment prefixes those like any live line (its column-0
+// rule), so in a rendered fence every marker lands at column 0 and the "strip the
+// leading '# ' from every line of a block" instruction below restores this text
+// byte-exactly — with those lines still commented at their original indent.
 func providersSegment() string {
 	return "# providers — named agent invocation grammars plus their optional default fill.\n" +
 		"# Each provider MAY carry two command fields (they are NOT merged — session and\n" +
