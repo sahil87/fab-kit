@@ -861,3 +861,100 @@ func TestScope_SystemFabVersionDoesNotBleedIntoResolvedConfig(t *testing.T) {
 		t.Errorf("a system-file fab_version must not bleed into the resolved version, got %q", got)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// dispatch.watchable — the watchable-pane opt-in (scope `both`).
+// ---------------------------------------------------------------------------
+
+// TestLoad_DispatchWatchable: the field parses from the project file and the
+// accessor reports it; the DEFAULT (key absent) is false — the byte-stable
+// current behavior every existing config keeps.
+func TestLoad_DispatchWatchable(t *testing.T) {
+	isolateSystemConfig(t)
+
+	fabRoot := writeProjectConfig(t, "dispatch:\n  watchable: true\n")
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.GetDispatchWatchable() {
+		t.Error("dispatch.watchable: true must parse as true")
+	}
+
+	// Absent key ⇒ false.
+	bareRoot := writeProjectConfig(t, "project:\n  name: t\n")
+	bare, err := Load(bareRoot)
+	if err != nil {
+		t.Fatalf("Load (bare): %v", err)
+	}
+	if bare.GetDispatchWatchable() {
+		t.Error("an absent dispatch block must default to watchable=false")
+	}
+
+	// An explicit false is indistinguishable from absent — both mean "off".
+	offRoot := writeProjectConfig(t, "dispatch:\n  watchable: false\n")
+	off, err := Load(offRoot)
+	if err != nil {
+		t.Fatalf("Load (explicit false): %v", err)
+	}
+	if off.GetDispatchWatchable() {
+		t.Error("dispatch.watchable: false must parse as false")
+	}
+}
+
+// TestCascade_DispatchWatchableFromSystemLayer: `dispatch` is scope `both`, so a
+// machine-wide opt-in set once in ~/.fab-kit/config.yaml reaches a repo whose
+// project config never mentions it (the requirement the scope exists for — a
+// project-scoped key would be PRUNED from the system layer with a warning).
+func TestCascade_DispatchWatchableFromSystemLayer(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, "dispatch:\n  watchable: true\n")
+	fabRoot := writeProjectConfig(t, "project:\n  name: t\n")
+
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.GetDispatchWatchable() {
+		t.Error("a system-layer dispatch.watchable must be honored (scope `both`, not pruned)")
+	}
+}
+
+// TestCascade_DispatchWatchableProjectWins: the project layer beats the system
+// layer in both directions — a machine-wide `true` is switchable off per repo, and
+// a project `true` works over a system `false`.
+func TestCascade_DispatchWatchableProjectWins(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, "dispatch:\n  watchable: true\n")
+	offRoot := writeProjectConfig(t, "dispatch:\n  watchable: false\n")
+	cfg, err := Load(offRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.GetDispatchWatchable() {
+		t.Error("a project `false` must beat a system `true`")
+	}
+
+	home2 := isolateSystemConfig(t)
+	writeSystemConfig(t, home2, "dispatch:\n  watchable: false\n")
+	onRoot := writeProjectConfig(t, "dispatch:\n  watchable: true\n")
+	cfg2, err := Load(onRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg2.GetDispatchWatchable() {
+		t.Error("a project `true` must beat a system `false`")
+	}
+}
+
+// TestGetDispatchWatchable_NilAndEmptyConfig: the accessor is nil-safe and reports
+// false for a zero Config (the "off" default every caller falls back to).
+func TestGetDispatchWatchable_NilAndEmptyConfig(t *testing.T) {
+	var nilCfg *Config
+	if nilCfg.GetDispatchWatchable() {
+		t.Error("nil-config GetDispatchWatchable must report false")
+	}
+	if (&Config{}).GetDispatchWatchable() {
+		t.Error("empty-config GetDispatchWatchable must report false")
+	}
+}

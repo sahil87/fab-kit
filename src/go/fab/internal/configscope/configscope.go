@@ -71,8 +71,13 @@ var keyScopes = map[string]Scope{
 	"consolidate":         ScopeProject,
 	"providers":           ScopeBoth,
 	"agent":               ScopeBoth,
-	"stage_hooks":         ScopeProject,
-	"branch_prefix":       ScopeProject,
+	// dispatch is preference-class (`both`): dispatch.watchable expresses how the
+	// OPERATOR prefers to watch stage workers on THIS machine, not what the repo's
+	// pipeline means, so it must be settable once machine-wide in
+	// ~/.fab-kit/config.yaml — the same reasoning that puts agent/providers here.
+	"dispatch":      ScopeBoth,
+	"stage_hooks":   ScopeProject,
+	"branch_prefix": ScopeProject,
 }
 
 // ScopeFor returns the scope of a top-level config key and whether the key is
