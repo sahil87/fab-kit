@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "The providers & role-tiers model (agent config v3) — the `providers:` table (opaque names → `session_command`/`dispatch_command` + optional `model`/`effort` fill; three grammar-only built-ins; absent `dispatch_command` = native, NO cross-fallback), the six role tiers with per-field inheritance, the fill precedence + cross-provider cutoff (merged-config scope limit), the fixed stage→tier mapping, `fab resolve-agent` and its native-arm-only overrides, `fab agent`'s two modes, and the consumers."
+description: "The providers & role-tiers model (agent config v3) — the `providers:` table (opaque names → `session_command`/`dispatch_command` + optional `model`/`effort` fill; three grammar-only built-ins; absent `dispatch_command` = native, no cross-fallback), the six role tiers with per-field inheritance, the fill precedence + cross-provider cutoff, the fixed stage→tier map, `fab resolve-agent` with its native-arm-only overrides and the `dispatch.watchable` opt-in, `fab agent`'s modes, and the consumers."
 ---
 # Providers & Role Tiers
 
@@ -17,7 +17,7 @@ Agent config v3 (260702-tykw) splits **provider mechanics** (how to invoke an ag
 `fab/project/config.yaml` SHALL support a top-level `providers:` map keyed by **opaque, user-chosen provider names**. Each provider MAY carry two command fields, which SHALL NOT be merged into one:
 
 - **`session_command`** — opens an interactive agent **session**. Consumed by `fab operator`, `fab batch new`/`batch switch`, `fab agent`, and `fab dispatch start --pane` (which runs a *stage* in an interactive session the user can watch and steer — see [dispatch.md](/runtime/dispatch.md)).
-- **`dispatch_command`** — runs ONE headless **stage task** via `fab dispatch`. **ABSENT `dispatch_command` = native Agent-tool dispatch** — there is **NO fallback** to `session_command`.
+- **`dispatch_command`** — runs ONE headless **stage task** via `fab dispatch`. **ABSENT `dispatch_command` = native Agent-tool dispatch** (unless the `dispatch.watchable` opt-in applies inside tmux — § Watchable pane dispatch) — there is **NO fallback** to `session_command` for a headless dispatch.
 
 A provider MAY additionally carry two optional **default-fill** fields, `model` and `effort` — the values that supply the command's `{model}`/`{effort}` placeholders when nothing more specific does (see § Fill precedence below). They are per-field merged over the built-in table exactly as the command fields are, and `providers` is `scope: both`, so a fill is settable once per machine in `~/.fab-kit/config.yaml`.
 
@@ -51,9 +51,10 @@ Two per-provider grammar specifics: **gemini carries no `{effort}` placeholder**
 
 #### Scenario: absent `dispatch_command` selects native dispatch
 
-- **GIVEN** a stage whose tier points at the built-in `claude` provider (no `dispatch_command`)
+- **GIVEN** a stage whose tier points at the built-in `claude` provider (no `dispatch_command`), with `dispatch.watchable` off (the default)
 - **WHEN** that stage is dispatched
 - **THEN** it runs as a native Agent-tool sub-agent — `fab resolve-agent` emits no `dispatch=` line, and there is no fallback to `session_command`
+- **AND** with `dispatch.watchable: true` and the orchestrator inside tmux, the same tier instead emits `dispatch=` from `session_command` (§ Watchable pane dispatch)
 
 #### Scenario: provider `dispatch_command` drives CLI dispatch
 
@@ -141,7 +142,7 @@ The stage→tier mapping is **fab-owned and NOT user-overridable** (`stageTiers`
 - `model=<id>` (always; empty = the inherit signal),
 - `effort=<level>` (omitted when empty),
 - `provider=<name>` (omitted when empty),
-- `dispatch=<command>` — emitted **ONLY when the resolved tier's provider carries a `dispatch_command`** (its absence signals native dispatch; NO fallback). The command's `{model}`/`{effort}` are substituted via `spawn.WithProfile`, and the `{model}` is **ALWAYS the full model ID even under `--alias`** (an external CLI's `--model` flag takes a full ID; CLI dispatch never aliases).
+- `dispatch=<command>` — emitted when the resolved tier's provider carries a `dispatch_command`, **or** — with `dispatch.watchable: true` and the orchestrator inside tmux — for a `session_command`-only provider (the **watchable pane opt-in**, § Watchable pane dispatch below). Its absence signals native dispatch; a *headless* dispatch has no fallback to a session command. The command's `{model}`/`{effort}` are substituted via `spawn.WithProfile`, and the `{model}` is **ALWAYS the full model ID even under `--alias`** (an external CLI's `--model` flag takes a full ID; CLI dispatch never aliases).
 
 `--alias` maps the `model=` line to the Claude-Code Agent-tool short alias (`opus`/`sonnet`/`haiku`/`fable`) — the Agent tool's `model` param is a hard enum that rejects full IDs; the `dispatch=` line is unaffected (full ID).
 
@@ -170,6 +171,38 @@ The stage→tier mapping is **fab-owned and NOT user-overridable** (`stageTiers`
 - **THEN** `provider=claude` with the tier's own model and `effort=high` — a within-tier override, not a usage error
 - **WHEN** `fab resolve-agent apply --provider bogus` runs
 - **THEN** it exits non-zero naming `bogus`, lists `claude, codex, gemini`, and prints no profile
+
+### Requirement: `dispatch.watchable` — the watchable pane opt-in
+
+`dispatch.watchable` (bool, default `false`, **scope `both`** — settable once machine-wide in `~/.fab-kit/config.yaml`; modeled on `Config.Dispatch.Watchable`, read via `GetDispatchWatchable()`) SHALL add a **second trigger** for the `dispatch=` line: when it is `true` **AND** `$TMUX` is set **AND** the resolved provider carries a `session_command` but **no** `dispatch_command`, `fab resolve-agent` emits `dispatch=` carrying the profile-substituted `session_command`.
+
+- **Tmux presence decides pane vs native.** `$TMUX` unset ⇒ the line is omitted and the stage stays on **native Agent-tool dispatch**, never headless CLI (headless remains gated on a real `dispatch_command`). The env read lives in the cobra `RunE` layer; the emission rule itself is the pure `dispatchLineFor(prov, known, watchable, tmuxEnv)` helper (the `dispatch.SelectMode` precedent), so the whole matrix is table-testable.
+- **A provider `dispatch_command` wins** — emission for a `dispatch_command`-carrying provider is unchanged; watchable only ADDS eligibility for providers that have none.
+- **Why it exists.** Pane mode composes `session_command`, not `dispatch_command`, so pane *eligibility* was gated on a field pane mode never uses. Before the opt-in the only route to a watchable claude worker was uncommenting claude's `dispatch_command`, which ALSO flipped every out-of-tmux dispatch to **headless CLI** — a footgun disguised as a default.
+- **No skill-wiring change.** The dispatch seam branches on the line's *presence* and never executes its value; `fab dispatch start` re-resolves internally and inside tmux its auto ladder selects pane mode, composing the same `session_command`. A `session_command`-only provider dispatches fine under pane mode (shipped zxe0/l9ng behavior).
+- **`--alias` unaffected**: `dispatch=` always embeds the full model ID.
+- **Known edge, documented not solved**: if tmux dies between the resolve and `fab dispatch start`, start's auto ladder soft-falls-back to headless and then errors on the missing `dispatch_command`. Rare, self-explaining at the CLI.
+
+#### Scenario: watchable + tmux makes a session_command-only provider pane-eligible
+
+- **GIVEN** `dispatch.watchable: true` and a tier resolving to the built-in `claude` (a `session_command`, no `dispatch_command`)
+- **WHEN** `fab resolve-agent apply` runs with `$TMUX` set
+- **THEN** the output carries a `dispatch=` line holding the substituted `session_command` (full model ID)
+- **WHEN** the same command runs with `$TMUX` unset
+- **THEN** no `dispatch=` line is emitted — the stage stays on native Agent-tool dispatch
+
+#### Scenario: a provider dispatch_command outranks the opt-in
+
+- **GIVEN** `dispatch.watchable: true`, `$TMUX` set, and a tier resolving to a provider carrying BOTH commands
+- **WHEN** `fab resolve-agent <stage>` runs
+- **THEN** `dispatch=` carries the **`dispatch_command`**, not the `session_command`
+
+#### Scenario: the opt-in is settable once machine-wide
+
+- **GIVEN** a `dispatch:` block setting `watchable: true` in `~/.fab-kit/config.yaml`, and a project config that never mentions `dispatch`
+- **WHEN** `fab resolve-agent <stage>` runs inside tmux in that repo
+- **THEN** the opt-in applies (scope `both` — the cascade honors it rather than pruning it)
+- **AND** a project-level `dispatch.watchable: false` overrides it back off
 
 ### Requirement: `fab agent [tier] [--provider <name> [--model <id>] [--effort <level>]] [--print] [--repo <path>]` — session launcher
 
@@ -272,4 +305,4 @@ The provider/tier resolution feeds three runtime consumers:
 - **The operator launcher** (`fab operator`) resolves the **operator** tier in-process and composes its session command from that tier's provider `session_command` + profile. See [operator.md](/runtime/operator.md).
 - **Batch worker spawns** (`fab batch new`/`switch` and the operator's repo-targeted worker spawns) compose from the **default-tier** provider `session_command` + the default profile — so workers spawn WITH a profile. See [operator.md](/runtime/operator.md) and [distribution/kit-architecture.md](/distribution/kit-architecture.md).
 
-The `dispatch_command` a tier's provider carries is *run* by [`fab dispatch`](/runtime/dispatch.md) (the headless process manager); this file and `fab resolve-agent` only *resolve and emit* it.
+The `dispatch_command` a tier's provider carries is *run* by [`fab dispatch`](/runtime/dispatch.md) (the headless process manager); this file and `fab resolve-agent` only *resolve and emit* it. The same holds for a `session_command` emitted under the `dispatch.watchable` opt-in: `fab dispatch start` re-resolves and composes it itself under pane mode.

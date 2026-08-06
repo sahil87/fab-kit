@@ -510,7 +510,14 @@ func TestConfigReferenceJSONIsValidAndByteStable(t *testing.T) {
 // `""`). This is the single "cascade falls back to absent" signal Change 2's
 // resolver consumes; a typed empty would leak a Go-side implementation detail with
 // no cascade meaning. Conversely, a non-null `default` must denote a real built-in
-// value (the claude provider and the six tier profiles today).
+// value (the three built-in providers, the six tier profiles, and
+// dispatch.watchable's `false` today).
+//
+// dispatch.watchable is the convention's boundary case and is deliberately NOT
+// null: for a BOOL there is no "absent" state distinguishable from false — the
+// cascade genuinely bottoms out at false, so false is a real built-in value, not
+// the typed-empty placeholder the convention forbids. The forbidden shapes are the
+// ones that could stand in for "nothing" (`[]`, `{}`, `""`).
 func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
 	out, err := configref.RenderJSON()
 	if err != nil {
@@ -524,8 +531,9 @@ func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
 	// The only rows with a real built-in default today. Every other row is
 	// "no built-in default" and MUST render as JSON null (not [], {}, or "").
 	hasDefault := map[string]bool{
-		"providers":   true,
-		"agent.tiers": true,
+		"providers":          true,
+		"agent.tiers":        true,
+		"dispatch.watchable": true, // bool: false IS the built-in default, not "absent"
 	}
 	for _, obj := range arr {
 		key, _ := obj["key"].(string)
@@ -649,6 +657,7 @@ func TestConfigReferenceScopeAssignments(t *testing.T) {
 		"consolidate.detectors":      configref.ScopeProject,
 		"providers":                  configref.ScopeBoth,
 		"agent.tiers":                configref.ScopeBoth,
+		"dispatch.watchable":         configref.ScopeBoth,
 		"stage_hooks":                configref.ScopeProject,
 		"branch_prefix":              configref.ScopeProject,
 	}
@@ -870,4 +879,79 @@ func yamlKeySegments(t reflect.Type) map[string]struct{} {
 func containsKeyToken(haystack, token string) bool {
 	re := regexp.MustCompile(`(^|[^A-Za-z0-9_])` + regexp.QuoteMeta(token) + `([^A-Za-z0-9_]|$)`)
 	return re.MatchString(haystack)
+}
+
+// TestConfigReferenceDispatchWatchable: the `dispatch.watchable` row (the
+// watchable-pane opt-in) is present, correctly scoped, advertised, and rendered
+// COMMENTED with the semantics a reader needs to decide whether to set it. The row
+// is the field's only discoverability surface, so the guard covers both the
+// metadata and the rendered prose.
+func TestConfigReferenceDispatchWatchable(t *testing.T) {
+	// Isolate HOME so the cascade cannot merge the developer's real system config
+	// over the reference (the TestConfigReferenceRoundTrips discipline).
+	t.Setenv("HOME", t.TempDir())
+
+	fields, err := configref.Fields()
+	if err != nil {
+		t.Fatalf("Fields returned an error: %v", err)
+	}
+	var row *configref.Field
+	for i := range fields {
+		if fields[i].Key == "dispatch.watchable" {
+			row = &fields[i]
+		}
+	}
+	if row == nil {
+		t.Fatal("registry is missing the dispatch.watchable row")
+	}
+	// false IS the built-in default for a bool (there is no "absent" distinguishable
+	// from false), so the row carries it typed rather than nil.
+	if row.Default != false {
+		t.Errorf("dispatch.watchable Default = %#v, want false (the real built-in default)", row.Default)
+	}
+	// Scope `both` is load-bearing: a project-scoped field would be PRUNED out of
+	// ~/.fab-kit/config.yaml, defeating the machine-wide opt-in.
+	if row.Scope != configref.ScopeBoth {
+		t.Errorf("dispatch.watchable Scope = %q, want %q (settable machine-wide)", row.Scope, configref.ScopeBoth)
+	}
+	if !row.Advertise {
+		t.Error("dispatch.watchable must be advertised (it is scaffolded into the managed fence)")
+	}
+
+	out, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+	// Rendered COMMENTED: a live `dispatch:` block would be a no-op today but would
+	// register as an override under presence=intent.
+	if strings.Contains(out, "\ndispatch:") {
+		t.Error("the dispatch block must be rendered COMMENTED (a live block would register as an override)")
+	}
+	if !strings.Contains(out, "#   watchable: false") {
+		t.Errorf("the reference must scaffold `watchable: false` commented.\n--- got ---\n%s", out)
+	}
+	// The three semantics a reader must be able to learn from the reference alone.
+	for _, want := range []string{"session_command", "$TMUX", "dispatch_command"} {
+		if !strings.Contains(row.Segment, want) {
+			t.Errorf("dispatch.watchable Segment must mention %q (the tmux-decides semantics and the dispatch_command precedence)", want)
+		}
+	}
+	// The reference must NOT promise headless CLI dispatch — the opt-in reaches pane
+	// mode or native dispatch only.
+	if !strings.Contains(row.Segment, "native Agent-tool dispatch") {
+		t.Error("dispatch.watchable Segment must state that outside tmux the stage stays on native Agent-tool dispatch")
+	}
+
+	// The commented scaffold must parse as an inert config: watchable stays false.
+	tmp := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(tmp, []byte(out), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.LoadPath(tmp)
+	if err != nil {
+		t.Fatalf("the rendered reference must parse: %v", err)
+	}
+	if cfg.GetDispatchWatchable() {
+		t.Error("the reference's dispatch block must be inert (watchable=false when parsed)")
+	}
 }

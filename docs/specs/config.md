@@ -82,7 +82,11 @@ resolver consumes; distinguishing an empty list from an empty map from an empty 
 Go-side implementation detail that carries no cascade meaning and would make `--json` emit
 `null`/`[]`/`{}`/`""` inconsistently for the same "no default" concept. So a **non-null** `default`
 always denotes a real built-in value (today: the `providers` row's **three built-in providers** —
-claude/codex/gemini, `260805-j3cm` — and the six `agent.tiers` profiles); every other row is `null`.
+claude/codex/gemini, `260805-j3cm` — the six `agent.tiers` profiles, and `dispatch.watchable`'s
+`false`); every other row is `null`. **`dispatch.watchable` is the convention's boundary case and is
+deliberately not `null`**: for a **bool** there is no "absent" state distinguishable from `false`, so
+`false` is a real built-in value the cascade genuinely bottoms out at — not the typed-empty placeholder
+the convention forbids (the forbidden shapes are the ones that could stand in for "nothing").
 The same rule is why no provider's `default` carries a `model`/`effort` **fill**: fab-kit ships
 provider *grammar* only (non-claude model IDs rot at CLI cadence), so emitting an empty-string model
 there would assert a built-in value that deliberately does not exist. The fill fields are documented
@@ -114,12 +118,15 @@ teammates and CI.
 
 | scope | Meaning | Fields |
 |-------|---------|--------|
-| `both` | Overridable in either the project or the system layer (preference-class). | `agent.tiers`, `providers` |
+| `both` | Overridable in either the project or the system layer (preference-class). | `agent.tiers`, `providers`, `dispatch.watchable` |
 | `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `consolidate.detectors`, and (conservative default) `stage_hooks`, `branch_prefix` |
 | `system` | Overridable only in the system layer. | *(none today; the value exists for completeness and [Change 2])* |
 
 Fields the decision-6 taxonomy does not enumerate (`stage_hooks`, `branch_prefix`) default to `project`
-— the conservative choice, since system-visibility is opt-in per the same rationale. (`fab_version` was
+— the conservative choice, since system-visibility is opt-in per the same rationale. `dispatch`
+(`dispatch.watchable`, the watchable-pane opt-in) is `both` by the same reasoning that puts
+`agent`/`providers` there: it expresses how the **operator** prefers to watch stage workers on **this
+machine**, not what the repo's pipeline means, so it must be settable once machine-wide. (`fab_version` was
 machine-managed and, as of [Change 3 — landed], left `config.yaml` entirely for the plain-text sibling
 `fab/.fab-version`; it is no longer a scoped/registry/config key and carries no scope. The compat-window
 config.yaml `fab_version:` fallback that both reader stacks kept has been **closed** [260719-kq7v]: a stale
@@ -146,8 +153,8 @@ model, at [Change 3]'s `fab config upgrade` time, every field is one of:
   managed fence, so the user can discover and opt in.
 
 `advertise: true` marks the C-eligible fields — the optional override surfaces a project has typically
-*not* set live: `agent.tiers`, `providers`, `checklist.extra_categories`, `consolidate.detectors`,
-`true_impact_exclude`, `stage_hooks`, `branch_prefix`, `test_paths`. `advertise: false` marks the init-seeded identity fields
+*not* set live: `agent.tiers`, `providers`, `dispatch.watchable`, `checklist.extra_categories`,
+`consolidate.detectors`, `true_impact_exclude`, `stage_hooks`, `branch_prefix`, `test_paths`. `advertise: false` marks the init-seeded identity fields
 (`project.*`, `source_paths`), which are written live at `fab config init --project` time and not
 re-advertised in the fence. (`fab_version` is no longer a config-file field — it left `config.yaml` for
 `fab/.fab-version` in [Change 3 — landed], so it is neither advertised nor init-seeded.)
@@ -276,7 +283,12 @@ overridden), delimited by byte-exact `>>>`/`<<<` splice anchors carrying a kit-v
 (`# >>> fab reference (kit X.Y.Z) >>> …` / `# <<< end fab reference <<< …`, dash-padded). Upgrade
 rewrites ONLY between the markers; everything outside — including the user's own comments on A-fields —
 is the user's. Every scaffolded block is **fully commented including its parent keys** (a live `agent:`
-over comment-only children is exactly the `agent: null` the old whole-file masher produced); the fence
+over comment-only children is exactly the `agent: null` the old whole-file masher produced), with every
+comment marker at **column 0**: the comment-out helper skips only a line whose `#` is ALREADY at column
+0 (fence-level prose), so a line the segment ships deliberately commented at an INDENT (claude's
+`# dispatch_command:`, the `# codex:` / `# gemini:` blocks) gains the fence prefix like a live line —
+which both keeps the fence visually flush and makes "strip the leading `# ` from every line of a block"
+restore the segment byte-exactly. The fence
 **omits fields already overridden** above it. Omission is at **top-level-key granularity**: a live
 top-level key (e.g. `agent:`) suppresses the entire scaffolded block for every registry row under that
 key, since the override unit and the system-file merge both land at the top-level key — the fence never
