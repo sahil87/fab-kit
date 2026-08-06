@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-06T15:48:31Z"}
+{"args":"Ship built-in per-role model/effort fills for codex and gemini in defaults.yaml, refreshed each release","cmd":"fab-new","event":"command","ts":"2026-08-06T15:48:31Z"}
+{"delta":"+4.5","event":"confidence","score":4.5,"trigger":"calc-score","ts":"2026-08-06T15:52:21Z"}
+{"cmd":"fab-draft","event":"command","ts":"2026-08-06T15:53:13Z"}
