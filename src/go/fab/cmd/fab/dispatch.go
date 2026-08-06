@@ -9,18 +9,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// dispatchCmd is the parent of the headless-process-manager command family:
-// `fab dispatch <start|status|logs|kill|clean> [args...]`. It is the
-// tmux-independent CLI adapter for cross-harness stage dispatch — parallel to,
-// and independent of, `fab pane` / `fab operator` (which stay the interactive
-// path). See docs/specs/harness-adapters.md for the cross-adapter contract.
+// dispatchCmd is the parent of the stage-worker process-manager command family:
+// `fab dispatch <start|status|logs|kill|clean> [args...]`. It is the CLI adapter
+// for cross-harness stage dispatch, in two launch modes — a detached headless
+// process or an interactive tmux window — resolved per invocation by
+// dispatch.SelectMode. It is parallel to, and independent of, `fab pane` /
+// `fab operator` (which stay the operator's interactive path). See
+// docs/specs/harness-adapters.md for the cross-adapter contract.
 func dispatchCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dispatch",
-		Short: "Headless process manager for CLI-dispatched pipeline stages",
-		Long: "Headless, tmux-independent process manager: start/status/logs/kill/clean.\n" +
-			"Launches a stage's resolved spawn command detached (setsid), tracks it under\n" +
-			".fab-dispatch/{id}/, and exposes a byte-stable poll surface. POSIX-only (v1).",
+		Short: "Process manager for CLI-dispatched pipeline stages (headless or tmux-window worker)",
+		Long: "Process manager for CLI-dispatched stage workers: start/status/logs/kill/clean.\n" +
+			"`start` resolves its launch mode per invocation — a detached headless process\n" +
+			"(tmux-independent) or an interactive tmux window — defaulting to auto: a window\n" +
+			"inside tmux, headless outside. Tracks the worker under .fab-dispatch/{id}/ and\n" +
+			"exposes a byte-stable poll surface. The headless launch is POSIX-only (v1).",
 	}
 
 	cmd.AddCommand(

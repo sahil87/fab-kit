@@ -72,12 +72,13 @@ const DirName = ".fab-dispatch"
 type Mode string
 
 const (
-	// ModeHeadless: the detached `sh -c` wrapper — the default, tmux-independent
-	// path observed via {stage}.exit + pid liveness (the five-state machine).
+	// ModeHeadless: the detached `sh -c` wrapper — the tmux-independent path
+	// observed via {stage}.exit + pid liveness (the five-state machine). Selected
+	// by --headless/--timeout, or by auto outside tmux (see SelectMode).
 	ModeHeadless Mode = "headless"
-	// ModePane: an interactive worker in a tmux window (`fab dispatch start
-	// --pane`), observed via {stage}-result.yaml presence + pane liveness (the
-	// three-state subset — see DerivePaneState).
+	// ModePane: an interactive worker in a tmux window, observed via
+	// {stage}-result.yaml presence + pane liveness (the three-state subset — see
+	// DerivePaneState). Selected by --pane/--server, or by auto inside tmux.
 	ModePane Mode = "pane"
 )
 

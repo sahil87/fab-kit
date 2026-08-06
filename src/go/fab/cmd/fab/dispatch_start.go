@@ -18,21 +18,25 @@ import (
 func dispatchStartCmd() *cobra.Command {
 	var timeout int
 	var paneMode bool
+	var headlessMode bool
 	var server string
 	cmd := &cobra.Command{
 		Use:   "start <change> <stage>",
-		Short: "Launch a stage worker — headless and detached by default, or interactively in a tmux window with --pane",
-		Example: `  # Launch the apply stage's dispatch command headless, prompt on stdin
+		Short: "Launch a stage worker — mode defaults to auto (a tmux window inside tmux, headless outside); force with --pane / --headless",
+		Example: `  # Auto mode: a watchable tmux window inside tmux, headless outside
   fab dispatch start b91h apply < prompt.md
 
-  # Enforce a 30-minute POSIX timeout inside the launch wrapper
+  # Force headless for an unattended run that happens to live inside a tmux tab
+  fab dispatch start b91h apply --headless < prompt.md
+
+  # Enforce a 30-minute POSIX timeout (implies headless)
   fab dispatch start --timeout 1800 b91h apply < prompt.md
 
-  # Run the stage interactively in a tmux window you can watch and steer
+  # Force the stage into a tmux window you can watch and steer
   fab dispatch start b91h review --pane < prompt.md
 
-  # Target a specific tmux socket (works from outside tmux)
-  fab dispatch start b91h review --pane --server work < prompt.md`,
+  # Target a specific tmux socket (implies pane; works from outside tmux)
+  fab dispatch start b91h review --server work < prompt.md`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// --timeout is implemented as POSIX `timeout N` INSIDE the headless
@@ -41,32 +45,55 @@ func dispatchStartCmd() *cobra.Command {
 			// combination is a usage error. Keyed on Flags().Changed (was the flag
 			// SUPPLIED) rather than the value, mirroring agent.go's guard style, so
 			// an explicit `--timeout 0` is still caught.
+			//
+			// Only the EXPLICIT --pane conflicts: --timeout is itself a headless
+			// signal in the selection ladder, so `--timeout` inside tmux selects
+			// headless rather than erroring (it must not break scripted invocations
+			// that never mention panes).
 			if paneMode && cmd.Flags().Changed("timeout") {
 				return fmt.Errorf("--pane and --timeout are mutually exclusive: --timeout is enforced by the headless launch wrapper (POSIX `timeout`), which pane mode does not use")
 			}
-			return runDispatchStart(cmd, args[0], args[1], timeout, paneMode, server)
+			// Resolve the mode from the explicit-first ladder; the caller-supplied
+			// signals are read as "was the flag SUPPLIED" so `--timeout 0` /
+			// `--server ""` still count.
+			mode, reason := dispatch.SelectMode(paneMode, headlessMode,
+				cmd.Flags().Changed("timeout"), cmd.Flags().Changed("server"), os.Getenv("TMUX"))
+			return runDispatchStart(cmd, args[0], args[1], timeout, mode, reason, server)
 		},
 	}
-	cmd.Flags().IntVar(&timeout, "timeout", 0, "Enforce a POSIX `timeout <secs>` inside the launch wrapper (0 = none); headless only")
-	cmd.Flags().BoolVar(&paneMode, "pane", false, "Run the stage worker interactively in a tmux window (requires a reachable tmux server) instead of headless")
-	cmd.Flags().StringVarP(&server, "server", "L", "", "Target tmux socket label for --pane (passed as 'tmux -L <name>'). Defaults to $TMUX / tmux default socket; ignored without --pane")
+	cmd.Flags().IntVar(&timeout, "timeout", 0, "Enforce a POSIX `timeout <secs>` inside the launch wrapper (0 = none); implies --headless")
+	cmd.Flags().BoolVar(&paneMode, "pane", false, "Force an interactive tmux-window worker (requires a reachable tmux server) instead of the auto default")
+	cmd.Flags().BoolVar(&headlessMode, "headless", false, "Force a detached headless worker, opting out of auto pane selection inside tmux")
+	cmd.Flags().StringVarP(&server, "server", "L", "", "Target tmux socket label (passed as 'tmux -L <name>'); implies pane mode. Defaults to $TMUX / tmux default socket; ignored in headless mode")
+	// Cobra's flag group fires during ValidateFlagGroups — BEFORE any RunE work —
+	// so the conflict is a genuine usage error (exit 2) that structurally cannot
+	// leave partial state behind, matching resolve.go / pane_capture.go / panemap.go.
+	cmd.MarkFlagsMutuallyExclusive("pane", "headless")
 	return cmd
 }
 
 // runDispatchStart resolves the stage's tier → provider, refuses if a dispatch
 // for this (change, stage) is already running, persists the stdin prompt, then
-// launches the worker in one of two MODES and persists {stage}.yaml:
+// launches the worker in the ALREADY-RESOLVED mode and persists {stage}.yaml:
 //
-//	headless (default) — the provider's dispatch_command, detached via the
-//	                     `sh -c` wrapper; tmux-independent (launchHeadless)
-//	--pane             — the provider's session_command, interactive in a tmux
-//	                     window the user can watch and steer (launchPane)
+//	dispatch.ModeHeadless — the provider's dispatch_command, detached via the
+//	                        `sh -c` wrapper; tmux-independent (launchHeadless)
+//	dispatch.ModePane     — the provider's session_command, interactive in a tmux
+//	                        window the user can watch and steer (launchPane)
+//
+// The mode arrives resolved (dispatch.SelectMode, called in the cobra RunE) along
+// with the selection SOURCE (reason), which governs two things here: whether the
+// output line explains the choice, and whether a pane path that cannot proceed is
+// a hard error (explicit selection) or a soft fallback to headless (auto). Both
+// pane-path failure shapes — an unreachable tmux server and a provider with no
+// session_command — take that same asymmetry; see validatePane.
 //
 // Everything up to the launch is shared: the two modes differ only in WHICH
 // provider command they compose and HOW they start it. The no-cross-fallback
 // rule holds in both directions — headless never falls back to session_command,
-// pane never falls back to dispatch_command.
-func runDispatchStart(cmd *cobra.Command, changeArg, stage string, timeout int, paneMode bool, server string) error {
+// pane never falls back to dispatch_command (and the soft fallback is a MODE
+// change that re-composes from dispatch_command, not a cross-field fallback).
+func runDispatchStart(cmd *cobra.Command, changeArg, stage string, timeout int, mode dispatch.Mode, reason dispatch.AutoReason, server string) error {
 	fabRoot, err := resolve.FabRoot()
 	if err != nil {
 		return err
@@ -95,20 +122,37 @@ func runDispatchStart(cmd *cobra.Command, changeArg, stage string, timeout int, 
 		return err
 	}
 	prov, _ := agent.ResolveProvider(cfg, profile.Provider)
-	baseCmd, err := modeCommand(paneMode, prov, stage, profile.Provider)
+
+	// Validate pane mode BEFORE composing any command and before any state write,
+	// so a pane path that cannot proceed leaves no partial dispatch behind — and,
+	// under AUTO selection, can still degrade to headless. Composition is deferred
+	// past this point precisely so the degrade is reachable: composing the pane
+	// command first would hard-fail a dispatch_command-only provider before the
+	// fallback decision, turning a previously-working headless dispatch into an
+	// error merely because the caller sits inside tmux.
+	if mode == dispatch.ModePane {
+		if fallback := validatePane(prov, server, stage, profile.Provider); fallback != nil {
+			// Asymmetric by SELECTION SOURCE: an explicit pane selection propagates
+			// the error (nothing launched, nothing persisted) because the caller
+			// asked for watchability, while an AUTO-selected pane degrades to
+			// headless with a one-line notice.
+			if reason != dispatch.ReasonAutoTmux {
+				return fallback.err
+			}
+			fmt.Fprintln(cmd.ErrOrStderr(), fallback.notice)
+			mode, reason = dispatch.ModeHeadless, fallback.reason
+		}
+	}
+
+	// The mode is final now, so exactly ONE command is composed. A degrade
+	// composes from dispatch_command, so the no-cross-fallback rule survives the
+	// mode change: a provider carrying neither field still errors here with the
+	// dispatch_command config-key hint.
+	baseCmd, err := modeCommand(mode, prov, stage, profile.Provider)
 	if err != nil {
 		return err
 	}
 	resolvedCmd := spawn.WithProfile(baseCmd, profile.Model, profile.Effort)
-
-	// Pane mode requires a reachable tmux server. Probe BEFORE any state write so
-	// an unreachable server leaves no partial dispatch behind. The headless path
-	// performs no tmux probe at all — its tmux-independence guarantee is unchanged.
-	if paneMode {
-		if err := dispatch.ServerReachable(server); err != nil {
-			return err
-		}
-	}
 
 	// Refuse-if-running: a live prior dispatch for this exact (change, stage)
 	// must be killed first. A completed prior attempt (done/failed/orphaned) is
@@ -159,7 +203,7 @@ func runDispatchStart(cmd *cobra.Command, changeArg, stage string, timeout int, 
 	}
 
 	var report string
-	if paneMode {
+	if mode == dispatch.ModePane {
 		report, err = launchPane(rec, resolvedCmd, repoRoot, promptPath, id, stage, server)
 	} else {
 		report, err = launchHeadless(rec, resolvedCmd, repoRoot, dir, stage, promptPath, timeout)
@@ -172,29 +216,98 @@ func runDispatchStart(cmd *cobra.Command, changeArg, stage string, timeout int, 
 		return err
 	}
 
+	// The report names the mode's identity; an AUTO selection appends its source so
+	// a surprising mode (or a soft fallback) is explainable from the output alone —
+	// the compliance-visibility principle. An explicitly-selected mode's line is
+	// byte-identical to before auto selection existed (ReasonExplicit is empty).
+	if reason != dispatch.ReasonExplicit {
+		report += ", " + string(reason)
+	}
 	fmt.Fprintf(cmd.OutOrStdout(), "dispatched %s/%s (%s)\n", id, stage, report)
+	return nil
+}
+
+// paneFallback describes ONE way the pane path cannot proceed, in the two shapes
+// the caller needs: the stderr notice + AutoReason an AUTO-selected pane degrades
+// with, and the error an EXPLICITLY-selected pane fails with. Bundling them keeps
+// the asymmetry a single branch on the selection source rather than one branch per
+// failure shape.
+type paneFallback struct {
+	notice string
+	reason dispatch.AutoReason
+	err    error
+}
+
+// validatePane reports whether pane mode can proceed, returning nil when it can
+// and the matching paneFallback when it cannot. It performs no state writes and
+// composes no command, so BOTH outcomes are safe before anything is persisted.
+// stage/providerName are only ever used to render shape (b)'s hard error.
+//
+// The two failure shapes, in probe order:
+//
+//	(a) the tmux server does not answer — a stale $TMUX inherited from a killed
+//	    server, or no tmux at all (ServerReachable's actionable error).
+//	(b) tmux answered, but the resolved provider carries no session_command —
+//	    there is no interactive invocation to open a window on.
+//
+// Shape (b) is checked HERE rather than at composition time so that an
+// auto-selected pane can fall back instead of aborting: a dispatch_command-only
+// provider's stages ran headless before auto selection existed and must keep
+// running headless inside tmux. The headless path performs no tmux probe at all —
+// its tmux-independence guarantee is unchanged.
+func validatePane(prov config.ProviderConfig, server, stage, providerName string) *paneFallback {
+	if probeErr := dispatch.ServerReachable(server); probeErr != nil {
+		return &paneFallback{
+			notice: dispatch.FallbackNotice,
+			reason: dispatch.ReasonAutoUnreachable,
+			err:    probeErr,
+		}
+	}
+	if prov.SessionCommand == "" {
+		return &paneFallback{
+			notice: dispatch.FallbackNoticeNoSessionCommand,
+			reason: dispatch.ReasonAutoNoSessionCommand,
+			err:    missingCommandError(stage, providerName, "session_command"),
+		}
+	}
 	return nil
 }
 
 // modeCommand picks the provider command field the requested mode composes and
 // errors with the matching config-key hint when it is absent.
 //
+// Under `dispatch start` the pane branch's absent-field error is diagnosed EARLIER
+// by validatePane (so an auto selection can fall back instead of aborting), which
+// raises the identical missingCommandError. The check is kept here too: it is this
+// function's own contract that a mode never composes an empty command, and both
+// paths share one message so they cannot drift.
+//
 // The two fields are deliberately NOT merged and never fall back to each other
 // (they are different invocations of the same binary — see the `providers:`
 // contract): headless runs ONE headless task via dispatch_command, pane mode
 // opens an interactive SESSION via session_command — the same string `fab agent`
 // composes, which is why pane mode needs no new provider config field.
-func modeCommand(paneMode bool, prov config.ProviderConfig, stage, providerName string) (string, error) {
+func modeCommand(mode dispatch.Mode, prov config.ProviderConfig, stage, providerName string) (string, error) {
 	field, cmdStr := "dispatch_command", prov.DispatchCommand
-	if paneMode {
+	if mode == dispatch.ModePane {
 		field, cmdStr = "session_command", prov.SessionCommand
 	}
 	if cmdStr == "" {
-		tier, _ := agent.TierForStage(stage)
-		return "", fmt.Errorf("stage %q resolves to tier %q (provider %q), which has no %s; configure providers.%s.%s to dispatch this stage",
-			stage, tier, providerName, field, providerName, field)
+		return "", missingCommandError(stage, providerName, field)
 	}
 	return cmdStr, nil
+}
+
+// missingCommandError renders the actionable "this provider cannot dispatch this
+// stage" error naming the stage, its resolved tier, the provider, and the exact
+// config key to set. It lives in one place because two callers raise it —
+// modeCommand (at composition) and validatePane (shape (b), which must diagnose
+// the missing session_command BEFORE composition so the auto fallback stays
+// reachable) — and the two must not drift.
+func missingCommandError(stage, providerName, field string) error {
+	tier, _ := agent.TierForStage(stage)
+	return fmt.Errorf("stage %q resolves to tier %q (provider %q), which has no %s; configure providers.%s.%s to dispatch this stage",
+		stage, tier, providerName, field, providerName, field)
 }
 
 // launchPane opens the interactive worker in a tmux window and records the pane
