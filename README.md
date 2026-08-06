@@ -218,6 +218,7 @@ To re-deploy skills, scaffold structure, and sync hooks without changing the pin
 fab sync
 ```
 
+
 > **Note:** `fab sync` runs automatically in every new worktree created by [`wt create`](https://github.com/sahil87/fab-kit/blob/main/docs/specs/companions.md#wt--worktree-isolation).
 
 ### 2. Your first change
