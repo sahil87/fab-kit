@@ -104,10 +104,10 @@ A skill MAY declare additional helper files via a `helpers:` frontmatter list. T
 
 | Phase | Helper | Knob(s) | Consumers |
 |-------|--------|---------|-----------|
-| artifact mechanics | `_generation` | — | `fab-new`, `fab-draft`, `fab-dedupe`, `fab-continue`, `fab-ff`, `fab-fff` |
-| review mechanics | `_review` | — | `fab-continue`, `fab-ff`, `fab-fff` |
+| artifact mechanics | `_generation` | — | `fab-new`, `fab-draft`, `fab-dedupe`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-adopt` |
+| review mechanics | `_review` | `{mode}` | `fab-continue`, `fab-ff`, `fab-fff`, `fab-adopt` |
 | pre-intake orchestration | `_intake` | `{questioning-mode}` | `fab-new`, `fab-draft`, `fab-dedupe`, `fab-proceed` |
-| post-intake orchestration | `_pipeline` | `{driver}`, `{terminal}` | `fab-ff`, `fab-fff` |
+| post-intake orchestration | `_pipeline` | `{driver}`, `{terminal}` | `fab-ff`, `fab-fff`, `fab-adopt` |
 
 The symmetry is complete (3xaj): `_intake` (pre-boundary intake creation) is the counterpart to `_pipeline` (post-boundary orchestration), pivoting on the single context-bearing boundary — intake. Each helper file follows the established internal-helper frontmatter shape (`user-invocable: false`, `disable-model-invocation: true`, `metadata: internal: true`) and is a **flat** `src/kit/skills/_*.md` canonical source (the directory-per-skill `_{name}/SKILL.md` form is the *deployed* copy `fab sync` writes under `.claude/skills/`). The internal helpers carry no `helpers:` of their own (consumer-declared model). See [pipeline/planning-skills.md](/pipeline/planning-skills.md) § The `_intake` Shared Create-Intake Procedure for the full decomposition.
 

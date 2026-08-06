@@ -61,12 +61,13 @@ The format for items in the local backlog (`fab/backlog.md`).
 
 | Field | Value |
 |-------|-------|
-| **Pattern** | `- [ ] [{ID}] [{issue_ids}] {YYYY-MM-DD}: {description}` (issue IDs are optional) |
-| **Example** | `- [ ] [ni3o] [DEV-1011] 2026-02-12: Capture more metrics` or `- [ ] [ngaw] 2026-02-23: Quality gate` |
-| **Encoded in** | `idea` command (`src/go/ binary idea` — backlog management) |
+| **Pattern** | `- [ ] [{ID}] [{issue_ids}] (BUG) {YYYY-MM-DD}: {description}` (issue IDs and the `(BUG)` marker are both optional) |
+| **Example** | `- [ ] [ni3o] [DEV-1011] 2026-02-12: Capture more metrics`, `- [ ] [ngaw] 2026-02-23: Quality gate`, or `- [ ] [k4tp] (BUG) 2026-03-04: Archive drops the pointer symlink` |
+| **Encoded in** | `idea` command (`src/go/ binary idea` — backlog management); parsed by `src/go/fab/internal/backlog` |
 
 Components:
 - `[{ID}]` — 4-char alphanumeric backlog ID
 - `[{issue_ids}]` — optional Linear issue ID(s) in brackets (e.g., `[DEV-1011]`)
+- `(BUG) ` — optional bug marker, placed between the issue IDs and the date
 - `{YYYY-MM-DD}` — ISO date when item was added
 - `{description}` — free-form description, may include tags

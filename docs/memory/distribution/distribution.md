@@ -34,8 +34,8 @@ The system `fab` binary acts as a router using negative-match dispatch. It maint
 
 For fab-go dispatch, the router SHALL:
 
-1. Walk up from CWD to find `fab/project/config.yaml`
-2. Select version inline: if `cfg != nil` use `cfg.FabVersion` (project-pinned, e.g., `fab_version: "0.43.0"`); otherwise use the router's build-time `version` constant (router-bundled, set via `-ldflags -X`)
+1. Walk up from CWD to find `fab/project/config.yaml` — the marker that says "this is a fab-managed repo"
+2. Select version inline: if `cfg != nil` use `cfg.FabVersion` — the project-pinned version, which `resolveConfigFrom` reads from the plain-text sibling `fab/.fab-version` at the same repo root (`readFabVersion`, `src/go/fab-kit/internal/config.go`), never from a `config.yaml` key (j0qm); otherwise use the router's build-time `version` constant (router-bundled, set via `-ldflags -X`)
 3. Check the local cache for the matching `fab-go` binary at `~/.fab-kit/versions/{version}/fab-go`
 4. If not cached, download the release from GitHub (`sahil87/fab-kit` releases) and cache it
 5. Exec the cached `fab-go` with full argument passthrough
@@ -48,10 +48,10 @@ fab-go's per-command guards (typically `resolve.FabRoot()`) are the authoritativ
 
 **Scenarios**:
 - fab-kit command dispatch — `fab init`, `fab sync`, `fab upgrade-repo` are routed to `fab-kit` with all args passed through
-- Normal fab-go dispatch — router reads `fab_version`, resolves cached `fab-go`, execs with all args passed through
+- Normal fab-go dispatch — router reads the pin from `fab/.fab-version`, resolves cached `fab-go`, execs with all args passed through
 - Version not cached — router auto-fetches from GitHub releases, caches binary + `.kit/` content, then dispatches
 - No network during auto-fetch — exits non-zero with version and network hint
-- `config.yaml` found but `fab_version` absent — exits with: `"No fab_version in config.yaml. Run 'fab init' to set one."`
+- `config.yaml` found but `fab/.fab-version` absent or empty — exits with `no fab version found in fab/.fab-version. Run 'fab init' (new repo) or 'fab upgrade-repo' (existing repo) to set one`; a present-but-unreadable pin (permission denied, I/O error) surfaces separately as `cannot read <path>: …` rather than the misleading init/upgrade guidance
 - Not in a fab-managed repo, fab-kit command — `fab init`, `fab sync` dispatched to `fab-kit` (works without config.yaml)
 - Not in a fab-managed repo, inline command — `fab --version` and `fab --help` handled inline by the router (no config.yaml needed); `fab --version` prints only the system version line when no `fab/project/config.yaml` is found
 - Not in a fab-managed repo, workflow command — dispatched to the router-bundled `fab-go`. Commands that need project state (e.g., `fab preflight`, `fab score`) self-guard and exit non-zero with `ERROR: fab/ directory not found`. Config-free commands (e.g., `fab kit-path`, `fab pane map`, `fab completion zsh`, `fab shell-init zsh`, `fab --help`) run successfully
@@ -62,13 +62,13 @@ fab-go's per-command guards (typically `resolve.FabRoot()`) are the authoritativ
 The router and fab-kit store versioned artifacts at `~/.fab-kit/versions/{version}/`. Each version directory contains:
 
 - `fab-go` — the Go backend binary for the current platform
-- `kit/` — full `.kit/` content (skills, templates, scripts, hooks, migrations, scaffold, VERSION)
+- `kit/` — full `.kit/` content (skills, templates, reference, migrations, scaffold, VERSION)
 
 Multiple versions coexist independently. No automatic cache eviction — users manage cleanup manually.
 
 **Scenarios**:
 - Cache structure after auto-fetch — `~/.fab-kit/versions/0.43.0/fab-go` exists and is executable; `kit/VERSION` contains `0.43.0`; `kit/skills/` contains skill files
-- Multiple versions coexist — repos using different `fab_version` values dispatch to separate cached binaries
+- Multiple versions coexist — repos pinning different `fab/.fab-version` values dispatch to separate cached binaries
 
 #### Auto-Download Hardening (Timeouts, Lock, Atomic Install, Checksums)
 
@@ -147,7 +147,7 @@ The existing `cp -r` distribution method SHALL continue to work, given the syste
    - **No arg with a `dev`/unstamped binary** (`systemVersion == "dev"` or empty — a `just build` shim) → falls back to `LatestVersion()`, because a `dev` shim has no real release tag to sync to (syncing `vdev` would fail).
 
    *Why offline-first:* the user has just `brew upgrade`d the binary and wants their repo to match it — a question the binary already answers from its own embedded version, no network needed. The old API-default forced a GitHub round-trip on the dominant path, which on a shared host trips GitHub's unauthenticated rate limit (60 req/hr/IP) and hard-fails with a misleading `cannot resolve latest version: GitHub API returned HTTP 403` (a `403` reads as auth failure, not rate limiting). The *resolution* is now offline by default; the *fetch* of a resolved-but-uncached target still downloads on demand via `EnsureCached`.
-2. Short-circuit when `fab_version` already equals the target: "Already on the latest version (X). No update needed."
+2. Short-circuit when the pinned `fab/.fab-version` already equals the target: "Already on the latest version (X). No update needed."
 3. Download the release to cache if not already present (binary + `.kit/` content; verified + atomic per Auto-Download Hardening) and verify the cached kit carries a `VERSION` file; kit content is served from the cache, never copied into the repo
 4. Run `Sync()` FIRST — `Upgrade(systemVersion, targetVersion string, useLatest bool)` passes the kit version explicitly and the embedded binary version feeds the version guard. The in-upgrade sync (including project-level `fab/sync/*.sh` scripts) runs while `fab/.fab-version` still pins the OLD version
 5. Stamp `fab/.fab-version` (j0qm) only AFTER the sync succeeds
@@ -158,8 +158,8 @@ The existing `cp -r` distribution method SHALL continue to work, given the syste
 
 **Scenarios**:
 - Default no-arg upgrade (binary stamped `2.3.1`) — resolves the target to `2.3.1` **offline** (the binary's own `systemVersion`); `LatestVersion()` / the GitHub API is never called; then downloads-if-uncached, syncs, and stamps. This is the common path after a `brew upgrade fab-kit`
-- `fab upgrade-repo --latest` — resolves via `LatestVersion()` (GitHub `releases/latest`), downloads new version to cache, runs sync (skills deployed from the new cache), then updates `fab_version`, displays "Updated: 0.43.0 → 0.44.0"
-- Upgrade to specific version (`fab upgrade-repo 0.42.1`) — resolves to the arg offline (no API call), downloads to cache, syncs, then updates `fab_version`
+- `fab upgrade-repo --latest` — resolves via `LatestVersion()` (GitHub `releases/latest`), downloads new version to cache, runs sync (skills deployed from the new cache), then stamps `fab/.fab-version`, displays "Updated: 0.43.0 → 0.44.0"
+- Upgrade to specific version (`fab upgrade-repo 0.42.1`) — resolves to the arg offline (no API call), downloads to cache, syncs, then stamps `fab/.fab-version`
 - Explicit arg with `--latest` (`fab upgrade-repo 2.2.0 --latest`) — resolves to `2.2.0`; `--latest` is ignored, no API call
 - `dev`/unstamped binary, no arg — falls back to `LatestVersion()` (no real release tag to sync to otherwise)
 - Already up to date — displays "Already on the latest version (0.43.0). No update needed.", no files modified
@@ -196,7 +196,7 @@ Atomicity lives in the cache install, not in any in-repo copy (kit content is ne
 
 #### Skill Deployment Repair After Update
 
-After caching the new version, `fab upgrade-repo` SHALL call `Sync()` directly (the same logic as `fab-kit sync`, before stamping `fab_version`) to ensure all skill deployments are up to date: copies refreshed (`.claude/skills/`, `.agents/skills/`), symlinks valid (`.opencode/commands/`), and stale agent files cleaned up (`.claude/agents/`).
+After caching the new version, `fab upgrade-repo` SHALL call `Sync()` directly (the same logic as `fab-kit sync`, before stamping `fab/.fab-version`) to ensure all skill deployments are up to date: copies refreshed (`.claude/skills/`, `.agents/skills/`), symlinks valid (`.opencode/commands/`), and stale agent files cleaned up (`.claude/agents/`).
 
 ### wt Shell Setup
 
@@ -333,8 +333,8 @@ GitHub determines "latest" release status based on semver ordering — backport 
 #### Release Archive Contents
 
 Each release produces per-platform archives structured for the router/fab-kit to download and cache. Per-platform archives (`kit-{os}-{arch}.tar.gz`) contain:
-- `.kit/bin/fab-go` — the versioned Go backend binary
-- `.kit/` — all content (skills, templates, scripts, hooks, migrations, scaffold, VERSION)
+- `.kit/bin/fab-go` — the versioned Go backend binary, injected at package time (the repo source tree has no `bin/`)
+- `.kit/` — all content (skills, templates, reference, migrations, scaffold, VERSION)
 
 The router (or fab-kit) extracts `fab-go` to `~/.fab-kit/versions/{version}/fab-go` and the rest to `~/.fab-kit/versions/{version}/kit/`.
 
@@ -346,7 +346,7 @@ Per-platform archives:
 
 Release assets also include **`SHA256SUMS`** — `sha256sum` digests covering the four `kit-*` archives, generated by the release workflow and consumed by the shim's `Download` to verify the archive before extraction (260612-dn2c, F20). The `brew-*` archives are not listed in it — Homebrew verifies those via the formula's own SHA256 fields. (`package-kit` builds exactly the 4 per-platform archives — there is no generic content-only `kit.tar.gz`.)
 
-No project-specific files (config.yaml, constitution.md, memory/, specs/, changes/) are included in any archive. Package production code (idea only) is included under `.kit/packages/`, hook scripts under `.kit/hooks/` — all delivered to downstream projects on upgrade. `src/kit/sync/` contains only `.gitkeep` (all sync scripts absorbed into `fab-kit` Go binary). `idea` is a standalone system binary (installed via Homebrew, not per-repo); the shell package at `.kit/packages/idea/bin/idea` is retained for rollback safety and generic-archive users. Skill files are included in all archives and deployed to agents by `fab-kit sync`. `bin/` contains only `.gitkeep` — no binaries are shipped in the repo.
+No project-specific files (config.yaml, constitution.md, memory/, specs/, changes/) are included in any archive. The archived content is exactly the `src/kit/` tree — `VERSION`, `migrations/`, `reference/`, `scaffold/`, `skills/`, `templates/` — copied verbatim, plus the packaging-injected `bin/fab-go`. There are no shipped shell scripts and no hook scripts: sync logic lives in the `fab-kit` Go binary, and fab registers no Claude Code hooks (ioku). Skill files are included in all archives and deployed to agents by `fab-kit sync`. `idea` is a standalone system binary from its own sibling formula, not shipped per-repo in any archive.
 
 **Binary distribution split**: The router (`fab`) and `fab-kit` ship in fab-kit's Homebrew formula (version-coupled to fab-kit's release tag). `wt` and `idea` are separate standalone Homebrew formulas in `sahil87/tap`, installed explicitly (`brew install sahil87/tap/wt` / `sahil87/tap/idea`) — NOT a `fab-kit` `depends_on` — and each versioned independently. Only `fab-go` is per-version cached, downloaded from `sahil87/fab-kit` GitHub releases on first use.
 
@@ -446,7 +446,7 @@ The repository is named `fab-kit` (formerly `docs-sddr`), reflecting its role as
 - **`docs/internal/` removed; `docs/site/` activated as a pulled closed-set tree (260608-yfg8)**: the contract flipped §9 RESERVED→ACTIVE (change `x0br`, 2026-06-07) and deleted the `docs/internal/` concept (2026-06-08), so the pull surface is now exactly `README.md` + `docs/site/**` and maintainer notes need no blessed folder. Conforming is purely additive: removed the stale `docs/site/README.md` placeholder and the vestigial `docs/internal/` folder, added `docs/site/install.md` (→ `/tools/fab-kit/install`) + `docs/site/workflows.md` (→ `/tools/fab-kit/workflows`) as closed-set depth pages, and added two plain-inline README→docs/site body links. *Rejected*: rewriting `docs/site/README.md` to describe the new ACTIVE model — a README-named file under the now-pulled `docs/site/` renders as a public `/tools/fab-kit/README` page (and `README` is a reserved slug), and a docs-tree explainer is a maintainer note that belongs *outside* `docs/site/`. The depth pages **deepen** rather than duplicate the README slice (review de-duplicated `install.md` against the README per DEEPEN-not-duplicate, since the site pulls both surfaces).
 - **Same-release SHA256SUMS as the accepted integrity baseline (260612-dn2c)**: the release publishes a `SHA256SUMS` asset for the `kit-*` archives and `Download` refuses to extract on digest mismatch or a missing entry; a 404 on the asset (pre-checksum releases) warns and skips so older pinned versions stay installable. This defends **integrity** (corruption/truncation — rustup/nvm-style industry baseline), explicitly NOT an attacker who can swap release assets (they'd swap the sums file too). Mechanism is hash-then-extract: the archive streams to a temp file through SHA-256 and extraction starts only after the digest verifies. *Rejected (for now)*: sigstore/cosign signing and separately-trusted digest channels (digest pinned in config.yaml / embedded in the brew-verified shim) — recorded follow-on; hash-while-extracting with post-hoc cleanup (extracts unverified bytes).
 - **Atomic cache install under a version-keyed local flock (260612-dn2c)**: `Download` extracts into `versions/<version>.tmp-<pid>` and renames into place, serialized by a blocking exclusive `syscall.Flock` on `versions/<version>.lock` with a post-acquire `ResolveBinary` re-check; error cleanup is scoped to temp artifacts; the lock file is left in place after release (unlinking races with blocked waiters). The lock helper is implemented locally in the fab-kit module — the two Go modules (`src/go/fab`, `src/go/fab-kit`) deliberately share no code; the fab module builds its own flock helper (mz4q). *Rejected*: extracting into the live dir with exec-bit readiness (the prior model — partial binaries were observable and error cleanup could `RemoveAll` a dir a sibling was using); cross-module lock-helper sharing; unlinking the lock file on release.
-- **Stamp-after-success for `fab upgrade-repo` (260612-dn2c)**: `Upgrade` runs `Sync` first (kit version passed explicitly — enabled by the F22 version threading) and writes `fab_version` only after sync succeeds, so failure exits non-zero with repair guidance and a re-run retries. *Why*: rollback after a *partial* sync would create the inverse mismatch (new skills deployed, old version stamped). *Rejected*: literal stamp-then-rollback (the original backlog phrasing).
+- **Stamp-after-success for `fab upgrade-repo` (260612-dn2c)**: `Upgrade` runs `Sync` first (kit version passed explicitly — enabled by the F22 version threading) and stamps `fab/.fab-version` only after sync succeeds, so failure exits non-zero with repair guidance and a re-run retries. *Why*: rollback after a *partial* sync would create the inverse mismatch (new skills deployed, old version stamped). *Rejected*: literal stamp-then-rollback (the original backlog phrasing).
 - **Offline-first `upgrade-repo` default = the installed binary's `systemVersion` (260613-1hmj)**: no-arg `fab upgrade-repo` resolves its target to the running `fab-kit` binary's embedded `systemVersion` (offline), instead of the former GitHub-API "newest published release" call; a new `--latest` flag opts into the API path; an explicit `<version>` arg still wins (and `--latest` is ignored when an arg is given); a `dev`/unstamped binary falls back to the network. The `systemVersion` was already threaded into `Upgrade()` (for the runSync version guard) — defaulting to it is a localized resolution-switch change with no downstream impact (`EnsureCached`/`runSync`/F18 stamp-after-sync/migration detection unchanged). *Why*: the dominant path is "I just `brew upgrade`d the binary, match my repo to it" — a question the binary answers from its own version offline. The old API-default forced a network round-trip that trips GitHub's unauthenticated rate limit (60 req/hr/IP) and hard-fails with a misleading `HTTP 403` on a shared host. *Rejected*: "latest *cached* version" (the user's first instinct — the cache can hold stale downloads or unreleased `local-versions/` dev builds, which `CachedKitDir` actively prefers; no enumeration helper exists; ambiguous and surprising); "keep the API default, only fix the 403 error text / read `GH_TOKEN`" (leaves the common path network-dependent — folded in partially: the rate-limit-naming error message and `GH_TOKEN` reading are deferred follow-ups, valuable only on the now-opt-in `--latest` path).
 - **Run brew unbounded — delete the timeout wrapper instead of bounding gracefully (260719-1e4m)**: `internal/update.go` runs `brew update`/`brew upgrade` via plain `cmd.Run()` with no timeout and no kill path — the `runWithTimeout` helper was removed outright (its only two callers were these brew invocations). *Why*: the shll `update` standard forbids a package-manager subprocess getting `SIGKILL` mid-transaction and a short hard timeout on `brew upgrade` (its verify checklist reads "no code path sends `SIGKILL` to `brew`, and no short hard timeout caps `brew upgrade`"), added after an observed incident where a 120s hard kill landed mid-keg-swap and corrupted the keg; deletion satisfies the checklist by construction and the standard explicitly suggests not reaching for a timeout at all. A hung brew is visible (output streams) in both interactive `update` and the `versionGuard` auto-update path, and Ctrl-C (SIGINT, brew-trapped) remains available. *Rejected*: a generous (tens-of-minutes) bound with SIGTERM + grace — conformant too, but adds signal-handling code and a hard-to-test escalation path for no concrete benefit.
 - **Map `ErrNotBrewInstalled` to exit 0 at the command layer only (260719-1e4m)**: `updateCmd`'s RunE returns nil on `errors.Is(err, internal.ErrNotBrewInstalled)` (degrade with the already-printed message), while `internal.Update` keeps returning the sentinel. *Why*: the shll `update` standard requires degrading "instead of erroring" and exiting non-zero only on genuine failure, so a non-brew install must not fail a composed `shll update` run; the sentinel is retained inside `internal` because `versionGuard` depends on it to keep blocking `fab sync` when a too-old non-brew binary cannot self-update. *Rejected*: making `internal.Update` return nil on the not-brew path — would silently re-defeat `versionGuard` for non-brew installs (the exact regression the sentinel was introduced to fix).

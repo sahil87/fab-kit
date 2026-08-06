@@ -118,7 +118,7 @@ Every planning skill invocation appends an `## Assumptions` section to the gener
 |---|-------|----------|-----------|--------|
 | 1 | Certain | Use the existing test runner | Config deterministically answers this | S:50 R:95 A:100 D:100 |
 | 2 | Confident | OAuth2 over SAML | Config shows REST API stack | S:75 R:80 A:65 D:70 |
-| 3 | Tentative | Google + GitHub providers | Most common OSS combination | S:40 R:70 A:45 D:40 |
+| 3 | Tentative | Google + GitHub providers | Most common OSS combination | S:40 R:45 A:40 D:40 |
 | 4 | Unresolved | Replace or supplement existing auth | Asked — user chose replace | S:15 R:10 A:20 D:20 |
 
 4 assumptions (1 certain, 1 confident, 1 tentative, 1 unresolved). Run /fab-clarify to review.
@@ -212,17 +212,7 @@ The grade counts are **derived** from each row's composite (not from a hand-writ
 
 There is exactly **one** confidence gate, evaluated at **intake** (the score is computed from `intake.md`, the sole scoring source). Both `/fab-ff` and `/fab-fff` require `confidence.score >= threshold` before entering the automated bracket. The `--force` flag on either skill bypasses it. The threshold is **flat 3.0 for all seven change types**.
 
-| Change Type | Gate Threshold |
-|-------------|---------------|
-| **`fix`** | 3.0 |
-| **`feat`** | 3.0 |
-| **`refactor`** | 3.0 |
-| **`docs`** | 3.0 |
-| **`test`** | 3.0 |
-| **`ci`** | 3.0 |
-| **`chore`** | 3.0 |
-
-The per-type map is retained in code (`getGateThreshold`) so future divergence is a data-only change. Change type is stored as `change_type:` in `.status.yaml` (default: `feat`). The gate check is performed by `fab score --check-gate --stage intake`. See [change-types.md](change-types.md) for the full taxonomy.
+The per-type map is retained in code (`getGateThreshold`) so future divergence is a data-only change; the per-type threshold table lives in [change-types.md](change-types.md) § Gate Thresholds, which is the drift-guarded mirror of that map — this spec deliberately does not restate it. Change type is stored as `change_type:` in `.status.yaml` (default: `feat`). The gate check is performed by `fab score --check-gate --stage intake`.
 
 There is **no coverage factor and no minimum-decision requirement.** A thin intake is not penalized for being short — a change with two strong, well-resolved decisions genuinely passes at 5.0. Quality is measured per decision, so row count is not a proxy for it: a lazy thin intake has weak decisions, and the penalty curve catches them directly.
 
@@ -305,8 +295,8 @@ Detailed description specifying the component, location, trigger, and behavior.
 | Decision point | S | R | A | D | Composite | Grade |
 |---------------|---|---|---|---|-----------|-------|
 | Which spinner component | 95 | 90 | 95 | 100 | 94.5 | **Certain** (≥ 80) |
-| When to show/hide spinner | 90 | 92 | 88 | 95 | 90.4 | **Certain** (≥ 80) |
-| Double-submission prevention | 95 | 95 | 90 | 98 | 93.7 | **Certain** (≥ 80) |
+| When to show/hide spinner | 90 | 92 | 88 | 95 | 91.0 | **Certain** (≥ 80) |
+| Double-submission prevention | 95 | 95 | 90 | 98 | 94.1 | **Certain** (≥ 80) |
 
 **Penalties**: all three rows are `composite ≥ 80` → penalty 0 each. Sum = `0.0`.
 
@@ -321,11 +311,11 @@ Detailed description specifying the component, location, trigger, and behavior.
 | Decision point | S | R | A | D | Composite | Grade |
 |---------------|---|---|---|---|-----------|-------|
 | 10 well-specified decisions | (all) | | | | ≥ 85 | **Certain** |
-| Quick-drag now pans (irreversible widening) | 95 | 35 | 55 | 45 | 60.0 | **Confident** (just) |
+| Quick-drag now pans (irreversible widening) | 95 | 35 | 55 | 45 | 55.0 | **Confident** (barely) |
 
-**Penalties**: ten Certain rows → 0. The risky row at composite 60 → `(80−60)/30·0.50 = 0.33`. Sum = `0.33`.
+**Penalties**: ten Certain rows → 0. The risky row at composite 55 → `(80−55)/30·0.50 = 0.4167`. Sum = `0.42`.
 
-**Score**: `5.0 − 0.33 = 4.67` → passes. *But its low R (35) pulled its composite down from where S alone would put it* — had the agent scored R lower (e.g. R:15, composite 54), the penalty rises and the row visibly dents the score. The point: the **R weight surfaces the risk into the number**, where a strength-averaging scheme would hide it.
+**Score**: `5.0 − 0.42 = 4.6` → passes. *But its low R (35) pulled its composite down from where S alone would put it* — a near-perfect S:95 still lands the row at 55, five points above the Tentative floor. Drop R one notch further to R:15 and the composite falls to 49.0: the row tips into **Tentative**, its penalty jumps from 0.42 to 0.55, and the grade the reader scans changes with it. The point: the **R weight surfaces the risk into the number**, where a strength-averaging scheme would hide it.
 
 ---
 

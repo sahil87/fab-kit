@@ -335,6 +335,42 @@ summary: "surfaces the optional agent.tiers per-stage-model override as a commen
 - Absence degrades gracefully: a change with no `summary` projects with the change slug in place of
   the descriptive line.
 
+### 6.4 Freeze-on-write generation
+
+`log.md` is **not** re-derived from live git on each run. Git history is not fixed — squash-merge
+rewrites commit subjects and counts, and branch-deletion makes the original commits unreachable — so a
+from-scratch projection yields a different result per contributor and across time. The existing
+`log.md` is therefore **authoritative and write-once**: the generator reads it back, treats its entries
+as **immutable** (never reworded, re-dated, or dropped), and uses the git projection **only to discover
+new entries to append**. A re-run on unchanged history MUST be a byte-for-byte no-op.
+
+- **Append/dedup key.** New entries are keyed on **`(file-base, change-id)`** — deliberately **not** the
+  git commit hash, which squash plus branch-delete makes unreachable (the exact operation being defended
+  against), whereas the change-id survives in the change folder name and the change registry,
+  independent of git. Only an **attributable** projected entry (one whose commit resolves to a
+  registered change-id) participates; it is appended only when no existing entry already records that
+  pair.
+- **Unattributable commits are frozen, not re-projected.** A commit that resolves to no registered
+  change-id (a migration, a direct-default-branch edit, or a squash that dropped the branch token) has
+  no key to append on, so it MUST NOT be added after first write. Unattributable lines already present
+  in the file stay verbatim. *Accepted tradeoff*: tooling commits leave no log trace — they are not
+  memory-domain history.
+- **Bootstrap is not a special mode.** The first run on a folder with no `log.md` is simply the first
+  append into an empty log (plus the `log.seed.md` seed-merge), projecting-and-freezing through the same
+  code path as every later run. There is deliberately **no** first-generation flag — it would invite a
+  re-run that re-introduces the churn this model exists to prevent.
+- **Rebuild is the destructive escape hatch.** Regenerating with `--rebuild` discards the frozen state
+  and re-projects every entry from current git (including unattributable commits). It can rewrite or
+  drop frozen lines, so it is reserved for a corrupted log or a deliberate re-baseline — never the
+  default path.
+- **Drift checking compares against the merge, not a fresh projection.** A valid frozen log legitimately
+  contains lines that current git can no longer produce, so a conformance check MUST compare the
+  committed file against the freeze-on-write merge result. A committed log that is a valid **superset**
+  of that merge passes. A failure means either a **missing** attributable `(file-base, change-id)` entry
+  the merge would append (the log was not regenerated and committed) or a **hand-edited** frozen line the
+  merge cannot reproduce (the single-writer discipline was violated). Both are benign drift, never
+  destructive loss — a `log.md` is a projection, not a curated row table.
+
 ---
 
 ## 7. Cross-links — bundle-relative
