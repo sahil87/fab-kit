@@ -1167,13 +1167,18 @@ func TestDispatchStart_SplitPanesStackInTheRightColumn(t *testing.T) {
 	}
 
 	// A DIFFERENT stage, so this is a second concurrent worker rather than an
-	// overwrite of the first.
-	if _, err := runStart(t, "review prompt", "abcd", "review"); err != nil {
+	// overwrite of the first. It must be the OTHER doing-tier stage (review-pr):
+	// the fixture points only the doing tier at the `cli` provider, so a stage
+	// outside it (e.g. review → the review tier) resolves the BUILT-IN claude
+	// provider and launches the real `claude` CLI — alive on a dev box where
+	// claude exists (a false local pass, plus a stray real agent session in the
+	// test server), dead instantly on CI where it doesn't.
+	if _, err := runStart(t, "review-pr prompt", "abcd", "review-pr"); err != nil {
 		t.Fatalf("second split dispatch failed: %v", err)
 	}
-	second, err := dispatch.Load(dir, "review")
+	second, err := dispatch.Load(dir, "review-pr")
 	if err != nil {
-		t.Fatalf("Load review: %v", err)
+		t.Fatalf("Load review-pr: %v", err)
 	}
 
 	// All three panes in ONE window: the dispatcher plus both workers.
@@ -1209,8 +1214,8 @@ func TestDispatchStart_SplitPanesStackInTheRightColumn(t *testing.T) {
 	}
 
 	// Both titles are set, so a THIRD dispatch would find the newest sibling.
-	if got := paneTitle(t, tmuxScoped, second.Pane); got != dispatch.WindowName(id, "review") {
-		t.Errorf("second worker's pane title = %q, want %q", got, dispatch.WindowName(id, "review"))
+	if got := paneTitle(t, tmuxScoped, second.Pane); got != dispatch.WindowName(id, "review-pr") {
+		t.Errorf("second worker's pane title = %q, want %q", got, dispatch.WindowName(id, "review-pr"))
 	}
 
 	// Killing one worker pane leaves the dispatcher's window (and the other worker)
