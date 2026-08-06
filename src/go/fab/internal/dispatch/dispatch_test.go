@@ -128,6 +128,103 @@ func TestSelectMode(t *testing.T) {
 	}
 }
 
+// TestSelectPaneShape exhausts the pane-PLACEMENT decision: every combination of
+// the three inputs. The properties worth pinning are that only a dispatcher which
+// IS a tmux pane on the TARGET server gets the split shape, and that both
+// window-shape rungs (--server named, $TMUX_PANE unset) reproduce the pre-split
+// behavior — which is what makes the change additive rather than a behavior swap.
+func TestSelectPaneShape(t *testing.T) {
+	tests := []struct {
+		name      string
+		paneMode  bool
+		serverSet bool
+		tmuxPane  string
+		want      PaneShape
+	}{
+		// The new shape: a pane-mode dispatch from a tmux pane on the same server.
+		{"pane mode from a tmux pane ⇒ split", true, false, "%7", ShapeSplit},
+
+		// --server may name ANOTHER socket, where the caller's pane id means nothing.
+		{"--server wins over $TMUX_PANE ⇒ window", true, true, "%7", ShapeWindow},
+		{"--server with no $TMUX_PANE ⇒ window", true, true, "", ShapeWindow},
+
+		// A headless orchestrator passing explicit --pane has no pane to split.
+		{"no $TMUX_PANE ⇒ window", true, false, "", ShapeWindow},
+
+		// Not pane mode at all: no worker pane is opened, so the shape is vacuous
+		// and must read as the pre-split default rather than an accidental split.
+		{"headless mode ⇒ window (vacuous)", false, false, "%7", ShapeWindow},
+		{"headless mode with --server ⇒ window (vacuous)", false, true, "%7", ShapeWindow},
+		{"headless mode, no pane ⇒ window (vacuous)", false, false, "", ShapeWindow},
+		{"headless mode, --server, no pane ⇒ window (vacuous)", false, true, "", ShapeWindow},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SelectPaneShape(tt.paneMode, tt.serverSet, tt.tmuxPane); got != tt.want {
+				t.Errorf("SelectPaneShape(pane=%v, serverSet=%v, TMUX_PANE=%q) = %q, want %q",
+					tt.paneMode, tt.serverSet, tt.tmuxPane, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestLastDispatchPane pins the sibling-probe row grammar: the LAST dispatch-titled
+// pane wins (that is the bottom of the stacked column, so the next split lands
+// under the newest worker), and non-dispatch panes — the dispatcher's own pane, a
+// pane the user split by hand, an untitled pane — are never selected.
+func TestLastDispatchPane(t *testing.T) {
+	tests := []struct {
+		name string
+		out  string
+		want string
+	}{
+		{"no panes at all", "", ""},
+		{"only the dispatcher's own pane", "%1 my-shell\n", ""},
+		{"one worker", "%1 my-shell\n%2 fab-abcd-apply\n", "%2"},
+		{"the LAST worker wins", "%1 sh\n%2 fab-abcd-apply\n%3 fab-abcd-review\n", "%3"},
+		{"a hand-split pane between workers is skipped",
+			"%1 sh\n%2 fab-abcd-apply\n%3 vim\n", "%2"},
+		{"an untitled row is skipped", "%1\n%2 fab-abcd-apply\n", "%2"},
+		{"a title merely CONTAINING the prefix does not match",
+			"%1 my-fab-abcd-apply\n", ""},
+		{"trailing blank lines are ignored", "%1 fab-abcd-apply\n\n", "%1"},
+		{"multi-word titles keep matching on the prefix",
+			"%1 fab-abcd-apply extra words\n", "%1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := lastDispatchPane(tt.out); got != tt.want {
+				t.Errorf("lastDispatchPane(%q) = %q, want %q", tt.out, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestSplitDirectionsAreDistinct pins the stacked-right-column rule's two
+// directions as the tmux flags they must be: the FIRST worker carves the column to
+// the right of the dispatcher, later workers stack BELOW the previous worker. Swap
+// them and every dispatch would shrink the dispatcher's own pane instead.
+func TestSplitDirectionsAreDistinct(t *testing.T) {
+	if SplitRight != "-h" {
+		t.Errorf("SplitRight = %q, want tmux's horizontal split flag -h", SplitRight)
+	}
+	if SplitBelow != "-v" {
+		t.Errorf("SplitBelow = %q, want tmux's vertical split flag -v", SplitBelow)
+	}
+}
+
+// TestDispatchTitlePrefixMatchesWindowName pins that the sibling probe's filter and
+// the identity composer cannot drift: the prefix the probe matches on MUST be the
+// prefix WindowName actually emits, or a second dispatch would never find the first
+// one's pane and the column would never stack.
+func TestDispatchTitlePrefixMatchesWindowName(t *testing.T) {
+	name := WindowName("abcd", "apply")
+	if !strings.HasPrefix(name, DispatchTitlePrefix) {
+		t.Errorf("WindowName = %q does not carry DispatchTitlePrefix %q; the sibling probe would never match a worker pane",
+			name, DispatchTitlePrefix)
+	}
+}
+
 // TestSelectModeNeverReportsFallbackReasons pins that both SOFT-FALLBACK reasons
 // are the CALLER's post-validation verdicts, never SelectMode's: the selector is
 // pure — it performs no tmux query and reads no provider config — so it can know

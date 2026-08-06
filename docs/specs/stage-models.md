@@ -553,7 +553,8 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   native Agent-tool adapter described in this section is now one of *three* dispatch adapters catalogued
   in [`harness-adapters.md`](harness-adapters.md)** — the two `fab dispatch` modes are the others:
   **headless CLI** (3c) and **interactive pane** (`fab dispatch start --pane`, 260805-zxe0, a worker in a
-  tmux window the user can watch and steer). That spec fixes the cross-adapter dispatch protocol
+  tmux pane the user can watch and steer — split into the dispatching agent's own window, or a new window
+  when there is no pane to split). That spec fixes the cross-adapter dispatch protocol
   (dispatch-prompt obligations, the five-state machine plus each adapter's reachable subset,
   hooks-enhance-never-own) all three share; the skill
   dispatch-seam wiring against it lives in `_preamble.md` § CLI-Adapter Dispatch + § Dispatch-Prompt

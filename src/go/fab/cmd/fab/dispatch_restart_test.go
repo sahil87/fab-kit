@@ -536,6 +536,50 @@ func TestDispatchRestart_PaneMode_Integration(t *testing.T) {
 	}
 }
 
+// TestDispatchRestart_SplitsTheDispatchersWindow_Integration pins that `restart`
+// inherits the pane SHAPE decision from the shared launch tail with no
+// restart-specific branch: issued from inside a tmux pane, it splits THAT pane's
+// window exactly as `start` does — including when the prior attempt's record names
+// a WINDOW-shaped dispatch, since the shape is re-derived from the current
+// environment rather than inherited from the record.
+func TestDispatchRestart_SplitsTheDispatchersWindow_Integration(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", `sh -c 'sleep 30' _`)
+	dir := dispatch.DirFor(repoRoot, id)
+	mustMkdir(t, dir)
+	mustWrite(t, dispatch.PromptPath(dir, "apply"), "persisted prompt\n")
+	// An ORPHANED prior attempt whose pane is gone, so the restart proceeds.
+	if err := dispatch.Save(dir, "apply", &dispatch.Dispatch{
+		SpawnCmd: "old", StartedAt: "old", Pane: "%999", Window: dispatch.WindowName(id, "apply"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	tmuxScoped, dispatcherPane := startPrivateTmuxWithPane(t)
+
+	out, err := runRestart(t, "abcd", "apply")
+	if err != nil {
+		t.Fatalf("restart from inside a tmux pane failed: %v", err)
+	}
+	title := dispatch.WindowName(id, "apply")
+	if !strings.Contains(out, "split") || !strings.Contains(out, "title "+title) {
+		t.Errorf("output = %q, want the split report naming the pane title %q", out, title)
+	}
+
+	rec, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("state not persisted: %v", err)
+	}
+	if rec.Pane == "%999" {
+		t.Fatalf("record should name the NEW pane, got %+v", *rec)
+	}
+	if got, want := paneWindow(t, tmuxScoped, rec.Pane), paneWindow(t, tmuxScoped, dispatcherPane); got != want {
+		t.Errorf("restarted worker pane %s is in window %s, want the dispatcher's window %s", rec.Pane, got, want)
+	}
+	if got := paneTitle(t, tmuxScoped, rec.Pane); got != title {
+		t.Errorf("pane title = %q, want %q", got, title)
+	}
+}
+
 // TestDispatchRestart_PaneRefuseHonorsTheResultFile: a finished-but-still-alive
 // pane worker reads `done`, so a restart over it must OVERWRITE rather than refuse
 // — the same finished-signal rule `start` applies, so the two never disagree.

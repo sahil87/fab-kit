@@ -104,7 +104,7 @@ const (
 // sync with the fields:
 //
 //	headless — PID/PGID identify the detached worker shell; Pane/Window/Server empty
-//	pane     — Pane/Window(/Server) identify the tmux window; PID/PGID unset
+//	pane     — Pane/Window(/Server) identify the tmux worker pane; PID/PGID unset
 //	           (liveness is a pane property, not a pid property)
 //
 // Every mode-specific field is `omitempty`, so a headless record serializes
@@ -119,9 +119,14 @@ type Dispatch struct {
 	// Pane is the tmux pane ID (e.g. "%17") of an interactive pane dispatch. Its
 	// presence IS the pane-mode signal (see Mode/IsPane).
 	Pane string `yaml:"pane,omitempty"`
-	// Window is the tmux window name the pane dispatch was opened under
-	// (WindowName(id, stage)) — recorded for identification/debugging; the pane
-	// ID is what liveness and kill target.
+	// Window is the pane dispatch's IDENTITY STRING (WindowName(id, stage)) —
+	// recorded for identification/debugging; the pane ID is what liveness and kill
+	// target. Its MEANING depends on the pane shape the dispatch took: the tmux
+	// WINDOW NAME for a new-window dispatch, or the tmux PANE TITLE for one that
+	// split the dispatching agent's window (a split pane has no window name of its
+	// own). Deliberately NOT split into two fields — the string is identical either
+	// way, so a second field would carry no information and would break every
+	// existing record's schema for nothing.
 	Window string `yaml:"window,omitempty"`
 	// Server is the tmux socket label (`tmux -L <name>`) the pane lives on, empty
 	// for the default socket. Persisted so status/kill reach the same server the
@@ -143,16 +148,25 @@ func (d *Dispatch) Mode() Mode {
 	return ModeHeadless
 }
 
-// WindowName composes the tmux window name for a pane dispatch:
+// WindowName composes a pane dispatch's IDENTITY STRING:
 // "fab-{4-char-change-id}-{stage}".
 //
-// This is a DEDICATED dispatch-window convention and deliberately carries
-// neither the operator's `»` (U+00BB) enrollment prefix nor its `›` (U+203A)
-// done marker: those assert that a window is in the operator's monitored set and
-// that the operator owns its lifecycle, which a pipeline dispatch does not have.
+// One string, two carriers, by pane shape (see SelectPaneShape): it is the tmux
+// WINDOW NAME when the worker opens in its own window (OpenWindow), and the tmux
+// PANE TITLE when the worker splits the dispatching agent's window (OpenSplitPane,
+// where the window is the dispatcher's and has its own name). The function name is
+// kept for its call sites and its record field; what it composes is the same
+// string either way.
+//
+// This is a DEDICATED dispatch convention and deliberately carries neither the
+// operator's `»` (U+00BB) enrollment prefix nor its `›` (U+203A) done marker:
+// those assert that a window is in the operator's monitored set and that the
+// operator owns its lifecycle, which a pipeline dispatch does not have.
 // Pre-marking would make the operator's tab bar misreport what it tracks. An
 // operator that genuinely enrolls the window still adds the marker through its
-// own idempotent `fab pane window-name ensure-prefix` primitive.
+// own idempotent `fab pane window-name ensure-prefix` primitive. The rule carries
+// over to BOTH shapes — a split worker's pane title is unmarked for the same
+// reason.
 func WindowName(id, stage string) string { return "fab-" + id + "-" + stage }
 
 // DirFor returns the .fab-dispatch/{id}/ directory for a change ID, rooted at

@@ -26,7 +26,7 @@ result (see [`stage-models.md`](stage-models.md) § Why this is possible now, an
 tool** (an in-harness sub-agent). Cross-harness dispatch (e.g. a codex orchestrator running `apply` on
 claude, or a claude orchestrator handing a stage to codex) added a second: a **detached CLI process**
 observed via files. A third recovers what that detached process cannot offer — **watch and steer**: an
-**interactive worker in a tmux window**, observed via the same result file. This spec catalogs all three
+**interactive worker in a tmux pane**, observed via the same result file. This spec catalogs all three
 **adapters** and fixes the **protocol** they share.
 
 ---
@@ -43,7 +43,7 @@ provider) is **provider-neutral and adapter-independent** — see
 |---------|--------|-----------------|-------------------------|----------------------|
 | **1. Native Agent-tool** | in-harness sub-agent (Claude Code Agent tool) | the dispatched prompt itself | the held sub-agent handle (structural) | all five |
 | **2. Headless CLI** (`fab dispatch start`) | detached `sh -c` wrapper, `setsid` semantics | prompt file on the command's **stdin** | `{stage}.exit` + pid liveness + result file | all five |
-| **3. Interactive pane** (`fab dispatch start --pane`) | a tmux window running the provider's `session_command` | prompt **file** + a one-line **pointer** to it, embedded at spawn | **result file** + pane liveness | `running` / `done` / `orphaned` |
+| **3. Interactive pane** (`fab dispatch start --pane`) | a tmux pane running the provider's `session_command` — split into the dispatching agent's own window, or a new window when there is no pane to split | prompt **file** + a one-line **pointer** to it, embedded at spawn | **result file** + pane liveness | `running` / `done` / `orphaned` |
 
 Adapters 2 and 3 are two **modes of the same command family** (`fab dispatch`), sharing its resolution,
 `.fab-dispatch/{id}/` state directory, refuse-if-running concurrency, and status/kill/logs/clean
@@ -85,7 +85,7 @@ status`** (file polling) rather than a held handle. POSIX-only in v1.
 
 ### 3. Interactive-pane adapter — `fab dispatch start --pane`
 
-The **watch-and-steer** path: the worker is an **interactive agent session in a tmux window** the user
+The **watch-and-steer** path: the worker is an **interactive agent session in a tmux pane** the user
 can read and type into mid-stage. It exists because a detached headless worker is a black box —
 `fab dispatch logs --tail` recovers *watching*, but **steering is impossible**: a detached process in its
 own session is nobody's conversation partner. That asymmetry against the native adapter's
@@ -99,10 +99,34 @@ Mechanics, all fixed by this spec:
   composes — with `{model}`/`{effort}` substituted through the shared `internal/spawn` resolution. This is
   why pane mode needs **no new provider config field**: the interactive invocation is already in the
   provider table. It MUST NOT read or fall back to `dispatch_command`.
-- **Window**: created via the `_cli-agents.md` § Spawn Composition form
-  (`tmux new-window -n <name> -c <dir> "<composed-cmd> <shell-quoted-prompt>"`), cwd = the repo root, and
-  the new window's **pane ID** recorded in `.fab-dispatch/{id}/{stage}.yaml` alongside the window name and
-  tmux socket label.
+- **Where the pane opens — TWO SHAPES, one identity.** Both are the `_cli-agents.md` § Spawn Composition
+  form with cwd = the repo root, and both record the new **pane ID** in
+  `.fab-dispatch/{id}/{stage}.yaml` alongside the `fab-{id}-{stage}` identity string and the tmux socket
+  label. The shape is a **pure decision** from the dispatching process's own tmux position
+  (`$TMUX_PANE`) and whether `--server` was supplied:
+  - **Split** (`$TMUX_PANE` set **and** no `--server`) — `tmux split-window {-h|-v} -t <target> -c <dir>
+    "<composed-cmd> <shell-quoted-prompt>"` followed by `tmux select-pane -t <new> -T fab-{id}-{stage}`.
+    The worker lands **in the dispatching agent's own window**. Placement is a **stacked right column**:
+    `-v` off the **last** `fab-`-titled sibling pane in that window when one exists (stacking under the
+    newest worker), else `-h` off `$TMUX_PANE` (carving the column). A failing sibling probe MUST degrade
+    to the `-h` split with a stderr warning — placement is cosmetic and MUST NOT fail a dispatch. A
+    failed title set is likewise **non-fatal** (stderr warning at most): the pane ID is the identity.
+  - **New window** (otherwise) — `tmux new-window -n fab-{id}-{stage} -c <dir> "<composed-cmd>
+    <shell-quoted-prompt>"`, byte-identical to the pre-split behavior. This is the **fallback**, reached
+    when the dispatcher has no pane of its own to split (`$TMUX_PANE` unset — a headless orchestrator
+    passing `--pane`) or when `--server <name>` targets a socket on which the caller's own pane id is
+    meaningless (pane ids are server-global, not global).
+
+  This realizes the **two-tier tmux hierarchy**: an operator opens worktree agents as **windows**, and
+  each worktree agent's stage workers are **panes beside it** — so a stage worker no longer consumes a
+  window in the operator's tab bar. The `fab-{id}-{stage}` string is **unchanged and shape-independent**,
+  carried by the pane **title** when split and the window **name** otherwise, and stored in the same
+  record field either way (no schema change, no migration).
+- **Everything downstream is pane-ID keyed and therefore SHAPE-BLIND**: pane liveness, `status`,
+  `kill` (killing a split worker's pane leaves the agent's window and any sibling worker intact — plain
+  `kill-pane` semantics), `fab pane capture`, and refuse-if-running behave identically in both shapes.
+  Only the `dispatched …` report distinguishes them (`pane %N, split, title fab-…` vs.
+  `pane %N, window fab-…`).
 - **Prompt delivery**: the full stage prompt is persisted to `.fab-dispatch/{id}/{stage}-prompt.md` (the
   same path the headless mode uses) and the worker receives a **one-line pointer** to that path as its
   single spawn argument, **shell-quoted** per § Spawn Composition's escape rule (the pointer is
@@ -279,13 +303,19 @@ depends on the answer.
 
 ### Pane dispatch is not operator enrollment
 
-A pane dispatch **borrows tmux as a launch surface**; it does not join the operator's monitored set. Its
-window carries a dedicated dispatch name (`fab-{4-char-change-id}-{stage}`) and **MUST NOT** carry the
-operator's `»` (U+00BB) enrollment prefix or its `›` (U+203A) done marker: those assert that a window is
-in the operator's monitored set and that the operator owns its lifecycle, neither of which is true of a
+A pane dispatch **borrows tmux as a launch surface**; it does not join the operator's monitored set. It
+carries a dedicated dispatch identity string (`fab-{4-char-change-id}-{stage}` — the pane **title** in the
+split shape, the window **name** in the new-window shape) and **MUST NOT** carry the operator's `»`
+(U+00BB) enrollment prefix or its `›` (U+203A) done marker in **either** shape: those assert that a window
+is in the operator's monitored set and that the operator owns its lifecycle, neither of which is true of a
 pipeline dispatch. Pre-marking would make the operator's tab bar misreport what it tracks. An operator
-that genuinely enrolls such a window still adds the marker itself, through its own idempotent
+that genuinely enrolls a window still adds the marker itself, through its own idempotent
 `fab pane window-name ensure-prefix` primitive.
+
+The **split shape reinforces this separation** rather than complicating it: a split worker opens **no
+window at all**, so it cannot appear in the operator's tab bar even unmarked — which is the concrete
+problem the split shape fixes (every pane worker used to surface as another window in the operator's, and
+run-kit's, window list).
 
 ### Hooks may enhance, never own
 

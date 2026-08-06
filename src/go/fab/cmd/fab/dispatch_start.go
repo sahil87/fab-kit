@@ -38,7 +38,7 @@ type launchFlags struct {
 func addLaunchFlags(cmd *cobra.Command) *launchFlags {
 	f := &launchFlags{}
 	cmd.Flags().IntVar(&f.timeout, "timeout", 0, "Enforce a POSIX `timeout <secs>` inside the launch wrapper (0 = none); implies --headless")
-	cmd.Flags().BoolVar(&f.paneMode, "pane", false, "Force an interactive tmux-window worker (requires a reachable tmux server) instead of the auto default")
+	cmd.Flags().BoolVar(&f.paneMode, "pane", false, "Force an interactive tmux worker — a pane split into your own window, or a new window when you are not in one (requires a reachable tmux server)")
 	cmd.Flags().BoolVar(&f.headlessMode, "headless", false, "Force a detached headless worker, opting out of auto pane selection inside tmux")
 	cmd.Flags().StringVarP(&f.server, "server", "L", "", "Target tmux socket label (passed as 'tmux -L <name>'); implies pane mode. Defaults to $TMUX / tmux default socket; ignored in headless mode")
 	cmd.MarkFlagsMutuallyExclusive("pane", "headless")
@@ -61,13 +61,36 @@ func addLaunchFlags(cmd *cobra.Command) *launchFlags {
 //
 // The ladder's caller-supplied signals are likewise read as "was the flag
 // SUPPLIED", so `--timeout 0` / `--server ""` still count.
-func (f *launchFlags) resolveMode(cmd *cobra.Command) (dispatch.Mode, dispatch.AutoReason, error) {
+//
+// It resolves the pane PLACEMENT in the same breath (see paneTarget). Both env
+// reads — $TMUX and $TMUX_PANE — live HERE, in the cobra layer, so
+// internal/dispatch stays pure and table-testable: the SelectMode precedent.
+// Resolving both here is also what gives `restart` the split behavior for free —
+// it shares this method, so the two subcommands cannot drift on either decision.
+func (f *launchFlags) resolveMode(cmd *cobra.Command) (dispatch.Mode, dispatch.AutoReason, paneTarget, error) {
 	if f.paneMode && cmd.Flags().Changed("timeout") {
-		return "", "", fmt.Errorf("--pane and --timeout are mutually exclusive: --timeout is enforced by the headless launch wrapper (POSIX `timeout`), which pane mode does not use")
+		return "", "", paneTarget{}, fmt.Errorf("--pane and --timeout are mutually exclusive: --timeout is enforced by the headless launch wrapper (POSIX `timeout`), which pane mode does not use")
 	}
+	serverSet := cmd.Flags().Changed("server")
 	mode, reason := dispatch.SelectMode(f.paneMode, f.headlessMode,
-		cmd.Flags().Changed("timeout"), cmd.Flags().Changed("server"), os.Getenv("TMUX"))
-	return mode, reason, nil
+		cmd.Flags().Changed("timeout"), serverSet, os.Getenv("TMUX"))
+	dispatcherPane := os.Getenv("TMUX_PANE")
+	return mode, reason, paneTarget{
+		shape:          dispatch.SelectPaneShape(mode == dispatch.ModePane, serverSet, dispatcherPane),
+		dispatcherPane: dispatcherPane,
+	}, nil
+}
+
+// paneTarget carries the pane-placement decision from the cobra layer to
+// launchPane: WHICH shape the worker pane takes and — for the split shape — WHICH
+// pane the dispatching process itself occupies ($TMUX_PANE, the split's anchor).
+//
+// The two travel together because they come from the same env read and are
+// meaningless apart: a shape of ShapeSplit with no dispatcherPane cannot be
+// placed, and SelectPaneShape is exactly the function that rules that pair out.
+type paneTarget struct {
+	shape          dispatch.PaneShape
+	dispatcherPane string
 }
 
 func dispatchStartCmd() *cobra.Command {
@@ -76,8 +99,8 @@ func dispatchStartCmd() *cobra.Command {
 	var f *launchFlags
 	cmd := &cobra.Command{
 		Use:   "start <change> <stage>",
-		Short: "Launch a stage worker — mode defaults to auto (a tmux window inside tmux, headless outside); force with --pane / --headless",
-		Example: `  # Auto mode: a watchable tmux window inside tmux, headless outside
+		Short: "Launch a stage worker — mode defaults to auto (a watchable tmux pane inside tmux, headless outside); force with --pane / --headless",
+		Example: `  # Auto mode: a watchable tmux pane inside tmux, headless outside
   fab dispatch start b91h apply < prompt.md
 
   # Force headless for an unattended run that happens to live inside a tmux tab
@@ -86,18 +109,18 @@ func dispatchStartCmd() *cobra.Command {
   # Enforce a 30-minute POSIX timeout (implies headless)
   fab dispatch start --timeout 1800 b91h apply < prompt.md
 
-  # Force the stage into a tmux window you can watch and steer
+  # Force the stage into a tmux pane you can watch and steer (splits your window)
   fab dispatch start b91h review --pane < prompt.md
 
   # Target a specific tmux socket (implies pane; works from outside tmux)
   fab dispatch start b91h review --server work < prompt.md`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			mode, reason, err := f.resolveMode(cmd)
+			mode, reason, target, err := f.resolveMode(cmd)
 			if err != nil {
 				return err
 			}
-			return runDispatchLaunch(cmd, args[0], args[1], f.timeout, mode, reason, f.server, promptFromStdin)
+			return runDispatchLaunch(cmd, args[0], args[1], f.timeout, mode, reason, f.server, target, promptFromStdin)
 		},
 	}
 	f = addLaunchFlags(cmd)
@@ -143,7 +166,9 @@ func promptFromStdin(cmd *cobra.Command, _, _ string) ([]byte, bool, error) {
 //	dispatch.ModeHeadless — the provider's dispatch_command, detached via the
 //	                        `sh -c` wrapper; tmux-independent (launchHeadless)
 //	dispatch.ModePane     — the provider's session_command, interactive in a tmux
-//	                        window the user can watch and steer (launchPane)
+//	                        pane the user can watch and steer — split into the
+//	                        dispatching agent's own window, or in a new window
+//	                        when the dispatcher has no pane to split (launchPane)
 //
 // It backs BOTH `fab dispatch start` (source: stdin) and `fab dispatch restart`
 // (source: the persisted {stage}-prompt.md). A restart is a fresh attempt under
@@ -163,7 +188,7 @@ func promptFromStdin(cmd *cobra.Command, _, _ string) ([]byte, bool, error) {
 // rule holds in both directions — headless never falls back to session_command,
 // pane never falls back to dispatch_command (and the soft fallback is a MODE
 // change that re-composes from dispatch_command, not a cross-field fallback).
-func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, timeout int, mode dispatch.Mode, reason dispatch.AutoReason, server string, prompt promptSource) error {
+func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, timeout int, mode dispatch.Mode, reason dispatch.AutoReason, server string, target paneTarget, prompt promptSource) error {
 	fabRoot, err := resolve.FabRoot()
 	if err != nil {
 		return err
@@ -279,7 +304,7 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, timeout int,
 
 	var report string
 	if mode == dispatch.ModePane {
-		report, err = launchPane(rec, resolvedCmd, repoRoot, promptPath, id, stage, server)
+		report, err = launchPane(cmd, rec, resolvedCmd, repoRoot, promptPath, id, stage, server, target)
 	} else {
 		report, err = launchHeadless(rec, resolvedCmd, repoRoot, dir, stage, promptPath, timeout)
 	}
@@ -385,31 +410,66 @@ func missingCommandError(stage, providerName, field string) error {
 		stage, tier, providerName, field, providerName, field)
 }
 
-// launchPane opens the interactive worker in a tmux window and records the pane
+// launchPane opens the interactive worker in a tmux pane and records the pane
 // identity on rec. The worker receives a ONE-LINE POINTER to the persisted prompt
 // file as the interactive command's single quoted argument (the `_cli-agents`
 // § Spawn Composition form) — the multi-thousand-token prompt itself never rides
 // tmux, and embedding at spawn sidesteps the printed-prompt trap entirely.
 //
-// The pointer path is repo-relative because the window's cwd IS the repo root.
+// The pointer path is repo-relative because the new pane's cwd IS the repo root.
 // dispatch.WindowCommand shell-quotes the pointer, so a repo path containing a
 // single quote cannot break out of the embedded argument.
-func launchPane(rec *dispatch.Dispatch, resolvedCmd, repoRoot, promptPath, id, stage, server string) (string, error) {
+//
+// WHERE the pane opens is dispatch.SelectPaneShape's decision, resolved in the
+// cobra RunE and delivered as target (see paneTarget):
+//
+//	ShapeSplit  — split the DISPATCHING agent's own window, so its stage workers
+//	              stack in a right-hand column beside it (the two-tier hierarchy's
+//	              inner tier). The identity string rides the pane TITLE.
+//	ShapeWindow — a new window named for the dispatch (the pre-split behavior),
+//	              for a dispatcher that has no pane of its own to split.
+//
+// Both shapes record the SAME identity string in rec.Window and both are keyed by
+// pane ID afterwards, so status/kill/capture need no shape awareness.
+func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoot, promptPath, id, stage, server string, target paneTarget) (string, error) {
 	relPrompt, err := filepath.Rel(repoRoot, promptPath)
 	if err != nil {
 		relPrompt = promptPath
 	}
-	window := dispatch.WindowName(id, stage)
+	title := dispatch.WindowName(id, stage)
 	windowCmd := dispatch.WindowCommand(resolvedCmd, dispatch.PointerPrompt(relPrompt))
 
-	paneID, err := dispatch.OpenWindow(server, window, repoRoot, windowCmd)
-	if err != nil {
-		return "", err
+	var paneID, report string
+	if target.shape == dispatch.ShapeSplit {
+		// Placement degrades before it fails: an unreadable sibling probe still
+		// yields a usable target (the dispatcher's own pane), so the dispatch
+		// launches and only the warning records that the stacking rule was skipped.
+		splitTarget, direction, probeErr := dispatch.SplitTarget(server, target.dispatcherPane)
+		if probeErr != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not list sibling dispatch panes (%v); splitting the current pane\n", probeErr)
+		}
+		var titleErr error
+		paneID, titleErr, err = dispatch.OpenSplitPane(server, splitTarget, direction, title, repoRoot, windowCmd)
+		if err != nil {
+			return "", err
+		}
+		// Cosmetic-only failure: the worker is running and its pane ID — the real
+		// identity — is already recorded, so this warns rather than aborting.
+		if titleErr != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not set pane title %q (%v)\n", title, titleErr)
+		}
+		report = fmt.Sprintf("pane %s, split, title %s", paneID, title)
+	} else {
+		paneID, err = dispatch.OpenWindow(server, title, repoRoot, windowCmd)
+		if err != nil {
+			return "", err
+		}
+		report = fmt.Sprintf("pane %s, window %s", paneID, title)
 	}
 	rec.Pane = paneID
-	rec.Window = window
+	rec.Window = title
 	rec.Server = server
-	return fmt.Sprintf("pane %s, window %s", paneID, window), nil
+	return report, nil
 }
 
 // launchHeadless launches the detached wrapper and records the pid/pgid on rec:

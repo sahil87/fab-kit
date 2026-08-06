@@ -8,7 +8,8 @@ import (
 )
 
 // This file holds the tmux side of PANE-MODE dispatch (`fab dispatch start
-// --pane`): server reachability, window creation, pane liveness, and pane kill.
+// --pane`): server reachability, worker-pane creation (split or new window),
+// pane liveness, and pane kill.
 //
 // It lives in the platform-INDEPENDENT core rather than the build-tagged
 // dispatch_posix.go / dispatch_windows.go split for the same reason WrapperArgv
@@ -117,6 +118,60 @@ func SelectMode(paneFlag, headlessFlag, timeoutSet, serverSet bool, tmuxEnv stri
 	}
 }
 
+// PaneShape names WHERE a pane-mode worker is opened — the second decision pane
+// mode makes, after SelectMode has already chosen pane over headless.
+//
+// It exists because the two-tier tmux hierarchy has two different callers of the
+// same command. An OPERATOR spawns worktree agents as tmux WINDOWS; a worktree
+// AGENT dispatching its own stage workers wants them beside it, as PANES
+// splitting its own window (the Claude-teams layout), so a stage worker no longer
+// costs a window in the operator's tab bar.
+type PaneShape string
+
+const (
+	// ShapeSplit: split the dispatching agent's own window, so the worker appears
+	// beside its dispatcher. Requires knowing WHICH pane the dispatcher is
+	// ($TMUX_PANE) and that the pane id is meaningful on the target server.
+	ShapeSplit PaneShape = "split"
+	// ShapeWindow: open a new window named after the dispatch — the pre-split
+	// behavior, and the fallback whenever a split cannot be placed.
+	ShapeWindow PaneShape = "window"
+)
+
+// SelectPaneShape resolves WHERE a pane-mode worker opens, given the dispatching
+// process's own tmux position. Like SelectMode it is a PURE function — no
+// environment reads, no tmux probe, no I/O — so the whole table is testable; the
+// cobra layer reads $TMUX_PANE and passes it down.
+//
+// The rules:
+//
+//  1. paneMode false     → ShapeWindow (vacuous: no pane worker is opened at all;
+//     returning the pre-split shape keeps the zero value honest)
+//  2. serverSet          → ShapeWindow. `--server <name>` targets a possibly
+//     DIFFERENT tmux socket, on which the caller's own
+//     $TMUX_PANE id is meaningless (pane ids are
+//     server-global, not global) — splitting it would
+//     target an unrelated pane or fail outright.
+//  3. tmuxPane == ""     → ShapeWindow. A headless orchestrator dispatching with
+//     an explicit --pane has no pane of its own to split.
+//  4. otherwise          → ShapeSplit.
+//
+// Rungs 2 and 3 both reproduce the pre-split behavior byte-for-byte, which is
+// what makes this change additive: only a dispatcher that IS a tmux pane on the
+// target server gets the new shape.
+func SelectPaneShape(paneMode, serverSet bool, tmuxPane string) PaneShape {
+	switch {
+	case !paneMode:
+		return ShapeWindow
+	case serverSet:
+		return ShapeWindow
+	case tmuxPane == "":
+		return ShapeWindow
+	default:
+		return ShapeSplit
+	}
+}
+
 // ServerReachable probes whether a tmux server is reachable, returning nil when
 // it is and an ACTIONABLE error when it is not.
 //
@@ -167,6 +222,11 @@ func ServerReachable(server string) error {
 // OpenWindow creates a tmux window named name with cwd dir running cmd, and
 // returns the new window's PANE ID.
 //
+// This is the FALLBACK pane shape (see SelectPaneShape): it is what a dispatcher
+// with no pane of its own to split — a headless orchestrator passing `--pane`, or
+// a caller naming another socket with `--server` — gets. A dispatcher that IS a
+// tmux pane on the target server gets OpenSplitPane instead.
+//
 // The pane ID (not the window name) is the identity worth recording: it is
 // server-global, stable for the pane's lifetime, and exempt from tmux's
 // target-grammar prefix/glob resolution — so subsequent liveness probes and
@@ -180,16 +240,135 @@ func ServerReachable(server string) error {
 // at invocation inside the new window — the `_cli-agents.md` § Spawn
 // Composition contract.
 func OpenWindow(server, name, dir, cmd string) (paneID string, err error) {
-	out, stderr, err := pane.RunCmd("tmux", pane.WithServer(server,
-		"new-window", "-P", "-F", "#{pane_id}", "-n", name, "-c", dir, cmd)...)
+	return runPaneCreator(server, "new-window", name,
+		"new-window", "-P", "-F", "#{pane_id}", "-n", name, "-c", dir, cmd)
+}
+
+// OpenSplitPane splits targetPane to create the worker's pane, titles it, and
+// returns the new pane's ID. Unlike OpenWindow the worker lands in the SAME tmux
+// window as targetPane — the two-tier hierarchy's inner tier.
+//
+// PLACEMENT is a stacked right column, matching the native agent-team layout:
+//
+//   - The first worker splits targetPane HORIZONTALLY (`-h`), carving the right
+//     half of the dispatcher's window out as the worker column.
+//   - Every later worker splits the LAST live worker pane VERTICALLY (`-v`), so
+//     workers stack down that column instead of shrinking the dispatcher further.
+//
+// The caller supplies the already-chosen target and direction (see
+// SplitTarget/SiblingDispatchPane); this function only executes the split, so the
+// placement decision stays inspectable and this stays a thin tmux wrapper.
+//
+// TITLE: a split pane has no window name of its own — its window belongs to the
+// dispatcher — so the dispatch's identity string rides the PANE TITLE instead
+// (`select-pane -T`). A title-set failure is NON-FATAL: the worker is already
+// running and its pane ID (the real identity, which every later probe keys on) is
+// already in hand, so refusing the dispatch over a cosmetic label would be a
+// strictly worse outcome. It is returned as titleErr for the caller to warn about.
+//
+// cmd is passed as split-window's shell-command argument, so — exactly as in
+// OpenWindow — it is the WHOLE left-hand side including its own shell expansions,
+// which expand at invocation inside the new pane.
+func OpenSplitPane(server, targetPane, direction, title, dir, cmd string) (paneID string, titleErr error, err error) {
+	paneID, err = runPaneCreator(server, "split-window", title,
+		"split-window", direction, "-t", targetPane, "-P", "-F", "#{pane_id}", "-c", dir, cmd)
 	if err != nil {
-		return "", pane.StderrError(fmt.Errorf("tmux new-window: %w", err), stderr)
+		return "", nil, err
 	}
-	paneID = strings.TrimSpace(out)
+	if _, stderr, terr := pane.RunCmd("tmux", pane.WithServer(server,
+		"select-pane", "-t", paneID, "-T", title)...); terr != nil {
+		titleErr = pane.StderrError(fmt.Errorf("tmux select-pane -T: %w", terr), stderr)
+	}
+	return paneID, titleErr, nil
+}
+
+// runPaneCreator executes a tmux command that PRINTS the created pane's id
+// (`-P -F '#{pane_id}'`) and returns that id, applying one convention to both
+// creators: the child's own stderr is surfaced via pane.StderrError instead of a
+// bare exit status, and an empty id is an error rather than a silently
+// unidentifiable dispatch. verb/label only shape the diagnostics.
+func runPaneCreator(server, verb, label string, args ...string) (string, error) {
+	out, stderr, err := pane.RunCmd("tmux", pane.WithServer(server, args...)...)
+	if err != nil {
+		return "", pane.StderrError(fmt.Errorf("tmux %s: %w", verb, err), stderr)
+	}
+	paneID := strings.TrimSpace(out)
 	if paneID == "" {
-		return "", fmt.Errorf("tmux new-window reported no pane id for window %q", name)
+		return "", fmt.Errorf("tmux %s reported no pane id for %q", verb, label)
 	}
 	return paneID, nil
+}
+
+// DispatchTitlePrefix is the prefix every dispatch identity string carries
+// ("fab-{id}-{stage}", see WindowName). SiblingDispatchPane matches on it to tell
+// existing worker panes apart from the dispatcher's own pane and from any
+// unrelated pane the user split off by hand.
+const DispatchTitlePrefix = "fab-"
+
+// Split direction arguments for OpenSplitPane, named so the two placement rules
+// are not bare tmux flags at the call site.
+const (
+	// SplitRight carves the worker column out of the dispatcher's pane.
+	SplitRight = "-h"
+	// SplitBelow stacks a worker under the previous one, inside that column.
+	SplitBelow = "-v"
+)
+
+// SiblingDispatchPane returns the LAST live dispatch worker pane in targetPane's
+// window, or "" when there is none.
+//
+// It probes `tmux list-panes -t <targetPane> -F '#{pane_id} #{pane_title}'` —
+// window-scoped, since `-t` on a pane resolves to that pane's window — and keeps
+// the last row whose title carries DispatchTitlePrefix. "Last" is tmux's
+// list-panes order, which is the pane-index order the stacked column was built
+// in, so the newest worker is the one a further split lands under.
+//
+// A probe FAILURE returns ("", err) and the caller degrades to splitting the
+// dispatcher's own pane: placement is cosmetic, so an unparseable or failing
+// probe must never fail a dispatch that would otherwise launch fine.
+func SiblingDispatchPane(server, targetPane string) (string, error) {
+	out, stderr, err := pane.RunCmd("tmux", pane.WithServer(server,
+		"list-panes", "-t", targetPane, "-F", "#{pane_id} #{pane_title}")...)
+	if err != nil {
+		return "", pane.StderrError(fmt.Errorf("tmux list-panes: %w", err), stderr)
+	}
+	return lastDispatchPane(out), nil
+}
+
+// lastDispatchPane is the pure parsing half of SiblingDispatchPane: it maps
+// list-panes output ("<pane-id> <pane-title>" per line) to the last pane id whose
+// title carries DispatchTitlePrefix, or "" when none does. Extracted so the row
+// grammar is unit-testable without a tmux server.
+func lastDispatchPane(out string) string {
+	found := ""
+	for _, line := range strings.Split(out, "\n") {
+		id, title, ok := strings.Cut(strings.TrimSpace(line), " ")
+		if !ok || id == "" {
+			continue
+		}
+		if strings.HasPrefix(strings.TrimSpace(title), DispatchTitlePrefix) {
+			found = id
+		}
+	}
+	return found
+}
+
+// SplitTarget resolves WHICH pane a new worker splits and in WHICH direction,
+// applying the stacked-right-column rule against the live window:
+//
+//	a live worker sibling exists → split THAT pane below (SplitBelow), stacking
+//	                               the column
+//	none (or the probe failed)   → split the dispatcher's own pane to the right
+//	                               (SplitRight), creating the column
+//
+// The probe error is returned alongside the (already degraded) decision rather
+// than replacing it, so the caller can warn without the dispatch failing.
+func SplitTarget(server, dispatcherPane string) (target, direction string, probeErr error) {
+	sibling, err := SiblingDispatchPane(server, dispatcherPane)
+	if err != nil || sibling == "" {
+		return dispatcherPane, SplitRight, err
+	}
+	return sibling, SplitBelow, nil
 }
 
 // PaneAlive reports whether a pane dispatch's tmux pane still exists — the
