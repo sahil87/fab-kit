@@ -143,8 +143,10 @@ provider is an opaque, user-chosen name mapping to up to two command fields:
   unknown name errors listing the available providers, while resolved command strings still pass
   through verbatim. See `_cli-fab.md` § fab agent.
 - **`dispatch_command`** — runs ONE headless **stage task** via `fab dispatch`. **ABSENT
-  `dispatch_command` = native Agent-tool dispatch** (the default). There is **NO fallback** between the
-  two fields — absence of `dispatch_command` signals native dispatch, never "use `session_command`".
+  `dispatch_command` = native Agent-tool dispatch** (the default, unless the `dispatch.watchable`
+  opt-in applies — § Watchable pane dispatch below). There is **NO fallback** between the
+  two fields — absence of `dispatch_command` never means "use `session_command`" for a *headless*
+  dispatch.
 
 The two fields are deliberately **not merged** into one `command`: session and dispatch are different
 invocations of the same binary (claude interactive `-n` vs headless `-p`; codex TUI vs `codex exec`),
@@ -357,16 +359,43 @@ effort the agent dispatch needs.)
    effort against any provider's accepted set; it echoes the resolved strings as-is.
 4. Output: a `model=<id>` line always, then optional `effort=<level>`, `provider=<name>`, and
    `dispatch=<command>` lines. The `effort=`/`provider=` lines are **omitted** when empty. An empty
-   model emits an empty `model=` line (the "inherit" signal). The `dispatch=` line is emitted **ONLY
-   when the resolved tier's provider carries a `dispatch_command`** (mirroring the effort-omit rule);
-   its **absence signals native Agent-tool dispatch**, and there is **NO fallback to a session
-   command**. The `dispatch=` command's `{model}`/`{effort}` placeholders are substituted via
+   model emits an empty `model=` line (the "inherit" signal). The `dispatch=` line is emitted when the
+   resolved tier's provider carries a `dispatch_command` (mirroring the effort-omit rule) — or, when
+   `dispatch.watchable: true` and the orchestrator sits inside tmux, for a `session_command`-only
+   provider (the **watchable pane opt-in**, § Watchable pane dispatch below); its **absence signals
+   native Agent-tool dispatch**, and a **headless** dispatch has **NO fallback to a session command**.
+   The `dispatch=` command's `{model}`/`{effort}` placeholders are substituted via
    `internal/spawn`'s template resolution (reused, not reimplemented), using the tier's own resolved
    model/effort — and the `{model}` is **always the full model ID**, even under `--alias` (see
    § Harness-adapter boundary).
 6. **Byte-stable** for the same config (like other `fab resolve` queries). Non-zero exit only on a
    real error: an unreadable/malformed config, or an unknown stage name. A stage that resolves to a
    default is success, not an error.
+
+### Watchable pane dispatch — `dispatch.watchable`
+
+`dispatch.watchable` is a bool config field (**default `false`**, **scope `both`** — settable once
+machine-wide in `~/.fab-kit/config.yaml`) that adds a **second trigger** for the `dispatch=` line: when
+it is `true` **AND** `$TMUX` is set **AND** the resolved provider carries a `session_command` but **no**
+`dispatch_command`, the line is emitted carrying the profile-substituted **`session_command`**.
+
+- **Tmux presence decides pane vs native.** With `$TMUX` unset the line is omitted and the stage stays
+  on **native Agent-tool dispatch** — never headless CLI. Headless remains gated on a real
+  `dispatch_command`, so the no-cross-fallback rule is intact for the headless adapter.
+- **A provider `dispatch_command` wins.** Watchable only ADDS eligibility for providers that have none;
+  emission for a `dispatch_command`-carrying provider is unchanged.
+- **Why this exists.** Pane mode composes `session_command`, not `dispatch_command` — so pane
+  *eligibility* was gated on a field pane mode never uses. Before the opt-in, the only way to get a
+  watchable claude worker was to uncomment claude's `dispatch_command`, which also flipped every
+  out-of-tmux dispatch to **headless CLI** — a footgun disguised as a default.
+- **No skill-wiring change.** The dispatch seam branches on the line's *presence* and never executes its
+  value; `fab dispatch start` re-resolves internally, and inside tmux its auto ladder selects pane mode
+  and composes the same `session_command`. A `session_command`-only provider dispatches fine under pane
+  mode (shipped 260805-zxe0 / l9ng behavior).
+- **`--alias` is unaffected**: the `dispatch=` line always embeds the full model ID.
+- **Known edge (documented, not solved)**: if tmux dies between the resolve and `fab dispatch start`,
+  start's auto ladder soft-falls-back to headless and then errors on the missing `dispatch_command`.
+  Rare, and self-explaining at the CLI.
 
 ---
 
@@ -515,8 +544,10 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   embeds the FULL model ID, never an alias**, because an external CLI's `--model` flag takes a full ID
   — CLI dispatch never aliases. So under `--alias` the `model=` line is aliased (Agent-tool half) while
   the `dispatch=` line carries the full ID (CLI half). The field is **independent of** a provider's
-  `session_command` (which opens whole sessions) with **no cross-fallback** — absence of a resolved
-  provider `dispatch_command` is the native-dispatch signal. *`fab resolve-agent` emits the line; the
+  `session_command` (which opens whole sessions) with **no cross-fallback** for a headless dispatch —
+  absence of a resolved provider `dispatch_command` is the native-dispatch signal, unless the
+  `dispatch.watchable` opt-in makes a `session_command`-only provider pane-eligible inside tmux
+  (§ Watchable pane dispatch). *`fab resolve-agent` emits the line; the
   dispatch that RUNS it (`fab dispatch`) and the skill dispatch-seam wiring that consumes it both
   shipped.* **The
   native Agent-tool adapter described in this section is now one of *three* dispatch adapters catalogued

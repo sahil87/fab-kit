@@ -638,20 +638,39 @@ func anchorLine(prefix string) string {
 
 // CommentOutSegment ensures every non-blank line of a rendered reference Segment is
 // a comment, so the scaffolded block is fully inert (including its parent keys —
-// the exact thing the old masher collapsed to `agent: null`). A line already
-// starting with `#` is left as-is; a live line gains a leading `# `; blank lines
-// stay blank. It is the SINGLE comment-out helper shared by the managed fence
-// (here) and `fab config init --system` (cmd/fab), which imports it — there is no
-// second copy.
+// the exact thing the old masher collapsed to `agent: null`). Blank lines stay
+// blank.
+//
+// COLUMN-0 RULE. The skip test is on the RAW line (`#` at column 0), not on the
+// trimmed line. A segment carries a TWO-LEVEL comment scheme:
+//
+//   - FENCE level — the segment's own prose lines, whose `#` already sits at
+//     column 0. These are already comments at the fence's own level and are left
+//     as-is.
+//   - CONTENT level — YAML the segment deliberately ships commented INSIDE a live
+//     block (claude's `    # dispatch_command: …`, the `  # codex:` /
+//     `  # gemini:` blocks), where the `#` is INDENTED because it belongs to the
+//     YAML structure, not to the fence.
+//
+// A trimmed test would skip the content-level lines, leaving their `#` at column
+// 2/4 while every live line got its marker at column 0 — the ragged fence users
+// see in a generated config reference. Prefixing them instead puts every fence
+// line's marker at column 0 and makes the reverse operation exact: stripping the
+// leading `# ` from every line of a block restores the segment BYTE-EXACTLY, with
+// claude's dispatch_command and the codex/gemini blocks still commented at their
+// original indent — which is precisely what `configref.providersSegment`'s prose
+// instructs the reader to do.
+//
+// It is the SINGLE comment-out helper shared by the managed fence (here) and
+// `fab config init --system` (cmd/fab), which imports it — there is no second copy.
 func CommentOutSegment(segment string) string {
 	lines := strings.Split(segment, "\n")
 	for i, ln := range lines {
-		trimmed := strings.TrimSpace(ln)
-		if trimmed == "" {
+		if strings.TrimSpace(ln) == "" {
 			continue
 		}
-		if strings.HasPrefix(trimmed, "#") {
-			continue
+		if strings.HasPrefix(ln, "#") {
+			continue // fence-level prose — its marker is already at column 0
 		}
 		lines[i] = "# " + ln
 	}
