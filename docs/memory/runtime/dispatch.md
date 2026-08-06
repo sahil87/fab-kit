@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`fab dispatch {start,status,logs,kill,clean}` — process manager for CLI-dispatched pipeline stages in two launch modes, resolved per invocation by an explicit-first ladder ending in auto (`$TMUX` ⇒ pane, else headless): headless (tmux-independent, detached `sh -c` wrapper on `dispatch_command`, five states) and pane (interactive tmux window from `session_command`, prompt-file + pointer delivery, three states). Auto-only soft fallback to headless, shared state layout, no cross-fallback."
+description: "`fab dispatch {start,restart,status,logs,kill,clean}` — process manager for CLI-dispatched pipeline stages in two launch modes, resolved per invocation by an explicit-first ladder ending in auto (`$TMUX` ⇒ pane, else headless): headless (detached `sh -c` wrapper on `dispatch_command`, five states) and pane (interactive tmux window from `session_command`, prompt-file + pointer delivery, three states). `restart` relaunches from the persisted prompt over one shared launch path."
 ---
 # fab dispatch
 
@@ -8,26 +8,26 @@ description: "`fab dispatch {start,status,logs,kill,clean}` — process manager 
 
 ## Overview
 
-`fab dispatch` is the **process manager for CLI-dispatched pipeline stages**, in **two launch modes** that share one state directory, one loader, one concurrency check, and one state-string vocabulary:
+`fab dispatch` is the **process manager for CLI-dispatched pipeline stages**, in **two launch modes** that share one state directory, one loader, one concurrency check, one launch path, and one state-string vocabulary:
 
 | Mode | Selection signals (resolved by the § Mode selection ladder, in precedence order) | Worker | Command composed | Completion observed via | tmux |
 |------|----------------------------------------------------------------------------------|--------|------------------|-------------------------|------|
 | **headless** | `--headless`, `--timeout`, or auto **outside** tmux | a detached `sh -c` process | the provider's `dispatch_command` | `{stage}.exit` + pid liveness + result file | never touched |
 | **pane** | `--pane`, `--server`, or auto **inside** tmux | an interactive agent session in a tmux window the user can watch and steer | the provider's `session_command` | **result file** + pane liveness | **required** — as is a `session_command`; either prerequisite missing is a hard error when explicit, a soft fallback to headless when auto |
 
-Headless mode is **tmux-independent**: it launches the resolved command (persisted in the record as `spawn_cmd`) detached, tracks it via a repo-root state dir, and exposes poll/logs/kill/clean surfaces. Pane mode exists to recover *watch and steer* on the CLI path — a detached headless worker is a black box no one can talk to, whereas an interactive tmux worker is the one universal interface every agent CLI supports natively. **Neither mode is an unconditional default**: `start` resolves the mode per invocation through an explicit-first ladder whose last rung is **auto** — pane when `$TMUX` is set (the run-kit context, where a window is visible to the caller), headless when it is not (see § Mode selection). Together they are the **two non-native adapters** of the three-adapter cross-harness dispatch catalog (native Agent-tool / headless CLI / interactive pane), whose protocol is fixed by the human-curated spec `docs/specs/harness-adapters.md`.
+Headless mode is **tmux-independent**: it launches the resolved command (persisted in the record as `spawn_cmd`) detached, tracks it via a repo-root state dir, and exposes poll/logs/kill/clean surfaces. Pane mode exists to recover *watch and steer* on the CLI path — a detached headless worker is a black box no one can talk to, whereas an interactive tmux worker is the one universal interface every agent CLI supports natively. **Neither mode is an unconditional default**: `start` resolves the mode per invocation through an explicit-first ladder whose last rung is **auto** — pane when `$TMUX` is set (the run-kit context, where a window is visible to the caller), headless when it is not (see § Mode selection). Together they are the **two non-native adapters** of the three-adapter cross-harness dispatch catalog (native Agent-tool / headless CLI / interactive pane), whose protocol is fixed by the human-curated spec `docs/specs/harness-adapters.md`. `restart` is the family's **recovery** verb across both modes: it relaunches a non-running dispatch from the prompt `start` persisted, so the caller needs no prompt in context, and it re-derives the mode from the *current* environment rather than the prior attempt's.
 
 Dispatch is the runtime for **cross-harness stage dispatch** ("a codex orchestrator runs `apply` on claude"): a fundamentally launch-and-poll problem, not a pane-observation one. It *runs* the provider command that `fab resolve-agent` names (a tier names a provider; the provider carries the commands — see [_shared/configuration.md](/_shared/configuration.md) § `providers` and [runtime/providers-and-tiers.md](/runtime/providers-and-tiers.md)). Headless dispatch stays parallel to and independent of the tmux-bound interactive `fab pane` / `fab operator` family (see [pane-commands.md](/runtime/pane-commands.md) and [operator.md](/runtime/operator.md)); pane dispatch **borrows tmux as a launch surface** but does not join the operator's monitored set, and consumes the `_cli-agents` helper's spawn/deliver/peek procedures as its primitive layer (see [agent-primitives.md](/runtime/agent-primitives.md)).
 
 The **skill wiring** consumes it: the dispatch-seam skills branch on the resolved `dispatch=` line and, when present, drive this command family — `fab dispatch start` (block prompt on stdin, no mode flag by default — the worker's mode auto-resolves, and `--pane`/`--headless` are passed only to force one) → `sleep 30` polling of `fab dispatch status` → the mode's reachable states → read `{stage}-result.yaml` on `done`. The wiring lives in `_preamble.md` § CLI-Adapter Dispatch + § Dispatch-Prompt Obligations, where **pane mode is an option inside the `dispatch=`-present arm, never a third branch** (see [pipeline/execution-skills.md](/pipeline/execution-skills.md) § Status-transition ownership and [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution).
 
-Source: the testable core lives in `internal/dispatch` (state read/write, wrapper composition, both state derivations, process signaling, and the tmux pane primitives in `pane_mode.go`); thin cobra wiring lives across `cmd/fab/dispatch.go` (parent) + `dispatch_start.go` / `dispatch_status.go` / `dispatch_logs.go` / `dispatch_kill.go` / `dispatch_clean.go` — mirroring the `internal/pane` + `pane*.go` split precedent.
+Source: the testable core lives in `internal/dispatch` (state read/write, wrapper composition, both state derivations, process signaling, and the tmux pane primitives in `pane_mode.go`); thin cobra wiring lives across `cmd/fab/dispatch.go` (parent) + `dispatch_start.go` / `dispatch_restart.go` / `dispatch_status.go` / `dispatch_logs.go` / `dispatch_kill.go` / `dispatch_clean.go` — mirroring the `internal/pane` + `pane*.go` split precedent. `dispatch_start.go` owns the **shared launch path** (`runDispatchLaunch` + the `promptSource` seam) and the **shared flag surface** (`addLaunchFlags` binding a `launchFlags` struct, plus its `resolveMode` method carrying the `--pane`+`--timeout` guard and the `SelectMode` call) that both `start` and `restart` run; `restart` adds only its cobra command — its own help strings and its `promptFromStateDir` source.
 
 ## Requirements
 
 ### Requirement: `fab dispatch` command family
 
-The `fab` binary SHALL expose a top-level command group `fab dispatch` with five subcommands — `start`, `status`, `logs`, `kill`, `clean` — always-routed through the `fab` router. Its top-level name MUST NOT collide with the `fab-kit` `LifecycleCommands` allowlist (pinned by `TestNoTopLevelCommandCollidesWithRouterAllowlist`; `dispatch` is not in the allowlist). It is a new fab-go command group registered via `dispatchCmd()` in `cmd/fab/main.go`'s `newRootCmd()`. See [distribution/kit-architecture.md](/distribution/kit-architecture.md) for its place in the fab-go command inventory.
+The `fab` binary SHALL expose a top-level command group `fab dispatch` with six subcommands — `start`, `restart`, `status`, `logs`, `kill`, `clean` — always-routed through the `fab` router. Its top-level name MUST NOT collide with the `fab-kit` `LifecycleCommands` allowlist (pinned by `TestNoTopLevelCommandCollidesWithRouterAllowlist`; `dispatch` is not in the allowlist). It is a new fab-go command group registered via `dispatchCmd()` in `cmd/fab/main.go`'s `newRootCmd()`. See [distribution/kit-architecture.md](/distribution/kit-architecture.md) for its place in the fab-go command inventory.
 
 ### Requirement: POSIX-only v1 (the headless launch/signal syscalls)
 
@@ -49,7 +49,7 @@ Per-stage files under `.fab-dispatch/{id}/`:
 
 | File | Written by | Contents |
 |------|-----------|----------|
-| `{stage}-prompt.md` | `start` (from stdin) | the stage prompt — piped to the dispatched command's stdin (headless) or **pointed at** by the one-line prompt the pane worker receives (pane). Written identically in both modes; only the hand-over differs |
+| `{stage}-prompt.md` | `start` (from stdin) | the stage prompt — piped to the dispatched command's stdin (headless) or **pointed at** by the one-line prompt the pane worker receives (pane). Written identically in both modes; only the hand-over differs. It is also `restart`'s **input**: `restart` reads it and leaves it byte-identical, never re-writing it |
 | `{stage}.yaml` | `start` (via `internal/atomicfile`) | the `Dispatch` state struct — `spawn_cmd` (resolved) + `started_at`, plus the mode's identity: `pid`/`pgid`/`timeout` (headless) or `pane`/`window`/`server` (pane). Every mode-specific key is `omitempty`, and the mode is **derived** from which keys are present (no stored discriminator). File paths are **derived** from the dir convention, not stored |
 | `{stage}.log` | the wrapper | combined stdout+stderr of the dispatched command — **headless only** (a pane worker's output is tmux scrollback) |
 | `{stage}.exit` | the wrapper | the exit code (`echo $? > ...`) — its **presence** is the "process finished" signal; **headless only** |
@@ -64,7 +64,7 @@ Per-stage files under `.fab-dispatch/{id}/`:
 
 ### Requirement: `fab dispatch start <change> <stage> [--timeout <secs>] [--pane] [--headless] [--server <name>]`
 
-`start` SHALL run a **shared prologue** followed by one of **two mode-specific launch tails**. The prologue resolves `<change>` to its 4-char ID (via `internal/resolve` — ID / folder substring / full name), loads config, resolves the stage's tier → provider profile via `internal/agent` + `internal/spawn.WithProfile` (the same `{model}`/`{effort}` substitution `fab resolve-agent` performs), enforces refuse-if-running, persists the stage prompt read from stdin into `{stage}-prompt.md`, and clears stale per-stage files. The tail launches the worker and persists `{stage}.yaml` before returning. The prologue SHALL NOT be duplicated across the tails.
+`start` SHALL run a **shared prologue** followed by one of **two mode-specific launch tails**. The prologue resolves `<change>` to its 4-char ID (via `internal/resolve` — ID / folder substring / full name), loads config, resolves the stage's tier → provider profile via `internal/agent` + `internal/spawn.WithProfile` (the same `{model}`/`{effort}` substitution `fab resolve-agent` performs), enforces refuse-if-running, obtains the stage prompt through a **`promptSource` seam** (`start`: stdin, persisted into `{stage}-prompt.md`), and clears stale per-stage files. The tail launches the worker and persists `{stage}.yaml` before returning. The prologue SHALL NOT be duplicated across the tails — nor across the two subcommands that run it (`start` and `restart` share it via `runDispatchLaunch`).
 
 Output names the mode's identity: `dispatched <id>/<stage> (pid N, pgid N)` (headless) or `dispatched <id>/<stage> (pane %N, window fab-<id>-<stage>)` (pane). When the mode was chosen by **auto**, the report appends the selection **source** — `, auto: tmux` / `, auto: no tmux` / `, auto: tmux unreachable` / `, auto: no session_command` — so a surprising mode is explainable from output alone (compliance visibility); an explicitly-selected mode's line carries no suffix and is byte-identical to before auto selection existed.
 
@@ -72,7 +72,7 @@ Output names the mode's identity: `dispatched <id>/<stage> (pid N, pgid N)` (hea
 
 `start` SHALL resolve its launch mode per invocation from an **explicit-signal-first ladder**, evaluated in order, the first match winning: `--pane` ⇒ pane; `--headless` ⇒ headless; `--timeout` ⇒ headless (the bound exists only in the headless wrapper); `--server` ⇒ pane (the flag exists solely to target a pane's socket); otherwise **auto** — `$TMUX` non-empty ⇒ pane, else headless. Each explicit rung SHALL key on whether the flag was **supplied** (`Flags().Changed`), not its value, so `--timeout 0` / `--server ""` still count as signals. An **empty** `$TMUX` reads as unset (Go cannot distinguish the two, and tmux never exports an empty value).
 
-The ladder SHALL be a **pure function** — `dispatch.SelectMode(paneFlag, headlessFlag, timeoutSet, serverSet bool, tmuxEnv string) (Mode, AutoReason)` in `internal/dispatch/pane_mode.go` — performing no environment read and no tmux probe, so the whole matrix is table-testable without launching a process or a tmux server (matching `DeriveState`/`DerivePaneState`'s shape in the same package). `runDispatchStart` calls it once in the cobra `RunE` and passes the resolved mode (never the raw `--pane` bool) to the command composition, the reachability probe, and the launch branch.
+The ladder SHALL be a **pure function** — `dispatch.SelectMode(paneFlag, headlessFlag, timeoutSet, serverSet bool, tmuxEnv string) (Mode, AutoReason)` in `internal/dispatch/pane_mode.go` — performing no environment read and no tmux probe, so the whole matrix is table-testable without launching a process or a tmux server (matching `DeriveState`/`DerivePaneState`'s shape in the same package). It is called once per invocation from `launchFlags.resolveMode` — the shared flag-surface helper both `start`'s and `restart`'s cobra `RunE` run — which hands the resolved mode (never the raw `--pane` bool) to `runDispatchLaunch`, whence it reaches the command composition, the reachability probe, and the launch branch.
 
 `$TMUX` is the **defaulting** signal only — it means "a window opened without `-L` lands on the server the caller is attached to". It never replaces `ServerReachable`, which stays the **validation** step once pane mode is chosen and is a real tmux query precisely so an explicit `--pane` works from a headless orchestrator where `$TMUX` is unset. An auto-selected pane targets the **current** server: no `-L` is passed unless `--server` was given.
 
@@ -203,7 +203,7 @@ The **auto-only soft fallback is a MODE change, not a cross-field fallback**, an
 
 ### Requirement: Refuse-if-running + last-attempt-only concurrency
 
-`start` SHALL refuse if a dispatch for the exact `(change, stage)` pair is already `running` — reporting the live identity (`pid N` or `pane %N`) and directing to `fab dispatch kill` — leaving the running dispatch untouched. The check SHALL apply the **prior record's own mode's finished signal** — the *same* signal `status` derives that mode's state from, so `start` and `status` can never disagree about whether an attempt is still going:
+`start` **and `restart`** SHALL refuse if a dispatch for the exact `(change, stage)` pair is already `running` — reporting the live identity (`pid N` or `pane %N`) and directing to `fab dispatch kill` — leaving the running dispatch untouched (they run one shared check, so they cannot diverge). The check SHALL apply the **prior record's own mode's finished signal** — the *same* signal `status` derives that mode's state from, so `start` and `status` can never disagree about whether an attempt is still going:
 
 | Prior record's mode | Still running when | Finished when |
 |---|---|---|
@@ -212,7 +212,7 @@ The **auto-only soft fallback is a MODE change, not a cross-field fallback**, an
 
 The pane row's result-presence precedence mirrors `DerivePaneState` and is load-bearing: an interactive worker never exits on task completion, it sits at its prompt, so a liveness-only refusal would fire forever after a successful pane run and make a `done` attempt permanently un-overwritable — `status` reporting `done` while `start` insisted it was still running.
 
-A `start` over a **completed** prior attempt (done / failed / orphaned) SHALL overwrite its files — there is **no per-attempt history** (last-attempt-only: it removes the stale exit/result/log then re-saves `{stage}.yaml`), and the new attempt MAY use either mode regardless of the prior one's. Refuse-if-running is scoped per `(change, stage)`: different stages of the same change share `.fab-dispatch/{id}/` via distinct `{stage}.*` filenames and do not collide.
+A `start` **or `restart`** over a **completed** prior attempt (done / failed / orphaned) SHALL overwrite its files — there is **no per-attempt history** (last-attempt-only: it removes the stale exit/result/log then re-saves `{stage}.yaml`), and the new attempt MAY use either mode regardless of the prior one's. Refuse-if-running is scoped per `(change, stage)`: different stages of the same change share `.fab-dispatch/{id}/` via distinct `{stage}.*` filenames and do not collide.
 
 #### Scenario: refuses a live dispatch, overwrites a completed one
 
@@ -228,6 +228,45 @@ A `start` over a **completed** prior attempt (done / failed / orphaned) SHALL ov
 - **THEN** it refuses — the worker is genuinely still executing
 - **AND** GIVEN that worker then writes `{stage}-result.yaml` while its pane remains alive
 - **THEN** `status` reports `done` **and** a new `start` overwrites the attempt rather than refusing
+
+### Requirement: `fab dispatch restart <change> <stage> [--timeout <secs>] [--pane] [--headless] [--server <name>]`
+
+`restart` SHALL relaunch a **non-running** dispatch from the prompt `start` persisted at `{stage}-prompt.md`, so the caller does not need the block prompt in context (an orchestrator may have lost a multi-thousand-token prompt to compaction). It is `start` with **exactly one difference — the prompt's source** — because both run the same Go launch path (`runDispatchLaunch`, parameterized by a `promptSource`: `promptFromStdin` for `start`, `promptFromStateDir` for `restart`). Consequently `restart` SHALL carry:
+
+- the **same prologue** — change resolution, config + tier→provider re-resolution (**config only**: like `start`, it exposes no `--provider`/`--model`/`--effort`), pane validation, refuse-if-running, and stale `{stage}.exit`/`-result.yaml`/`.log` clearing;
+- the **same mode-selection ladder** and the same flags with the same exclusions (`--pane`+`--headless` and `--pane`+`--timeout` are usage errors; `--headless`+`--timeout` composes), including the explicit-hard / auto-soft asymmetry on the pane path's two prerequisites — all single-sourced in the shared `addLaunchFlags` / `launchFlags.resolveMode` helper pair, so the flag surface cannot drift any more than the launch tail can;
+- the **same output and record byte-shape** — the `dispatched <id>/<stage> (<report>)` line including the `, auto: …` selection-source suffix rules, and the same `{stage}.yaml` keys.
+
+The launch **mode SHALL be re-derived from the current environment**, never inherited from the prior attempt (the record carries no mode discriminator to inherit from). A restart **is** a fresh attempt under last-attempt-only, so it SHALL introduce **no new state string, no attempt counter, no attempt history, and no `restarted:` marker** — `status` cannot distinguish a restart from a `start`, by design. The prompt file is the **input**: `restart` reads it and leaves it **byte-identical** (re-writing it with its own bytes would only risk corruption on a partial write), while the *prior attempt's* exit/result/log are still cleared. Refuse-if-running SHALL **precede** the prompt read, and an absent prompt SHALL be a clear error — `no persisted prompt at <path> — nothing to relaunch; run \`fab dispatch start\` with the prompt on stdin` — that launches nothing and leaves any prior record intact.
+
+The poll-loop policy that *spends* a restart (one automatic restart on `orphaned`, peek-on-suspicion, escalation) is **skill-side**, not a CLI concern — see `_preamble.md` § CLI-Adapter Dispatch → *Recovery policy* and [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution.
+
+#### Scenario: an orphaned attempt is relaunched from the persisted prompt
+
+- **GIVEN** an `orphaned` dispatch for `abcd/apply` whose `apply-prompt.md` is on disk
+- **WHEN** `fab dispatch restart abcd apply` runs
+- **THEN** a new worker is launched with those persisted bytes as its input, the record is overwritten, and the prior attempt's stale exit/result/log are cleared
+- **AND** the prompt file itself is left byte-identical
+
+#### Scenario: the mode is re-derived, so a dead tmux server does not re-fail the restart
+
+- **GIVEN** an `orphaned` **pane** dispatch and no reachable tmux server (`$TMUX` unset)
+- **WHEN** `fab dispatch restart` runs with no mode flag
+- **THEN** auto selects **headless** and the new record is headless-shaped (`pid`/`pgid`, no pane identity), composed from `dispatch_command`
+- **AND** the prior pane identity does not leak into the new record
+
+#### Scenario: a live dispatch refuses, even with no prompt on disk
+
+- **GIVEN** a genuinely running dispatch for `abcd/apply`
+- **WHEN** `fab dispatch restart abcd apply` runs
+- **THEN** it refuses with the `already running (…); run fab dispatch kill first` message and leaves the record untouched
+- **AND** it does so even when `apply-prompt.md` is absent — the refusal check precedes the prompt read
+
+#### Scenario: a missing prompt writes nothing
+
+- **GIVEN** no `{stage}-prompt.md` for the pair
+- **WHEN** `fab dispatch restart` runs
+- **THEN** it errors naming the path and the `fab dispatch start` remedy, launches no worker, and writes or overwrites no `{stage}.yaml`
 
 ### Requirement: Five byte-stable states, derived per mode
 
@@ -347,6 +386,26 @@ Cleanup SHALL happen at exactly **two deterministic moments** and never on a tim
 - **THEN** only the orphaned dir is pruned; live dirs are left intact
 
 ## Design Decisions
+
+### `restart` is a prompt-source seam on `start`'s launch path, not a second command implementation
+
+**Decision**: `fab dispatch restart` shares `start`'s entire launch path (`runDispatchLaunch`) and differs only through a `promptSource` function — `promptFromStdin` vs `promptFromStateDir`. The source also reports whether the shared path should persist the bytes: `start` does, `restart` does not (the file it read *is* the input).
+
+**Why**: Every semantic a restart needs is already `start`'s — prompt persistence, refuse-if-running, last-attempt-only overwrite, the mode ladder, the output shape. Copying that tail would have created two places to change every one of them, and the byte-shape parity the design promises would have been an assertion rather than a structural fact. Threading **bytes** (not an `io.Reader` or a strategy interface) keeps the seam minimal: both sources are fully read into memory before the launch anyway, since the file must exist on disk by the time a pane worker follows its pointer.
+
+**Rejected**: A `--from-prompt-file` flag on `start` (overloads one command with two contradictory input contracts and makes the recovery verb unnameable in a poll loop); a duplicated `runDispatchRestart` tail (the drift the shared prologue was extracted to prevent).
+
+*Introduced by*: 260806-mnri-dispatch-worker-lifecycle-supervision
+
+### A restart re-derives its mode and leaves no trace of itself
+
+**Decision**: A restart resolves its launch mode from the *current* environment through the same ladder, and adds nothing to the record — no attempt counter, no history, no `restarted:` marker. `status` cannot tell a restart from a `start`.
+
+**Why**: The environment is exactly what changed when a worker died, so inheriting the prior attempt's mode would reproduce the failure — restarting a pane dispatch orphaned *by* a dead tmux server must land headless, and the auto ladder already does that for free. And a restart genuinely *is* a fresh attempt under last-attempt-only (a shipped design decision): a marker would be a second source of truth the state machine has no use for, and an on-disk counter would need reset semantics fab does not want to own. The recovery budget that bounds restarts therefore lives in the orchestrator's context, where the worst case after a context loss is one extra restart.
+
+**Rejected**: Persisting the prior mode and reusing it (re-fails on the condition that killed the worker); a `restarts:` key in `{stage}.yaml` (breaks last-attempt-only and invites a supervisor-shaped design); a `--same-mode` flag (no demonstrated need, and no stored discriminator to read).
+
+*Introduced by*: 260806-mnri-dispatch-worker-lifecycle-supervision
 
 ### Setsid syscall attribute, not the `setsid` binary
 **Decision**: Detach via Go's `exec.Command(...).SysProcAttr = &syscall.SysProcAttr{Setsid: true}` on a plain `sh -c '...'` wrapper — a single detach mechanism — rather than prefixing the `setsid` binary as the intake's `setsid sh -c` string literally suggested.

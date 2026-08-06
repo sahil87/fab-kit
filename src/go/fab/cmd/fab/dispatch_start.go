@@ -15,11 +15,65 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// launchFlags holds the four mode/launch flags `start` and `restart` share, bound
+// by addLaunchFlags. It exists so the two subcommands cannot drift on their flag
+// SURFACE the way runDispatchLaunch stops them drifting on the launch path: the
+// registrations, the --pane/--timeout guard, and the mode ladder all live once.
+//
+// Only the flag surface is shared — each subcommand keeps its own Use/Short/Long/
+// Example strings, since the prompt-source difference (stdin vs. the persisted
+// file) is exactly what their help text has to explain.
+type launchFlags struct {
+	timeout      int
+	paneMode     bool
+	headlessMode bool
+	server       string
+}
+
+// addLaunchFlags registers the shared launch flags on cmd and returns the struct
+// they bind into. It also installs the cobra flag group for --pane/--headless:
+// that fires during ValidateFlagGroups — BEFORE any RunE work — so the conflict is
+// a genuine usage error (exit 2) that structurally cannot leave partial state
+// behind, matching resolve.go / pane_capture.go / panemap.go.
+func addLaunchFlags(cmd *cobra.Command) *launchFlags {
+	f := &launchFlags{}
+	cmd.Flags().IntVar(&f.timeout, "timeout", 0, "Enforce a POSIX `timeout <secs>` inside the launch wrapper (0 = none); implies --headless")
+	cmd.Flags().BoolVar(&f.paneMode, "pane", false, "Force an interactive tmux-window worker (requires a reachable tmux server) instead of the auto default")
+	cmd.Flags().BoolVar(&f.headlessMode, "headless", false, "Force a detached headless worker, opting out of auto pane selection inside tmux")
+	cmd.Flags().StringVarP(&f.server, "server", "L", "", "Target tmux socket label (passed as 'tmux -L <name>'); implies pane mode. Defaults to $TMUX / tmux default socket; ignored in headless mode")
+	cmd.MarkFlagsMutuallyExclusive("pane", "headless")
+	return f
+}
+
+// resolveMode enforces the --pane/--timeout usage error and then resolves the
+// launch mode from the explicit-first ladder. Called at the top of both
+// subcommands' RunE.
+//
+// --timeout is implemented as POSIX `timeout N` INSIDE the headless `sh -c`
+// wrapper, which pane mode never constructs. Silently ignoring it under --pane
+// would advertise a bound nothing enforces, so the combination is a usage error.
+// Keyed on Flags().Changed (was the flag SUPPLIED) rather than the value,
+// mirroring agent.go's guard style, so an explicit `--timeout 0` is still caught.
+//
+// Only the EXPLICIT --pane conflicts: --timeout is itself a headless signal in the
+// selection ladder, so `--timeout` inside tmux selects headless rather than
+// erroring (it must not break scripted invocations that never mention panes).
+//
+// The ladder's caller-supplied signals are likewise read as "was the flag
+// SUPPLIED", so `--timeout 0` / `--server ""` still count.
+func (f *launchFlags) resolveMode(cmd *cobra.Command) (dispatch.Mode, dispatch.AutoReason, error) {
+	if f.paneMode && cmd.Flags().Changed("timeout") {
+		return "", "", fmt.Errorf("--pane and --timeout are mutually exclusive: --timeout is enforced by the headless launch wrapper (POSIX `timeout`), which pane mode does not use")
+	}
+	mode, reason := dispatch.SelectMode(f.paneMode, f.headlessMode,
+		cmd.Flags().Changed("timeout"), cmd.Flags().Changed("server"), os.Getenv("TMUX"))
+	return mode, reason, nil
+}
+
 func dispatchStartCmd() *cobra.Command {
-	var timeout int
-	var paneMode bool
-	var headlessMode bool
-	var server string
+	// Declared before the command literal so RunE can close over it; addLaunchFlags
+	// (below) binds it to the registered flags before any RunE can run.
+	var f *launchFlags
 	cmd := &cobra.Command{
 		Use:   "start <change> <stage>",
 		Short: "Launch a stage worker — mode defaults to auto (a tmux window inside tmux, headless outside); force with --pane / --headless",
@@ -39,47 +93,63 @@ func dispatchStartCmd() *cobra.Command {
   fab dispatch start b91h review --server work < prompt.md`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// --timeout is implemented as POSIX `timeout N` INSIDE the headless
-			// `sh -c` wrapper, which pane mode never constructs. Silently ignoring
-			// it under --pane would advertise a bound nothing enforces, so the
-			// combination is a usage error. Keyed on Flags().Changed (was the flag
-			// SUPPLIED) rather than the value, mirroring agent.go's guard style, so
-			// an explicit `--timeout 0` is still caught.
-			//
-			// Only the EXPLICIT --pane conflicts: --timeout is itself a headless
-			// signal in the selection ladder, so `--timeout` inside tmux selects
-			// headless rather than erroring (it must not break scripted invocations
-			// that never mention panes).
-			if paneMode && cmd.Flags().Changed("timeout") {
-				return fmt.Errorf("--pane and --timeout are mutually exclusive: --timeout is enforced by the headless launch wrapper (POSIX `timeout`), which pane mode does not use")
+			mode, reason, err := f.resolveMode(cmd)
+			if err != nil {
+				return err
 			}
-			// Resolve the mode from the explicit-first ladder; the caller-supplied
-			// signals are read as "was the flag SUPPLIED" so `--timeout 0` /
-			// `--server ""` still count.
-			mode, reason := dispatch.SelectMode(paneMode, headlessMode,
-				cmd.Flags().Changed("timeout"), cmd.Flags().Changed("server"), os.Getenv("TMUX"))
-			return runDispatchStart(cmd, args[0], args[1], timeout, mode, reason, server)
+			return runDispatchLaunch(cmd, args[0], args[1], f.timeout, mode, reason, f.server, promptFromStdin)
 		},
 	}
-	cmd.Flags().IntVar(&timeout, "timeout", 0, "Enforce a POSIX `timeout <secs>` inside the launch wrapper (0 = none); implies --headless")
-	cmd.Flags().BoolVar(&paneMode, "pane", false, "Force an interactive tmux-window worker (requires a reachable tmux server) instead of the auto default")
-	cmd.Flags().BoolVar(&headlessMode, "headless", false, "Force a detached headless worker, opting out of auto pane selection inside tmux")
-	cmd.Flags().StringVarP(&server, "server", "L", "", "Target tmux socket label (passed as 'tmux -L <name>'); implies pane mode. Defaults to $TMUX / tmux default socket; ignored in headless mode")
-	// Cobra's flag group fires during ValidateFlagGroups — BEFORE any RunE work —
-	// so the conflict is a genuine usage error (exit 2) that structurally cannot
-	// leave partial state behind, matching resolve.go / pane_capture.go / panemap.go.
-	cmd.MarkFlagsMutuallyExclusive("pane", "headless")
+	f = addLaunchFlags(cmd)
 	return cmd
 }
 
-// runDispatchStart resolves the stage's tier → provider, refuses if a dispatch
-// for this (change, stage) is already running, persists the stdin prompt, then
-// launches the worker in the ALREADY-RESOLVED mode and persists {stage}.yaml:
+// promptSource obtains the stage prompt bytes for a launch. It is the ONE seam
+// `start` and `restart` differ at: `start` reads stdin (promptFromStdin) and
+// `restart` reads the already-persisted {stage}-prompt.md (promptFromStateDir in
+// dispatch_restart.go). Everything else about the launch — resolution, pane
+// validation, refuse-if-running, stale-file clearing, launch, save, report — is
+// shared, so the two subcommands cannot drift.
+//
+// It is called with the resolved dispatch dir and stage AFTER the refuse-if-running
+// check, so a running dispatch refuses before either source is touched. Bytes
+// rather than an io.Reader: both sources are fully read into memory before the
+// launch anyway (the file must exist on disk by the time the worker reads it), and
+// bytes keep the shared path free of stream lifetime concerns.
+//
+// The second return value reports whether the shared path should PERSIST the
+// bytes to {stage}-prompt.md. `start` persists (that is where the prompt comes
+// from); `restart` does not — the file IS its input, so rewriting it with its own
+// content is a no-op that only risks corruption on a partial write.
+type promptSource func(cmd *cobra.Command, dir, stage string) (prompt []byte, persist bool, err error)
+
+// promptFromStdin is `start`'s prompt source: the full stage prompt arrives on
+// stdin and is persisted to {stage}-prompt.md before the launch (the headless
+// wrapper redirects it into the command's stdin, and pane mode points the
+// interactive worker at it).
+func promptFromStdin(cmd *cobra.Command, _, _ string) ([]byte, bool, error) {
+	prompt, err := io.ReadAll(cmd.InOrStdin())
+	if err != nil {
+		return nil, false, fmt.Errorf("read prompt from stdin: %w", err)
+	}
+	return prompt, true, nil
+}
+
+// runDispatchLaunch resolves the stage's tier → provider, refuses if a dispatch
+// for this (change, stage) is already running, obtains the prompt from the given
+// promptSource, then launches the worker in the ALREADY-RESOLVED mode and persists
+// {stage}.yaml:
 //
 //	dispatch.ModeHeadless — the provider's dispatch_command, detached via the
 //	                        `sh -c` wrapper; tmux-independent (launchHeadless)
 //	dispatch.ModePane     — the provider's session_command, interactive in a tmux
 //	                        window the user can watch and steer (launchPane)
+//
+// It backs BOTH `fab dispatch start` (source: stdin) and `fab dispatch restart`
+// (source: the persisted {stage}-prompt.md). A restart is a fresh attempt under
+// the existing last-attempt-only semantics — same prologue, same mode ladder, same
+// output/record shape — so there is deliberately no restart-specific branch here
+// and no new state string, attempt counter, or `restarted:` marker anywhere.
 //
 // The mode arrives resolved (dispatch.SelectMode, called in the cobra RunE) along
 // with the selection SOURCE (reason), which governs two things here: whether the
@@ -93,7 +163,7 @@ func dispatchStartCmd() *cobra.Command {
 // rule holds in both directions — headless never falls back to session_command,
 // pane never falls back to dispatch_command (and the soft fallback is a MODE
 // change that re-composes from dispatch_command, not a cross-field fallback).
-func runDispatchStart(cmd *cobra.Command, changeArg, stage string, timeout int, mode dispatch.Mode, reason dispatch.AutoReason, server string) error {
+func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, timeout int, mode dispatch.Mode, reason dispatch.AutoReason, server string, prompt promptSource) error {
 	fabRoot, err := resolve.FabRoot()
 	if err != nil {
 		return err
@@ -172,19 +242,24 @@ func runDispatchStart(cmd *cobra.Command, changeArg, stage string, timeout int, 
 		return err
 	}
 
-	// Persist the prompt from stdin BEFORE launching: the headless wrapper
-	// redirects it into the command's stdin, and pane mode points the interactive
-	// worker at it (the file must exist by the time the worker reads the pointer).
+	// Obtain the prompt AFTER the refusal check (so a running dispatch refuses
+	// before either source is touched) and persist it BEFORE launching: the
+	// headless wrapper redirects it into the command's stdin, and pane mode points
+	// the interactive worker at it (the file must exist by the time the worker
+	// reads the pointer). A `restart` source reads that very file and asks for no
+	// re-write.
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create dispatch dir: %w", err)
 	}
 	promptPath := dispatch.PromptPath(dir, stage)
-	prompt, err := io.ReadAll(cmd.InOrStdin())
+	promptBytes, persistPrompt, err := prompt(cmd, dir, stage)
 	if err != nil {
-		return fmt.Errorf("read prompt from stdin: %w", err)
+		return err
 	}
-	if err := os.WriteFile(promptPath, prompt, 0o644); err != nil {
-		return fmt.Errorf("write prompt: %w", err)
+	if persistPrompt {
+		if err := os.WriteFile(promptPath, promptBytes, 0o644); err != nil {
+			return fmt.Errorf("write prompt: %w", err)
+		}
 	}
 
 	// Overwrite of a completed prior attempt: clear the stale exit/result/log so

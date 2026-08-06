@@ -63,7 +63,11 @@ User invokes /fab-adopt [<slug>]
 │  │        within the CLI arm the worker mode auto-resolves —
 │  │        pane inside tmux, headless outside — so no mode flag
 │  │        by default; --pane/--headless only to force one,
-│  │        260805-zxe0 / 260805-l9ng)
+│  │        260805-zxe0 / 260805-l9ng; the CLI poll carries
+│  │        § CLI-Adapter Dispatch's bounded recovery policy —
+│  │        one automatic fab dispatch restart on orphaned,
+│  │        peek-on-suspicion, then escalate; budget in this
+│  │        skill's context, never a send-keys nudge, 260806-mnri)
 │  ├─ Dispatch /fab-continue Review Behavior, mode: diff-only
 │  │        (prompt carries the block-contract carve-out: no fab status
 │  │         TRANSITION commands, terminal fab status refresh required,

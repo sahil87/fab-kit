@@ -1,0 +1,602 @@
+package main
+
+import (
+	"bytes"
+	"os"
+	"os/exec"
+	"strings"
+	"testing"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+)
+
+// runRestartCapturingStderr executes `fab dispatch restart`, returning stdout,
+// stderr, and the error. NOTHING is piped on stdin on purpose: `restart`'s whole
+// point is that the prompt comes from the state dir, so a test that fed stdin
+// could not distinguish the two sources.
+func runRestartCapturingStderr(t *testing.T, args ...string) (stdout, stderr string, err error) {
+	t.Helper()
+	cmd := dispatchRestartCmd()
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	var out, errb bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errb)
+	cmd.SetIn(strings.NewReader(""))
+	cmd.SetArgs(args)
+	err = cmd.Execute()
+	return out.String(), errb.String(), err
+}
+
+func runRestart(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	stdout, _, err := runRestartCapturingStderr(t, args...)
+	return stdout, err
+}
+
+// seedOrphanedHeadless writes the state an ORPHANED headless attempt leaves
+// behind: a record naming a dead pid, no exit file, plus a persisted prompt and a
+// stale log the restart must clear.
+func seedOrphanedHeadless(t *testing.T, dir, stage, prompt string) {
+	t.Helper()
+	mustMkdir(t, dir)
+	if err := dispatch.Save(dir, stage, &dispatch.Dispatch{
+		PID: 999999, PGID: 999999, SpawnCmd: "old-command", StartedAt: "old",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, dispatch.PromptPath(dir, stage), prompt)
+	mustWrite(t, dispatch.LogPath(dir, stage), "stale log\n")
+}
+
+// TestDispatchRestart_RelaunchesFromPersistedPrompt is the core case: an orphaned
+// attempt is relaunched with the prompt already on disk as the worker's input, the
+// prompt file is left byte-identical (it is the source, not a fresh write), and the
+// stale log/exit/result are cleared so the new attempt's status is uncontaminated.
+func TestDispatchRestart_RelaunchesFromPersistedPrompt(t *testing.T) {
+	// The worker echoes its stdin, proving the persisted prompt really reached it
+	// (the wrapper redirects {stage}-prompt.md in, so the log holds the prompt
+	// body). TEMPLATED with {model}/{effort} so spawn.WithProfile SUBSTITUTES
+	// rather than appending flags a plain `cat` would choke on.
+	repoRoot, id := setupDispatchRepo(t, `sh -c 'echo \"m={model} e={effort}\"; cat' _`)
+	dir := dispatch.DirFor(repoRoot, id)
+	const prompt = "the persisted stage prompt\nsecond line\n"
+	seedOrphanedHeadless(t, dir, "apply", prompt)
+	mustWrite(t, dispatch.ResultPath(dir, "apply"), "stale: true\n")
+
+	out, err := runRestart(t, "abcd", "apply")
+	if err != nil {
+		t.Fatalf("restart over an orphaned attempt should succeed: %v", err)
+	}
+	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
+
+	if !strings.Contains(out, "dispatched abcd/apply") {
+		t.Errorf("output = %q, want a dispatched line shaped like start's", out)
+	}
+
+	// The prompt file is the restart's INPUT and must not be rewritten.
+	promptData, err := os.ReadFile(dispatch.PromptPath(dir, "apply"))
+	if err != nil {
+		t.Fatalf("prompt file should still exist: %v", err)
+	}
+	if string(promptData) != prompt {
+		t.Errorf("prompt file = %q, want it left byte-identical", string(promptData))
+	}
+
+	// The record was overwritten with the new attempt (last-attempt-only), and it
+	// carries no restart-specific key — a restart is a fresh attempt.
+	rec, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if rec.SpawnCmd == "old-command" {
+		t.Error("record should have been overwritten by the restart")
+	}
+	if rec.PID <= 0 || rec.PGID <= 0 {
+		t.Errorf("pid/pgid = %d/%d, want the new worker's", rec.PID, rec.PGID)
+	}
+	if _, err := os.Stat(dispatch.ResultPath(dir, "apply")); !os.IsNotExist(err) {
+		t.Error("the prior attempt's stale result should have been cleared")
+	}
+
+	// The relaunched worker really received the persisted prompt on stdin.
+	waitDispatchDone(t, dir, "apply")
+	logData, err := os.ReadFile(dispatch.LogPath(dir, "apply"))
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	if !strings.Contains(string(logData), "the persisted stage prompt") {
+		t.Errorf("worker stdin = %q, want the persisted prompt", string(logData))
+	}
+	if strings.Contains(string(logData), "stale log") {
+		t.Error("the prior attempt's stale log should have been cleared")
+	}
+}
+
+// TestDispatchRestart_RecordAndOutputMatchStart pins the byte-shape parity claim:
+// a restart's dispatched line and record are indistinguishable from the equivalent
+// `start` — same identity report, same auto-selection suffix rules, no new marker.
+func TestDispatchRestart_RecordAndOutputMatchStart(t *testing.T) {
+	repoRoot, id := setupDispatchRepo(t, "sh -c 'exit 0'") // clears $TMUX ⇒ auto headless
+	dir := dispatch.DirFor(repoRoot, id)
+
+	startOut, err := runStart(t, "prompt for parity\n", "abcd", "apply")
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	waitDispatchDone(t, dir, "apply")
+	startRec, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load after start: %v", err)
+	}
+
+	restartOut, err := runRestart(t, "abcd", "apply")
+	if err != nil {
+		t.Fatalf("restart: %v", err)
+	}
+	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
+	restartRec, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load after restart: %v", err)
+	}
+
+	// Both lines carry the same auto-selection source suffix and the same shape;
+	// only the pid/pgid numbers differ, so compare after stripping them.
+	stripIdentity := func(s string) string {
+		open := strings.Index(s, "(")
+		if open < 0 {
+			return s
+		}
+		return s[:open] + s[strings.Index(s, "auto:"):]
+	}
+	if stripIdentity(startOut) != stripIdentity(restartOut) {
+		t.Errorf("restart output %q is not shaped like start's %q", restartOut, startOut)
+	}
+	if !strings.Contains(restartOut, string(dispatch.ReasonAutoNoTmux)) {
+		t.Errorf("restart output = %q, want the %q selection source", restartOut, dispatch.ReasonAutoNoTmux)
+	}
+
+	// The record shape is identical: same spawn command, same mode, no pane
+	// identity, and no restart-specific key (the struct has none to gain).
+	if restartRec.SpawnCmd != startRec.SpawnCmd {
+		t.Errorf("spawn_cmd = %q, want start's %q", restartRec.SpawnCmd, startRec.SpawnCmd)
+	}
+	if restartRec.Mode() != startRec.Mode() {
+		t.Errorf("mode = %q, want start's %q", restartRec.Mode(), startRec.Mode())
+	}
+	if restartRec.Pane != "" || restartRec.Window != "" || restartRec.Server != "" {
+		t.Errorf("headless restart record carries pane identity: %+v", *restartRec)
+	}
+}
+
+// TestDispatchRestart_RefusesWhenRunning: recovery must never race a live worker.
+// The refusal is the same one `start` raises (same mode-aware finished signal), and
+// the existing record is left untouched.
+func TestDispatchRestart_RefusesWhenRunning(t *testing.T) {
+	repoRoot, id := setupDispatchRepo(t, "sh -c 'exit 0'")
+	dir := dispatch.DirFor(repoRoot, id)
+	mustMkdir(t, dir)
+
+	// A live pid (our own process) with no exit file ⇒ genuinely running.
+	if err := dispatch.Save(dir, "apply", &dispatch.Dispatch{
+		PID: os.Getpid(), PGID: os.Getpid(), SpawnCmd: "live", StartedAt: "t",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, dispatch.PromptPath(dir, "apply"), "prompt\n")
+
+	_, err := runRestart(t, "abcd", "apply")
+	if err == nil {
+		t.Fatal("expected the refuse-if-running error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "already running") || !strings.Contains(msg, "fab dispatch kill") {
+		t.Errorf("error = %q, want the already-running refusal pointing at kill", msg)
+	}
+	rec, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if rec.SpawnCmd != "live" {
+		t.Errorf("the live record was modified (spawn_cmd = %q)", rec.SpawnCmd)
+	}
+}
+
+// TestDispatchRestart_RefusalPrecedesTheMissingPrompt pins the ordering claim: the
+// refusal check runs BEFORE the prompt is read, so a live dispatch refuses with the
+// actionable already-running message even when no prompt file exists.
+func TestDispatchRestart_RefusalPrecedesTheMissingPrompt(t *testing.T) {
+	repoRoot, id := setupDispatchRepo(t, "sh -c 'exit 0'")
+	dir := dispatch.DirFor(repoRoot, id)
+	mustMkdir(t, dir)
+	if err := dispatch.Save(dir, "apply", &dispatch.Dispatch{
+		PID: os.Getpid(), PGID: os.Getpid(), SpawnCmd: "live", StartedAt: "t",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// No prompt file on purpose.
+
+	_, err := runRestart(t, "abcd", "apply")
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if !strings.Contains(err.Error(), "already running") {
+		t.Errorf("error = %q, want the already-running refusal to win over the missing prompt", err.Error())
+	}
+}
+
+// TestDispatchRestart_MissingPromptFileErrors: with no persisted prompt there is
+// nothing to relaunch. The error must name the path and the `fab dispatch start`
+// remedy, and nothing may be launched or persisted.
+func TestDispatchRestart_MissingPromptFileErrors(t *testing.T) {
+	repoRoot, id := setupDispatchRepo(t, "sh -c 'exit 0'")
+	dir := dispatch.DirFor(repoRoot, id)
+
+	_, err := runRestart(t, "abcd", "apply")
+	if err == nil {
+		t.Fatal("expected an error when no prompt has been persisted")
+	}
+	msg := err.Error()
+	for _, want := range []string{"nothing to relaunch", "fab dispatch start", "apply-prompt.md"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error = %q, want it to mention %q", msg, want)
+		}
+	}
+	if _, err := dispatch.Load(dir, "apply"); !os.IsNotExist(err) {
+		t.Errorf("no dispatch record should exist after the missing-prompt error, got %v", err)
+	}
+}
+
+// TestDispatchRestart_MissingPromptOverAnOrphanedRecord is the same error with a
+// prior RECORD present but its prompt gone (e.g. a partial `fab dispatch clean`):
+// the record must be left alone rather than overwritten by a promptless launch.
+func TestDispatchRestart_MissingPromptOverAnOrphanedRecord(t *testing.T) {
+	repoRoot, id := setupDispatchRepo(t, "sh -c 'exit 0'")
+	dir := dispatch.DirFor(repoRoot, id)
+	mustMkdir(t, dir)
+	if err := dispatch.Save(dir, "apply", &dispatch.Dispatch{
+		PID: 999999, PGID: 999999, SpawnCmd: "old-command", StartedAt: "old",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := runRestart(t, "abcd", "apply"); err == nil {
+		t.Fatal("expected the missing-prompt error")
+	}
+	rec, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if rec.SpawnCmd != "old-command" {
+		t.Errorf("the prior record was overwritten (spawn_cmd = %q)", rec.SpawnCmd)
+	}
+}
+
+// TestDispatchRestart_NoDispatchCommandErrors: the prologue is `start`'s, so a
+// provider with no dispatch_command fails identically — with the config-key hint.
+func TestDispatchRestart_NoDispatchCommandErrors(t *testing.T) {
+	repoRoot, id := setupDispatchRepo(t, "") // built-in claude: no dispatch_command
+	dir := dispatch.DirFor(repoRoot, id)
+	seedOrphanedHeadless(t, dir, "apply", "prompt\n")
+
+	_, err := runRestart(t, "abcd", "apply")
+	if err == nil {
+		t.Fatal("expected an error when the resolved provider has no dispatch_command")
+	}
+	if !strings.Contains(err.Error(), "providers.claude.dispatch_command") {
+		t.Errorf("error = %q, want the config-key hint", err.Error())
+	}
+}
+
+// TestDispatchRestart_ModeIsReDerivedNotInherited is the mode-re-derivation case
+// that matters most for recovery: an ORPHANED PANE attempt restarted with no tmux
+// (the very condition that likely killed it) must land HEADLESS. A restart is a
+// fresh attempt under the current environment; inheriting the prior mode would
+// reproduce the failure.
+func TestDispatchRestart_ModeIsReDerivedNotInherited(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "sh -c 'sleep 30' _")
+	dir := dispatch.DirFor(repoRoot, id)
+	mustMkdir(t, dir)
+
+	// A prior PANE record whose pane is long gone (⇒ orphaned), on a socket with no
+	// server, so the record unambiguously describes a dead pane dispatch.
+	if err := dispatch.Save(dir, "apply", &dispatch.Dispatch{
+		SpawnCmd: "old-session-command", StartedAt: "old",
+		Pane: "%999", Window: dispatch.WindowName(id, "apply"), Server: "fabtest-gone",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, dispatch.PromptPath(dir, "apply"), "prompt\n")
+	// $TMUX is already cleared by the setup helper ⇒ auto selects headless.
+
+	out, err := runRestart(t, "abcd", "apply")
+	if err != nil {
+		t.Fatalf("restarting an orphaned pane dispatch outside tmux should land headless: %v", err)
+	}
+	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
+
+	rec, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if rec.IsPane() || rec.Mode() != dispatch.ModeHeadless {
+		t.Errorf("record reads as %q (pane=%q), want a headless re-derivation", rec.Mode(), rec.Pane)
+	}
+	if rec.PID <= 0 || rec.PGID <= 0 {
+		t.Errorf("pid/pgid = %d/%d, want the headless worker's", rec.PID, rec.PGID)
+	}
+	if rec.Window != "" || rec.Server != "" {
+		t.Errorf("the prior pane identity leaked into the new record: %+v", *rec)
+	}
+	// The headless re-derivation composed dispatch_command, not the prior
+	// attempt's session_command — no cross-fallback, no inherited command.
+	if !strings.HasPrefix(rec.SpawnCmd, "sh -c 'exit 0'") {
+		t.Errorf("spawn_cmd = %q, want the dispatch_command as prefix", rec.SpawnCmd)
+	}
+	if !strings.Contains(out, string(dispatch.ReasonAutoNoTmux)) {
+		t.Errorf("output = %q, want the %q selection source", out, dispatch.ReasonAutoNoTmux)
+	}
+}
+
+// TestDispatchRestart_HeadlessFlagOptsOutOfAutoPane: the explicit rungs of the
+// ladder work on `restart` exactly as on `start` — inside tmux, --headless forces a
+// detached worker and composes with --timeout.
+func TestDispatchRestart_HeadlessFlagOptsOutOfAutoPane(t *testing.T) {
+	repoRoot, id := setupDispatchRepo(t, "sh -c 'exit 0'")
+	dir := dispatch.DirFor(repoRoot, id)
+	seedOrphanedHeadless(t, dir, "apply", "prompt\n")
+	t.Setenv("TMUX", "/tmp/tmux-1000/default,4242,0") // would auto-select pane
+
+	out, err := runRestart(t, "abcd", "apply", "--headless", "--timeout", "600")
+	if err != nil {
+		t.Fatalf("--headless --timeout should compose on restart: %v", err)
+	}
+	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
+
+	rec, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if rec.IsPane() {
+		t.Errorf("--headless inside tmux produced a pane record (%+v)", *rec)
+	}
+	if rec.Timeout != 600 {
+		t.Errorf("timeout = %d, want 600", rec.Timeout)
+	}
+	if strings.Contains(out, "auto:") {
+		t.Errorf("output = %q, want no auto-selection suffix for an explicit mode", out)
+	}
+}
+
+// TestDispatchRestart_PaneAndTimeoutMutuallyExclusive: the same usage error `start`
+// raises, for the same reason (--timeout is the headless wrapper's bound, and pane
+// mode builds no wrapper). It must fire before anything is launched or persisted.
+func TestDispatchRestart_PaneAndTimeoutMutuallyExclusive(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", "sh -c 'exit 0'")
+	dir := dispatch.DirFor(repoRoot, id)
+	mustMkdir(t, dir)
+	mustWrite(t, dispatch.PromptPath(dir, "apply"), "prompt\n")
+
+	_, err := runRestart(t, "abcd", "apply", "--pane", "--timeout", "600")
+	if err == nil {
+		t.Fatal("expected a usage error for --pane with --timeout")
+	}
+	if !strings.Contains(err.Error(), "--pane") || !strings.Contains(err.Error(), "--timeout") {
+		t.Errorf("error = %q, want it to name both flags", err.Error())
+	}
+	if _, err := dispatch.Load(dir, "apply"); !os.IsNotExist(err) {
+		t.Errorf("no dispatch record should exist after the usage error, got %v", err)
+	}
+}
+
+// TestDispatchRestart_PaneAndHeadlessMutuallyExclusive: the cobra flag group fires
+// during ValidateFlagGroups, before any RunE work.
+func TestDispatchRestart_PaneAndHeadlessMutuallyExclusive(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "sh -c 'exit 0'")
+	dir := dispatch.DirFor(repoRoot, id)
+	mustMkdir(t, dir)
+	mustWrite(t, dispatch.PromptPath(dir, "apply"), "prompt\n")
+
+	_, err := runRestart(t, "abcd", "apply", "--pane", "--headless")
+	if err == nil {
+		t.Fatal("expected a usage error for --pane with --headless")
+	}
+	for _, want := range []string{"pane", "headless"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want it to name %q", err.Error(), want)
+		}
+	}
+	if _, err := dispatch.Load(dir, "apply"); !os.IsNotExist(err) {
+		t.Errorf("no dispatch record should exist after the usage error, got %v", err)
+	}
+}
+
+// TestDispatchRestart_ExplicitPaneHardErrorsOnUnreachableTmux: the explicit/auto
+// asymmetry is `start`'s. A caller who typed --pane asked for watchability, so an
+// unreachable server is a hard error with nothing persisted — no silent downgrade.
+func TestDispatchRestart_ExplicitPaneHardErrorsOnUnreachableTmux(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "sh -c 'sleep 30' _")
+	dir := dispatch.DirFor(repoRoot, id)
+	mustMkdir(t, dir)
+	mustWrite(t, dispatch.PromptPath(dir, "apply"), "prompt\n")
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, "fabtest-restart-explicit"))
+	t.Setenv("TMUX", "/tmp/tmux-dead/default,9999,0")
+
+	_, stderr, err := runRestartCapturingStderr(t, "abcd", "apply", "--pane")
+	if err == nil {
+		t.Fatal("explicit --pane must hard-error when tmux is unreachable")
+	}
+	if strings.Contains(stderr, dispatch.FallbackNotice) {
+		t.Errorf("explicit --pane must not soft-fall-back, stderr = %q", stderr)
+	}
+	if _, err := dispatch.Load(dir, "apply"); !os.IsNotExist(err) {
+		t.Errorf("no dispatch record should exist after the hard error, got %v", err)
+	}
+}
+
+// TestDispatchRestart_AutoPaneSoftFallsBackToHeadless is the other half of the
+// asymmetry, and the case the recovery policy leans on: a stale $TMUX (inherited
+// from the very server whose death orphaned the worker) must degrade to headless
+// with a notice rather than failing an unattended recovery.
+func TestDispatchRestart_AutoPaneSoftFallsBackToHeadless(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "sh -c 'sleep 30' _")
+	dir := dispatch.DirFor(repoRoot, id)
+	seedOrphanedHeadless(t, dir, "apply", "prompt\n")
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, "fabtest-restart-stale"))
+	t.Setenv("TMUX", "/tmp/tmux-dead/default,9999,0")
+
+	out, stderr, err := runRestartCapturingStderr(t, "abcd", "apply")
+	if err != nil {
+		t.Fatalf("auto pane must soft-fall-back on restart, not error: %v", err)
+	}
+	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
+
+	if !strings.Contains(stderr, dispatch.FallbackNotice) {
+		t.Errorf("stderr = %q, want the fallback notice %q", stderr, dispatch.FallbackNotice)
+	}
+	if !strings.Contains(out, string(dispatch.ReasonAutoUnreachable)) {
+		t.Errorf("output = %q, want the %q selection source", out, dispatch.ReasonAutoUnreachable)
+	}
+	rec, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if rec.IsPane() || rec.PID <= 0 {
+		t.Errorf("fallback record must be headless-shaped, got %+v", *rec)
+	}
+}
+
+// TestDispatchRestart_PaneMode_Integration drives the real `--pane` path on a
+// restart against an ephemeral tmux server: the relaunched worker gets the pointer
+// to the ALREADY-PERSISTED prompt (never a re-write, never the body through tmux),
+// and the record carries the new pane identity. Skipped when tmux is unavailable.
+func TestDispatchRestart_PaneMode_Integration(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not available")
+	}
+	// TEMPLATED with {model}/{effort} (like the built-in claude default) so
+	// WithProfile substitutes rather than appending flags AFTER the prompt argument.
+	repoRoot, id := setupDispatchRepoWithCommands(t, "",
+		`sh -c 'echo \"m={model} e={effort}\"; echo \"got: $1\"; sleep 30' _`)
+	dir := dispatch.DirFor(repoRoot, id)
+	const prompt = "persisted prompt line one\nline two\n"
+	mustMkdir(t, dir)
+	mustWrite(t, dispatch.PromptPath(dir, "apply"), prompt)
+	// A prior pane record whose pane is gone ⇒ orphaned, so the restart proceeds.
+	if err := dispatch.Save(dir, "apply", &dispatch.Dispatch{
+		SpawnCmd: "old", StartedAt: "old", Pane: "%999", Window: dispatch.WindowName(id, "apply"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	server := "fabtest-restart-pane"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+	tmux := func(args ...string) (string, error) {
+		out, err := exec.Command("tmux", append([]string{"-L", server}, args...)...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	if out, err := tmux("new-session", "-d", "-s", "s", "-x", "80", "-y", "24"); err != nil {
+		t.Skipf("could not start tmux server (%v): %s", err, out)
+	}
+	t.Cleanup(func() { _, _ = tmux("kill-server") })
+
+	out, err := runRestart(t, "abcd", "apply", "--pane", "--server", server)
+	if err != nil {
+		t.Fatalf("pane restart failed: %v", err)
+	}
+	if !strings.Contains(out, "dispatched abcd/apply") || !strings.Contains(out, "pane ") {
+		t.Errorf("output = %q, want a dispatched line naming the pane", out)
+	}
+
+	rec, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("state not persisted: %v", err)
+	}
+	if !rec.IsPane() || rec.Pane == "%999" {
+		t.Fatalf("record should name the NEW pane, got %+v", *rec)
+	}
+
+	// The persisted prompt was reused untouched, and only the pointer rode tmux.
+	promptData, err := os.ReadFile(dispatch.PromptPath(dir, "apply"))
+	if err != nil {
+		t.Fatalf("read prompt: %v", err)
+	}
+	if string(promptData) != prompt {
+		t.Errorf("prompt file = %q, want it left byte-identical", string(promptData))
+	}
+	captured, err := tmux("capture-pane", "-p", "-t", rec.Pane)
+	if err != nil {
+		t.Fatalf("capture pane: %v", err)
+	}
+	if !strings.Contains(captured, ".fab-dispatch/"+id+"/apply-prompt.md") {
+		t.Errorf("pane received %q, want the pointer naming the prompt file", captured)
+	}
+	if strings.Contains(captured, "line two") {
+		t.Errorf("pane received prompt BODY content (%q); only the pointer may be delivered", captured)
+	}
+}
+
+// TestDispatchRestart_PaneRefuseHonorsTheResultFile: a finished-but-still-alive
+// pane worker reads `done`, so a restart over it must OVERWRITE rather than refuse
+// — the same finished-signal rule `start` applies, so the two never disagree.
+func TestDispatchRestart_PaneRefuseHonorsTheResultFile(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not available")
+	}
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", `sh -c 'sleep 30' _`)
+	dir := dispatch.DirFor(repoRoot, id)
+
+	server := "fabtest-restart-pdone"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+	tmux := func(args ...string) (string, error) {
+		out, err := exec.Command("tmux", append([]string{"-L", server}, args...)...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	if out, err := tmux("new-session", "-d", "-s", "s", "-x", "80", "-y", "24"); err != nil {
+		t.Skipf("could not start tmux server (%v): %s", err, out)
+	}
+	t.Cleanup(func() { _, _ = tmux("kill-server") })
+
+	if _, err := runStart(t, "first prompt", "abcd", "apply", "--pane", "--server", server); err != nil {
+		t.Fatalf("seed pane start failed: %v", err)
+	}
+	first, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !dispatch.PaneAlive(first.Pane, server) {
+		t.Fatalf("pane %s should be alive; the test needs a live pane to be meaningful", first.Pane)
+	}
+
+	// Alive with NO result ⇒ genuinely running, so a restart must refuse.
+	if _, err := runRestart(t, "abcd", "apply", "--pane", "--server", server); err == nil {
+		t.Fatal("expected refusal while the pane is alive with no result file")
+	} else if !strings.Contains(err.Error(), "already running") {
+		t.Errorf("error = %q, want the already-running refusal", err.Error())
+	}
+
+	// The worker writes its result and sits at its prompt ⇒ `done`, so a restart
+	// over it now overwrites.
+	mustWrite(t, dispatch.ResultPath(dir, "apply"), "stage: apply\nstatus: success\n")
+	if _, err := runRestart(t, "abcd", "apply", "--pane", "--server", server); err != nil {
+		t.Fatalf("restart over a completed pane attempt should succeed, got: %v", err)
+	}
+	second, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load after overwrite: %v", err)
+	}
+	if second.Pane == first.Pane {
+		t.Errorf("record still names the old pane %s; the attempt was not overwritten", first.Pane)
+	}
+	if _, err := os.Stat(dispatch.ResultPath(dir, "apply")); !os.IsNotExist(err) {
+		t.Error("stale result file should have been cleared by the restart")
+	}
+	// The prompt `start` persisted is what the restart reused.
+	promptData, err := os.ReadFile(dispatch.PromptPath(dir, "apply"))
+	if err != nil {
+		t.Fatalf("read prompt: %v", err)
+	}
+	if string(promptData) != "first prompt" {
+		t.Errorf("prompt = %q, want the original start's prompt reused unchanged", string(promptData))
+	}
+}

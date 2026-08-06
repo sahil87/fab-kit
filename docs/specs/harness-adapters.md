@@ -47,7 +47,8 @@ provider) is **provider-neutral and adapter-independent** — see
 
 Adapters 2 and 3 are two **modes of the same command family** (`fab dispatch`), sharing its resolution,
 `.fab-dispatch/{id}/` state directory, refuse-if-running concurrency, and status/kill/logs/clean
-surfaces. They differ in which of the provider's two command fields they compose — `dispatch_command`
+surfaces — plus the `restart` recovery verb, which relaunches either mode from the persisted prompt and
+re-derives its mode from the current environment (see § Recovery is orchestrator policy over these states). They differ in which of the provider's two command fields they compose — `dispatch_command`
 for headless, `session_command` for pane — and in how completion is observed. The two fields are never
 merged and **never fall back to each other in either direction**.
 
@@ -216,6 +217,49 @@ its prompt reads `done`, not `running`. A liveness-first rule would never termin
 consuming a pane dispatch therefore handles three states and never waits for the other two; nothing else
 about the polling contract changes (fixed `sleep 30` cadence, `done` ⇒ read the result file, a review
 `verdict: fail` inside a `done` result is still a review outcome rather than a dispatch failure).
+
+### Recovery is orchestrator policy over these states, not new protocol
+
+An adapter reports a state; deciding what to *do* about a non-`done` one is the orchestrator's. This
+matters because the two `fab dispatch` adapters have no in-harness supervision: a native sub-agent is
+retried on 5xx and its death is reported by the harness, while a CLI or pane worker that exhausts its
+provider's internal retry simply stops, and one wedged at an error banner reads `running` forever.
+
+The protocol therefore fixes **nothing new** here — no state is added, renamed, or re-tabled; the
+result-file contract and the dispatch-prompt obligations are untouched — and instead names what an
+orchestrator MAY and MUST NOT do over the existing states:
+
+- **Restart is the recovery verb, and it is bounded.** A stage dispatch carries no irreplaceable
+  conversational state (fab checkpoints stage state into artifacts, so a relaunched worker resumes from
+  the last completed task), which makes relaunch-from-the-persisted-prompt cheap and deterministic —
+  `fab dispatch restart <change> <stage>`. An orchestrator SHOULD spend at most **one** automatic restart
+  per stage dispatch and MUST escalate rather than loop: an unbounded restart against a provider that is
+  5xx-ing platform-wide only burns tokens. The budget is the orchestrator's own bookkeeping — **the
+  protocol defines no on-disk attempt counter or history**, and `restart` is a fresh attempt under the
+  same last-attempt-only overwrite semantics as `start`, so nothing distinguishes it in the state dir.
+- **A restart re-derives its launch mode from the current environment.** The prior attempt's adapter is
+  not inherited: an `orphaned` pane dispatch relaunched after its tmux server died lands on the headless
+  adapter. This is what makes recovery adapter-agnostic in practice, and it is why the adapters are worth
+  keeping interchangeable.
+- **`orphaned` is the recoverable state; `failed (no-result)` is not.** `orphaned` means no exit code was
+  ever recorded (death by reboot / `kill -9` / crash / a killed pane) and is transient by nature.
+  `failed` carries a real exit code and is usually deterministic, so it MUST NOT be restarted by rule —
+  an orchestrator MAY judge an individual failure transient from its evidence. `failed (no-result)` is a
+  **contract violation** and MUST always escalate to a human: retrying a worker that ignores the result
+  obligation cannot fix it.
+- **The pipeline's verbs are read-only-peek, kill, restart, notify, stop — never input injection.** An
+  orchestrator MAY read a worker's evidence (`fab dispatch logs` headless / `fab pane capture` pane) to
+  tell a progressing worker from a parked one, and MUST escalate rather than answer when a worker is
+  waiting on genuine human input. Typing into a worker is the human's and the operator's affordance:
+  a pipeline-side input channel would fork this contract, since the native adapter has no such channel
+  at all.
+- **No supervisor, timer, or background sweep.** Polling remains the only clock. Recovery happens inside
+  the poll loop the orchestrator already runs, which is why it needs no protocol surface of its own.
+
+The concrete wiring — the restart budget, the peek cadence, and the three-way classification of a
+result-less dispatch — is skill-side policy in `_preamble.md` § CLI-Adapter Dispatch → *Recovery policy*,
+not part of this contract. It is stated here only to fix the boundary: **recovery composes over the five
+states; it does not extend them.**
 
 ### Steering a pane worker changes no contract
 
