@@ -1,0 +1,3 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-06T02:51:05Z"}
+{"args":"Bounded lifecycle supervision for CLI-dispatched stage workers: fab dispatch restart + orphaned auto-restart policy + peek-on-suspicion for stuck pane workers","cmd":"fab-new","event":"command","ts":"2026-08-06T02:51:05Z"}
+{"delta":"+4.6","event":"confidence","score":4.6,"trigger":"calc-score","ts":"2026-08-06T02:53:06Z"}
