@@ -49,15 +49,41 @@ func runDispatchStatus(cmd *cobra.Command, changeArg, stage string, jsonFlag boo
 	if err != nil {
 		return err
 	}
-
-	rec, err := dispatch.Load(dir, stage)
+	rec, err := loadDispatchRecord(dir, changeArg, stage)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("no dispatch for %s/%s (run `fab dispatch start` first)", changeArg, stage)
-		}
 		return err
 	}
 
+	out, err := observeDispatch(dir, id, stage, rec)
+	if err != nil {
+		return err
+	}
+	return renderDispatchState(cmd, out, jsonFlag)
+}
+
+// loadDispatchRecord loads {stage}.yaml, translating "no such file" into the
+// family's actionable no-dispatch error. Shared by `status` and `wait` so their
+// error surfaces are identical by construction (the wait contract: only REAL
+// errors are non-zero, and a missing record is the same real error for both).
+func loadDispatchRecord(dir, changeArg, stage string) (*dispatch.Dispatch, error) {
+	rec, err := dispatch.Load(dir, stage)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("no dispatch for %s/%s (run `fab dispatch start` first)", changeArg, stage)
+		}
+		return nil, err
+	}
+	return rec, nil
+}
+
+// observeDispatch derives the dispatch's current state and assembles the output
+// object, branching on the record's DERIVED mode.
+//
+// This is the ONE derivation in the command layer: `fab dispatch wait` calls it
+// on every tick, so `wait` and `status` cannot report different states for the
+// same on-disk signals. Keeping it a single function (rather than duplicating the
+// branch in the wait command) is what makes that guarantee structural.
+func observeDispatch(dir, id, stage string, rec *dispatch.Dispatch) (dispatchStatusJSON, error) {
 	out := dispatchStatusJSON{
 		Change: id,
 		Stage:  stage,
@@ -79,7 +105,7 @@ func runDispatchStatus(cmd *cobra.Command, changeArg, stage string, jsonFlag boo
 	} else {
 		exitPresent, exitCode, err := dispatch.ReadExit(dir, stage)
 		if err != nil {
-			return err
+			return out, err
 		}
 		state = dispatch.DeriveState(exitPresent, exitCode,
 			dispatch.ResultPresent(dir, stage), dispatch.Alive(rec.PID))
@@ -90,13 +116,18 @@ func runDispatchStatus(cmd *cobra.Command, changeArg, stage string, jsonFlag boo
 		}
 	}
 	out.State = string(state)
+	return out, nil
+}
 
+// renderDispatchState writes the observed state — the bare state string, or the
+// indented JSON object under --json. Shared by `status` and `wait` so the JSON
+// surface stays single-sourced (one struct, one encoder configuration).
+func renderDispatchState(cmd *cobra.Command, out dispatchStatusJSON, jsonFlag bool) error {
 	if jsonFlag {
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
 		return enc.Encode(out)
 	}
-
-	fmt.Fprintln(cmd.OutOrStdout(), string(state))
+	fmt.Fprintln(cmd.OutOrStdout(), out.State)
 	return nil
 }

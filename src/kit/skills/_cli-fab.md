@@ -511,7 +511,7 @@ Guarded, idempotent rewrites of the tmux window name — used by `/fab-operator`
 
 ## fab dispatch
 
-Process manager for CLI-dispatched pipeline stages, in **two modes** — the two non-native adapters of cross-harness stage dispatch. `fab dispatch <start|restart|status|logs|kill|clean> [args...]`. Full cross-adapter contract (three adapters: native Agent-tool / headless CLI / interactive pane): `docs/specs/harness-adapters.md`. `restart` is the family's **recovery** verb (§ restart) — it relaunches a non-running dispatch from the prompt `start` persisted; the poll-loop policy that spends it lives in `_preamble.md` § CLI-Adapter Dispatch → *Recovery policy*.
+Process manager for CLI-dispatched pipeline stages, in **two modes** — the two non-native adapters of cross-harness stage dispatch. `fab dispatch <start|restart|status|wait|logs|kill|clean> [args...]`. Full cross-adapter contract (three adapters: native Agent-tool / headless CLI / interactive pane): `docs/specs/harness-adapters.md`. `restart` is the family's **recovery** verb (§ restart) — it relaunches a non-running dispatch from the prompt `start` persisted; the observation policy that spends it lives in `_preamble.md` § CLI-Adapter Dispatch → *Recovery policy*. `status` and `wait` are the family's two **observation** verbs over one derivation: `status` is the one-shot probe, `wait` its blocking sibling (§ wait).
 
 | Mode | Selection signals (resolved by the § start ladder, in precedence order) | Worker | Command composed | Completion observed via | tmux |
 |------|------------------------------------------------------------------------|--------|------------------|-------------------------|------|
@@ -628,6 +628,18 @@ A clean exit (code 0) is necessary but **not sufficient** for `done` — the res
 **Result presence WINS over pane liveness** — an interactive worker that produced its result and is still sitting at its prompt reads `done`, not `running` (a liveness-first rule would never terminate). **`failed` and `failed (no-result)` are UNREACHABLE in pane mode**: there is no exit-code channel, so a crashed or killed worker collapses into `orphaned`.
 
 Human output is the bare state string on stdout. `--json` emits `{change, stage, state, mode, …}` where `mode` is `headless` or `pane` and the mode's identity keys follow: `pid`, `pgid`, `exit?` (headless) or `pane`, `window` (pane). Keys for the other mode are **omitted**, so a headless object is unchanged apart from the added `mode`.
+
+### wait — `fab dispatch wait <change> <stage> [--timeout <secs>] [--json]`
+
+`status`'s **blocking** sibling: it blocks until the dispatch's state leaves `running`, then prints that state **exactly as `status` does** (same text output, same `--json` object) and exits 0. It exists so an orchestrator can be **woken by a state change** instead of burning an inference turn every 30s asking whether one happened — the wiring in `_preamble.md` § CLI-Adapter Dispatch step 2 runs it as a **background command** (the harness's notify-on-exit seam) and falls back to a plain foreground blocking call on harnesses without one.
+
+- **One derivation, shared with `status`.** The block re-derives state on an internal **~2s tick** through the same record loader and the same pure derivations `status` uses — `DeriveState` (headless: `{stage}.exit` + result file + pid liveness) or `DerivePaneState` (pane: result file + pane liveness), selected by the record's derived mode. `wait` and `status` therefore **cannot disagree** about state, by construction. The tick is an internal constant with **no flag and no config field**.
+- **Not a file watcher.** A watcher on `{stage}-result.yaml` would see a worker *finish* but never see one *die* — `orphaned` is derived from pid/pane liveness, which needs a periodic probe regardless. The cost being eliminated is inference turns, not syscalls.
+- **`--timeout <secs>` bounds the block, and expiry is NOT an error.** On expiry `wait` prints the still-current state — necessarily `running`, since any other state would already have ended the wait — and exits **0**. **The state string is the sole discriminator**: read `running` ⇒ the wait timed out (the wiring treats that wake as its peek-on-suspicion moment); read anything else ⇒ a terminal state was reached. Absent (or `0`) ⇒ wait indefinitely.
+- **Already-terminal returns immediately** — no tick is consumed when the state is non-`running` at entry, so the verb is idempotent and safe to re-arm after a `restart` or re-run after an interruption.
+- **Exit codes**: 0 for any successfully observed state (terminal **or** timeout); non-zero only for real errors — no dispatch record for the pair, or an unresolvable change — with the **same message surface as `status`** (`no dispatch for <change>/<stage> (run \`fab dispatch start\` first)`).
+- **`--json`** emits the same object `status --json` emits, through the same render path (mode discriminator + that mode's identity keys).
+- **Does not touch the worker.** `wait --timeout` bounds the *observer*; the unrelated `start`/`restart` `--timeout` is a POSIX `timeout` inside the headless wrapper that **kills** the worker. Waiting has no side effects at all: no state is written and no signal is sent.
 
 ### logs — `fab dispatch logs <change> <stage> [--tail N]`
 

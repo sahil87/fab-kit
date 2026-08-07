@@ -74,8 +74,9 @@ stage on a CI box, a remote host, or a different agent CLI. `fab dispatch start`
 provider `dispatch_command` detached via `sh -c '<cmd> < prompt > log 2>&1; echo $? > exit'` launched with
 `setsid` semantics (the shell is the supervisor — no Go process remains, so the dispatch survives the
 orchestrator dying), tracks it
-under `.fab-dispatch/{id}/`, and the orchestrator observes all five states **via `fab dispatch
-status`** (file polling) rather than a held handle. POSIX-only in v1.
+under `.fab-dispatch/{id}/`, and the orchestrator observes all five states **via `fab dispatch status` /
+`fab dispatch wait`** (derived from on-disk signals plus a pid liveness probe) rather than a held handle.
+POSIX-only in v1.
 
 > `fab dispatch`'s **headless** mode is deliberately **parallel to and independent of** `fab pane` /
 > `fab operator`. Those stay the *interactive operator-visibility* path (a human watching a monitored set
@@ -242,8 +243,50 @@ worker collapses into `orphaned`. Consequently the pane mode's derivation is:
 **Result presence WINS over pane liveness** — a worker that produced its result and is still sitting at
 its prompt reads `done`, not `running`. A liveness-first rule would never terminate. An orchestrator
 consuming a pane dispatch therefore handles three states and never waits for the other two; nothing else
-about the polling contract changes (fixed `sleep 30` cadence, `done` ⇒ read the result file, a review
-`verdict: fail` inside a `done` result is still a review outcome rather than a dispatch failure).
+about the observation contract changes (the blocking `fab dispatch wait` below, `done` ⇒ read the result
+file, a review `verdict: fail` inside a `done` result is still a review outcome rather than a dispatch
+failure).
+
+### Observation is a blocking wait, not a poll loop
+
+**How** an orchestrator learns a dispatch's state is fixed here; **what** it does about a non-`done` one is
+policy (next section). The two `fab dispatch` adapters expose one observation surface in two shapes over a
+single derivation:
+
+| Verb | Shape | Use |
+|------|-------|-----|
+| `fab dispatch status <change> <stage>` | one-shot probe, returns immediately | spot checks, `--json` consumers, refuse-if-running explanations |
+| `fab dispatch wait <change> <stage> [--timeout <secs>]` | **blocks** until the state leaves `running` | the observation an orchestrator waiting on a stage performs |
+
+`wait` re-derives state through the **same** loader and the same per-mode derivation `status` uses, on an
+internal sub-poll tick, so the two verbs cannot disagree by construction. It is not a filesystem watcher: a
+watcher can see a result file appear but cannot see a worker *die*, and `orphaned` is derived from pid or
+pane liveness — a periodic probe is needed regardless.
+
+An orchestrator SHOULD observe with `wait`, **not** by looping `status` behind a sleep. On an in-harness
+agent every poll is a full model turn, so a long stage costs hundreds of turns establishing that nothing
+happened — the exact cost the CLI adapters exist to avoid paying, since they carry no in-harness completion
+signal of their own. A blocking `wait` collapses those turns into one wake-up at the moment something
+actually changes.
+
+**Delivery of that wake-up is harness-specific; the verb is not.** A harness whose background commands
+re-invoke the agent on exit (Claude Code's `run_in_background`) runs `wait` there and spends **zero** turns
+while the stage executes. A harness with **no such seam** runs the **identical** command as a plain
+**foreground blocking call** — a bounded `--timeout` then costs one turn per bound instead of one per poll,
+which is a degraded but fully supported path. Nothing in this contract may assume the background seam
+exists.
+
+**`--timeout` is the peek cadence, not a poll interval.** On expiry `wait` prints the still-current state
+(necessarily `running`) and exits **0** — the state string is the sole discriminator, so a consumer reading
+`running` knows the bound expired and treats that wake as its peek-on-suspicion moment (next section);
+every other string is a terminal state. Only real errors — no dispatch record, an unresolvable change — are
+non-zero. An **already-terminal** dispatch returns immediately, so re-arming a `wait` after a restart is
+free and idempotent.
+
+**This changes no state, no result-file contract, and no prompt obligation.** It fixes only how the
+existing five states are observed. The `--timeout` on `start`/`restart` is unrelated: that one bounds (and
+kills) the **worker**; `wait --timeout` bounds only the **observer** and has no side effect on the dispatch
+at all.
 
 ### Recovery is orchestrator policy over these states, not new protocol
 
@@ -280,11 +323,12 @@ orchestrator MAY and MUST NOT do over the existing states:
   waiting on genuine human input. Typing into a worker is the human's and the operator's affordance:
   a pipeline-side input channel would fork this contract, since the native adapter has no such channel
   at all.
-- **No supervisor, timer, or background sweep.** Polling remains the only clock. Recovery happens inside
-  the poll loop the orchestrator already runs, which is why it needs no protocol surface of its own.
+- **No supervisor, timer, or background sweep.** The orchestrator's own observation remains the only clock.
+  Recovery happens where it already waits — a `wait` that returns a non-`done` state, or one that returns
+  `running` at its bound — which is why it needs no protocol surface of its own.
 
-The concrete wiring — the restart budget, the peek cadence, and the three-way classification of a
-result-less dispatch — is skill-side policy in `_preamble.md` § CLI-Adapter Dispatch → *Recovery policy*,
+The concrete wiring — the restart budget, the peek cadence (a `wait` timeout-return), and the three-way
+classification of a result-less dispatch — is skill-side policy in `_preamble.md` § CLI-Adapter Dispatch → *Recovery policy*,
 not part of this contract. It is stated here only to fix the boundary: **recovery composes over the five
 states; it does not extend them.**
 
