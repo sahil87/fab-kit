@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`fab dispatch {start,restart,status,logs,kill,clean}` — process manager for CLI-dispatched pipeline stages in two launch modes, resolved per invocation by an explicit-first ladder ending in auto (`$TMUX` ⇒ pane, else headless): headless (detached `sh -c` on `dispatch_command`, five states) and pane (`session_command` in a tmux pane split into the dispatching agent's window, new window as fallback; pointer delivery, three states). `restart` relaunches from the persisted prompt over the same path."
+description: "`fab dispatch {start,restart,status,wait,logs,kill,clean}` — process manager for CLI-dispatched pipeline stages in two launch modes, resolved per invocation by an explicit-first ladder ending in auto (`$TMUX` ⇒ pane, else headless): headless (detached `sh -c` on `dispatch_command`, five states) and pane (`session_command` in a tmux pane split into the dispatcher's window; three states). `restart` relaunches the persisted prompt; `status`/`wait` are the one-shot and blocking observers."
 ---
 # fab dispatch
 
@@ -15,19 +15,19 @@ description: "`fab dispatch {start,restart,status,logs,kill,clean}` — process 
 | **headless** | `--headless`, `--timeout`, or auto **outside** tmux | a detached `sh -c` process | the provider's `dispatch_command` | `{stage}.exit` + pid liveness + result file | never touched |
 | **pane** | `--pane`, `--server`, or auto **inside** tmux | an interactive agent session in a tmux pane the user can watch and steer — **split into the dispatching agent's own window**, or a **new window** when there is no pane to split | the provider's `session_command` | **result file** + pane liveness | **required** — as is a `session_command`; either prerequisite missing is a hard error when explicit, a soft fallback to headless when auto |
 
-Headless mode is **tmux-independent**: it launches the resolved command (persisted in the record as `spawn_cmd`) detached, tracks it via a repo-root state dir, and exposes poll/logs/kill/clean surfaces. Pane mode exists to recover *watch and steer* on the CLI path — a detached headless worker is a black box no one can talk to, whereas an interactive tmux worker is the one universal interface every agent CLI supports natively. **Neither mode is an unconditional default**: `start` resolves the mode per invocation through an explicit-first ladder whose last rung is **auto** — pane when `$TMUX` is set (the run-kit context, where a pane is visible to the caller), headless when it is not (see § Mode selection). Together they are the **two non-native adapters** of the three-adapter cross-harness dispatch catalog (native Agent-tool / headless CLI / interactive pane), whose protocol is fixed by the human-curated spec `docs/specs/harness-adapters.md`. `restart` is the family's **recovery** verb across both modes: it relaunches a non-running dispatch from the prompt `start` persisted, so the caller needs no prompt in context, and it re-derives the mode from the *current* environment rather than the prior attempt's.
+Headless mode is **tmux-independent**: it launches the resolved command (persisted in the record as `spawn_cmd`) detached, tracks it via a repo-root state dir, and exposes poll/logs/kill/clean surfaces. Pane mode exists to recover *watch and steer* on the CLI path — a detached headless worker is a black box no one can talk to, whereas an interactive tmux worker is the one universal interface every agent CLI supports natively. **Neither mode is an unconditional default**: `start` resolves the mode per invocation through an explicit-first ladder whose last rung is **auto** — pane when `$TMUX` is set (the run-kit context, where a pane is visible to the caller), headless when it is not (see § Mode selection). Together they are the **two non-native adapters** of the three-adapter cross-harness dispatch catalog (native Agent-tool / headless CLI / interactive pane), whose protocol is fixed by the human-curated spec `docs/specs/harness-adapters.md`. `restart` is the family's **recovery** verb across both modes: it relaunches a non-running dispatch from the prompt `start` persisted, so the caller needs no prompt in context, and it re-derives the mode from the *current* environment rather than the prior attempt's. `status` and `wait` are its two **observation** verbs over a single derivation — `status` the one-shot probe, `wait` its blocking sibling that returns the moment the state leaves `running` — so an orchestrator is *woken by* a state change rather than asking every 30s whether one happened.
 
 Dispatch is the runtime for **cross-harness stage dispatch** ("a codex orchestrator runs `apply` on claude"): a fundamentally launch-and-poll problem, not a pane-observation one. It *runs* the provider command that `fab resolve-agent` names (a tier names a provider; the provider carries the commands — see [_shared/configuration.md](/_shared/configuration.md) § `providers` and [runtime/providers-and-tiers.md](/runtime/providers-and-tiers.md)). `fab dispatch` re-resolves the stage itself, so which mode a dispatch lands in is decided by the ladder below and never by the emitted `dispatch=` line — including a line emitted under the `dispatch.watchable` opt-in, where the emitted `session_command` is exactly what pane mode composes anyway (see [runtime/providers-and-tiers.md](/runtime/providers-and-tiers.md) § Watchable pane dispatch). Headless dispatch stays parallel to and independent of the tmux-bound interactive `fab pane` / `fab operator` family (see [pane-commands.md](/runtime/pane-commands.md) and [operator.md](/runtime/operator.md)); pane dispatch **borrows tmux as a launch surface** but does not join the operator's monitored set, and consumes the `_cli-agents` helper's spawn/deliver/peek procedures as its primitive layer (see [agent-primitives.md](/runtime/agent-primitives.md)).
 
-The **skill wiring** consumes it: the dispatch-seam skills branch on the resolved `dispatch=` line and, when present, drive this command family — `fab dispatch start` (block prompt on stdin, no mode flag by default — the worker's mode auto-resolves, and `--pane`/`--headless` are passed only to force one) → `sleep 30` polling of `fab dispatch status` → the mode's reachable states → read `{stage}-result.yaml` on `done`. The wiring lives in `_preamble.md` § CLI-Adapter Dispatch + § Dispatch-Prompt Obligations, where **pane mode is an option inside the `dispatch=`-present arm, never a third branch** (see [pipeline/execution-skills.md](/pipeline/execution-skills.md) § Status-transition ownership and [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution).
+The **skill wiring** consumes it: the dispatch-seam skills branch on the resolved `dispatch=` line and, when present, drive this command family — `fab dispatch start` (block prompt on stdin, no mode flag by default — the worker's mode auto-resolves, and `--pane`/`--headless` are passed only to force one) → a **blocking `fab dispatch wait <change> <stage> --timeout 300`**, run as a *background* command wherever the harness can re-invoke the agent on exit (foreground blocking is the cross-harness fallback) → the mode's reachable states → read `{stage}-result.yaml` on `done`. The wiring is **push, not poll**: the orchestrator spends turns only when the wait returns, and a `running` return (the bound expired) is its peek-on-suspicion moment, which is why `--timeout 300` is a *peek cadence* rather than a poll interval. It lives in `_preamble.md` § CLI-Adapter Dispatch + § Dispatch-Prompt Obligations, where **pane mode is an option inside the `dispatch=`-present arm, never a third branch** (see [pipeline/execution-skills.md](/pipeline/execution-skills.md) § Status-transition ownership and [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution).
 
-Source: the testable core lives in `internal/dispatch` (state read/write, wrapper composition, both state derivations, process signaling, and the tmux pane primitives in `pane_mode.go`); thin cobra wiring lives across `cmd/fab/dispatch.go` (parent) + `dispatch_start.go` / `dispatch_restart.go` / `dispatch_status.go` / `dispatch_logs.go` / `dispatch_kill.go` / `dispatch_clean.go` — mirroring the `internal/pane` + `pane*.go` split precedent. `dispatch_start.go` owns the **shared launch path** (`runDispatchLaunch` + the `promptSource` seam) and the **shared flag surface** (`addLaunchFlags` binding a `launchFlags` struct, plus its `resolveMode` method carrying the `--pane`+`--timeout` guard, the `SelectMode` call, and the `SelectPaneShape` call — the one place `$TMUX` and `$TMUX_PANE` are read) that both `start` and `restart` run; `restart` adds only its cobra command — its own help strings and its `promptFromStateDir` source.
+Source: the testable core lives in `internal/dispatch` (state read/write, wrapper composition, both state derivations, the `Wait` control loop in `wait.go`, process signaling, and the tmux pane primitives in `pane_mode.go`); thin cobra wiring lives across `cmd/fab/dispatch.go` (parent) + `dispatch_start.go` / `dispatch_restart.go` / `dispatch_status.go` / `dispatch_wait.go` / `dispatch_logs.go` / `dispatch_kill.go` / `dispatch_clean.go` — mirroring the `internal/pane` + `pane*.go` split precedent. `dispatch_start.go` owns the **shared launch path** (`runDispatchLaunch` + the `promptSource` seam) and the **shared flag surface** (`addLaunchFlags` binding a `launchFlags` struct, plus its `resolveMode` method carrying the `--pane`+`--timeout` guard, the `SelectMode` call, and the `SelectPaneShape` call — the one place `$TMUX` and `$TMUX_PANE` are read) that both `start` and `restart` run; `restart` adds only its cobra command — its own help strings and its `promptFromStateDir` source.
 
 ## Requirements
 
 ### Requirement: `fab dispatch` command family
 
-The `fab` binary SHALL expose a top-level command group `fab dispatch` with six subcommands — `start`, `restart`, `status`, `logs`, `kill`, `clean` — always-routed through the `fab` router. Its top-level name MUST NOT collide with the `fab-kit` `LifecycleCommands` allowlist (pinned by `TestNoTopLevelCommandCollidesWithRouterAllowlist`; `dispatch` is not in the allowlist). It is a new fab-go command group registered via `dispatchCmd()` in `cmd/fab/main.go`'s `newRootCmd()`. See [distribution/kit-architecture.md](/distribution/kit-architecture.md) for its place in the fab-go command inventory.
+The `fab` binary SHALL expose a top-level command group `fab dispatch` with seven subcommands — `start`, `restart`, `status`, `wait`, `logs`, `kill`, `clean` — always-routed through the `fab` router. Its top-level name MUST NOT collide with the `fab-kit` `LifecycleCommands` allowlist (pinned by `TestNoTopLevelCommandCollidesWithRouterAllowlist`; `dispatch` is not in the allowlist). It is a new fab-go command group registered via `dispatchCmd()` in `cmd/fab/main.go`'s `newRootCmd()`. See [distribution/kit-architecture.md](/distribution/kit-architecture.md) for its place in the fab-go command inventory.
 
 ### Requirement: POSIX-only v1 (the headless launch/signal syscalls)
 
@@ -285,7 +285,7 @@ A `start` **or `restart`** over a **completed** prior attempt (done / failed / o
 
 The launch **mode — and the pane shape — SHALL be re-derived from the current environment**, never inherited from the prior attempt (the record carries no mode or shape discriminator to inherit from), so a restart issued from inside a tmux pane splits that pane's window even when the prior attempt opened a window. A restart **is** a fresh attempt under last-attempt-only, so it SHALL introduce **no new state string, no attempt counter, no attempt history, and no `restarted:` marker** — `status` cannot distinguish a restart from a `start`, by design. The prompt file is the **input**: `restart` reads it and leaves it **byte-identical** (re-writing it with its own bytes would only risk corruption on a partial write), while the *prior attempt's* exit/result/log are still cleared. Refuse-if-running SHALL **precede** the prompt read, and an absent prompt SHALL be a clear error — `no persisted prompt at <path> — nothing to relaunch; run \`fab dispatch start\` with the prompt on stdin` — that launches nothing and leaves any prior record intact.
 
-The poll-loop policy that *spends* a restart (one automatic restart on `orphaned`, peek-on-suspicion, escalation) is **skill-side**, not a CLI concern — see `_preamble.md` § CLI-Adapter Dispatch → *Recovery policy* and [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution.
+The observation policy that *spends* a restart (one automatic restart on `orphaned`, peek-on-suspicion, escalation) is **skill-side**, not a CLI concern — see `_preamble.md` § CLI-Adapter Dispatch → *Recovery policy* and [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution.
 
 #### Scenario: an orphaned attempt is relaunched from the persisted prompt
 
@@ -367,6 +367,39 @@ The `failed (no-result)` state is the crux: a clean exit is necessary but **not 
 - **THEN** the object carries `mode: "pane"` with `pane`/`window` populated and no `pid`/`pgid`/`exit`
 - **AND** GIVEN a headless dispatch, it carries `mode: "headless"` with `pid`/`pgid` as before
 
+### Requirement: `fab dispatch wait <change> <stage> [--timeout <secs>] [--json]`
+
+`wait` SHALL be `status`'s **blocking sibling**: it blocks while the derived state is `running` and returns the moment that state becomes anything else, printing it — and, under `--json`, emitting the same object — **exactly as `status` does**, through the same render path. It SHALL re-derive state on a fixed in-process tick (the named constant `dispatch.TickInterval = 2s`, with no flag and no config field) using the **same loader and the same per-mode derivation** `status` uses (`DeriveState` / `DerivePaneState`, selected by `IsPane()`), so the two verbs **cannot disagree** about state by construction. It SHALL be purely additive — no existing subcommand, record schema, or state string changes — and it SHALL have **no side effects**: nothing is written and no signal is sent.
+
+The per-observation logic lives in `internal/dispatch` as a pure control loop (`Wait(ctx, observe Observer, tick, timeout)`), where `Observer` is a function value the cobra layer fills with the same `observeDispatch` composition `status` runs — so the loop itself performs no I/O and is table-testable in milliseconds. The record is loaded **once** (`{stage}.yaml` is immutable for the lifetime of an attempt); only the derived signals — exit file, result file, pid/pane liveness — are re-read per tick.
+
+- **Already-terminal returns immediately.** The first observation precedes any sleep, so a non-`running` state at entry costs no tick. This makes the verb idempotent and safe to re-arm after a `restart` or re-run after an interruption.
+- **`--timeout <secs>` bounds the block; expiry is not an error.** On expiry `wait` SHALL observe **once more** and print that still-current state — necessarily `running`, since any other would already have ended the wait — exiting **0**. Re-observing at the bound (rather than reporting the last tick's cached state) is what keeps a transition landing in the sub-tick window from going unreported. Absent, or `0`, waits indefinitely.
+- **The state string is the sole discriminator.** A consumer reading `running` knows the bound expired; every other string is a terminal state reached. There is no timeout-specific exit code and no timeout error.
+- **Errors mirror `status`.** An unresolvable change or no dispatch record for the pair exits non-zero with `status`'s own message; only real errors do. An observe error aborts the wait rather than being re-polled, and ctx cancellation returns the last observed state with `ctx.Err()`, so a cancelled wait stays distinguishable from a timeout.
+- **`wait --timeout` bounds the OBSERVER, never the worker** — unlike `start`/`restart`'s `--timeout`, which is a POSIX `timeout` inside the headless wrapper that kills the dispatched command.
+
+Both modes are observed identically: a pane dispatch's state comes from the same result-presence-plus-pane-liveness rule, so the wiring is byte-identical across modes and `failed`/`failed (no-result)` are simply never returned there. The observation *policy* built on `wait` — the `--timeout 300` peek cadence, the single restart budget, escalation — is **skill-side**, not a CLI concern: see `_preamble.md` § CLI-Adapter Dispatch → *Recovery policy*.
+
+#### Scenario: a blocking wait wakes on the transition
+
+- **GIVEN** a `running` dispatch for `abcd/apply`
+- **WHEN** `fab dispatch wait abcd apply` is blocking and the worker writes its exit + result files
+- **THEN** the command returns within a tick, prints `done`, and exits 0
+
+#### Scenario: timeout expiry reports `running` and succeeds
+
+- **GIVEN** a dispatch that stays `running`
+- **WHEN** `fab dispatch wait <change> <stage> --timeout 1` runs
+- **THEN** it returns at the bound, prints `running`, and exits 0
+- **AND** GIVEN a dispatch already `done` (or `failed` / `failed (no-result)` / `orphaned`), it prints that state and exits 0 without consuming a tick
+
+#### Scenario: a worker's death surfaces within a tick
+
+- **GIVEN** a headless dispatch whose worker dies without writing `{stage}.exit`
+- **WHEN** `fab dispatch wait` is blocking on it
+- **THEN** the next liveness probe derives `orphaned` and the command returns — the same state `status` would report at that instant
+
 ### Requirement: `fab dispatch logs <change> <stage> [--tail N]`
 
 `logs` SHALL print `.fab-dispatch/{id}/{stage}.log`; `--tail N` prints the last N lines (implemented in Go via the `Tail` helper, no external `tail`). A missing log SHALL produce a clear "no dispatch log" message rather than erroring opaquely.
@@ -439,6 +472,26 @@ Cleanup SHALL happen at exactly **two deterministic moments** and never on a tim
 
 ## Design Decisions
 
+### Observation is a blocking `wait` over an internal derivation tick, not an fsnotify watch
+
+**Decision**: `fab dispatch wait` blocks by re-deriving state on a fixed ~2s in-process tick (`dispatch.TickInterval`) over the existing loader plus `DeriveState`/`DerivePaneState`, with the loop expressed as a pure control structure (`Wait(ctx, observe, tick, timeout)`) whose `Observer` the cobra layer fills with `status`'s own composition.
+
+**Why**: The cost being eliminated is **inference turns** — an orchestrator waking every 30s to run `fab dispatch status` burns a full turn per poll, so a 90-minute stage costs ~180 turns observing that nothing happened — not filesystem syscalls, and a 2s stat-plus-liveness probe inside one Go process is free. Reusing the derivation `status` already owns is what makes the two verbs structurally incapable of disagreeing, and injecting the observer keeps the loop table-testable in milliseconds without launching a process or a tmux server. The 2s value also buys orphan latency: a dead worker surfaces in ~2s instead of at the next poll, so the recovery policy's single automatic restart fires almost immediately.
+
+**Rejected**: An fsnotify watch on `{stage}-result.yaml` — a watcher can see a worker *finish* but never see one *die*, and `orphaned` is derived from pid/pane liveness, so a periodic probe would still be needed alongside it: a new dependency that removes nothing. A configurable tick (the user-visible knob is `--timeout`, which bounds the block; the tick is an implementation detail of the blocking contract, not a tuning surface). Returning the last tick's cached state at the bound (a transition in the sub-tick window would go unreported, letting `wait` print `running` while `status` printed `done` at the same instant).
+
+*Introduced by*: 260806-mkfj-dispatch-wait-event-driven
+
+### Timeout expiry exits 0, discriminated by the printed state string
+
+**Decision**: On `--timeout` expiry `wait` prints the still-current state (`running`) and exits 0; non-zero exits stay reserved for the same real errors `status` raises.
+
+**Why**: The consuming skill reads stdout either way and the state string already carries the fact, so a second channel would be redundant. It also keeps the common "timed out, go peek" path from looking like a failure to any shell-level `set -e` wrapper — and that path is the *normal* one, since the wiring's `--timeout 300` exists precisely to produce periodic peek moments.
+
+**Rejected**: A dedicated timeout exit code such as POSIX `timeout`'s `124` — in this family `124` already means "the **worker** was killed by its own `start --timeout` wrapper", so reusing it for the **observer**'s bound would invert the meaning of the one exit code the family already assigns. A timeout error return (turns an expected outcome into an exceptional one).
+
+*Introduced by*: 260806-mkfj-dispatch-wait-event-driven
+
 ### `restart` is a prompt-source seam on `start`'s launch path, not a second command implementation
 
 **Decision**: `fab dispatch restart` shares `start`'s entire launch path (`runDispatchLaunch`) and differs only through a `promptSource` function — `promptFromStdin` vs `promptFromStateDir`. The source also reports whether the shared path should persist the bytes: `start` does, `restart` does not (the file it read *is* the input).
@@ -467,7 +520,7 @@ Cleanup SHALL happen at exactly **two deterministic moments** and never on a tim
 
 ### Parallel family, not a headless mode on `fab pane`
 **Decision**: `fab dispatch` is a command family independent of `fab pane` / `fab operator`; the `fab pane` command surface and the operator's monitored-set machinery carry no dispatch concerns. Pane-mode dispatch consumes `internal/pane`'s tmux helpers (`RunCmd`/`WithServer`/`StderrError`) as a library and borrows tmux as a launch surface, without joining the operator's monitored set or adding a headless mode to `fab pane`.
-**Why**: Pane *observation* (tmux capture, operator ownership) and *stage dispatch* (a state dir, a result-file contract, a poll loop) are different models with different owners; conflating the command surfaces would burden the interactive-operator path with pipeline concerns. Sharing the tmux argv builder at the library level gets the reuse without the conflation — one tmux invocation convention in the binary, two independent command families.
+**Why**: Pane *observation* (tmux capture, operator ownership) and *stage dispatch* (a state dir, a result-file contract, an observation loop over derived state) are different models with different owners; conflating the command surfaces would burden the interactive-operator path with pipeline concerns. Sharing the tmux argv builder at the library level gets the reuse without the conflation — one tmux invocation convention in the binary, two independent command families.
 **Rejected**: Extending `fab pane` with a headless mode (model conflation — the inverse of the one `fab dispatch` was created to avoid). Re-implementing tmux invocation inside `internal/dispatch` (a second argv builder and a second stderr-enrichment convention). Automatic GC of state dirs on a timer (cleanup is exactly two deterministic moments).
 *Introduced by*: 260702-6sgj-fab-dispatch-command
 

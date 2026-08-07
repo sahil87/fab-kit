@@ -240,6 +240,79 @@ func TestDispatchStatus_PaneRunning_Integration(t *testing.T) {
 	}
 }
 
+// TestDispatchStatus_GoldenOutput pins `fab dispatch status`'s stdout as EXACT
+// BYTES, for both modes and both output forms.
+//
+// Every other assertion in this file TrimSpaces the text output or unmarshals the
+// JSON before comparing, which is blind to precisely the things a shared-render
+// refactor can silently change: a dropped or doubled trailing newline, a different
+// JSON indent, a reordered key set. `wait` now renders through this same helper,
+// so this is the test that makes "status's output is byte-identical" a checkable
+// claim rather than an assertion in a plan.
+func TestDispatchStatus_GoldenOutput(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "claude")
+	server := "fabtest-nosrv-golden"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+
+	// Headless, done: a fixed pid so the golden JSON is stable across runs. The pid
+	// is dead, but an exit file present makes liveness irrelevant to the derivation.
+	dir := dispatch.DirFor(repoRoot, id)
+	mustMkdir(t, dir)
+	if err := dispatch.Save(dir, "apply", &dispatch.Dispatch{
+		PID: 4242, PGID: 4242, SpawnCmd: "x", StartedAt: "t",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, dispatch.ExitPath(dir, "apply"), "0\n")
+	mustWrite(t, dispatch.ResultPath(dir, "apply"), "ok: true\n")
+
+	// Pane, done: an unreachable socket makes the pane dead, and a present result
+	// still wins — so this is a `done` pane record with no exit channel at all.
+	paneDir := seedPaneDispatch(t, repoRoot, id, "review", "%99", server)
+	mustWrite(t, dispatch.ResultPath(paneDir, "review"), "stage: review\nstatus: success\n")
+
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"headless text", []string{"abcd", "apply"}, "done\n"},
+		{"pane text", []string{"abcd", "review"}, "done\n"},
+		{"headless json", []string{"abcd", "apply", "--json"}, `{
+  "change": "abcd",
+  "stage": "apply",
+  "state": "done",
+  "mode": "headless",
+  "pid": 4242,
+  "pgid": 4242,
+  "exit": 0
+}
+`},
+		{"pane json", []string{"abcd", "review", "--json"}, `{
+  "change": "abcd",
+  "stage": "review",
+  "state": "done",
+  "mode": "pane",
+  "pane": "%99",
+  "window": "fab-abcd-review"
+}
+`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Deliberately NO TrimSpace and no unmarshal-then-compare: the bytes ARE
+			// the contract.
+			out, err := runStatus(t, tc.args...)
+			if err != nil {
+				t.Fatalf("status: %v", err)
+			}
+			if out != tc.want {
+				t.Errorf("stdout mismatch\n got: %q\nwant: %q", out, tc.want)
+			}
+		})
+	}
+}
+
 func TestDispatchStatus_NoDispatchErrors(t *testing.T) {
 	setupDispatchRepo(t, "sh -c 'exit 0'")
 	_, err := runStatus(t, "abcd", "apply")

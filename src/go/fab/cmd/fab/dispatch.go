@@ -10,31 +10,36 @@ import (
 )
 
 // dispatchCmd is the parent of the stage-worker process-manager command family:
-// `fab dispatch <start|restart|status|logs|kill|clean> [args...]`. It is the CLI
-// adapter for cross-harness stage dispatch, in two launch modes — a detached
+// `fab dispatch <start|restart|status|wait|logs|kill|clean> [args...]`. It is the
+// CLI adapter for cross-harness stage dispatch, in two launch modes — a detached
 // headless process or an interactive tmux window — resolved per invocation by
 // dispatch.SelectMode. `restart` is the recovery verb: it relaunches a non-running
 // dispatch from the prompt `start` persisted, sharing `start`'s entire launch path.
-// The family is parallel to, and independent of, `fab pane` / `fab operator` (which
-// stay the operator's interactive path). See docs/specs/harness-adapters.md for the
-// cross-adapter contract.
+// `wait` is `status`'s blocking sibling: it re-derives the same state on an
+// internal tick so an orchestrator can be woken by a state change instead of
+// polling for one. The family is parallel to, and independent of, `fab pane` /
+// `fab operator` (which stay the operator's interactive path). See
+// docs/specs/harness-adapters.md for the cross-adapter contract.
 func dispatchCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dispatch",
 		Short: "Process manager for CLI-dispatched pipeline stages (headless or tmux-window worker)",
-		Long: "Process manager for CLI-dispatched stage workers: start/restart/status/logs/kill/clean.\n" +
+		Long: "Process manager for CLI-dispatched stage workers:\n" +
+			"start/restart/status/wait/logs/kill/clean.\n" +
 			"`start` resolves its launch mode per invocation — a detached headless process\n" +
 			"(tmux-independent) or an interactive tmux window — defaulting to auto: a window\n" +
 			"inside tmux, headless outside. `restart` relaunches a non-running dispatch from\n" +
-			"the persisted prompt, re-deriving the mode from the current environment. Tracks\n" +
-			"the worker under .fab-dispatch/{id}/ and exposes a byte-stable poll surface. The\n" +
-			"headless launch is POSIX-only (v1).",
+			"the persisted prompt, re-deriving the mode from the current environment. `status`\n" +
+			"is the one-shot probe; `wait` blocks until the state leaves `running` so a poll\n" +
+			"loop becomes a single wake-up. Tracks the worker under .fab-dispatch/{id}/ and\n" +
+			"exposes a byte-stable poll surface. The headless launch is POSIX-only (v1).",
 	}
 
 	cmd.AddCommand(
 		dispatchStartCmd(),
 		dispatchRestartCmd(),
 		dispatchStatusCmd(),
+		dispatchWaitCmd(),
 		dispatchLogsCmd(),
 		dispatchKillCmd(),
 		dispatchCleanCmd(),
