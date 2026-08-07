@@ -22,8 +22,9 @@
 // symbol is sourced from that symbol, never copied — the built-in providers via
 // agent.ResolveProvider over agent.ProviderNames (so the provider SET is derived
 // too, not a hand-maintained name list), the per-tier default profiles via
-// agent.DefaultTier over agent.TierNames, and the pipeline stage names via
-// agent.StageNames. The dynamic segments (providers, agent.tiers, stage_hooks)
+// agent.DefaultTier over agent.TierNames, the pipeline stage names via
+// agent.StageNames, and the pane-worker column width via
+// config.DefaultDispatchColumnWidth. The dynamic segments (providers, agent.tiers, stage_hooks)
 // interpolate those same symbols when the row is built, so the reference text
 // carries no literal copy of any value. The providers SEGMENT still names the
 // three built-ins one by one (via agent.DefaultSessionCommand and the
@@ -43,12 +44,14 @@
 // downstream resolver (Change 2) consumes; distinguishing []string{} from nil
 // would leak an implementation detail with no cascade meaning. A non-nil Default
 // therefore always denotes a real built-in value (the three built-in providers'
-// command grammars, the six tier profiles, dispatch.watchable's false) — which is
-// why no provider's Default carries a model/effort fill: fab-kit ships none.
-// dispatch.watchable is the convention's boundary case: for a BOOL there is no
-// "absent" distinguishable from false, so false is a real built-in value rather
-// than the typed-empty placeholder the convention forbids. See
-// docs/specs/config.md § Default semantics.
+// command grammars, the six tier profiles, dispatch.watchable's false,
+// dispatch.column_width's 35) — which is why no provider's Default carries a
+// model/effort fill: fab-kit ships none. The two dispatch rows are the convention's
+// boundary cases: for a BOOL there is no "absent" distinguishable from false, and
+// for the width an absent yaml int is indistinguishable from 0 (which the accessor
+// therefore reads as unset), so each carries its real built-in value rather than
+// the typed-empty placeholder the convention forbids. See docs/specs/config.md
+// § Default semantics.
 //
 // Render() output is BYTE-STABLE for a given binary version: the field table is
 // fixed and ordered, the interpolated tier/stage lists come from the
@@ -61,9 +64,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configscope"
 )
 
@@ -464,6 +469,21 @@ checklist:
 			Segment:     dispatchSegment(),
 		},
 		{
+			Key: "dispatch.column_width",
+			// Like watchable, a real built-in value rather than "no default": the
+			// cascade bottoms out at 35, and an absent yaml int is indistinguishable
+			// from 0, so the accessor treats out-of-range as unset. Sourced from the
+			// canonical config symbol, never a literal copy.
+			Default:     config.DefaultDispatchColumnWidth,
+			Description: "Pane-worker column width, in percent of the window, applied by the column-carving `-h` split that opens a pane-mode stage worker beside its dispatching agent (`split-window -h -l <n>%`). Only that first split is sized — later workers stack inside the column with unsized `-v` splits. Out-of-range values (and an absent key) resolve to the default. Scope both — settable once machine-wide. Default 35.",
+			Scope:       ScopeBoth,
+			Advertise:   true,
+			// Rendered inline in the dispatch.watchable Segment (dispatch is one YAML
+			// block, so a second `# dispatch:` block would collide if a reader
+			// uncommented both); this row carries no Segment of its own. Same pattern
+			// as project.description / project.linear_workspace.
+		},
+		{
 			Key:         "stage_hooks",
 			Default:     nil,
 			Description: "Optional per-stage pre/post shell commands honored by fab status start/finish. Each runs as sh -c from the repo root; a failing pre hook blocks start. Not seeded by the scaffold — add by hand.",
@@ -618,9 +638,16 @@ func agentTiersSegment(tiers []tierRow) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// dispatchSegment renders the dispatch.watchable block — the watchable-pane
-// opt-in. Prose only (no constant to interpolate): the default is the Go zero
-// value, so there is no literal copy to drift.
+// dispatchSegment renders the whole `dispatch:` block — BOTH keys under it, since
+// `dispatch` is one YAML block and two separately-uncommentable `# dispatch:`
+// parents would collide into a duplicate key. dispatch.watchable is the
+// watchable-pane opt-in; dispatch.column_width sizes the worker column. Only the
+// latter has a constant to interpolate (watchable's default is the Go zero value,
+// so there is no literal copy to drift); the width comes from
+// config.DefaultDispatchColumnWidth.
+//
+// The dispatch.column_width registry row therefore carries no Segment of its own —
+// the project.name / project.description precedent for multiple keys in one block.
 func dispatchSegment() string {
 	return "# dispatch.watchable — opt in to WATCHABLE-PANE dispatch for providers that\n" +
 		"# carry only a session_command (e.g. the built-in claude). When true, TMUX\n" +
@@ -634,8 +661,20 @@ func dispatchSegment() string {
 		"# claude's dispatch_command, which would also flip every OUT-of-tmux dispatch\n" +
 		"# to headless CLI. Scope `both`, so it is settable once machine-wide in\n" +
 		"# ~/.fab-kit/config.yaml. Default false (byte-stable current behavior).\n" +
+		"#\n" +
+		"# dispatch.column_width — width, in PERCENT of the window, of the pane-worker\n" +
+		"# column a pane-mode stage worker is opened into. The first worker CARVES the\n" +
+		"# column out of the dispatching agent's pane (`tmux split-window -h -l <n>%`),\n" +
+		"# so the agent you are watching keeps the other " + strconv.Itoa(100-config.DefaultDispatchColumnWidth) + "%; later workers STACK\n" +
+		"# inside that column with unsized `-v` splits and the left/right separator is\n" +
+		"# never touched again. An absent key — or a value outside 1..99 — resolves to\n" +
+		"# the default (an absent yaml int is indistinguishable from 0, and 0/100 are\n" +
+		"# degenerate widths). A tmux too old for `-l <n>%` (pre-3.1) degrades to an\n" +
+		"# unsized split with a warning rather than failing the dispatch. Scope `both`,\n" +
+		"# so it is settable once machine-wide in ~/.fab-kit/config.yaml.\n" +
 		"# dispatch:\n" +
-		"#   watchable: false"
+		"#   watchable: false\n" +
+		"#   column_width: " + strconv.Itoa(config.DefaultDispatchColumnWidth)
 }
 
 // stageHooksSegment renders the stage_hooks block. The valid stage-keys list is

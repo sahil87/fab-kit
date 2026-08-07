@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -168,60 +169,398 @@ func TestSelectPaneShape(t *testing.T) {
 	}
 }
 
-// TestLastDispatchPane pins the sibling-probe row grammar: the LAST dispatch-titled
-// pane wins (that is the bottom of the stacked column, so the next split lands
-// under the newest worker), and non-dispatch panes — the dispatcher's own pane, a
-// pane the user split by hand, an untitled pane — are never selected.
-func TestLastDispatchPane(t *testing.T) {
+// TestLastRecordedPane pins the sibling probe's row grammar AND its intersection
+// rule: only a pane the dispatch RECORDS claim is a worker, the LAST such pane wins
+// (that is the bottom of the stacked column, so the next split lands under the
+// newest worker), and every other pane in the window — the dispatcher's own, one the
+// user split by hand — is never selected. Nothing here reads a pane TITLE, which is
+// the whole point: a harness inside the worker rewrites the title within seconds.
+func TestLastRecordedPane(t *testing.T) {
+	recorded := map[string]bool{"%2": true, "%3": true}
 	tests := []struct {
-		name string
-		out  string
-		want string
+		name     string
+		out      string
+		recorded map[string]bool
+		want     string
 	}{
-		{"no panes at all", "", ""},
-		{"only the dispatcher's own pane", "%1 my-shell\n", ""},
-		{"one worker", "%1 my-shell\n%2 fab-abcd-apply\n", "%2"},
-		{"the LAST worker wins", "%1 sh\n%2 fab-abcd-apply\n%3 fab-abcd-review\n", "%3"},
-		{"a hand-split pane between workers is skipped",
-			"%1 sh\n%2 fab-abcd-apply\n%3 vim\n", "%2"},
-		{"an untitled row is skipped", "%1\n%2 fab-abcd-apply\n", "%2"},
-		{"a title merely CONTAINING the prefix does not match",
-			"%1 my-fab-abcd-apply\n", ""},
-		{"trailing blank lines are ignored", "%1 fab-abcd-apply\n\n", "%1"},
-		{"multi-word titles keep matching on the prefix",
-			"%1 fab-abcd-apply extra words\n", "%1"},
+		{"no panes at all", "", recorded, ""},
+		{"only the dispatcher's own pane", "%1\n", recorded, ""},
+		{"one recorded worker", "%1\n%2\n", recorded, "%2"},
+		{"the LAST recorded worker wins", "%1\n%2\n%3\n", recorded, "%3"},
+		{"a hand-split pane after the workers is skipped", "%1\n%2\n%9\n", recorded, "%2"},
+		{"a hand-split pane BETWEEN workers does not become the target",
+			"%1\n%2\n%9\n%3\n", recorded, "%3"},
+		{"no records at all ⇒ first-worker case", "%1\n%2\n%3\n", map[string]bool{}, ""},
+		{"a recorded pane absent from THIS window never matches",
+			"%1\n%7\n", recorded, ""},
+		{"blank and padded rows are ignored", "%1\n\n  %2  \n\n", recorded, "%2"},
+		{"a pane id merely CONTAINING a recorded id does not match", "%20\n", recorded, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := lastDispatchPane(tt.out); got != tt.want {
-				t.Errorf("lastDispatchPane(%q) = %q, want %q", tt.out, got, tt.want)
+			if got := lastRecordedPane(tt.out, tt.recorded); got != tt.want {
+				t.Errorf("lastRecordedPane(%q, %v) = %q, want %q", tt.out, tt.recorded, got, tt.want)
 			}
 		})
 	}
 }
 
-// TestSplitDirectionsAreDistinct pins the stacked-right-column rule's two
-// directions as the tmux flags they must be: the FIRST worker carves the column to
-// the right of the dispatcher, later workers stack BELOW the previous worker. Swap
-// them and every dispatch would shrink the dispatcher's own pane instead.
-func TestSplitDirectionsAreDistinct(t *testing.T) {
+// TestRecordedPanes covers the record-enumeration half: every PANE dispatch's pane
+// id across ALL of the checkout's record dirs is collected, headless records
+// contribute nothing, result files are not mistaken for records, and an ABSENT tree
+// is the benign first-dispatch case (empty set, NIL error — nothing failed, there is
+// simply nothing recorded yet).
+func TestRecordedPanes(t *testing.T) {
+	repoRoot := t.TempDir()
+
+	// No .fab-dispatch/ at all.
+	got, err := recordedPanes(repoRoot, "")
+	if err != nil {
+		t.Errorf("an absent dispatch tree is not a failure, got error %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("an absent dispatch tree must yield an empty set, got %v", got)
+	}
+
+	// Two changes' dirs: one pane + one headless record each, plus a result file
+	// that also ends in .yaml and must NOT be read as a record.
+	mustSave := func(id, stage string, rec *Dispatch) {
+		t.Helper()
+		if err := Save(DirFor(repoRoot, id), stage, rec); err != nil {
+			t.Fatalf("Save %s/%s: %v", id, stage, err)
+		}
+	}
+	mustSave("abcd", "apply", &Dispatch{Pane: "%2", Window: WindowName("abcd", "apply")})
+	mustSave("abcd", "review", &Dispatch{PID: 1234, PGID: 1234})
+	mustSave("efgh", "hydrate", &Dispatch{Pane: "%5", Window: WindowName("efgh", "hydrate")})
+	if err := os.WriteFile(ResultPath(DirFor(repoRoot, "abcd"), "apply"),
+		[]byte("stage: apply\nstatus: success\npane: %99\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A stray file in the tree must not derail the walk.
+	if err := os.WriteFile(filepath.Join(repoRoot, DirName, "not-a-dir"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err = recordedPanes(repoRoot, "")
+	if err != nil {
+		t.Fatalf("a well-formed tree must read cleanly, got %v", err)
+	}
+	want := map[string]bool{"%2": true, "%5": true}
+	if len(got) != len(want) {
+		t.Fatalf("recordedPanes = %v, want %v", got, want)
+	}
+	for id := range want {
+		if !got[id] {
+			t.Errorf("recordedPanes = %v, missing the recorded pane %q", got, id)
+		}
+	}
+	if got["%99"] {
+		t.Error("a {stage}-result.yaml must not be read as a dispatch record")
+	}
+}
+
+// TestRecordedPanesServerFilter pins the per-SOCKET scoping. A tmux pane id is
+// server-global, not GLOBALLY global: the `%3` recorded by a `--server work`
+// dispatch names a different pane from the `%3` in a default-socket window, so an
+// unfiltered set would let a foreign record false-match a live local pane and stack
+// a worker onto something unrelated. Equality against the record's Server is the
+// exact test in both directions, with the default socket recorded as "".
+func TestRecordedPanesServerFilter(t *testing.T) {
+	repoRoot := t.TempDir()
+	mustSave := func(id, stage string, rec *Dispatch) {
+		t.Helper()
+		if err := Save(DirFor(repoRoot, id), stage, rec); err != nil {
+			t.Fatalf("Save %s/%s: %v", id, stage, err)
+		}
+	}
+	mustSave("abcd", "apply", &Dispatch{Pane: "%2"})                    // default socket
+	mustSave("abcd", "review", &Dispatch{Pane: "%3", Server: "work"})   // another socket
+	mustSave("efgh", "hydrate", &Dispatch{Pane: "%4", Server: "other"}) // a third
+
+	tests := []struct {
+		name   string
+		server string
+		want   map[string]bool
+	}{
+		{"the default socket sees only Server:\"\" records", "", map[string]bool{"%2": true}},
+		{"a named socket sees only its own records", "work", map[string]bool{"%3": true}},
+		{"a socket with no records sees nothing", "nosuch", map[string]bool{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := recordedPanes(repoRoot, tt.server)
+			if err != nil {
+				t.Fatalf("recordedPanes(%q) errored: %v", tt.server, err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("recordedPanes(%q) = %v, want %v", tt.server, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestRecordedPanesReadFailure: a REAL read failure (a corrupt record, an unreadable
+// dir) is reported rather than swallowed, so launchPane's warn can tell the user the
+// placement probe was degraded. Two properties are load-bearing together:
+//
+//   - the error is non-nil (the silent-degrade defect this closes), and
+//   - the PARTIAL set is still returned, since a record that could not be read can
+//     only fail to find a sibling, never invent one — discarding the readable records
+//     would carve a redundant column for no gain.
+func TestRecordedPanesReadFailure(t *testing.T) {
+	t.Run("corrupt record", func(t *testing.T) {
+		repoRoot := t.TempDir()
+		if err := Save(DirFor(repoRoot, "abcd"), "apply", &Dispatch{Pane: "%2"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(YAMLPath(DirFor(repoRoot, "abcd"), "review"),
+			[]byte("pane: [unterminated\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		got, err := recordedPanes(repoRoot, "")
+		if err == nil {
+			t.Fatal("a corrupt record must surface an error, not degrade silently")
+		}
+		if !strings.Contains(err.Error(), "review.yaml") {
+			t.Errorf("error %q must name the record that failed", err)
+		}
+		if !got["%2"] {
+			t.Errorf("the readable record's pane must survive the partial failure, got %v", got)
+		}
+	})
+
+	t.Run("unreadable dispatch dir", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("root ignores directory permissions")
+		}
+		repoRoot := t.TempDir()
+		if err := Save(DirFor(repoRoot, "abcd"), "apply", &Dispatch{Pane: "%2"}); err != nil {
+			t.Fatal(err)
+		}
+		locked := DirFor(repoRoot, "efgh")
+		if err := os.MkdirAll(locked, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(locked, 0o000); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+
+		got, err := recordedPanes(repoRoot, "")
+		if err == nil {
+			t.Fatal("an unreadable dispatch dir must surface an error, not degrade silently")
+		}
+		if !got["%2"] {
+			t.Errorf("the readable record's pane must survive the partial failure, got %v", got)
+		}
+	})
+
+	t.Run("unreadable tree root", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("root ignores directory permissions")
+		}
+		repoRoot := t.TempDir()
+		root := filepath.Join(repoRoot, DirName)
+		if err := os.MkdirAll(root, 0o000); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(root, 0o755) })
+
+		if _, err := recordedPanes(repoRoot, ""); err == nil {
+			t.Fatal("an unreadable tree root must surface an error — only an ABSENT tree is benign")
+		}
+	})
+}
+
+// TestSiblingDispatchPaneRecordError proves the record-read error reaches the CALLER:
+// SiblingDispatchPane joins it into its own return so SplitTarget hands it to
+// launchPane's warn. The placement answer is unaffected — the readable record still
+// wins the intersection — which is exactly the degrade-don't-fail contract.
+func TestSiblingDispatchPaneRecordError(t *testing.T) {
+	repoRoot := t.TempDir()
+	if err := Save(DirFor(repoRoot, "abcd"), "apply", &Dispatch{Pane: "%2"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(YAMLPath(DirFor(repoRoot, "abcd"), "review"),
+		[]byte("pane: [unterminated\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stubTmux(t, `case "$1" in list-panes) printf '%%1\n%%2\n' ;; esac
+exit 0`)
+
+	sibling, err := SiblingDispatchPane("", "%1", repoRoot)
+	if err == nil {
+		t.Fatal("a record-read failure must reach the caller's warn path, not vanish")
+	}
+	if sibling != "%2" {
+		t.Errorf("sibling = %q, want the readable record's pane %q (placement degrades, it does not fail)", sibling, "%2")
+	}
+}
+
+// TestSplitPlacement pins the column invariant as a pure decision: the first worker
+// (no sibling) CARVES a sized column off the dispatcher, every later worker STACKS
+// under the newest sibling unsized. A degraded probe reaches the same first-worker
+// branch, so a fallback column is sized too — a fallback that halved the dispatcher
+// would reintroduce the squeeze the width exists to prevent.
+func TestSplitPlacement(t *testing.T) {
+	tests := []struct {
+		name        string
+		sibling     string
+		dispatcher  string
+		columnWidth int
+		want        SplitPlacement
+	}{
+		{"no sibling ⇒ carve a sized column off the dispatcher", "", "%1", 35,
+			SplitPlacement{Target: "%1", Direction: SplitRight, SizePercent: 35}},
+		{"probe failed (empty sibling) ⇒ the same sized carve", "", "%1", 20,
+			SplitPlacement{Target: "%1", Direction: SplitRight, SizePercent: 20}},
+		{"a sibling ⇒ stack under it, unsized", "%2", "%1", 35,
+			SplitPlacement{Target: "%2", Direction: SplitBelow, SizePercent: 0}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := splitPlacement(tt.sibling, tt.dispatcher, tt.columnWidth); got != tt.want {
+				t.Errorf("splitPlacement(%q, %q, %d) = %+v, want %+v",
+					tt.sibling, tt.dispatcher, tt.columnWidth, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestSplitArgs pins the sized-split argv composition: `-l <n>%` appears only when
+// the placement carries a size (i.e. only for a column-carving split), always as a
+// PERCENTAGE so the column scales with the window, and the pane-id format request
+// is present in both shapes so no follow-up lookup can race a fast-exiting worker.
+func TestSplitArgs(t *testing.T) {
+	carve := SplitArgs(SplitPlacement{Target: "%1", Direction: SplitRight, SizePercent: 35},
+		"/repo", "claude 'go'")
+	wantCarve := []string{"split-window", "-h", "-t", "%1", "-l", "35%",
+		"-P", "-F", "#{pane_id}", "-c", "/repo", "claude 'go'"}
+	if !reflect.DeepEqual(carve, wantCarve) {
+		t.Errorf("carving argv = %q, want %q", carve, wantCarve)
+	}
+
+	stack := SplitArgs(SplitPlacement{Target: "%2", Direction: SplitBelow},
+		"/repo", "claude 'go'")
+	wantStack := []string{"split-window", "-v", "-t", "%2",
+		"-P", "-F", "#{pane_id}", "-c", "/repo", "claude 'go'"}
+	if !reflect.DeepEqual(stack, wantStack) {
+		t.Errorf("stacking argv = %q, want %q", stack, wantStack)
+	}
+
+	// A zero/absent size is the UNSIZED signal in either direction — tmux's own even
+	// split — never a literal `-l 0%`, which tmux would reject.
+	unsizedCarve := SplitArgs(SplitPlacement{Target: "%1", Direction: SplitRight}, "/repo", "cmd")
+	for _, arg := range unsizedCarve {
+		if arg == SizeFlag {
+			t.Errorf("a zero-size placement must emit no %s argument, got %q", SizeFlag, unsizedCarve)
+		}
+	}
+}
+
+// stubTmux writes a fake `tmux` executable (a POSIX sh body) into a temp dir
+// prepended to $PATH, so the pane creators' argv handling can be exercised without a
+// tmux server — the stubBatchNewBinaries precedent in cmd/fab.
+func stubTmux(t *testing.T, body string) {
+	t.Helper()
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "tmux"), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+// TestOpenSplitPane_RejectedSizeRetriesUnsized covers the size-degradation branch:
+// a tmux that refuses `-l <n>%` — every tmux before 3.1, which had no percentage
+// size — must not fail a dispatch that would otherwise launch. The split is retried
+// with the size dropped and the refusal comes back as a WARNING, not an error.
+//
+// The refusal is stubbed rather than provoked: modern tmux CLAMPS an extreme
+// percentage instead of rejecting it, so the only real-world trigger is a tmux too
+// old to run this suite's other pane tests at all.
+func TestOpenSplitPane_RejectedSizeRetriesUnsized(t *testing.T) {
+	// Refuses any argv containing -l; otherwise prints a pane id (split-window) or
+	// succeeds silently (select-pane). The argv of every call is appended to $ARGLOG.
+	argLog := filepath.Join(t.TempDir(), "argv.log")
+	t.Setenv("ARGLOG", argLog)
+	stubTmux(t, `echo "$@" >> "$ARGLOG"
+for a in "$@"; do
+  if [ "$a" = "-l" ]; then echo "usage: split-window" >&2; exit 1; fi
+done
+case "$1" in split-window) echo "%42" ;; esac
+exit 0`)
+
+	place := SplitPlacement{Target: "%1", Direction: SplitRight, SizePercent: 35}
+	paneID, warnings, err := OpenSplitPane("", place, "fab-abcd-apply", "/repo", "cmd")
+	if err != nil {
+		t.Fatalf("a rejected size must degrade, not fail the dispatch: %v", err)
+	}
+	if paneID != "%42" {
+		t.Errorf("pane id = %q, want the retried split's %q", paneID, "%42")
+	}
+	if len(warnings) != 1 {
+		t.Fatalf("want exactly one warning (the rejected size), got %d: %v", len(warnings), warnings)
+	}
+	for _, want := range []string{SizeFlag, "35%", "retrying unsized"} {
+		if !strings.Contains(warnings[0].Error(), want) {
+			t.Errorf("warning %q must name %q so the fallback is explainable from output", warnings[0], want)
+		}
+	}
+
+	log, err := os.ReadFile(argLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := strings.Split(strings.TrimSpace(string(log)), "\n")
+	if len(calls) != 3 {
+		t.Fatalf("want 3 tmux calls (sized split, unsized retry, select-pane), got %d: %v", len(calls), calls)
+	}
+	if !strings.Contains(calls[0], "-l 35%") {
+		t.Errorf("first call = %q, want the SIZED split attempted first", calls[0])
+	}
+	if strings.Contains(calls[1], "-l") {
+		t.Errorf("retry = %q, want the size dropped", calls[1])
+	}
+	if !strings.Contains(calls[2], "select-pane") || !strings.Contains(calls[2], "fab-abcd-apply") {
+		t.Errorf("third call = %q, want the identity title still set on the retried pane", calls[2])
+	}
+}
+
+// TestOpenSplitPane_UnsizedSplitIsNotRetried: a stacking split carries no size, so a
+// tmux failure there is a genuine placement failure — reported as an error with no
+// second attempt (a blind retry would double-launch a worker).
+func TestOpenSplitPane_UnsizedSplitIsNotRetried(t *testing.T) {
+	argLog := filepath.Join(t.TempDir(), "argv.log")
+	t.Setenv("ARGLOG", argLog)
+	stubTmux(t, `echo "$@" >> "$ARGLOG"
+echo "can't find pane" >&2
+exit 1`)
+
+	_, _, err := OpenSplitPane("", SplitPlacement{Target: "%2", Direction: SplitBelow}, "fab-abcd-apply", "/repo", "cmd")
+	if err == nil {
+		t.Fatal("a failing unsized split must be an error, not a silent degrade")
+	}
+	log, _ := os.ReadFile(argLog)
+	if n := len(strings.Split(strings.TrimSpace(string(log)), "\n")); n != 1 {
+		t.Errorf("tmux was called %d times, want exactly 1 (no retry without a size to drop)", n)
+	}
+}
+
+// TestSplitFlagsAreDistinct pins the stacked-column rule's flags as the tmux flags
+// they must be: the FIRST worker carves the column to the right of the dispatcher,
+// later workers stack BELOW the previous worker, and the size rides tmux's `-l`.
+// Swap the directions and every dispatch would shrink the dispatcher's own pane.
+func TestSplitFlagsAreDistinct(t *testing.T) {
 	if SplitRight != "-h" {
 		t.Errorf("SplitRight = %q, want tmux's horizontal split flag -h", SplitRight)
 	}
 	if SplitBelow != "-v" {
 		t.Errorf("SplitBelow = %q, want tmux's vertical split flag -v", SplitBelow)
 	}
-}
-
-// TestDispatchTitlePrefixMatchesWindowName pins that the sibling probe's filter and
-// the identity composer cannot drift: the prefix the probe matches on MUST be the
-// prefix WindowName actually emits, or a second dispatch would never find the first
-// one's pane and the column would never stack.
-func TestDispatchTitlePrefixMatchesWindowName(t *testing.T) {
-	name := WindowName("abcd", "apply")
-	if !strings.HasPrefix(name, DispatchTitlePrefix) {
-		t.Errorf("WindowName = %q does not carry DispatchTitlePrefix %q; the sibling probe would never match a worker pane",
-			name, DispatchTitlePrefix)
+	if SizeFlag != "-l" {
+		t.Errorf("SizeFlag = %q, want tmux's split size flag -l", SizeFlag)
 	}
 }
 

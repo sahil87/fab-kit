@@ -20,10 +20,12 @@ import (
 // (both re-derived from the CURRENT environment — so restarting an orphaned pane
 // dispatch after a tmux server death correctly soft-falls-back to headless, and a
 // restart issued from inside a tmux pane splits THAT pane's window even if the
-// original attempt opened a window), the same refuse-if-running check, and the
-// same output/record shape. A restart is a fresh attempt under the existing
-// last-attempt-only semantics, so it introduces no new state string, no attempt
-// history, and no `restarted:` marker.
+// original attempt opened a window), the same record-keyed COLUMN PLACEMENT (a
+// relaunched worker stacks under the newest live recorded sibling, or carves a
+// column at the configured width when it is the first), the same refuse-if-running
+// check, and the same output/record shape. A restart is a fresh attempt under the
+// existing last-attempt-only semantics, so it introduces no new state string, no
+// attempt history, and no `restarted:` marker.
 func dispatchRestartCmd() *cobra.Command {
 	// The flag surface is shared with `start` via addLaunchFlags (dispatch_start.go)
 	// so the two subcommands cannot drift on flags, the --pane/--timeout guard, or

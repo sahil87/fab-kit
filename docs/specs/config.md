@@ -82,10 +82,12 @@ resolver consumes; distinguishing an empty list from an empty map from an empty 
 Go-side implementation detail that carries no cascade meaning and would make `--json` emit
 `null`/`[]`/`{}`/`""` inconsistently for the same "no default" concept. So a **non-null** `default`
 always denotes a real built-in value (today: the `providers` row's **three built-in providers** —
-claude/codex/gemini, `260805-j3cm` — the six `agent.tiers` profiles, and `dispatch.watchable`'s
-`false`); every other row is `null`. **`dispatch.watchable` is the convention's boundary case and is
-deliberately not `null`**: for a **bool** there is no "absent" state distinguishable from `false`, so
-`false` is a real built-in value the cascade genuinely bottoms out at — not the typed-empty placeholder
+claude/codex/gemini, `260805-j3cm` — the six `agent.tiers` profiles, `dispatch.watchable`'s
+`false`, and `dispatch.column_width`'s `35`); every other row is `null`. **The two `dispatch` rows are
+the convention's boundary cases and are deliberately not `null`**: for a **bool** there is no "absent"
+state distinguishable from `false`, and for the width an absent YAML int is indistinguishable from `0`
+(which the accessor therefore reads as unset, alongside every other out-of-`1..99` value), so each
+carries a real built-in value the cascade genuinely bottoms out at — not the typed-empty placeholder
 the convention forbids (the forbidden shapes are the ones that could stand in for "nothing").
 The same rule is why no provider's `default` carries a `model`/`effort` **fill**: fab-kit ships
 provider *grammar* only (non-claude model IDs rot at CLI cadence), so emitting an empty-string model
@@ -107,6 +109,16 @@ map-valued fields (`providers`, `agent.tiers`, `stage_hooks`) build their segmen
 same Go symbols their `default` reads, so the rendered prose carries no literal copy of any value.
 The existing reference tests assert those blocks verbatim; the restructure preserves them byte-for-byte.
 
+**Several rows under one YAML block share a single segment.** Where two or more override units live
+under the same top-level key, the segment belongs to the *first* of them and documents them all; the
+rest carry an **empty** segment (`project.name` owns the `project:` block for `project.description` and
+`project.linear_workspace`; `dispatch.watchable` owns the `dispatch:` block for
+`dispatch.column_width`). This is not an optimisation but a correctness requirement: the reference and
+the managed fence render these blocks **commented**, with the documented instruction to uncomment a
+whole block, so two separately-uncommentable `# dispatch:` parents would collide into a duplicate YAML
+key. It also matches the fence generator, whose override detection is top-level-key scoped: a live
+`dispatch:` block suppresses the advertisement of every key under it.
+
 ---
 
 ## Scope taxonomy (decision 6)
@@ -118,15 +130,17 @@ teammates and CI.
 
 | scope | Meaning | Fields |
 |-------|---------|--------|
-| `both` | Overridable in either the project or the system layer (preference-class). | `agent.tiers`, `providers`, `dispatch.watchable` |
+| `both` | Overridable in either the project or the system layer (preference-class). | `agent.tiers`, `providers`, `dispatch.watchable`, `dispatch.column_width` |
 | `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `consolidate.detectors`, and (conservative default) `stage_hooks`, `branch_prefix` |
 | `system` | Overridable only in the system layer. | *(none today; the value exists for completeness and [Change 2])* |
 
 Fields the decision-6 taxonomy does not enumerate (`stage_hooks`, `branch_prefix`) default to `project`
 — the conservative choice, since system-visibility is opt-in per the same rationale. `dispatch`
-(`dispatch.watchable`, the watchable-pane opt-in) is `both` by the same reasoning that puts
-`agent`/`providers` there: it expresses how the **operator** prefers to watch stage workers on **this
-machine**, not what the repo's pipeline means, so it must be settable once machine-wide. (`fab_version` was
+(`dispatch.watchable`, the watchable-pane opt-in; `dispatch.column_width`, the pane-worker column's
+width) is `both` by the same reasoning that puts `agent`/`providers` there: both keys express how the
+**operator** prefers to watch stage workers on **this machine** — whether in a pane at all, and how
+much of the window that pane takes — not what the repo's pipeline means, so they must be settable once
+machine-wide. (`fab_version` was
 machine-managed and, as of [Change 3 — landed], left `config.yaml` entirely for the plain-text sibling
 `fab/.fab-version`; it is no longer a scoped/registry/config key and carries no scope. The compat-window
 config.yaml `fab_version:` fallback that both reader stacks kept has been **closed** [260719-kq7v]: a stale
@@ -153,7 +167,8 @@ model, at [Change 3]'s `fab config upgrade` time, every field is one of:
   managed fence, so the user can discover and opt in.
 
 `advertise: true` marks the C-eligible fields — the optional override surfaces a project has typically
-*not* set live: `agent.tiers`, `providers`, `dispatch.watchable`, `checklist.extra_categories`,
+*not* set live: `agent.tiers`, `providers`, `dispatch.watchable`, `dispatch.column_width`,
+`checklist.extra_categories`,
 `consolidate.detectors`, `true_impact_exclude`, `stage_hooks`, `branch_prefix`, `test_paths`. `advertise: false` marks the init-seeded identity fields
 (`project.*`, `source_paths`), which are written live at `fab config init --project` time and not
 re-advertised in the fence. (`fab_version` is no longer a config-file field — it left `config.yaml` for

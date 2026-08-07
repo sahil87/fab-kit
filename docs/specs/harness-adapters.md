@@ -108,13 +108,43 @@ Mechanics, all fixed by this spec:
   `.fab-dispatch/{id}/{stage}.yaml` alongside the `fab-{id}-{stage}` identity string and the tmux socket
   label. The shape is a **pure decision** from the dispatching process's own tmux position
   (`$TMUX_PANE`) and whether `--server` was supplied:
-  - **Split** (`$TMUX_PANE` set **and** no `--server`) — `tmux split-window {-h|-v} -t <target> -c <dir>
-    "<composed-cmd> <shell-quoted-prompt>"` followed by `tmux select-pane -t <new> -T fab-{id}-{stage}`.
-    The worker lands **in the dispatching agent's own window**. Placement is a **stacked right column**:
-    `-v` off the **last** `fab-`-titled sibling pane in that window when one exists (stacking under the
-    newest worker), else `-h` off `$TMUX_PANE` (carving the column). A failing sibling probe MUST degrade
-    to the `-h` split with a stderr warning — placement is cosmetic and MUST NOT fail a dispatch. A
-    failed title set is likewise **non-fatal** (stderr warning at most): the pane ID is the identity.
+  - **Split** (`$TMUX_PANE` set **and** no `--server`) — `tmux split-window {-h -l <n>%|-v} -t <target>
+    -c <dir> "<composed-cmd> <shell-quoted-prompt>"` followed by `tmux select-pane -t <new> -T
+    fab-{id}-{stage}`. The worker lands **in the dispatching agent's own window**. Placement is a
+    **stacked right column**: `-v` (unsized) off the **last live sibling worker pane** in that window
+    when one exists (stacking under the newest worker), else `-h -l <n>%` off `$TMUX_PANE` — **carving**
+    the column at `dispatch.column_width` (default 35), so the dispatching agent keeps the rest of the
+    window rather than being halved.
+
+    **Sibling detection MUST key on the dispatch records, never on pane titles.** The probe intersects
+    the pane IDs recorded across the checkout's `.fab-dispatch/*/{stage}.yaml` records with the
+    window's live `tmux list-panes -t <target> -F '#{pane_id}'` output and keeps the last id present in
+    both. Records MUST first be filtered to the socket being probed (`server:` equality, with the
+    default socket recorded as `""`): a tmux pane ID is per-SERVER, so an unfiltered set would let a
+    `--server`-scoped record's `%N` false-match the same `%N` on another socket. A pane ID is server-global and stable for the pane's lifetime — the same property `status`,
+    `kill`, and `capture` already rely on — whereas a pane **title** is rewritten by the harness running
+    inside the worker within seconds of spawn, so a title-keyed probe reports no sibling and every later
+    worker carves another full-height column until the dispatching agent is a sliver. The intersection
+    with one window's live pane list IS the liveness and same-window filter; titles remain set at spawn
+    for **identification only**.
+
+    **The column invariant is a creation-time rule.** Once the carving split has created the
+    left/right separator, fab MUST NOT touch it again: no `select-layout`, no layout normalisation, no
+    rearranging of user-made panes, no undoing of a manual resize. Only horizontal separators *inside*
+    the column are added (by `-v` stacking). fab MUST NOT attempt to repair an already-mangled window —
+    it only stops creating new mess.
+
+    Placement is cosmetic and MUST degrade rather than fail, and every degradation MUST be
+    **surfaced as a stderr warning** naming both the failure and the placement it resolved to — a
+    silently absorbed failure would leave blind placement unexplainable from output. A failing
+    sibling probe (`list-panes`) leaves no window to intersect and so falls back to the same
+    **sized** `-h` carve off `$TMUX_PANE` (an unsized fallback would reintroduce the halving the
+    width exists to prevent). A failing **record read** (an unreadable dir, a corrupt `{stage}.yaml`)
+    MUST warn but MUST keep the records that did read: an unread record can only fail to *find* a
+    sibling, never invent one, so the degraded answer is either the clean one or the carve. An
+    **absent** `.fab-dispatch/` tree is the ordinary first-dispatch case and MUST NOT warn. A tmux
+    that rejects `-l <n>%` (pre-3.1) MUST retry the split unsized with a stderr warning. A failed
+    title set is likewise **non-fatal** (stderr warning at most): the pane ID is the identity.
   - **New window** (otherwise) — `tmux new-window -n fab-{id}-{stage} -c <dir> "<composed-cmd>
     <shell-quoted-prompt>"`, byte-identical to the pre-split behavior. This is the **fallback**, reached
     when the dispatcher has no pane of its own to split (`$TMUX_PANE` unset — a headless orchestrator

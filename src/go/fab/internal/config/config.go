@@ -139,9 +139,24 @@ type ProjectConfig struct {
 // Default false ⇒ byte-stable behavior for every existing config. A provider's own
 // dispatch_command always wins; watchable only ADDS eligibility for providers that
 // have none.
+//
+// ColumnWidth is the WORKER-COLUMN WIDTH, in percent of the window, used by the
+// column-carving `-h` split that opens a pane-mode worker beside its dispatching
+// agent (`tmux split-window -h -l <n>%`). It exists because an even halving leaves
+// the session agent — the pane the user actually watches — with only half the
+// window from the moment the column is carved. Only the CARVING split is sized;
+// later workers stack inside the column with unsized `-v` splits, and the
+// Left/Right separator is never touched again.
 type DispatchConfig struct {
-	Watchable bool `yaml:"watchable"`
+	Watchable   bool `yaml:"watchable"`
+	ColumnWidth int  `yaml:"column_width"`
 }
+
+// DefaultDispatchColumnWidth is the built-in dispatch.column_width — the percent of
+// the window a pane-mode worker column takes when it is carved, leaving the
+// dispatching agent the rest. It is the canonical symbol both the accessor below
+// and internal/configref's registry row read, so the default exists once.
+const DefaultDispatchColumnWidth = 35
 
 // Config holds the parsed project config relevant to the fab binary. It is
 // the single owner of fab/project/config.yaml parsing — every key the fab
@@ -505,6 +520,27 @@ func (c *Config) GetDispatchWatchable() bool {
 		return false
 	}
 	return c.Dispatch.Watchable
+}
+
+// GetDispatchColumnWidth returns dispatch.column_width — the pane-worker column's
+// width in percent — or DefaultDispatchColumnWidth when unset or out of range
+// (nil-safe).
+//
+// An ABSENT yaml int is indistinguishable from an explicit 0, so 0 cannot mean
+// "carve an unsized column"; it reads as unset and resolves to the default. Values
+// outside 1..99 resolve to the default for the same reason they are nonsense as a
+// percentage: 0 would give the worker nothing and 100 would leave the dispatching
+// agent nothing — the exact outcome the knob exists to prevent. This mirrors the
+// GetDispatchWatchable bool boundary case (see DispatchConfig): for a scalar with
+// no "absent" state, the built-in value IS the fallback.
+func (c *Config) GetDispatchColumnWidth() int {
+	if c == nil {
+		return DefaultDispatchColumnWidth
+	}
+	if w := c.Dispatch.ColumnWidth; w > 0 && w < 100 {
+		return w
+	}
+	return DefaultDispatchColumnWidth
 }
 
 // GetLinearWorkspace returns project.linear_workspace, or "" when unset (nil-safe).

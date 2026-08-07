@@ -9,10 +9,12 @@ package configupgrade
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configref"
 )
 
@@ -435,6 +437,43 @@ func TestRender_FenceAdvertisesDispatchWatchable(t *testing.T) {
 	}
 	_, fenceBody2, _ := sliceFence(t, out2)
 	if strings.Contains(fenceBody2, "dispatch.watchable") {
+		t.Errorf("fence must omit the already-overridden dispatch field.\n--- fence ---\n%s", fenceBody2)
+	}
+}
+
+// TestRender_FenceAdvertisesDispatchColumnWidth: `dispatch.column_width` reaches the
+// fence through the SHARED `dispatch:` segment rather than a segment of its own —
+// `dispatch` is one YAML block, so two separately-uncommentable `# dispatch:`
+// parents would collide into a duplicate key. The guard therefore checks the two
+// properties that shape depends on: the width's scaffold line is present (an
+// empty-Segment row is otherwise skipped outright by renderFence), and the fence
+// carries exactly ONE commented dispatch parent. Runs over the SHIPPED registry,
+// so it is the guard that the new key reaches every user's config.yaml on the next
+// `fab config upgrade`.
+func TestRender_FenceAdvertisesDispatchColumnWidth(t *testing.T) {
+	fields := fieldsForTest(t)
+
+	out, _ := render("project:\n    name: t\n", fields, "2.15.0")
+	_, fenceBody, _ := sliceFence(t, out)
+	if !strings.Contains(fenceBody, "# dispatch.column_width") {
+		t.Errorf("fence must advertise the un-overridden dispatch.column_width field.\n--- fence ---\n%s", fenceBody)
+	}
+	wantScaffold := "#   column_width: " + strconv.Itoa(config.DefaultDispatchColumnWidth)
+	if !strings.Contains(fenceBody, wantScaffold) {
+		t.Errorf("fence must scaffold %q.\n--- fence ---\n%s", wantScaffold, fenceBody)
+	}
+	if n := strings.Count(fenceBody, "# dispatch:"); n != 1 {
+		t.Errorf("fence carries %d `# dispatch:` parents, want exactly 1 (both dispatch keys share one block)", n)
+	}
+
+	// Overridden: the whole block is live above the fence, so neither dispatch key
+	// is re-advertised (override detection is top-level-key scoped).
+	out2, _ := render("dispatch:\n    column_width: 20\n", fields, "2.15.0")
+	if !strings.Contains(out2, "column_width: 20") {
+		t.Errorf("a live dispatch override must be preserved verbatim.\n--- got ---\n%s", out2)
+	}
+	_, fenceBody2, _ := sliceFence(t, out2)
+	if strings.Contains(fenceBody2, "dispatch.column_width") {
 		t.Errorf("fence must omit the already-overridden dispatch field.\n--- fence ---\n%s", fenceBody2)
 	}
 }

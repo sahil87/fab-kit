@@ -282,8 +282,16 @@ agent:
 # native Agent-tool dispatch — never headless CLI, which stays gated on a real
 # dispatch_command. A provider's own dispatch_command always wins. Scope `both`, so
 # it is settable once machine-wide in ~/.fab-kit/config.yaml.
+#
+# dispatch.column_width (optional, default 35) — width, in percent of the window, of
+# the pane-worker column. The first worker CARVES the column out of the dispatching
+# agent's pane (`split-window -h -l <n>%`), so the agent you are watching keeps the
+# rest; later workers stack inside that column with unsized `-v` splits and the
+# left/right separator is never touched again. Out-of-range values (and an absent
+# key, indistinguishable from 0) resolve to the default. Scope `both`.
 dispatch:
   watchable: false
+  column_width: 35
 
 # Optional branch prefix applied by fab batch switch when creating worktree branches.
 branch_prefix: ""

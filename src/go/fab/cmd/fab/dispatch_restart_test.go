@@ -580,6 +580,75 @@ func TestDispatchRestart_SplitsTheDispatchersWindow_Integration(t *testing.T) {
 	}
 }
 
+// TestDispatchRestart_StacksInTheWorkerColumn_Integration pins that `restart`
+// inherits the record-keyed COLUMN PLACEMENT too, not just the shape: with another
+// stage's worker already live in the dispatcher's window, a restarted worker stacks
+// UNDER that sibling rather than carving a second column out of the dispatcher. The
+// sibling's pane title is clobbered first, since a restart is exactly the moment a
+// long-running worker's harness has already rewritten it.
+func TestDispatchRestart_StacksInTheWorkerColumn_Integration(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", `sh -c 'sleep 30' _`)
+	dir := dispatch.DirFor(repoRoot, id)
+	mustMkdir(t, dir)
+	mustWrite(t, dispatch.PromptPath(dir, "review-pr"), "persisted prompt\n")
+	// An ORPHANED prior attempt for the stage being restarted, so the restart proceeds.
+	if err := dispatch.Save(dir, "review-pr", &dispatch.Dispatch{
+		SpawnCmd: "old", StartedAt: "old", Pane: "%999", Window: dispatch.WindowName(id, "review-pr"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	tmuxScoped, dispatcherPane := startPrivateTmuxWithPane(t)
+
+	// The live sibling: a genuine `start` for the OTHER doing-tier stage, which
+	// carves the column. (Only the doing tier points at the fixture's `cli` provider,
+	// so a stage outside it would launch the real claude CLI.)
+	if _, err := runStart(t, "apply prompt", "abcd", "apply"); err != nil {
+		t.Fatalf("sibling dispatch failed: %v", err)
+	}
+	sibling, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load apply: %v", err)
+	}
+	if out, err := tmuxScoped("select-pane", "-t", sibling.Pane, "-T", "✳ some harness title"); err != nil {
+		t.Fatalf("could not clobber the sibling's pane title: %v (%q)", err, out)
+	}
+
+	if _, err := runRestart(t, "abcd", "review-pr"); err != nil {
+		t.Fatalf("restart failed: %v", err)
+	}
+	rec, err := dispatch.Load(dir, "review-pr")
+	if err != nil {
+		t.Fatalf("state not persisted: %v", err)
+	}
+
+	// Stacked: same left edge as the sibling (it split the SIBLING), distinct top
+	// edge, and the dispatcher's own column untouched.
+	if got, want := paneFormat(t, tmuxScoped, rec.Pane, "#{pane_left}"),
+		paneFormat(t, tmuxScoped, sibling.Pane, "#{pane_left}"); got != want {
+		t.Errorf("restarted worker's left edge = %s, want the sibling's %s (it must stack the column, not carve a second one)", got, want)
+	}
+	if paneFormat(t, tmuxScoped, rec.Pane, "#{pane_top}") == paneFormat(t, tmuxScoped, sibling.Pane, "#{pane_top}") {
+		t.Error("restarted worker shares the sibling's top edge; the stacking split must be vertical (-v)")
+	}
+	if got, want := paneFormat(t, tmuxScoped, dispatcherPane, "#{pane_left}"), "0"; got != want {
+		t.Errorf("dispatcher's left edge = %s, want %s — the left/right separator must not move", got, want)
+	}
+	if n := len(strings.Split(mustTmux(t, tmuxScoped, "list-panes", "-t", dispatcherPane, "-F", "#{pane_id}"), "\n")); n != 3 {
+		t.Errorf("window holds %d panes, want 3 (dispatcher + sibling + restarted worker)", n)
+	}
+}
+
+// mustTmux runs a scoped tmux command, failing the test on error.
+func mustTmux(t *testing.T, tmuxScoped func(...string) (string, error), args ...string) string {
+	t.Helper()
+	out, err := tmuxScoped(args...)
+	if err != nil {
+		t.Fatalf("tmux %v: %v (%q)", args, err, out)
+	}
+	return out
+}
+
 // TestDispatchRestart_PaneRefuseHonorsTheResultFile: a finished-but-still-alive
 // pane worker reads `done`, so a restart over it must OVERWRITE rather than refuse
 // — the same finished-signal rule `start` applies, so the two never disagree.

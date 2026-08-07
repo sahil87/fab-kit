@@ -81,16 +81,25 @@ func (f *launchFlags) resolveMode(cmd *cobra.Command) (dispatch.Mode, dispatch.A
 	}, nil
 }
 
-// paneTarget carries the pane-placement decision from the cobra layer to
-// launchPane: WHICH shape the worker pane takes and — for the split shape — WHICH
-// pane the dispatching process itself occupies ($TMUX_PANE, the split's anchor).
+// paneTarget carries the pane-placement inputs to launchPane: WHICH shape the
+// worker pane takes, — for the split shape — WHICH pane the dispatching process
+// itself occupies ($TMUX_PANE, the split's anchor), and how wide the worker column
+// is carved.
 //
-// The two travel together because they come from the same env read and are
-// meaningless apart: a shape of ShapeSplit with no dispatcherPane cannot be
+// shape and dispatcherPane travel together because they come from the same env read
+// and are meaningless apart: a shape of ShapeSplit with no dispatcherPane cannot be
 // placed, and SelectPaneShape is exactly the function that rules that pair out.
+// Both are resolved in resolveMode, the cobra layer.
+//
+// columnWidth comes from CONFIG rather than the environment, so it is filled by
+// runDispatchLaunch once config is loaded — resolveMode has no config in hand. It
+// rides this struct anyway because it is the third input to the same placement
+// decision, and threading it as yet another launchPane parameter would only widen an
+// already-wide signature.
 type paneTarget struct {
 	shape          dispatch.PaneShape
 	dispatcherPane string
+	columnWidth    int
 }
 
 func dispatchStartCmd() *cobra.Command {
@@ -217,6 +226,11 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, timeout int,
 		return err
 	}
 	prov, _ := agent.ResolveProvider(cfg, profile.Provider)
+
+	// The third placement input (the other two are env-derived, resolved in
+	// resolveMode). Filled here because this is the first point config exists;
+	// ignored entirely outside the split shape.
+	target.columnWidth = cfg.GetDispatchColumnWidth()
 
 	// Validate pane mode BEFORE composing any command and before any state write,
 	// so a pane path that cannot proceed leaves no partial dispatch behind — and,
@@ -429,6 +443,11 @@ func missingCommandError(stage, providerName, field string) error {
 //	ShapeWindow — a new window named for the dispatch (the pre-split behavior),
 //	              for a dispatcher that has no pane of its own to split.
 //
+// WITHIN the split shape, which pane is split and how wide the column is carved is
+// dispatch.SplitTarget's decision — record-keyed sibling detection (pane titles are
+// clobbered by the harness running in the worker) plus the configured column width
+// on the carving split only. Both of its non-fatal outcomes come back as warnings.
+//
 // Both shapes record the SAME identity string in rec.Window and both are keyed by
 // pane ID afterwards, so status/kill/capture need no shape awareness.
 func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoot, promptPath, id, stage, server string, target paneTarget) (string, error) {
@@ -441,22 +460,28 @@ func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoo
 
 	var paneID, report string
 	if target.shape == dispatch.ShapeSplit {
-		// Placement degrades before it fails: an unreadable sibling probe still
-		// yields a usable target (the dispatcher's own pane), so the dispatch
-		// launches and only the warning records that the stacking rule was skipped.
-		splitTarget, direction, probeErr := dispatch.SplitTarget(server, target.dispatcherPane)
+		// Placement degrades before it fails: a failing sibling probe — an
+		// unreadable dispatch record as much as a failing tmux list-panes — still
+		// yields a usable placement, so the dispatch launches and only the warning
+		// records that the probe was degraded. The message quotes the probe's own
+		// error (which names WHICH half failed) and then WHERE the worker actually
+		// landed, because a partial record read can still find a sibling — only a
+		// total failure falls all the way back to carving off the dispatcher.
+		place, probeErr := dispatch.SplitTarget(server, target.dispatcherPane, repoRoot, target.columnWidth)
 		if probeErr != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not list sibling dispatch panes (%v); splitting the current pane\n", probeErr)
+			fmt.Fprintf(cmd.ErrOrStderr(), "warning: worker-column placement probe failed (%v); %s\n",
+				probeErr, describePlacement(place))
 		}
-		var titleErr error
-		paneID, titleErr, err = dispatch.OpenSplitPane(server, splitTarget, direction, title, repoRoot, windowCmd)
+		var warnings []error
+		paneID, warnings, err = dispatch.OpenSplitPane(server, place, title, repoRoot, windowCmd)
+		// Cosmetic-only failures (a size tmux would not take, a title it would not
+		// set): the worker is running and its pane ID — the real identity — is
+		// already recorded, so these warn rather than aborting.
+		for _, w := range warnings {
+			fmt.Fprintf(cmd.ErrOrStderr(), "warning: %v\n", w)
+		}
 		if err != nil {
 			return "", err
-		}
-		// Cosmetic-only failure: the worker is running and its pane ID — the real
-		// identity — is already recorded, so this warns rather than aborting.
-		if titleErr != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not set pane title %q (%v)\n", title, titleErr)
 		}
 		report = fmt.Sprintf("pane %s, split, title %s", paneID, title)
 	} else {
@@ -470,6 +495,18 @@ func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoo
 	rec.Window = title
 	rec.Server = server
 	return report, nil
+}
+
+// describePlacement renders a resolved SplitPlacement as the human half of the
+// degraded-probe warning. It exists so the warning states the OUTCOME in the
+// stacked-column vocabulary the rule is documented in ("carving a new column" /
+// "stacking under"), rather than leaking the bare tmux `-h`/`-v` flag the placement
+// carries.
+func describePlacement(place dispatch.SplitPlacement) string {
+	if place.Direction == dispatch.SplitRight {
+		return fmt.Sprintf("carving a new worker column off pane %s", place.Target)
+	}
+	return fmt.Sprintf("stacking the worker under pane %s", place.Target)
 }
 
 // launchHeadless launches the detached wrapper and records the pid/pgid on rec:
