@@ -2,8 +2,10 @@
 
 > **Status:** Design intent (pre-implementation, now implemented in 260613-l3ja). This spec
 > captures the design for letting a project run different pipeline stages on different model
-> tiers. The canonical tables are the Go maps in `src/go/fab/internal/agent/agent.go`; the two
-> tables in this doc are verified mirrors of them (drift-guarded — see § Drift guard).
+> tiers. The canonical data is `src/go/fab/internal/agent/defaults.yaml` (the embedded default tier
+> profiles and provider grammars) plus the `stageTiers` map in
+> `src/go/fab/internal/agent/agent.go`; the two tables in this doc are verified mirrors of them
+> (drift-guarded — see § Drift guard).
 
 Fab runs a six-stage pipeline (`intake → apply → review → hydrate → ship → review-pr`). Today every
 stage runs on whatever model the session was launched with — the orchestrator's foreground model, or
@@ -63,10 +65,11 @@ runs wherever the interactive session runs.
 
 ### Default tier profiles
 
-fab-kit ships a default `{provider, model, effort}` per tier. This table is **owned by the Go binary**
-(`internal/agent`), versioned with the kit, and the single place to bump when a new model ships.
-Provider is written explicitly on every line (documented style — per-line readability; inheritance is
-the safety net, not the style).
+fab-kit ships a default `{provider, model, effort}` per tier. These profiles live in
+**`src/go/fab/internal/agent/defaults.yaml`** — a data file **embedded into the binary** (`go:embed`,
+never read from the kit cache at runtime) and shaped as a config-file fragment, so it is versioned
+with the kit and is the single file to edit when a new model ships. Provider is written explicitly on
+every line (documented style — per-line readability; inheritance is the safety net, not the style).
 
 | Tier | Provider | Model | Effort |
 |------|----------|-------|--------|
@@ -77,8 +80,9 @@ the safety net, not the style).
 | `hydrate` | `claude` | `claude-opus-5` | `high` |
 | `fast` | `claude` | `claude-sonnet-5` | `medium` |
 
-This is the verified mirror of the `defaultTiers` map in
-`src/go/fab/internal/agent/agent.go`. A drift-guard test fails if the two disagree (see § Drift guard).
+This is the verified mirror of the `agent.tiers` block of
+`src/go/fab/internal/agent/defaults.yaml` (parsed into the `defaultTiers` map at package
+initialization). A drift-guard test fails if the two disagree (see § Drift guard).
 
 **Why these defaults.** `doing` runs Opus at `xhigh` — the strongest setting for coding/agentic work; a
 strong author minimizes rework cycles per the apply↔review coupling (see § apply↔review coupling).
@@ -161,11 +165,11 @@ A provider MAY also carry two optional **default-fill** fields:
 
 ### Three built-in providers, grammar only
 
-fab-kit ships **three built-in providers** — `claude` (the default), `codex`, and `gemini` — in
-`internal/agent`'s built-in provider table. They carry **grammar only**: the command templates are in
-the binary, and **no built-in carries a `model`/`effort` fill**. The split is deliberate — invocation
-*grammar* changes at binary-release cadence and is safe to ship; non-claude *model IDs* rot in weeks
-and must never be baked into a release.
+fab-kit ships **three built-in providers** — `claude` (the default), `codex`, and `gemini` — in the
+`providers:` block of `internal/agent`'s embedded `defaults.yaml`. They carry **grammar only**: the
+command templates ship inside the binary, and **no built-in carries a `model`/`effort` fill**. The
+split is deliberate — invocation *grammar* changes at binary-release cadence and is safe to ship;
+non-claude *model IDs* rot in weeks and must never be baked into a release.
 
 Consequences:
 
@@ -608,11 +612,12 @@ exactly what happened to this section before.) The durable shape is the rational
 Fable for the quicker interactive working style, Opus where the named strengths are code review,
 agentic execution, and memory writing, Sonnet at the mechanical floor.
 
-fab bumps the table in **one place** (the `defaultTiers` map) each release, and every non-overriding
-project upgrades for free. The tier→profile table is fab's curated judgment per release, not a fixed
-effort-per-tier-rank rule — a new top model does not mechanically promote every tier, and two tiers
-resolving to the same profile in a given release is a legitimate outcome, not a bug. A project that
-overrides a tier opts **out** of fab's upgrade curve for that tier (correct behavior — naming it here).
+fab bumps the table in **one place** (the `agent.tiers` block of `defaults.yaml`) each release, and
+every non-overriding project upgrades for free. The tier→profile table is fab's curated judgment per
+release, not a fixed effort-per-tier-rank rule — a new top model does not mechanically promote every
+tier, and two tiers resolving to the same profile in a given release is a legitimate outcome, not a
+bug. A project that overrides a tier opts **out** of fab's upgrade curve for that tier (correct
+behavior — naming it here).
 
 ### Upgrade note — the hydrate split (no migration)
 
@@ -656,10 +661,17 @@ skill MAY note "this stage is configured for X; you're on Y" but MUST NOT attemp
 ## Drift guard
 
 The two tables above (§ Default tier profiles and § The fixed stage → tier mapping) are verified
-mirrors of the `defaultTiers` and `stageTiers` maps in `src/go/fab/internal/agent/agent.go`. The Go
-maps are canonical. A test in that package (`TestDocTablesMatchAgentMaps`) parses both tables from this
-doc and fails if either disagrees with the code — same pattern as `TestDocTablesMatchScoringMaps` for
-`docs/specs/change-types.md`.
+mirrors of `src/go/fab/internal/agent/defaults.yaml` (§ Default tier profiles, via the `defaultTiers`
+map it is parsed into) and the `stageTiers` map in `src/go/fab/internal/agent/agent.go`
+(§ The fixed stage → tier mapping). The code side is canonical. A test in that package
+(`TestDocTablesMatchAgentMaps`) parses both tables from this doc and fails if either disagrees with
+the code — same pattern as `TestDocTablesMatchScoringMaps` for `docs/specs/change-types.md`.
+
+The embedded data file has its own guard: a YAML typo is no longer a compile error, so
+`TestDefaultsFileIsWellFormed` (and its siblings in `defaults_test.go`) parse `defaults.yaml`
+independently and assert every tier and provider is present and populated, that no built-in carries a
+`model`/`effort` fill, and that the package's tables and exported command values are wired to the
+file's keys.
 
 ---
 

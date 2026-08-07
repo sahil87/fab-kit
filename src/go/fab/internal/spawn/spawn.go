@@ -10,10 +10,13 @@ import (
 // DefaultSpawnCommand is the fallback session command when config.yaml resolves
 // no providers.claude.session_command. Re-exported from internal/agent (the
 // provider table's owner) so raw-consumer sites keep a single spelling. Like the
-// underlying constant it is a {model}/{effort} TEMPLATE — callers resolve it
+// underlying value it is a {model}/{effort} TEMPLATE — callers resolve it
 // through WithProfile (template mode), which yields the same byte-identical
 // command the former plain form produced via append mode.
-const DefaultSpawnCommand = agent.DefaultSessionCommand
+//
+// A var, not a const, because the string it re-exports is now parsed from
+// internal/agent's embedded defaults.yaml rather than written as a Go literal.
+var DefaultSpawnCommand = agent.DefaultSessionCommand
 
 // Command reads the default provider's session command from the given config.yaml
 // path via the shared internal/config loader (the single config.yaml parser).

@@ -321,7 +321,7 @@ func TestConfigReferenceDocumentsThreeBuiltInProviders(t *testing.T) {
 	}
 
 	// Both command fields are documented for the non-claude built-ins. The
-	// expectations are DERIVED from the agent constants (never literal copies), so
+	// expectations are DERIVED from the agent command vars (never literal copies), so
 	// a grammar change touches only internal/agent.
 	for _, cmd := range []string{
 		agent.DefaultCodexSessionCommand,

@@ -3,12 +3,15 @@
 // built-in provider table, and the resolution cascade consumed by
 // `fab resolve-agent <stage>`, `fab agent`, and the operator launcher.
 //
-// The tables here are fab-kit's curated judgment. The stage→tier mapping is NOT
-// user-overridable (there is no stage_tiers config and no per-stage escape
-// hatch); the default tier→profile table is the single place to bump when a new
-// top model lands (the "Fable upgrade path"). Users override only what each tier
-// MEANS, via agent.tiers in config.yaml (per-field merge over the default), and
-// which command grammars exist, via the top-level providers: table.
+// The tables here are fab-kit's curated judgment, and they are split across two
+// files by whether a user can override them. The tier→profile and provider tables
+// are DATA: they live in defaults.yaml (embedded below), shaped as a config-file
+// fragment, and defaults.yaml is the single place to bump when a new top model
+// lands (the "Fable upgrade path"). The stage→tier mapping is POLICY: it stays a
+// Go map here and is NOT user-overridable (there is no stage_tiers config and no
+// per-stage escape hatch). Users override only what each tier MEANS, via
+// agent.tiers in config.yaml (per-field merge over the default), and which command
+// grammars exist, via the top-level providers: table.
 //
 // The built-in provider table carries GRAMMAR for three providers (claude, codex,
 // gemini) and fill values for NONE of them: a non-claude provider's model ID rots
@@ -21,19 +24,52 @@
 // effort} verbatim, whatever they are (provider neutrality, Constitution
 // Principle I). Compatibility is the runtime/harness's concern, not fab's.
 //
-// The two tables (defaultTiers, stageTiers) are mirrored in
-// docs/specs/stage-models.md and guarded against drift by
+// The two tables (defaultTiers — from defaults.yaml — and stageTiers) are
+// mirrored in docs/specs/stage-models.md and guarded against drift by
 // TestDocTablesMatchAgentMaps (stagemodels_doc_test.go), the same pattern
 // internal/score uses for change-types.md.
 package agent
 
 import (
+	_ "embed"
 	"fmt"
 	"sort"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 )
+
+// defaultsYAML is fab-kit's built-in agent defaults — the provider grammars and
+// the tier→profile table — compiled into the binary. It is deliberately EMBEDDED
+// rather than read from the kit cache at runtime: kit and binary release
+// atomically, so an on-disk read would gain nothing and add a binary↔kit
+// version-skew failure mode to a resolution path that cannot fail today.
+//
+//go:embed defaults.yaml
+var defaultsYAML []byte
+
+// builtinDefaults is defaultsYAML parsed once, at package initialization, into
+// the SAME struct config.LoadPath fills from a user's config.yaml. The file is
+// shaped as a config-file fragment, so parsing it through the config schema is
+// what keeps the two shapes from diverging — and is what will let this become
+// layer 0 of the config cascade without a parser change.
+var builtinDefaults = mustParseDefaults(defaultsYAML)
+
+// mustParseDefaults parses the embedded defaults, panicking on a malformed file.
+// The bytes are compiled into the binary, so a parse failure is a defective build
+// artifact rather than a runtime condition a user can produce or recover from —
+// returning an error would force an error path onto every DefaultTier/ResolveTier
+// caller for a state a released binary cannot reach. defaults_test.go is the
+// safety net a YAML typo used to get from the compiler.
+func mustParseDefaults(data []byte) *config.Config {
+	var cfg config.Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		panic(fmt.Sprintf("internal/agent: embedded defaults.yaml is malformed: %v", err))
+	}
+	return &cfg
+}
 
 // Role-tier names. Six tiers with concrete referents. A tier is stage-named only
 // where it maps 1:1 to a single referent (review, hydrate); default, doing, and
@@ -48,9 +84,17 @@ const (
 	TierFast     = "fast"     // ship, the /fab-proceed prefix steps — speed on near-mechanical work
 )
 
-// DefaultProviderName is the built-in provider a fresh config resolves to when a
-// tier declares no provider and the project sets no `default` tier provider.
-const DefaultProviderName = "claude"
+// Built-in provider names — the three keys defaults.yaml defines under
+// `providers:`. DefaultProviderName is the built-in provider a fresh config
+// resolves to when a tier declares no provider and the project sets no `default`
+// tier provider; the other two are named here so the lookups below (and the
+// validation test) carry no bare string.
+const (
+	DefaultProviderName = "claude"
+
+	providerCodex  = "codex"
+	providerGemini = "gemini"
+)
 
 // DefaultSessionCommand is the built-in claude provider's session command — the
 // relocated agent.spawn_command default. Kept here (not internal/spawn) because
@@ -64,7 +108,11 @@ const DefaultProviderName = "claude"
 // form — zero behavior change, so the templated form is purely an explicitness
 // upgrade (the substitution point is now visible in the command itself, matching
 // the codex/gemini starter templates).
-const DefaultSessionCommand = `claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`
+//
+// It is a var rather than a const because defaults.yaml owns the string: a const
+// here would mean the same command text lived in two places, which is the drift
+// the data file exists to make impossible.
+var DefaultSessionCommand = defaultProviders[DefaultProviderName].SessionCommand
 
 // The codex and gemini built-in provider commands (260805-j3cm). These are
 // GRAMMAR ONLY — the invocation templates, carrying no model or effort fill
@@ -78,25 +126,26 @@ const DefaultSessionCommand = `claude --dangerously-skip-permissions -n "$(basen
 // dispatch to CLI dispatch — which is exactly what selecting a non-claude
 // provider means.
 //
-// These are the canonical constants internal/configref interpolates into the
-// rendered reference, so the reference text carries no literal copy (the same
-// no-duplicate-literal rule DefaultSessionCommand follows).
-const (
+// These are the canonical names internal/configref interpolates into the rendered
+// reference, so the reference text carries no literal copy (the same
+// no-duplicate-literal rule DefaultSessionCommand follows). Their values, like
+// every other string here, come from defaults.yaml.
+var (
 	// DefaultCodexSessionCommand opens an interactive codex TUI session.
-	DefaultCodexSessionCommand = `codex -m {model} -c model_reasoning_effort={effort}`
+	DefaultCodexSessionCommand = defaultProviders[providerCodex].SessionCommand
 	// DefaultCodexDispatchCommand runs one headless codex task. `codex exec` is a
 	// SUBCOMMAND (not a flag) and reads the prompt from stdin, which is where
 	// `fab dispatch` pipes it.
-	DefaultCodexDispatchCommand = `codex exec -m {model} -c model_reasoning_effort={effort}`
+	DefaultCodexDispatchCommand = defaultProviders[providerCodex].DispatchCommand
 	// DefaultGeminiSessionCommand opens an interactive gemini session. It carries
 	// NO {effort} placeholder — the gemini CLI has no reasoning-effort flag, so a
 	// resolved effort has nowhere to go and is simply not injected.
-	DefaultGeminiSessionCommand = `gemini -m {model}`
+	DefaultGeminiSessionCommand = defaultProviders[providerGemini].SessionCommand
 	// DefaultGeminiDispatchCommand runs one headless gemini task. Deliberately has
 	// no `-p`: gemini's -p takes prompt TEXT (appended after stdin), whereas
 	// `fab dispatch` pipes the prompt to stdin, which gemini reads as the prompt in
 	// non-TTY mode. Like the session command, it carries no {effort}.
-	DefaultGeminiDispatchCommand = `gemini -m {model}`
+	DefaultGeminiDispatchCommand = defaultProviders[providerGemini].DispatchCommand
 )
 
 // Profile is a concrete {provider, model, effort} triple. An empty Provider names
@@ -110,7 +159,7 @@ type Profile struct {
 }
 
 // defaultProviders is fab-kit's built-in provider table: three providers, all
-// GRAMMAR ONLY (no model/effort fill values — see the command constants above).
+// GRAMMAR ONLY (no model/effort fill values — see the command vars above).
 //
 //   - claude — the default: the default session command and NO dispatch_command
 //     (native Agent-tool dispatch).
@@ -120,51 +169,47 @@ type Profile struct {
 //
 // A built-in provider is INERT until a tier or a flag names it — adding a row
 // changes no default behavior, which is why the presence=intent rule that keeps
-// behavior-changing config commented does not force these rows out of Go
-// (260805-j3cm reverses ho9y's "no new built-in providers in Go" narrowly, for
-// grammar strings only).
+// behavior-changing config commented does not force these rows out of the shipped
+// binary (260805-j3cm reverses ho9y's "no new built-in providers in Go" narrowly,
+// for grammar strings only).
 //
 // A project extends/overrides via its own providers: block, per-field merged over
 // this (including the model/effort fill fields).
-var defaultProviders = map[string]config.ProviderConfig{
-	DefaultProviderName: {SessionCommand: DefaultSessionCommand},
-	"codex": {
-		SessionCommand:  DefaultCodexSessionCommand,
-		DispatchCommand: DefaultCodexDispatchCommand,
-	},
-	"gemini": {
-		SessionCommand:  DefaultGeminiSessionCommand,
-		DispatchCommand: DefaultGeminiDispatchCommand,
-	},
+//
+// The rows themselves live in defaults.yaml — this is the parsed `providers:`
+// block of that file, verbatim.
+var defaultProviders = builtinDefaults.Providers
+
+// defaultTiers is fab-kit's built-in tier→profile table (today), parsed from the
+// `agent.tiers` block of defaults.yaml. Provider is written explicitly on every
+// line there (documented style; inheritance is the safety net).
+//
+// TO BUMP A MODEL: edit defaults.yaml, then run the tests — that file carries the
+// bump procedure and the list of drift guards that will name themselves if a
+// mirror falls behind. Nothing here needs touching.
+//
+// Docs that used to restate the profiles (architecture.md, _shared/configuration.md,
+// runtime/providers-and-tiers.md) now point at `fab config reference`, which
+// renders this map live and cannot go stale.
+var defaultTiers = tierProfiles(builtinDefaults.Agent.Tiers)
+
+// tierProfiles converts the config schema's tier map into this package's Profile
+// map. The two types are field-identical; they stay distinct because config
+// models the FILE and Profile models a RESOLVED triple (an empty field means
+// "inherit" in the former and "unset/inherit the session model" in the latter).
+func tierProfiles(tiers map[string]config.TierProfile) map[string]Profile {
+	profiles := make(map[string]Profile, len(tiers))
+	for name, t := range tiers {
+		profiles[name] = Profile{Provider: t.Provider, Model: t.Model, Effort: t.Effort}
+	}
+	return profiles
 }
 
-// defaultTiers is fab-kit's built-in tier→profile table (today). This is the ONE
-// place bumped when a new top model lands. Provider is written explicitly on
-// every line (documented style; inheritance is the safety net).
-//
-// TO BUMP A MODEL: edit the line here, then run the tests. Every other place that
-// restates these values is drift-guarded and will name itself in the failure
-// output — you do not have to go find them:
-//
-//	TestDefaultTierProfilesArePinned      the deliberate-change pin (agent_test.go)
-//	TestDocTablesMatchAgentMaps           stage-models.md § default-tier TABLE
-//	TestMirrorDocsMatchDefaultTiers       stage-models.md inline-YAML sample
-//	TestCLIFabReferenceListsDefaultTiers  _cli-fab.md § resolve-agent enumeration
-//
-// No other test hardcodes these strings — the rest derive from DefaultTier(), so a
-// bump does not touch them. Docs that used to restate the profiles (architecture.md,
-// _shared/configuration.md, runtime/providers-and-tiers.md) now point at
-// `fab config reference`, which renders this map live and cannot go stale.
-var defaultTiers = map[string]Profile{
-	TierDefault:  {Provider: "claude", Model: "claude-fable-5", Effort: "high"},
-	TierOperator: {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
-	TierDoing:    {Provider: "claude", Model: "claude-opus-5", Effort: "xhigh"},
-	TierReview:   {Provider: "claude", Model: "claude-opus-5", Effort: "xhigh"},
-	TierHydrate:  {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
-	TierFast:     {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
-}
-
-// stageTiers is the FIXED, fab-owned stage→tier mapping. Exhaustive over the six
+// stageTiers is the FIXED, fab-owned stage→tier mapping. It stays in Go — and
+// deliberately NOT in defaults.yaml — because the YAML/Go split doubles as the
+// overridable/fixed signal: everything in that file is user-overridable by writing
+// the same key in config.yaml, everything here is fab-owned policy with tested
+// invariants (the review/hydrate fixed-point property below). Exhaustive over the six
 // pipeline stages (each stage belongs to exactly one tier). NOT user-overridable.
 // Two stages share a name with their tier (review, hydrate) — each such collision
 // is a FIXED POINT (stageTiers[name] == name), which is what makes the tier-first
