@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 
@@ -444,6 +445,89 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 	for _, phrase := range []string{"model/effort fill", "grammar-only built-ins"} {
 		if !strings.Contains(desc, phrase) {
 			t.Errorf("providers row description must mention %q, got %q", phrase, desc)
+		}
+	}
+}
+
+// TestConfigReferenceProvidersDefaultTracksAgentTable is the DERIVATION contract:
+// the providers row's registry default is built by walking agent.ProviderNames(nil)
+// and resolving each name through agent.ResolveProvider(nil, …) — it is NOT a
+// hand-maintained list of built-in names. Asserting the key set EQUALS the agent
+// table (rather than merely contains the three names known today) is what makes a
+// built-in added or renamed in defaults.yaml surface here automatically instead of
+// silently drifting out of `fab config reference --json`.
+//
+// It also pins the projection: only the two command fields cross over, verbatim
+// from ResolveProvider — the grammar-only contract that keeps a nonexistent
+// model/effort fill from being asserted (see configref.providerDefault).
+func TestConfigReferenceProvidersDefaultTracksAgentTable(t *testing.T) {
+	jsonOut, err := configref.RenderJSON()
+	if err != nil {
+		t.Fatalf("RenderJSON returned an error: %v", err)
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal([]byte(jsonOut), &rows); err != nil {
+		t.Fatalf("--json output did not decode: %v", err)
+	}
+	var row map[string]any
+	for _, r := range rows {
+		if r["key"] == "providers" {
+			row = r
+			break
+		}
+	}
+	if row == nil {
+		t.Fatal("--json output has no `providers` row")
+	}
+	defaults, ok := row["default"].(map[string]any)
+	if !ok {
+		t.Fatalf("providers row default = %v, want an object of built-in providers", row["default"])
+	}
+
+	// Key set must EQUAL the agent table's built-in set (nil cfg = no project
+	// overrides), not merely overlap it.
+	want := agent.ProviderNames(nil)
+	got := make([]string, 0, len(defaults))
+	for name := range defaults {
+		got = append(got, name)
+	}
+	sort.Strings(got)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("providers default keys = %v, want agent.ProviderNames(nil) = %v", got, want)
+	}
+
+	// Each entry's commands must be ResolveProvider's verbatim, and an absent
+	// command must stay absent (claude ships no dispatch_command — its absence is
+	// the native-dispatch signal, so an empty-string key would misreport it).
+	for _, name := range want {
+		p, ok := agent.ResolveProvider(nil, name)
+		if !ok {
+			t.Errorf("agent.ProviderNames reported %q but ResolveProvider does not resolve it", name)
+			continue
+		}
+		entry, ok := defaults[name].(map[string]any)
+		if !ok {
+			t.Errorf("providers default is missing the built-in %q, got %v", name, defaults[name])
+			continue
+		}
+		for field, wantCmd := range map[string]string{
+			"session_command":  p.SessionCommand,
+			"dispatch_command": p.DispatchCommand,
+		} {
+			raw, present := entry[field]
+			if wantCmd == "" {
+				if present {
+					t.Errorf("provider %q: %s must be absent when ResolveProvider carries none, got %v", name, field, raw)
+				}
+				continue
+			}
+			if !present {
+				t.Errorf("provider %q: %s missing, want %q", name, field, wantCmd)
+				continue
+			}
+			if raw != wantCmd {
+				t.Errorf("provider %q: %s = %v, want ResolveProvider's %q", name, field, raw, wantCmd)
+			}
 		}
 	}
 }
