@@ -54,7 +54,7 @@ agent:
   tiers:
     default:  { provider: claude, model: claude-fable-5,  effort: high }
     operator: { provider: claude, model: claude-sonnet-5, effort: medium }
-    doing:    { provider: claude, model: claude-opus-5,   effort: xhigh }
-    review:   { provider: claude, model: claude-opus-5,   effort: xhigh }
+    doing:    { provider: claude, model: claude-opus-5,   effort: high }
+    review:   { provider: claude, model: claude-opus-5,   effort: high }
     hydrate:  { provider: claude, model: claude-opus-5,   effort: high }
     fast:     { provider: claude, model: claude-sonnet-5, effort: medium }
