@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 18
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-08-07T16:27:42Z", driver: fab-fff, iterations: 4, completed_at: "2026-08-07T16:43:02Z"}
     hydrate: {started_at: "2026-08-07T16:43:02Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-07T17:06:17Z"}
     ship: {started_at: "2026-08-07T17:06:17Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-07T17:09:36Z"}
-    review-pr: {started_at: "2026-08-07T17:09:36Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-08-07T17:09:36Z", driver: git-pr, iterations: 1, completed_at: "2026-08-07T17:20:37Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/538
 true_impact:
@@ -53,4 +53,4 @@ true_impact:
     computed_at_stage: ship
 summary: Reshaped agent config to roles/profiles with two depth knobs (agent.session/agent.workers), per-role provider fills, a single provider-anchored fill chain, and a slimmed fence
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-07T17:09:36Z
+last_updated: 2026-08-07T17:20:37Z
