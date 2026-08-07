@@ -304,9 +304,18 @@ agent:
 # rest; later workers stack inside that column with unsized `-v` splits and the
 # left/right separator is never touched again. Out-of-range values (and an absent
 # key, indistinguishable from 0) resolve to the default. Scope `both`.
+#
+# dispatch.reap_done (optional, default true) — whether `fab dispatch reap`
+# reclaims a DONE pane worker's tmux pane. A pane worker never exits on completion
+# (it writes its result file and sits at its prompt), so without reaping every
+# finished stage keeps its slice of the worker column for the rest of the run. Reap
+# is NOT kill: it fires only on `done`, is a no-op for headless dispatches, and
+# removes no .fab-dispatch/ state — so a reaped dispatch still reads `done`. Set
+# false to keep a done worker's pane and its scrollback. Scope `both`.
 dispatch:
   watchable: false
   column_width: 35
+  reap_done: true
 
 # Optional branch prefix applied by fab batch switch when creating worktree branches.
 branch_prefix: ""
