@@ -12,7 +12,7 @@
 //
 // The tables here are fab-kit's curated judgment, and they are split across two
 // files by whether a user can override them. The knobs and the provider table
-// (grammars plus claude's per-role fills) are DATA: they live in defaults.yaml
+// (grammars plus every provider's per-role fills) are DATA: they live in defaults.yaml
 // (embedded below), shaped as a config-file fragment, and defaults.yaml is the
 // single place to bump when a new top model lands (the "Fable upgrade path"). The
 // stage→role mapping and the role→depth partition are POLICY: they stay Go maps
@@ -58,7 +58,7 @@ import (
 )
 
 // defaultsYAML is fab-kit's built-in agent defaults — the depth knobs and the
-// provider table (grammars plus claude's per-role fills) — compiled into the
+// provider table (grammars plus every provider's per-role fills) — compiled into the
 // binary. It is deliberately EMBEDDED rather than read from the kit cache at
 // runtime: kit and binary release atomically, so an on-disk read would gain
 // nothing and add a binary↔kit version-skew failure mode to a resolution path that
@@ -131,12 +131,13 @@ const (
 // the data file exists to make impossible.
 var DefaultSessionCommand = defaultProviders[DefaultProviderName].SessionCommand
 
-// The codex and gemini built-in provider commands (260805-j3cm). These are
-// GRAMMAR ONLY — the invocation templates, carrying no fills. Grammar changes at
-// binary-release cadence and is safe to ship; model IDs rot in weeks, so a
-// non-claude built-in NEVER carries one (a project or the system config supplies it
-// via providers.<name>.profiles, an agent.profiles field, or an invocation flag —
-// see the fill precedence in the package doc).
+// The codex and gemini built-in provider commands (260805-j3cm). These are the
+// invocation templates; the matching per-role fills ship alongside them in
+// defaults.yaml (260806-ywkx), so naming either provider on a depth knob resolves a
+// real model for every role rather than an empty one. Grammar changes at
+// binary-release cadence; the non-claude FILLS are refreshed at kit-release cadence
+// and are corrected by one config line (providers.<name>.profiles.<role>.model) when
+// a catalog moves — see docs/specs/stage-models.md § Refreshing the non-claude fills.
 //
 // Both providers carry a dispatch_command (unlike claude, which carries none),
 // so pointing a role at one flips that role's stages from native Agent-tool
@@ -180,9 +181,10 @@ type Profile struct {
 //
 //   - claude — the default: the default session command, NO dispatch_command
 //     (native Agent-tool dispatch), and the six per-role fills.
-//   - codex, gemini — session AND dispatch commands, GRAMMAR ONLY (no fills, since
-//     a non-claude model ID rots at CLI cadence). Naming either resolves with ZERO
-//     providers: config and flips those stages to CLI dispatch.
+//   - codex, gemini — session AND dispatch commands plus their own SPARSE per-role
+//     fills (a role absent from the map resolves that provider's `default` entry).
+//     Naming either resolves with ZERO providers: config and flips those stages to
+//     CLI dispatch.
 //
 // A built-in provider is INERT until a knob, an agent.profiles entry, or a flag
 // names it — adding a row changes no default behavior, which is why the
@@ -458,15 +460,18 @@ func depthProvider(cfg *config.Config, role string) string {
 
 // providerFill returns the {model, effort} a resolved provider supplies for a role:
 // its own `profiles.<role>` entry, then its `profiles.default` entry (the provider's
-// cross-role fallback), then the DEPRECATED flat providers.<name>.model/.effort
-// fill, per field. The flat rung exists only so a config that has not yet run the
-// 2.16.19-to-2.17.0 migration keeps resolving; it sits below profiles.default
-// because that is the modern spelling of the same value.
+// cross-role fallback), per field.
+//
+// The DEPRECATED flat providers.<name>.model/.effort is NOT a rung here — it is
+// folded into the override's own profiles.default by ResolveProvider, which is the
+// alias it is documented to be. So prov.Model/prov.Effort are deliberately not read:
+// this function's only call site passes ResolveProvider's output, where a non-empty
+// flat fill has already become Profiles[RoleDefault].
 func providerFill(prov config.ProviderConfig, role string) (model, effort string) {
 	forRole := prov.Profiles[role]
 	forDefault := prov.Profiles[RoleDefault]
-	return firstNonEmpty(forRole.Model, forDefault.Model, prov.Model),
-		firstNonEmpty(forRole.Effort, forDefault.Effort, prov.Effort)
+	return firstNonEmpty(forRole.Model, forDefault.Model),
+		firstNonEmpty(forRole.Effort, forDefault.Effort)
 }
 
 // firstNonEmpty returns the first non-empty string, or "" when all are empty. It is
@@ -514,6 +519,16 @@ func ProviderNames(cfg *config.Config) []string {
 // session_command, or a dispatch with no dispatch_command, are the two failure
 // surfaces).
 //
+// The DEPRECATED flat providers.<name>.model/.effort is folded into the OVERRIDE's
+// own profiles.default before that merge, which is exactly the alias it is
+// documented to be — so a config that has not yet run the 2.16.19-to-2.17.0
+// migration keeps outranking the built-in fill it is trying to replace. Reading it
+// as a rung BELOW profiles.default instead (its former shape) was indistinguishable
+// while no non-claude built-in carried a profiles.default; now that all three do, a
+// rung would silently shadow the user's own pin with fab-kit's shipped one. The
+// user's own profiles.default still wins over their flat fill — the modern spelling
+// beats its alias.
+//
 // The returned Profiles map is always a fresh map, never the built-in table's own,
 // so a caller cannot mutate the shipped defaults through it.
 //
@@ -528,10 +543,31 @@ func ResolveProvider(cfg *config.Config, name string) (config.ProviderConfig, bo
 		mergeField(&resolved.DispatchCommand, override.DispatchCommand)
 		mergeField(&resolved.Model, override.Model)
 		mergeField(&resolved.Effort, override.Effort)
-		resolved.Profiles = mergeProviderProfiles(resolved.Profiles, override.Profiles)
+		resolved.Profiles = mergeProviderProfiles(resolved.Profiles, withFlatFillAlias(override))
 	}
 
 	return resolved, known
+}
+
+// withFlatFillAlias returns the override's profiles map with its DEPRECATED flat
+// model/effort folded into the `default` role, per field — the alias semantics the
+// flat spelling has always been documented to carry. The override's own
+// profiles.default wins where it sets a field; the flat value fills only what it
+// leaves empty. Returns the map unchanged when no flat fill is set, so the common
+// path allocates nothing.
+func withFlatFillAlias(override config.ProviderConfig) map[string]config.ProviderProfile {
+	if override.Model == "" && override.Effort == "" {
+		return override.Profiles
+	}
+	aliased := make(map[string]config.ProviderProfile, len(override.Profiles)+1)
+	for role, p := range override.Profiles {
+		aliased[role] = p
+	}
+	fallback := aliased[RoleDefault]
+	fallback.Model = firstNonEmpty(fallback.Model, override.Model)
+	fallback.Effort = firstNonEmpty(fallback.Effort, override.Effort)
+	aliased[RoleDefault] = fallback
+	return aliased
 }
 
 // mergeProviderProfiles returns a FRESH per-role fill map: base copied, then over

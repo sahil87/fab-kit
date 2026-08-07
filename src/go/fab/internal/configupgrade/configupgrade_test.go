@@ -350,25 +350,42 @@ func TestRender_InteriorColumn0CommentInLiveBlock(t *testing.T) {
 // fixture must restate all three to be an equals-default case.
 func TestRender_BHygieneFlagsEqualsDefault(t *testing.T) {
 	fields := fieldsForTest(t)
-	// claude also ships its six per-role fills (260806-j9nh), so an equals-default
-	// fixture must restate those too. They are DERIVED from agent.DefaultProfile
+	// All three built-ins ship per-role fills (260806-ywkx), so an equals-default
+	// fixture must restate every one. They are DERIVED from agent.ResolveProvider
 	// rather than typed out, so a model bump does not turn this into a false
-	// negative that silently stops exercising the equals-default path.
-	claudeProfiles := "        profiles:\n"
-	for _, role := range agent.RoleNames() {
-		p, _ := agent.DefaultProfile(role)
-		claudeProfiles += "            " + role + ": { model: " + p.Model + ", effort: " + p.Effort + " }\n"
+	// negative that silently stops exercising the equals-default path — and a fill
+	// added to any provider is picked up here automatically.
+	src := "providers:\n"
+	for _, name := range agent.ProviderNames(nil) {
+		prov, _ := agent.ResolveProvider(nil, name)
+		src += "    " + name + ":\n"
+		if prov.SessionCommand != "" {
+			src += "        session_command: '" + prov.SessionCommand + "'\n"
+		}
+		if prov.DispatchCommand != "" {
+			src += "        dispatch_command: '" + prov.DispatchCommand + "'\n"
+		}
+		if len(prov.Profiles) == 0 {
+			continue
+		}
+		src += "        profiles:\n"
+		for _, role := range agent.RoleNames() {
+			fill, ok := prov.Profiles[role]
+			if !ok {
+				continue
+			}
+			// Render only the fields the fill carries — a sparse effort-only entry
+			// or a model-only one must round-trip as itself, not gain an empty key.
+			var set []string
+			if fill.Model != "" {
+				set = append(set, "model: "+fill.Model)
+			}
+			if fill.Effort != "" {
+				set = append(set, "effort: "+fill.Effort)
+			}
+			src += "            " + role + ": { " + strings.Join(set, ", ") + " }\n"
+		}
 	}
-	src := "providers:\n" +
-		"    claude:\n" +
-		"        session_command: '" + agent.DefaultSessionCommand + "'\n" +
-		claudeProfiles +
-		"    codex:\n" +
-		"        session_command: '" + agent.DefaultCodexSessionCommand + "'\n" +
-		"        dispatch_command: '" + agent.DefaultCodexDispatchCommand + "'\n" +
-		"    gemini:\n" +
-		"        session_command: '" + agent.DefaultGeminiSessionCommand + "'\n" +
-		"        dispatch_command: '" + agent.DefaultGeminiDispatchCommand + "'\n"
 	out, report := render(src, fields, "2.15.0")
 
 	if !strings.Contains(out, "providers:") {

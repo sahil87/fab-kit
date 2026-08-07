@@ -77,19 +77,22 @@ Each provider MAY additionally carry **`profiles`** — a map keyed by role name
 | Built-in | `session_command` | `dispatch_command` | `profiles` |
 |----------|-------------------|--------------------|------------|
 | `claude` | templated default | **none** → native Agent-tool dispatch | all six roles |
-| `codex` | `codex -m {model} -c model_reasoning_effort={effort}` | `codex exec -m {model} -c model_reasoning_effort={effort}` | none |
-| `gemini` | `gemini -m {model}` | `gemini -m {model}` | none |
+| `codex` | `codex -m {model} -c model_reasoning_effort={effort}` | `codex exec -m {model} -c model_reasoning_effort={effort}` | sparse — `default`, `doing`, `review`, `fast` |
+| `gemini` | `gemini -m {model}` | `gemini -m {model}` | sparse — `default`, `fast` (model only) |
 
-**Only claude ships fills.** Grammar changes at binary-release cadence and is safe to ship; non-claude model IDs rot in weeks, so codex and gemini ship **grammar only** and their model IDs belong in user config (`providers.<name>.profiles`, an `agent.profiles` field, or an invocation flag) — never in a release. So `agent.workers: codex` resolves today with an **empty** model, and the codex CLI's own default applies until a project sets `providers.codex.profiles`. A project's `providers:` block per-field-merges over the built-ins via `agent.ResolveProvider(name)`, including the profiles map.
+**All three ship per-role fills**, so naming a provider on a depth knob is a complete configuration: `agent.workers: codex` resolves a model suited to each role, and **role differentiation survives the provider swap** (apply/review run at codex's higher effort while ship takes its cheaper `fast` model). The non-claude maps are **sparse** — a role absent from a map resolves that provider's `default` entry — and the merge is per **field**, so a codex row carrying `effort` only takes its model from `default`. Two per-provider shapes are load-bearing: **gemini's fills are model-only** (that CLI has no reasoning-effort flag, the same reason its grammars carry no `{effort}`), and **gemini's fills are the CLI's own stable aliases (`pro`, `flash`)** rather than versioned IDs — `gemini -m pro` resolves to whatever that CLI's current best pro model is for the caller's entitlement, so those rows do not rot (at the cost of a gemini-CLI version floor: a CLI predating alias support passes `pro` through as an unknown model ID and fails there).
+
+Non-claude fills are **refreshed at kit-release cadence** by editing `defaults.yaml`, are **unvalidated pass-through** values like every other resolved string, and a stale one fails loudly at the provider CLI and is corrected by **one config line** — `providers.<name>.profiles.<role>.model`, settable once per machine because `providers` is `scope: both`. There is no staleness automation: no CI check against provider APIs, no model-catalog fetch (§ Design Decisions → "Built-in Providers Ship Grammar AND Per-Role Fills"; `docs/specs/stage-models.md` § Refreshing the non-claude fills carries the policy and its decision lineage). **Current values are not restated here** — run `fab config reference` (renders live from the embedded defaults) or read the drift-guarded sample in [stage-models.md](../../specs/stage-models.md) § Three built-in providers.
+
+A project's `providers:` block per-field-merges over the built-ins via `agent.ResolveProvider(name)`, including the profiles map.
 
 **Naming a built-in is sufficient — no `providers:` block required.** A depth knob, an `agent.profiles` entry, or an invocation flag that names `codex`/`gemini` resolves with zero config. Because codex/gemini DO carry a `dispatch_command` (claude carries none), pointing a role at one flips that role's stages from native Agent-tool dispatch to headless CLI dispatch — exactly what selecting a non-claude provider means. A built-in provider is otherwise **inert**: adding a row changes no default behavior, which is why these rows live in Go while behavior-changing config still ships commented (see § Design Decisions → "Built-in Provider Grammar in Go, Fill Values in Config").
 
 ```yaml
 providers:
   codex:
-    profiles:                 # fab ships no model ID for codex
-      default: { model: gpt-5.3-codex, effort: medium }
-      doing:   { model: gpt-5.3-codex, effort: high }
+    profiles:                 # override one shipped fill; the rest stay built-in
+      review: { model: <codex-model-id>, effort: xhigh }
     # commands inherit the built-in grammar; override either to change it
 ```
 
@@ -114,9 +117,9 @@ Two per-provider grammar specifics: **gemini carries no `{effort}` placeholder**
 
 #### Scenario: naming a built-in provider with no `providers:` block
 
-- **GIVEN** a config with `agent: { profiles: { review: { provider: codex, model: gpt-5.3-codex, effort: high } } }` and no `providers:` block at all
+- **GIVEN** a config with `agent: { profiles: { review: { provider: codex, model: <codex-model-id>, effort: high } } }` and no `providers:` block at all
 - **WHEN** `fab resolve-agent review` runs
-- **THEN** it emits `provider=codex` plus `dispatch=codex exec -m gpt-5.3-codex -c model_reasoning_effort=high` — resolved entirely from the Go built-in grammar
+- **THEN** it emits `provider=codex` plus `dispatch=codex exec -m <codex-model-id> -c model_reasoning_effort=high` — resolved entirely from the Go built-in grammar
 - **AND** with no agent override at all, the same command emits no `dispatch=` line (the built-in claude provider carries none) — a built-in provider is inert until named
 
 ### Requirement: Six roles with fixed referents
@@ -144,11 +147,11 @@ The role names are the six fixed slots — `default`, `operator`, `doing`, `revi
 
 ### Requirement: The built-in defaults are an embedded `defaults.yaml`
 
-Both built-in tables — the depth knobs and the three-provider table with claude's per-role fills — are **data**, and live in `src/go/fab/internal/agent/defaults.yaml`, shaped exactly as a **user config-file fragment**: the same `agent:` / `providers:` keys a project writes to override them. The file is compiled into the binary via `//go:embed` and unmarshalled **once at package initialization** into `config.Config` — the same struct `config.LoadPath` fills from a user's `config.yaml` — so the built-in shape and the config schema cannot diverge. A malformed file **panics at init** (compiled-in bytes make a parse failure a defective build artifact, not a runtime condition), and nothing is read from the kit cache at runtime, so resolution cannot break on a missing or corrupt cache. `defaults_test.go` is the file's safety net against a YAML typo: it asserts the parse, exhaustive role/provider coverage with non-empty fields, the per-provider command-field presence/absence, the absence of any non-claude fill, and that the file defines no keys outside the `agent:`/`providers:` surface.
+Both built-in tables — the depth knobs and the three-provider table with every provider's per-role fills — are **data**, and live in `src/go/fab/internal/agent/defaults.yaml`, shaped exactly as a **user config-file fragment**: the same `agent:` / `providers:` keys a project writes to override them. The file is compiled into the binary via `//go:embed` and unmarshalled **once at package initialization** into `config.Config` — the same struct `config.LoadPath` fills from a user's `config.yaml` — so the built-in shape and the config schema cannot diverge. A malformed file **panics at init** (compiled-in bytes make a parse failure a defective build artifact, not a runtime condition), and nothing is read from the kit cache at runtime, so resolution cannot break on a missing or corrupt cache. `defaults_test.go` is the file's safety net against a YAML typo: it asserts the parse, exhaustive role/provider coverage with non-empty fields, the per-provider command-field presence/absence, that **every** provider carries a `profiles` map with a non-empty `profiles.default.model`, that gemini's fills set no `effort`, that no built-in uses the deprecated flat fill spelling, and that the file defines no keys outside the `agent:`/`providers:` surface.
 
 **The YAML/Go split is the overridable/fixed boundary.** What lives in `defaults.yaml` is user-overridable by writing the same key in `fab/project/config.yaml` (or `~/.fab-kit/config.yaml`); what stays in Go is fab-owned policy — `stageRoles` (the fixed stage→role mapping) and `roleDepth` (the role→depth partition). The config-fragment shape is also what makes `defaults.yaml` the **physical source of the cascade's defaults layer** (see [_shared/configuration.md](/_shared/configuration.md) § Override Cascade): those defaults still apply at the existing point-of-use seams rather than through `LoadPath`'s merge, so folding the file in as layer 0 is a merge-order change, not a parser change.
 
-**A model bump edits `defaults.yaml`** and runs the tests. The file carries the bump procedure inline and names the drift guards that will name *themselves* if a mirror falls behind — `TestDefaultsFileIsWellFormed` (the file itself), `TestDefaultRoleProfilesArePinned` (the deliberate-change pin), `TestDocTablesMatchAgentMaps` and `TestMirrorDocsMatchDefaultProfiles` (`docs/specs/stage-models.md`'s table and inline-YAML sample), `TestCLIFabReferenceListsDefaultRoles` (`_cli-fab.md`'s enumeration). Every other consumer derives from `DefaultProfile()`, so a bump touches nothing else.
+**A model bump edits `defaults.yaml`** and runs the tests. The file carries the bump procedure inline and names the drift guards that will name *themselves* if a mirror falls behind — `TestDefaultsFileIsWellFormed` (the file itself), `TestDefaultRoleProfilesArePinned` (the deliberate-change pin for claude) and `TestNonClaudeProviderFillsArePinned` (the same pin for codex/gemini), `TestDocTablesMatchAgentMaps` and `TestMirrorDocsMatchDefaultProfiles` (`docs/specs/stage-models.md`'s table and its inline-YAML sample, which is checked per **enclosing provider** so all three providers' fills are guarded and gemini's effort-less rows still match), `TestConfigReferenceDocumentsProviderFill` (the codex/gemini fill lines in the rendered `fab config reference`), `TestCLIFabReferenceListsDefaultRoles` (`_cli-fab.md`'s enumeration). Every other consumer derives from `DefaultProfile()` or `ResolveProvider`, so a bump touches nothing else.
 
 #### Scenario: the defaults travel inside the binary
 
@@ -172,16 +175,18 @@ An empty value keeps its established meaning: `spawn.WithProfile`'s token-drop (
 
 #### Scenario: a provider swap refills from that provider
 
-- **GIVEN** `agent.workers: codex` and `providers.codex.profiles: { review: { model: gpt-5.3-codex, effort: high } }`
+- **GIVEN** `agent.workers: codex` and `providers.codex.profiles: { review: { model: <codex-model-id>, effort: high } }`
 - **WHEN** `fab resolve-agent review` runs
-- **THEN** `provider=codex`, `model=gpt-5.3-codex`, `effort=high`
-- **AND** with only `providers.codex.profiles.default.model` set, every workers role resolves that model
+- **THEN** `provider=codex`, `model=<codex-model-id>`, `effort=high`
+- **AND** the other workers roles keep codex's **shipped** fills (the override merges per role, then per field)
+- **AND** with no `providers:` block at all, every workers role still resolves codex's own shipped fill — never claude's values
 
-#### Scenario: a provider with no fills resolves empty
+#### Scenario: a provider carrying no fills resolves empty
 
-- **GIVEN** `agent.workers: codex` and no `providers.codex.profiles`
+- **GIVEN** `agent.workers: mine` and a project-defined `providers.mine` carrying commands but no `profiles` (all three built-ins ship fills, so this is the user-defined case)
 - **WHEN** `fab resolve-agent apply` runs
-- **THEN** `model=` is empty and no `effort=` line is emitted (never claude's values), with `dispatch=codex exec …` and both placeholder tokens dropped
+- **THEN** `model=` is empty and no `effort=` line is emitted, with both placeholder tokens dropped from the composed command so the CLI's own default applies
+- **AND** a gemini-resolved role emits no `effort=` line either — its fills are model-only, and the grammar carries no `{effort}` for one to land in
 
 ### Requirement: Fixed, non-overridable stage → role mapping
 
@@ -211,7 +216,7 @@ The stage→role mapping is **fab-owned and NOT user-overridable** (`stageRoles`
 
 **Invocation-time overrides** are the fill precedence's top rung, applied by re-running the chain with the flags on top (`agent.ResolveRoleWith`) rather than patching a resolved profile:
 
-- **`--provider <name>`** swaps the provider and **re-derives `dispatch=` from the named provider's `dispatch_command`**, so the emitted `dispatch=` presence can differ from the stage's unoverridden one. Model/effort refill from the new provider's own per-role fills, then empty. Swapping to a provider that ships no fills (`--provider codex` today) therefore resolves an empty `model=` — pair it with an explicit `--model` when the stage should run a specific one.
+- **`--provider <name>`** swaps the provider and **re-derives `dispatch=` from the named provider's `dispatch_command`**, so the emitted `dispatch=` presence can differ from the stage's unoverridden one. Model/effort refill from the new provider's own per-role fills, then empty — so `--provider codex` resolves codex's fill for that role. Swapping to a provider that carries no fills resolves an empty `model=`; pair it with an explicit `--model` when the stage should run a specific one.
 - **`--model <id>` / `--effort <level>`** override the corresponding field and are valid **without** `--provider` — a within-role override of the profile this pure query would otherwise print. This is a deliberate, documented **asymmetry with `fab agent`**, where `--model`/`--effort` remain usage errors without `--provider` (a session launcher with two mutually exclusive addressing modes, where a bare `--model` would invent an undocumented override surface).
 - All three key on cobra's `Flag.Changed` — whether the flag was **supplied** — so `--model=` explicitly *clears* the role's model (emitting the inherit signal) rather than being silently ignored, and `--provider=` is a lookup failure rather than a fall-through to the knob.
 - An **unknown `--provider` name** is a non-zero-exit **lookup** failure listing the resolvable names, byte-identical to `fab agent`'s because both call the shared `unknownProviderError(cfg, name)` helper in `cmd/fab`. Overrides themselves are applied with **no validation** (provider neutrality).
@@ -223,13 +228,13 @@ The stage→role mapping is **fab-owned and NOT user-overridable** (`stageRoles`
 - **GIVEN** a role resolving to a provider with a `dispatch_command`
 - **WHEN** `fab resolve-agent <stage> --alias` runs
 - **THEN** `model=` carries the short alias while `dispatch=` embeds the full model ID
-- **AND** under `--provider codex --model gpt-5.3-codex --alias` the non-Claude model passes through **verbatim** on `model=` (no prefix matched) while `dispatch=` embeds the same full ID
+- **AND** under `--provider codex --model <codex-model-id> --alias` the non-Claude model passes through **verbatim** on `model=` (no prefix matched) while `dispatch=` embeds the same full ID
 
 #### Scenario: overriding a stage's provider on the resolve call
 
 - **GIVEN** a default config (apply → `doing` → claude)
 - **WHEN** `fab resolve-agent apply --provider codex` runs
-- **THEN** `provider=codex`, `model=` is empty (codex ships no fills), no `effort=` line, and `dispatch=codex exec` appears with both placeholder tokens dropped
+- **THEN** `provider=codex` with codex's own `doing` fill — its shipped model (inherited from codex's `default`, since the `doing` row carries effort only) at codex's `doing` effort — and `dispatch=codex exec …` with both placeholders substituted
 - **WHEN** `fab resolve-agent apply --effort high` runs (no `--provider`)
 - **THEN** `provider=claude` with the role's own model and `effort=high` — a within-role override, not a usage error
 - **WHEN** `fab resolve-agent apply --provider bogus` runs
@@ -296,7 +301,7 @@ The procedural knowledge for *using* a composed command — opening it in a tmux
 - **GIVEN** `providers.codex.session_command: 'codex -m {model} -c model_reasoning_effort={effort}'`
 - **WHEN** `fab agent --provider codex --print` runs
 - **THEN** stdout is a bare `codex` — both placeholder tokens and their preceding flags dropped — so the CLI's own default model applies
-- **AND** `fab agent --provider codex --model gpt-5.3-codex --effort high --print` prints `codex -m gpt-5.3-codex -c model_reasoning_effort=high`
+- **AND** `fab agent --provider codex --model <codex-model-id> --effort high --print` prints `codex -m <codex-model-id> -c model_reasoning_effort=high`
 
 #### Scenario: unknown provider name
 
@@ -313,11 +318,13 @@ The registry (`internal/configref`) advertises `agent.session` and `agent.worker
 Two deprecated spellings SHALL keep resolving so a config that has not yet run the `2.16.19-to-2.17.0` migration is never silently ignored:
 
 - **`agent.tiers.<role>`** — read per role as the fallback when `agent.profiles` has no entry for that role (`config.GetAgentProfile`), so a half-migrated config resolves every role. The registry row for `agent.profiles` carries `renamed_from: agent.tiers`.
-- **`providers.<name>.model` / `.effort`** — the flat per-provider fill, read as the rung *below* `profiles.default` (`agent.providerFill`), which is the modern spelling of the same value.
+- **`providers.<name>.model` / `.effort`** — the flat per-provider fill, a true **alias** for `profiles.default`: `ResolveProvider` folds an override's flat fields into **that override's own** `profiles.default`, per field, before merging fab-kit's built-in table (`withFlatFillAlias`). So a user's flat pin outranks the shipped `profiles.default` it means to replace, while the user's own `profiles.default` still wins over their flat spelling — and a built-in **role** fill still outranks the folded value, exactly as it would outrank a hand-written `profiles.default`. Because the fold happens per field, a flat `model` on codex reaches every role whose shipped row sets no model of its own.
 
-The read-time aliases are what make the rename safe on their own: `configupgrade`'s `renamed_from` carry is a **top-level-key** operation and deliberately skips a rename *inside* the `agent:` block, so without the aliases `fab config upgrade` (auto-run by `fab upgrade-repo`) would leave a live `agent:` block that had silently stopped being read. The migration `2.16.19-to-2.17.0` performs the on-disk rewrite in **both scopes** (project `fab/project/config.yaml` and system `~/.fab-kit/config.yaml`) and warns on the two shapes it cannot mechanically preserve: an `agent.tiers.default` carrying model/effort (whose cross-role re-basing has no successor) and a flat `providers.claude.model` (inert below claude's per-role fills today, but the `default` role's own fill once folded, where it wins). See [distribution/migrations.md](/distribution/migrations.md).
+The read-time aliases are what make the rename safe on their own: `configupgrade`'s `renamed_from` carry is a **top-level-key** operation and deliberately skips a rename *inside* the `agent:` block, so without the aliases `fab config upgrade` (auto-run by `fab upgrade-repo`) would leave a live `agent:` block that had silently stopped being read. The migration `2.16.19-to-2.17.0` performs the on-disk rewrite in **both scopes** (project `fab/project/config.yaml` and system `~/.fab-kit/config.yaml`) and warns on the two shapes it cannot mechanically preserve: an `agent.tiers.default` carrying model/effort (whose cross-role re-basing has no successor) and a flat provider fill, whose **reach** differs across the 2.17.0 boundary in opposite directions per provider — a gain of one role on claude (exhaustive six-role map, where a flat fill is inert pre-2.17.0 and fills the `default` role after), a loss on codex/gemini (sparse maps that shipped no fills pre-2.17.0, so a flat fill that reached every role stops wherever fab-kit ships a role fill). The rewrite itself is resolution-neutral where both scopes are swept together; the one shape where it is not is the mixed-layer inversion below, which the migration names in its verification steps. See [distribution/migrations.md](/distribution/migrations.md).
 
 **Cross-scope precedence inverts during the pre-migration window.** The alias resolves *after* the scope cascade: `LoadPath` merges the system and project layers per key first, leaving `profiles` and `tiers` as two separate maps, and `GetAgentProfile` then prefers `profiles` wherever it carries the role. So for a role written in the **new** spelling in one scope and the **legacy** spelling in the other, the spelling decides rather than the scope — a system-layer `agent.profiles.<role>` beats a project-layer `agent.tiers.<role>`, inverting the documented project > system precedence. It bites only a hand-half-migrated pair of scopes, and running the migration (which sweeps both files) restores normal precedence. Pinned by `TestResolveCrossScopeLegacyAliasPrecedence` in `cmd/fab` — the layer that can compose both scopes — and stated at `GetAgentProfile`'s doc comment.
+
+**The provider-side flat fill has the same twin.** `withFlatFillAlias` also runs *after* the scope cascade, so a system-layer `providers.<name>.profiles.default` beats a project-layer flat `providers.<name>.model` per field — the spelling decides rather than the scope, the same inversion one layer over. Retiring both twins needs a layer-aware fold (aliasing before `deepMerge`, or handing the resolver per-layer inputs); until then the shape is documented in the `2.16.19-to-2.17.0` migration's verification steps as the mixed-layer exception.
 
 #### Scenario: a legacy `agent.tiers:` block still resolves
 
@@ -330,8 +337,8 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 
 ### The Depth Knob Is the Provider Rung, Not a Whole-Profile Switch
 **Decision**: `agent.session`/`agent.workers` supply only the **provider** rung of the chain; model and effort always come from the resolved provider's own per-role fills. The role→depth partition behind them is fixed and fab-owned (`default`/`operator` → session; `doing`/`review`/`hydrate`/`fast` → workers), exposed to renderers through `agent.IsSessionRole` so no consumer re-encodes it.
-**Why**: It is what makes "claude for tier 1, gemini for tier 2" a two-word config while still letting each provider keep sensible per-role models. A knob carrying a whole profile would have to name models fab cannot ship (they rot at CLI cadence). Depth is the right axis because it is mechanically real: a session role's provider is fixed when the session launches, a workers role's is re-resolved at every dispatch.
-**Rejected**: Making the knob a `{provider, model, effort}` object (re-imports the model-rot problem into the advertised surface); keying the partition off stage names (the partition is about *depth*, and `default`/`operator` are not stages); a user-overridable partition (fab-owned taxonomy, like the stage→role map).
+**Why**: It is what makes "claude for tier 1, gemini for tier 2" a two-word config while still letting each provider keep sensible per-role models. A knob carrying a whole profile would name one model for every role it governs, flattening the role taxonomy and duplicating the per-role fills the provider table already owns. Depth is the right axis because it is mechanically real: a session role's provider is fixed when the session launches, a workers role's is re-resolved at every dispatch.
+**Rejected**: Making the knob a `{provider, model, effort}` object (one model for every role it governs — the role differentiation the per-role fills exist to provide, lost in the advertised surface); keying the partition off stage names (the partition is about *depth*, and `default`/`operator` are not stages); a user-overridable partition (fab-owned taxonomy, like the stage→role map).
 *Introduced by*: 260806-j9nh-agent-profiles-session-workers
 
 ### One Fallback Chain, on the Provider Side Only
@@ -370,11 +377,25 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 **Rejected**: A role-provider override flag (mutates role/budget policy to express a mechanics question); auto-creating a synthetic role (invents state the config never declared); letting `--model` override a resolved role's model on this launcher (a second, undocumented override surface); silently ignoring the flags (surprise-inducing CLI behavior); cobra's `MarkFlagsMutuallyExclusive` for the role pairing (it relates flags only — the role is a positional).
 *Introduced by*: 260805-nvad-cli-agents-helper-provider-spawn
 
-### Built-in Provider Grammar in Go, Fill Values in Config
-**Decision**: fab-kit's built-in provider table carries the invocation *grammar* for three providers (claude, codex, gemini) — shipped inside the binary — and carries fills only for claude. The volatile half for the others lives in user config: `providers.<name>.profiles`, an `agent.profiles` field, or an invocation flag.
-**Why**: Grammar changes at binary-release cadence and is safe to ship; non-claude model IDs rot in weeks and would make every fab release carry stale strings. Splitting them lets a fresh project name `codex` on a depth knob with zero config while the volatile half is settable once per machine via the `scope: both` system layer. A built-in provider is inert until a knob, a role override, or a flag names it, so adding a row changes no default behavior — which is what keeps the presence=intent rule (behavior-changing config ships commented) from forcing these rows out of the binary.
-**Rejected**: Baking non-claude model IDs into Go (rot); leaving codex/gemini as commented template text (leaves cross-provider work config-gated at the moment it should be frictionless); inferring a provider from a model string (breaks provider neutrality).
-*Introduced by*: 260805-j3cm-builtin-provider-templates-and-fill
+### Built-in Providers Ship Grammar AND Per-Role Fills, Refreshed at Kit-Release Cadence
+**Decision**: fab-kit's built-in provider table carries both halves for all three providers (claude, codex, gemini) — invocation grammar *and* per-role fills — inside the binary, as rows in the embedded `defaults.yaml`. The non-claude fills carry no staleness automation: no CI check against provider APIs, no model-catalog fetch. They are refreshed at **kit-release cadence** by editing the file, pass through **unvalidated** like every other resolved string, and are corrected by **one config line** (`providers.<name>.profiles.<role>.model`, settable once per machine because `providers` is `scope: both`). They are never seeded into a user's `config.yaml`, so an upgrade refreshes them and no project pins rot in place.
+**Why**: Shipping no fills was the *silent* failure: `agent.workers: codex` resolved an empty model identically for all four workers roles, so the provider CLI's own default ran everywhere and the role taxonomy flattened exactly where a user first exercises the knob. A stale ID is the loud, cheap failure by comparison — the CLI rejects it immediately and the fix is one line. Three more facts close the gap the rot argument was defending: gemini's fills are the CLI's own *aliases*, which do not rot at all; a bump is a reviewable data diff in an embedded YAML file, pinned by a test so it is always deliberate; and fab-kit releases every few days, so users see refreshed suggestions at kit cadence rather than CLI cadence. presence=intent is untouched — a built-in provider is inert until a knob, role override, or flag names it, so adding fills changes no default behavior while both depth knobs ship `claude`.
+**Rejected**: Keeping fills out of the release (preserves the silent role-flattening for the flagship one-line UX); a CI staleness check or catalog fetch against provider APIs (fab is validation-free by constitution, and a network dependency in resolution is worse than a stale string); seeding the fills into each project's `config.yaml` (pins in every repo, rotting independently of the binary); inferring a provider from a model string (breaks provider neutrality).
+*Introduced by*: 260805-j3cm-builtin-provider-templates-and-fill; *Updated by*: 260806-ywkx-ship-codex-gemini-fills (fills ship for codex/gemini too; the refresh-cadence policy replaces the rot argument)
+
+### Gemini's Fills Are CLI Aliases; Codex's Are Slugs Read from the Installed Catalog
+**Decision**: `providers.gemini.profiles` ships the gemini CLI's own stable aliases (`default: pro`, `fast: flash`), model-only. `providers.codex.profiles` ships concrete model slugs, sparse and per field — a `default` model plus effort, higher effort on `doing`/`review`, and a cheaper model at low effort on `fast`.
+**Why**: The gemini CLI resolves `pro`/`flash` client-side to whatever the current best model is for the caller's entitlement, degrading gracefully without preview access — so those rows are **rot-immune**, which strengthens the reversal rather than merely accepting its cost. The codex CLI exposes no alias mechanism (`-m` takes a slug), so concrete IDs are the only option; the shipped ones were read from the installed CLI's own model catalog rather than from documentation, which is the closest thing to an authoritative source, and the supported reasoning levels were checked there too. Sparseness is what buys role differentiation cheaply: effort-only rows inherit their model from `default` through the per-field merge.
+**Rejected**: Versioned gemini IDs (a preview-suffixed ID churns faster than kit releases; the legacy `2.5` line is scheduled for shutdown); codex slugs quoted from docs or memory rather than the installed catalog (the placeholders carried in from intake were absent from it entirely, and the next tier down carried deprecation notices).
+**Known consequence**: the alias mechanism is a gemini-CLI **version floor** — a CLI predating its client-side alias resolution passes `pro` through as an unknown model ID and fails there. Same loud, one-line-fixable failure as a stale slug: pin a full versioned ID, or upgrade the CLI.
+*Introduced by*: 260806-ywkx-ship-codex-gemini-fills
+
+### The Flat Provider Fill Is a Real Alias for `profiles.default`
+**Decision**: `ResolveProvider` folds an override's deprecated flat `model`/`effort` into **that override's own** `profiles.default`, per field, before merging fab-kit's built-in table — rather than reading the flat value as a rung *below* `profiles.default` during fill resolution. The user's own `profiles.default` wins where it sets a field; a built-in **role** fill still outranks the folded value.
+**Why**: The flat spelling is *documented* as an alias for `profiles.default`, but was implemented as a lower-precedence rung. The two were indistinguishable while no non-claude built-in carried a `profiles.default`; shipping one makes the difference load-bearing, and the rung form would silently shadow a pre-migration user's own pinned model with fab-kit's shipped one — a regression introduced *by* shipping the fills, for exactly the un-migrated configs the alias exists to serve. Fixing the fold rather than the symptom also collapses `providerFill` to a two-rung role→default read.
+**Rejected**: Keeping the rung and accepting the shadowing (a silent regression for the configs the alias serves); special-casing "built-in vs user" inside `providerFill` (it receives an already-merged `ProviderConfig` and cannot tell them apart).
+**Known consequence**: the fold runs *after* the scope cascade, so a system-layer `profiles.default` beats a project-layer flat fill per field — the provider-side twin of the `agent.profiles`/`agent.tiers` cross-scope inversion, pre-existing and byte-identical under the former rung form. Documented in the `2.16.19-to-2.17.0` migration; retiring both twins needs a layer-aware fold.
+*Introduced by*: 260806-ywkx-ship-codex-gemini-fills
 
 ### Overrides Land on `resolve-agent`, Not New Dispatch Machinery — and Bind the Native Arm Only
 **Decision**: Invocation-time provider/model/effort overrides are flags on `fab resolve-agent`, the single resolution call every dispatch site already makes, and the skill wiring is one passthrough paragraph. On that surface `--model`/`--effort` are valid without `--provider` (a within-role override), while `fab agent` keeps its requires-`--provider` rule. Because `fab dispatch start` carries no override surface — it re-resolves the stage from config — the overrides bind the **native Agent-tool arm** only, and every doc restating the surface carries that scope.

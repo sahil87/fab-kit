@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 )
 
 // agentTestRepo creates a temp repo with fab/project/config.yaml holding the
@@ -120,23 +122,29 @@ agent:
 	}
 }
 
-// TestAgentPrintBuiltinCodexNoFill: naming the codex BUILT-IN with no fill anywhere
-// composes a bare `codex` — codex ships grammar only, so model/effort resolve empty
-// and WithProfile drops each placeholder's token plus its preceding flag, letting
-// the installed CLI's own default model apply. Crucially it does NOT leak claude's
-// `default`-role model across the provider switch: model/effort come only from the
-// RESOLVED provider's own fills (260806-j9nh).
-func TestAgentPrintBuiltinCodexNoFill(t *testing.T) {
+// TestAgentPrintBuiltinCodexTakesItsOwnFill: pointing the `default` role at the
+// codex BUILT-IN with no providers: config composes codex's own shipped fill
+// (260806-ywkx) — and crucially does NOT leak claude's `default`-role model across
+// the provider switch: model/effort come only from the RESOLVED provider's own
+// fills (260806-j9nh).
+func TestAgentPrintBuiltinCodexTakesItsOwnFill(t *testing.T) {
 	agentTestRepo(t, `agent:
   profiles:
     default: { provider: codex }
 `)
+	codex, _ := agent.ResolveProvider(nil, "codex")
+	fill := codex.Profiles[agent.RoleDefault]
+
 	out, err := runAgentPrint(t)
 	if err != nil {
 		t.Fatalf("agent --print: %v", err)
 	}
-	if out != "codex\n" {
-		t.Errorf("output = %q, want a bare \"codex\\n\" (no fill configured; no claude model inherited)", out)
+	want := "codex -m " + fill.Model + " -c model_reasoning_effort=" + fill.Effort + "\n"
+	if out != want {
+		t.Errorf("output = %q, want codex's own default-role fill %q", out, want)
+	}
+	if strings.Contains(out, "claude") {
+		t.Errorf("output = %q — no claude model may be inherited across the provider switch", out)
 	}
 }
 
@@ -217,6 +225,10 @@ func TestAgentPrintProviderExplicitProfile(t *testing.T) {
 // `-`-flag, so a bare `codex` invocation is composed and the CLI's own default
 // model applies. This is the documented reason the provider form is usable without
 // knowing the installed CLI's model IDs.
+//
+// The provider form BYPASSES role resolution, so codex's shipped per-role fills
+// (260806-ywkx) are deliberately not consulted here — only the explicit flags are.
+// The role path is covered by TestAgentPrintBuiltinCodexTakesItsOwnFill.
 func TestAgentPrintProviderEmptyProfileDropsTokens(t *testing.T) {
 	agentTestRepo(t, `providers:
   codex:
@@ -442,7 +454,9 @@ func TestAgentProviderNoSessionCommandErrors(t *testing.T) {
 // TestAgentProviderBuiltinCodexNoConfig (260805-j3cm): `fab agent --provider codex`
 // works with NO providers: block at all — codex is a built-in. With no --model the
 // composition drops both placeholder tokens, so a bare `codex` results and the
-// installed CLI's own default model applies.
+// installed CLI's own default model applies. The provider form bypasses role
+// resolution, so codex's shipped per-role fills (260806-ywkx) do not apply on this
+// path — see TestAgentPrintBuiltinCodexTakesItsOwnFill for the role path.
 func TestAgentProviderBuiltinCodexNoConfig(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 

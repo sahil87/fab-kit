@@ -69,9 +69,10 @@ func TestDefaultsFileIsWellFormed(t *testing.T) {
 }
 
 // TestDefaultsFileProviders: the providers block covers exactly the three
-// built-ins, with the command fields each one is defined by. Only claude carries
-// fills; codex and gemini ship GRAMMAR ONLY (model IDs rot at CLI cadence and
-// belong in user config), and no built-in uses the DEPRECATED flat fill.
+// built-ins, with the command fields each one is defined by. ALL THREE carry
+// per-role fills (260806-ywkx — a knob pointed at codex/gemini must resolve a real
+// model per role, not an empty one), every fill key names a known role, and no
+// built-in uses the DEPRECATED flat fill.
 func TestDefaultsFileProviders(t *testing.T) {
 	cfg := parseDefaultsFile(t)
 
@@ -89,11 +90,24 @@ func TestDefaultsFileProviders(t *testing.T) {
 		if prov.Model != "" || prov.Effort != "" {
 			t.Errorf("defaults.yaml providers.%s uses the DEPRECATED flat fill (%q/%q) — built-in fills belong under profiles.<role>", name, prov.Model, prov.Effort)
 		}
+		// A provider's `default` entry is its cross-role fallback, so a sparse map
+		// is only well-defined when that entry exists and names a model.
+		if prov.Profiles[RoleDefault].Model == "" {
+			t.Errorf("defaults.yaml providers.%s has no profiles.default.model — every built-in must resolve a model for every role, and `default` is the cross-role fallback", name)
+		}
+		for role := range prov.Profiles {
+			if !IsRoleName(role) {
+				t.Errorf("defaults.yaml providers.%s.profiles.%s is not a known role (valid: %s)", name, role, strings.Join(RoleNames(), ", "))
+			}
+		}
 	}
 
-	for _, name := range []string{providerCodex, providerGemini} {
-		if len(cfg.Providers[name].Profiles) != 0 {
-			t.Errorf("defaults.yaml providers.%s carries per-role fills — non-claude built-ins ship GRAMMAR ONLY; fill belongs in user config", name)
+	// gemini's fills carry NO effort: the gemini CLI has no reasoning-effort flag
+	// (the same reason its command grammars carry no {effort} placeholder), so a
+	// resolved effort would have nowhere to go.
+	for role, fill := range cfg.Providers[providerGemini].Profiles {
+		if fill.Effort != "" {
+			t.Errorf("defaults.yaml providers.gemini.profiles.%s sets effort=%q — the gemini CLI has no reasoning-effort flag", role, fill.Effort)
 		}
 	}
 

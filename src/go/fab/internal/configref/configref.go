@@ -53,17 +53,19 @@
 // downstream resolver (Change 2) consumes; distinguishing []string{} from nil
 // would leak an implementation detail with no cascade meaning. A non-nil Default
 // therefore always denotes a real built-in value (the three built-in providers'
-// command grammars, claude's six per-role fills, the resolved per-role profiles,
-// the two depth knobs' claude, dispatch.watchable's false, dispatch.column_width's
-// 35, dispatch.reap_done's true) — which is why codex's and gemini's Defaults carry
-// no profiles map at all: fab-kit ships those two grammar-only. The three dispatch
-// rows are the convention's boundary cases: for a BOOL there is no "absent"
-// distinguishable from false, and for the width an absent yaml int is
-// indistinguishable from 0 (which the accessor therefore reads as unset), so each
-// carries its real built-in value rather than the typed-empty placeholder the
-// convention forbids. reap_done is the sharpest of the three — its default is TRUE,
-// so the config struct models it as a *bool to keep an explicit false
-// distinguishable from absent. See docs/specs/config.md § Default semantics.
+// command grammars AND their per-role fills, the resolved per-role profiles, the
+// two depth knobs' claude, dispatch.watchable's false, dispatch.column_width's 35,
+// dispatch.reap_done's true).
+// The convention still governs WITHIN a provider: codex's and gemini's fill maps are
+// SPARSE, so a role fab-kit ships no fill for is simply absent rather than emitted
+// as an empty object. The three dispatch rows are the convention's
+// boundary cases: for a BOOL there is no "absent" distinguishable from false, and
+// for the width an absent yaml int is indistinguishable from 0 (which the accessor
+// therefore reads as unset), so each carries its real built-in value rather than
+// the typed-empty placeholder the convention forbids. reap_done is the sharpest of
+// the three — its default is TRUE, so the config struct models it as a *bool to
+// keep an explicit false distinguishable from absent. See docs/specs/config.md
+// § Default semantics.
 //
 // Render() output is BYTE-STABLE for a given binary version: the field table is
 // fixed and ordered, the interpolated role/stage lists come from the
@@ -217,10 +219,11 @@ type providerProfileDefault struct {
 
 // providerDefault is the structured canonical default for ONE built-in provider.
 // Every field is `omitempty` because a built-in may legitimately carry only some
-// (claude ships no dispatch_command — absent = native Agent-tool dispatch; codex
-// and gemini ship GRAMMAR ONLY and carry no profiles at all). That matches the
-// registry's empty-default convention: a non-nil Default always denotes a real
-// built-in value, so an absent key means "fab-kit ships none", not "empty".
+// (claude ships no dispatch_command — absent = native Agent-tool dispatch). That
+// matches the registry's empty-default convention: a non-nil Default always denotes
+// a real built-in value, so an absent key means "fab-kit ships none", not "empty" —
+// which is also why a sparse fill map (codex, gemini) omits the roles it does not
+// fill rather than emitting empty objects for them.
 //
 // The DEPRECATED flat fill (providers.<name>.model/.effort) is deliberately not
 // projected: no built-in carries it, and it exists only as a read-time alias for
@@ -332,6 +335,8 @@ func Fields() ([]Field, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	roleOrder := agent.RoleNames()
 
 	fields := []Field{
 		{
@@ -486,14 +491,14 @@ checklist:
 		{
 			Key:         "providers",
 			Default:     providers,
-			Description: "Named agent invocation grammars plus their per-role fills. Each provider MAY carry session_command (interactive session) and dispatch_command (headless stage task) — never merged, no fallback between them — plus a profiles map keyed by role supplying the {model}/{effort} placeholders (precedence: invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty). fab-kit ships claude with its six role fills, and codex and gemini as grammar-only built-ins. Provider names are opaque, user-chosen strings.",
+			Description: "Named agent invocation grammars plus their per-role fills. Each provider MAY carry session_command (interactive session) and dispatch_command (headless stage task) — never merged, no fallback between them — plus a profiles map keyed by role supplying the {model}/{effort} placeholders (precedence: invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty). fab-kit ships three built-in providers with per-role fills: claude with all six roles, and codex and gemini with sparse maps whose `default` entry is the cross-role fallback. Non-claude fills are refreshed at kit-release cadence and pass through unvalidated — pin a newer one with providers.<name>.profiles.<role>.model. Provider names are opaque, user-chosen strings.",
 			Scope:       ScopeBoth,
 			// Demoted from the managed fence (260806-j9nh) for the same reason as
 			// agent.profiles: naming a built-in in a knob needs no providers: block at
 			// all, so ~60 commented lines of grammar per repo bought nothing. Still
 			// rendered here and in `fab config init --system`.
 			Advertise: false,
-			Segment:   providersSegment(),
+			Segment:   providersSegment(providers, roleOrder),
 		},
 		{
 			Key: "dispatch.watchable",
@@ -581,7 +586,13 @@ const referenceHeader = `# Full reference of all available options: fab config r
 // providersSegment renders the providers block. Every command string is
 // interpolated from its canonical agent var (no literal copy):
 // agent.DefaultSessionCommand for claude, and the four
-// agent.DefaultCodex*/DefaultGemini* vars for the other two built-ins.
+// agent.DefaultCodex*/DefaultGemini* vars for the other two built-ins. The
+// codex/gemini per-role FILLS are interpolated the same way, from the already-derived
+// providerDefaults() view — so the shipped values appear here without a literal copy,
+// and a bump in defaults.yaml reaches the rendered reference by itself.
+//
+// Fill lines are emitted in roleOrder (agent.RoleNames(), sorted) so the output stays
+// BYTE-STABLE: the profiles map is looked up by key, never range-iterated.
 //
 // Presentation (260805-j3cm): all three providers are BUILT-IN, so codex/gemini
 // are rendered as commented reference-style defaults — the same presentation every
@@ -597,7 +608,7 @@ const referenceHeader = `# Full reference of all available options: fab config r
 // rule), so in a rendered fence every marker lands at column 0 and the "strip the
 // leading '# ' from every line of a block" instruction below restores this text
 // byte-exactly — with those lines still commented at their original indent.
-func providersSegment() string {
+func providersSegment(providers map[string]providerDefault, roleOrder []string) string {
 	return "# providers — named agent invocation grammars plus their per-role fills. This\n" +
 		"# block is MACHINERY: naming a built-in on a depth knob (agent.session /\n" +
 		"# agent.workers, above) needs no `providers:` entry at all, so it is documented\n" +
@@ -631,27 +642,34 @@ func providersSegment() string {
 		"# Provider names are opaque, user-chosen strings — fab NEVER infers a provider\n" +
 		"# from a model string, and values pass through verbatim with no validation.\n" +
 		"#\n" +
-		"# fab-kit ships THREE built-in providers: claude (the default, carrying its six\n" +
-		"# role fills) plus codex and gemini as GRAMMAR ONLY — no fills, because non-claude\n" +
-		"# model IDs rot at CLI cadence and belong in config, not in a release. So\n" +
-		"# `agent.workers: codex` resolves today with an EMPTY model (the codex CLI's own\n" +
-		"# default applies) until you set providers.codex.profiles. Every block below is\n" +
-		"# shown commented because it merely restates a built-in default — except claude's\n" +
-		"# session_command, shown live as the baseline example. Note codex/gemini DO carry\n" +
-		"# a dispatch_command, so pointing a role at one flips its stages from native\n" +
-		"# Agent-tool dispatch to headless CLI dispatch; claude's dispatch_command is\n" +
-		"# deliberately absent from the built-in (uncommenting the line below flips\n" +
-		"# claude's stages the same way).\n" +
+		"# fab-kit ships THREE built-in providers — claude (the default), codex and gemini\n" +
+		"# — each WITH its per-role fills, so `agent.workers: codex` needs no providers:\n" +
+		"# block at all and every role still resolves a model suited to it. The non-claude\n" +
+		"# maps are SPARSE: a role absent from one takes that provider's `default` entry.\n" +
+		"# Those fills are refreshed at KIT-RELEASE cadence and pass through unvalidated —\n" +
+		"# override one with providers.<name>.profiles.<role>.model to pin a newer model.\n" +
+		"# Only the non-claude maps are PRINTED below — claude's six fills are the role\n" +
+		"# defaults `fab resolve-agent <stage>` resolves, and all three providers' maps\n" +
+		"# are projected by `fab config reference --json`; their absence from claude's\n" +
+		"# block below is a rendering choice, not a missing fill.\n" +
+		"# Every block below is shown commented because it merely restates a built-in\n" +
+		"# default — except claude's session_command, shown live as the baseline example.\n" +
+		"# Note codex/gemini DO carry a dispatch_command, so pointing a role at one flips\n" +
+		"# its stages from native Agent-tool dispatch to headless CLI dispatch; claude's\n" +
+		"# dispatch_command is deliberately absent from the built-in (uncommenting the\n" +
+		"# line below flips claude's stages the same way).\n" +
 		"#\n" +
 		"# Per-provider notes (kept out of the blocks below so uncommenting a whole block\n" +
 		"# yields valid YAML — strip the leading '# ' from every line of a block):\n" +
 		"#   claude.dispatch_command — claude -p reads the prompt from stdin; uncommenting\n" +
 		"#     runs claude's stages as headless CLI processes instead of native sub-agents.\n" +
-		"#   codex — codex exec reads the prompt from stdin. Set providers.codex.profiles\n" +
-		"#     to current model IDs (e.g. gpt-5.3-codex) — fab ships none and validates none.\n" +
-		"#   gemini — no {effort} (the gemini CLI has no reasoning-effort flag) and no -p:\n" +
-		"#     gemini's -p takes prompt TEXT (appended after stdin), whereas fab dispatch\n" +
-		"#     pipes the prompt to stdin, which gemini reads as the prompt in non-TTY mode.\n" +
+		"#   codex — codex exec reads the prompt from stdin. Its -m takes a concrete model\n" +
+		"#     SLUG, so the fills below are pinned IDs: override one to pin a newer model.\n" +
+		"#   gemini — no {effort} (the gemini CLI has no reasoning-effort flag, so its fills\n" +
+		"#     carry none either) and no -p: gemini's -p takes prompt TEXT (appended after\n" +
+		"#     stdin), whereas fab dispatch pipes the prompt to stdin, which gemini reads as\n" +
+		"#     the prompt in non-TTY mode. Its fills are that CLI's own stable ALIASES\n" +
+		"#     rather than versioned IDs, so they track its current best model on their own.\n" +
 		"providers:\n" +
 		"  claude:\n" +
 		"    session_command: '" + agent.DefaultSessionCommand + "'\n" +
@@ -659,14 +677,49 @@ func providersSegment() string {
 		"  # codex:\n" +
 		"  #   session_command: '" + agent.DefaultCodexSessionCommand + "'\n" +
 		"  #   dispatch_command: '" + agent.DefaultCodexDispatchCommand + "'\n" +
-		"  #   profiles:                               # example fills — fab ships no model ID for codex\n" +
-		"  #     default: { model: gpt-5.3-codex, effort: medium }\n" +
-		"  #     doing:   { model: gpt-5.3-codex, effort: high }\n" +
+		profilesLines(providers["codex"].Profiles, roleOrder) +
 		"  # gemini:\n" +
 		"  #   session_command: '" + agent.DefaultGeminiSessionCommand + "'\n" +
 		"  #   dispatch_command: '" + agent.DefaultGeminiDispatchCommand + "'   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)\n" +
-		"  #   profiles:                               # example fill — fab ships no model ID for gemini\n" +
-		"  #     default: { model: gemini-2.5-pro }"
+		strings.TrimRight(profilesLines(providers["gemini"].Profiles, roleOrder), "\n")
+}
+
+// profilesLines renders a provider's per-role fill map as commented reference lines
+// under a `# profiles:` key, one role per line in roleOrder (so the output is
+// byte-stable — the map is looked up by key, never ranged over). A role absent from
+// the map is skipped, which is what keeps a SPARSE built-in rendering sparse. The
+// effort half is omitted for a fill that carries none (gemini), so the rendered YAML
+// never asserts an effort the provider has no flag for.
+//
+// Returns "" for a provider with no fills, so a future grammar-only built-in renders
+// no `profiles:` key at all rather than an empty one.
+func profilesLines(profiles map[string]providerProfileDefault, roleOrder []string) string {
+	if len(profiles) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("  #   profiles:\n")
+	for _, role := range roleOrder {
+		fill, ok := profiles[role]
+		if !ok {
+			continue
+		}
+		// Only the fields the fill actually carries are rendered: an effort-only
+		// entry inherits its model from `default` and must not claim an empty one,
+		// and a model-only entry must not assert an effort its CLI has no flag for.
+		var set []string
+		if fill.Model != "" {
+			set = append(set, "model: "+fill.Model)
+		}
+		if fill.Effort != "" {
+			set = append(set, "effort: "+fill.Effort)
+		}
+		if len(set) == 0 {
+			continue
+		}
+		fmt.Fprintf(&b, "  #     %s: { %s }\n", role, strings.Join(set, ", "))
+	}
+	return b.String()
 }
 
 // agentSegment renders the WHOLE `agent:` block — the two advertised depth knobs

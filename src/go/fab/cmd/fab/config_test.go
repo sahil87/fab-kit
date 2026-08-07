@@ -381,25 +381,40 @@ func TestConfigReferenceDocumentsThreeBuiltInProviders(t *testing.T) {
 		}
 	}
 
-	// The three built-ins are named as built-in, and the grammar-only rule (no
-	// baked model IDs for non-claude providers) is stated.
+	// The three built-ins are named as built-in, and the refresh policy that
+	// replaced the grammar-only rule (260806-ywkx) is stated: the non-claude fills
+	// ARE shipped, refreshed at kit-release cadence, and overridable in one line.
 	for _, phrase := range []string{
 		"THREE built-in providers",
-		"GRAMMAR ONLY",
+		"KIT-RELEASE cadence",
+		"providers.<name>.profiles.<role>.model",
+		// Only codex/gemini render a `profiles:` map, so the prose must say why
+		// claude's is absent — otherwise the reader concludes claude ships none.
+		"rendering choice, not a missing fill",
 	} {
 		if !strings.Contains(out, phrase) {
-			t.Errorf("providers block must state %q (the built-in providers are grammar-only)", phrase)
+			t.Errorf("providers block must state %q (the non-claude fills ship, and are refreshed at kit cadence)", phrase)
+		}
+	}
+	// The superseded j3cm framing must not survive either — it renders into
+	// `fab config reference` and would now be a user-facing inaccuracy.
+	for _, retired := range []string{
+		"GRAMMAR ONLY",
+		"fab ships no model ID",
+		"resolves today with an EMPTY model",
+	} {
+		if strings.Contains(out, retired) {
+			t.Errorf("providers block still carries the retired grammar-only claim %q", retired)
 		}
 	}
 }
 
 // TestConfigReferenceDocumentsProviderFill is the fill contract, reshaped by
-// 260806-j9nh: the providers block documents the PER-ROLE `profiles` fill map and
-// the fill precedence, and the registry row's Default exposes NO fill for the
-// NON-claude built-ins (fab-kit ships their grammar, never a model ID — those rot
-// at CLI cadence). claude is the deliberate exception: its six role fills moved
-// off the agent side onto the provider in this change, so they ARE a real shipped
-// built-in value.
+// 260806-j9nh and completed by 260806-ywkx: the providers block documents the
+// PER-ROLE `profiles` fill map and the fill precedence, and the registry row's
+// Default exposes EVERY built-in's fills — claude's six roles (moved off the agent
+// side by j9nh) plus codex's and gemini's sparse maps (shipped by ywkx). What the
+// projection still refuses is the DEPRECATED flat pair, on every provider.
 func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
@@ -418,6 +433,42 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 	// it survives only as the documented deprecated alias.
 	if strings.Contains(out, "DEFAULT FILL") {
 		t.Error("providers block still advertises the retired flat providers.<name>.model/.effort fill")
+	}
+
+	// The RENDERED reference must carry the shipped codex/gemini fills, not just
+	// the JSON projection below: those commented lines ARE the user-facing half of
+	// R7, and without this assertion they can be dropped from providersSegment with
+	// the whole suite staying green. Expectations are DERIVED from ResolveProvider,
+	// shaped by the same omitempty rule the renderer applies — so codex's
+	// effort-only rows and gemini's model-only rows are both pinned, a fill bump in
+	// defaults.yaml moves both sides together, and no model ID is written as a
+	// literal here.
+	for _, name := range []string{"codex", "gemini"} {
+		prov, ok := agent.ResolveProvider(nil, name)
+		if !ok {
+			t.Errorf("built-in provider %q does not resolve", name)
+			continue
+		}
+		if len(prov.Profiles) == 0 {
+			t.Errorf("built-in provider %q resolves no per-role fills for the reference to render", name)
+		}
+		for _, role := range agent.RoleNames() {
+			fill, ok := prov.Profiles[role]
+			if !ok {
+				continue // sparse map: an omitted role takes this provider's `default`
+			}
+			var set []string
+			if fill.Model != "" {
+				set = append(set, "model: "+fill.Model)
+			}
+			if fill.Effort != "" {
+				set = append(set, "effort: "+fill.Effort)
+			}
+			want := "  #     " + role + ": { " + strings.Join(set, ", ") + " }"
+			if !strings.Contains(out, want) {
+				t.Errorf("providers block must render %s's %s fill as %q", name, role, want)
+			}
+		}
 	}
 
 	// The JSON registry row must advertise all three built-ins and no fill values.
@@ -459,27 +510,34 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 			t.Errorf("built-in %q must carry no flat effort fill in the registry default", name)
 		}
 		profiles, hasProfiles := entry["profiles"].(map[string]any)
-		if name == agent.DefaultProviderName {
-			// claude ships its six role fills — the values that used to live on the
-			// agent side. Derived from agent.RoleNames so a role added or renamed
-			// surfaces here rather than drifting silently.
-			if !hasProfiles {
-				t.Errorf("built-in %q must carry its per-role profiles in the registry default, got %v", name, entry)
-				continue
-			}
-			for _, role := range agent.RoleNames() {
-				if _, ok := profiles[role]; !ok {
-					t.Errorf("built-in claude's registry default is missing the %q role fill", role)
-				}
-			}
+		if !hasProfiles {
+			t.Errorf("built-in %q must carry its per-role profiles in the registry default, got %v", name, entry)
 			continue
 		}
-		if hasProfiles {
-			t.Errorf("built-in %q must ship GRAMMAR ONLY — no per-role fills in the registry default, got %v", name, profiles)
+		// Every built-in's map must at least carry `default` — the cross-role
+		// fallback that makes a SPARSE map well-defined for the roles it omits.
+		if _, ok := profiles[agent.RoleDefault]; !ok {
+			t.Errorf("built-in %q's registry default has no %q fill (the cross-role fallback), got %v", name, agent.RoleDefault, profiles)
+		}
+		for role := range profiles {
+			if !agent.IsRoleName(role) {
+				t.Errorf("built-in %q's registry default carries a fill for %q, which is not a role name", name, role)
+			}
+		}
+		if name != agent.DefaultProviderName {
+			continue
+		}
+		// claude is the one built-in whose map is EXHAUSTIVE. Derived from
+		// agent.RoleNames so a role added or renamed surfaces here rather than
+		// drifting silently.
+		for _, role := range agent.RoleNames() {
+			if _, ok := profiles[role]; !ok {
+				t.Errorf("built-in claude's registry default is missing the %q role fill", role)
+			}
 		}
 	}
 	desc, _ := row["description"].(string)
-	for _, phrase := range []string{"per-role fills", "grammar-only built-ins"} {
+	for _, phrase := range []string{"per-role fills", "three built-in providers with per-role fills", "kit-release cadence"} {
 		if !strings.Contains(desc, phrase) {
 			t.Errorf("providers row description must mention %q, got %q", phrase, desc)
 		}
@@ -494,9 +552,10 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 // built-in added or renamed in defaults.yaml surface here automatically instead of
 // silently drifting out of `fab config reference --json`.
 //
-// It also pins the projection: only the two command fields cross over, verbatim
-// from ResolveProvider — the grammar-only contract that keeps a nonexistent
-// model/effort fill from being asserted (see configref.providerDefault).
+// It also pins the projection: the two command fields and the per-role fill map
+// cross over verbatim from ResolveProvider, while the DEPRECATED flat pair never
+// does — the contract that keeps a nonexistent model/effort fill from being
+// asserted (see configref.providerDefault).
 func TestConfigReferenceProvidersDefaultTracksAgentTable(t *testing.T) {
 	jsonOut, err := configref.RenderJSON()
 	if err != nil {
@@ -565,6 +624,31 @@ func TestConfigReferenceProvidersDefaultTracksAgentTable(t *testing.T) {
 			if raw != wantCmd {
 				t.Errorf("provider %q: %s = %v, want ResolveProvider's %q", name, field, raw, wantCmd)
 			}
+		}
+
+		// The per-role fill map must cross over VERBATIM too — every shipped role,
+		// model AND effort. Comparing the whole object is what makes a dropped role,
+		// a rewritten value, or an asserted-but-unshipped field fail here; the
+		// command assertions above would pass regardless. `want` is built with the
+		// same omitempty rule the JSON shape uses, so gemini's model-only rows assert
+		// no empty effort, and a provider carrying no fills asserts no `profiles` key.
+		var wantProfiles map[string]any
+		if len(p.Profiles) > 0 {
+			wantProfiles = make(map[string]any, len(p.Profiles))
+			for role, fill := range p.Profiles {
+				projected := map[string]any{}
+				if fill.Model != "" {
+					projected["model"] = fill.Model
+				}
+				if fill.Effort != "" {
+					projected["effort"] = fill.Effort
+				}
+				wantProfiles[role] = projected
+			}
+		}
+		gotProfiles, _ := entry["profiles"].(map[string]any)
+		if !reflect.DeepEqual(gotProfiles, wantProfiles) {
+			t.Errorf("provider %q: profiles = %v, want ResolveProvider's %v (verbatim, per role and per field)", name, gotProfiles, wantProfiles)
 		}
 	}
 }

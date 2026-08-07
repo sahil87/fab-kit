@@ -226,35 +226,92 @@ providers:
       review:   { model: claude-opus-5,   effort: high }
       hydrate:  { model: claude-opus-5,   effort: high }
       fast:     { model: claude-sonnet-5, effort: medium }
+  codex:
+    session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
+    dispatch_command: 'codex exec -m {model} -c model_reasoning_effort={effort}'
+    profiles:                                 # sparse — an absent role takes `default`
+      default: { model: gpt-5.6-sol,  effort: high }
+      doing:   { effort: xhigh }
+      review:  { effort: xhigh }
+      fast:    { model: gpt-5.6-luna, effort: low }
+  gemini:
+    session_command: 'gemini -m {model}'
+    dispatch_command: 'gemini -m {model}'
+    profiles:                                 # model-only: no reasoning-effort flag
+      default: { model: pro }
+      fast:    { model: flash }
 ```
 
-`codex` and `gemini` ship **grammar only** — their command templates are in the binary, but **neither
-carries a fill**. The split is deliberate: invocation *grammar* changes at binary-release cadence and
-is safe to ship; non-claude *model IDs* rot in weeks and must never be baked into a release.
+**All three carry fills.** The maps are SPARSE for the non-claude providers: a role absent from a
+provider's map resolves that provider's `default` entry, so codex's `hydrate` and `operator` land on
+codex's `default` model and effort, and gemini's non-`fast` roles on gemini's `default` model, without
+a row of their own. (The merge is per FIELD, so codex's `doing`/`review` rows — effort only — take
+their model from `default` too.)
+
+Two per-provider shapes are load-bearing:
+
+- **gemini's fills carry no `effort`** — that CLI has no reasoning-effort flag, the same reason its
+  command grammars carry no `{effort}` placeholder. A gemini-resolved role emits no `effort=` line.
+- **gemini's fills are the CLI's own stable ALIASES (`pro`, `flash`), not versioned IDs.** `gemini -m
+  pro` resolves to whatever that CLI's current best pro model is for the caller's entitlement, and
+  degrades gracefully without preview access — so those two rows do not rot at all. The codex CLI
+  exposes no alias mechanism (`-m` takes a slug), so its rows are pinned IDs and are the ones the
+  refresh policy below is about.
+  The alias mechanism is a **gemini-CLI version floor**, not a wire-protocol feature: a CLI older than
+  its `resolveModel()` alias support passes `pro`/`flash` through as an unknown model ID and fails
+  there. That is the same loud, one-line-fixable failure as a stale slug — override
+  `providers.gemini.profiles.<role>.model` with a full versioned ID, or upgrade the CLI.
 
 Consequences:
 
 - **Naming `codex`/`gemini` resolves with zero `providers:` config** — `agent.workers: codex`, an
   `agent.profiles.<role>.provider`, or `fab agent --provider codex` / `fab resolve-agent <stage>
   --provider codex` all work on a fresh project. A `providers:` block is for *overriding* a grammar or
-  *supplying fills*, not for registering these providers.
-- **They resolve an EMPTY model today.** With no fills configured, `agent.workers: codex` resolves
-  `model=` empty, which is the established signal that the provider CLI's own default applies. Setting
-  `providers.codex.profiles` is how a project pins real IDs.
-- **A built-in provider is inert until named.** Adding the rows changed no default behavior, which is
-  why presence=intent (the rule that keeps behavior-changing config commented) does not force the
-  grammar out of Go.
+  a fill, not for registering these providers.
+- **Role differentiation survives a provider swap.** `agent.workers: codex` resolves `xhigh` for
+  apply/review and codex's cheaper `fast` model at `low` for ship — which is the whole point of keying
+  fills by role. Shipping no fills resolved an *empty* model identically for all four, silently
+  flattening the taxonomy.
+- **A built-in provider is inert until named.** Adding the rows changes no default behavior (both
+  depth knobs ship `claude`), which is why presence=intent — the rule that keeps behavior-changing
+  config commented — does not force the table out of Go.
 - **codex/gemini DO carry a `dispatch_command`; claude does not.** So pointing a role at one flips
   that role's stages from native Agent-tool dispatch to CLI dispatch — exactly what selecting a
   non-claude provider means.
 - The reference renders the codex/gemini blocks **commented**, like every other non-overridden
   default (a commented block registers no project override).
 
-> **Explicit reversal (`260805-j3cm` over `260731-ho9y`).** ho9y shipped codex/gemini as
+### Refreshing the non-claude fills
+
+Built-in non-claude fills are **refreshed at kit-release cadence**, by editing `defaults.yaml`. There
+is no staleness automation: fab runs no CI check against provider APIs and no model-catalog fetch —
+resolution passes every string through **verbatim** (the no-validation contract; compatibility is the
+harness's concern).
+
+That is safe because of the failure shape on each side:
+
+- **A stale ID fails loudly and cheaply.** The provider CLI rejects it immediately, and the fix is one
+  config line: `providers.<name>.profiles.<role>.model`. Because `providers` is scope `both`, that
+  line is settable once machine-wide in `~/.fab-kit/config.yaml`.
+- **Shipping nothing failed silently.** An empty model resolved the CLI's own default identically for
+  every role, with no error at all — worse than a loud stale ID, because it defeats role
+  differentiation exactly where a user first exercises the knob.
+- **A bump is a data diff.** The fills are rows in an embedded YAML file, reviewable at a glance, and
+  pinned by `TestNonClaudeProviderFillsArePinned` so the edit is always test-acknowledged.
+
+Verify a fill against the **installed** binary rather than from memory — `_cli-agents.md` § discovery
+recipes records what to run per CLI. The fills are never seeded into a user's `config.yaml`: they live
+in the binary, so an upgrade refreshes them and no project pins rot in place.
+
+> **Decision lineage — `260731-ho9y` → `260805-j3cm` → `260806-ywkx`.** ho9y shipped codex/gemini as
 > *uncomment-to-opt-in template text* and recorded "no new built-in providers are added in Go". j3cm
-> reverses that, narrowly: **grammar strings only**. ho9y's reasoning (presence implies intent, so
-> anything whose presence changes behavior ships commented) still holds and is *preserved* — a built-in
-> provider is inert until named, so the rows change no default behavior.
+> reversed that narrowly, for **grammar strings only**, explicitly keeping model IDs out ("non-claude
+> model IDs rot at CLI cadence, so they belong in config, not in a release"). ywkx completes the
+> reversal: fills ship too. What survives from ho9y is its actual rule — presence implies intent, so
+> anything whose presence changes behavior ships commented — and it is *preserved*, because a built-in
+> provider is inert until a knob, role override, or flag names it. What is retired is the rot argument,
+> on the four grounds above plus release cadence: fab-kit ships every few days, so users see refreshed
+> suggestions at kit cadence rather than CLI cadence.
 
 **Provider names are opaque — fab NEVER infers a provider from a model string** (`claude-*` → claude
 would need a provider registry, which the no-validation/provider-neutrality contract refuses).
@@ -322,21 +379,21 @@ providers:
   claude:
     session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
     # dispatch_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'   # uncomment to flip claude's stages from native Agent-tool dispatch to headless CLI
-  # codex and gemini are BUILT-IN providers (grammar only) — these blocks merely
-  # restate the built-in default, so they ship commented like every other default.
-  # Uncomment only to OVERRIDE a grammar; set profiles to supply the fills fab
-  # deliberately ships none of.
+  # codex and gemini are BUILT-IN providers carrying grammar AND fills — these
+  # blocks merely restate a built-in default, so they ship commented like every
+  # other default. Uncomment only to OVERRIDE a grammar or pin a newer model.
+  # (Shape only below; § Three built-in providers above carries the live values,
+  # and `fab config reference` prints what your binary actually ships.)
   # codex:
   #   session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
   #   dispatch_command: 'codex exec -m {model} -c model_reasoning_effort={effort}'
   #   profiles:
-  #     default: { model: gpt-5.3-codex, effort: medium }   # e.g. — fab ships no codex model ID
-  #     doing:   { model: gpt-5.3-codex, effort: high }     # e.g.
+  #     default: { model: <codex-model-id>, effort: high }   # e.g. — pin a newer model here
   # gemini:
   #   session_command: 'gemini -m {model}'
   #   dispatch_command: 'gemini -m {model}'   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)
   #   profiles:
-  #     default: { model: gemini-2.5-pro }    # e.g. — fab ships no gemini model ID
+  #     default: { model: <gemini-model-id> }  # e.g. — no effort: the gemini CLI has no such flag
 ```
 
 - Keys under `agent.profiles:` are the six role names: `default`, `operator`, `doing`, `review`,
@@ -664,12 +721,14 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   weaken it: an auto-selected pane whose provider carries no `session_command` **soft-falls-back to
   headless** (re-composing from `dispatch_command`), so a role resolved to a `dispatch_command`-only
   provider dispatches identically inside and outside tmux.
-- *Claude-flavored data (overridable):* fab-kit's shipped fills use Claude model IDs/effort.
-  These are documented as "fab-kit's Claude defaults," fully replaceable via the depth knobs plus
+- *Claude-flavored data (overridable):* the `claude` provider's shipped fills use Claude model
+  IDs/effort — the fills that apply while both depth knobs sit on their `claude` default; `codex` and
+  `gemini` ship their own model IDs (§ Three built-in providers). Every provider's fills are
+  fab-kit's defaults for that provider, fully replaceable via the depth knobs plus
   `providers.<name>.profiles`.
 - *v1 scope is architecture-neutral + documented — NOT shipped/tested against a non-Claude harness.* No
-  non-claude default fills (that is `ywkx`), no provider-detection, no non-Claude integration test. The
-  acceptance proof is "a non-Claude project can point a knob elsewhere and nothing in fab rejects it",
+  provider-detection, no non-Claude integration test. The acceptance proof is
+  "a non-Claude project can point a knob elsewhere and nothing in fab rejects it",
   not "we ran it on a non-Claude harness." Shipped+tested multi-provider support is explicitly out of
   scope.
 
@@ -761,13 +820,16 @@ mirrors of `src/go/fab/internal/agent/defaults.yaml` (§ Default role profiles, 
 test in that package (`TestDocTablesMatchAgentMaps`) parses both tables from this doc and fails if
 either disagrees with the code — same pattern as `TestDocTablesMatchScoringMaps` for
 `docs/specs/change-types.md`. `TestMirrorDocsMatchDefaultProfiles` covers the second shape this doc
-carries: the inline-YAML `providers.claude.profiles` sample in § Three built-in providers.
+carries: the inline-YAML `providers.<name>.profiles` samples in § Three built-in providers — every
+fill line is checked against the provider whose block it sits in, so all three built-ins' samples are
+guarded, not just claude's.
 
 The embedded data file has its own guard: a YAML typo is no longer a compile error, so
 `TestDefaultsFileIsWellFormed` (and its siblings in `defaults_test.go`) parse `defaults.yaml`
-independently and assert both knobs are set, every role's claude fill is present and populated, no
-non-claude built-in carries a fill, and the package's tables and exported command values are wired to
-the file's keys.
+independently and assert both knobs are set, every role's claude fill is present and populated, all
+three built-ins carry per-role fills whose `default` entry names a model (with none using the
+deprecated flat spelling, and gemini's carrying no effort), and the package's tables and exported
+command values are wired to the file's keys.
 
 ---
 
@@ -777,8 +839,8 @@ the file's keys.
   config cascade (project > system `~/.fab-kit/config.yaml` > defaults, `260708-lpb5`). `agent` and
   `providers` are both scope `both`, so the depth knobs, a per-role provider fill, and a role override
   are all settable once per machine.
-- **Non-claude default fills** — `codex`/`gemini` ship grammar only; per-role fills for them are
-  `ywkx`'s job.
+- **Non-claude default fills** — *no longer deferred*: shipped by `260806-ywkx`. See § Three built-in
+  providers and § Refreshing the non-claude fills.
 - **Role-granular reviewer keys** — obsolete: review is now a single sub-agent (260704-pag2), so there are no per-role reviewer/merge profiles to key on; the stage/role is the unit.
 - **Per-invocation `--model-<stage>` flags** on the orchestrators — still deferred as an
   *orchestrator* surface. The equivalent capability exists one level down, on the resolution

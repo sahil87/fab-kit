@@ -16,9 +16,10 @@
 # failure output — you do not have to go find them:
 #
 #   TestDefaultsFileIsWellFormed          this file parses + covers every role/provider (defaults_test.go)
-#   TestDefaultRoleProfilesArePinned      the deliberate-change pin (agent_test.go)
+#   TestDefaultRoleProfilesArePinned      the deliberate-change pin, claude (agent_test.go)
+#   TestNonClaudeProviderFillsArePinned   the same pin for codex/gemini (agent_test.go)
 #   TestDocTablesMatchAgentMaps           docs/specs/stage-models.md § default-role TABLE
-#   TestMirrorDocsMatchDefaultProfiles    docs/specs/stage-models.md inline-YAML sample
+#   TestMirrorDocsMatchDefaultProfiles    docs/specs/stage-models.md inline-YAML sample (all 3 providers)
 #   TestCLIFabReferenceListsDefaultRoles  src/kit/skills/_cli-fab.md § resolve-agent enumeration
 #
 # No other test hardcodes these strings — the rest derive from DefaultProfile(),
@@ -32,11 +33,13 @@ agent:
   session: claude
   workers: claude
 
-# providers — the built-in invocation grammars plus, for claude, its per-role
-# fills. Grammar changes at binary-release cadence and is safe to ship; non-claude
-# model IDs rot in weeks, so codex and gemini ship GRAMMAR ONLY and carry no
-# profiles at all (naming one resolves an empty model, and the provider CLI's own
-# default applies until a project sets providers.<name>.profiles).
+# providers — the built-in invocation grammars plus each provider's per-role
+# fills. ALL THREE ship fills, so `agent.workers: codex` is one line and every
+# role still gets a model suited to it. Non-claude fills are refreshed at
+# KIT-RELEASE cadence (see docs/specs/stage-models.md § Refreshing the non-claude
+# fills): they are unvalidated pass-through values, and a stale one is corrected by
+# a single config line (providers.<name>.profiles.<role>.model) — a louder, cheaper
+# failure than the empty-model resolution that shipping nothing produced.
 #
 # claude deliberately carries NO dispatch_command — its absence is what selects
 # native Agent-tool dispatch. codex and gemini carry one, so pointing a role at
@@ -58,6 +61,15 @@ providers:
     # which is where `fab dispatch` pipes it.
     session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
     dispatch_command: 'codex exec -m {model} -c model_reasoning_effort={effort}'
+    # Sparse: a role absent here resolves the `default` entry, so hydrate and
+    # operator get the frontier model at `high` without a row of their own. The
+    # codex CLI takes a concrete model SLUG (no alias mechanism), so these are
+    # pinned IDs and are the rows to bump when the catalog moves.
+    profiles:
+      default: { model: gpt-5.6-sol,  effort: high }
+      doing:   { effort: xhigh }        # model inherits `default`
+      review:  { effort: xhigh }
+      fast:    { model: gpt-5.6-luna, effort: low }
   gemini:
     # No {effort}: the gemini CLI has no reasoning-effort flag, so a resolved
     # effort has nowhere to go. No `-p` on the dispatch command either: gemini's
@@ -65,3 +77,14 @@ providers:
     # the prompt to stdin, which gemini reads as the prompt in non-TTY mode.
     session_command: 'gemini -m {model}'
     dispatch_command: 'gemini -m {model}'
+    # Model-only, for the same no-{effort} reason. These are the gemini CLI's own
+    # stable ALIASES, not versioned IDs: `-m pro` / `-m flash` resolve to whatever
+    # that CLI's current best pro/flash model is for the caller's entitlement, and
+    # degrade gracefully without preview access — so these rows do not rot. The
+    # aliases are a CLI VERSION FLOOR, though: a gemini older than its
+    # resolveModel() alias support sees `pro` as an unknown model ID and fails
+    # there — fixed by a full versioned ID in providers.gemini.profiles.<role>.model,
+    # or by upgrading the CLI.
+    profiles:
+      default: { model: pro }
+      fast:    { model: flash }
