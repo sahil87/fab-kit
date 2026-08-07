@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 20
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-08-07T13:09:14Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-07T13:17:48Z"}
     hydrate: {started_at: "2026-08-07T13:17:48Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-07T13:29:31Z"}
     ship: {started_at: "2026-08-07T13:29:31Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-07T13:35:26Z"}
-    review-pr: {started_at: "2026-08-07T13:35:26Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-08-07T13:35:26Z", driver: git-pr, iterations: 1, completed_at: "2026-08-07T13:52:09Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/536
 change_type_source: explicit
@@ -54,4 +54,4 @@ true_impact:
     computed_at_stage: ship
 summary: Pane-worker placement keys on dispatch-record pane IDs instead of clobberable pane titles, and the column-carving split is sized at the new dispatch.column_width (default 35), holding the column invariant
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-07T13:35:26Z
+last_updated: 2026-08-07T13:52:09Z
