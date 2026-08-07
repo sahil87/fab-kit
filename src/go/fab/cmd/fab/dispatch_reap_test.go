@@ -13,6 +13,14 @@ import (
 
 func runReap(t *testing.T, args ...string) (string, error) {
 	t.Helper()
+	out, _, err := runReapErr(t, args...)
+	return out, err
+}
+
+// runReapErr is runReap with the warning stream exposed, for the tests that assert
+// on the fail-open notice `dispatchReapEnabled` writes to stderr.
+func runReapErr(t *testing.T, args ...string) (stdout, stderr string, err error) {
+	t.Helper()
 	cmd := dispatchReapCmd()
 	cmd.SilenceUsage = true
 	cmd.SilenceErrors = true
@@ -20,8 +28,8 @@ func runReap(t *testing.T, args ...string) (string, error) {
 	cmd.SetOut(&out)
 	cmd.SetErr(&errb)
 	cmd.SetArgs(args)
-	err := cmd.Execute()
-	return out.String(), err
+	err = cmd.Execute()
+	return out.String(), errb.String(), err
 }
 
 // setDispatchReapDone appends a `dispatch:` block to the repo's project config so a
@@ -40,6 +48,70 @@ func setDispatchReapDone(t *testing.T, repoRoot string, enabled bool) {
 	}
 	if err := os.WriteFile(path, append(body, []byte("dispatch:\n  reap_done: "+value+"\n")...), 0o644); err != nil {
 		t.Fatalf("write project config: %v", err)
+	}
+}
+
+// corruptProjectConfig makes the repo's project config unparseable, so config.Load
+// returns its parse error (LoadPath's documented "a malformed PROJECT file keeps
+// today's error behavior"). The setup helpers isolate $HOME, so the system layer
+// contributes nothing and this is the only layer in play.
+func corruptProjectConfig(t *testing.T, repoRoot string) {
+	t.Helper()
+	path := filepath.Join(repoRoot, "fab", "project", "config.yaml")
+	if err := os.WriteFile(path, []byte("dispatch:\n  reap_done: [unterminated\n"), 0o644); err != nil {
+		t.Fatalf("write project config: %v", err)
+	}
+}
+
+// TestDispatchReap_UnreadableConfigHeadlessIsNoOp: reap's exit contract reserves
+// non-zero for exactly two real errors (no record, unresolvable change), and the
+// skill wiring calls reap unconditionally after every `done`. So an unparseable
+// config MUST NOT turn a headless no-op into a pipeline failure. The knob cannot
+// affect a headless verdict, so it is never resolved here — no warning either.
+func TestDispatchReap_UnreadableConfigHeadlessIsNoOp(t *testing.T) {
+	repoRoot, id := setupDispatchRepo(t, "sh -c 'exit 0'")
+	dir := seedDispatch(t, repoRoot, id, "apply", 999999)
+	mustWrite(t, dispatch.ExitPath(dir, "apply"), "0\n")
+	mustWrite(t, dispatch.ResultPath(dir, "apply"), "stage: apply\nstatus: success\n")
+	corruptProjectConfig(t, repoRoot)
+
+	out, errOut, err := runReapErr(t, "abcd", "apply")
+	if err != nil {
+		t.Fatalf("an unreadable config must not fail a headless no-op, got: %v", err)
+	}
+	if !strings.Contains(out, "headless") {
+		t.Errorf("output = %q, want the headless no-op reason", out)
+	}
+	if strings.Contains(errOut, "reap_done") {
+		t.Errorf("stderr = %q, want no knob warning — the knob cannot affect a headless verdict, so it must not be resolved", errOut)
+	}
+}
+
+// TestDispatchReap_UnreadableConfigFailsOpen: where the knob CAN change the outcome
+// (pane + done) an unreadable config still must not error — it warns and falls back
+// to the built-in default, which is what an absent key resolves to anyway. Defaulting
+// to true means the guard passes, so this lands on the benign already-gone path
+// (unreachable socket ⇒ dead pane) rather than the disabled no-op.
+func TestDispatchReap_UnreadableConfigFailsOpen(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
+	server := "fabtest-nosrv-reap-badcfg"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+	dir := seedPaneDispatch(t, repoRoot, id, "apply", "%99", server)
+	mustWrite(t, dispatch.ResultPath(dir, "apply"), "stage: apply\nstatus: success\n")
+	corruptProjectConfig(t, repoRoot)
+
+	out, errOut, err := runReapErr(t, "abcd", "apply")
+	if err != nil {
+		t.Fatalf("an unreadable config must fail open, not error, got: %v", err)
+	}
+	if !strings.Contains(errOut, "dispatch.reap_done") {
+		t.Errorf("stderr = %q, want a warning naming the unresolved knob", errOut)
+	}
+	if strings.Contains(out, "dispatch.reap_done is false") {
+		t.Errorf("output = %q, want the default (true) — failing open must not silently disable reap", out)
+	}
+	if !strings.Contains(out, "already gone") {
+		t.Errorf("output = %q, want the guard to have passed through to the already-gone report", out)
 	}
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
@@ -67,9 +68,14 @@ func runDispatchReap(cmd *cobra.Command, changeArg, stage string) error {
 		)
 	}
 
-	reapDone, err := dispatchReapEnabled()
-	if err != nil {
-		return err
+	// The knob is the guard's THIRD condition, so it can only change the outcome once
+	// the first two already hold — and resolving it eagerly would let an unreadable
+	// config turn a headless or not-done no-op into a non-zero exit, breaking the
+	// contract below. Resolve it only where it can matter; DecideReap short-circuits
+	// on mode and then state, so the placeholder is never consulted in those cases.
+	reapDone := config.DefaultDispatchReapDone
+	if rec.IsPane() && state == dispatch.StateDone {
+		reapDone = dispatchReapEnabled(cmd.ErrOrStderr())
 	}
 
 	out := cmd.OutOrStdout()
@@ -104,14 +110,21 @@ func runDispatchReap(cmd *cobra.Command, changeArg, stage string) error {
 // cascade. It re-walks to the fab root rather than threading one out of
 // resolveDispatchDir: the walk is a cheap upward directory search, and leaving that
 // shared helper's signature alone keeps its three other call sites untouched.
-func dispatchReapEnabled() (bool, error) {
+//
+// It NEVER fails. Reap's exit contract reserves non-zero for exactly two real errors
+// — no dispatch record, unresolvable change — and the skill wiring calls reap
+// unconditionally after every `done`, so an unreadable config must not turn pane
+// hygiene into a pipeline failure. It warns and falls back to the knob's built-in
+// default, which is what an absent key resolves to anyway.
+func dispatchReapEnabled(warn io.Writer) bool {
 	fabRoot, err := resolve.FabRoot()
-	if err != nil {
-		return false, err
+	if err == nil {
+		var cfg *config.Config
+		if cfg, err = config.Load(fabRoot); err == nil {
+			return cfg.GetDispatchReapDone()
+		}
 	}
-	cfg, err := config.Load(fabRoot)
-	if err != nil {
-		return false, err
-	}
-	return cfg.GetDispatchReapDone(), nil
+	fmt.Fprintf(warn, "warning: could not resolve dispatch.reap_done (%v); using default %t\n",
+		err, config.DefaultDispatchReapDone)
+	return config.DefaultDispatchReapDone
 }
