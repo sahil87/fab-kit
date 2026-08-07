@@ -168,8 +168,9 @@ type InitSeed struct {
 // test_paths when detected) written LIVE, followed by the managed fence of
 // commented C fields. It shares the exact fence renderer Upgrade uses (renderFence),
 // so a freshly-generated file and an upgraded one carry a byte-identical fence.
-// no agent: key is deliberately pinned (presence=intent). The fence omits the
-// seeded live keys.
+// NO `agent:` key is ever written live — presence=intent means an init-pinned knob
+// or role profile would be an accidental override, so agent config stays
+// fence-only. The fence omits the seeded live keys.
 func RenderInitProject(seed InitSeed, kitVersion string) (string, error) {
 	fields, err := configref.Fields()
 	if err != nil {

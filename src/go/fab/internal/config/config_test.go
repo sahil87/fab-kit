@@ -494,7 +494,9 @@ providers:
 		t.Errorf("codex.profiles.default = %+v, want {codex-default medium}", got)
 	}
 
-	// The deprecated flat fill still parses (read-time alias for profiles.default).
+	// The deprecated flat fill still parses — at read time it is a lower-precedence
+	// fallback rung BELOW profiles.default (see internal/agent providerFill), not an
+	// alias for it.
 	gemini, ok := cfg.GetProvider("gemini")
 	if !ok {
 		t.Fatal("expected a gemini provider entry")
