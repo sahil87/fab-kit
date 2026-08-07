@@ -19,13 +19,16 @@
 // (Changes 2-3). See docs/specs/config.md.
 //
 // GENERATED, NOT HAND-WRITTEN. Every default value that has a canonical Go
-// constant is sourced from that constant, never copied — the three built-in
-// providers' command grammars (agent.DefaultSessionCommand and the
-// agent.DefaultCodex*/DefaultGemini* constants), the per-tier default profiles
-// via agent.DefaultTier over agent.TierNames, and the pipeline stage names via
+// symbol is sourced from that symbol, never copied — the built-in providers via
+// agent.ResolveProvider over agent.ProviderNames (so the provider SET is derived
+// too, not a hand-maintained name list), the per-tier default profiles via
+// agent.DefaultTier over agent.TierNames, and the pipeline stage names via
 // agent.StageNames. The dynamic segments (providers, agent.tiers, stage_hooks)
-// interpolate those same constants when the row is built, so the reference text
-// carries no literal copy of any value.
+// interpolate those same symbols when the row is built, so the reference text
+// carries no literal copy of any value. The providers SEGMENT still names the
+// three built-ins one by one (via agent.DefaultSessionCommand and the
+// agent.DefaultCodex*/DefaultGemini* vars) because its per-provider commentary is
+// bespoke prose, not a derivable projection — only the values are interpolated.
 //
 // Canonical default vs. rendering example: a field's Default holds the CANONICAL
 // built-in default (what the downstream cascade falls back to), not the value the
@@ -153,8 +156,8 @@ type Field struct {
 	// the reference — the field's own lines (leading comment prose + the live or
 	// commented key), WITHOUT a trailing newline or the inter-field blank line.
 	// Render() concatenates the segments in table order (blank line between). For
-	// the constant-backed fields (providers, agent.tiers, stage_hooks) the segment
-	// is built by interpolating the same Go constants Default reads, so the
+	// the symbol-backed fields (providers, agent.tiers, stage_hooks) the segment
+	// is built by interpolating the same Go symbols Default reads, so the
 	// rendered text carries no literal copy of any value. Not exposed in the JSON
 	// dump (it is the human-readable rendering of the same metadata).
 	Segment string
@@ -206,29 +209,39 @@ type tierProfileDefault struct {
 // dispatch). There are deliberately NO model/effort keys: fab-kit's built-ins are
 // GRAMMAR ONLY, and the registry's empty-default convention says a non-nil Default
 // always denotes a real built-in value — emitting an empty model would assert a
-// built-in fill that does not exist. Sourced from the agent command constants.
+// built-in fill that does not exist. Sourced from the agent command vars.
 type providerDefault struct {
 	SessionCommand  string `json:"session_command,omitempty"`
 	DispatchCommand string `json:"dispatch_command,omitempty"`
 }
 
-// providerDefaults is the structured canonical default for the providers row: all
-// three of fab-kit's built-in providers, sourced from the agent constants (never a
-// literal copy). It mirrors internal/agent.defaultProviders — claude with a
-// session command only, codex/gemini with both — so the JSON dump advertises
-// exactly the set `agent.ResolveProvider` resolves with no config.
-func providerDefaults() map[string]providerDefault {
-	return map[string]providerDefault{
-		agent.DefaultProviderName: {SessionCommand: agent.DefaultSessionCommand},
-		"codex": {
-			SessionCommand:  agent.DefaultCodexSessionCommand,
-			DispatchCommand: agent.DefaultCodexDispatchCommand,
-		},
-		"gemini": {
-			SessionCommand:  agent.DefaultGeminiSessionCommand,
-			DispatchCommand: agent.DefaultGeminiDispatchCommand,
-		},
+// providerDefaults is the structured canonical default for the providers row:
+// every built-in provider fab-kit ships, DERIVED from the agent package's own
+// table rather than from a hand-maintained name list. Walking
+// agent.ProviderNames(nil) and resolving each through agent.ResolveProvider(nil,
+// …) — both nil-safe, and a nil *config.Config resolves exactly the built-in set
+// with no project overrides — means the JSON dump advertises precisely the set
+// `agent.ResolveProvider` resolves with no config, and adding or renaming a
+// built-in in defaults.yaml needs no edit here.
+//
+// Only the two command fields are projected: fab-kit's built-ins are GRAMMAR
+// ONLY, so a resolved model/effort fill is deliberately dropped (see
+// providerDefault). Like tierRows, it fails loud on table drift — a name
+// ProviderNames reports must resolve.
+func providerDefaults() (map[string]providerDefault, error) {
+	names := agent.ProviderNames(nil)
+	defaults := make(map[string]providerDefault, len(names))
+	for _, name := range names {
+		p, ok := agent.ResolveProvider(nil, name)
+		if !ok {
+			return nil, fmt.Errorf("configref: provider %q from agent.ProviderNames does not resolve via agent.ResolveProvider", name)
+		}
+		defaults[name] = providerDefault{
+			SessionCommand:  p.SessionCommand,
+			DispatchCommand: p.DispatchCommand,
+		}
 	}
+	return defaults, nil
 }
 
 // tierRow is one resolved tier: its name, its fixed stage grouping (reference
@@ -287,17 +300,22 @@ func tierProfileDefaults(rows []tierRow) map[string]tierProfileDefault {
 // It fails loudly on a broken invariant rather than silently emitting a degraded
 // reference:
 //   - agent.DefaultTier must know every tier agent.TierNames reports, and every
-//     such tier must have a tierStages grouping (via tierRows) — the constant-
+//     such tier must have a tierStages grouping (via tierRows) — the symbol-
 //     sourced default set and the reference comment must both be complete.
 //   - the registry lint (below) rejects any row with an empty Description or an
 //     invalid Scope.
 //
-// Defaults are sourced from canonical Go constants where they exist
+// Defaults are sourced from canonical Go symbols where they exist
 // (agent.DefaultSessionCommand, agent.DefaultTier). No literal here duplicates a
-// Go constant; source_paths/test_paths carry a nil Default because their binary
+// Go symbol; source_paths/test_paths carry a nil Default because their binary
 // default is empty (their shown values are rendering examples only).
 func Fields() ([]Field, error) {
 	tiers, err := tierRows()
+	if err != nil {
+		return nil, err
+	}
+
+	providers, err := providerDefaults()
 	if err != nil {
 		return nil, err
 	}
@@ -420,7 +438,7 @@ checklist:
 		},
 		{
 			Key:         "providers",
-			Default:     providerDefaults(),
+			Default:     providers,
 			Description: "Named agent invocation grammars plus their optional default fill. Each provider MAY carry session_command (interactive session) and dispatch_command (headless stage task) — never merged, no fallback between them — plus optional model/effort fill values that supply the {model}/{effort} placeholders (precedence: invocation flag > tier field > provider fill > empty). fab-kit ships claude, codex, and gemini as grammar-only built-ins (no fill). Provider names are opaque, user-chosen strings.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
@@ -484,9 +502,9 @@ const referenceHeader = `# Full reference of all available options: fab config r
 # Values here are examples/defaults, not your project's settings.`
 
 // providersSegment renders the providers block. Every command string is
-// interpolated from its canonical agent constant (no literal copy):
+// interpolated from its canonical agent var (no literal copy):
 // agent.DefaultSessionCommand for claude, and the four
-// agent.DefaultCodex*/DefaultGemini* constants for the other two built-ins.
+// agent.DefaultCodex*/DefaultGemini* vars for the other two built-ins.
 //
 // Presentation (260805-j3cm): all three providers are BUILT-IN, so codex/gemini
 // are rendered as commented reference-style defaults — the same presentation every

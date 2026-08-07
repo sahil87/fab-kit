@@ -5,17 +5,17 @@ created_by: Sahil Ahuja
 change_type: refactor
 issues: []
 progress:
-    intake: ready
-    apply: pending
-    review: pending
-    hydrate: pending
-    ship: pending
-    review-pr: pending
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
 plan:
-    generated: false
-    task_count: 0
-    acceptance_count: 0
-    acceptance_completed: 0
+    generated: true
+    task_count: 10
+    acceptance_count: 17
+    acceptance_completed: 17
 confidence:
     certain: 4
     confident: 1
@@ -29,8 +29,29 @@ confidence:
         competence: 90.0
         disambiguation: 84.0
 stage_metrics:
-    intake: {started_at: "2026-08-06T15:48:11Z", driver: fab-new, iterations: 1}
-prs: []
+    intake: {started_at: "2026-08-06T15:48:11Z", driver: fab-new, iterations: 1, completed_at: "2026-08-07T08:24:12Z"}
+    apply: {started_at: "2026-08-07T11:00:27Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-07T11:07:32Z"}
+    review: {started_at: "2026-08-07T11:07:32Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-07T11:22:44Z"}
+    hydrate: {started_at: "2026-08-07T11:22:44Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-07T11:28:40Z"}
+    ship: {started_at: "2026-08-07T11:28:40Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-07T11:37:02Z"}
+    review-pr: {started_at: "2026-08-07T11:37:02Z", driver: git-pr, iterations: 1, completed_at: "2026-08-07T11:52:21Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/535
 change_type_source: explicit
+true_impact:
+    added: 678
+    deleted: 132
+    net: 546
+    excluding:
+        added: 387
+        deleted: 83
+        net: 304
+    tests:
+        added: 203
+        deleted: 7
+        net: 196
+    computed_at: "2026-08-07T11:37:02Z"
+    computed_at_stage: ship
+summary: Built-in agent defaults (provider grammars + tier profiles) move from Go literals to an embedded defaults.yaml parsed through the config schema; stageTiers stays Go policy
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-06T15:53:13Z
+last_updated: 2026-08-07T11:52:21Z

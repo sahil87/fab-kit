@@ -13,7 +13,7 @@
 > lives in one place.
 >
 > The canonical schema is the Go field table in `src/go/fab/internal/configref/`; this doc is its
-> human-readable rationale. Defaults that have a Go constant are sourced from that constant, never
+> human-readable rationale. Defaults that have a Go symbol are sourced from that symbol, never
 > restated here or in the table.
 
 `fab/project/config.yaml` is the single project-config file the `fab` binary and the markdown skills
@@ -34,7 +34,7 @@ each field's `scope`; `fab config upgrade`'s fence generator needs `advertise` a
 
 Change 1 inverts the relationship: a **per-field metadata table is primary**, and both the commented
 YAML and the JSON are generated from it. The no-drift invariant the template established is preserved —
-defaults that have a canonical Go constant are still referenced from the constant, never copied. The
+defaults that have a canonical Go symbol are still referenced from that symbol, never copied. The
 table adds *structure*, never a second copy of *values*.
 
 ---
@@ -56,9 +56,9 @@ lists replace, scalars replace).
 | `renamed_from` | Previous key path for mechanical rename carry-forward. `""` on every row today; serves *future* renames. See § renamed_from. |
 | `init-seed` | Whether the field is an A-class **identity** field written LIVE at `fab config init --project` time ([Change 3]) — `project.name`/`project.description`/`source_paths`/`test_paths`. The generator's live block above the fence; every other field is fence territory from day one. Consumed by the init generator, NOT exposed in the `--json` schema dump (like the rendered YAML segment). |
 
-### Defaults are sourced from constants — no second copy
+### Defaults are sourced from canonical Go symbols — no second copy
 
-Every default that has a canonical Go constant is referenced from it, not copied: the claude session
+Every default that has a canonical Go symbol is referenced from it, not copied: the claude session
 command from `agent.DefaultSessionCommand`, the per-tier profiles via `agent.DefaultTier` over
 `agent.TierNames()`, the stage names via `agent.StageNames()`. The registry construction fails loud
 (returns an error rather than emitting a degraded reference) if a tier reported by `TierNames()` has no
@@ -104,7 +104,7 @@ separate template. The `description` (the machine-readable one-liner, exposed in
 `segment` (the human-readable block, exposed in the YAML) are two projections of **one** row, not a
 second copy of the schema to drift — a field's documentation is authored once, on its row. The rows for
 map-valued fields (`providers`, `agent.tiers`, `stage_hooks`) build their segment by interpolating the
-same Go constants their `default` reads, so the rendered prose carries no literal copy of any value.
+same Go symbols their `default` reads, so the rendered prose carries no literal copy of any value.
 The existing reference tests assert those blocks verbatim; the restructure preserves them byte-for-byte.
 
 ---

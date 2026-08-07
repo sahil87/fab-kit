@@ -41,15 +41,15 @@ func TestResolveDefaults(t *testing.T) {
 	}
 }
 
-// TestDefaultTierProfilesArePinned is the ONE place the built-in default literals
-// are asserted. It exists so a model bump is a deliberate two-line edit
-// (defaultTiers + this table) instead of an unreviewed change that silently
+// TestDefaultTierProfilesArePinned is the ONE place the built-in default values
+// are asserted in Go. It exists so a model bump is a deliberate two-line edit
+// (defaults.yaml + this table) instead of an unreviewed change that silently
 // repoints every stage — and so the other tests in this package can derive their
 // expectations from the maps without any of them pinning the values.
 //
-// When you bump a default: update defaultTiers in agent.go, then update this
-// table to match. Every doc mirror is guarded separately by
-// TestMirrorDocsMatchDefaultTiers / TestCLIFabReferenceListsDefaultTiers.
+// When you bump a default: edit defaults.yaml, then update this table to match.
+// Every doc mirror is guarded separately by TestMirrorDocsMatchDefaultTiers /
+// TestCLIFabReferenceListsDefaultTiers.
 func TestDefaultTierProfilesArePinned(t *testing.T) {
 	pinned := map[string]Profile{
 		TierDefault:  {Provider: "claude", Model: "claude-fable-5", Effort: "high"},

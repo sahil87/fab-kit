@@ -1,0 +1,60 @@
+# fab-kit's built-in agent defaults — the defaults layer under the config
+# cascade (project > system > this file). Embedded into the binary via
+# go:embed (internal/agent); never read from the kit cache at runtime, so a
+# binary can never disagree with the defaults it shipped with.
+#
+# Shaped exactly as a user config-file fragment in the config.yaml schema: the
+# same keys a project writes to override any of these values. That shape is the
+# point — everything in this file is user-overridable by writing the same key in
+# fab/project/config.yaml (or ~/.fab-kit/config.yaml). Everything that stays in
+# Go is fab-owned policy, not tunable data: the fixed stage→tier mapping
+# (stageTiers in agent.go) is deliberately NOT here.
+#
+# TO BUMP A MODEL: edit the line below, then run the tests. Every other place
+# that restates these values is drift-guarded and will name itself in the
+# failure output — you do not have to go find them:
+#
+#   TestDefaultsFileIsWellFormed         this file parses + covers every tier/provider (defaults_test.go)
+#   TestDefaultTierProfilesArePinned     the deliberate-change pin (agent_test.go)
+#   TestDocTablesMatchAgentMaps          docs/specs/stage-models.md § default-tier TABLE
+#   TestMirrorDocsMatchDefaultTiers      docs/specs/stage-models.md inline-YAML sample
+#   TestCLIFabReferenceListsDefaultTiers src/kit/skills/_cli-fab.md § resolve-agent enumeration
+#
+# No other test hardcodes these strings — the rest derive from DefaultTier(), so
+# a bump does not touch them.
+
+# providers — the built-in invocation grammars, GRAMMAR ONLY. No built-in
+# carries a model/effort fill: grammar changes at binary-release cadence and is
+# safe to ship, while non-claude model IDs rot in weeks and so belong in user
+# config (providers.<name>.model/.effort, a tier field, or an invocation flag).
+#
+# claude deliberately carries NO dispatch_command — its absence is what selects
+# native Agent-tool dispatch. codex and gemini carry one, so naming either in a
+# tier flips that tier's stages to headless CLI dispatch.
+providers:
+  claude:
+    session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
+  codex:
+    # `codex exec` is a SUBCOMMAND (not a flag) and reads the prompt from stdin,
+    # which is where `fab dispatch` pipes it.
+    session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
+    dispatch_command: 'codex exec -m {model} -c model_reasoning_effort={effort}'
+  gemini:
+    # No {effort}: the gemini CLI has no reasoning-effort flag, so a resolved
+    # effort has nowhere to go. No `-p` on the dispatch command either: gemini's
+    # -p takes prompt TEXT (appended after stdin), whereas `fab dispatch` pipes
+    # the prompt to stdin, which gemini reads as the prompt in non-TTY mode.
+    session_command: 'gemini -m {model}'
+    dispatch_command: 'gemini -m {model}'
+
+# agent.tiers — the built-in tier→profile table. Provider is written explicitly
+# on every line (documented style; per-field inheritance is the safety net, not
+# the style).
+agent:
+  tiers:
+    default:  { provider: claude, model: claude-fable-5,  effort: high }
+    operator: { provider: claude, model: claude-sonnet-5, effort: medium }
+    doing:    { provider: claude, model: claude-opus-5,   effort: xhigh }
+    review:   { provider: claude, model: claude-opus-5,   effort: xhigh }
+    hydrate:  { provider: claude, model: claude-opus-5,   effort: high }
+    fast:     { provider: claude, model: claude-sonnet-5, effort: medium }
