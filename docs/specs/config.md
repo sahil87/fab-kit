@@ -196,6 +196,7 @@ using stdlib `encoding/json` only (no new dependencies). Each element is a per-f
       "operator": { "provider": "claude", "model": "...", "effort": "..." },
       "doing":    { "provider": "claude", "model": "...", "effort": "..." },
       "review":   { "provider": "claude", "model": "...", "effort": "..." },
+      "hydrate":  { "provider": "claude", "model": "...", "effort": "..." },
       "fast":     { "provider": "claude", "model": "...", "effort": "..." }
     },
     "description": "Per-stage model override. ...",

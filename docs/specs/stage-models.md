@@ -419,11 +419,11 @@ incompatible effort, or warn on one — earlier design iterations proposed that;
 **For reference only** (NOT enforced by fab) — Claude's effort validity, which is why the fab-kit
 *defaults* are chosen to be valid:
 
-| Model | Accepts effort? | Valid values |
-|-------|-----------------|--------------|
-| Opus 4.8 | Yes | `low`, `medium`, `high`, `xhigh`, `max` |
-| Sonnet 4.6 | Yes | `low`, `medium`, `high`, `max` (no `xhigh` — Opus-family only) |
-| Haiku 4.5 | **No** | — (effort param returns HTTP 400) |
+| Model family | Accepts effort? | Valid values |
+|--------------|-----------------|--------------|
+| Opus / Fable | Yes | `low`, `medium`, `high`, `xhigh`, `max` |
+| Sonnet | Yes | `low`, `medium`, `high`, `max` (no `xhigh` — Opus-family only) |
+| Haiku | **No** | — (effort param returns HTTP 400) |
 
 This table explains *why fab-kit's shipped defaults are what they are* — but it is documentation of
 fab's default choices, not a rule the resolver enforces on user overrides.
@@ -586,29 +586,40 @@ work more often, driving **more rework cycles** (capped at 3 per `code-review.md
 review rounds can cost more than running `apply` on the capable model once. "Cheaper apply = cheaper
 pipeline" is therefore *not* strictly true.
 
-This is why `apply` stays in `doing` on a top-end author (Fable/`xhigh`) rather than dropping to a
-cheap model: apply has the highest output volume (which argues for the cheaper model), but the coupling
-argues louder — a strong author minimizes the rework cycles a sharp reviewer would otherwise trigger.
-`doing` and `review` sit at the same effort (`xhigh`) on **different model families** (Fable author,
-Opus critic): the split buys author/critic model diversity, not a cost saving on the author.
+This is why `apply` stays in `doing` on a top-end author rather than dropping to a cheap model: apply
+has the highest output volume (which argues for the cheaper model), but the coupling argues louder — a
+strong author minimizes the rework cycles a sharp reviewer would otherwise trigger.
+
+`doing` and `review` are **separate tiers that currently resolve to the same profile** (see
+§ Default tier profiles for the shipped values). The separation is structural, not a model-diversity
+claim: keeping two tiers lets a project dial the critic independently of the author without touching
+the taxonomy, and the author/critic separation that actually does the work is the **fresh context and
+adversarial framing**, not a different model. A project that wants a genuinely different critic
+overrides `agent.tiers.review`; fab does not ship that as the default.
 
 ---
 
 ## Fable upgrade path
 
-Fable has landed: the author tiers `doing` and `default` now run `claude-fable-5` (at `xhigh` and
-`high`), while `review` and `hydrate` run Opus 4.8 (its knowledge-work and code-review strengths) at
-`xhigh` and `high`. fab bumps the default tier→profile table in **one place** (the `defaultTiers` map)
-each release, and every non-overriding project upgrades for free. The tier→profile table is fab's
-curated judgment per release, not a fixed effort-per-tier-rank rule. A project that overrides a tier
-opts **out** of fab's upgrade curve for that tier (correct behavior — naming it here).
+Fable has landed, and the defaults moved with it — the shipped assignment is the table in
+§ Default tier profiles, which is the drift-guarded mirror of `defaultTiers` and the only place this
+spec states model IDs. (Deliberate: prose that restates the IDs rots silently between bumps, which is
+exactly what happened to this section before.) The durable shape is the rationale in that section:
+Fable for the quicker interactive working style, Opus where the named strengths are code review,
+agentic execution, and memory writing, Sonnet at the mechanical floor.
+
+fab bumps the table in **one place** (the `defaultTiers` map) each release, and every non-overriding
+project upgrades for free. The tier→profile table is fab's curated judgment per release, not a fixed
+effort-per-tier-rank rule — a new top model does not mechanically promote every tier, and two tiers
+resolving to the same profile in a given release is a legitimate outcome, not a bug. A project that
+overrides a tier opts **out** of fab's upgrade curve for that tier (correct behavior — naming it here).
 
 ### Upgrade note — the hydrate split (no migration)
 
 Before this change, `hydrate` mapped to `doing`, so a project carrying an `agent.tiers.doing` override
 governed its hydrate stage through that override. After the split, `hydrate` is its own tier: a project
-with a `doing` override but **no** `hydrate` override now resolves the new `hydrate` kit default
-(`claude-opus-4-8`/`high`) for the hydrate stage, not its `doing` value. **No config key changes
+with a `doing` override but **no** `hydrate` override now resolves the `hydrate` kit default
+(§ Default tier profiles) for the hydrate stage, not its `doing` value. **No config key changes
 meaning or goes inert** — `agent.tiers.doing` still governs apply and review-pr exactly as before, and
 `agent.tiers.hydrate` is a newly-recognized key that was simply ignored before. Because nothing is
 restructured, this ships as an **upgrade note, not a migration**: a project that wants hydrate to keep

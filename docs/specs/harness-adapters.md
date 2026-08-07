@@ -46,9 +46,12 @@ provider) is **provider-neutral and adapter-independent** — see
 | **3. Interactive pane** (`fab dispatch start --pane`) | a tmux pane running the provider's `session_command` — split into the dispatching agent's own window, or a new window when there is no pane to split | prompt **file** + a one-line **pointer** to it, embedded at spawn | **result file** + pane liveness | `running` / `done` / `orphaned` |
 
 Adapters 2 and 3 are two **modes of the same command family** (`fab dispatch`), sharing its resolution,
-`.fab-dispatch/{id}/` state directory, refuse-if-running concurrency, and status/kill/logs/clean
+`.fab-dispatch/{id}/` state directory, refuse-if-running concurrency, and the status/kill/clean
 surfaces — plus the `restart` recovery verb, which relaunches either mode from the persisted prompt and
-re-derives its mode from the current environment (see § Recovery is orchestrator policy over these states). They differ in which of the provider's two command fields they compose — `dispatch_command`
+re-derives its mode from the current environment (see § Recovery is orchestrator policy over these states). `logs` is the one verb that is **not** shared: it reads the headless wrapper's redirected
+stream, so against a pane record it refuses and names the pane-mode equivalent, `fab pane capture
+<pane>` (carrying the recorded socket as `-L <server>` when there is one). They differ in which of the
+provider's two command fields they compose — `dispatch_command`
 for headless, `session_command` for pane — and in how completion is observed. The two fields are never
 merged and **never fall back to each other in either direction**.
 

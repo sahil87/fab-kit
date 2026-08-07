@@ -123,7 +123,7 @@ Adding a skill to the kit touches eight integration points. Work through all of 
 3. **`helpers:` declaration** — list any additional partials the skill needs (`_generation`, `_review`, `_cli-fab`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`) in frontmatter; skills without the list load only `_preamble`. See § Skill Helpers.
 4. **`Next:` line** — the skill's output ends with a state-derived `Next:` line per `_preamble.md` § Next Steps Convention (or documents an explicit opt-out, as `fab-discuss` and `fab-operator` do).
 5. **Error Handling + Key Properties tables** — the body closes with the two standard tables (skill-specific errors only; idempotency, write surface, stage effects).
-6. **SPEC mirror file** — create `docs/specs/skills/SPEC-{name}.md` (Summary + Flow + tool/sub-agent/bookkeeping tables). Partials keep their leading underscore in the SPEC filename (`SPEC-_review.md`, `SPEC-_preamble.md`, `SPEC-_generation.md`, `SPEC-_srad.md`, `SPEC-_pipeline.md`, `SPEC-_intake.md`, `SPEC-_cli-agents.md`). **Exclusion policy**: exactly two files carry no SPEC — the pure-reference partials **`_cli-fab.md`** and **`_cli-external.md`**, named individually and *not* by a `_cli-` prefix rule, because their content mirrors an external command surface rather than defining behavior (and the constitution already forces `_cli-fab.md` updates on every CLI change, so a SPEC would be a third copy of the same tables). Every other skill file and behavioral partial gets a SPEC — including `_cli-agents.md` (260805-nvad), which despite the `_cli-` name defines *procedures* (spawn / pre-send validation / delivery probe / peek / await) and therefore falls on the behavioral side. The constitution requires updating a skill's SPEC on every skill edit.
+6. **SPEC mirror file** — create `docs/specs/skills/SPEC-{name}.md` (Summary + Flow + tool/sub-agent/bookkeeping tables). Partials keep their leading underscore in the SPEC filename (`SPEC-_review.md`, `SPEC-_preamble.md`, `SPEC-_generation.md`, `SPEC-_srad.md`, `SPEC-_pipeline.md`, `SPEC-_intake.md`, `SPEC-_cli-agents.md`). **Coverage is complete**: every `src/kit/skills/*.md` file — every user-invocable skill and every partial, including the pure-reference `_cli-fab.md` and `_cli-external.md` — carries a `SPEC-*.md` mirror. There is no exclusion. The constitution requires updating a skill's SPEC on every skill edit.
 7. **skills.md row** — add the skill's section to this file (and its `helpers:` row to § Skill Helpers when it declares any).
 8. **Help grouping** — add the skill to `skillToGroupMap` in `src/go/fab/cmd/fab/fabhelp.go` so `/fab-help` lists it under the right group (unmapped skills fall into the "Other" bucket).
 
@@ -740,6 +740,34 @@ Next: Complete intake.md, then /fab-continue
 
 ---
 
+## `/fab-help`
+
+**Purpose**: Orient the user in the fab workflow — show how the stages fit together and list every deployed command with a one-line description: the `/fab-*`, `/git-*`, and `/docs-*` skills grouped by category, plus the `fab batch` operations and the companion packages (wt, idea).
+
+**Context**: None. `/fab-help` loads no config, constitution, or change artifacts.
+
+**Behavior**: Log the invocation (`fab log command "fab-help"`), then shell out to `fab fab-help`. The subcommand reads the kit version from the cache (falling back to `unknown` when absent), scans skill frontmatter for command descriptions, and prints the complete help text. **The subcommand is the single source of truth for help content** — the skill does not restate it, so a newly added skill surfaces automatically once it is mapped in `skillToGroupMap` (§ New Skill Checklist item 8).
+
+**Key properties**: Read-only — creates and modifies nothing. Idempotent. Requires no active change, no config, and no constitution.
+
+---
+
+## `/fab-operator`
+
+**Purpose**: Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across every session on its tmux server via `fab pane map --all-sessions`, routes commands via `tmux send-keys`, auto-answers routine prompts, drives autopilot queues, and spawns dependency-aware agents. Started via `fab operator` (a singleton tmux tab named `operator`, one per tmux server).
+
+**Context**: A deliberate exception to the always-load layer — loads only `config.yaml`, `constitution.md`, and `context.md` (optional). It runs no `fab preflight` and never reads change artifacts, keeping a long-lived context window reserved for coordination state. Declares `helpers: [_cli-agents, _cli-fab, _cli-external]`.
+
+**Key properties**:
+- **Coordinates, never executes** — all pipeline work is spawned into a freshly created worktree agent (`wt create --non-interactive`), never run in the operator's own pane. Operational maintenance (merge PR, archive, delete worktree) is the one direct-execution exception.
+- **Pipeline-first routing** — new work always enters through `/fab-new` then a pipeline command; raw inline implementation instructions are never dispatched to agent panes.
+- **State is re-derived, never remembered** — live state is re-queried before every action; continuity across `/clear` comes from the server-keyed operator state file.
+- Ends with its own status frame rather than a `Next:` line.
+
+**Full spec**: [operator.md](operator.md) (the top-level behavioral spec) and [skills/SPEC-fab-operator.md](skills/SPEC-fab-operator.md) (the flow mirror). The agent-CLI mechanics it builds on — spawn composition, pre-send validation, delivery probe, peek, await — live in `_cli-agents.md`; this skill owns *when and whether* to use them (confirmation tiers, retry budgets, repo targeting, enrollment, dependency resolution, autopilot).
+
+---
+
 ## `/docs-hydrate-specs [domain]`
 
 **Purpose**: Identify structural gaps between `docs/memory/` and `docs/specs/` and propose concise additions back to specs with interactive confirmation.
@@ -900,3 +928,47 @@ Next: Complete intake.md, then /fab-continue
 - Targeted fixes only — does not modify code beyond what each comment addresses
 - Idempotent — re-running after fixes finds no new modifications; re-running after replies skips already-replied comments
 - The Copilot request honors the Copilot toggle in `fab/project/code-review.md` § Review Tools (absent = enabled)
+
+---
+
+## `/internal-consistency-check`
+
+**Purpose**: Scan for inconsistencies across the three sources of truth — implementation (the `source_paths` from config), memory (`docs/memory/`), and specs (`docs/specs/`) — flagging conflicts and suggesting fixes. A kit-maintenance skill, not a pipeline stage.
+
+**Context**: `fab/project/config.yaml` for `source_paths`. STOPs with `No source_paths defined in fab/project/config.yaml.` when the key is missing or empty.
+
+**Behavior**: Spawns **three parallel `Explore` sub-agents** (thoroughness `very thorough`), each receiving the resolved `source_paths` and auditing one pairing — specs ↔ implementation, memory ↔ implementation, and specs ↔ memory. Every finding cites specific files and lines. The results are synthesized into a summary table (findings / critical / minor per dimension), the critical and minor finding lists, and suggested actions grouped as **Fix** (actively wrong), **Add** (missing coverage), **Remove** (stale or orphaned), **Rename** (terminology alignment).
+
+**Classification**: *Critical* — implementation contradicts a spec, memory instructs something that fails, or a referenced file/command/path does not exist. *Minor* — naming mismatch without behavioral impact, coverage gap, stale reference that would not confuse a user, orphaned content.
+
+**Key properties**: Read-only — reports findings, applies no fixes. No active change required.
+
+---
+
+## `/internal-retrospect`
+
+**Purpose**: Analyze a completed session and produce a retrospective. A kit-maintenance skill, not a pipeline stage.
+
+**Behavior**: Reviews the session end-to-end across four areas, citing actual moments from the conversation rather than generic advice: (1) **scriptable repetition** — manual steps repeated 2+ times that could become a script, with a suggested name; (2) **skill and prompt quality** — skills whose output needed significant correction, re-runs, or manual fixup, with a concrete prompt change to prevent it; (3) **context and documentation gaps** — wrong assumptions traceable to something missing from memory, specs, `_preamble.md`, `CLAUDE.md`, or the constitution, plus where that knowledge should live; (4) **workflow friction** — awkward stage transitions or clarification loops, classified as a workflow-design, missing-command, or documentation problem.
+
+**Output**: Per area, either **Findings** with citations and suggested actions or **Clean**. Ends with a consolidated **Suggested Actions** list of concrete next steps (e.g. `Run /internal-skill-optimize {skill}`, `Add {X} to docs/memory/{domain}/{name}.md`). A session with no findings in any area reports `Clean session — no actions needed.`
+
+**Key properties**: Read-only — writes no files. No active change required.
+
+---
+
+## `/internal-skill-optimize [<skill-name>]`
+
+**Purpose**: Condense a skill to its core — remove verbosity, redundant examples, and re-explained concepts without losing functionality — and apply two structural health checks. A kit-maintenance skill, not a pipeline stage.
+
+**Arguments**: `<skill-name>` *(optional)* — a single skill, resolved to `src/kit/skills/{skill-name}.md`. Omitted, it processes all skills in batch mode.
+
+**Two passes with different scoping** — this split is the skill's defining rule:
+- **Content optimization** (the bloat-signal trim) — individual skills only. It **never** touches a `_*.md` partial; a partial is shared reference context, never an optimization target. The rule is derived by globbing `src/kit/skills/_*.md`, never from a hardcoded list.
+- **Structural checks** (table of contents + reference depth) — **all** skill files, partials included. A 700-line partial with no TOC, or one that chains references more than one level deep, is a real defect the content rule would wrongly exempt. These checks only add a `## Contents` block or report a finding; they never trim a partial's prose.
+
+**Signals**: Content — redundant re-explanation of partial-defined concepts, excessive output examples, obvious instructions, duplicated argument docs, over-specified error tables, verbose step narration, duplicate examples. Structural — a file **over 100 lines** with no `## Contents` block (inserted after the H1 and preamble blockquote, listing `##` headings verbatim), and **reference depth > 1 level** (a SKILL → A → B chain), which is **report-only** — flagging the chain for the maintainer, never auto-restructuring.
+
+**Behavior**: Analyze, then report a before/after line count, a one-line-per-change content summary, the TOC action (added / already present / not needed), and any depth findings. Confirm with the user before writing. Batch mode sorts by line count descending, skips content optimization for files under 80 lines (`Already lean — skipped`) and for partials, runs structural checks on everything, and presents one consolidated table plus the report-only depth chains.
+
+**Constraints**: Never removes functionality, error handling, or edge-case coverage; preserves frontmatter, the H1, and the preamble blockquote exactly; keeps the imperative tone; keeps a TOC in sync when a trim changes a `##` heading; never merges skills or moves content between them.

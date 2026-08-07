@@ -45,9 +45,10 @@ Current mapping:
 | `fab-new`, `fab-draft`, `fab-dedupe` | `[_generation, _srad, _intake]` (consumers declare underlying helpers rather than inheriting transitively — the `_pipeline` precedent) |
 | `fab-continue` | `[_srad]` (+ point-of-use in-body reads of `_generation`/`_review`) |
 | `fab-ff`, `fab-fff` | `[_generation, _review, _srad, _pipeline]` (orchestrator-level rework edits `plan.md` sections directly, so `_generation` stays unconditional — finding f074 refuted; `_pipeline` is the shared ff/fff pipeline bracket and constitutes the wrappers' entire body, so its load is unconditional by construction (szxd)) |
+| `fab-adopt` | `[_srad, _generation, _review, _pipeline]` |
 | `fab-clarify` | `[_srad]` |
 | `fab-operator` | `[_cli-agents, _cli-fab, _cli-external]` (`_cli-agents` carries the agent-CLI interaction primitives the operator's spawn/pre-send/peek steps reference — see [runtime/agent-primitives.md](/runtime/agent-primitives.md)) |
-| All others (16 skills) | omitted / `[]` (load only `_preamble`) |
+| All others (18 skills) | omitted / `[]` (load only `_preamble`) |
 
 `_naming` and `_cli-rk` are NOT allowed values — their content is inlined into `_preamble`. `_preamble` itself is implicit and never listed. `/fab-proceed` declares **no** `helpers:` (it dispatches `_intake` as a subagent prompt — the subagent reads the helper) (3xaj). The internal helpers `_generation`, `_review`, `_pipeline`, and `_intake` themselves carry no `helpers:` frontmatter — they reference what they need in-body and rely on the consumer (or dispatched subagent) having loaded it.
 
@@ -55,10 +56,10 @@ Current mapping:
 
 | Phase | Helper | Knob(s) | Consumers |
 |-------|--------|---------|-----------|
-| artifact mechanics | `_generation` | — | `fab-new`, `fab-draft`, `fab-dedupe`, `fab-continue`, `fab-ff`, `fab-fff` |
-| review mechanics | `_review` | — | `fab-continue`, `fab-ff`, `fab-fff` |
+| artifact mechanics | `_generation` | — | `fab-new`, `fab-draft`, `fab-dedupe`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-adopt` |
+| review mechanics | `_review` | `{mode}` | `fab-continue`, `fab-ff`, `fab-fff`, `fab-adopt` |
 | **pre-intake orchestration** | **`_intake`** | `{questioning-mode}` | `fab-new`, `fab-draft`, `fab-dedupe`, `fab-proceed` |
-| post-intake orchestration | `_pipeline` | `{driver}`, `{terminal}` | `fab-ff`, `fab-fff` |
+| post-intake orchestration | `_pipeline` | `{driver}`, `{terminal}` | `fab-ff`, `fab-fff`, `fab-adopt` |
 
 `_intake` (3xaj) is the **pre-boundary** counterpart to the **post-boundary** `_pipeline` (szxd): intake is the single context-bearing boundary in the pipeline; everything up to and including intake creation runs in the main session context (pre-boundary: `_intake`), everything after runs as dispatched subagents over the intake artifact (post-boundary: `_pipeline`). Both extractions mirror the same shape (shared body + one-or-two knobs + call-site tails). See [pipeline/planning-skills.md](/pipeline/planning-skills.md) § The `_intake` Shared Create-Intake Procedure for the full pre-boundary decomposition.
 

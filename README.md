@@ -20,6 +20,7 @@ curl -fsSL https://shll.ai/install | sh
 
 Installs the entire shll toolkit via Homebrew, handling tap trust automatically. fab-kit relies on its sibling tools (`wt` for worktrees, `idea` for the backlog), so the full-toolkit install is the supported path.
 
+
 ## The 6 Stages
 
 Every change (a self-contained feature or fix with its own folder) moves through six stages:
@@ -217,6 +218,7 @@ To re-deploy skills, scaffold structure, and sync hooks without changing the pin
 ```bash
 fab sync
 ```
+
 
 > **Note:** `fab sync` runs automatically in every new worktree created by [`wt create`](https://github.com/sahil87/fab-kit/blob/main/docs/specs/companions.md#wt--worktree-isolation).
 

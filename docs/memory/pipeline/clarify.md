@@ -126,7 +126,7 @@ The clarify skill SHALL never advance the stage in `.status.yaml`. It only updat
 
 - **`intake`** — operates on the intake stage (`progress.intake` in `{active, ready, done}`), scanning `intake.md`.
 
-The pre-flight stage guard MUST allow only `intake`. At any post-intake stage (`apply`, `review`, `hydrate`, `ship`, `review-pr`), `/fab-clarify` does not apply and STOPs with: "Clarification is intake-only. At apply or later, run /fab-continue for rework, or edit plan.md `## Requirements` directly. To re-clarify the intake, reset with /fab-continue intake first." If `intake.md` is missing entirely, it STOPs with "No intake.md found. Run /fab-new to create the intake first." There are no `spec`/`plan`/`tasks` targets (j6cs) (qszh); any such positional argument is treated as a change name.
+The pre-flight stage guard MUST allow only `intake`. At any post-intake stage (`apply`, `review`, `hydrate`, `ship`, `review-pr`), `/fab-clarify` does not apply and STOPs with: "Clarification is intake-only. Run /fab-continue for rework, or edit plan.md `## Requirements`. Reset via /fab-continue intake to re-clarify the intake." If `intake.md` is missing entirely, it STOPs with "No intake.md found. Run /fab-new to create the intake first." There are no `spec`/`plan`/`tasks` targets (j6cs) (qszh); any such positional argument is treated as a change name.
 
 ## Design Decisions
 

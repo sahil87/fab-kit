@@ -20,7 +20,7 @@ metadata:
 - fab log (extended)
 - fab resolve (extended)
 - fab resolve-agent
-- fab config (reference, show, init --system)
+- fab config (reference / show / init / upgrade)
 - fab pane
 - fab doctor
 - fab migrations-status
@@ -217,7 +217,7 @@ The `status.yaml` template (in the kit cache at `$(fab kit-path)/templates/statu
 
 ## fab preflight (extended)
 
-`fab preflight [<change-name>]` — validates config.yaml, constitution.md, active change resolution, `.status.yaml` existence. Outputs YAML with `id`, `name`, `change_dir`, `stage`, `display_stage`, `display_state`, `progress`, `plan`, `confidence`. Non-zero exit on failure (error on stderr). Pure validation — no side effects.
+`fab preflight [<change-name>]` — validates config.yaml, constitution.md, active change resolution, `.status.yaml` existence. Outputs YAML with `id`, `name`, `change_dir`, `stage`, `display_stage`, `display_state`, `progress`, `plan`, `confidence`. Non-zero exit on failure (error on stderr). Validation plus a **best-effort state refresh**: preflight is the **orient seam**, so before reading it runs the artifact-derived recompute under the status flock and persists `change_type`/`confidence`/plan counts when they are dirty. Every refresh failure is swallowed — preflight must still orient when the recompute cannot run. It moves **no stage pointers** and performs no transitions.
 
 ---
 
