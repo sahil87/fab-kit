@@ -54,8 +54,8 @@ func TestDefaultTierProfilesArePinned(t *testing.T) {
 	pinned := map[string]Profile{
 		TierDefault:  {Provider: "claude", Model: "claude-fable-5", Effort: "high"},
 		TierOperator: {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
-		TierDoing:    {Provider: "claude", Model: "claude-opus-5", Effort: "xhigh"},
-		TierReview:   {Provider: "claude", Model: "claude-opus-5", Effort: "xhigh"},
+		TierDoing:    {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
+		TierReview:   {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
 		TierHydrate:  {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
 		TierFast:     {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
 	}
@@ -179,7 +179,7 @@ func TestResolveOverrideBeatsDefaultTier(t *testing.T) {
 // resolve a CLAUDE model.
 func TestResolveCrossProviderCutoff(t *testing.T) {
 	// No fill configured for codex → empty model and effort (NOT the doing tier's
-	// claude-opus-5/xhigh).
+	// claude-opus-5/high).
 	cfg := cfgWithTiers(map[string]config.TierProfile{
 		"doing": {Provider: "codex"},
 	})

@@ -75,8 +75,8 @@ every line (documented style — per-line readability; inheritance is the safety
 |------|----------|-------|--------|
 | `default` | `claude` | `claude-fable-5` | `high` |
 | `operator` | `claude` | `claude-sonnet-5` | `medium` |
-| `doing` | `claude` | `claude-opus-5` | `xhigh` |
-| `review` | `claude` | `claude-opus-5` | `xhigh` |
+| `doing` | `claude` | `claude-opus-5` | `high` |
+| `review` | `claude` | `claude-opus-5` | `high` |
 | `hydrate` | `claude` | `claude-opus-5` | `high` |
 | `fast` | `claude` | `claude-sonnet-5` | `medium` |
 
@@ -84,9 +84,10 @@ This is the verified mirror of the `agent.tiers` block of
 `src/go/fab/internal/agent/defaults.yaml` (parsed into the `defaultTiers` map at package
 initialization). A drift-guard test fails if the two disagree (see § Drift guard).
 
-**Why these defaults.** `doing` runs Opus at `xhigh` — the strongest setting for coding/agentic work; a
-strong author minimizes rework cycles per the apply↔review coupling (see § apply↔review coupling).
-`review` runs Opus/`xhigh` — code review is a named Opus strength, and the critic gets the same
+**Why these defaults.** `doing` runs Opus at `high` — Opus is the strongest coding/agentic model, and
+`high` is the recommended effort sweet spot (`xhigh` buys marginal gains at disproportionate
+latency/cost); a strong author minimizes rework cycles per the apply↔review coupling (see §
+apply↔review coupling). `review` runs Opus/`high` — code review is a named Opus strength, and the critic gets the same
 top-tier model as the author so it can actually catch what the author missed (author/critic separation
 is enforced by the *fresh context and adversarial framing*, not by a weaker model). `hydrate` runs
 Opus/`high` — knowledge work and memory writing are named Opus strengths, and `high` is the
@@ -288,8 +289,8 @@ agent:
   # tier to use fab-kit's built-in default. fab-kit defaults today are:
   #   default:  { provider: claude, model: claude-fable-5,  effort: high }
   #   operator: { provider: claude, model: claude-sonnet-5, effort: medium }
-  #   doing:    { provider: claude, model: claude-opus-5,   effort: xhigh }
-  #   review:   { provider: claude, model: claude-opus-5,   effort: xhigh }
+  #   doing:    { provider: claude, model: claude-opus-5,   effort: high }
+  #   review:   { provider: claude, model: claude-opus-5,   effort: high }
   #   hydrate:  { provider: claude, model: claude-opus-5,   effort: high }
   #   fast:     { provider: claude, model: claude-sonnet-5, effort: medium }
   tiers:

@@ -274,7 +274,7 @@ fab resolve-agent <stage|tier> [--alias] [--provider <name>] [--model <id>] [--e
 
 The positional argument is either one of the six pipeline stages (`intake`, `apply`, `review`, `hydrate`, `ship`, `review-pr`) or one of the six role-tier names (`default`, `operator`, `doing`, `review`, `hydrate`, `fast`). A tier name is accepted positionally alongside a stage name: a stage maps through the fixed stage→tier mapping; a tier resolves directly. The two name sets overlap only at **fixed points** — a name shared by a stage and a tier (`review`, `hydrate`) is one where the stage maps to that same-named tier (`stageTiers[name] == name`), so tier-first dispatch resolves such a name identically either way. (`ship` is a stage but not a tier — it maps to the `fast` tier.)
 
-**Resolution**: maps a stage → its tier via the FIXED fab-owned stage→tier mapping (`default`: intake (advisory) / `doing`: apply, review-pr / `review`: review / `hydrate`: hydrate / `fast`: ship — NOT user-overridable), then resolves the tier → `{provider, model, effort}`: the project's `agent.tiers.<tier>` override **per-field merged** over the project's `default` tier, over fab-kit's built-in default (`default`: claude/claude-fable-5/high, `operator`: claude/claude-sonnet-5/medium, `doing`: claude/claude-opus-5/xhigh, `review`: claude/claude-opus-5/xhigh, `hydrate`: claude/claude-opus-5/high, `fast`: claude/claude-sonnet-5/medium). `agent.tiers` is the sole tier-override surface (no `stage_tiers`, no per-stage escape hatch); the command grammar lives in the top-level `providers:` table. See `docs/specs/stage-models.md`.
+**Resolution**: maps a stage → its tier via the FIXED fab-owned stage→tier mapping (`default`: intake (advisory) / `doing`: apply, review-pr / `review`: review / `hydrate`: hydrate / `fast`: ship — NOT user-overridable), then resolves the tier → `{provider, model, effort}`: the project's `agent.tiers.<tier>` override **per-field merged** over the project's `default` tier, over fab-kit's built-in default (`default`: claude/claude-fable-5/high, `operator`: claude/claude-sonnet-5/medium, `doing`: claude/claude-opus-5/high, `review`: claude/claude-opus-5/high, `hydrate`: claude/claude-opus-5/high, `fast`: claude/claude-sonnet-5/medium). `agent.tiers` is the sole tier-override surface (no `stage_tiers`, no per-stage escape hatch); the command grammar lives in the top-level `providers:` table. See `docs/specs/stage-models.md`.
 
 **Fill precedence** — where the resolved `{model, effort}` comes from, most specific first:
 
@@ -305,12 +305,12 @@ dispatch=<command>
 ```
 $ fab resolve-agent apply
 model=claude-opus-5
-effort=xhigh
+effort=high
 provider=claude
 
 $ fab resolve-agent apply --alias
 model=opus
-effort=xhigh
+effort=high
 provider=claude
 
 # with the doing tier pinned to a dispatch-carrying provider

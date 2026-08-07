@@ -148,7 +148,7 @@ func TestResolveAgentEmptyOverrideEffortInheritsDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	want := "model=some-model\neffort=xhigh\nprovider=claude\n"
+	want := "model=some-model\neffort=high\nprovider=claude\n"
 	if out != want {
 		t.Errorf("output = %q, want overridden model + default effort", out)
 	}
@@ -226,7 +226,7 @@ func TestResolveAgentAliasEmitsShortAlias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve-agent apply --alias: %v", err)
 	}
-	want := "model=" + agent.ModelAlias(wantTierModel(t, agent.TierDoing)) + "\neffort=xhigh\nprovider=claude\n"
+	want := "model=" + agent.ModelAlias(wantTierModel(t, agent.TierDoing)) + "\neffort=high\nprovider=claude\n"
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
@@ -294,7 +294,7 @@ agent:
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
 	doingModel := wantTierModel(t, agent.TierDoing)
-	want := "model=" + doingModel + "\neffort=xhigh\nprovider=codex\ndispatch=codex exec -m " + doingModel + " -c model_reasoning_effort=xhigh\n"
+	want := "model=" + doingModel + "\neffort=high\nprovider=codex\ndispatch=codex exec -m " + doingModel + " -c model_reasoning_effort=high\n"
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
@@ -314,7 +314,7 @@ agent:
 	if err != nil {
 		t.Fatalf("resolve-agent apply --alias: %v", err)
 	}
-	want := "model=" + agent.ModelAlias(wantTierModel(t, agent.TierDoing)) + "\neffort=xhigh\nprovider=codex\ndispatch=codex exec -m " + wantTierModel(t, agent.TierDoing) + " -c model_reasoning_effort=xhigh\n"
+	want := "model=" + agent.ModelAlias(wantTierModel(t, agent.TierDoing)) + "\neffort=high\nprovider=codex\ndispatch=codex exec -m " + wantTierModel(t, agent.TierDoing) + " -c model_reasoning_effort=high\n"
 	if out != want {
 		t.Errorf("output = %q, want aliased model= and full-ID dispatch=, got %q", out, want)
 	}
@@ -462,7 +462,7 @@ func TestResolveAgentOverrideModelWithoutProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bare --model must be valid on the pure query: %v", err)
 	}
-	want = "model=claude-haiku-4-5\neffort=xhigh\nprovider=claude\n"
+	want = "model=claude-haiku-4-5\neffort=high\nprovider=claude\n"
 	if out != want {
 		t.Errorf("output = %q, want the overridden model with the tier's effort %q", out, want)
 	}
@@ -693,8 +693,8 @@ providers:
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
 	doingModel := wantTierModel(t, agent.TierDoing)
-	want := "model=" + doingModel + "\neffort=xhigh\nprovider=claude\n" +
-		"dispatch=claude -n " + doingModel + " --effort xhigh\n"
+	want := "model=" + doingModel + "\neffort=high\nprovider=claude\n" +
+		"dispatch=claude -n " + doingModel + " --effort high\n"
 	if out != want {
 		t.Errorf("output = %q, want %q (watchable + $TMUX ⇒ dispatch= from session_command)", out, want)
 	}
@@ -761,8 +761,8 @@ agent:
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
 	doingModel := wantTierModel(t, agent.TierDoing)
-	want := "model=" + doingModel + "\neffort=xhigh\nprovider=codex\n" +
-		"dispatch=codex exec -m " + doingModel + " -c model_reasoning_effort=xhigh\n"
+	want := "model=" + doingModel + "\neffort=high\nprovider=codex\n" +
+		"dispatch=codex exec -m " + doingModel + " -c model_reasoning_effort=high\n"
 	if out != want {
 		t.Errorf("output = %q, want the dispatch_command %q (dispatch_command wins over watchable)", out, want)
 	}
@@ -786,8 +786,8 @@ providers:
 		t.Fatalf("resolve-agent apply --alias: %v", err)
 	}
 	doingModel := wantTierModel(t, agent.TierDoing)
-	want := "model=" + agent.ModelAlias(doingModel) + "\neffort=xhigh\nprovider=claude\n" +
-		"dispatch=claude -n " + doingModel + " --effort xhigh\n"
+	want := "model=" + agent.ModelAlias(doingModel) + "\neffort=high\nprovider=claude\n" +
+		"dispatch=claude -n " + doingModel + " --effort high\n"
 	if out != want {
 		t.Errorf("output = %q, want aliased model= with a full-ID dispatch= %q", out, want)
 	}
@@ -821,8 +821,8 @@ providers:
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
 	doingModel := wantTierModel(t, agent.TierDoing)
-	want := "model=" + doingModel + "\neffort=xhigh\nprovider=claude\n" +
-		"dispatch=claude -n " + doingModel + " --effort xhigh\n"
+	want := "model=" + doingModel + "\neffort=high\nprovider=claude\n" +
+		"dispatch=claude -n " + doingModel + " --effort high\n"
 	if out != want {
 		t.Errorf("output = %q, want %q (dispatch.watchable is scope `both` — honored from the system layer)", out, want)
 	}
