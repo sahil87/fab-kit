@@ -230,49 +230,64 @@ checklist:
 # model/effort fill (non-claude model IDs rot at CLI cadence). So naming codex or
 # gemini needs no providers: block at all; the blocks below merely restate a
 # built-in default and therefore ship commented, like every other default. Each
-# provider MAY also carry optional model/effort DEFAULT FILL for the {model}/{effort}
-# placeholders (precedence: invocation flag > tier field > provider fill > empty).
-# claude's dispatch_command ships commented because uncommenting it changes default
-# behavior (set dispatch.watchable below instead when you only want a watchable
-# pane; flips claude native→headless CLI dispatch); codex/gemini's built-in
-# dispatch_commands mean naming one flips that tier's stages to CLI dispatch.
+# provider MAY also carry a per-ROLE fill map, profiles.<role>.{model, effort},
+# supplying the {model}/{effort} placeholders when that provider plays that role
+# (precedence: invocation flag > agent.profiles.<role> field > profiles.<role> >
+# profiles.default > empty; the `default` entry is the provider's cross-role
+# fallback). claude's dispatch_command ships commented because uncommenting it
+# changes default behavior (set dispatch.watchable below instead when you only want
+# a watchable pane; flips claude native→headless CLI dispatch); codex/gemini's
+# built-in dispatch_commands mean pointing a role at one flips that role's stages
+# to CLI dispatch.
 # (Automated PR reviewer toggles moved to code-review.md § Review Tools — absent = enabled.)
 # Per-provider notes (kept out of the blocks below so uncommenting a whole block
 # stays valid YAML): claude -p and codex exec both read the prompt from stdin;
-# set providers.codex.model to a current codex model ID (e.g. gpt-5.3-codex) — fab
+# set providers.codex.profiles to current codex model IDs (e.g. gpt-5.3-codex) — fab
 # ships none; gemini carries no {effort} (no reasoning-effort flag) and no -p (it
 # reads the stdin-piped prompt in non-TTY mode; -p would take prompt text appended
-# after stdin).
+# after stdin). This whole block is advertise:false — documented in
+# `fab config reference`, not scaffolded into every project's managed fence.
 providers:
   claude:
     session_command: claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}
     # dispatch_command: claude -p --dangerously-skip-permissions --model {model} --effort {effort}
+    profiles:                              # the six per-role fills — run `fab config reference` for the live values
+      doing: { model: <model-id>, effort: <effort> }   # example: shape only
   # codex:
   #   session_command: codex -m {model} -c model_reasoning_effort={effort}
   #   dispatch_command: codex exec -m {model} -c model_reasoning_effort={effort}
-  #   model: gpt-5.3-codex                 # example fill — fab ships no codex model ID
-  #   effort: high
+  #   profiles:
+  #     default: { model: gpt-5.3-codex, effort: medium }   # example fill — fab ships no codex model ID
   # gemini:
   #   session_command: gemini -m {model}
   #   dispatch_command: gemini -m {model}   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)
-  #   model: gemini-2.5-pro                 # example fill — fab ships no gemini model ID
+  #   profiles:
+  #     default: { model: gemini-2.5-pro }  # example fill — fab ships no gemini model ID
 
-# agent.tiers (optional) is the per-role-model override surface. A tier is a named
-# {provider, model, effort} profile (the invocation command lives on the provider,
-# not the tier). fab owns a FIXED, non-overridable stage→tier mapping
+# agent.session / agent.workers are the TWO ADVERTISED KNOBS, selecting a provider
+# by agent DEPTH: session = the Tier-1 roles you talk to (default, operator —
+# fab agent / fab operator / fab batch), workers = the Tier-2 roles pipeline stages
+# dispatch to (doing, review, hydrate, fast). Both default to claude, and both are
+# scope `both`, so "claude for what I talk to, gemini for the workers" is settable
+# once per machine. fab owns a FIXED, non-overridable stage→role mapping
 # (default: intake advisory / doing: apply, review-pr / review: review /
 # hydrate: hydrate / fast: ship + /fab-proceed prefix steps; operator: the fab
-# operator coordinator session) and you override only what each tier MEANS. Omit
-# any tier (or the whole tiers: block) to use fab-kit's built-in defaults. Any
-# omitted field falls back to the project's `default` tier, then fab-kit's built-in
-# (per-field merge with default-tier inheritance). Resolved per stage/tier by
-# `fab resolve-agent <stage|tier>` at sub-agent dispatch time; see
-# docs/specs/stage-models.md.
-# Run `fab config reference` for the current built-in profiles (rendered live from
-# defaultTiers, so it cannot go stale). Shape:
+# operator coordinator session) AND the role→depth partition above.
+#
+# agent.profiles (optional, advertise:false) is the SPARSE per-role escape hatch
+# beneath the knobs: {provider, model, effort} per role, every field optional, a set
+# field beating the knob (provider) or the provider's own fill (model/effort). There
+# is NO cross-role inheritance — agent.profiles.default is the `default` ROLE's own
+# override. Resolved per stage/role by `fab resolve-agent <stage|role>` at sub-agent
+# dispatch time; see docs/specs/stage-models.md. (`agent.tiers` is the pre-2.17.0
+# spelling — still read, rewritten by the 2.16.19-to-2.17.0 migration.)
+# Run `fab config reference` for the current built-in profiles (rendered live, so it
+# cannot go stale). Shape:
 agent:
-  tiers:
-    doing: { provider: claude, model: <model-id>, effort: xhigh }   # example: shape only
+  session: claude
+  workers: claude
+  profiles:
+    review: { provider: codex }   # example: shape only
 
 # dispatch.watchable (optional, default false) — the WATCHABLE-PANE opt-in. When
 # true AND the orchestrator sits inside tmux ($TMUX set), a provider carrying only
@@ -344,7 +359,7 @@ The constitution is the **architectural DNA** of a Fab project. It defines immut
 - Constitution violations found during review are flagged as high-severity issues
 
 **Relationship to `config.yaml`**:
-- `config.yaml` holds **factual project context** (identity, source/test paths, provider session/dispatch commands and default fill (`providers:`), agent tiers)
+- `config.yaml` holds **factual project context** (identity, source/test paths, provider session/dispatch commands and per-role fills (`providers:`), the two agent depth knobs plus any `agent.profiles` overrides)
 - `constitution.md` holds **principles and constraints** (what MUST/SHOULD/MUST NOT happen)
 - Think: config says *what you use*, constitution says *how you use it*
 

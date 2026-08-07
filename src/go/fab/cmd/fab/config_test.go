@@ -58,7 +58,7 @@ func TestConfigReferenceRoundTrips(t *testing.T) {
 	// blocks merely RESTATE a built-in default and ship commented like every other
 	// non-overridden default. They must parse as absent from Config: a commented
 	// block registers no project override (presence=intent for behavior — a
-	// built-in provider is inert until a tier or flag names it, and
+	// built-in provider is inert until a role profile, knob, or flag names it, and
 	// agent.ResolveProvider resolves it from the Go table either way).
 	if _, ok := cfg.GetProvider("codex"); ok {
 		t.Error("providers.codex must be commented-out in the reference (parsed as live)")
@@ -72,10 +72,19 @@ func TestConfigReferenceRoundTrips(t *testing.T) {
 	if len(cfg.TrueImpactExclude) == 0 {
 		t.Error("true_impact_exclude should be a live key with a value in the reference")
 	}
-	// The six agent.tiers are shown LIVE with explicit providers (documented
-	// style — provider written on every line). They must parse to a populated map.
-	if _, ok := cfg.GetAgentTier("doing"); !ok {
-		t.Error("agent.tiers must be live in the reference (six role tiers with explicit providers)")
+	// The two advertised depth knobs are shown LIVE at their built-in value — they
+	// are the whole advertised agent surface (260806-j9nh), so they must parse.
+	if got := cfg.GetAgentSession(); got != "claude" {
+		t.Errorf("agent.session must be live in the reference at its built-in value, got %q", got)
+	}
+	if got := cfg.GetAgentWorkers(); got != "claude" {
+		t.Errorf("agent.workers must be live in the reference at its built-in value, got %q", got)
+	}
+	// agent.profiles is the DEMOTED machinery beneath them: documented in the
+	// segment's pointer lines, but never live (a live per-role profile would pin
+	// today's models into every project's config — presence=intent).
+	if _, ok := cfg.GetAgentProfile("doing"); ok {
+		t.Error("agent.profiles must be commented-out in the reference (parsed as live)")
 	}
 	// The opt-in override blocks must stay commented-out (uncommenting = opting in).
 	if len(cfg.StageHooks) != 0 {
@@ -169,7 +178,7 @@ func TestConfigInitSeedKeysSubsetOfRegistry(t *testing.T) {
 
 	// The seeded identity set is the A-class fields the design fixes: the project
 	// identity, source_paths, and test_paths. Pin it so a future edit that seeds a
-	// preference-class field (e.g. agent.tiers — which presence=intent forbids
+	// preference-class field (e.g. agent.profiles — which presence=intent forbids
 	// pinning at init) fails here.
 	wantSeed := map[string]bool{
 		"project.name":        true,
@@ -257,10 +266,10 @@ func TestConfigReferenceMentionsCommandPlaceholders(t *testing.T) {
 
 // TestConfigReferenceDocumentsBothSubstitutionSources is the nvad contract: the
 // session_command comment must name BOTH sources of the {model}/{effort}
-// substitution — the resolved tier profile (tier path) and the --model/--effort
-// flags on `fab agent --provider <name>`, which bypasses tier resolution. This
+// substitution — the resolved role profile (role path) and the --model/--effort
+// flags on `fab agent --provider <name>`, which bypasses role resolution. This
 // literal renders into every project's config.yaml reference fence, so a
-// tier-only claim there is a user-facing documentation inaccuracy.
+// role-only claim there is a user-facing documentation inaccuracy.
 func TestConfigReferenceDocumentsBothSubstitutionSources(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
@@ -269,17 +278,17 @@ func TestConfigReferenceDocumentsBothSubstitutionSources(t *testing.T) {
 	// The rendered comment is hard-wrapped with "# " prefixes, so assert on
 	// within-line phrases rather than a spanning sentence.
 	for _, phrase := range []string{
-		"substituted from the resolved tier profile, or from the",
+		"substituted from the resolved role profile, or from the",
 		"--model/--effort flags on `fab agent --provider <name>`",
-		"(which bypasses tier resolution)",
+		"(which bypasses role resolution)",
 	} {
 		if !strings.Contains(out, phrase) {
 			t.Errorf("session_command comment must document %q (both substitution sources)", phrase)
 		}
 	}
-	// The superseded tier-only claim must not survive anywhere in the reference.
+	// The superseded single-source claim must not survive anywhere in the reference.
 	if strings.Contains(out, "substituted from the resolved tier profile (the built-in") {
-		t.Error("session_command comment still carries the tier-only substitution claim")
+		t.Error("session_command comment still carries the single-source substitution claim")
 	}
 }
 
@@ -384,24 +393,31 @@ func TestConfigReferenceDocumentsThreeBuiltInProviders(t *testing.T) {
 	}
 }
 
-// TestConfigReferenceDocumentsProviderFill is the j3cm fill contract: the providers
-// block documents the per-provider `model`/`effort` default-fill fields and the fill
-// precedence, and the registry row's Default exposes NO fill for any built-in
-// (fab-kit ships grammar, never a model ID — a non-nil Default always denotes a real
-// built-in value).
+// TestConfigReferenceDocumentsProviderFill is the fill contract, reshaped by
+// 260806-j9nh: the providers block documents the PER-ROLE `profiles` fill map and
+// the fill precedence, and the registry row's Default exposes NO fill for the
+// NON-claude built-ins (fab-kit ships their grammar, never a model ID — those rot
+// at CLI cadence). claude is the deliberate exception: its six role fills moved
+// off the agent side onto the provider in this change, so they ARE a real shipped
+// built-in value.
 func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
 	}
 	for _, phrase := range []string{
-		"model / effort",
-		"DEFAULT FILL",
-		"invocation flag > explicit tier field > provider fill >",
+		"profiles.<role>",
+		"cross-role fallback",
+		"flag > agent.profiles.<role> field > profiles.<role> >",
 	} {
 		if !strings.Contains(out, phrase) {
-			t.Errorf("providers block must document %q (the per-provider fill fields and their precedence)", phrase)
+			t.Errorf("providers block must document %q (the per-role fill map and its precedence)", phrase)
 		}
+	}
+	// The retired flat-fill surface must not be advertised as the fill any more —
+	// it survives only as the documented deprecated alias.
+	if strings.Contains(out, "DEFAULT FILL") {
+		t.Error("providers block still advertises the retired flat providers.<name>.model/.effort fill")
 	}
 
 	// The JSON registry row must advertise all three built-ins and no fill values.
@@ -435,15 +451,35 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 			t.Errorf("providers default must advertise the built-in %q, got %v", name, defaults[name])
 			continue
 		}
+		// The flat fill is gone from the shipped surface for EVERY built-in.
 		if _, ok := entry["model"]; ok {
-			t.Errorf("built-in %q must carry no model fill in the registry default", name)
+			t.Errorf("built-in %q must carry no flat model fill in the registry default", name)
 		}
 		if _, ok := entry["effort"]; ok {
-			t.Errorf("built-in %q must carry no effort fill in the registry default", name)
+			t.Errorf("built-in %q must carry no flat effort fill in the registry default", name)
+		}
+		profiles, hasProfiles := entry["profiles"].(map[string]any)
+		if name == agent.DefaultProviderName {
+			// claude ships its six role fills — the values that used to live on the
+			// agent side. Derived from agent.RoleNames so a role added or renamed
+			// surfaces here rather than drifting silently.
+			if !hasProfiles {
+				t.Errorf("built-in %q must carry its per-role profiles in the registry default, got %v", name, entry)
+				continue
+			}
+			for _, role := range agent.RoleNames() {
+				if _, ok := profiles[role]; !ok {
+					t.Errorf("built-in claude's registry default is missing the %q role fill", role)
+				}
+			}
+			continue
+		}
+		if hasProfiles {
+			t.Errorf("built-in %q must ship GRAMMAR ONLY — no per-role fills in the registry default, got %v", name, profiles)
 		}
 	}
 	desc, _ := row["description"].(string)
-	for _, phrase := range []string{"model/effort fill", "grammar-only built-ins"} {
+	for _, phrase := range []string{"per-role fills", "grammar-only built-ins"} {
 		if !strings.Contains(desc, phrase) {
 			t.Errorf("providers row description must mention %q, got %q", phrase, desc)
 		}
@@ -579,12 +615,19 @@ func TestConfigReferenceJSONIsValidAndByteStable(t *testing.T) {
 			}
 		}
 		// default is present on every element (may be null); renamed_from is
-		// omitted when empty (omitempty), which is every row today.
+		// omitted (omitempty) on every row EXCEPT the ones in the rename ledger,
+		// where it must be emitted so a consumer can carry the old key forward.
 		if _, ok := obj["default"]; !ok {
 			t.Errorf("--json element %d (%v) is missing the `default` field", i, obj["key"])
 		}
-		if _, ok := obj["renamed_from"]; ok {
-			t.Errorf("--json element %d (%v) should omit `renamed_from` (empty on every row today, omitempty)", i, obj["key"])
+		key, _ := obj["key"].(string)
+		got, present := obj["renamed_from"]
+		if want := wantRenamedFrom[key]; want == "" {
+			if present {
+				t.Errorf("--json element %d (%s) should omit `renamed_from` (no rename on this row, omitempty)", i, key)
+			}
+		} else if got != want {
+			t.Errorf("--json element %d (%s) renamed_from = %v, want %q", i, key, got, want)
 		}
 	}
 }
@@ -595,7 +638,7 @@ func TestConfigReferenceJSONIsValidAndByteStable(t *testing.T) {
 // `""`). This is the single "cascade falls back to absent" signal Change 2's
 // resolver consumes; a typed empty would leak a Go-side implementation detail with
 // no cascade meaning. Conversely, a non-null `default` must denote a real built-in
-// value (the three built-in providers, the six tier profiles, and
+// value (the three built-in providers, the six role profiles, and
 // dispatch.watchable's `false` today).
 //
 // dispatch.watchable is the convention's boundary case and is deliberately NOT
@@ -617,7 +660,9 @@ func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
 	// "no built-in default" and MUST render as JSON null (not [], {}, or "").
 	hasDefault := map[string]bool{
 		"providers":             true,
-		"agent.tiers":           true,
+		"agent.profiles":        true,
+		"agent.session":         true, // the knob's built-in value IS claude, not "absent"
+		"agent.workers":         true,
 		"dispatch.watchable":    true, // bool: false IS the built-in default, not "absent"
 		"dispatch.column_width": true, // int: an absent yaml int reads as unset, so 35 is real
 	}
@@ -693,7 +738,7 @@ func TestConfigReferenceJSONKeysMatchYAML(t *testing.T) {
 func TestConfigReferenceRegistryLint(t *testing.T) {
 	fields, err := configref.Fields()
 	if err != nil {
-		t.Fatalf("Fields returned an error (registry lint or tier invariant failed): %v", err)
+		t.Fatalf("Fields returned an error (registry lint or role-profile invariant failed): %v", err)
 	}
 	if len(fields) == 0 {
 		t.Fatal("Fields returned an empty registry")
@@ -710,15 +755,24 @@ func TestConfigReferenceRegistryLint(t *testing.T) {
 		if !validScopes[f.Scope] {
 			t.Errorf("field %q has invalid scope %q (want project/system/both)", f.Key, f.Scope)
 		}
-		// renamed_from is empty on every row today (future field renames only).
-		if f.RenamedFrom != "" {
-			t.Errorf("field %q has a non-empty RenamedFrom %q; no historical rename is backfilled in this change", f.Key, f.RenamedFrom)
+		// renamed_from is carried only by rows whose key actually moved. Pinning the
+		// exact set (rather than merely allowing any value) is what keeps a stray
+		// RenamedFrom from being added without a matching migration.
+		if want := wantRenamedFrom[f.Key]; f.RenamedFrom != want {
+			t.Errorf("field %q RenamedFrom = %q, want %q", f.Key, f.RenamedFrom, want)
 		}
 	}
 }
 
+// wantRenamedFrom is the registry's complete rename ledger. agent.tiers →
+// agent.profiles (260806-j9nh) is the only historical rename; every other row
+// must leave RenamedFrom empty so `renamed_from` stays omitted from --json.
+var wantRenamedFrom = map[string]string{
+	"agent.profiles": "agent.tiers",
+}
+
 // TestConfigReferenceScopeAssignments pins the decision-6 scope taxonomy: the
-// preference-class fields (agent.tiers, providers) are `both`; the
+// preference-class fields (agent.profiles, providers) are `both`; the
 // semantics-class fields and the two unenumerated fields (stage_hooks,
 // branch_prefix) are `project`. (fab_version left config.yaml in 260708-j0qm and
 // no longer carries a scope.) Enforcement landed in Change 2; the assignments are
@@ -742,7 +796,9 @@ func TestConfigReferenceScopeAssignments(t *testing.T) {
 		"checklist.extra_categories": configref.ScopeProject,
 		"consolidate.detectors":      configref.ScopeProject,
 		"providers":                  configref.ScopeBoth,
-		"agent.tiers":                configref.ScopeBoth,
+		"agent.session":              configref.ScopeBoth,
+		"agent.workers":              configref.ScopeBoth,
+		"agent.profiles":             configref.ScopeBoth,
 		"dispatch.watchable":         configref.ScopeBoth,
 		"dispatch.column_width":      configref.ScopeBoth,
 		"stage_hooks":                configref.ScopeProject,
@@ -927,7 +983,7 @@ func TestConfigReferenceConsolidateDetectors(t *testing.T) {
 // segment reachable from it. Descends into nested structs and map value types
 // (a map's value type contributes its own struct's segments). Returns segments
 // (leaf key names), not full dotted paths, because the reference documents some
-// keys in dotted-prose form (`agent.tiers`, `stage_hooks.<stage>.pre`); a
+// keys in dotted-prose form (`agent.profiles`, `stage_hooks.<stage>.pre`); a
 // per-segment presence check catches a new nested field regardless of the
 // prose form used.
 func yamlKeySegments(t reflect.Type) map[string]struct{} {
@@ -949,7 +1005,7 @@ func yamlKeySegments(t reflect.Type) map[string]struct{} {
 				walk(f.Type)
 			}
 		case reflect.Map:
-			// The map key is a free-form stage/tier name (not a fixed key), so
+			// The map key is a free-form stage/role name (not a fixed key), so
 			// descend only into the value type for its struct fields.
 			walk(rt.Elem())
 		case reflect.Slice, reflect.Array:

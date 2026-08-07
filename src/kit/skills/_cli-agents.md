@@ -47,21 +47,21 @@ An interactive agent session command is **never hand-assembled**. Ask `fab agent
 Two addressing forms — both print a fully **profile-resolved** command (`{model}`/`{effort}` substituted, or Claude-style flags appended for a non-templated `session_command`):
 
 ```sh
-# Tier-addressed — the resolved role tier supplies {provider, model, effort}.
-fab agent --print                       # the default tier, this repo
-fab agent operator --print              # a named role tier
+# Role-addressed — the resolved role supplies {provider, model, effort}.
+fab agent --print                       # the default role, this repo
+fab agent operator --print              # a named role
 fab agent --print --repo <target-repo>  # another repo's config (never your own)
 
-# Provider-addressed — bypasses tier resolution entirely.
+# Provider-addressed — bypasses role resolution entirely.
 fab agent --provider codex --print                                  # bare invocation: the CLI's own default model
 fab agent --provider codex --model <id> --effort <level> --print     # explicit profile
 ```
 
-**Which form to use.** Use the **tier** form when the spawn should inherit fab's role/budget policy (a pipeline-shaped worker, the operator's own coordinator). Use the **provider** form when the question is mechanical — "give me a codex session right here" — with no tier to speak of. `--provider` is mutually exclusive with the `[tier]` positional, and `--model`/`--effort` are only valid alongside `--provider` (see `_cli-fab.md` § fab agent — note `fab resolve-agent` deliberately allows them bare, being a pure query). **No `providers:` block is needed for either form**: `claude`, `codex`, and `gemini` are built-in providers.
+**Which form to use.** Use the **role** form when the spawn should inherit fab's role/budget policy (a pipeline-shaped worker, the operator's own coordinator) — including which provider the `agent.session` knob points Tier-1 agents at. Use the **provider** form when the question is mechanical — "give me a codex session right here" — with no role to speak of. `--provider` is mutually exclusive with the `[role]` positional, and `--model`/`--effort` are only valid alongside `--provider` (see `_cli-fab.md` § fab agent — note `fab resolve-agent` deliberately allows them bare, being a pure query). **No `providers:` block is needed for either form**: `claude`, `codex`, and `gemini` are built-in providers.
 
 **Empty model/effort is a feature.** Omitting `--model`/`--effort` on the provider form leaves the value empty, and the composition rule drops the placeholder's token *and* a preceding `-`-flag — so `fab agent --provider codex --print` against `codex -m {model} -c model_reasoning_effort={effort}` yields a bare `codex` and the installed CLI's own default model applies. This is how you spawn a provider whose current model IDs you do not know.
 
-> **Caveat — the provider form bypasses BOTH fill sources.** `fab agent --provider <name>` skips tier resolution *and* the provider's default fill: `providers.<name>.model`/`.effort` are deliberately **not** consulted here, so the composed profile is exactly the flags you pass. The fill rungs (invocation flag > tier field > provider fill > empty) apply to *tier* resolution and to `fab resolve-agent`, not to this path. So a project with `providers.codex.model` set still gets a bare `codex` from `fab agent --provider codex --print` — pass `--model` explicitly, or use the tier form, when the fill should apply. (Same caveat as `_cli-fab.md` § fab agent.)
+> **Caveat — the provider form bypasses BOTH fill sources.** `fab agent --provider <name>` skips role resolution *and* the provider's per-role fills: `providers.<name>.profiles` is deliberately **not** consulted here, so the composed profile is exactly the flags you pass. The fill rungs (invocation flag > `agent.profiles.<role>` field > `providers.<p>.profiles.<role>` > `providers.<p>.profiles.default` > empty) apply to *role* resolution and to `fab resolve-agent`, not to this path. So a project with `providers.codex.profiles.default.model` set still gets a bare `codex` from `fab agent --provider codex --print` — pass `--model` explicitly, or use the role form, when the fill should apply. (Same caveat as `_cli-fab.md` § fab agent.)
 
 **Open it in a pane:**
 
@@ -128,7 +128,7 @@ Each entry below carries only **stable invocation grammar** and **discovery reci
 - **Model IDs are NOT recorded.** Model catalogs rot in weeks. Instead each entry carries a *discovery recipe*: what to run against the **installed** binary to learn which models it accepts. Never assume a model ID from memory; run the recipe.
 - **Quirks accrete from real encounters only.** An entry records an interactive quirk (first-run trust prompt, submit-key behavior) only once it has actually been hit and confirmed. Speculating about an uninstalled CLI's behavior is worse than silence — it reads as verified.
 
-The command strings below are the same grammars fab-kit ships as **built-in providers** — `claude`, `codex`, and `gemini` are all in the built-in `defaultProviders` table (its rows live in `internal/agent`'s embedded `defaults.yaml`), so naming one (in a tier, or via `fab agent --provider` / `fab resolve-agent --provider`) resolves with **no `providers:` config at all**. The built-ins are **grammar only**: they carry no model ID, because model IDs rot at CLI cadence. Pin the volatile half in config — `providers.<name>.model` / `.effort` (a default fill, settable once per machine in `~/.fab-kit/config.yaml`) — or per invocation with `--model`/`--effort`. Discover the ID with the per-entry recipe below; never assume one. (This dictionary is markdown, so it updates with the kit and carries no behavior risk; a `providers:` block is now for *overriding* a grammar or supplying fill, not for registering codex/gemini in the first place.)
+The command strings below are the same grammars fab-kit ships as **built-in providers** — `claude`, `codex`, and `gemini` are all in the built-in `defaultProviders` table (its rows live in `internal/agent`'s embedded `defaults.yaml`), so naming one (on a depth knob, in `agent.profiles.<role>.provider`, or via `fab agent --provider` / `fab resolve-agent --provider`) resolves with **no `providers:` config at all**. Only `claude` carries fills; `codex` and `gemini` are **grammar only**, because model IDs rot at CLI cadence. Pin the volatile half in config — `providers.<name>.profiles.<role>.{model,effort}` (settable once per machine in `~/.fab-kit/config.yaml`) — or per invocation with `--model`/`--effort`. Discover the ID with the per-entry recipe below; never assume one. (This dictionary is markdown, so it updates with the kit and carries no behavior risk; a `providers:` block is now for *overriding* a grammar or supplying per-role fills, not for registering codex/gemini in the first place.)
 
 ### claude
 

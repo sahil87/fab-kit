@@ -76,15 +76,15 @@ func runOperator(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Resolve the operator-tier {provider, model, effort} so the operator launches
-	// its coordinating agent on a deliberately-chosen profile. This names the seam
-	// properly — the operator has its OWN tier (previously it borrowed the doing
-	// tier). The operator is a per-tmux-server cross-repo coordinator and may be
-	// launched from a neutral directory with no fab/ project (e.g. ~/code), so a
-	// missing project is NOT an error: config.Load returns an empty config, and
-	// agent.ResolveTier/ResolveProvider then degrade to fab-kit's built-in
-	// operator tier + built-in claude provider — a no-fab/ launch is fully
-	// defaulted.
+	// Resolve the operator-role {provider, model, effort} so the operator launches
+	// its coordinating agent on a deliberately-chosen profile. The operator has its
+	// OWN role, and it is a Tier-1 (session) role — so which provider it lands on is
+	// the agent.session knob's call. The operator is a per-tmux-server cross-repo
+	// coordinator and may be launched from a neutral directory with no fab/ project
+	// (e.g. ~/code), so a missing project is NOT an error: config.Load returns an
+	// empty config, and agent.ResolveRole/ResolveProvider then degrade to fab-kit's
+	// built-in operator profile + built-in claude provider — a no-fab/ launch is
+	// fully defaulted.
 	spawnCmd := operatorSpawnCommand()
 
 	// Create new tab running the operator skill
@@ -118,15 +118,15 @@ func findWindowExact(out, name string) (windowID string, found bool) {
 	return "", false
 }
 
-// operatorSpawnCommand resolves the operator tier's session command in-process:
-// the operator tier → its provider → that provider's session_command, with
+// operatorSpawnCommand resolves the operator role's session command in-process:
+// the operator role → its provider → that provider's session_command, with
 // {model}/{effort} substituted via internal/spawn. A missing/unreadable fab
-// project degrades to fab-kit's built-in operator tier + built-in claude provider
-// (config.Load returns an empty config; agent.ResolveTier/ResolveProvider both
-// fall back to the built-ins), so a neutral-directory launch is fully defaulted.
-// A provider without a session_command falls back to spawn.DefaultSpawnCommand
-// (still profile-substituted) rather than erroring — the operator must always
-// launch.
+// project degrades to fab-kit's built-in operator profile + built-in claude
+// provider (config.Load returns an empty config; agent.ResolveRole/ResolveProvider
+// both fall back to the built-ins), so a neutral-directory launch is fully
+// defaulted. A provider without a session_command falls back to
+// spawn.DefaultSpawnCommand (still profile-substituted) rather than erroring — the
+// operator must always launch.
 func operatorSpawnCommand() string {
 	var cfg *config.Config
 	if fabRoot, err := resolve.FabRoot(); err == nil {
@@ -142,15 +142,15 @@ func operatorSpawnCommand() string {
 	return spawn.WithProfile(sessionCmd, profile.Model, profile.Effort)
 }
 
-// operatorProfile resolves the operator-tier profile from cfg, degrading to the
-// built-in operator default when cfg is nil or the tier cannot be resolved. Pure
+// operatorProfile resolves the operator-role profile from cfg, degrading to the
+// built-in operator default when cfg is nil or the role cannot be resolved. Pure
 // (no exec / no filesystem), so the fallback is unit-testable.
 func operatorProfile(cfg *config.Config) agent.Profile {
-	if p, err := agent.ResolveTier(cfg, agent.TierOperator); err == nil {
+	if p, err := agent.ResolveRole(cfg, agent.RoleOperator); err == nil {
 		return p
 	}
-	// defaultTiers always carries TierOperator (guarded by the drift-guard test).
-	def, _ := agent.DefaultTier(agent.TierOperator)
+	// RoleOperator is always a known role (guarded by the drift-guard test).
+	def, _ := agent.DefaultProfile(agent.RoleOperator)
 	return def
 }
 

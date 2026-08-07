@@ -12,41 +12,42 @@ import (
 
 const (
 	stageModelsDocPath = "docs/specs/stage-models.md"
-	defaultTierHeading = "### Default tier profiles"
-	stageTierHeading   = "## The fixed stage → tier mapping"
+	defaultRoleHeading = "### Default role profiles"
+	stageRoleHeading   = "## The fixed stage → role mapping"
 )
 
-// TestDocTablesMatchAgentMaps guards against drift between the canonical Go maps
-// (defaultTiers, stageTiers) and their mirror tables in
-// docs/specs/stage-models.md. The code maps are canonical; this test fails if a
-// doc table disagrees with the resolved profile/tier for any tier or stage, or
-// if a doc table covers a different set than the code knows about. Mirrors
-// internal/score's TestDocTablesMatchScoringMaps (change-types.md ↔ score.go).
+// TestDocTablesMatchAgentMaps guards against drift between the canonical built-in
+// data (defaults.yaml, composed by DefaultProfile) and the fab-owned stageRoles map
+// on one side, and their mirror tables in docs/specs/stage-models.md on the other.
+// The code side is canonical; this test fails if a doc table disagrees with the
+// resolved profile/role for any role or stage, or if a doc table covers a different
+// set than the code knows about. Mirrors internal/score's
+// TestDocTablesMatchScoringMaps (change-types.md ↔ score.go).
 func TestDocTablesMatchAgentMaps(t *testing.T) {
 	docPath := findDocFile(t, stageModelsDocPath)
 
-	// Direction 1 — the default tier table: { tier → (provider, model, effort) }.
-	tierTable := parseTierProfileTable(t, docPath, defaultTierHeading)
-	assertCoversSet(t, "Default tier profiles", keys(tierTable), TierNames())
-	for _, tier := range TierNames() {
-		t.Run("tier/"+tier, func(t *testing.T) {
-			want, _ := DefaultTier(tier)
-			got := tierTable[tier]
+	// Direction 1 — the default role table: { role → (provider, model, effort) }.
+	roleTable := parseRoleProfileTable(t, docPath, defaultRoleHeading)
+	assertCoversSet(t, "Default role profiles", keys(roleTable), RoleNames())
+	for _, role := range RoleNames() {
+		t.Run("role/"+role, func(t *testing.T) {
+			want, _ := DefaultProfile(role)
+			got := roleTable[role]
 			if got.Provider != want.Provider || got.Model != want.Model || got.Effort != want.Effort {
-				t.Errorf("stage-models.md default[%s] = {%s, %s, %s}, code defaultTiers = {%s, %s, %s} (doc drifted)",
-					tier, got.Provider, got.Model, got.Effort, want.Provider, want.Model, want.Effort)
+				t.Errorf("stage-models.md default[%s] = {%s, %s, %s}, code resolves {%s, %s, %s} (doc drifted)",
+					role, got.Provider, got.Model, got.Effort, want.Provider, want.Model, want.Effort)
 			}
 		})
 	}
 
-	// Direction 2 — the stage→tier table: { stage → tier }.
-	stageTable := parse2ColTable(t, docPath, stageTierHeading)
-	assertCoversSet(t, "Stage → tier mapping", keys2(stageTable), StageNames())
+	// Direction 2 — the stage→role table: { stage → role }.
+	stageTable := parse2ColTable(t, docPath, stageRoleHeading)
+	assertCoversSet(t, "Stage → role mapping", keys2(stageTable), StageNames())
 	for _, stage := range StageNames() {
 		t.Run("stage/"+stage, func(t *testing.T) {
-			want, _ := TierForStage(stage)
+			want, _ := RoleForStage(stage)
 			if got := stageTable[stage]; got != want {
-				t.Errorf("stage-models.md mapping[%s] = %q, code stageTiers = %q (doc drifted)", stage, got, want)
+				t.Errorf("stage-models.md mapping[%s] = %q, code stageRoles = %q (doc drifted)", stage, got, want)
 			}
 		})
 	}
@@ -102,9 +103,9 @@ func parse2ColTable(t *testing.T, docPath, heading string) map[string]string {
 	return result
 }
 
-// parseTierProfileTable extracts the first pipe-delimited 4-column table
-// (Tier | Provider | Model | Effort) under the given heading: { tier → Profile }.
-func parseTierProfileTable(t *testing.T, docPath, heading string) map[string]Profile {
+// parseRoleProfileTable extracts the first pipe-delimited 4-column table
+// (Role | Provider | Model | Effort) under the given heading: { role → Profile }.
+func parseRoleProfileTable(t *testing.T, docPath, heading string) map[string]Profile {
 	t.Helper()
 	rows := tableRowsUnder(t, docPath, heading)
 	result := make(map[string]Profile)
@@ -112,11 +113,11 @@ func parseTierProfileTable(t *testing.T, docPath, heading string) map[string]Pro
 		if len(cols) < 4 {
 			continue
 		}
-		tier := cleanCell(cols[0])
-		if tier == "" {
+		role := cleanCell(cols[0])
+		if role == "" {
 			continue
 		}
-		result[tier] = Profile{
+		result[role] = Profile{
 			Provider: cleanCell(cols[1]),
 			Model:    cleanCell(cols[2]),
 			Effort:   cleanCell(cols[3]),

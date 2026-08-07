@@ -7,87 +7,164 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 )
 
-// cfgWithTiers builds a *config.Config with the given agent.tiers overrides.
-func cfgWithTiers(tiers map[string]config.TierProfile) *config.Config {
-	return &config.Config{Agent: config.AgentConfig{Tiers: tiers}}
+// cfgWithProfiles builds a *config.Config with the given agent.profiles overrides.
+func cfgWithProfiles(profiles map[string]config.RoleProfile) *config.Config {
+	return &config.Config{Agent: config.AgentConfig{Profiles: profiles}}
 }
 
 // TestResolveDefaults: with no overrides, every stage resolves to its fixed
-// tier's built-in default profile. The expectation is DERIVED from the canonical
-// maps (stageTiers → defaultTiers) rather than restating model literals, so a
-// model bump touches only defaultTiers in agent.go and this test keeps asserting
-// what it is actually about: that resolution routes each stage to its fixed tier
-// and returns that tier's profile unmodified. The literals themselves are pinned
-// once, in TestDefaultTierProfilesArePinned below.
+// role's built-in default profile. The expectation is DERIVED from the canonical
+// maps (stageRoles → DefaultProfile) rather than restating model literals, so a
+// model bump touches only defaults.yaml and this test keeps asserting what it is
+// actually about: that resolution routes each stage to its fixed role and returns
+// that role's profile unmodified. The literals themselves are pinned once, in
+// TestDefaultRoleProfilesArePinned below.
 func TestResolveDefaults(t *testing.T) {
 	for _, stage := range StageNames() {
 		t.Run(stage, func(t *testing.T) {
-			tier, ok := TierForStage(stage)
+			role, ok := RoleForStage(stage)
 			if !ok {
-				t.Fatalf("stage %q has no tier mapping", stage)
+				t.Fatalf("stage %q has no role mapping", stage)
 			}
-			want, ok := DefaultTier(tier)
+			want, ok := DefaultProfile(role)
 			if !ok {
-				t.Fatalf("tier %q has no default profile", tier)
+				t.Fatalf("role %q has no default profile", role)
 			}
 			got, err := Resolve(nil, stage)
 			if err != nil {
 				t.Fatalf("Resolve(%s): %v", stage, err)
 			}
 			if got != want {
-				t.Errorf("Resolve(%s) = %+v, want %s-tier default %+v", stage, got, tier, want)
+				t.Errorf("Resolve(%s) = %+v, want %s-role default %+v", stage, got, role, want)
 			}
 		})
 	}
 }
 
-// TestDefaultTierProfilesArePinned is the ONE place the built-in default values
+// TestDefaultRoleProfilesArePinned is the ONE place the built-in default values
 // are asserted in Go. It exists so a model bump is a deliberate two-line edit
 // (defaults.yaml + this table) instead of an unreviewed change that silently
 // repoints every stage — and so the other tests in this package can derive their
 // expectations from the maps without any of them pinning the values.
 //
+// These are ALSO the byte-identical-defaults guard for the 260806-j9nh reshape:
+// the six values moved from agent.tiers onto providers.claude.profiles, and every
+// resolved stage profile must be unchanged by that move.
+//
 // When you bump a default: edit defaults.yaml, then update this table to match.
-// Every doc mirror is guarded separately by TestMirrorDocsMatchDefaultTiers /
-// TestCLIFabReferenceListsDefaultTiers.
-func TestDefaultTierProfilesArePinned(t *testing.T) {
+// Every doc mirror is guarded separately by TestMirrorDocsMatchDefaultProfiles /
+// TestCLIFabReferenceListsDefaultRoles.
+func TestDefaultRoleProfilesArePinned(t *testing.T) {
 	pinned := map[string]Profile{
-		TierDefault:  {Provider: "claude", Model: "claude-fable-5", Effort: "high"},
-		TierOperator: {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
-		TierDoing:    {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
-		TierReview:   {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
-		TierHydrate:  {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
-		TierFast:     {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
+		RoleDefault:  {Provider: "claude", Model: "claude-fable-5", Effort: "high"},
+		RoleOperator: {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
+		RoleDoing:    {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
+		RoleReview:   {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
+		RoleHydrate:  {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
+		RoleFast:     {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
 	}
-	if len(pinned) != len(TierNames()) {
-		t.Fatalf("pinned table covers %d tiers, but %d tiers exist — add the new tier here", len(pinned), len(TierNames()))
+	if len(pinned) != len(RoleNames()) {
+		t.Fatalf("pinned table covers %d roles, but %d roles exist — add the new role here", len(pinned), len(RoleNames()))
 	}
-	for _, tier := range TierNames() {
-		want, ok := pinned[tier]
+	for _, role := range RoleNames() {
+		want, ok := pinned[role]
 		if !ok {
-			t.Errorf("tier %q has no pinned profile — add it to this table", tier)
+			t.Errorf("role %q has no pinned profile — add it to this table", role)
 			continue
 		}
-		if got, _ := DefaultTier(tier); got != want {
-			t.Errorf("defaultTiers[%s] = %+v, pinned %+v — intentional bump? update this table too", tier, got, want)
+		if got, _ := DefaultProfile(role); got != want {
+			t.Errorf("DefaultProfile(%s) = %+v, pinned %+v — intentional bump? update this table too", role, got, want)
 		}
 	}
 }
 
-// TestReviewVsReviewPrSplit: review (its own tier) and review-pr (doing) must NOT
+// TestReviewVsReviewPrSplit: review (its own role) and review-pr (doing) must NOT
 // be grouped — the author/critic distinction is load-bearing.
 func TestReviewVsReviewPrSplit(t *testing.T) {
-	if tier, _ := TierForStage("review"); tier != TierReview {
-		t.Errorf("review tier = %q, want %q", tier, TierReview)
+	if role, _ := RoleForStage("review"); role != RoleReview {
+		t.Errorf("review role = %q, want %q", role, RoleReview)
 	}
-	if tier, _ := TierForStage("review-pr"); tier != TierDoing {
-		t.Errorf("review-pr tier = %q, want %q", tier, TierDoing)
+	if role, _ := RoleForStage("review-pr"); role != RoleDoing {
+		t.Errorf("review-pr role = %q, want %q", role, RoleDoing)
 	}
 }
 
-// TestResolveFullOverride: an override sets provider, model, and effort.
+// TestRoleDepthPartition pins the fab-owned role→depth partition: default and
+// operator are Tier-1 (session) roles, the other four are Tier-2 (workers). The
+// partition is what the two advertised knobs select on, so a silent reshuffle here
+// would silently move a role onto the other knob.
+func TestRoleDepthPartition(t *testing.T) {
+	want := map[string]depth{
+		RoleDefault:  depthSession,
+		RoleOperator: depthSession,
+		RoleDoing:    depthWorkers,
+		RoleReview:   depthWorkers,
+		RoleHydrate:  depthWorkers,
+		RoleFast:     depthWorkers,
+	}
+	if len(roleDepth) != len(want) {
+		t.Fatalf("roleDepth covers %d roles, want %d", len(roleDepth), len(want))
+	}
+	for role, wantDepth := range want {
+		if got, ok := roleDepth[role]; !ok || got != wantDepth {
+			t.Errorf("roleDepth[%s] = %v (ok=%v), want %v", role, got, ok, wantDepth)
+		}
+	}
+}
+
+// TestDepthKnobSelectsProvider is the headline behavior: `agent.workers: <name>`
+// moves exactly the four Tier-2 roles and leaves the two session roles alone, and
+// vice versa. Neither knob touches the other's partition.
+func TestDepthKnobSelectsProvider(t *testing.T) {
+	workers := &config.Config{Agent: config.AgentConfig{Workers: "gemini"}}
+	for _, role := range RoleNames() {
+		want := "claude"
+		if roleDepth[role] == depthWorkers {
+			want = "gemini"
+		}
+		got, err := ResolveRole(workers, role)
+		if err != nil {
+			t.Fatalf("ResolveRole(%s): %v", role, err)
+		}
+		if got.Provider != want {
+			t.Errorf("with agent.workers=gemini, role %q resolved provider %q, want %q", role, got.Provider, want)
+		}
+	}
+
+	session := &config.Config{Agent: config.AgentConfig{Session: "codex"}}
+	for _, role := range RoleNames() {
+		want := "claude"
+		if roleDepth[role] == depthSession {
+			want = "codex"
+		}
+		got, err := ResolveRole(session, role)
+		if err != nil {
+			t.Fatalf("ResolveRole(%s): %v", role, err)
+		}
+		if got.Provider != want {
+			t.Errorf("with agent.session=codex, role %q resolved provider %q, want %q", role, got.Provider, want)
+		}
+	}
+}
+
+// TestKnobWithoutFillsResolvesEmpty: pointing a knob at a provider that ships no
+// per-role fills (codex/gemini today) resolves an EMPTY model and effort — the
+// documented intermediate state, where the provider CLI's own default applies.
+// Never a claude model handed to another CLI.
+func TestKnobWithoutFillsResolvesEmpty(t *testing.T) {
+	cfg := &config.Config{Agent: config.AgentConfig{Workers: "codex"}}
+	got, err := Resolve(cfg, "apply") // apply ∈ doing (a workers role)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got != (Profile{Provider: "codex"}) {
+		t.Errorf("Resolve(apply) = %+v, want {codex, \"\", \"\"} — a claude model must not leak onto another provider", got)
+	}
+}
+
+// TestResolveFullOverride: an agent.profiles entry sets provider, model, and effort.
 func TestResolveFullOverride(t *testing.T) {
-	cfg := cfgWithTiers(map[string]config.TierProfile{
+	cfg := cfgWithProfiles(map[string]config.RoleProfile{
 		"doing": {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
 	})
 	got, err := Resolve(cfg, "apply") // apply ∈ doing
@@ -100,13 +177,12 @@ func TestResolveFullOverride(t *testing.T) {
 	}
 }
 
-// TestResolvePerFieldMerge: an override that sets only effort keeps the default
-// provider+model (per-field merge), and vice versa.
+// TestResolvePerFieldMerge: an override that sets only effort keeps the provider's
+// own per-role model fill (per-field), and vice versa.
 func TestResolvePerFieldMerge(t *testing.T) {
-	// Only effort overridden → default provider+model survive. Derived from the
-	// hydrate tier's default so a model bump does not touch this test.
-	hydrateDefault, _ := DefaultTier(TierHydrate)
-	cfg := cfgWithTiers(map[string]config.TierProfile{
+	// Only effort overridden → the provider's hydrate fill supplies provider+model.
+	hydrateDefault, _ := DefaultProfile(RoleHydrate)
+	cfg := cfgWithProfiles(map[string]config.RoleProfile{
 		"hydrate": {Effort: "medium"},
 	})
 	got, err := Resolve(cfg, "hydrate")
@@ -117,9 +193,9 @@ func TestResolvePerFieldMerge(t *testing.T) {
 		t.Errorf("Resolve(hydrate) = %+v, want default provider+model (%s/%s) + medium effort", got, hydrateDefault.Provider, hydrateDefault.Model)
 	}
 
-	// Only model overridden → default effort survives. ship ∈ fast tier
+	// Only model overridden → the fast fill's effort survives. ship ∈ fast
 	// (sonnet/medium), so overriding only the model keeps medium effort.
-	cfg = cfgWithTiers(map[string]config.TierProfile{
+	cfg = cfgWithProfiles(map[string]config.RoleProfile{
 		"fast": {Model: "claude-haiku-4-5"},
 	})
 	got, err = Resolve(cfg, "ship")
@@ -131,306 +207,288 @@ func TestResolvePerFieldMerge(t *testing.T) {
 	}
 }
 
-// TestResolveDefaultTierInheritance: a field unset on both the requested tier's
-// override AND its built-in inherits from the project's `default` tier. Here the
-// project default tier sets a provider, and the doing override sets only effort;
-// the resolved provider comes from the project default tier (which sits between
-// the requested-tier override and the built-in in the merge cascade).
-func TestResolveDefaultTierInheritance(t *testing.T) {
-	cfg := cfgWithTiers(map[string]config.TierProfile{
-		"default": {Provider: "codex"},
-		"doing":   {Model: "gpt-5", Effort: "high"},
+// TestNoAgentSideDefaultRoleInheritance (260806-j9nh): agent.profiles.default is
+// the `default` ROLE's own override, NOT a fallback source for the other five. The
+// old agent.tiers map re-based every unset field from its `default` tier; that
+// second fallback chain is deleted, leaving only the provider-side one.
+func TestNoAgentSideDefaultRoleInheritance(t *testing.T) {
+	doingDefault, _ := DefaultProfile(RoleDoing)
+
+	cfg := cfgWithProfiles(map[string]config.RoleProfile{
+		"default": {Model: "claude-fable-5", Effort: "low"},
+		"doing":   {},
 	})
 	got, err := Resolve(cfg, "apply") // apply ∈ doing
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	// provider inherits from the project `default` tier; model/effort from the
-	// doing override.
-	want := Profile{Provider: "codex", Model: "gpt-5", Effort: "high"}
-	if got != want {
-		t.Errorf("Resolve(apply) = %+v, want %+v (provider inherited from default tier)", got, want)
+	if got != doingDefault {
+		t.Errorf("Resolve(apply) = %+v, want the doing role's own %+v — agent.profiles.default must not re-base another role", got, doingDefault)
 	}
-}
 
-// TestResolveOverrideBeatsDefaultTier: a field set on the requested tier's
-// override wins over the project `default` tier for that field.
-func TestResolveOverrideBeatsDefaultTier(t *testing.T) {
-	cfg := cfgWithTiers(map[string]config.TierProfile{
-		"default": {Provider: "codex", Effort: "medium"},
-		"doing":   {Provider: "claude", Model: "claude-opus-4-8"},
-	})
-	got, err := Resolve(cfg, "apply")
+	// It DOES still govern the default role itself.
+	got, err = ResolveRole(cfg, RoleDefault)
 	if err != nil {
-		t.Fatalf("Resolve: %v", err)
+		t.Fatalf("ResolveRole(default): %v", err)
 	}
-	// provider from doing override (beats default tier's codex); model from doing
-	// override; effort inherits from the default tier (doing did not set it).
-	want := Profile{Provider: "claude", Model: "claude-opus-4-8", Effort: "medium"}
-	if got != want {
-		t.Errorf("Resolve(apply) = %+v, want %+v", got, want)
-	}
-}
-
-// TestResolveCrossProviderCutoff (260805-j3cm): a tier that explicitly names a
-// provider OTHER than its built-in's does NOT inherit the built-in's (i.e. another
-// provider's) model/effort — the unset fields fill from the named provider's
-// default fill, then empty. This is the footgun fix: `{provider: codex}` used to
-// resolve a CLAUDE model.
-func TestResolveCrossProviderCutoff(t *testing.T) {
-	// No fill configured for codex → empty model and effort (NOT the doing tier's
-	// claude-opus-5/high).
-	cfg := cfgWithTiers(map[string]config.TierProfile{
-		"doing": {Provider: "codex"},
-	})
-	got, err := Resolve(cfg, "apply") // apply ∈ doing
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
-	}
-	if got != (Profile{Provider: "codex"}) {
-		t.Errorf("Resolve(apply) = %+v, want {codex, \"\", \"\"} — a claude model must not leak across the provider switch", got)
+	if got.Model != "claude-fable-5" || got.Effort != "low" {
+		t.Errorf("ResolveRole(default) = %+v, want the configured fable-5/low", got)
 	}
 
-	// With a provider fill configured, the unset fields take it.
-	cfg = cfgWithTiers(map[string]config.TierProfile{
-		"doing": {Provider: "codex"},
-	})
-	cfg.Providers = map[string]config.ProviderConfig{
-		"codex": {Model: "gpt-5.3-codex", Effort: "high"},
-	}
-	got, err = Resolve(cfg, "apply")
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
-	}
-	want := Profile{Provider: "codex", Model: "gpt-5.3-codex", Effort: "high"}
-	if got != want {
-		t.Errorf("Resolve(apply) = %+v, want %+v (provider default fill)", got, want)
-	}
-
-	// An explicit tier field BEATS the provider fill (precedence rung 2 > rung 3).
-	cfg = cfgWithTiers(map[string]config.TierProfile{
-		"doing": {Provider: "codex", Model: "gpt-5.2-codex"},
-	})
-	cfg.Providers = map[string]config.ProviderConfig{
-		"codex": {Model: "gpt-5.3-codex", Effort: "high"},
-	}
-	got, err = Resolve(cfg, "apply")
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
-	}
-	want = Profile{Provider: "codex", Model: "gpt-5.2-codex", Effort: "high"}
-	if got != want {
-		t.Errorf("Resolve(apply) = %+v, want %+v (tier model beats provider fill; effort from fill)", got, want)
-	}
-
-	// The cutoff triggers from the project `default` tier too (the same footgun one
-	// layer up).
-	cfg = cfgWithTiers(map[string]config.TierProfile{
+	// And a provider named on the default role does not leak onto another role
+	// either — the other role falls to its depth knob.
+	cfg = cfgWithProfiles(map[string]config.RoleProfile{
 		"default": {Provider: "codex"},
-	})
-	cfg.Providers = map[string]config.ProviderConfig{
-		"codex": {Model: "gpt-5.3-codex"},
-	}
-	got, err = Resolve(cfg, "apply")
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
-	}
-	want = Profile{Provider: "codex", Model: "gpt-5.3-codex"}
-	if got != want {
-		t.Errorf("Resolve(apply) = %+v, want %+v (default-tier provider switch also cuts inheritance)", got, want)
-	}
-}
-
-// TestResolveCrossProviderCutoffAcrossLayers (260805-j3cm, rework cycle 2): the
-// cutoff is anchored to the provider that SUPPLIED each inherited value, not to a
-// flattened "the config set this field" bit. A model/effort written on the project
-// `default` tier under one provider must not survive a cross-provider switch made
-// on the requested tier — the exact combination the flattened implementation got
-// wrong (it read a `default`-tier model as "explicitly set" and let a claude ID
-// reach the codex CLI).
-func TestResolveCrossProviderCutoffAcrossLayers(t *testing.T) {
-	codexFill := map[string]config.ProviderConfig{
-		"codex": {Model: "gpt-5.3-codex", Effort: "high"},
-	}
-
-	cases := []struct {
-		name      string
-		tiers     map[string]config.TierProfile
-		providers map[string]config.ProviderConfig
-		want      Profile
-	}{
-		{
-			// The must-fix case: the `default` tier supplies CLAUDE-shaped values
-			// (no provider named there, so their owner is the built-in's claude),
-			// and the requested tier switches to codex. Both values are foreign →
-			// both refill from the codex fill.
-			name: "default-tier model+effort lose to the requested tier's provider switch",
-			tiers: map[string]config.TierProfile{
-				"default": {Model: "claude-fable-5", Effort: "medium"},
-				"doing":   {Provider: "codex"},
-			},
-			providers: codexFill,
-			want:      Profile{Provider: "codex", Model: "gpt-5.3-codex", Effort: "high"},
-		},
-		{
-			// Same shape with NO fill configured → empty, never the claude values.
-			name: "default-tier model+effort with no provider fill resolve empty",
-			tiers: map[string]config.TierProfile{
-				"default": {Model: "claude-fable-5", Effort: "medium"},
-				"doing":   {Provider: "codex"},
-			},
-			want: Profile{Provider: "codex"},
-		},
-		{
-			// The mirror: the switch happens on the `default` tier and the model
-			// comes from the built-in tier profile. The built-in's model is owned by
-			// the built-in's claude, so it is foreign to codex → refills.
-			name: "default-tier provider switch cuts the built-in tier's model+effort",
-			tiers: map[string]config.TierProfile{
-				"default": {Provider: "codex"},
-			},
-			providers: codexFill,
-			want:      Profile{Provider: "codex", Model: "gpt-5.3-codex", Effort: "high"},
-		},
-		{
-			// A value written at the SAME layer as the switch (or at any layer at or
-			// above it) is owned by the new provider and survives.
-			name: "default-tier switch keeps a default-tier model written under it",
-			tiers: map[string]config.TierProfile{
-				"default": {Provider: "codex", Model: "gpt-5.2-codex"},
-			},
-			providers: codexFill,
-			want:      Profile{Provider: "codex", Model: "gpt-5.2-codex", Effort: "high"},
-		},
-		{
-			// The requested tier's own fields are written above the `default`-tier
-			// switch, so they inherit its codex context and survive.
-			name: "requested-tier fields written above a default-tier switch survive",
-			tiers: map[string]config.TierProfile{
-				"default": {Provider: "codex"},
-				"doing":   {Model: "gpt-5.1-codex", Effort: "xhigh"},
-			},
-			providers: codexFill,
-			want:      Profile{Provider: "codex", Model: "gpt-5.1-codex", Effort: "xhigh"},
-		},
-		{
-			// Net provider EQUALS the built-in's, so there is no switch at all
-			// (plan Assumption 2) — even though an intermediate layer named another
-			// provider. Nothing is cut.
-			name: "a net no-op provider chain cuts nothing",
-			tiers: map[string]config.TierProfile{
-				"default": {Provider: "codex", Effort: "medium"},
-				"doing":   {Provider: "claude", Model: "claude-opus-4-8"},
-			},
-			providers: codexFill,
-			want:      Profile{Provider: "claude", Model: "claude-opus-4-8", Effort: "medium"},
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			cfg := cfgWithTiers(c.tiers)
-			cfg.Providers = c.providers
-			got, err := Resolve(cfg, "apply") // apply ∈ doing
-			if err != nil {
-				t.Fatalf("Resolve: %v", err)
-			}
-			if got != c.want {
-				t.Errorf("Resolve(apply) = %+v, want %+v", got, c.want)
-			}
-		})
-	}
-}
-
-// TestResolveNoCutoffWithoutProviderSwitch: the cutoff is scoped to an EXPLICIT
-// cross-provider switch. A tier with no `provider:` inherits exactly as before, and
-// an explicit `provider: claude` (equal to the built-in's) is not a switch at all —
-// so the all-claude default world is byte-unchanged.
-func TestResolveNoCutoffWithoutProviderSwitch(t *testing.T) {
-	doingDefault, _ := DefaultTier(TierDoing)
-
-	// No provider set → unchanged inheritance.
-	cfg := cfgWithTiers(map[string]config.TierProfile{
-		"doing": {Effort: "high"},
-	})
-	got, err := Resolve(cfg, "apply")
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
-	}
-	if got.Provider != doingDefault.Provider || got.Model != doingDefault.Model || got.Effort != "high" {
-		t.Errorf("Resolve(apply) = %+v, want the built-in provider+model with effort=high", got)
-	}
-
-	// Explicit provider EQUAL to the built-in's → not a switch, model survives.
-	cfg = cfgWithTiers(map[string]config.TierProfile{
-		"doing": {Provider: doingDefault.Provider},
 	})
 	got, err = Resolve(cfg, "apply")
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
 	if got != doingDefault {
-		t.Errorf("Resolve(apply) = %+v, want the unchanged built-in %+v", got, doingDefault)
+		t.Errorf("Resolve(apply) = %+v, want %+v — a default-role provider must not re-base doing", got, doingDefault)
+	}
+}
+
+// TestProviderPerRoleFills: a provider's profiles map supplies model/effort per
+// role, with its `default` entry acting as the cross-role fallback and an explicit
+// agent.profiles field beating both.
+func TestProviderPerRoleFills(t *testing.T) {
+	codex := map[string]config.ProviderConfig{
+		"codex": {Profiles: map[string]config.ProviderProfile{
+			"default": {Model: "gpt-5.3-codex", Effort: "medium"},
+			"doing":   {Model: "gpt-5.3-codex-max", Effort: "high"},
+		}},
 	}
 
-	// And with no config at all, every stage still resolves to its built-in tier
-	// profile (the byte-unchanged default world — also covered by
-	// TestResolveDefaults; asserted here as the cutoff's regression guard).
-	for _, stage := range StageNames() {
-		tier, _ := TierForStage(stage)
-		want, _ := DefaultTier(tier)
-		got, err := Resolve(nil, stage)
+	cases := []struct {
+		name      string
+		agentCfg  config.AgentConfig
+		providers map[string]config.ProviderConfig
+		stage     string
+		want      Profile
+	}{
+		{
+			name:      "the role's own fill wins",
+			agentCfg:  config.AgentConfig{Workers: "codex"},
+			providers: codex,
+			stage:     "apply", // doing
+			want:      Profile{Provider: "codex", Model: "gpt-5.3-codex-max", Effort: "high"},
+		},
+		{
+			name:      "a role with no fill falls to the provider's default entry",
+			agentCfg:  config.AgentConfig{Workers: "codex"},
+			providers: codex,
+			stage:     "review",
+			want:      Profile{Provider: "codex", Model: "gpt-5.3-codex", Effort: "medium"},
+		},
+		{
+			name: "an explicit agent.profiles field beats the provider fill",
+			agentCfg: config.AgentConfig{
+				Workers:  "codex",
+				Profiles: map[string]config.RoleProfile{"doing": {Model: "gpt-5.2-codex"}},
+			},
+			providers: codex,
+			stage:     "apply",
+			want:      Profile{Provider: "codex", Model: "gpt-5.2-codex", Effort: "high"},
+		},
+		{
+			name: "a per-role provider: override picks that provider's fills",
+			agentCfg: config.AgentConfig{
+				Profiles: map[string]config.RoleProfile{"review": {Provider: "codex"}},
+			},
+			providers: codex,
+			stage:     "review",
+			want:      Profile{Provider: "codex", Model: "gpt-5.3-codex", Effort: "medium"},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cfg := &config.Config{Agent: c.agentCfg, Providers: c.providers}
+			got, err := Resolve(cfg, c.stage)
+			if err != nil {
+				t.Fatalf("Resolve(%s): %v", c.stage, err)
+			}
+			if got != c.want {
+				t.Errorf("Resolve(%s) = %+v, want %+v", c.stage, got, c.want)
+			}
+		})
+	}
+}
+
+// TestPartialProviderFillMergesOverBuiltIn: overriding ONE role's fill on the
+// built-in claude provider leaves the other five (and the overridden role's other
+// field) on the shipped values — the per-role, per-field merge.
+func TestPartialProviderFillMergesOverBuiltIn(t *testing.T) {
+	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
+		"claude": {Profiles: map[string]config.ProviderProfile{
+			"review": {Model: "claude-fable-5"},
+		}},
+	}}
+
+	got, err := Resolve(cfg, "review")
+	if err != nil {
+		t.Fatalf("Resolve(review): %v", err)
+	}
+	reviewDefault, _ := DefaultProfile(RoleReview)
+	if got.Model != "claude-fable-5" || got.Effort != reviewDefault.Effort {
+		t.Errorf("Resolve(review) = %+v, want the overridden model with the built-in effort %q", got, reviewDefault.Effort)
+	}
+
+	// The untouched roles keep the built-in fills.
+	for _, stage := range []string{"apply", "hydrate", "ship"} {
+		role, _ := RoleForStage(stage)
+		want, _ := DefaultProfile(role)
+		got, err := Resolve(cfg, stage)
 		if err != nil {
 			t.Fatalf("Resolve(%s): %v", stage, err)
 		}
 		if got != want {
-			t.Errorf("Resolve(%s) = %+v, want %+v — the cutoff must not perturb the default world", stage, got, want)
+			t.Errorf("Resolve(%s) = %+v, want the untouched built-in %+v", stage, got, want)
 		}
 	}
 }
 
-// TestApplyOverrides (260805-j3cm): the top rung of the fill precedence. Each flag
-// applies only when SUPPLIED (its Set companion), a provider SWAP refills the
-// unoverridden model/effort from the new provider (never retaining the old
-// provider's), and swapping to the provider already resolved is not a swap.
-func TestApplyOverrides(t *testing.T) {
-	base := Profile{Provider: "claude", Model: "claude-opus-5", Effort: "xhigh"}
+// TestResolveProviderDoesNotMutateBuiltIns: the resolved Profiles map is a fresh
+// copy, so a caller writing through it cannot poison the shipped defaults for the
+// rest of the process.
+func TestResolveProviderDoesNotMutateBuiltIns(t *testing.T) {
+	prov, ok := ResolveProvider(nil, "claude")
+	if !ok {
+		t.Fatal("built-in claude must resolve")
+	}
+	prov.Profiles[RoleDoing] = config.ProviderProfile{Model: "poisoned"}
+
+	want, _ := DefaultProfile(RoleDoing)
+	if want.Model == "poisoned" {
+		t.Fatal("mutating a resolved provider's Profiles map corrupted the built-in table")
+	}
+}
+
+// TestLegacyAgentTiersAlias (260806-j9nh): a config still carrying the pre-2.17.0
+// `agent.tiers:` spelling keeps resolving, PER ROLE — so a half-migrated config
+// (some roles moved to profiles, some not) resolves every role — and agent.profiles
+// wins whenever it carries the role.
+func TestLegacyAgentTiersAlias(t *testing.T) {
+	cfg := &config.Config{Agent: config.AgentConfig{
+		Tiers: map[string]config.RoleProfile{
+			"doing":   {Effort: "medium"},
+			"hydrate": {Model: "claude-fable-5"},
+		},
+	}}
+	got, err := Resolve(cfg, "apply")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got.Effort != "medium" {
+		t.Errorf("Resolve(apply) = %+v, want the legacy agent.tiers effort to still resolve", got)
+	}
+
+	// profiles wins over tiers for a role present in both; tiers still covers the
+	// roles profiles does not name.
+	cfg.Agent.Profiles = map[string]config.RoleProfile{"doing": {Effort: "low"}}
+	got, err = Resolve(cfg, "apply")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got.Effort != "low" {
+		t.Errorf("Resolve(apply) effort = %q, want the agent.profiles value to win over agent.tiers", got.Effort)
+	}
+	got, err = Resolve(cfg, "hydrate")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got.Model != "claude-fable-5" {
+		t.Errorf("Resolve(hydrate) model = %q, want the legacy agent.tiers value (profiles does not name hydrate)", got.Model)
+	}
+}
+
+// TestLegacyFlatProviderFill (260806-j9nh): the pre-2.17.0 flat
+// providers.<name>.model/.effort is still read, as an alias for
+// profiles.default — so a config that has not yet run the migration keeps
+// resolving. profiles.default wins when both are present.
+func TestLegacyFlatProviderFill(t *testing.T) {
+	cfg := &config.Config{
+		Agent: config.AgentConfig{Workers: "codex"},
+		Providers: map[string]config.ProviderConfig{
+			"codex": {Model: "gpt-5.3-codex", Effort: "high"},
+		},
+	}
+	got, err := Resolve(cfg, "apply")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	want := Profile{Provider: "codex", Model: "gpt-5.3-codex", Effort: "high"}
+	if got != want {
+		t.Errorf("Resolve(apply) = %+v, want %+v (legacy flat fill still read)", got, want)
+	}
+
+	// profiles.default is the modern spelling and outranks it.
+	cfg.Providers["codex"] = config.ProviderConfig{
+		Model:    "gpt-5.3-codex",
+		Profiles: map[string]config.ProviderProfile{"default": {Model: "gpt-5.4-codex"}},
+	}
+	got, err = Resolve(cfg, "apply")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got.Model != "gpt-5.4-codex" {
+		t.Errorf("Resolve(apply) model = %q, want profiles.default to beat the legacy flat fill", got.Model)
+	}
+}
+
+// TestResolveRoleWithOverrides: the top rung of the fill precedence. Each flag
+// applies only when SUPPLIED (its Set companion); a provider SWAP re-derives the
+// unoverridden model/effort from the NEW provider's own per-role fills (never
+// retaining the old provider's); and an explicit agent.profiles pin survives a swap,
+// because a value the user wrote is not inheritance.
+func TestResolveRoleWithOverrides(t *testing.T) {
+	base, _ := DefaultProfile(RoleDoing)
 	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
-		"codex": {Model: "gpt-5.3-codex", Effort: "high"},
+		"codex": {Profiles: map[string]config.ProviderProfile{
+			"doing": {Model: "gpt-5.3-codex", Effort: "high"},
+		}},
 	}}
 
 	cases := []struct {
 		name string
+		cfg  *config.Config
 		o    Overrides
 		want Profile
 	}{
 		{
 			name: "no overrides is identity",
+			cfg:  cfg,
 			o:    Overrides{},
 			want: base,
 		},
 		{
-			name: "model only (no --provider) is a within-tier override",
+			name: "model only (no --provider) is a within-role override",
+			cfg:  cfg,
 			o:    Overrides{Model: "claude-sonnet-5", ModelSet: true},
-			want: Profile{Provider: "claude", Model: "claude-sonnet-5", Effort: "xhigh"},
+			want: Profile{Provider: "claude", Model: "claude-sonnet-5", Effort: base.Effort},
 		},
 		{
-			name: "effort only (no --provider) is a within-tier override",
+			name: "effort only (no --provider) is a within-role override",
+			cfg:  cfg,
 			o:    Overrides{Effort: "medium", EffortSet: true},
-			want: Profile{Provider: "claude", Model: "claude-opus-5", Effort: "medium"},
+			want: Profile{Provider: "claude", Model: base.Model, Effort: "medium"},
 		},
 		{
-			name: "provider swap refills from the new provider's fill",
+			name: "provider swap re-derives from the new provider's per-role fill",
+			cfg:  cfg,
 			o:    Overrides{Provider: "codex", ProviderSet: true},
 			want: Profile{Provider: "codex", Model: "gpt-5.3-codex", Effort: "high"},
 		},
 		{
 			name: "provider swap with no fill configured resolves empty",
+			cfg:  cfg,
 			o:    Overrides{Provider: "gemini", ProviderSet: true},
 			want: Profile{Provider: "gemini"},
 		},
 		{
 			name: "explicit flags beat the swapped provider's fill",
+			cfg:  cfg,
 			o: Overrides{
 				Provider: "codex", ProviderSet: true,
 				Model: "gpt-5.4-codex", ModelSet: true,
@@ -439,25 +497,47 @@ func TestApplyOverrides(t *testing.T) {
 			want: Profile{Provider: "codex", Model: "gpt-5.4-codex", Effort: "xhigh"},
 		},
 		{
-			name: "swapping to the already-resolved provider is not a swap",
+			name: "swapping to the already-resolved provider changes nothing",
+			cfg:  cfg,
 			o:    Overrides{Provider: "claude", ProviderSet: true},
 			want: base,
 		},
 		{
 			name: "an unknown provider is not an error here (lookup is the caller's)",
+			cfg:  cfg,
 			o:    Overrides{Provider: "bogus", ProviderSet: true},
 			want: Profile{Provider: "bogus"},
 		},
 		{
+			name: "an explicitly-empty --provider resolves empty, never the depth knob",
+			cfg:  cfg,
+			o:    Overrides{ProviderSet: true},
+			want: Profile{},
+		},
+		{
 			name: "an explicitly-empty --model clears the model (supplied-ness, not emptiness)",
+			cfg:  cfg,
 			o:    Overrides{ModelSet: true},
-			want: Profile{Provider: "claude", Model: "", Effort: "xhigh"},
+			want: Profile{Provider: "claude", Model: "", Effort: base.Effort},
+		},
+		{
+			name: "an explicit agent.profiles model survives a provider swap",
+			cfg: &config.Config{
+				Agent:     config.AgentConfig{Profiles: map[string]config.RoleProfile{"doing": {Model: "pinned-by-hand"}}},
+				Providers: cfg.Providers,
+			},
+			o:    Overrides{Provider: "codex", ProviderSet: true},
+			want: Profile{Provider: "codex", Model: "pinned-by-hand", Effort: "high"},
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := ApplyOverrides(cfg, base, c.o); got != c.want {
-				t.Errorf("ApplyOverrides = %+v, want %+v", got, c.want)
+			got, err := ResolveRoleWith(c.cfg, RoleDoing, c.o)
+			if err != nil {
+				t.Fatalf("ResolveRoleWith: %v", err)
+			}
+			if got != c.want {
+				t.Errorf("ResolveRoleWith = %+v, want %+v", got, c.want)
 			}
 		})
 	}
@@ -467,7 +547,7 @@ func TestApplyOverrides(t *testing.T) {
 // xhigh, which Sonnet rejects at dispatch) is echoed verbatim with no error — fab
 // does NOT validate or correct. The harness is the safety net.
 func TestResolveVerbatimNoValidation(t *testing.T) {
-	cfg := cfgWithTiers(map[string]config.TierProfile{
+	cfg := cfgWithProfiles(map[string]config.RoleProfile{
 		"fast": {Model: "claude-sonnet-5", Effort: "xhigh"},
 	})
 	got, err := Resolve(cfg, "ship")
@@ -479,7 +559,7 @@ func TestResolveVerbatimNoValidation(t *testing.T) {
 	}
 
 	// A non-Claude provider's vocabulary passes through untouched too.
-	cfg = cfgWithTiers(map[string]config.TierProfile{
+	cfg = cfgWithProfiles(map[string]config.RoleProfile{
 		"review": {Provider: "codex", Model: "gpt-5", Effort: "reasoning_effort:high"},
 	})
 	got, err = Resolve(cfg, "review")
@@ -492,54 +572,77 @@ func TestResolveVerbatimNoValidation(t *testing.T) {
 }
 
 // TestResolveEmptyOverrideKeepsDefault: an override entry present but with all
-// fields empty is a no-op merge that keeps the built-in default.
+// fields empty is a no-op that keeps the built-in default.
 func TestResolveEmptyOverrideKeepsDefault(t *testing.T) {
-	cfg := cfgWithTiers(map[string]config.TierProfile{
+	cfg := cfgWithProfiles(map[string]config.RoleProfile{
 		"doing": {},
 	})
 	got, err := Resolve(cfg, "apply")
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	want, _ := DefaultTier(TierDoing) // apply ∈ doing
+	want, _ := DefaultProfile(RoleDoing) // apply ∈ doing
 	if got != want {
 		t.Errorf("Resolve(apply) with empty override = %+v, want built-in default %+v", got, want)
 	}
 }
 
-// TestResolveTier: a tier name resolves directly (the path fab agent / operator
+// TestResolveRole: a role name resolves directly (the path fab agent / operator
 // use), independent of any stage.
-func TestResolveTier(t *testing.T) {
-	got, err := ResolveTier(nil, TierOperator)
+func TestResolveRole(t *testing.T) {
+	got, err := ResolveRole(nil, RoleOperator)
 	if err != nil {
-		t.Fatalf("ResolveTier(operator): %v", err)
+		t.Fatalf("ResolveRole(operator): %v", err)
 	}
 	want := Profile{Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"}
 	if got != want {
-		t.Errorf("ResolveTier(operator) = %+v, want %+v", got, want)
+		t.Errorf("ResolveRole(operator) = %+v, want %+v", got, want)
 	}
 
-	if _, err := ResolveTier(nil, "bogus"); err == nil {
-		t.Fatal("expected an error for an unknown tier")
+	if _, err := ResolveRole(nil, "bogus"); err == nil {
+		t.Fatal("expected an error for an unknown role")
 	}
 }
 
-// TestIsTierName: the six role-tier names report true; non-tier names (stages that
-// are NOT also tiers, plus unknowns) report false. The resolve-agent positional-arg
-// contract: a name shared by a stage and a tier (review, hydrate) IS a tier, so
-// those are not in the not-a-tier list. "ship" is a STAGE but not a tier — it maps
-// to the fast tier — so it stays in the not-a-tier list.
-func TestIsTierName(t *testing.T) {
-	for _, tier := range TierNames() {
-		if !IsTierName(tier) {
-			t.Errorf("IsTierName(%q) = false, want true", tier)
+// TestRoleForName: the positional `<stage|role>` argument maps to a role — role
+// names first, then stages, then the unknown-stage error.
+func TestRoleForName(t *testing.T) {
+	cases := map[string]string{
+		"operator":  RoleOperator, // a role, not a stage
+		"apply":     RoleDoing,    // a stage
+		"review":    RoleReview,   // a fixed point (both)
+		"hydrate":   RoleHydrate,  // a fixed point (both)
+		"ship":      RoleFast,     // a stage that is not a role
+		"review-pr": RoleDoing,
+	}
+	for name, want := range cases {
+		got, err := RoleForName(name)
+		if err != nil {
+			t.Fatalf("RoleForName(%q): %v", name, err)
+		}
+		if got != want {
+			t.Errorf("RoleForName(%q) = %q, want %q", name, got, want)
 		}
 	}
-	// "hydrate" is a tier (added this change); "ship" is a stage that maps to the
-	// fast tier, so it is NOT a tier name.
-	for _, notTier := range []string{"apply", "review-pr", "intake", "ship", "frobnicate", ""} {
-		if IsTierName(notTier) {
-			t.Errorf("IsTierName(%q) = true, want false", notTier)
+	if _, err := RoleForName("frobnicate"); err == nil {
+		t.Error("expected an error for a name that is neither a stage nor a role")
+	}
+}
+
+// TestIsRoleName: the six role names report true; non-role names (stages that are
+// NOT also roles, plus unknowns) report false. The resolve-agent positional-arg
+// contract: a name shared by a stage and a role (review, hydrate) IS a role, so
+// those are not in the not-a-role list. "ship" is a STAGE but not a role — it maps
+// to the fast role — so it stays in the not-a-role list.
+func TestIsRoleName(t *testing.T) {
+	for _, role := range RoleNames() {
+		if !IsRoleName(role) {
+			t.Errorf("IsRoleName(%q) = false, want true", role)
+		}
+	}
+	for _, notRole := range []string{"apply", "review-pr", "intake", "ship", "frobnicate", ""} {
+		if IsRoleName(notRole) {
+			t.Errorf("IsRoleName(%q) = true, want false", notRole)
 		}
 	}
 }
@@ -575,6 +678,10 @@ func TestResolveProvider(t *testing.T) {
 	if prov.DispatchCommand != "claude -p" {
 		t.Errorf("dispatch_command = %q, want the override", prov.DispatchCommand)
 	}
+	// The built-in per-role fills survive a command-only override.
+	if prov.Profiles[RoleDoing].Model == "" {
+		t.Error("a command-only override must not drop the built-in per-role fills")
+	}
 
 	// A project override of a non-claude built-in per-field merges too.
 	cfg = &config.Config{Providers: map[string]config.ProviderConfig{
@@ -588,7 +695,7 @@ func TestResolveProvider(t *testing.T) {
 		t.Errorf("codex session_command = %q, want the inherited built-in", prov.SessionCommand)
 	}
 
-	// A project-only provider (in neither the built-in table nor a tier) resolves
+	// A project-only provider (in neither the built-in table nor a knob) resolves
 	// as known off the project entry alone.
 	cfg = &config.Config{Providers: map[string]config.ProviderConfig{
 		"myagent": {SessionCommand: "myagent", DispatchCommand: "myagent run"},
@@ -605,8 +712,9 @@ func TestResolveProvider(t *testing.T) {
 }
 
 // TestResolveProvider_BuiltInCodexAndGemini: codex and gemini are BUILT-IN
-// providers (260805-j3cm) — resolvable with NO providers: config at all — and are
-// GRAMMAR ONLY: both command fields present, neither model nor effort fill.
+// providers — resolvable with NO providers: config at all — and are GRAMMAR ONLY:
+// both command fields present, no fills of any kind (neither the per-role map nor
+// the deprecated flat pair).
 func TestResolveProvider_BuiltInCodexAndGemini(t *testing.T) {
 	cases := []struct {
 		name              string
@@ -626,8 +734,8 @@ func TestResolveProvider_BuiltInCodexAndGemini(t *testing.T) {
 		if prov.DispatchCommand != c.dispatch {
 			t.Errorf("%s.DispatchCommand = %q, want %q (a non-claude built-in carries one, so naming it flips the stage to CLI dispatch)", c.name, prov.DispatchCommand, c.dispatch)
 		}
-		if prov.Model != "" || prov.Effort != "" {
-			t.Errorf("%s built-in must carry NO fill values (model=%q effort=%q) — model IDs rot at CLI cadence", c.name, prov.Model, prov.Effort)
+		if len(prov.Profiles) != 0 || prov.Model != "" || prov.Effort != "" {
+			t.Errorf("%s built-in must carry NO fills (profiles=%v model=%q effort=%q) — model IDs rot at CLI cadence", c.name, prov.Profiles, prov.Model, prov.Effort)
 		}
 	}
 
@@ -641,31 +749,49 @@ func TestResolveProvider_BuiltInCodexAndGemini(t *testing.T) {
 	}
 }
 
-// TestResolveProvider_FillFieldsMerge: the model/effort default-fill fields
-// (260805-j3cm) per-field merge over the built-in exactly as the commands do — so a
-// config supplying only fill inherits the built-in grammar.
-func TestResolveProvider_FillFieldsMerge(t *testing.T) {
+// TestResolveProvider_ProfilesMerge: the per-role fill map merges over the built-in
+// per ROLE and per FIELD — so a config supplying only fills inherits the built-in
+// grammar, and a partial fill leaves the other field empty (no cross-field
+// invention).
+func TestResolveProvider_ProfilesMerge(t *testing.T) {
 	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
-		"codex": {Model: "gpt-5.3-codex", Effort: "high"},
+		"codex": {Profiles: map[string]config.ProviderProfile{
+			"default": {Model: "gpt-5.3-codex", Effort: "high"},
+		}},
 	}}
 	prov, ok := ResolveProvider(cfg, "codex")
 	if !ok {
 		t.Fatal("codex must resolve")
 	}
-	if prov.Model != "gpt-5.3-codex" || prov.Effort != "high" {
-		t.Errorf("fill = {%q, %q}, want the configured {gpt-5.3-codex, high}", prov.Model, prov.Effort)
+	if prov.Profiles["default"].Model != "gpt-5.3-codex" || prov.Profiles["default"].Effort != "high" {
+		t.Errorf("fill = %+v, want the configured {gpt-5.3-codex, high}", prov.Profiles["default"])
 	}
 	if prov.SessionCommand != DefaultCodexSessionCommand || prov.DispatchCommand != DefaultCodexDispatchCommand {
 		t.Errorf("commands = {%q, %q}, want the inherited built-in grammar", prov.SessionCommand, prov.DispatchCommand)
 	}
 
-	// A partial fill leaves the other field empty (no cross-field invention).
+	// A partial fill leaves the other field empty.
 	cfg = &config.Config{Providers: map[string]config.ProviderConfig{
-		"gemini": {Model: "gemini-2.5-pro"},
+		"gemini": {Profiles: map[string]config.ProviderProfile{
+			"default": {Model: "gemini-2.5-pro"},
+		}},
 	}}
 	prov, _ = ResolveProvider(cfg, "gemini")
-	if prov.Model != "gemini-2.5-pro" || prov.Effort != "" {
-		t.Errorf("partial fill = {%q, %q}, want {gemini-2.5-pro, \"\"}", prov.Model, prov.Effort)
+	if got := prov.Profiles["default"]; got.Model != "gemini-2.5-pro" || got.Effort != "" {
+		t.Errorf("partial fill = %+v, want {gemini-2.5-pro, \"\"}", got)
+	}
+
+	// Overriding one FIELD of one ROLE on claude leaves the rest of that role's
+	// built-in fill intact.
+	cfg = &config.Config{Providers: map[string]config.ProviderConfig{
+		"claude": {Profiles: map[string]config.ProviderProfile{
+			"doing": {Effort: "medium"},
+		}},
+	}}
+	prov, _ = ResolveProvider(cfg, "claude")
+	builtinDoing, _ := DefaultProfile(RoleDoing)
+	if got := prov.Profiles[RoleDoing]; got.Effort != "medium" || got.Model != builtinDoing.Model {
+		t.Errorf("claude doing fill = %+v, want the overridden effort with the built-in model %q", got, builtinDoing.Model)
 	}
 }
 
@@ -673,8 +799,6 @@ func TestResolveProvider_FillFieldsMerge(t *testing.T) {
 // built-in table and the project's providers: block, sorted and de-duplicated —
 // the set `fab agent --provider <unknown>` names in its lookup-failure error.
 func TestProviderNames(t *testing.T) {
-	// No project config → the built-in table alone: three built-in providers
-	// (260805-j3cm), sorted.
 	assertNames := func(t *testing.T, got, want []string) {
 		t.Helper()
 		if len(got) != len(want) {
@@ -691,7 +815,7 @@ func TestProviderNames(t *testing.T) {
 	// Project providers union the built-in, de-duplicating shared keys and sorting
 	// for stable error output.
 	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
-		"codex":   {Model: "gpt-5.3-codex"},
+		"codex":   {Profiles: map[string]config.ProviderProfile{"default": {Model: "gpt-5.3-codex"}}},
 		"claude":  {DispatchCommand: "claude -p"},
 		"myagent": {SessionCommand: "myagent"},
 	}}
@@ -735,13 +859,13 @@ func TestModelAlias(t *testing.T) {
 	}
 }
 
-// TestTablesExhaustive: every stage's tier has a default profile, and the stage
+// TestTablesExhaustive: every stage's role has a default profile, and the stage
 // set is exactly the six pipeline stages.
 func TestTablesExhaustive(t *testing.T) {
 	for _, stage := range StageNames() {
-		tier, _ := TierForStage(stage)
-		if _, ok := DefaultTier(tier); !ok {
-			t.Errorf("stage %q maps to tier %q which has no default profile", stage, tier)
+		role, _ := RoleForStage(stage)
+		if _, ok := DefaultProfile(role); !ok {
+			t.Errorf("stage %q maps to role %q which has no default profile", stage, role)
 		}
 	}
 	stages := strings.Join(StageNames(), ",")
@@ -750,46 +874,46 @@ func TestTablesExhaustive(t *testing.T) {
 		t.Errorf("stage set = %q, want %q", stages, want)
 	}
 
-	// The tier set is exactly the six role tiers.
-	tiers := strings.Join(TierNames(), ",")
-	wantTiers := "default,doing,fast,hydrate,operator,review"
-	if tiers != wantTiers {
-		t.Errorf("tier set = %q, want %q", tiers, wantTiers)
+	// The role set is exactly the six roles.
+	roles := strings.Join(RoleNames(), ",")
+	wantRoles := "default,doing,fast,hydrate,operator,review"
+	if roles != wantRoles {
+		t.Errorf("role set = %q, want %q", roles, wantRoles)
 	}
 }
 
-// TestStageTierCollisionsAreFixedPoints: every name shared by the stage set and
-// the tier set (review, hydrate) must be a FIXED POINT — the stage maps to the
-// same-named tier (stageTiers[name] == name). This is what makes the tier-first
-// resolution order in cmd/fab.resolveStageOrTier immaterial for those names: a
-// shared name resolves identically whether read as a stage or a tier. It guards
-// that order from ever silently changing a stage's resolution. (ship is a stage
-// but NOT a tier — it maps to fast — so it is not a collision.)
-func TestStageTierCollisionsAreFixedPoints(t *testing.T) {
-	tierSet := make(map[string]bool)
-	for _, tier := range TierNames() {
-		tierSet[tier] = true
+// TestStageRoleCollisionsAreFixedPoints: every name shared by the stage set and
+// the role set (review, hydrate) must be a FIXED POINT — the stage maps to the
+// same-named role (stageRoles[name] == name). This is what makes the role-first
+// resolution order in RoleForName immaterial for those names: a shared name
+// resolves identically whether read as a stage or a role. It guards that order from
+// ever silently changing a stage's resolution. (ship is a stage but NOT a role — it
+// maps to fast — so it is not a collision.)
+func TestStageRoleCollisionsAreFixedPoints(t *testing.T) {
+	roleSet := make(map[string]bool)
+	for _, role := range RoleNames() {
+		roleSet[role] = true
 	}
 	collisions := 0
 	for _, stage := range StageNames() {
-		if !tierSet[stage] {
+		if !roleSet[stage] {
 			continue // not a shared name
 		}
 		collisions++
-		tier, ok := TierForStage(stage)
+		role, ok := RoleForStage(stage)
 		if !ok {
-			t.Errorf("stage %q has no tier mapping", stage)
+			t.Errorf("stage %q has no role mapping", stage)
 			continue
 		}
-		if tier != stage {
-			t.Errorf("stage/tier name collision %q is NOT a fixed point: stageTiers[%q] = %q, want %q "+
-				"(a name shared by a stage and a tier must map the stage to the same-named tier, "+
-				"or the tier-first resolve order would change the stage's resolution)", stage, stage, tier, stage)
+		if role != stage {
+			t.Errorf("stage/role name collision %q is NOT a fixed point: stageRoles[%q] = %q, want %q "+
+				"(a name shared by a stage and a role must map the stage to the same-named role, "+
+				"or the role-first resolve order would change the stage's resolution)", stage, stage, role, stage)
 		}
 	}
 	// Guard the guard: the intended collisions (review, hydrate) must exist —
 	// a zero-collision result would mean this test silently checks nothing.
 	if collisions == 0 {
-		t.Fatal("expected at least one stage/tier name collision (review, hydrate); found none")
+		t.Fatal("expected at least one stage/role name collision (review, hydrate); found none")
 	}
 }

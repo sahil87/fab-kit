@@ -34,7 +34,7 @@ observed via files. A third recovers what that detached process cannot offer —
 ## The three adapters
 
 An *adapter* is the mechanism that turns "run stage S as a worker" into an actual launched worker and,
-later, an observed result. The resolution that precedes dispatch (stage → tier →
+later, an observed result. The resolution that precedes dispatch (stage → role →
 `{provider, model, effort}`, via `fab resolve-agent`; the invocation command lives on the resolved
 provider) is **provider-neutral and adapter-independent** — see
 [`stage-models.md`](stage-models.md). Only the launch+observe step is adapter-specific.
@@ -446,13 +446,13 @@ authority.
 
 ## Relationship to `stage-models.md`
 
-[`stage-models.md`](stage-models.md) owns the **resolution** layer (stage → tier →
+[`stage-models.md`](stage-models.md) owns the **resolution** layer (stage → role →
 `{provider, model, effort}`, the top-level `providers:` command grammar, `fab resolve-agent`, verbatim
 pass-through, provider neutrality) and describes the
 **native Agent-tool adapter** as its harness-specific injection layer. This spec catalogs that native
 adapter as **one of three** dispatch adapters and adds the two `fab dispatch` modes — **headless CLI** and
 **interactive pane** — alongside it, plus the cross-adapter protocol all three share. The `dispatch=` line
-`fab resolve-agent` emits (when the resolved tier's provider carries a `dispatch_command` — or, with
+`fab resolve-agent` emits (when the resolved provider carries a `dispatch_command` — or, with
 `dispatch.watchable: true` and the orchestrator inside tmux, for a `session_command`-only provider: the
 watchable pane opt-in, `stage-models.md` § Watchable pane dispatch) is the seam the
 `fab dispatch` adapters consume; `stage-models.md` § Harness-adapter boundary points here for the runtime
@@ -461,7 +461,7 @@ that RUNS it.
 Resolution stays **adapter-independent** across all three, but it does **select** which of them runs: the
 adapter follows from whether the *resolved* provider carries a `dispatch_command` (or qualifies under the
 `dispatch.watchable` opt-in above). What selects the adapter
-is therefore the **config** a dispatch resolves from — `agent.tiers.<tier>.provider` plus the `providers:`
+is therefore the **config** a dispatch resolves from — a depth knob (`agent.workers`/`agent.session`) or `agent.profiles.<role>.provider`, plus the `providers:`
 table — not an invocation flag. An invocation-time `fab resolve-agent <stage> --provider <name>` override
 (`260805-j3cm`) binds the **native adapter only**: `fab dispatch start` accepts no override flags and
 re-resolves the stage from config itself, so an overridden profile never reaches either `fab dispatch` mode
@@ -473,10 +473,11 @@ actionable**, and the two remedies are **not interchangeable**: dispatching that
 overridden model/effort is executable only for a **within-claude** `--model`/`--effort` override, since
 the native adapter's model seam is the Agent tool's `model` param — a Claude-alias enum
 (`opus`/`sonnet`/`haiku`/`fable`) with no room for a non-Claude ID. So for a **cross-provider
-`--provider` override** the **sole executable path** is a config/tier override that `dispatch start`'s
+`--provider` override** the **sole executable path** is a config override — a depth knob (`agent.workers`/`agent.session`) or
+`agent.profiles.<role>.provider` — that `dispatch start`'s
 own re-resolution will see. Nothing else moves: the pane mode adds no resolver output and no provider
 config field — it composes the resolved provider's existing `session_command` (the same field
 `fab agent` and the operator launcher compose) through the same `internal/spawn` substitution. Mode
 selection is therefore **per-invocation** (the explicit-first ladder ending in the `$TMUX`-driven auto
-default — see § 3's *Mode selection*), not a property of a tier or a provider. A provider whose interactive grammar genuinely diverges from its `session_command` would be the
+default — see § 3's *Mode selection*), not a property of a role or a provider. A provider whose interactive grammar genuinely diverges from its `session_command` would be the
 trigger to add a dedicated field later — a data-only config addition, not a protocol change.

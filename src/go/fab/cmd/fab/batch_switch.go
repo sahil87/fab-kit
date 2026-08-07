@@ -88,12 +88,12 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag, quietF
 		changes = args
 	}
 
-	// Compose the worker spawn command from the default tier's provider
-	// session_command with the default tier's {model}/{effort} profile SUBSTITUTED
+	// Compose the worker spawn command from the default role's provider
+	// session_command with the default role's {model}/{effort} profile SUBSTITUTED
 	// (workers finally spawn WITH a profile). Substitution resolves all
 	// placeholders so no literal braces reach the tmux new-window shell command.
 	configPath := filepath.Join(fabRoot, "project", "config.yaml")
-	spawnCmd := defaultTierSpawnCommand(configPath)
+	spawnCmd := defaultRoleSpawnCommand(configPath)
 	cfg, _ := config.Load(fabRoot)
 	branchPrefix := cfg.GetBranchPrefix()
 

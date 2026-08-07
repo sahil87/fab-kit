@@ -26,44 +26,54 @@ func resolveAgentTestRepo(t *testing.T, configBody string) {
 	chdirTestEnv(t, root, map[string]string{"TMUX": ""})
 }
 
-// wantTierBytes builds the expected three-line resolve-agent output for a tier's
-// BUILT-IN default profile. Derived from agent.DefaultTier so a model bump touches
-// only defaultTiers in internal/agent — these tests assert the output CONTRACT
-// (which lines, what order, exact bytes), not which model is current. The literals
-// are pinned once, in agent.TestDefaultTierProfilesArePinned.
-func wantTierBytes(t *testing.T, tier string) string {
+// wantRoleBytes builds the expected three-line resolve-agent output for a role's
+// BUILT-IN default profile. Derived from agent.DefaultProfile so a model bump
+// touches only defaults.yaml's providers.claude.profiles — these tests assert the
+// output CONTRACT (which lines, what order, exact bytes), not which model is
+// current. The literals are pinned once, in agent.TestDefaultRoleProfilesArePinned.
+func wantRoleBytes(t *testing.T, role string) string {
 	t.Helper()
-	p, ok := agent.DefaultTier(tier)
+	p, ok := agent.DefaultProfile(role)
 	if !ok {
-		t.Fatalf("unknown tier %q", tier)
+		t.Fatalf("unknown role %q", role)
 	}
 	return "model=" + p.Model + "\neffort=" + p.Effort + "\nprovider=" + p.Provider + "\n"
 }
 
-// wantTierModel returns just the built-in default model ID for a tier.
-func wantTierModel(t *testing.T, tier string) string {
+// wantRoleModel returns just the built-in default model ID for a role.
+func wantRoleModel(t *testing.T, role string) string {
 	t.Helper()
-	p, ok := agent.DefaultTier(tier)
+	p, ok := agent.DefaultProfile(role)
 	if !ok {
-		t.Fatalf("unknown tier %q", tier)
+		t.Fatalf("unknown role %q", role)
 	}
 	return p.Model
 }
 
-// pinnedTierLine renders an `agent.tiers` YAML line for `tier` that points at
-// `provider` while PINNING the tier's own built-in model/effort. Pointing a tier at
-// a non-claude provider is a cross-provider switch, and such a tier no longer
-// inherits the built-in's (claude-shaped) model/effort — 260805-j3cm's
-// cross-provider cutoff. Pinning the same values the built-in carries keeps each
-// test's expectation ("the resolved tier profile rides the output") true while
-// staying DERIVED from the canonical map, so a model bump touches no test.
-func pinnedTierLine(t *testing.T, tier, provider string) string {
+// wantRoleEffort returns just the built-in default effort for a role.
+func wantRoleEffort(t *testing.T, role string) string {
 	t.Helper()
-	p, ok := agent.DefaultTier(tier)
+	p, ok := agent.DefaultProfile(role)
 	if !ok {
-		t.Fatalf("unknown tier %q", tier)
+		t.Fatalf("unknown role %q", role)
 	}
-	return "    " + tier + ": { provider: " + provider + ", model: " + p.Model + ", effort: " + p.Effort + " }\n"
+	return p.Effort
+}
+
+// pinnedRoleLine renders an `agent.profiles` YAML line for `role` that points at
+// `provider` while PINNING the role's own built-in model/effort. Model and effort
+// come from the RESOLVED provider's per-role fills, and a non-claude provider ships
+// grammar only, so a role pointed at one resolves them empty unless pinned. Pinning
+// the same values the built-in carries keeps each test's expectation ("the resolved
+// role profile rides the output") true while staying DERIVED from the canonical
+// defaults, so a model bump touches no test.
+func pinnedRoleLine(t *testing.T, role, provider string) string {
+	t.Helper()
+	p, ok := agent.DefaultProfile(role)
+	if !ok {
+		t.Fatalf("unknown role %q", role)
+	}
+	return "    " + role + ": { provider: " + provider + ", model: " + p.Model + ", effort: " + p.Effort + " }\n"
 }
 
 // runResolveAgentCmd executes a fresh resolveAgentCmd with the given args.
@@ -78,22 +88,22 @@ func runResolveAgentCmd(t *testing.T, args ...string) (string, error) {
 	return out.String(), err
 }
 
-// TestResolveAgentDefaultOutputExactBytes: on a config with no agent.tiers, the
+// TestResolveAgentDefaultOutputExactBytes: on a config with no agent.profiles, the
 // default output includes model=/effort=/provider= (the byte-stable contract the
-// consuming skills rely on). intake ∈ default tier; ship ∈ fast tier.
+// consuming skills rely on). intake ∈ `default` role; ship ∈ `fast` role.
 func TestResolveAgentDefaultOutputExactBytes(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
 
-	out, err := runResolveAgentCmd(t, "intake") // intake ∈ default tier
+	out, err := runResolveAgentCmd(t, "intake") // intake ∈ the `default` role
 	if err != nil {
 		t.Fatalf("resolve-agent intake: %v", err)
 	}
-	want := wantTierBytes(t, agent.TierDefault)
+	want := wantRoleBytes(t, agent.RoleDefault)
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
 
-	// ship resolves to the fast tier default.
+	// ship resolves to the `fast` role's default.
 	out, err = runResolveAgentCmd(t, "ship")
 	if err != nil {
 		t.Fatalf("resolve-agent ship: %v", err)
@@ -104,19 +114,19 @@ func TestResolveAgentDefaultOutputExactBytes(t *testing.T) {
 	}
 }
 
-// TestResolveAgentAcceptsTierName: a role-tier name resolves directly (the
-// stage/tier positional-arg contract that serves fab agent / operator; shared
-// names are fixed points, so tier-first dispatch resolves them identically).
-func TestResolveAgentAcceptsTierName(t *testing.T) {
+// TestResolveAgentAcceptsRoleName: a role name resolves directly (the stage-or-role
+// positional-arg contract that serves fab agent / operator; shared names are fixed
+// points, so role-first dispatch resolves them identically).
+func TestResolveAgentAcceptsRoleName(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
 
-	out, err := runResolveAgentCmd(t, "operator") // tier name, not a stage
+	out, err := runResolveAgentCmd(t, "operator") // role name, not a stage
 	if err != nil {
 		t.Fatalf("resolve-agent operator: %v", err)
 	}
-	want := wantTierBytes(t, agent.TierFast)
+	want := wantRoleBytes(t, agent.RoleFast)
 	if out != want {
-		t.Errorf("output = %q, want the operator tier profile %q", out, want)
+		t.Errorf("output = %q, want the `operator` role profile %q", out, want)
 	}
 }
 
@@ -124,14 +134,14 @@ func TestResolveAgentAcceptsTierName(t *testing.T) {
 // the default model/provider.
 func TestResolveAgentOverrideMerge(t *testing.T) {
 	resolveAgentTestRepo(t, `agent:
-  tiers:
+  profiles:
     doing: { effort: medium }
 `)
 	out, err := runResolveAgentCmd(t, "apply") // apply ∈ doing
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	want := "model=" + wantTierModel(t, agent.TierDoing) + "\neffort=medium\nprovider=claude\n"
+	want := "model=" + wantRoleModel(t, agent.RoleDoing) + "\neffort=medium\nprovider=claude\n"
 	if out != want {
 		t.Errorf("output = %q, want default model/provider + medium effort", out)
 	}
@@ -141,7 +151,7 @@ func TestResolveAgentOverrideMerge(t *testing.T) {
 // a no-op merge — the DEFAULT effort survives (per-field merge).
 func TestResolveAgentEmptyOverrideEffortInheritsDefault(t *testing.T) {
 	resolveAgentTestRepo(t, `agent:
-  tiers:
+  profiles:
     doing: { model: some-model, effort: "" }
 `)
 	out, err := runResolveAgentCmd(t, "apply")
@@ -158,7 +168,7 @@ func TestResolveAgentEmptyOverrideEffortInheritsDefault(t *testing.T) {
 // verbatim with exit 0 — fab does not validate.
 func TestResolveAgentVerbatimNoValidation(t *testing.T) {
 	resolveAgentTestRepo(t, `agent:
-  tiers:
+  profiles:
     fast: { model: claude-sonnet-5, effort: xhigh }
 `)
 	out, err := runResolveAgentCmd(t, "ship") // ship ∈ fast
@@ -171,7 +181,7 @@ func TestResolveAgentVerbatimNoValidation(t *testing.T) {
 	}
 }
 
-// TestResolveAgentUnknownStageErrors: an unknown stage/tier exits non-zero and
+// TestResolveAgentUnknownStageErrors: an unknown stage/role exits non-zero and
 // names the argument.
 func TestResolveAgentUnknownStageErrors(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
@@ -226,7 +236,7 @@ func TestResolveAgentAliasEmitsShortAlias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve-agent apply --alias: %v", err)
 	}
-	want := "model=" + agent.ModelAlias(wantTierModel(t, agent.TierDoing)) + "\neffort=high\nprovider=claude\n"
+	want := "model=" + agent.ModelAlias(wantRoleModel(t, agent.RoleDoing)) + "\neffort=high\nprovider=claude\n"
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
@@ -242,7 +252,7 @@ func TestResolveAgentNoAliasEmitsFullID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	want := wantTierBytes(t, agent.TierDoing)
+	want := wantRoleBytes(t, agent.RoleDoing)
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
@@ -272,7 +282,7 @@ func TestResolveAgentNoDispatchThreeLines(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	want := wantTierBytes(t, agent.TierDoing)
+	want := wantRoleBytes(t, agent.RoleDoing)
 	if out != want {
 		t.Errorf("output = %q, want the three-line contract (no dispatch= — session_command is NOT a fallback)", out)
 	}
@@ -280,20 +290,21 @@ func TestResolveAgentNoDispatchThreeLines(t *testing.T) {
 
 // TestResolveAgentDispatchFourLines: a provider with a dispatch_command emits the
 // fourth dispatch= line with {model}/{effort} substituted from the resolved
-// profile. The tier must point its provider at that dispatch-carrying provider.
+// profile. The role profile must point its provider at that dispatch-carrying
+// provider.
 func TestResolveAgentDispatchFourLines(t *testing.T) {
 	resolveAgentTestRepo(t, `providers:
   codex:
     session_command: "codex -m {model}"
     dispatch_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
 agent:
-  tiers:
-`+pinnedTierLine(t, agent.TierDoing, "codex"))
+  profiles:
+`+pinnedRoleLine(t, agent.RoleDoing, "codex"))
 	out, err := runResolveAgentCmd(t, "apply") // apply ∈ doing → provider codex
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	doingModel := wantTierModel(t, agent.TierDoing)
+	doingModel := wantRoleModel(t, agent.RoleDoing)
 	want := "model=" + doingModel + "\neffort=high\nprovider=codex\ndispatch=codex exec -m " + doingModel + " -c model_reasoning_effort=high\n"
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
@@ -308,13 +319,13 @@ func TestResolveAgentAliasDispatchUsesFullModelID(t *testing.T) {
   codex:
     dispatch_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
 agent:
-  tiers:
-`+pinnedTierLine(t, agent.TierDoing, "codex"))
+  profiles:
+`+pinnedRoleLine(t, agent.RoleDoing, "codex"))
 	out, err := runResolveAgentCmd(t, "apply", "--alias")
 	if err != nil {
 		t.Fatalf("resolve-agent apply --alias: %v", err)
 	}
-	want := "model=" + agent.ModelAlias(wantTierModel(t, agent.TierDoing)) + "\neffort=high\nprovider=codex\ndispatch=codex exec -m " + wantTierModel(t, agent.TierDoing) + " -c model_reasoning_effort=high\n"
+	want := "model=" + agent.ModelAlias(wantRoleModel(t, agent.RoleDoing)) + "\neffort=high\nprovider=codex\ndispatch=codex exec -m " + wantRoleModel(t, agent.RoleDoing) + " -c model_reasoning_effort=high\n"
 	if out != want {
 		t.Errorf("output = %q, want aliased model= and full-ID dispatch=, got %q", out, want)
 	}
@@ -329,8 +340,8 @@ func TestResolveAgentDispatchSubstitutionReusesSpawnPackage(t *testing.T) {
   codex:
     dispatch_command: "codex  exec  -m {model}  -c reasoning={effort}"
 agent:
-  tiers:
-`+pinnedTierLine(t, agent.TierFast, "codex"))
+  profiles:
+`+pinnedRoleLine(t, agent.RoleFast, "codex"))
 	out, err := runResolveAgentCmd(t, "ship") // ship ∈ fast (sonnet/medium), provider codex
 	if err != nil {
 		t.Fatalf("resolve-agent ship: %v", err)
@@ -348,8 +359,8 @@ func TestResolveAgentDispatchByteStable(t *testing.T) {
   codex:
     dispatch_command: "codex exec -m {model}"
 agent:
-  tiers:
-` + pinnedTierLine(t, agent.TierDoing, "codex")
+  profiles:
+` + pinnedRoleLine(t, agent.RoleDoing, "codex")
 	resolveAgentTestRepo(t, body)
 	first, err := runResolveAgentCmd(t, "apply")
 	if err != nil {
@@ -362,7 +373,7 @@ agent:
 	if first != second {
 		t.Errorf("dispatch output not byte-stable: %q vs %q", first, second)
 	}
-	if !strings.Contains(first, "dispatch=codex exec -m "+wantTierModel(t, agent.TierDoing)+"\n") {
+	if !strings.Contains(first, "dispatch=codex exec -m "+wantRoleModel(t, agent.RoleDoing)+"\n") {
 		t.Errorf("output = %q, want a substituted dispatch= line", first)
 	}
 }
@@ -444,7 +455,7 @@ func TestResolveAgentOverrideProviderTakesFill(t *testing.T) {
 }
 
 // TestResolveAgentOverrideModelWithoutProvider: --model/--effort are valid WITHOUT
-// --provider here (a within-tier override) — the documented asymmetry with
+// --provider here (a within-role override) — the documented asymmetry with
 // `fab agent`, where they are a usage error without --provider.
 func TestResolveAgentOverrideModelWithoutProvider(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
@@ -453,9 +464,9 @@ func TestResolveAgentOverrideModelWithoutProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bare --effort must be valid on the pure query: %v", err)
 	}
-	want := "model=" + wantTierModel(t, agent.TierDoing) + "\neffort=high\nprovider=claude\n"
+	want := "model=" + wantRoleModel(t, agent.RoleDoing) + "\neffort=high\nprovider=claude\n"
 	if out != want {
-		t.Errorf("output = %q, want the tier's provider+model with the overridden effort %q", out, want)
+		t.Errorf("output = %q, want the role's provider+model with the overridden effort %q", out, want)
 	}
 
 	out, err = runResolveAgentCmd(t, "apply", "--model", "claude-haiku-4-5")
@@ -464,7 +475,7 @@ func TestResolveAgentOverrideModelWithoutProvider(t *testing.T) {
 	}
 	want = "model=claude-haiku-4-5\neffort=high\nprovider=claude\n"
 	if out != want {
-		t.Errorf("output = %q, want the overridden model with the tier's effort %q", out, want)
+		t.Errorf("output = %q, want the overridden model with the role's effort %q", out, want)
 	}
 }
 
@@ -488,14 +499,14 @@ func TestResolveAgentOverrideAliasKeepsNonClaudeVerbatim(t *testing.T) {
 // with no dispatch_command drops the dispatch= line — the QUERY reports the named
 // provider's dispatch_command (or its absence), which is all this assertion covers.
 // It is NOT an adapter move: `fab dispatch start` takes no override flags and
-// re-resolves the stage from config, so only a config/tier override relocates a
+// re-resolves the stage from config, so only a config/role override relocates a
 // stage between native Agent-tool dispatch and CLI dispatch.
 func TestResolveAgentOverrideDispatchDisappearsOnNativeSwap(t *testing.T) {
 	resolveAgentTestRepo(t, `agent:
-  tiers:
-`+pinnedTierLine(t, agent.TierDoing, "codex"))
+  profiles:
+`+pinnedRoleLine(t, agent.RoleDoing, "codex"))
 
-	// Baseline: the codex tier emits a dispatch= line.
+	// Baseline: the codex-pointed role emits a dispatch= line.
 	out, err := runResolveAgentCmd(t, "apply")
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
@@ -555,55 +566,59 @@ func TestResolveAgentOverrideUnknownProviderErrors(t *testing.T) {
 	}
 }
 
-// TestResolveCrossScopeCascadeLimitation PINS THE R7 DOCUMENTED LIMITATION
-// (260805-j3cm, rework cycle 3) — it asserts CURRENT behavior, not desired
-// behavior. The cross-provider cutoff computes ownership over the MERGED config:
-// internal/config.LoadPath deep-merges the system layer (~/.fab-kit/config.yaml)
-// and the project layer per-key BEFORE internal/agent resolves, so agent.ResolveTier
-// sees ONE `agent.tiers.doing` map and cannot tell which scope contributed which
-// key. When both scopes name DIFFERENT providers for the same tier, the merged
-// tier's model/effort are attributed to the merged layer's `provider:` and the
-// cutoff does not fire across the scope boundary — here a codex model ID rides a
-// gemini invocation.
+// TestResolveCrossScopeRoleProfileMerge pins how the two config SCOPES compose a
+// single role profile. internal/config.LoadPath deep-merges the system layer
+// (~/.fab-kit/config.yaml) and the project layer PER KEY before internal/agent
+// resolves anything, so a role named in both scopes reaches resolution as ONE
+// merged `agent.profiles.<role>` map — here the system's model/effort beside the
+// project's provider.
 //
-// This test exists so the limitation is reproducible and cannot change silently:
-// if a follow-up change makes ownership cascade-aware (folding the per-scope layers
-// in ResolveTier), this test SHOULD fail and be rewritten to the new — correct —
-// expectation of an empty model refilled from providers.gemini. It lives in cmd/fab
-// because this is the layer that can compose both scopes end-to-end (TestMain
-// already isolates HOME for the package; this test points it at its own tree so it
-// can WRITE a system config). Documented in internal/agent's ResolveTier comment
-// (§ SCOPE OF OWNERSHIP) and docs/specs/stage-models.md.
-func TestResolveCrossScopeCascadeLimitation(t *testing.T) {
+// The resolved bytes are what the fill precedence says they should be: an explicit
+// `agent.profiles.<role>.model` is a pin the USER wrote, so it outranks the
+// resolved provider's own fills and survives the project scope's provider switch
+// (260806-j9nh — there is no cross-provider cutoff rule any more, because with
+// model/effort otherwise sourced from the resolved provider's own per-role fills
+// nothing is inherited across providers in the first place).
+//
+// The sharp edge is worth pinning rather than merely documenting: the project
+// author sees only `{provider: gemini}` in their own file, yet gets the machine-wide
+// layer's codex model ID on a gemini invocation. The escape is the documented one —
+// do not pin a role's model in one scope and swap its provider in another; set the
+// model in the SAME scope as the switch, or leave it to the provider's fills. This
+// test lives in cmd/fab because that is the layer that can compose both scopes
+// end-to-end (TestMain already isolates HOME for the package; this test points it at
+// its own tree so it can WRITE a system config).
+func TestResolveCrossScopeRoleProfileMerge(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	sysDir := filepath.Join(home, ".fab-kit")
 	if err := os.MkdirAll(sysDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// System scope: a fully-pinned codex tier plus the codex fill.
+	// System scope: a fully-pinned codex doing role plus codex's own fills.
 	systemConfig := `providers:
   codex:
-    model: gpt-5.3-codex
-    effort: high
+    profiles:
+      default: { model: gpt-5.3-codex, effort: high }
 agent:
-  tiers:
+  profiles:
     doing: { provider: codex, model: gpt-5.3-codex, effort: high }
 `
 	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"), []byte(systemConfig), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	// Project scope: switch the SAME tier to gemini, supplying only the provider.
+	// Project scope: switch the SAME role to gemini, supplying only the provider.
 	// resolveAgentTestRepo chdirs into the new repo; it does not touch HOME, so the
 	// t.Setenv above stands.
 	resolveAgentTestRepo(t, `project:
   name: test
 providers:
   gemini:
-    model: gemini-2.5-pro
+    profiles:
+      default: { model: gemini-2.5-pro }
 agent:
-  tiers:
+  profiles:
     doing: { provider: gemini }
 `)
 
@@ -612,15 +627,84 @@ agent:
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
 
-	// CURRENT (limitation) behavior: the system scope's codex model/effort survive
-	// the project scope's switch to gemini, because the two scopes were merged into
-	// one tier before resolution. The CORRECT behavior would be
-	// model=gemini-2.5-pro with no effort= line (refilled from providers.gemini).
+	// The merged role profile carries the system scope's explicit model/effort and
+	// the project scope's provider, and an explicit role-level pin outranks the
+	// resolved provider's fills — so gemini is invoked with the codex model ID
+	// rather than with providers.gemini.profiles.default.model.
 	want := "model=gpt-5.3-codex\neffort=high\nprovider=gemini\ndispatch=gemini -m gpt-5.3-codex\n"
 	if out != want {
-		t.Errorf("output = %q, want %q\n(this test PINS the documented cross-scope cascade limitation — "+
-			"if ownership became cascade-aware, update this expectation to the refilled gemini values "+
-			"and drop the limitation note from internal/agent's ResolveTier comment and stage-models.md)", out, want)
+		t.Errorf("output = %q, want %q\n(the two scopes deep-merge into one agent.profiles.doing map "+
+			"before resolution, and an explicit role-level model/effort outranks the resolved provider's "+
+			"own fills — see docs/specs/stage-models.md § Fill precedence)", out, want)
+	}
+}
+
+// TestResolveCrossScopeLegacyAliasPrecedence pins the ONE cross-scope case where the
+// documented `project > system` precedence inverts: the deprecated `agent.tiers`
+// alias resolves AFTER the scope cascade, so for a role written in the NEW spelling
+// in one scope and the LEGACY spelling in the other, the SPELLING decides rather
+// than the scope. internal/config.LoadPath merges the two layers per key, leaving
+// `profiles` and `tiers` as two separate maps; GetAgentProfile then prefers
+// `profiles` wherever it carries the role — including when that entry came from the
+// system layer and the project layer's is the legacy spelling.
+//
+// It is pinned rather than fixed: making the alias cascade-aware would mean
+// threading per-scope, per-key provenance through LoadPath for a spelling that
+// exists only for the pre-migration window. The escape is the migration itself
+// (2.16.19-to-2.17.0 sweeps BOTH scopes, so no half-migrated pair survives it) or
+// moving the losing scope's role to `profiles`. Sibling of
+// TestResolveCrossScopeRoleProfileMerge, and lives here for the same reason: cmd/fab
+// is the layer that can compose both scopes end-to-end. See
+// config.GetAgentProfile's LIMITATION note.
+func TestResolveCrossScopeLegacyAliasPrecedence(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	sysDir := filepath.Join(home, ".fab-kit")
+	if err := os.MkdirAll(sysDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// System scope: the NEW spelling for the doing role.
+	systemConfig := "agent:\n  profiles:\n    doing: { model: system-new-spelling }\n"
+	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"), []byte(systemConfig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Project scope: the SAME role in the LEGACY spelling. Normally the project
+	// layer wins; here the spelling does.
+	resolveAgentTestRepo(t, `project:
+  name: test
+agent:
+  tiers:
+    doing: { model: project-legacy-spelling }
+`)
+
+	out, err := runResolveAgentCmd(t, "apply")
+	if err != nil {
+		t.Fatalf("resolve-agent apply: %v", err)
+	}
+	want := "model=system-new-spelling\neffort=" + wantRoleEffort(t, agent.RoleDoing) + "\nprovider=claude\n"
+	if out != want {
+		t.Errorf("output = %q, want %q\n(the agent.tiers alias resolves AFTER the cascade, so a system-layer "+
+			"agent.profiles.<role> beats a project-layer agent.tiers.<role> — run the 2.16.19-to-2.17.0 "+
+			"migration, which sweeps both scopes, or move the project role to agent.profiles)", out, want)
+	}
+
+	// Control: with the project scope on the NEW spelling too, the normal
+	// project > system precedence holds — the inversion is the alias's, not the
+	// cascade's.
+	resolveAgentTestRepo(t, `project:
+  name: test
+agent:
+  profiles:
+    doing: { model: project-new-spelling }
+`)
+	out, err = runResolveAgentCmd(t, "apply")
+	if err != nil {
+		t.Fatalf("resolve-agent apply (control): %v", err)
+	}
+	want = "model=project-new-spelling\neffort=" + wantRoleEffort(t, agent.RoleDoing) + "\nprovider=claude\n"
+	if out != want {
+		t.Errorf("control output = %q, want %q (same spelling in both scopes ⇒ project wins)", out, want)
 	}
 }
 
@@ -676,7 +760,7 @@ func TestDispatchLineFor_Matrix(t *testing.T) {
 }
 
 // TestResolveAgentWatchableEmitsSessionCommandInTmux: end-to-end, `dispatch.watchable:
-// true` inside tmux makes the built-in claude tier (session_command only, NO
+// true` inside tmux makes the built-in claude provider (session_command only, NO
 // dispatch_command) emit a dispatch= line carrying the PROFILE-SUBSTITUTED
 // session_command — the watchable pane opt-in.
 func TestResolveAgentWatchableEmitsSessionCommandInTmux(t *testing.T) {
@@ -692,7 +776,7 @@ providers:
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	doingModel := wantTierModel(t, agent.TierDoing)
+	doingModel := wantRoleModel(t, agent.RoleDoing)
 	want := "model=" + doingModel + "\neffort=high\nprovider=claude\n" +
 		"dispatch=claude -n " + doingModel + " --effort high\n"
 	if out != want {
@@ -715,7 +799,7 @@ providers:
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	want := wantTierBytes(t, agent.TierDoing)
+	want := wantRoleBytes(t, agent.RoleDoing)
 	if out != want {
 		t.Errorf("output = %q, want the three-line contract %q (no $TMUX ⇒ native dispatch, never headless CLI)", out, want)
 	}
@@ -734,7 +818,7 @@ func TestResolveAgentWatchableOffInTmuxOmitsLine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	want := wantTierBytes(t, agent.TierDoing)
+	want := wantRoleBytes(t, agent.RoleDoing)
 	if out != want {
 		t.Errorf("output = %q, want the three-line contract %q (watchable defaults to false)", out, want)
 	}
@@ -752,15 +836,15 @@ providers:
     session_command: "codex -m {model}"
     dispatch_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
 agent:
-  tiers:
-`+pinnedTierLine(t, agent.TierDoing, "codex"))
+  profiles:
+`+pinnedRoleLine(t, agent.RoleDoing, "codex"))
 	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
 
 	out, err := runResolveAgentCmd(t, "apply")
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	doingModel := wantTierModel(t, agent.TierDoing)
+	doingModel := wantRoleModel(t, agent.RoleDoing)
 	want := "model=" + doingModel + "\neffort=high\nprovider=codex\n" +
 		"dispatch=codex exec -m " + doingModel + " -c model_reasoning_effort=high\n"
 	if out != want {
@@ -785,7 +869,7 @@ providers:
 	if err != nil {
 		t.Fatalf("resolve-agent apply --alias: %v", err)
 	}
-	doingModel := wantTierModel(t, agent.TierDoing)
+	doingModel := wantRoleModel(t, agent.RoleDoing)
 	want := "model=" + agent.ModelAlias(doingModel) + "\neffort=high\nprovider=claude\n" +
 		"dispatch=claude -n " + doingModel + " --effort high\n"
 	if out != want {
@@ -820,7 +904,7 @@ providers:
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	doingModel := wantTierModel(t, agent.TierDoing)
+	doingModel := wantRoleModel(t, agent.RoleDoing)
 	want := "model=" + doingModel + "\neffort=high\nprovider=claude\n" +
 		"dispatch=claude -n " + doingModel + " --effort high\n"
 	if out != want {
@@ -853,7 +937,7 @@ providers:
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	want := wantTierBytes(t, agent.TierDoing)
+	want := wantRoleBytes(t, agent.RoleDoing)
 	if out != want {
 		t.Errorf("output = %q, want the three-line contract %q (project `false` must beat system `true`)", out, want)
 	}

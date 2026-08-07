@@ -155,7 +155,7 @@ func validateYAML(s string) error {
 // LIVE above the managed fence on a fresh repo. Any field left empty is omitted
 // from the live block (and, for test_paths, left to the fence to advertise). Every
 // other config field is fence territory from day one — presence=intent means an
-// init-pinned tier would be an accidental override.
+// init-pinned knob or role profile would be an accidental override.
 type InitSeed struct {
 	Name        string
 	Description string
@@ -168,7 +168,7 @@ type InitSeed struct {
 // test_paths when detected) written LIVE, followed by the managed fence of
 // commented C fields. It shares the exact fence renderer Upgrade uses (renderFence),
 // so a freshly-generated file and an upgraded one carry a byte-identical fence.
-// agent.tiers is deliberately NOT pinned (presence=intent). The fence omits the
+// no agent: key is deliberately pinned (presence=intent). The fence omits the
 // seeded live keys.
 func RenderInitProject(seed InitSeed, kitVersion string) (string, error) {
 	fields, err := configref.Fields()
@@ -313,7 +313,11 @@ func render(original string, fields []configref.Field, kitVersion string) (strin
 	liveKeys := liveTopLevelKeys(preamble)
 
 	// Carry renames: a live key matching some row's RenamedFrom is rewritten to the
-	// new key in place (value verbatim). renamed_from is "" on every row today.
+	// new key in place (value verbatim). Only TOP-LEVEL→top-level renames are
+	// carriable here; the one row carrying a renamed_from today (agent.profiles,
+	// from agent.tiers) is a same-top-level rename and is deliberately skipped —
+	// internal/config reads `agent.tiers` as a deprecated alias so it keeps
+	// resolving, and the 2.16.19-to-2.17.0 migration does the on-disk rewrite.
 	preamble, liveKeys, renameReport := carryRenames(preamble, liveKeys, fields)
 	report = append(report, renameReport...)
 
@@ -453,8 +457,11 @@ func liveTopLevelKeys(preamble string) map[string]bool {
 //     nested-aware carry rather than mishandled here.
 //
 // Both are detected by comparing the FULL dotted keys, not just their first
-// segments. renamed_from is "" on every shipped row today, so the map is empty in
-// production; the guard matters for seeded-rename fixtures and future renames.
+// segments. ONE row carries renamed_from today — `agent.profiles`, recording the
+// 260806-j9nh rename from `agent.tiers` — and it is a same-top-level rename, so it
+// is skipped by the first exclusion above and the map is still empty in production
+// (that rename ships as a hand-written migration instead). The guard therefore
+// matters for that row, for seeded-rename fixtures, and for future renames.
 func registryTopLevelKeys(fields []configref.Field) (known map[string]bool, renames map[string]string) {
 	known = map[string]bool{}
 	renames = map[string]string{}
@@ -727,7 +734,7 @@ const parkedVersionPlaceholder = "an earlier release"
 // top-level keys whose value equals the current built-in default — a field the user
 // could remove and inherit the same value. It is ADVISORY ONLY: the upgrader never
 // removes or mutates a live field, so a false positive here costs nothing. Only
-// registry fields carrying a non-nil Default (today `providers` and `agent.tiers`)
+// registry fields carrying a non-nil Default (today `providers`, `agent.profiles`, and the two depth knobs)
 // can match; every other field has no built-in default, so a live value there is
 // always a genuine override and is never flagged.
 //
@@ -749,7 +756,7 @@ func bHygieneReport(preamble string, fields []configref.Field) []string {
 		}
 		top := topLevel(f.Key)
 		if seen[top] {
-			continue // one advisory per top-level key (agent.tiers → agent)
+			continue // one advisory per top-level key (agent.profiles → agent)
 		}
 		liveVal, ok := live[top]
 		if !ok {
@@ -768,11 +775,14 @@ func bHygieneReport(preamble string, fields []configref.Field) []string {
 }
 
 // defaultSubtreeFor builds the built-in default subtree for a top-level key from the
-// registry, nesting the row's Default under the remaining dotted segments
-// (agent.tiers → {tiers: <default>} under `agent`). Mirrors cmd/fab's
-// defaultSubtree; kept here so the engine has no dependency on cmd/fab. Returns nil
-// when no row carries a default for the key.
+// registry, nesting EVERY matching row's Default under its remaining dotted segments
+// (agent.session/agent.workers/agent.profiles → {session, workers, profiles} under
+// `agent`) and merging the results — a top-level key with several default-bearing
+// rows contributes all of them, so the presence=intent comparison sees the whole
+// built-in subtree. Mirrors cmd/fab's defaultSubtree; kept here so the engine has no
+// dependency on cmd/fab. Returns nil when no row carries a default for the key.
 func defaultSubtreeFor(fields []configref.Field, top string) any {
+	var out any
 	for _, f := range fields {
 		if f.Default == nil {
 			continue
@@ -785,9 +795,34 @@ func defaultSubtreeFor(fields []configref.Field, top string) any {
 		for i := len(segs) - 1; i >= 1; i-- {
 			normalized = map[string]any{segs[i]: normalized}
 		}
-		return normalized
+		out = mergeGeneric(out, normalized)
 	}
-	return nil
+	return out
+}
+
+// mergeGeneric merges two default subtrees, with `over` winning on conflict: maps
+// merge per-key recursively, anything else replaces wholesale. Mirrors cmd/fab's
+// helper of the same name.
+func mergeGeneric(base, over any) any {
+	if base == nil {
+		return over
+	}
+	if over == nil {
+		return base
+	}
+	bm, bok := asGenericMap(base)
+	om, ook := asGenericMap(over)
+	if !bok || !ook {
+		return over
+	}
+	out := make(map[string]any, len(bm)+len(om))
+	for k, v := range bm {
+		out[k] = v
+	}
+	for k, v := range om {
+		out[k] = mergeGeneric(out[k], v)
+	}
+	return out
 }
 
 // genericEqual deep-compares two decoded-YAML/JSON generic values (maps, slices,
@@ -830,7 +865,7 @@ func genericEqual(a, b any) bool {
 // normalizeToGeneric round-trips a typed value (a registry Default struct/map) into
 // the generic map[string]any/[]any/scalar shape decoded YAML uses, so the two sides
 // of a B-hygiene comparison are the same shape. It marshals via JSON, NOT YAML: the
-// registry default structs (providerDefault, tierProfileDefault) carry json: tags
+// registry default structs (providerDefault, roleProfileDefault) carry json: tags
 // whose names match the real config keys (session_command, provider, model, effort)
 // and no yaml: tags — a YAML marshal would emit lowercased Go field names that would
 // not line up. Mirrors cmd/fab's normalizeToGeneric.
@@ -868,7 +903,7 @@ func asGenericMap(v any) (map[string]any, bool) {
 }
 
 // topLevel collapses a dotted registry key to its top-level YAML key
-// ("agent.tiers" → "agent", "project.name" → "project", "source_paths" →
+// ("agent.profiles" → "agent", "project.name" → "project", "source_paths" →
 // "source_paths").
 func topLevel(key string) string {
 	if i := strings.IndexByte(key, '.'); i >= 0 {

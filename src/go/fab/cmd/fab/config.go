@@ -101,7 +101,7 @@ func configReferenceCmd() *cobra.Command {
 		Long: "Prints a fully-commented reference fab/project/config.yaml to " +
 			"stdout, documenting every available option (both binary-consumed " +
 			"and skill-consumed keys). Baseline keys appear live with example " +
-			"values; optional override blocks (agent.tiers, stage_hooks, " +
+			"values; optional override blocks (agent.profiles, stage_hooks, " +
 			"branch_prefix) appear commented-out with fab-kit's built-in " +
 			"defaults. The output is generated from a per-field metadata table " +
 			"(never hand-written; defaults sourced from the binary's own " +
@@ -138,7 +138,7 @@ func renderReference(asJSON bool) (string, error) {
 // prints the merged effective config as YAML. With --origin it prints, per
 // registry field, the effective value alongside its provenance (the git config
 // --show-origin precedent): `project` file path, `system` file path, or `default`
-// — with per-key drill-down for map-valued fields (agent.tiers, providers), since
+// — with per-key drill-down for map-valued fields (agent.profiles, providers), since
 // maps merge per-key. --origin surfaces a typo'd override: the field the user
 // meant to set shows `default` when their file was expected to win.
 func configShowCmd() *cobra.Command {
@@ -154,7 +154,7 @@ func configShowCmd() *cobra.Command {
 			"explicitly by --origin. With --origin, prints each field's effective value " +
 			"and its provenance (project path / system path / default), composing the " +
 			"built-in defaults into the listing and drilling down per-key for map-valued " +
-			"fields (agent.tiers, providers). --origin surfaces a typo'd override, which " +
+			"fields (agent.profiles, providers). --origin surfaces a typo'd override, which " +
 			"shows origin `default` when a file was expected to win. Pure query — writes " +
 			"no file.",
 		Example: `  # Print the effective (post-cascade) config
@@ -264,7 +264,7 @@ type originLine struct {
 func (o originLine) left() string { return o.key + " = " + o.value }
 
 // topLevelKey collapses a dotted registry key to its top-level YAML key
-// ("agent.tiers" → "agent", "project.name" → "project", "source_paths" →
+// ("agent.profiles" → "agent", "project.name" → "project", "source_paths" →
 // "source_paths").
 func topLevelKey(key string) string {
 	if i := strings.IndexByte(key, '.'); i >= 0 {
@@ -274,38 +274,69 @@ func topLevelKey(key string) string {
 }
 
 // defaultSubtree returns the built-in default value for a top-level key as a
-// generic value (map or scalar), sourced from the registry Field.Default of the
-// row whose key IS the top-level key (e.g. `providers`, `agent.tiers` → nested
-// under `agent`). Registry defaults are typed structs/maps; a YAML round-trip
-// normalizes them into the same map[string]any shape the layer maps use, so
-// merge/flatten treats all three sources uniformly. Returns nil when no row
-// carries a built-in default for the key (the common case — most fields are nil).
+// generic value (map or scalar), built from EVERY registry row whose dotted key
+// starts with that top-level key (e.g. `providers`; `agent.session`,
+// `agent.workers` and `agent.profiles` all nest under `agent`). Each row's
+// Field.Default is nested under its remaining path segments and the resulting
+// subtrees are merged, so a top-level key carrying several default-bearing rows
+// contributes all of them — not just the first. Registry defaults are typed
+// structs/maps; a JSON round-trip normalizes them into the same map[string]any
+// shape the layer maps use, so merge/flatten treats all three sources uniformly.
+// Returns nil when no row carries a built-in default for the key (the common
+// case — most fields are nil).
 func defaultSubtree(fields []configref.Field, top string) any {
+	var out any
 	for _, f := range fields {
 		if f.Default == nil {
 			continue
 		}
 		// A default lives on the row whose dotted key's FIRST segment is `top`.
-		// `agent.tiers` contributes the `tiers` sub-map under `agent`.
+		// `agent.profiles` contributes the `profiles` sub-map under `agent`.
 		segs := strings.Split(f.Key, ".")
 		if segs[0] != top {
 			continue
 		}
 		normalized := normalizeToGeneric(f.Default)
-		// Nest the default under the remaining path segments (agent.tiers → the
-		// value sits at agent → tiers).
+		// Nest the default under the remaining path segments (agent.profiles → the
+		// value sits at agent → profiles).
 		for i := len(segs) - 1; i >= 1; i-- {
 			normalized = map[string]any{segs[i]: normalized}
 		}
-		return normalized
+		out = mergeGeneric(out, normalized)
 	}
-	return nil
+	return out
+}
+
+// mergeGeneric merges two default subtrees, with `over` winning on conflict.
+// Maps merge per-key recursively; anything else replaces wholesale. Registry
+// rows under one top-level key nest at disjoint paths, so in practice this only
+// unions sibling sub-keys (session + workers + profiles under `agent`).
+func mergeGeneric(base, over any) any {
+	if base == nil {
+		return over
+	}
+	if over == nil {
+		return base
+	}
+	bm, bok := asGenericMap(base)
+	om, ook := asGenericMap(over)
+	if !bok || !ook {
+		return over
+	}
+	out := make(map[string]any, len(bm)+len(om))
+	for k, v := range bm {
+		out[k] = v
+	}
+	for k, v := range om {
+		out[k] = mergeGeneric(out[k], v)
+	}
+	return out
 }
 
 // normalizeToGeneric round-trips a typed value (registry default struct/map)
 // into the generic map[string]any/[]any/scalar shape used by the layer maps, so
 // all three provenance sources merge and flatten uniformly. It marshals via JSON,
-// NOT YAML: the registry default structs (providerDefault, tierProfileDefault)
+// NOT YAML: the registry default structs (providerDefault, roleProfileDefault)
 // carry `json:` tags whose names match the real config keys (session_command,
 // provider, model, effort), whereas they carry no `yaml:` tags — a YAML marshal
 // would emit lowercased Go field names (sessioncommand) that would not line up
@@ -484,11 +515,11 @@ func configInitCmd() *cobra.Command {
 		Short: "Write a system scaffold (--system) or generate a project config from the registry (--project)",
 		Long: "With --system, writes a ~/.fab-kit/config.yaml scaffold containing ONLY " +
 			"the fields overridable at the system layer (scope system/both — today " +
-			"agent.tiers and providers), all commented, generated from the same " +
+			"the agent: block and providers), all commented, generated from the same " +
 			"per-field metadata table as `fab config reference` so it cannot drift. " +
 			"With --project, generates a fresh fab/project/config.yaml from the registry: " +
 			"the A-class identity fields (--name, --description, --source-path, --test-path) " +
-			"written live, followed by the managed reference fence — agent.tiers is NOT " +
+			"written live, followed by the managed reference fence — no agent: key is " +
 			"pinned (presence=intent). Both modes refuse to overwrite an existing file " +
 			"(no --force). Bare `fab config init` (neither flag) is a usage error.",
 		Example: `  # Write the ~/.fab-kit/config.yaml system-layer scaffold
@@ -604,7 +635,7 @@ const systemScaffoldHeader = `# ~/.fab-kit/config.yaml — system-level fab conf
 
 // renderSystemScaffold generates the system-layer scaffold by walking the field
 // registry and emitting the commented Segment of each system-overridable field
-// (scope system/both — today agent.tiers and providers). The Segments are the
+// (scope system/both — today the agent: block and providers). The Segments are the
 // same rendered YAML blocks `fab config reference` uses, so the scaffold cannot
 // drift from the schema. A live (uncommented) Segment (e.g. providers' live
 // claude session_command line) is comment-normalized so the whole scaffold ships

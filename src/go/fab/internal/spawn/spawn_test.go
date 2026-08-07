@@ -9,7 +9,7 @@ import (
 func TestCommand_WithSessionCommand(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
-	// The default tier's provider (claude by default) supplies the session command.
+	// The `default` role's provider (claude by default) supplies the session command.
 	os.WriteFile(configPath, []byte(`providers:
   claude:
     session_command: "custom-claude --model opus"
@@ -21,7 +21,7 @@ func TestCommand_WithSessionCommand(t *testing.T) {
 	}
 }
 
-// TestCommand_CustomDefaultProvider: the default tier can point at a non-claude
+// TestCommand_CustomDefaultProvider: the `default` role can point at a non-claude
 // provider; Command then reads THAT provider's session command.
 func TestCommand_CustomDefaultProvider(t *testing.T) {
 	dir := t.TempDir()
@@ -30,7 +30,7 @@ func TestCommand_CustomDefaultProvider(t *testing.T) {
   codex:
     session_command: "codex --tui"
 agent:
-  tiers:
+  profiles:
     default: { provider: codex }
 `), 0o644)
 
@@ -85,7 +85,7 @@ func TestCommand_InvalidYAML(t *testing.T) {
 	}
 }
 
-// TestWithProfile verifies the doing-tier flag injection: both flags appended at
+// TestWithProfile verifies the `doing`-role flag injection: both flags appended at
 // the END in order model→effort (last-wins), each flag omitted entirely when its
 // value is empty, and an all-empty profile leaving spawnCmd untouched.
 func TestWithProfile(t *testing.T) {

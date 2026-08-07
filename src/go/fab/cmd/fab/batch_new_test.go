@@ -334,7 +334,7 @@ func TestRunBatchNew_LaunchFailures(t *testing.T) {
 
 // writeBatchNewConfig writes fab/project/config.yaml under an existing fixture
 // root (from chdirBatchNewFixture) with the given providers.claude.session_command
-// (the default tier's provider), so defaultTierSpawnCommand reads it instead of
+// (the `default` role's provider), so defaultRoleSpawnCommand reads it instead of
 // falling back to DefaultSpawnCommand.
 func writeBatchNewConfig(t *testing.T, root, sessionCommand string) {
 	t.Helper()
@@ -362,10 +362,10 @@ func stubBatchNewTmuxCapture(t *testing.T) string {
 }
 
 // TestRunBatchNew_SpawnCommandProfileInjection verifies that the worker spawn
-// command carries the default tier's {model}/{effort} PROFILE — substituted into
+// command carries the `default` role's {model}/{effort} PROFILE — substituted into
 // a templated session_command (no literal braces reach tmux), or appended as
-// --model/--effort to a non-templated command. The default tier resolves to
-// claude/claude-fable-5/xhigh.
+// --model/--effort to a non-templated command. The `default` role resolves to
+// claude/claude-fable-5/high.
 func TestRunBatchNew_SpawnCommandProfileInjection(t *testing.T) {
 	t.Run("templated session_command substituted with the default profile", func(t *testing.T) {
 		root := chdirBatchNewFixture(t, testBacklog)

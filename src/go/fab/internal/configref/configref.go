@@ -21,15 +21,24 @@
 // GENERATED, NOT HAND-WRITTEN. Every default value that has a canonical Go
 // symbol is sourced from that symbol, never copied — the built-in providers via
 // agent.ResolveProvider over agent.ProviderNames (so the provider SET is derived
-// too, not a hand-maintained name list), the per-tier default profiles via
-// agent.DefaultTier over agent.TierNames, the pipeline stage names via
+// too, not a hand-maintained name list), the per-role default profiles via
+// agent.DefaultProfile over agent.RoleNames, the pipeline stage names via
 // agent.StageNames, and the pane-worker column width via
-// config.DefaultDispatchColumnWidth. The dynamic segments (providers, agent.tiers, stage_hooks)
+// config.DefaultDispatchColumnWidth. The dynamic segments (providers, agent, stage_hooks)
 // interpolate those same symbols when the row is built, so the reference text
 // carries no literal copy of any value. The providers SEGMENT still names the
 // three built-ins one by one (via agent.DefaultSessionCommand and the
 // agent.DefaultCodex*/DefaultGemini* vars) because its per-provider commentary is
 // bespoke prose, not a derivable projection — only the values are interpolated.
+//
+// ADVERTISED SURFACE vs. FULL REFERENCE. `advertise` decides only what the managed
+// fence scaffolds into every project's config.yaml. As of 260806-j9nh the advertised
+// agent surface is exactly the two depth knobs (agent.session, agent.workers); the
+// machinery beneath them — agent.profiles and the whole providers table — is
+// demoted to advertise:false, so it no longer costs ~90 commented lines in every
+// repo. It keeps its registry rows, its --json defaults, and its rendered segments,
+// because `fab config reference` is the canonical full schema surface and
+// `fab config init --system` renders from those same segments.
 //
 // Canonical default vs. rendering example: a field's Default holds the CANONICAL
 // built-in default (what the downstream cascade falls back to), not the value the
@@ -44,9 +53,10 @@
 // downstream resolver (Change 2) consumes; distinguishing []string{} from nil
 // would leak an implementation detail with no cascade meaning. A non-nil Default
 // therefore always denotes a real built-in value (the three built-in providers'
-// command grammars, the six tier profiles, dispatch.watchable's false,
-// dispatch.column_width's 35) — which is why no provider's Default carries a
-// model/effort fill: fab-kit ships none. The two dispatch rows are the convention's
+// command grammars, claude's six per-role fills, the resolved per-role profiles,
+// the two depth knobs' claude, dispatch.watchable's false, dispatch.column_width's
+// 35) — which is why codex's and gemini's Defaults carry no profiles map at all:
+// fab-kit ships those two grammar-only. The two dispatch rows are the convention's
 // boundary cases: for a BOOL there is no "absent" distinguishable from false, and
 // for the width an absent yaml int is indistinguishable from 0 (which the accessor
 // therefore reads as unset), so each carries its real built-in value rather than
@@ -54,8 +64,8 @@
 // § Default semantics.
 //
 // Render() output is BYTE-STABLE for a given binary version: the field table is
-// fixed and ordered, the interpolated tier/stage lists come from the
-// already-sorted agent.TierNames/agent.StageNames accessors, and no map is
+// fixed and ordered, the interpolated role/stage lists come from the
+// already-sorted agent.RoleNames/agent.StageNames accessors, and no map is
 // range-iterated during rendering. RenderJSON() is byte-stable for the same
 // reasons (ordered table, deterministic marshalling).
 package configref
@@ -119,11 +129,11 @@ func scopeFor(key string) Scope {
 // Field is one row of the per-field metadata table — the single source the two
 // renderings (commented YAML, JSON) are both generated from. It models the
 // override UNIT (a meaningful override surface), which is coarser than a leaf
-// key: map-valued fields (providers, agent.tiers, stage_hooks) are single rows
+// key: map-valued fields (providers, agent.profiles, stage_hooks) are single rows
 // with structured defaults, matching the downstream per-field deep-merge (maps
 // merge per-key, lists replace, scalars replace).
 type Field struct {
-	// Key is the dotted path of the override surface (e.g. "agent.tiers",
+	// Key is the dotted path of the override surface (e.g. "agent.profiles",
 	// "project.name", "true_impact_exclude"). It is the identity used by the
 	// JSON dump and the JSON/YAML key-parity check.
 	Key string
@@ -146,14 +156,17 @@ type Field struct {
 	// consumer in this change — data + JSON exposure only.
 	Advertise bool
 	// RenamedFrom is the previous key path for mechanical rename carry-forward.
-	// "" for every row today; the field serves FUTURE renames so they stop needing
-	// hand-written migrations. Omitted from the JSON dump when empty.
+	// One row carries it today — `agent.profiles`, recording the 260806-j9nh rename
+	// from `agent.tiers`; every other row is "". The carry is a top-level-key
+	// operation, so a same-top-level rename like that one still ships a hand-written
+	// migration; the field spares FUTURE top-level renames that cost. Omitted from
+	// the JSON dump when empty.
 	RenamedFrom string
 	// InitSeed marks an A-class IDENTITY field written LIVE at `fab config init
 	// --project` time from a seed value (the project's name/description/source/test
 	// paths). These are the only fields the generator writes above the managed
 	// fence on a fresh repo; every other field is fence territory from day one
-	// (presence=intent — an init-pinned tier would be an accidental override that
+	// (presence=intent — an init-pinned knob or role profile would be an accidental override that
 	// stops tracking fab-kit's defaults). Consumed by the init generator; not part
 	// of the JSON schema dump.
 	InitSeed bool
@@ -161,7 +174,7 @@ type Field struct {
 	// the reference — the field's own lines (leading comment prose + the live or
 	// commented key), WITHOUT a trailing newline or the inter-field blank line.
 	// Render() concatenates the segments in table order (blank line between). For
-	// the symbol-backed fields (providers, agent.tiers, stage_hooks) the segment
+	// the symbol-backed fields (providers, the agent: block, stage_hooks) the segment
 	// is built by interpolating the same Go symbols Default reads, so the
 	// rendered text carries no literal copy of any value. Not exposed in the JSON
 	// dump (it is the human-readable rendering of the same metadata).
@@ -169,8 +182,8 @@ type Field struct {
 }
 
 // jsonField is the JSON projection of a Field: stable snake_case keys and
-// renamed_from,omitempty (empty on every row today, so it is absent from the
-// current dump). Segment is intentionally excluded — it is the YAML rendering of
+// renamed_from,omitempty (carried by one row today — agent.profiles — and absent
+// from every other row's dump). Segment is intentionally excluded — it is the YAML rendering of
 // the same metadata, not part of the machine-readable schema. Kept separate from
 // Field so the Go struct-field names stay idiomatic while the wire shape stays
 // snake_case and stable for Changes 2-3.
@@ -183,41 +196,37 @@ type jsonField struct {
 	RenamedFrom string `json:"renamed_from,omitempty"`
 }
 
-// tierStages is the human-readable referent grouping shown next to each tier in
-// the reference comment. It restates the FIXED stage→tier mapping owned by
-// internal/agent plus the non-stage referents (the /fab-proceed dispatches):
-// default={intake advisory, create-intake dispatch}, operator={fab operator},
-// doing={apply,review-pr}, review={review}, hydrate={hydrate},
-// fast={ship, /fab-proceed prefix steps} — reference prose only, not a behavioral
-// second source.
-var tierStages = map[string]string{
-	agent.TierDefault:  "intake (advisory), fab batch, fab agent, /fab-proceed create-intake",
-	agent.TierOperator: "fab operator (coordinator session)",
-	agent.TierDoing:    "apply, review-pr",
-	agent.TierReview:   "review",
-	agent.TierHydrate:  "hydrate",
-	agent.TierFast:     "ship, /fab-proceed prefix steps",
-}
-
-// tierProfileDefault is the structured canonical default for one agent tier —
-// what lands in the agent.tiers row's Default (and the JSON dump). Sourced from
-// agent.DefaultTier; never a literal copy.
-type tierProfileDefault struct {
+// roleProfileDefault is the structured canonical default for one agent role —
+// what lands in the agent.profiles row's Default (and the JSON dump). Sourced from
+// agent.DefaultProfile; never a literal copy.
+type roleProfileDefault struct {
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
 	Effort   string `json:"effort"`
 }
 
+// providerProfileDefault is one built-in per-role fill on a provider — the
+// `providers.<name>.profiles.<role>` value. Both fields are `omitempty` so a fill
+// that carries only a model does not assert an empty effort.
+type providerProfileDefault struct {
+	Model  string `json:"model,omitempty"`
+	Effort string `json:"effort,omitempty"`
+}
+
 // providerDefault is the structured canonical default for ONE built-in provider.
-// Both command fields are `omitempty` because a built-in may legitimately carry
-// only one (claude ships no dispatch_command — absent = native Agent-tool
-// dispatch). There are deliberately NO model/effort keys: fab-kit's built-ins are
-// GRAMMAR ONLY, and the registry's empty-default convention says a non-nil Default
-// always denotes a real built-in value — emitting an empty model would assert a
-// built-in fill that does not exist. Sourced from the agent command vars.
+// Every field is `omitempty` because a built-in may legitimately carry only some
+// (claude ships no dispatch_command — absent = native Agent-tool dispatch; codex
+// and gemini ship GRAMMAR ONLY and carry no profiles at all). That matches the
+// registry's empty-default convention: a non-nil Default always denotes a real
+// built-in value, so an absent key means "fab-kit ships none", not "empty".
+//
+// The DEPRECATED flat fill (providers.<name>.model/.effort) is deliberately not
+// projected: no built-in carries it, and it exists only as a read-time alias for
+// profiles.default until the 2.16.19-to-2.17.0 migration rewrites a user's config.
 type providerDefault struct {
-	SessionCommand  string `json:"session_command,omitempty"`
-	DispatchCommand string `json:"dispatch_command,omitempty"`
+	SessionCommand  string                            `json:"session_command,omitempty"`
+	DispatchCommand string                            `json:"dispatch_command,omitempty"`
+	Profiles        map[string]providerProfileDefault `json:"profiles,omitempty"`
 }
 
 // providerDefaults is the structured canonical default for the providers row:
@@ -229,10 +238,8 @@ type providerDefault struct {
 // `agent.ResolveProvider` resolves with no config, and adding or renaming a
 // built-in in defaults.yaml needs no edit here.
 //
-// Only the two command fields are projected: fab-kit's built-ins are GRAMMAR
-// ONLY, so a resolved model/effort fill is deliberately dropped (see
-// providerDefault). Like tierRows, it fails loud on table drift — a name
-// ProviderNames reports must resolve.
+// Like roleRows, it fails loud on table drift — a name ProviderNames reports must
+// resolve.
 func providerDefaults() (map[string]providerDefault, error) {
 	names := agent.ProviderNames(nil)
 	defaults := make(map[string]providerDefault, len(names))
@@ -241,56 +248,56 @@ func providerDefaults() (map[string]providerDefault, error) {
 		if !ok {
 			return nil, fmt.Errorf("configref: provider %q from agent.ProviderNames does not resolve via agent.ResolveProvider", name)
 		}
+		var profiles map[string]providerProfileDefault
+		if len(p.Profiles) > 0 {
+			profiles = make(map[string]providerProfileDefault, len(p.Profiles))
+			for role, fill := range p.Profiles {
+				profiles[role] = providerProfileDefault{Model: fill.Model, Effort: fill.Effort}
+			}
+		}
 		defaults[name] = providerDefault{
 			SessionCommand:  p.SessionCommand,
 			DispatchCommand: p.DispatchCommand,
+			Profiles:        profiles,
 		}
 	}
 	return defaults, nil
 }
 
-// tierRow is one resolved tier: its name, its fixed stage grouping (reference
-// prose from tierStages), and its default {provider, model, effort} profile
-// (from agent.DefaultTier). It is the single per-tier view both the agent.tiers
-// Default (as tierProfileDefault) and the agent.tiers Segment are built from —
-// one walk of agent.TierNames(), no duplicated loop.
-type tierRow struct {
+// roleRow is one resolved role: its name and its default {provider, model, effort}
+// profile (from agent.DefaultProfile). It is the single per-role view both the
+// agent.profiles Default (as roleProfileDefault) and the rendered `agent:` Segment
+// are built from — one walk of agent.RoleNames(), no duplicated loop.
+type roleRow struct {
 	Name    string
-	Stages  string
-	Profile tierProfileDefault
+	Profile roleProfileDefault
 }
 
-// tierRows returns the ordered per-tier view, one row per agent.TierNames()
+// roleRows returns the ordered per-role view, one row per agent.RoleNames()
 // entry (sorted, so deterministic). It is the SINGLE source that both the
-// agent.tiers Default and the agent.tiers rendered Segment consume — there is no
-// second TierNames/DefaultTier loop. It fails loud on either tier-map drift: a
-// tier agent.TierNames reports must have an agent.DefaultTier profile AND a
-// tierStages grouping (the reference comment relies on both).
-func tierRows() ([]tierRow, error) {
-	names := agent.TierNames()
-	rows := make([]tierRow, 0, len(names))
+// agent.profiles Default and the rendered `agent:` Segment consume — there is no
+// second RoleNames/DefaultProfile loop. It fails loud on role-map drift: a role
+// agent.RoleNames reports must resolve through agent.DefaultProfile.
+func roleRows() ([]roleRow, error) {
+	names := agent.RoleNames()
+	rows := make([]roleRow, 0, len(names))
 	for _, name := range names {
-		p, ok := agent.DefaultTier(name)
+		p, ok := agent.DefaultProfile(name)
 		if !ok {
-			return nil, fmt.Errorf("configref: tier %q from agent.TierNames has no agent.DefaultTier profile", name)
+			return nil, fmt.Errorf("configref: role %q from agent.RoleNames does not resolve via agent.DefaultProfile", name)
 		}
-		stages, ok := tierStages[name]
-		if !ok {
-			return nil, fmt.Errorf("configref: tier %q has no tierStages grouping (add one when adding a tier)", name)
-		}
-		rows = append(rows, tierRow{
+		rows = append(rows, roleRow{
 			Name:    name,
-			Stages:  stages,
-			Profile: tierProfileDefault{Provider: p.Provider, Model: p.Model, Effort: p.Effort},
+			Profile: roleProfileDefault{Provider: p.Provider, Model: p.Model, Effort: p.Effort},
 		})
 	}
 	return rows, nil
 }
 
-// tierProfileDefaults projects tierRows into the map keyed by tier name that the
-// agent.tiers Field.Default carries (and the JSON dump emits).
-func tierProfileDefaults(rows []tierRow) map[string]tierProfileDefault {
-	out := make(map[string]tierProfileDefault, len(rows))
+// roleProfileDefaults projects roleRows into the map keyed by role name that the
+// agent.profiles Field.Default carries (and the JSON dump emits).
+func roleProfileDefaults(rows []roleRow) map[string]roleProfileDefault {
+	out := make(map[string]roleProfileDefault, len(rows))
 	for _, r := range rows {
 		out[r.Name] = r.Profile
 	}
@@ -304,18 +311,17 @@ func tierProfileDefaults(rows []tierRow) map[string]tierProfileDefault {
 //
 // It fails loudly on a broken invariant rather than silently emitting a degraded
 // reference:
-//   - agent.DefaultTier must know every tier agent.TierNames reports, and every
-//     such tier must have a tierStages grouping (via tierRows) — the symbol-
-//     sourced default set and the reference comment must both be complete.
+//   - agent.DefaultProfile must resolve every role agent.RoleNames reports (via
+//     roleRows) — the symbol-sourced default set must be complete.
 //   - the registry lint (below) rejects any row with an empty Description or an
 //     invalid Scope.
 //
 // Defaults are sourced from canonical Go symbols where they exist
-// (agent.DefaultSessionCommand, agent.DefaultTier). No literal here duplicates a
+// (agent.DefaultSessionCommand, agent.DefaultProfile). No literal here duplicates a
 // Go symbol; source_paths/test_paths carry a nil Default because their binary
 // default is empty (their shown values are rendering examples only).
 func Fields() ([]Field, error) {
-	tiers, err := tierRows()
+	roles, err := roleRows()
 	if err != nil {
 		return nil, err
 	}
@@ -442,20 +448,50 @@ checklist:
 #     - jscpd --reporters json --output {out} {paths}`,
 		},
 		{
-			Key:         "providers",
-			Default:     providers,
-			Description: "Named agent invocation grammars plus their optional default fill. Each provider MAY carry session_command (interactive session) and dispatch_command (headless stage task) — never merged, no fallback between them — plus optional model/effort fill values that supply the {model}/{effort} placeholders (precedence: invocation flag > tier field > provider fill > empty). fab-kit ships claude, codex, and gemini as grammar-only built-ins (no fill). Provider names are opaque, user-chosen strings.",
+			Key:         "agent.session",
+			Default:     agent.DefaultProviderName,
+			Description: "Provider for the Tier-1 (session) roles — the agents you talk to: fab agent, fab operator, fab batch worker sessions (roles default and operator). Names an entry in the providers table; applies at launch time. Scope both — settable once machine-wide. Default claude.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
-			Segment:     providersSegment(),
+			Segment:     agentSegment(roles),
 		},
 		{
-			Key:         "agent.tiers",
-			Default:     tierProfileDefaults(tiers),
-			Description: "Per-stage model override. A tier is a named {provider, model, effort} profile; the stage→tier mapping is fixed and fab-owned. Override only what each tier means; omitted fields inherit the default tier then the built-in.",
+			Key:         "agent.workers",
+			Default:     agent.DefaultProviderName,
+			Description: "Provider for the Tier-2 (worker) roles — the agents pipeline stages dispatch to: apply, review, hydrate, ship, review-pr (roles doing, review, hydrate, fast). Names an entry in the providers table; applies at every stage dispatch. Scope both — settable once machine-wide. Default claude.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
-			Segment:     agentTiersSegment(tiers),
+			// Rendered inline in the agent.session Segment (agent is one YAML block,
+			// so a second `agent:` parent would collide into a duplicate key); this
+			// row carries no Segment of its own. Same pattern as project.description
+			// and dispatch.column_width.
+		},
+		{
+			Key:         "agent.profiles",
+			Default:     roleProfileDefaults(roles),
+			Description: "Sparse per-role override beneath the two depth knobs. Keyed by role (default/operator/doing/review/hydrate/fast), each value a {provider, model, effort} with every field optional: a set provider beats the role's depth knob, a set model/effort beats the provider's own fill. There is no cross-role inheritance — agent.profiles.default is the default role's override, not a fallback for the others. The stage→role mapping and the role→depth partition are fixed and fab-owned.",
+			Scope:       ScopeBoth,
+			// Demoted from the managed fence (260806-j9nh): the advertised agent
+			// surface is the two knobs, and scaffolding the six role profiles into
+			// every project's config.yaml was ~30 of the ~90 lines the fence spent on
+			// machinery nobody overrides. Still fully documented — in the `agent:`
+			// segment's pointer lines, in --json (this row's Default), and in
+			// docs/specs/config.md.
+			Advertise:   false,
+			RenamedFrom: "agent.tiers",
+			// Rendered inline in the agent.session Segment (one `agent:` block).
+		},
+		{
+			Key:         "providers",
+			Default:     providers,
+			Description: "Named agent invocation grammars plus their per-role fills. Each provider MAY carry session_command (interactive session) and dispatch_command (headless stage task) — never merged, no fallback between them — plus a profiles map keyed by role supplying the {model}/{effort} placeholders (precedence: invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty). fab-kit ships claude with its six role fills, and codex and gemini as grammar-only built-ins. Provider names are opaque, user-chosen strings.",
+			Scope:       ScopeBoth,
+			// Demoted from the managed fence (260806-j9nh) for the same reason as
+			// agent.profiles: naming a built-in in a knob needs no providers: block at
+			// all, so ~60 commented lines of grammar per repo bought nothing. Still
+			// rendered here and in `fab config init --system`.
+			Advertise: false,
+			Segment:   providersSegment(),
 		},
 		{
 			Key: "dispatch.watchable",
@@ -517,9 +553,14 @@ const referenceHeader = `# Full reference of all available options: fab config r
 #
 # This is the canonical, generated reference for fab/project/config.yaml. Every
 # key below is documented — baseline keys appear live with example values;
-# optional override blocks (agent.tiers, stage_hooks, branch_prefix) are shown
+# optional override blocks (agent.profiles, stage_hooks, branch_prefix) are shown
 # commented-out with fab-kit's built-in defaults. Uncomment a block to opt in.
-# Values here are examples/defaults, not your project's settings.`
+# Values here are examples/defaults, not your project's settings.
+#
+# This is the FULL reference. Your project's own config.yaml carries a slimmer
+# managed fence: only the advertised fields are scaffolded there, so the agent
+# machinery below (agent.profiles, providers) is documented here rather than
+# copied into every repo. See docs/specs/config.md.`
 
 // providersSegment renders the providers block. Every command string is
 // interpolated from its canonical agent var (no literal copy):
@@ -530,7 +571,7 @@ const referenceHeader = `# Full reference of all available options: fab config r
 // are rendered as commented reference-style defaults — the same presentation every
 // other non-overridden default uses — not as uncomment-to-opt-in blocks. The
 // commented form still registers no project override (presence=intent holds for
-// BEHAVIOR: a built-in provider is inert until a tier or flag names it), and
+// BEHAVIOR: a built-in provider is inert until a knob, a role override, or a flag names it), and
 // whole-block uncommenting still yields valid YAML because all per-provider prose
 // stays above the `providers:` key.
 //
@@ -541,53 +582,57 @@ const referenceHeader = `# Full reference of all available options: fab config r
 // leading '# ' from every line of a block" instruction below restores this text
 // byte-exactly — with those lines still commented at their original indent.
 func providersSegment() string {
-	return "# providers — named agent invocation grammars plus their optional default fill.\n" +
+	return "# providers — named agent invocation grammars plus their per-role fills. This\n" +
+		"# block is MACHINERY: naming a built-in on a depth knob (agent.session /\n" +
+		"# agent.workers, above) needs no `providers:` entry at all, so it is documented\n" +
+		"# here rather than scaffolded into your config. Full schema: docs/specs/config.md.\n" +
+		"#\n" +
 		"# Each provider MAY carry two command fields (they are NOT merged — session and\n" +
 		"# dispatch are different invocations of the same binary):\n" +
 		"#   session_command  — opens an interactive agent SESSION (fab operator /\n" +
-		"#                       fab batch / fab agent). {model}/{effort} placeholders are\n" +
-		"#                       substituted from the resolved tier profile, or from the\n" +
-		"#                       --model/--effort flags on `fab agent --provider <name>`\n" +
-		"#                       (which bypasses tier resolution); the built-in commands\n" +
-		"#                       below are all templated this way. A command carrying\n" +
-		"#                       NO placeholder instead gets --model/--effort appended.\n" +
+		"#                      fab batch / fab agent). {model}/{effort} placeholders are\n" +
+		"#                      substituted from the resolved role profile, or from the\n" +
+		"#                      --model/--effort flags on `fab agent --provider <name>`\n" +
+		"#                      (which bypasses role resolution); the built-in commands\n" +
+		"#                      below are all templated this way. A command carrying\n" +
+		"#                      NO placeholder instead gets --model/--effort appended.\n" +
 		"#   dispatch_command — runs ONE headless stage task via fab dispatch. ABSENT →\n" +
 		"#                      native Agent-tool dispatch (the default). There is NO\n" +
 		"#                      fallback from dispatch_command to session_command. fab\n" +
 		"#                      dispatch pipes the stage prompt to the command's STDIN.\n" +
-		"# and two optional fill fields that supply those placeholders by default:\n" +
-		"#   model / effort   — this provider's DEFAULT FILL. Position in the precedence:\n" +
-		"#                      invocation flag > explicit tier field > provider fill >\n" +
-		"#                      empty (empty drops the placeholder's token, so the CLI's\n" +
-		"#                      own default applies). Scope `both`, so a machine-wide fill\n" +
-		"#                      is settable once in ~/.fab-kit/config.yaml.\n" +
+		"# and a per-role fill map that supplies those placeholders:\n" +
+		"#   profiles.<role>  — {model, effort} for when THIS provider plays THAT role.\n" +
+		"#                      Keyed by the six role names; `default` doubles as this\n" +
+		"#                      provider's cross-role fallback. Precedence: invocation\n" +
+		"#                      flag > agent.profiles.<role> field > profiles.<role> >\n" +
+		"#                      profiles.default > empty (empty drops the placeholder's\n" +
+		"#                      token, so the CLI's own default applies). Scope `both`,\n" +
+		"#                      so a machine-wide fill is settable once in\n" +
+		"#                      ~/.fab-kit/config.yaml. (The pre-2.17.0 flat\n" +
+		"#                      providers.<name>.model / .effort is still read as an alias\n" +
+		"#                      for profiles.default; the 2.16.19-to-2.17.0 migration\n" +
+		"#                      rewrites it.)\n" +
 		"# Provider names are opaque, user-chosen strings — fab NEVER infers a provider\n" +
-		"# from a model string. The cutoff is by provider NAME, not by vendor: a tier that\n" +
-		"# explicitly sets `provider:` to a name differing from the built-in tier's loses\n" +
-		"# that tier's model/effort inheritance and fills its unset fields from THAT\n" +
-		"# provider's own fill, then empty — even when the two names front the same vendor\n" +
-		"# (a second claude entry under another name still loses the inheritance). Pin\n" +
-		"# `model:` on the tier to be explicit.\n" +
+		"# from a model string, and values pass through verbatim with no validation.\n" +
 		"#\n" +
-		"# fab-kit ships THREE built-in providers — claude (the default), codex, and\n" +
-		"# gemini — as GRAMMAR ONLY: the command templates are built into the binary, but\n" +
-		"# no built-in carries a model/effort fill (non-claude model IDs rot at CLI\n" +
-		"# cadence, so they belong in config, not in a release). Naming codex or gemini in\n" +
-		"# a tier (or via `fab agent --provider` / `fab resolve-agent --provider`) resolves\n" +
-		"# with NO providers: block at all; set providers.<name>.model to pin its fill.\n" +
-		"# Every block below is shown commented because it merely restates a built-in\n" +
-		"# default — except claude's session_command, shown live as the baseline example.\n" +
-		"# Note codex/gemini DO carry a dispatch_command, so naming one flips that tier's\n" +
-		"# stages from native Agent-tool dispatch to headless CLI dispatch; claude's\n" +
-		"# dispatch_command is deliberately absent from the built-in (uncommenting the\n" +
-		"# line below flips claude's stages the same way).\n" +
+		"# fab-kit ships THREE built-in providers: claude (the default, carrying its six\n" +
+		"# role fills) plus codex and gemini as GRAMMAR ONLY — no fills, because non-claude\n" +
+		"# model IDs rot at CLI cadence and belong in config, not in a release. So\n" +
+		"# `agent.workers: codex` resolves today with an EMPTY model (the codex CLI's own\n" +
+		"# default applies) until you set providers.codex.profiles. Every block below is\n" +
+		"# shown commented because it merely restates a built-in default — except claude's\n" +
+		"# session_command, shown live as the baseline example. Note codex/gemini DO carry\n" +
+		"# a dispatch_command, so pointing a role at one flips its stages from native\n" +
+		"# Agent-tool dispatch to headless CLI dispatch; claude's dispatch_command is\n" +
+		"# deliberately absent from the built-in (uncommenting the line below flips\n" +
+		"# claude's stages the same way).\n" +
 		"#\n" +
 		"# Per-provider notes (kept out of the blocks below so uncommenting a whole block\n" +
 		"# yields valid YAML — strip the leading '# ' from every line of a block):\n" +
 		"#   claude.dispatch_command — claude -p reads the prompt from stdin; uncommenting\n" +
 		"#     runs claude's stages as headless CLI processes instead of native sub-agents.\n" +
-		"#   codex — codex exec reads the prompt from stdin. Set providers.codex.model to a\n" +
-		"#     current model ID (e.g. gpt-5.3-codex) — fab ships none and does not validate it.\n" +
+		"#   codex — codex exec reads the prompt from stdin. Set providers.codex.profiles\n" +
+		"#     to current model IDs (e.g. gpt-5.3-codex) — fab ships none and validates none.\n" +
 		"#   gemini — no {effort} (the gemini CLI has no reasoning-effort flag) and no -p:\n" +
 		"#     gemini's -p takes prompt TEXT (appended after stdin), whereas fab dispatch\n" +
 		"#     pipes the prompt to stdin, which gemini reads as the prompt in non-TTY mode.\n" +
@@ -598,42 +643,64 @@ func providersSegment() string {
 		"  # codex:\n" +
 		"  #   session_command: '" + agent.DefaultCodexSessionCommand + "'\n" +
 		"  #   dispatch_command: '" + agent.DefaultCodexDispatchCommand + "'\n" +
-		"  #   model: gpt-5.3-codex                    # example fill — fab ships no model ID for codex\n" +
-		"  #   effort: high\n" +
+		"  #   profiles:                               # example fills — fab ships no model ID for codex\n" +
+		"  #     default: { model: gpt-5.3-codex, effort: medium }\n" +
+		"  #     doing:   { model: gpt-5.3-codex, effort: high }\n" +
 		"  # gemini:\n" +
 		"  #   session_command: '" + agent.DefaultGeminiSessionCommand + "'\n" +
 		"  #   dispatch_command: '" + agent.DefaultGeminiDispatchCommand + "'   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)\n" +
-		"  #   model: gemini-2.5-pro                   # example fill — fab ships no model ID for gemini"
+		"  #   profiles:                               # example fill — fab ships no model ID for gemini\n" +
+		"  #     default: { model: gemini-2.5-pro }"
 }
 
-// agentTiersSegment renders the agent.tiers block. The FIXED stage→tier mapping
-// comment and the built-in default profiles are both emitted from the single
-// tierRows() walk — the same rows the agent.tiers Default is built from — so no
-// tier value is a literal copy and the loop is not duplicated.
-func agentTiersSegment(tiers []tierRow) string {
+// agentSegment renders the WHOLE `agent:` block — the two advertised depth knobs
+// live, plus a commented agent.profiles pointer/example — since `agent` is one YAML
+// block and two separately-uncommentable `agent:` parents would collide into a
+// duplicate key (the project.name / dispatch.watchable precedent). The
+// agent.workers and agent.profiles registry rows therefore carry no Segment of
+// their own.
+//
+// This is the ONLY agent-side block the managed fence scaffolds, which is the whole
+// point of the 260806-j9nh demotion: the fixed role→referent grouping and the
+// built-in per-role profiles are emitted from the single roleRows() walk — the same
+// rows the agent.profiles Default is built from — so no value here is a literal copy
+// and the loop is not duplicated.
+func agentSegment(roles []roleRow) string {
 	var b strings.Builder
-	b.WriteString("# agent.tiers — per-stage model override. A \"tier\" is a named\n")
-	b.WriteString("# {provider, model, effort} profile (the invocation command lives on the provider,\n")
-	b.WriteString("# above — NOT on the tier). fab-kit owns the FIXED, non-overridable stage→tier\n")
-	b.WriteString("# mapping below; you override only WHAT EACH TIER MEANS. Omit any tier (or the\n")
-	b.WriteString("# whole tiers: block) to use fab-kit's built-in default. An omitted field within a\n")
-	b.WriteString("# tier inherits the project's `default` tier, then fab-kit's built-in; an empty\n")
-	b.WriteString("# model means \"inherit the session model\". Resolved per stage by\n")
-	b.WriteString("# `fab resolve-agent <stage>` at sub-agent dispatch time. Values pass through\n")
-	b.WriteString("# verbatim — fab does no provider validation. See docs/specs/stage-models.md.\n")
+	b.WriteString("# agent.session / agent.workers — the two knobs, one per agent DEPTH. `session`\n")
+	b.WriteString("# is what YOU talk to (fab agent, fab operator, fab batch); `workers` is what\n")
+	b.WriteString("# pipeline STAGES dispatch to. Each names an entry in the `providers:` table,\n")
+	b.WriteString("# which `fab config reference` prints in full (it is machinery, so the managed\n")
+	b.WriteString("# fence omits it) — fab-kit ships claude, codex and gemini, so `workers: codex`\n")
+	b.WriteString("# needs no other config. Both default to claude. Scope `both`, so the choice is\n")
+	b.WriteString("# settable once machine-wide in ~/.fab-kit/config.yaml.\n")
 	b.WriteString("#\n")
-	b.WriteString("# FIXED stage→tier mapping (fab-owned, NOT overridable — shown for reference):\n")
-	for _, t := range tiers {
-		fmt.Fprintf(&b, "#   %-9s %s\n", t.Name, t.Stages)
+	// The role→depth partition, compacted to one line per depth. internal/agent OWNS
+	// the partition; agent.IsSessionRole is the exported read of it, so this rendering
+	// never re-encodes which roles sit at which depth. The full role→referent table
+	// (which stages each role governs) lives in docs/specs/stage-models.md — the fence
+	// carries the ADVERTISED surface, not the taxonomy behind it.
+	var session, workers []string
+	for _, r := range roles {
+		if agent.IsSessionRole(r.Name) {
+			session = append(session, r.Name)
+			continue
+		}
+		workers = append(workers, r.Name)
 	}
+	fmt.Fprintf(&b, "#   session roles: %s\n", strings.Join(session, ", "))
+	fmt.Fprintf(&b, "#   workers roles: %s\n", strings.Join(workers, ", "))
 	b.WriteString("#\n")
-	b.WriteString("# fab-kit's built-in default profiles (today):\n")
+	b.WriteString("# agent.profiles.<role> is the sparse per-role escape hatch beneath the knobs —\n")
+	b.WriteString("# {provider, model, effort}, every field optional, no cross-role inheritance.\n")
+	b.WriteString("# Reach for it only to dial ONE role; see `fab config reference --json` and\n")
+	b.WriteString("# docs/specs/config.md. (`agent.tiers` is its pre-2.17.0 spelling — still read,\n")
+	b.WriteString("# rewritten by the 2.16.19-to-2.17.0 migration.)\n")
 	b.WriteString("agent:\n")
-	b.WriteString("  tiers:\n")
-	for _, t := range tiers {
-		fmt.Fprintf(&b, "    %-9s { provider: %s, model: %s, effort: %s }\n",
-			t.Name+":", t.Profile.Provider, t.Profile.Model, t.Profile.Effort)
-	}
+	b.WriteString("  session: " + agent.DefaultProviderName + "                    # Tier 1 — the agents you talk to\n")
+	b.WriteString("  workers: " + agent.DefaultProviderName + "                    # Tier 2 — the agents stages dispatch to\n")
+	b.WriteString("  # profiles:\n")
+	b.WriteString("  #   review: { provider: codex }      # example: run just the critic elsewhere\n")
 	// Trim the trailing newline: Render() re-inserts the inter-field separator.
 	return strings.TrimRight(b.String(), "\n")
 }
@@ -695,7 +762,7 @@ func stageHooksSegment() string {
 // lintFields is the fail-loud registry validation: every row must have a
 // non-empty Description and a valid Scope. A violation is a construction bug
 // (a new row added without metadata), caught here rather than shipped as a
-// degraded reference — the same discipline as the tier-profile invariant above.
+// degraded reference — the same discipline as the role-profile invariant above.
 func lintFields(fields []Field) error {
 	for _, f := range fields {
 		if f.Description == "" {
@@ -754,7 +821,7 @@ func InitSeedKeys() ([]string, error) {
 // table order, one blank line between blocks. The output is byte-stable for a
 // given binary version and is what `fab config reference` prints to stdout. It
 // returns an error rather than emitting partial/degraded output if an invariant
-// breaks (Fields surfaces the tier-map drift and the registry lint), so a future
+// breaks (Fields surfaces the role-map drift and the registry lint), so a future
 // edit that breaks an invariant fails loudly instead of silently shipping a
 // malformed reference.
 //

@@ -7,33 +7,52 @@
 # same keys a project writes to override any of these values. That shape is the
 # point — everything in this file is user-overridable by writing the same key in
 # fab/project/config.yaml (or ~/.fab-kit/config.yaml). Everything that stays in
-# Go is fab-owned policy, not tunable data: the fixed stage→tier mapping
-# (stageTiers in agent.go) is deliberately NOT here.
+# Go is fab-owned policy, not tunable data: the fixed stage→role mapping
+# (stageRoles in agent.go) and the role→depth partition (roleDepth) are
+# deliberately NOT here.
 #
 # TO BUMP A MODEL: edit the line below, then run the tests. Every other place
 # that restates these values is drift-guarded and will name itself in the
 # failure output — you do not have to go find them:
 #
-#   TestDefaultsFileIsWellFormed         this file parses + covers every tier/provider (defaults_test.go)
-#   TestDefaultTierProfilesArePinned     the deliberate-change pin (agent_test.go)
-#   TestDocTablesMatchAgentMaps          docs/specs/stage-models.md § default-tier TABLE
-#   TestMirrorDocsMatchDefaultTiers      docs/specs/stage-models.md inline-YAML sample
-#   TestCLIFabReferenceListsDefaultTiers src/kit/skills/_cli-fab.md § resolve-agent enumeration
+#   TestDefaultsFileIsWellFormed          this file parses + covers every role/provider (defaults_test.go)
+#   TestDefaultRoleProfilesArePinned      the deliberate-change pin (agent_test.go)
+#   TestDocTablesMatchAgentMaps           docs/specs/stage-models.md § default-role TABLE
+#   TestMirrorDocsMatchDefaultProfiles    docs/specs/stage-models.md inline-YAML sample
+#   TestCLIFabReferenceListsDefaultRoles  src/kit/skills/_cli-fab.md § resolve-agent enumeration
 #
-# No other test hardcodes these strings — the rest derive from DefaultTier(), so
-# a bump does not touch them.
+# No other test hardcodes these strings — the rest derive from DefaultProfile(),
+# so a bump does not touch them.
 
-# providers — the built-in invocation grammars, GRAMMAR ONLY. No built-in
-# carries a model/effort fill: grammar changes at binary-release cadence and is
-# safe to ship, while non-claude model IDs rot in weeks and so belong in user
-# config (providers.<name>.model/.effort, a tier field, or an invocation flag).
+# agent.session / agent.workers — the two advertised knobs, selecting a provider
+# by agent DEPTH. session = the Tier-1 roles a user talks to (default, operator);
+# workers = the Tier-2 roles pipeline stages dispatch to (doing, review, hydrate,
+# fast). Both ship as claude, so a fresh install writes nothing.
+agent:
+  session: claude
+  workers: claude
+
+# providers — the built-in invocation grammars plus, for claude, its per-role
+# fills. Grammar changes at binary-release cadence and is safe to ship; non-claude
+# model IDs rot in weeks, so codex and gemini ship GRAMMAR ONLY and carry no
+# profiles at all (naming one resolves an empty model, and the provider CLI's own
+# default applies until a project sets providers.<name>.profiles).
 #
 # claude deliberately carries NO dispatch_command — its absence is what selects
-# native Agent-tool dispatch. codex and gemini carry one, so naming either in a
-# tier flips that tier's stages to headless CLI dispatch.
+# native Agent-tool dispatch. codex and gemini carry one, so pointing a role at
+# either flips that role's stages to headless CLI dispatch.
 providers:
   claude:
     session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
+    # The six role fills. `default` doubles as this provider's cross-role
+    # fallback: a role absent here resolves the `default` entry, then empty.
+    profiles:
+      default:  { model: claude-fable-5,  effort: high }
+      operator: { model: claude-sonnet-5, effort: medium }
+      doing:    { model: claude-opus-5,   effort: high }
+      review:   { model: claude-opus-5,   effort: high }
+      hydrate:  { model: claude-opus-5,   effort: high }
+      fast:     { model: claude-sonnet-5, effort: medium }
   codex:
     # `codex exec` is a SUBCOMMAND (not a flag) and reads the prompt from stdin,
     # which is where `fab dispatch` pipes it.
@@ -46,15 +65,3 @@ providers:
     # the prompt to stdin, which gemini reads as the prompt in non-TTY mode.
     session_command: 'gemini -m {model}'
     dispatch_command: 'gemini -m {model}'
-
-# agent.tiers — the built-in tier→profile table. Provider is written explicitly
-# on every line (documented style; per-field inheritance is the safety net, not
-# the style).
-agent:
-  tiers:
-    default:  { provider: claude, model: claude-fable-5,  effort: high }
-    operator: { provider: claude, model: claude-sonnet-5, effort: medium }
-    doing:    { provider: claude, model: claude-opus-5,   effort: high }
-    review:   { provider: claude, model: claude-opus-5,   effort: high }
-    hydrate:  { provider: claude, model: claude-opus-5,   effort: high }
-    fast:     { provider: claude, model: claude-sonnet-5, effort: medium }

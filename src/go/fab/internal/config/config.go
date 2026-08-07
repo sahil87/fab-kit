@@ -42,18 +42,30 @@ type StageHook struct {
 	Post string `yaml:"post"`
 }
 
+// ProviderProfile is the {model, effort} a provider supplies when it plays ONE
+// role — the `providers.<name>.profiles.<role>` entry. It carries no provider
+// field (the provider is the map it hangs off) and no command (that lives on the
+// ProviderConfig). Either field MAY be empty; an empty value falls through to the
+// provider's `default`-role profile and then to empty, whose established meaning
+// is spawn.WithProfile's token-drop (so the CLI's own default applies) and, on a
+// resolve-agent `model=` line, "inherit the session model".
+type ProviderProfile struct {
+	Model  string `yaml:"model"`
+	Effort string `yaml:"effort"`
+}
+
 // ProviderConfig models one entry of the top-level `providers:` table: a named
-// invocation grammar for an agent harness. Provider names are opaque, user-chosen
-// strings (fab never infers a provider from a model string).
+// invocation grammar for an agent harness, plus its per-role fills. Provider names
+// are opaque, user-chosen strings (fab never infers a provider from a model
+// string).
 //
 //   - SessionCommand opens an interactive agent SESSION (the relocated
 //     agent.spawn_command semantics — consumed by fab operator / fab batch /
 //     fab agent).
-//   - DispatchCommand runs ONE headless stage task via fab dispatch (the relocated
-//     per-tier spawn_command semantics). ABSENT DispatchCommand = native
-//     Agent-tool dispatch (the default). There is NO fallback between the two
-//     fields: absence of DispatchCommand signals native dispatch, never "use
-//     SessionCommand".
+//   - DispatchCommand runs ONE headless stage task via fab dispatch. ABSENT
+//     DispatchCommand = native Agent-tool dispatch (the default). There is NO
+//     fallback between the two fields: absence of DispatchCommand signals native
+//     dispatch, never "use SessionCommand".
 //
 // The two command fields are deliberately NOT merged into one: session and
 // dispatch are different invocations of the same binary (claude interactive `-n`
@@ -62,40 +74,53 @@ type StageHook struct {
 // provider's accepted set (provider neutrality, Constitution Principle I). The
 // {model}/{effort} placeholders are substituted at resolve time via internal/spawn.
 //
-// Model and Effort are the provider's optional DEFAULT FILL for those placeholders
-// (260805-j3cm) — the "extra set of config that fills the templates". They exist
-// because grammar and fill values rot at different rates: fab-kit ships the
-// non-claude grammar as Go built-ins (internal/agent.defaultProviders) but NEVER
-// their model IDs, which change at CLI cadence. Their position in the fill
-// precedence is third:
+// Profiles is the provider's PER-ROLE FILL: "when this provider plays this role,
+// use this model/effort". It is keyed by role name, and the `default` role doubles
+// as the provider's cross-role fallback. It is the only cross-role fallback chain
+// in the resolver — the agent side has none — and sits below an explicit
+// agent.profiles.<role> field in the fill precedence:
 //
-//	invocation flag  >  explicit tier field  >  provider default fill  >  empty
+//	invocation flag  >  agent.profiles.<role>.<field>
+//	                 >  providers.<p>.profiles.<role>.<field>
+//	                 >  providers.<p>.profiles.default.<field>
+//	                 >  providers.<p>.<field>  (deprecated flat fill)  >  empty
 //
-// An empty resolved value keeps its existing meaning (spawn.WithProfile's
-// token-drop → the CLI's own default; an empty resolve-agent `model=` line =
-// "inherit the session model"). Both fields are scope `both`, so a machine-wide
-// fill is settable once in ~/.fab-kit/config.yaml.
+// Model and Effort are the DEPRECATED FLAT FILL (pre-2.17.0
+// providers.<name>.model/.effort). They are still read, but as the rung BELOW
+// Profiles["default"] rather than as an alias for it, so a config that has not yet
+// run the 2.16.19-to-2.17.0 migration keeps resolving; new configs write
+// providers.<name>.profiles.default instead. One fill per provider resolved the same
+// model for every role, which is exactly the role differentiation the nested map
+// restores.
+//
+// The whole table is scope `both`, so a machine-wide fill is settable once in
+// ~/.fab-kit/config.yaml.
 type ProviderConfig struct {
-	SessionCommand  string `yaml:"session_command"`
-	DispatchCommand string `yaml:"dispatch_command"`
-	Model           string `yaml:"model"`
-	Effort          string `yaml:"effort"`
+	SessionCommand  string                     `yaml:"session_command"`
+	DispatchCommand string                     `yaml:"dispatch_command"`
+	Profiles        map[string]ProviderProfile `yaml:"profiles"`
+
+	// Deprecated: the flat fill. Read as the rung below Profiles["default"]; see
+	// the type doc. Removed from the documented surface in 2.17.0.
+	Model  string `yaml:"model"`
+	Effort string `yaml:"effort"`
 }
 
-// TierProfile is a named `{provider, model, effort}` agent profile. Every field
-// MAY be empty: an empty Provider/Model/Effort inherits from the project's
-// `default` tier, then from fab-kit's built-in (per-field merge, performed by
-// internal/agent). An empty Model additionally signals "inherit the
-// session/orchestrator model" once resolution bottoms out.
+// RoleProfile is a named `{provider, model, effort}` agent profile — one entry of
+// `agent.profiles`. Every field MAY be empty, and the map is deliberately SPARSE:
+// an unset field is simply not an override, and resolution continues down the fill
+// precedence (see ProviderConfig) rather than inheriting from another role. There
+// is NO agent-side `default`-role inheritance — agent.profiles.default is the
+// `default` role's own override, not a fallback source for the other five.
 //
 // Provider names the entry in the top-level `providers:` table whose command
-// grammar this tier's stages use. The command itself lives on the provider, NOT
-// the tier — inheriting {provider, model, effort} is safe precisely because the
-// dangerous cross-semantics command inheritance can no longer happen.
+// grammar this role's agents use; when unset, the role's depth knob
+// (agent.session or agent.workers) supplies it. The command itself lives on the
+// provider, NOT the role.
 //
 // All strings are pass-through — fab applies NO validation (provider neutrality,
 // Constitution Principle I). See internal/agent for resolution.
-type TierProfile struct {
+type RoleProfile struct {
 	Provider string `yaml:"provider"`
 	Model    string `yaml:"model"`
 	Effort   string `yaml:"effort"`
@@ -103,16 +128,34 @@ type TierProfile struct {
 
 // AgentConfig models the `agent:` section of config.yaml.
 //
-// Tiers is the sole per-stage-model override surface: a map of role-tier name
-// (default/operator/doing/review/hydrate/fast) → profile. The stage→tier mapping itself
-// is fab-owned and NOT user-overridable (no stage_tiers, no per-stage escape
-// hatch); users override only what each tier *means*. An omitted tier — or an
-// omitted field within a tier — falls back to the project's `default` tier and
-// then fab-kit's built-in default (per-field merge, performed by internal/agent).
-// yaml.v3 ignores unknown keys, so adding Tiers is free for existing configs (the
-// same property that made stage_hooks free).
+// Session and Workers are the two ADVERTISED knobs, selecting a provider by agent
+// DEPTH: Session covers the Tier-1 roles (the agents a user talks to — `default`,
+// `operator`), Workers the Tier-2 roles (the agents pipeline stages dispatch to —
+// `doing`, `review`, `hydrate`, `fast`). Both default to `claude`. The role→depth
+// partition is fab-owned and NOT user-overridable (internal/agent), as is the
+// stage→role mapping; users say "claude for what I talk to, gemini for the
+// workers" and stop there.
+//
+// Profiles is the sparse per-role escape hatch beneath them: a map of role name
+// (default/operator/doing/review/hydrate/fast) → {provider, model, effort}, each
+// field optional and each set field beating the knob (provider) or the provider's
+// own fill (model/effort).
+//
+// Tiers is the DEPRECATED spelling of Profiles (pre-2.17.0 `agent.tiers`), read
+// per role as a fallback so a config that has not yet run the 2.16.19-to-2.17.0
+// migration keeps resolving. Note the semantics differ in one respect that the
+// migration does not paper over: the old `tiers` map re-based every unset field
+// from its `default` tier, and that inheritance is gone.
+//
+// yaml.v3 ignores unknown keys, so widening this struct is free for existing
+// configs (the same property that made stage_hooks free).
 type AgentConfig struct {
-	Tiers map[string]TierProfile `yaml:"tiers"`
+	Session  string                 `yaml:"session"`
+	Workers  string                 `yaml:"workers"`
+	Profiles map[string]RoleProfile `yaml:"profiles"`
+
+	// Deprecated: the pre-2.17.0 spelling of Profiles. See the type doc.
+	Tiers map[string]RoleProfile `yaml:"tiers"`
 }
 
 // ProjectConfig models the `project:` section of config.yaml.
@@ -229,7 +272,7 @@ func readDotFabVersion(fabRoot string) string {
 // The two FILES merge here at the YAML map level (per-field deep merge: maps
 // merge per-key recursively, lists replace, scalars replace, project wins); the
 // built-in-defaults layer stays where it lives today — the point-of-use fallbacks
-// (internal/agent's tier/provider merge, the nil-safe accessors) — which composes
+// (internal/agent's role/provider resolution, the nil-safe accessors) — which composes
 // to identical three-layer semantics with zero per-caller change.
 //
 // Fail-open contract (config must never brick):
@@ -497,18 +540,61 @@ func (c *Config) ProviderNames() []string {
 	return names
 }
 
-// GetAgentTier returns the configured override profile for a tier name and
-// whether one was set. Nil-safe: a nil *Config, an absent agent.tiers block, or
-// an unconfigured tier all report (zero, false). The bool lets a caller
+// GetAgentProfile returns the configured override profile for a role name and
+// whether one was set. Nil-safe: a nil *Config, an absent agent.profiles block, or
+// an unconfigured role all report (zero, false). The bool lets a caller
 // distinguish "no override" from "override present but with empty fields" — the
-// distinction internal/agent.Resolve relies on for per-field merge over the
-// fab-kit default.
-func (c *Config) GetAgentTier(tier string) (TierProfile, bool) {
-	if c == nil || c.Agent.Tiers == nil {
-		return TierProfile{}, false
+// distinction internal/agent's resolution relies on.
+//
+// The lookup is PER ROLE, not per block: a role absent from agent.profiles falls
+// back to the deprecated agent.tiers spelling for that role, so a half-migrated
+// config (some roles moved, some not) resolves every role. agent.profiles wins
+// whenever it carries the role.
+//
+// LIMITATION — the alias resolves AFTER the scope cascade, so for a role written in
+// the NEW spelling in one scope and the LEGACY spelling in another, the spelling
+// decides, not the scope: LoadPath merges the system (~/.fab-kit/config.yaml) and
+// project layers per key first, leaving `profiles` and `tiers` as two separate maps,
+// and this accessor then prefers `profiles` wherever it carries the role. So a
+// SYSTEM-layer agent.profiles.<role> beats a PROJECT-layer agent.tiers.<role>,
+// inverting the documented project > system precedence. It only bites a
+// hand-half-migrated pair of scopes; running the 2.16.19-to-2.17.0 migration (which
+// sweeps BOTH files) removes the legacy spelling from both and restores the normal
+// precedence, as does moving the role to `profiles` in the losing scope. Making the
+// alias cascade-aware would mean tracking per-scope, per-key provenance through
+// LoadPath for a spelling that exists only for the pre-migration window — a cost
+// out of proportion to a transitional key. Pinned by
+// TestResolveCrossScopeLegacyAliasPrecedence in cmd/fab.
+func (c *Config) GetAgentProfile(role string) (RoleProfile, bool) {
+	if c == nil {
+		return RoleProfile{}, false
 	}
-	p, ok := c.Agent.Tiers[tier]
+	if p, ok := c.Agent.Profiles[role]; ok {
+		return p, true
+	}
+	p, ok := c.Agent.Tiers[role]
 	return p, ok
+}
+
+// GetAgentSession returns agent.session — the provider knob for the Tier-1
+// (session) roles — or "" when unset (nil-safe). internal/agent supplies the
+// built-in fallback; an empty string here means "the knob is not configured", not
+// "no provider".
+func (c *Config) GetAgentSession() string {
+	if c == nil {
+		return ""
+	}
+	return c.Agent.Session
+}
+
+// GetAgentWorkers returns agent.workers — the provider knob for the Tier-2
+// (dispatched worker) roles — or "" when unset (nil-safe). Same empty-means-unset
+// contract as GetAgentSession.
+func (c *Config) GetAgentWorkers() string {
+	if c == nil {
+		return ""
+	}
+	return c.Agent.Workers
 }
 
 // GetDispatchWatchable returns dispatch.watchable — the watchable-pane opt-in — or

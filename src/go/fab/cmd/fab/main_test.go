@@ -9,7 +9,7 @@ import (
 // TestMain isolates $HOME for the whole cmd/fab test package before running any
 // test. The lpb5 cascade made internal/config.LoadPath merge
 // ~/.fab-kit/config.yaml (via os.UserHomeDir, which honors $HOME on unix) into
-// every config read, so a developer's real system config with an agent.tiers /
+// every config read, so a developer's real system config with an agent.profiles /
 // providers override would perturb the exact-byte assertions in
 // resolve_agent_test.go, agent_test.go, batch_*_test.go, and dispatch_start_test.go.
 // Pointing HOME at a fresh empty temp dir for the package makes those resolved-
