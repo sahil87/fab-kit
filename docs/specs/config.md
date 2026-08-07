@@ -42,28 +42,28 @@ table adds *structure*, never a second copy of *values*.
 ## The per-field schema
 
 Each row of the table models one **override unit** — a meaningful override surface, coarser than a
-leaf key. Map-valued fields (`providers`, `agent.tiers`, `stage_hooks`) are single rows with
+leaf key. Map-valued fields (`providers`, `agent.profiles`, `stage_hooks`) are single rows with
 structured defaults, matching the per-field deep-merge semantics [Change 2] uses (maps merge per-key,
 lists replace, scalars replace).
 
 | Field | Meaning |
 |-------|---------|
-| `key` | Dotted path of the override surface (e.g. `agent.tiers`, `project.name`, `true_impact_exclude`). The identity used by the JSON dump and the JSON↔YAML key-parity guard. |
+| `key` | Dotted path of the override surface (e.g. `agent.profiles`, `project.name`, `true_impact_exclude`). The identity used by the JSON dump and the JSON↔YAML key-parity guard. |
 | `default` | The **canonical** built-in default (typed). What the cascade [Change 2] falls back to when no layer overrides the field. A field with no built-in default carries `null` — uniformly, never a typed empty (`[]`/`{}`/`""`). See § Default semantics. |
 | `description` | One-line summary of the field. Required (non-empty) — the registry lint rejects an empty description. Feeds the JSON dump and, later, the generated comment scaffold [Change 3]. |
 | `scope` | Override visibility across the cascade layers: `project` / `system` / `both`. See § Scope taxonomy. |
 | `advertise` | The "C flag": whether [Change 3]'s managed fence scaffolds this field as a commented reference when it is not overridden. See § Advertise semantics. |
-| `renamed_from` | Previous key path for mechanical rename carry-forward. `""` on every row today; serves *future* renames. See § renamed_from. |
+| `renamed_from` | Previous key path for mechanical rename carry-forward. Set on `agent.profiles` (`agent.tiers`) as of 260806-j9nh; `""` on every other row. See § renamed_from. |
 | `init-seed` | Whether the field is an A-class **identity** field written LIVE at `fab config init --project` time ([Change 3]) — `project.name`/`project.description`/`source_paths`/`test_paths`. The generator's live block above the fence; every other field is fence territory from day one. Consumed by the init generator, NOT exposed in the `--json` schema dump (like the rendered YAML segment). |
 
 ### Defaults are sourced from canonical Go symbols — no second copy
 
 Every default that has a canonical Go symbol is referenced from it, not copied: the claude session
-command from `agent.DefaultSessionCommand`, the per-tier profiles via `agent.DefaultTier` over
-`agent.TierNames()`, the stage names via `agent.StageNames()`. The registry construction fails loud
-(returns an error rather than emitting a degraded reference) if a tier reported by `TierNames()` has no
-`DefaultTier` profile, or a tier has no stage grouping, or a row has an empty description or an invalid
-scope — the same fail-loud discipline the pre-metadata-table renderer applied to its tier invariants.
+command from `agent.DefaultSessionCommand`, the per-role profiles via `agent.DefaultProfile` over
+`agent.RoleNames()`, the stage names via `agent.StageNames()`. The registry construction fails loud
+(returns an error rather than emitting a degraded reference) if a role reported by `RoleNames()` does not
+resolve through `DefaultProfile`, or a row has an empty description or
+an invalid scope — the same fail-loud discipline the pre-metadata-table renderer applied to its invariants.
 
 ### Canonical default vs. rendering example
 
@@ -82,30 +82,33 @@ resolver consumes; distinguishing an empty list from an empty map from an empty 
 Go-side implementation detail that carries no cascade meaning and would make `--json` emit
 `null`/`[]`/`{}`/`""` inconsistently for the same "no default" concept. So a **non-null** `default`
 always denotes a real built-in value (today: the `providers` row's **three built-in providers** —
-claude/codex/gemini, `260805-j3cm` — the six `agent.tiers` profiles, `dispatch.watchable`'s
+claude/codex/gemini, `260805-j3cm`, with claude's six per-role fills — the resolved `agent.profiles` defaults, the two depth knobs' `claude`, `dispatch.watchable`'s
 `false`, and `dispatch.column_width`'s `35`); every other row is `null`. **The two `dispatch` rows are
 the convention's boundary cases and are deliberately not `null`**: for a **bool** there is no "absent"
 state distinguishable from `false`, and for the width an absent YAML int is indistinguishable from `0`
 (which the accessor therefore reads as unset, alongside every other out-of-`1..99` value), so each
 carries a real built-in value the cascade genuinely bottoms out at — not the typed-empty placeholder
 the convention forbids (the forbidden shapes are the ones that could stand in for "nothing").
-The same rule is why no provider's `default` carries a `model`/`effort` **fill**: fab-kit ships
-provider *grammar* only (non-claude model IDs rot at CLI cadence), so emitting an empty-string model
-there would assert a built-in value that deliberately does not exist. The fill fields are documented
-in the row's `description`/`segment` and settable in either layer (`providers` is scope `both`);
-they are simply not defaulted.
+The same rule governs the **per-role fills** inside the `providers` default: claude's `profiles` map is
+projected (six real built-in values), while codex's and gemini's are **omitted entirely** rather than
+emitted as an empty map — fab-kit ships those two as *grammar only* (non-claude model IDs rot at CLI
+cadence), so an empty `profiles: {}` would assert a built-in fill that deliberately does not exist.
+Their fills are documented in the row's `description`/`segment` and settable in either layer
+(`providers` is scope `both`); they are simply not defaulted. The **deprecated flat**
+`providers.<name>.model`/`.effort` is likewise absent from every `default`: it exists only as a
+read-time alias for `profiles.default` until the `2.16.19-to-2.17.0` migration rewrites a config.
 
 ### Section-level prose lives on the row — the segment
 
 One-line `description`s cannot carry the narrative documentation blocks the reference needs (the
 providers explanation, the per-provider dispatch/fill notes, the three built-in providers, the fixed
-stage→tier mapping). Each table row therefore carries — alongside its one-line `description` — the
+stage→role mapping). Each table row therefore carries — alongside its one-line `description` — the
 **rendered YAML segment**: the field's commented block as it appears in the reference. `fab config
 reference` is generated by walking the table and concatenating those segments in order; there is no
 separate template. The `description` (the machine-readable one-liner, exposed in `--json`) and the
 `segment` (the human-readable block, exposed in the YAML) are two projections of **one** row, not a
 second copy of the schema to drift — a field's documentation is authored once, on its row. The rows for
-map-valued fields (`providers`, `agent.tiers`, `stage_hooks`) build their segment by interpolating the
+map-valued fields (`providers`, the `agent:` block, `stage_hooks`) build their segment by interpolating the
 same Go symbols their `default` reads, so the rendered prose carries no literal copy of any value.
 The existing reference tests assert those blocks verbatim; the restructure preserves them byte-for-byte.
 
@@ -130,7 +133,7 @@ teammates and CI.
 
 | scope | Meaning | Fields |
 |-------|---------|--------|
-| `both` | Overridable in either the project or the system layer (preference-class). | `agent.tiers`, `providers`, `dispatch.watchable`, `dispatch.column_width` |
+| `both` | Overridable in either the project or the system layer (preference-class). | `agent.session`, `agent.workers`, `agent.profiles`, `providers`, `dispatch.watchable`, `dispatch.column_width` |
 | `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `consolidate.detectors`, and (conservative default) `stage_hooks`, `branch_prefix` |
 | `system` | Overridable only in the system layer. | *(none today; the value exists for completeness and [Change 2])* |
 
@@ -167,7 +170,7 @@ model, at [Change 3]'s `fab config upgrade` time, every field is one of:
   managed fence, so the user can discover and opt in.
 
 `advertise: true` marks the C-eligible fields — the optional override surfaces a project has typically
-*not* set live: `agent.tiers`, `providers`, `dispatch.watchable`, `dispatch.column_width`,
+*not* set live: `agent.session`, `agent.workers`, `dispatch.watchable`, `dispatch.column_width`,
 `checklist.extra_categories`,
 `consolidate.detectors`, `true_impact_exclude`, `stage_hooks`, `branch_prefix`, `test_paths`. `advertise: false` marks the init-seeded identity fields
 (`project.*`, `source_paths`), which are written live at `fab config init --project` time and not
@@ -178,15 +181,51 @@ re-advertised in the fence. (`fab_version` is no longer a config-file field — 
 [Change 3 — landed] the `fab config upgrade` / `fab config init --project` **fence generator** reads it
 to decide which un-overridden fields to scaffold into the managed fence.
 
+### Demotion — advertised surface ≠ documented surface (260806-j9nh)
+
+`advertise: false` means "do not scaffold this into every project's fence"; it does **not** mean
+"undocumented". The agent machinery — **`agent.profiles`** and the whole **`providers`** table — is
+demoted on exactly that basis: the advertised agent surface is the two depth knobs (`agent.session`,
+`agent.workers`), and scaffolding the six role profiles plus three provider grammars cost ~90 commented
+lines of every project's `config.yaml` for a surface almost nobody overrides (naming a built-in provider
+on a knob needs no `providers:` entry at all). Both rows keep their registry entries, their `--json`
+defaults, and their rendered segments, so they remain in `fab config reference` and in
+`fab config init --system` — the two surfaces whose job *is* completeness.
+
+Two mechanics follow from the demotion:
+
+- **One segment per YAML block.** The `agent.session` row owns the whole `agent:` segment — the two
+  knobs live, plus a commented `profiles:` pointer/example — and `agent.workers` / `agent.profiles`
+  carry no segment of their own. Two segments emitting a live `agent:` parent would collide into a
+  duplicate YAML key and break the reference's round-trip, the same reason `project.name` owns the
+  `project:` block and `dispatch.watchable` owns `dispatch:` (§ Several rows under one YAML block).
+- **`renamed_from` on `agent.profiles` is metadata, not a working carry.** It records the
+  `agent.tiers` → `agent.profiles` rename for `--json` consumers, but `fab config upgrade`'s rename
+  carry is a **top-level-key** operation and deliberately skips a same-top-level rename (§ renamed_from).
+  The on-disk rewrite is the `2.16.19-to-2.17.0` migration's job; the binary meanwhile keeps reading
+  `agent.tiers` per role (and the flat `providers.<name>.model`/`.effort` as an alias for
+  `providers.<name>.profiles.default`), so no config goes inert between the two.
+
 ---
 
 ## renamed_from — mechanical rename carry-forward
 
 `renamed_from` names a field's previous key path so [Change 3]'s `fab config upgrade` can carry a
 user's value forward across a rename mechanically, instead of each rename needing a hand-written
-migration. It is `""` on **every row today**: historical renames (e.g. `agent.spawn_command` →
+migration. Historical renames predating the field (e.g. `agent.spawn_command` →
 `providers.claude.session_command`, change tykw) were already handled by shipped migrations and are
-**not** backfilled. The field serves *future* renames only. The `--json` dump omits it when empty.
+**not** backfilled. The `--json` dump omits the field when empty.
+
+**One row carries it today**: `agent.profiles`, recording the 260806-j9nh rename from `agent.tiers`.
+That row is also the field's documented **limit**. The carry is a **TOP-LEVEL-key** operation — the
+upgrader rewrites a column-0 `key:` token and preserves the whole value block verbatim beneath it — so
+it can only carry a rename whose old and new keys are *different* top-level keys. `agent.tiers` →
+`agent.profiles` collapses to `agent` → `agent`, which `registryTopLevelKeys` deliberately skips (it
+would otherwise log a spurious "carried rename" on every run). So on that row `renamed_from` is
+**metadata for `--json` consumers**, not a working carry: the on-disk rewrite is the
+`2.16.19-to-2.17.0` migration's job, and the binary meanwhile reads `agent.tiers` per role so nothing
+goes inert in between. A future nested-aware carry would make the row's metadata operative without a
+registry change.
 
 ---
 
@@ -205,7 +244,7 @@ using stdlib `encoding/json` only (no new dependencies). Each element is a per-f
     "advertise": false
   },
   {
-    "key": "agent.tiers",
+    "key": "agent.profiles",
     "default": {
       "default":  { "provider": "claude", "model": "...", "effort": "..." },
       "operator": { "provider": "claude", "model": "...", "effort": "..." },
@@ -221,13 +260,13 @@ using stdlib `encoding/json` only (no new dependencies). Each element is a per-f
 ]
 ```
 
-- The `agent.tiers` `default` is a map **keyed by tier name** (one entry per `agent.TierNames()` tier —
+- The `agent.profiles` `default` is a map **keyed by role name** (one entry per `agent.RoleNames()` role —
   `default`, `operator`, `doing`, `review`, `hydrate`, `fast`), each a `{provider, model, effort}`
-  profile; the first-level `default` key is the *default tier*, not a wrapper. Likewise
+  profile; the first-level `default` key is the *default role*, not a wrapper. Likewise
   `providers.default` is keyed by provider name (three entries — claude/codex/gemini), each carrying
   only the command fields that exist for that built-in (`session_command` and, for codex/gemini,
   `dispatch_command`; both `omitempty`) and **no** `model`/`effort` — see § Default semantics.
-- `renamed_from` is omitted when empty (`omitempty`), so it is absent from every object today.
+- `renamed_from` is omitted when empty (`omitempty`), so it appears on the `agent.profiles` object only.
 - Output is deterministic and byte-stable, like the commented-YAML rendering — the table is ordered and
   the marshalling is stable.
 - Without the flag, `fab config reference` prints the commented YAML exactly as before; the command
@@ -255,10 +294,10 @@ agent, operator, batch, spawn, prmeta — sees effective config with zero per-ca
 1. **project** — `fab/project/config.yaml`
 2. **system** — `~/.fab-kit/config.yaml` (co-located with the version cache; XDG path rejected — decision 5)
 3. **built-in defaults** — the Go tables in the `fab` binary (this spec's table), applied at the
-   existing point-of-use seams (`internal/agent`'s tier/provider merge, the nil-safe accessors)
+   existing point-of-use seams (`internal/agent`'s role/provider resolution, the nil-safe accessors)
 
 The two **files** merge at the YAML map level, before unmarshal, by **per-field deep merge**: maps
-merge per-key (the existing `agent.tiers` precedent), **lists replace** (never concatenate), scalars
+merge per-key (the existing `agent.profiles` precedent), **lists replace** (never concatenate), scalars
 replace — project wins. The cascade is **fail-open** (config must never brick): an absent system file
 is byte-identical to the pre-cascade single-file behavior; a malformed or unreadable system file emits
 a `fab: warning:` on stderr and is skipped; a malformed **project** file keeps today's error behavior.
@@ -356,7 +395,7 @@ The hand-maintained scaffold `src/kit/scaffold/fab/project/config.yaml` (the las
 defaults/comment prose) is **deleted**. `fab config init --project` generates the initial `config.yaml`
 from the registry: the **A-class identity fields** (`InitSeed` rows — `project.name`,
 `project.description`, `source_paths`, `test_paths`) written live above the managed fence, then the fence
-of commented C fields. `agent.tiers` is **not** pinned at init (presence=intent — an init-pinned tier
+of commented C fields. No `agent:` key is pinned at init (presence=intent — an init-pinned knob or role profile
 would be an accidental override). `fab init` (the fab-kit binary) shells out to the pinned fab-go's
 `fab config init --project`; when that fab-go predates the subcommand, it falls open to a minimal
 **embedded stub** `config.yaml` (a fresh repo must never fail preflight for lack of a config.yaml — not a

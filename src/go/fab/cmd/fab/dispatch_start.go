@@ -167,7 +167,7 @@ func promptFromStdin(cmd *cobra.Command, _, _ string) ([]byte, bool, error) {
 	return prompt, true, nil
 }
 
-// runDispatchLaunch resolves the stage's tier → provider, refuses if a dispatch
+// runDispatchLaunch resolves the stage's role → provider, refuses if a dispatch
 // for this (change, stage) is already running, obtains the prompt from the given
 // promptSource, then launches the worker in the ALREADY-RESOLVED mode and persists
 // {stage}.yaml:
@@ -213,7 +213,7 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, timeout int,
 	repoRoot := filepath.Dir(fabRoot)
 	dir := dispatch.DirFor(repoRoot, id)
 
-	// Resolve the stage's tier → provider, substituting {model}/{effort} via
+	// Resolve the stage's role → provider, substituting {model}/{effort} via
 	// internal/spawn — the same path fab resolve-agent uses. WHICH of the
 	// provider's two command fields is composed depends on the mode; they are
 	// never merged and never fall back to each other.
@@ -413,15 +413,15 @@ func modeCommand(mode dispatch.Mode, prov config.ProviderConfig, stage, provider
 }
 
 // missingCommandError renders the actionable "this provider cannot dispatch this
-// stage" error naming the stage, its resolved tier, the provider, and the exact
+// stage" error naming the stage, its resolved role, the provider, and the exact
 // config key to set. It lives in one place because two callers raise it —
 // modeCommand (at composition) and validatePane (shape (b), which must diagnose
 // the missing session_command BEFORE composition so the auto fallback stays
 // reachable) — and the two must not drift.
 func missingCommandError(stage, providerName, field string) error {
-	tier, _ := agent.TierForStage(stage)
-	return fmt.Errorf("stage %q resolves to tier %q (provider %q), which has no %s; configure providers.%s.%s to dispatch this stage",
-		stage, tier, providerName, field, providerName, field)
+	role, _ := agent.RoleForStage(stage)
+	return fmt.Errorf("stage %q resolves to role %q (provider %q), which has no %s; configure providers.%s.%s to dispatch this stage",
+		stage, role, providerName, field, providerName, field)
 }
 
 // launchPane opens the interactive worker in a tmux pane and records the pane

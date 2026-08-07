@@ -600,8 +600,8 @@ func TestDispatchRestart_StacksInTheWorkerColumn_Integration(t *testing.T) {
 
 	tmuxScoped, dispatcherPane := startPrivateTmuxWithPane(t)
 
-	// The live sibling: a genuine `start` for the OTHER doing-tier stage, which
-	// carves the column. (Only the doing tier points at the fixture's `cli` provider,
+	// The live sibling: a genuine `start` for the OTHER `doing`-role stage, which
+	// carves the column. (Only the doing role points at the fixture's `cli` provider,
 	// so a stage outside it would launch the real claude CLI.)
 	if _, err := runStart(t, "apply prompt", "abcd", "apply"); err != nil {
 		t.Fatalf("sibling dispatch failed: %v", err)

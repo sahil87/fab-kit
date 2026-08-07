@@ -100,7 +100,7 @@ providers:
 `)
 	writeSystemConfig(t, home, `
 agent:
-  tiers:
+  profiles:
     newbie:
       model: sys-model
 `)
@@ -130,20 +130,28 @@ agent:
 	// A project-set field shows the project path.
 	assertOriginLine("providers.claude.session_command = project-session", projectPath)
 	// A system-only field shows the system path (per-key map drill-down).
-	assertOriginLine("agent.tiers.newbie.model = sys-model", systemPath)
-	// An unset field with a built-in default shows `default` (the doing tier's
-	// profile is a built-in default not overridden here).
-	assertOriginLine("agent.tiers.doing.model =", "default")
+	assertOriginLine("agent.profiles.newbie.model = sys-model", systemPath)
+	// An unset field with a built-in default shows `default`. The doing role's
+	// model is such a field, and since 260806-j9nh it lives on the PROVIDER
+	// (providers.claude.profiles.doing) rather than the agent side.
+	assertOriginLine("providers.claude.profiles.doing.model =", "default")
+	// The depth knobs are built-in defaults too. BOTH must appear: `agent` carries
+	// three default-bearing registry rows (session, workers, profiles), so this
+	// pins that the default subtree MERGES every matching row rather than stopping
+	// at the first one.
+	assertOriginLine("agent.session = claude", "default")
+	assertOriginLine("agent.workers = claude", "default")
 }
 
-// TestConfigShowOrigin_TypoSurfacesAsDefault: a typo'd override (agent.teirs)
+// TestConfigShowOrigin_TypoSurfacesAsDefault: a typo'd override (agent.profles)
 // does not land, so the field the user MEANT to set shows origin `default` — the
 // git-config-show-origin value the intake calls out. The misspelled key is
-// simply an unknown key (ignored), so the real agent.tiers stays at its default.
+// simply an unknown key (ignored), so the doing role's model stays at its
+// built-in default (which since 260806-j9nh lives on the claude provider).
 func TestConfigShowOrigin_TypoSurfacesAsDefault(t *testing.T) {
 	_, home := setupConfigRepo(t, `
 agent:
-  teirs:            # typo — should have been "tiers"
+  profles:          # typo — should have been "profiles"
     doing:
       model: i-meant-to-set-this
 `)
@@ -155,9 +163,9 @@ agent:
 	// The intended field is untouched — it shows the built-in default, alerting
 	// the user their override did not take.
 	for _, line := range strings.Split(out, "\n") {
-		if strings.Contains(line, "agent.tiers.doing.model =") {
+		if strings.Contains(line, "providers.claude.profiles.doing.model =") {
 			if !strings.Contains(line, "# default") {
-				t.Errorf("typo'd override should leave agent.tiers.doing.model at default, got: %q", line)
+				t.Errorf("typo'd override should leave the doing role's model at default, got: %q", line)
 			}
 			if strings.Contains(line, "i-meant-to-set-this") {
 				t.Errorf("typo'd (misspelled) key must not take effect: %q", line)
@@ -219,9 +227,9 @@ func TestConfigInitSystem_WritesScaffoldAndRefusesOverwrite(t *testing.T) {
 	}
 	scaffold := string(data)
 
-	// The scaffold documents ONLY the system/both fields (agent.tiers, providers)
+	// The scaffold documents ONLY the system/both fields (agent.profiles, providers)
 	// and none of the project-scoped fields.
-	for _, want := range []string{"providers", "agent.tiers"} {
+	for _, want := range []string{"providers", "agent.profiles"} {
 		if !strings.Contains(scaffold, want) {
 			t.Errorf("scaffold must document the system-overridable field %q", want)
 		}
@@ -233,7 +241,7 @@ func TestConfigInitSystem_WritesScaffoldAndRefusesOverwrite(t *testing.T) {
 	}
 
 	// The scaffold is fully commented → parses as an inert (empty) config: no live
-	// providers, no live tiers.
+	// providers, no live role profiles.
 	tmp := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		t.Fatal(err)
@@ -245,8 +253,8 @@ func TestConfigInitSystem_WritesScaffoldAndRefusesOverwrite(t *testing.T) {
 	if _, ok := cfg.GetProvider("claude"); ok {
 		t.Error("scaffold must be fully commented — no live providers should parse")
 	}
-	if _, ok := cfg.GetAgentTier("doing"); ok {
-		t.Error("scaffold must be fully commented — no live agent.tiers should parse")
+	if _, ok := cfg.GetAgentProfile("doing"); ok {
+		t.Error("scaffold must be fully commented — no live agent.profiles should parse")
 	}
 
 	// A second run refuses to overwrite (non-zero exit, message names the path).

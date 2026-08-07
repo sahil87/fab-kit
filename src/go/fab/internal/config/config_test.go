@@ -338,7 +338,7 @@ func TestGetProvider_NilAndEmptyConfig(t *testing.T) {
 	}
 }
 
-func TestLoad_WithAgentTiers(t *testing.T) {
+func TestLoad_WithAgentProfiles(t *testing.T) {
 	isolateSystemConfig(t)
 	dir := t.TempDir()
 	projectDir := filepath.Join(dir, "project")
@@ -347,9 +347,9 @@ func TestLoad_WithAgentTiers(t *testing.T) {
 	configYAML := `
 providers:
   claude:
-    session_command: "claude --effort xhigh"
+    session_command: "claude --effort high"
 agent:
-  tiers:
+  profiles:
     doing: { provider: claude, model: claude-sonnet-5, effort: medium }
     fast: { effort: low }
 `
@@ -360,45 +360,160 @@ agent:
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	doing, ok := cfg.GetAgentTier("doing")
+	doing, ok := cfg.GetAgentProfile("doing")
 	if !ok {
-		t.Fatal("expected a 'doing' tier override")
+		t.Fatal("expected a 'doing' role override")
 	}
 	if doing.Provider != "claude" || doing.Model != "claude-sonnet-5" || doing.Effort != "medium" {
 		t.Errorf("doing = %+v, want {claude claude-sonnet-5 medium}", doing)
 	}
 
 	// A partial override (only effort set) round-trips with empty provider/model —
-	// the per-field merge over the default tier is internal/agent's job, not the
+	// continuing down the fill precedence is internal/agent's job, not the
 	// accessor's.
-	fast, ok := cfg.GetAgentTier("fast")
+	fast, ok := cfg.GetAgentProfile("fast")
 	if !ok {
-		t.Fatal("expected a 'fast' tier override")
+		t.Fatal("expected a 'fast' role override")
 	}
 	if fast.Provider != "" || fast.Model != "" || fast.Effort != "low" {
 		t.Errorf("fast = %+v, want {<empty> <empty> low}", fast)
 	}
 
-	// An unconfigured tier reports no override.
-	if _, ok := cfg.GetAgentTier("review"); ok {
-		t.Error("expected no override for the unconfigured 'review' tier")
+	// An unconfigured role reports no override.
+	if _, ok := cfg.GetAgentProfile("review"); ok {
+		t.Error("expected no override for the unconfigured 'review' role")
 	}
 
-	// providers still parse alongside the tiers block.
+	// providers still parse alongside the profiles block.
 	prov, ok := cfg.GetProvider("claude")
-	if !ok || prov.SessionCommand != "claude --effort xhigh" {
-		t.Errorf("claude provider = %+v, ok=%v, want session_command 'claude --effort xhigh'", prov, ok)
+	if !ok || prov.SessionCommand != "claude --effort high" {
+		t.Errorf("claude provider = %+v, ok=%v, want session_command 'claude --effort high'", prov, ok)
 	}
 }
 
-func TestLoad_NoAgentTiers(t *testing.T) {
+// TestLoad_AgentDepthKnobs: the two advertised knobs parse as plain scalars and
+// read back through their nil-safe accessors.
+func TestLoad_AgentDepthKnobs(t *testing.T) {
 	isolateSystemConfig(t)
 	dir := t.TempDir()
 	projectDir := filepath.Join(dir, "project")
 	os.MkdirAll(projectDir, 0o755)
 
-	// A config with no agent.tiers block must load cleanly (yaml ignores
-	// unknown keys; widening AgentConfig is free for existing configs).
+	configYAML := `
+agent:
+  session: claude
+  workers: gemini
+`
+	os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(configYAML), 0o644)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if got := cfg.GetAgentSession(); got != "claude" {
+		t.Errorf("agent.session = %q, want claude", got)
+	}
+	if got := cfg.GetAgentWorkers(); got != "gemini" {
+		t.Errorf("agent.workers = %q, want gemini", got)
+	}
+}
+
+// TestGetAgentProfile_LegacyTiersAlias: `agent.tiers` is the deprecated spelling
+// of `agent.profiles`, consulted PER ROLE — so a half-migrated config (some roles
+// moved, some not) resolves every role, and `profiles` wins wherever both carry
+// the same role.
+func TestGetAgentProfile_LegacyTiersAlias(t *testing.T) {
+	isolateSystemConfig(t)
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "project")
+	os.MkdirAll(projectDir, 0o755)
+
+	configYAML := `
+agent:
+  profiles:
+    doing: { model: from-profiles }
+  tiers:
+    doing: { model: from-tiers }
+    review: { effort: medium }
+`
+	os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(configYAML), 0o644)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	// profiles wins where both carry the role.
+	doing, ok := cfg.GetAgentProfile("doing")
+	if !ok || doing.Model != "from-profiles" {
+		t.Errorf("doing.model = %q ok=%v, want from-profiles (profiles beats the legacy tiers alias)", doing.Model, ok)
+	}
+	// A role only the legacy spelling carries still resolves.
+	review, ok := cfg.GetAgentProfile("review")
+	if !ok || review.Effort != "medium" {
+		t.Errorf("review = %+v ok=%v, want effort medium from the legacy tiers alias", review, ok)
+	}
+}
+
+// TestLoad_ProviderProfiles: `providers.<name>.profiles.<role>` parses as a
+// per-role fill map, and the DEPRECATED flat `model`/`effort` fill still parses
+// alongside it (the pre-2.17.0 spelling internal/agent reads below
+// profiles.default).
+func TestLoad_ProviderProfiles(t *testing.T) {
+	isolateSystemConfig(t)
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "project")
+	os.MkdirAll(projectDir, 0o755)
+
+	configYAML := `
+providers:
+  codex:
+    session_command: "codex"
+    profiles:
+      default: { model: codex-default, effort: medium }
+      review: { model: codex-review, effort: high }
+  gemini:
+    model: flat-model
+    effort: flat-effort
+`
+	os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(configYAML), 0o644)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	codex, ok := cfg.GetProvider("codex")
+	if !ok {
+		t.Fatal("expected a codex provider entry")
+	}
+	if got := codex.Profiles["review"]; got.Model != "codex-review" || got.Effort != "high" {
+		t.Errorf("codex.profiles.review = %+v, want {codex-review high}", got)
+	}
+	if got := codex.Profiles["default"]; got.Model != "codex-default" || got.Effort != "medium" {
+		t.Errorf("codex.profiles.default = %+v, want {codex-default medium}", got)
+	}
+
+	// The deprecated flat fill still parses — at read time it is a lower-precedence
+	// fallback rung BELOW profiles.default (see internal/agent providerFill), not an
+	// alias for it.
+	gemini, ok := cfg.GetProvider("gemini")
+	if !ok {
+		t.Fatal("expected a gemini provider entry")
+	}
+	if gemini.Model != "flat-model" || gemini.Effort != "flat-effort" {
+		t.Errorf("gemini flat fill = {%s %s}, want {flat-model flat-effort}", gemini.Model, gemini.Effort)
+	}
+}
+
+func TestLoad_NoAgentProfiles(t *testing.T) {
+	isolateSystemConfig(t)
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "project")
+	os.MkdirAll(projectDir, 0o755)
+
+	// A config with no agent block must load cleanly (yaml ignores unknown keys;
+	// widening AgentConfig is free for existing configs).
 	configYAML := `
 providers:
   claude:
@@ -412,19 +527,28 @@ project:
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
-	if _, ok := cfg.GetAgentTier("doing"); ok {
-		t.Error("expected no tier override when agent.tiers is absent")
+	if _, ok := cfg.GetAgentProfile("doing"); ok {
+		t.Error("expected no role override when agent.profiles is absent")
+	}
+	if cfg.GetAgentSession() != "" || cfg.GetAgentWorkers() != "" {
+		t.Error("expected empty depth knobs when the agent block is absent")
 	}
 }
 
-func TestGetAgentTier_NilAndEmptyConfig(t *testing.T) {
+func TestGetAgentProfile_NilAndEmptyConfig(t *testing.T) {
 	var nilCfg *Config
-	if _, ok := nilCfg.GetAgentTier("doing"); ok {
-		t.Error("nil-config GetAgentTier must report no override")
+	if _, ok := nilCfg.GetAgentProfile("doing"); ok {
+		t.Error("nil-config GetAgentProfile must report no override")
+	}
+	if nilCfg.GetAgentSession() != "" || nilCfg.GetAgentWorkers() != "" {
+		t.Error("nil-config depth-knob accessors must return empty strings")
 	}
 	empty := &Config{}
-	if _, ok := empty.GetAgentTier("doing"); ok {
-		t.Error("empty-config GetAgentTier must report no override")
+	if _, ok := empty.GetAgentProfile("doing"); ok {
+		t.Error("empty-config GetAgentProfile must report no override")
+	}
+	if empty.GetAgentSession() != "" || empty.GetAgentWorkers() != "" {
+		t.Error("empty-config depth-knob accessors must return empty strings")
 	}
 }
 
@@ -536,20 +660,20 @@ func writeProjectConfig(t *testing.T, content string) string {
 	return fabRoot
 }
 
-// TestCascade_MapsMergePerKey: agent.tiers merges per-key across the two files —
-// a project tier field and a system tier field compose, project wins on a
-// conflicting leaf, and a system-only tier survives alongside a project-only one.
+// TestCascade_MapsMergePerKey: agent.profiles merges per-key across the two
+// files — a project role field and a system role field compose, project wins on a
+// conflicting leaf, and a system-only role survives alongside a project-only one.
 func TestCascade_MapsMergePerKey(t *testing.T) {
 	home := isolateSystemConfig(t)
 	writeSystemConfig(t, home, `
 agent:
-  tiers:
+  profiles:
     doing: { provider: claude, model: system-model, effort: low }
     sysonly: { model: sys-only-model }
 `)
 	fabRoot := writeProjectConfig(t, `
 agent:
-  tiers:
+  profiles:
     doing: { model: project-model }
     projonly: { model: proj-only-model }
 `)
@@ -561,9 +685,9 @@ agent:
 
 	// doing.model: project wins (project-model); doing.effort inherited from
 	// system (low); doing.provider inherited from system (claude).
-	doing, ok := cfg.GetAgentTier("doing")
+	doing, ok := cfg.GetAgentProfile("doing")
 	if !ok {
-		t.Fatal("expected a merged 'doing' tier")
+		t.Fatal("expected a merged 'doing' role profile")
 	}
 	if doing.Model != "project-model" {
 		t.Errorf("doing.model = %q, want project-model (project wins)", doing.Model)
@@ -575,13 +699,13 @@ agent:
 		t.Errorf("doing.provider = %q, want claude (inherited from system layer)", doing.Provider)
 	}
 
-	// A system-only tier survives (per-key merge, not whole-map replacement).
-	if sysonly, ok := cfg.GetAgentTier("sysonly"); !ok || sysonly.Model != "sys-only-model" {
-		t.Errorf("system-only tier lost in merge: %+v ok=%v", sysonly, ok)
+	// A system-only role survives (per-key merge, not whole-map replacement).
+	if sysonly, ok := cfg.GetAgentProfile("sysonly"); !ok || sysonly.Model != "sys-only-model" {
+		t.Errorf("system-only role lost in merge: %+v ok=%v", sysonly, ok)
 	}
-	// A project-only tier survives alongside it.
-	if projonly, ok := cfg.GetAgentTier("projonly"); !ok || projonly.Model != "proj-only-model" {
-		t.Errorf("project-only tier lost in merge: %+v ok=%v", projonly, ok)
+	// A project-only role survives alongside it.
+	if projonly, ok := cfg.GetAgentProfile("projonly"); !ok || projonly.Model != "proj-only-model" {
+		t.Errorf("project-only role lost in merge: %+v ok=%v", projonly, ok)
 	}
 }
 
@@ -722,7 +846,8 @@ providers:
 
 // TestScope_PruneProjectScopedFromSystem: a project-scoped field placed in the
 // system file is pruned (not applied) and a `fab: warning:` names it; a
-// both-scoped field (agent.tiers) is honored; an unknown key is ignored silently.
+// both-scoped field (agent.profiles) is honored; an unknown key is ignored
+// silently.
 func TestScope_PruneProjectScopedFromSystem(t *testing.T) {
 	home := isolateSystemConfig(t)
 	warnings := captureWarnings(t)
@@ -730,7 +855,7 @@ func TestScope_PruneProjectScopedFromSystem(t *testing.T) {
 source_paths:
   - system-only-src/
 agent:
-  tiers:
+  profiles:
     doing: { effort: high }
 totally_unknown_key: 42
 `)
@@ -755,13 +880,13 @@ source_paths:
 		t.Errorf("effective source_paths = %v, want [project-src/] (project wins; system layer pruned)", layers.Effective["source_paths"])
 	}
 
-	// agent.tiers (scope both) from the system file is honored end-to-end.
+	// agent.profiles (scope both) from the system file is honored end-to-end.
 	cfg, err := Load(fabRoot)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if doing, ok := cfg.GetAgentTier("doing"); !ok || doing.Effort != "high" {
-		t.Errorf("both-scoped agent.tiers must be honored from the system layer: %+v ok=%v", doing, ok)
+	if doing, ok := cfg.GetAgentProfile("doing"); !ok || doing.Effort != "high" {
+		t.Errorf("both-scoped agent.profiles must be honored from the system layer: %+v ok=%v", doing, ok)
 	}
 
 	w := warnings()

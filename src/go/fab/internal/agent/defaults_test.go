@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -13,13 +14,13 @@ import (
 // The built-in defaults moved from Go literals into the embedded defaults.yaml
 // (260806-2j2i), so a typo in them is no longer a compile error. This file is the
 // replacement safety net: it re-parses the embedded bytes INDEPENDENTLY of the
-// package's own initialization and asserts both the file's shape (every tier and
-// provider present and populated, nothing outside the surface it is meant to
-// define) and the wiring (defaultTiers/defaultProviders and the exported command
+// package's own initialization and asserts both the file's shape (every knob,
+// provider, and per-role fill present and populated, nothing outside the surface it
+// is meant to define) and the wiring (defaultProviders and the exported command
 // vars read the keys they claim to).
 //
 // It deliberately pins NO model IDs or command strings — those are pinned once,
-// in TestDefaultTierProfilesArePinned, so a model bump stays a one-line edit to
+// in TestDefaultRoleProfilesArePinned, so a model bump stays a one-line edit to
 // defaults.yaml plus that one table.
 
 // parseDefaultsFile unmarshals the embedded bytes into the config schema, the
@@ -34,35 +35,43 @@ func parseDefaultsFile(t *testing.T) config.Config {
 	return cfg
 }
 
-// TestDefaultsFileIsWellFormed: the embedded file parses, and its agent.tiers
-// block covers exactly the six known tiers with every field populated.
+// TestDefaultsFileIsWellFormed: the embedded file parses, both depth knobs are set,
+// and claude's per-role fill map covers exactly the six known roles with every
+// field populated. (260806-j9nh: the role models live on the PROVIDER now, so the
+// file defines no agent.profiles block at all — the knobs plus the provider fills
+// are the whole built-in surface.)
 func TestDefaultsFileIsWellFormed(t *testing.T) {
 	cfg := parseDefaultsFile(t)
 
-	wantTiers := []string{TierDefault, TierOperator, TierDoing, TierReview, TierHydrate, TierFast}
-	assertSameKeys(t, "agent.tiers", tierKeys(cfg.Agent.Tiers), wantTiers)
+	if cfg.Agent.Session == "" || cfg.Agent.Workers == "" {
+		t.Errorf("defaults.yaml must set both depth knobs, got session=%q workers=%q", cfg.Agent.Session, cfg.Agent.Workers)
+	}
+	if len(cfg.Agent.Profiles) != 0 || len(cfg.Agent.Tiers) != 0 {
+		t.Errorf("defaults.yaml must define no agent.profiles/agent.tiers block — the built-in role models live on providers.<name>.profiles; got %v / %v", cfg.Agent.Profiles, cfg.Agent.Tiers)
+	}
 
-	for _, tier := range wantTiers {
-		profile, ok := cfg.Agent.Tiers[tier]
+	wantRoles := []string{RoleDefault, RoleOperator, RoleDoing, RoleReview, RoleHydrate, RoleFast}
+	claude := cfg.Providers[cfg.Agent.Session]
+	assertSameKeys(t, "providers."+cfg.Agent.Session+".profiles", roleKeys(claude.Profiles), wantRoles)
+
+	for _, role := range wantRoles {
+		fill, ok := claude.Profiles[role]
 		if !ok {
 			continue // already reported by assertSameKeys
 		}
-		if profile.Provider == "" {
-			t.Errorf("defaults.yaml agent.tiers.%s has no provider — every built-in tier writes it explicitly", tier)
+		if fill.Model == "" {
+			t.Errorf("defaults.yaml providers.claude.profiles.%s has no model — an empty model is the inherit-the-session-model signal, never a built-in default", role)
 		}
-		if profile.Model == "" {
-			t.Errorf("defaults.yaml agent.tiers.%s has no model — an empty model is the inherit-the-session-model signal, never a built-in default", tier)
-		}
-		if profile.Effort == "" {
-			t.Errorf("defaults.yaml agent.tiers.%s has no effort", tier)
+		if fill.Effort == "" {
+			t.Errorf("defaults.yaml providers.claude.profiles.%s has no effort", role)
 		}
 	}
 }
 
 // TestDefaultsFileProviders: the providers block covers exactly the three
-// built-ins, with the command fields each one is defined by — and with NO
-// model/effort fill on any of them (grammar only; model IDs rot at CLI cadence
-// and belong in user config).
+// built-ins, with the command fields each one is defined by. Only claude carries
+// fills; codex and gemini ship GRAMMAR ONLY (model IDs rot at CLI cadence and
+// belong in user config), and no built-in uses the DEPRECATED flat fill.
 func TestDefaultsFileProviders(t *testing.T) {
 	cfg := parseDefaultsFile(t)
 
@@ -78,18 +87,24 @@ func TestDefaultsFileProviders(t *testing.T) {
 			t.Errorf("defaults.yaml providers.%s has no session_command", name)
 		}
 		if prov.Model != "" || prov.Effort != "" {
-			t.Errorf("defaults.yaml providers.%s carries a model/effort fill (%q/%q) — built-ins ship GRAMMAR ONLY; fill belongs in user config", name, prov.Model, prov.Effort)
+			t.Errorf("defaults.yaml providers.%s uses the DEPRECATED flat fill (%q/%q) — built-in fills belong under profiles.<role>", name, prov.Model, prov.Effort)
+		}
+	}
+
+	for _, name := range []string{providerCodex, providerGemini} {
+		if len(cfg.Providers[name].Profiles) != 0 {
+			t.Errorf("defaults.yaml providers.%s carries per-role fills — non-claude built-ins ship GRAMMAR ONLY; fill belongs in user config", name)
 		}
 	}
 
 	// claude's ABSENT dispatch_command is what selects native Agent-tool dispatch;
-	// codex/gemini carry one, which is what flips their tiers to CLI dispatch.
+	// codex/gemini carry one, which is what flips their roles to CLI dispatch.
 	if got := cfg.Providers[DefaultProviderName].DispatchCommand; got != "" {
 		t.Errorf("defaults.yaml providers.%s.dispatch_command = %q, want absent — its absence is the native-dispatch signal", DefaultProviderName, got)
 	}
 	for _, name := range []string{providerCodex, providerGemini} {
 		if cfg.Providers[name].DispatchCommand == "" {
-			t.Errorf("defaults.yaml providers.%s has no dispatch_command — naming it in a tier must select CLI dispatch", name)
+			t.Errorf("defaults.yaml providers.%s has no dispatch_command — pointing a role at it must select CLI dispatch", name)
 		}
 	}
 
@@ -98,9 +113,11 @@ func TestDefaultsFileProviders(t *testing.T) {
 }
 
 // TestDefaultsFileDefinesOnlyItsSurface: defaults.yaml is layer 0 of the config
-// cascade in shape, but it defines only the two blocks internal/agent owns. yaml.v3
-// ignores unknown keys, so a key written at the wrong nesting level (or a block
-// this package does not read) would otherwise be silently inert.
+// cascade in shape, but it defines only the two blocks internal/agent owns — and
+// within `agent:`, only the two depth knobs (the role→depth partition and the
+// stage→role mapping are fab-owned POLICY and stay in Go). yaml.v3 ignores unknown
+// keys, so a key written at the wrong nesting level (or a block this package does
+// not read) would otherwise be silently inert.
 func TestDefaultsFileDefinesOnlyItsSurface(t *testing.T) {
 	var raw map[string]yaml.Node
 	if err := yaml.Unmarshal(defaultsYAML, &raw); err != nil {
@@ -125,7 +142,7 @@ func TestDefaultsFileDefinesOnlyItsSurface(t *testing.T) {
 	for key := range agentBlock {
 		agentKeys = append(agentKeys, key)
 	}
-	assertSameKeys(t, "defaults.yaml agent", agentKeys, []string{"tiers"})
+	assertSameKeys(t, "defaults.yaml agent", agentKeys, []string{"session", "workers"})
 }
 
 // TestPackageTablesMatchDefaultsFile: the package's tables and exported command
@@ -135,16 +152,31 @@ func TestDefaultsFileDefinesOnlyItsSurface(t *testing.T) {
 func TestPackageTablesMatchDefaultsFile(t *testing.T) {
 	cfg := parseDefaultsFile(t)
 
-	for tier, want := range tierProfiles(cfg.Agent.Tiers) {
-		if got, ok := DefaultTier(tier); !ok || got != want {
-			t.Errorf("DefaultTier(%q) = %+v (ok=%v), defaults.yaml says %+v", tier, got, ok, want)
+	// Each role's built-in profile is the knob's provider plus that provider's own
+	// per-role fill — the file's two blocks composed exactly as ResolveRole does.
+	for _, role := range RoleNames() {
+		wantProvider := cfg.Agent.Workers
+		if roleDepth[role] == depthSession {
+			wantProvider = cfg.Agent.Session
+		}
+		fill := cfg.Providers[wantProvider].Profiles[role]
+		want := Profile{Provider: wantProvider, Model: fill.Model, Effort: fill.Effort}
+		if got, ok := DefaultProfile(role); !ok || got != want {
+			t.Errorf("DefaultProfile(%q) = %+v (ok=%v), defaults.yaml composes %+v", role, got, ok, want)
 		}
 	}
 
 	for name, want := range cfg.Providers {
 		got, ok := ResolveProvider(nil, name)
-		if !ok || got != want {
-			t.Errorf("ResolveProvider(nil, %q) = %+v (ok=%v), defaults.yaml says %+v", name, got, ok, want)
+		if !ok {
+			t.Errorf("ResolveProvider(nil, %q) reports unknown, but defaults.yaml defines it", name)
+			continue
+		}
+		// The resolved Profiles map is a defensive copy, so compare by value.
+		if got.SessionCommand != want.SessionCommand || got.DispatchCommand != want.DispatchCommand ||
+			got.Model != want.Model || got.Effort != want.Effort ||
+			!reflect.DeepEqual(got.Profiles, want.Profiles) {
+			t.Errorf("ResolveProvider(nil, %q) = %+v, defaults.yaml says %+v", name, got, want)
 		}
 	}
 
@@ -166,9 +198,9 @@ func TestPackageTablesMatchDefaultsFile(t *testing.T) {
 	}
 }
 
-func tierKeys(tiers map[string]config.TierProfile) []string {
-	keys := make([]string, 0, len(tiers))
-	for name := range tiers {
+func roleKeys(profiles map[string]config.ProviderProfile) []string {
+	keys := make([]string, 0, len(profiles))
+	for name := range profiles {
 		keys = append(keys, name)
 	}
 	return keys

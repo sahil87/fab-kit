@@ -86,7 +86,7 @@ func TestConfigUpgradeCommand(t *testing.T) {
 
 // TestConfigInitProjectCommand drives `fab config init --project`: it generates a
 // config.yaml with the seeded identity fields live and the managed fence, does NOT
-// pin agent.tiers, and refuses to overwrite an existing file.
+// pin agent.profiles, and refuses to overwrite an existing file.
 func TestConfigInitProjectCommand(t *testing.T) {
 	fabRoot := setupInitRepo(t)
 	cfgPath := filepath.Join(fabRoot, "project", "config.yaml")
@@ -112,11 +112,11 @@ func TestConfigInitProjectCommand(t *testing.T) {
 			t.Errorf("generated config missing %q:\n%s", want, got)
 		}
 	}
-	// agent.tiers must NOT be pinned live (presence=intent) — the only `agent:`
+	// agent.profiles must NOT be pinned live (presence=intent) — the only `agent:`
 	// mention allowed is the commented fence scaffold.
 	for _, ln := range strings.Split(got, "\n") {
 		if strings.HasPrefix(ln, "agent:") {
-			t.Error("init --project must not pin agent.tiers live")
+			t.Error("init --project must not pin agent.profiles live")
 		}
 	}
 

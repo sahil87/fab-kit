@@ -15,35 +15,36 @@ import (
 )
 
 // agentCmd implements
-// `fab agent [tier] [--provider <name> [--model <id>] [--effort <level>]] [--print] [--repo <path>]`
+// `fab agent [role] [--provider <name> [--model <id>] [--effort <level>]] [--print] [--repo <path>]`
 // — launch (or print) the resolved agent session command in the current shell. It
 // replaces `fab spawn-command`, with a semantic upgrade: the printed/exec'd command
 // is profile-resolved (model/effort substituted), not placeholder-stripped.
 //
 // Two mutually exclusive ADDRESSING MODES compose the command:
 //
-//   - Tier-addressed (the `[tier]` positional, `default` when omitted; any of the
-//     six role-tier names accepted): resolves the tier profile, then composes
-//     providers.<profile.provider>.session_command with the tier's {model}/{effort}.
-//   - Provider-addressed (`--provider <name>`): BYPASSES tier resolution and looks
+//   - Role-addressed (the `[role]` positional, `default` when omitted; any of the
+//     six role names accepted): resolves the role profile — whose provider comes
+//     from an agent.profiles override, else the role's depth knob — then composes
+//     providers.<profile.provider>.session_command with the role's {model}/{effort}.
+//   - Provider-addressed (`--provider <name>`): BYPASSES role resolution and looks
 //     up providers.<name> directly (project config per-field merged over fab-kit's
-//     built-in table, exactly as the tier path's provider lookup does), composing
+//     built-in table, exactly as the role path's provider lookup does), composing
 //     its session_command with the `--model`/`--effort` values. Omitted values are
 //     empty and follow spawn.WithProfile's documented empty-value rule (template
 //     mode drops the placeholder's token plus a preceding `-`-flag; append mode
 //     omits the flag) — so `fab agent --provider codex --print` composes a bare
 //     `codex` invocation and the CLI's own default model applies.
 //
-// `--model`/`--effort` are scoped to the provider mode: on the tier path the
-// profile IS the tier's (resolved through inheritance), so a bare `--model` would
-// either invent an undocumented tier-override surface or be silently ignored —
-// both worse than a usage error.
+// `--model`/`--effort` are scoped to the provider mode: on the role path the
+// profile IS the role's (resolved through the fill precedence), so a bare `--model`
+// would either invent an undocumented role-override surface or be silently ignored
+// — both worse than a usage error.
 //
 // Both guards (and the mode selection itself) key on cobra's Flag.Changed —
 // whether the flag was SUPPLIED — rather than on its value being non-empty. So
 // `fab agent doing --provider=` is still the mutual-exclusion error and
 // `fab agent --model= --print` is still the requires-`--provider` error; neither
-// falls through to the tier path.
+// falls through to the role path.
 //
 // An unknown `--provider` name is a LOOKUP failure (non-zero exit naming the
 // available providers), not validation of the command's content — resolved command
@@ -67,44 +68,44 @@ func agentCmd() *cobra.Command {
 	var model string
 	var effort string
 	cmd := &cobra.Command{
-		Use:   "agent [tier]",
+		Use:   "agent [role]",
 		Short: "Launch (or --print) the resolved agent session command in the current shell",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			tier := ""
+			role := ""
 			if len(args) == 1 {
-				tier = args[0]
+				role = args[0]
 			}
 
 			// The guards key on whether a flag was SUPPLIED (cobra's
 			// Flag.Changed), not on whether its value is non-empty: an
 			// explicitly-empty `--provider=` / `--model=` is still a supplied
 			// flag, and testing emptiness would let those invocations fall
-			// silently through to the tier path instead of erroring.
+			// silently through to the role path instead of erroring.
 			providerSet := cmd.Flags().Changed("provider")
 			profileFlagSet := cmd.Flags().Changed("model") || cmd.Flags().Changed("effort")
 
 			// Mutual exclusion is hand-checked rather than declared via cobra's
 			// MarkFlagsMutuallyExclusive because that helper relates two FLAGS —
-			// the tier here is a positional, which it cannot reference.
-			if tier != "" && providerSet {
-				return fmt.Errorf("the [tier] positional and --provider are mutually exclusive: %q names a role tier (whose provider comes from the tier), --provider addresses a provider directly", tier)
+			// the role here is a positional, which it cannot reference.
+			if role != "" && providerSet {
+				return fmt.Errorf("the [role] positional and --provider are mutually exclusive: %q names a role (whose provider comes from the role's override or depth knob), --provider addresses a provider directly", role)
 			}
 			if !providerSet {
 				if profileFlagSet {
-					return fmt.Errorf("--model/--effort require --provider (on the tier path the model and effort come from the resolved tier)")
+					return fmt.Errorf("--model/--effort require --provider (on the role path the model and effort come from the resolved role profile)")
 				}
-				if tier == "" {
-					tier = agent.TierDefault
+				if role == "" {
+					role = agent.RoleDefault
 				}
 			}
 
-			return runAgent(cmd, tier, provider, providerSet, model, effort, printOnly, repo)
+			return runAgent(cmd, role, provider, providerSet, model, effort, printOnly, repo)
 		},
 	}
 	cmd.Flags().BoolVar(&printOnly, "print", false, "print the fully-resolved command instead of executing it")
 	cmd.Flags().StringVar(&repo, "repo", "", "repo root to read the config from (default: current repo)")
-	cmd.Flags().StringVar(&provider, "provider", "", "address a provider directly (bypasses tier resolution); mutually exclusive with the [tier] positional")
+	cmd.Flags().StringVar(&provider, "provider", "", "address a provider directly (bypasses role resolution); mutually exclusive with the [role] positional")
 	cmd.Flags().StringVar(&model, "model", "", "model id for the --provider form (empty: the provider command's model token is dropped, so its CLI default applies)")
 	cmd.Flags().StringVar(&effort, "effort", "", "reasoning effort for the --provider form (empty: the effort token is dropped)")
 	return cmd
@@ -114,8 +115,8 @@ func agentCmd() *cobra.Command {
 // selected and either prints it or execs it. `providerSet` (cobra's
 // Flag.Changed for --provider) — NOT the emptiness of `provider` — selects the
 // mode, so an explicitly-empty `--provider=` takes the provider path and fails
-// its lookup rather than silently resolving the default tier.
-func runAgent(cmd *cobra.Command, tier, provider string, providerSet bool, model, effort string, printOnly bool, repo string) error {
+// its lookup rather than silently resolving the default role.
+func runAgent(cmd *cobra.Command, role, provider string, providerSet bool, model, effort string, printOnly bool, repo string) error {
 	cfg, err := loadRepoConfig(repo)
 	if err != nil {
 		return err
@@ -123,7 +124,7 @@ func runAgent(cmd *cobra.Command, tier, provider string, providerSet bool, model
 
 	providerName, profileModel, profileEffort := provider, model, effort
 	if !providerSet {
-		profile, err := agent.ResolveTier(cfg, tier)
+		profile, err := agent.ResolveRole(cfg, role)
 		if err != nil {
 			return err
 		}
@@ -138,8 +139,8 @@ func runAgent(cmd *cobra.Command, tier, provider string, providerSet bool, model
 		if providerSet {
 			return fmt.Errorf("provider %q has no session_command; configure providers.%s.session_command", providerName, providerName)
 		}
-		return fmt.Errorf("tier %q resolves to provider %q, which has no session_command; configure providers.%s.session_command",
-			tier, providerName, providerName)
+		return fmt.Errorf("role %q resolves to provider %q, which has no session_command; configure providers.%s.session_command",
+			role, providerName, providerName)
 	}
 
 	resolvedCmd := spawn.WithProfile(prov.SessionCommand, profileModel, profileEffort)

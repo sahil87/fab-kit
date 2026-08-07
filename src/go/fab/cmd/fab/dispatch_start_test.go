@@ -16,7 +16,7 @@ import (
 )
 
 // setupDispatchRepo builds a repo with one active change and a config whose
-// `doing` tier (apply's tier) points at a provider carrying a dispatch_command,
+// `doing` role (apply's role) points at a provider carrying a dispatch_command,
 // then chdirs into it so resolve.FabRoot() resolves. When dispatchCmd is empty,
 // no dispatch_command is configured (the resolved provider — the built-in claude —
 // has none). Returns the repo root and the 4-char change ID.
@@ -67,7 +67,7 @@ func setupDispatchRepoWithCommands(t *testing.T, dispatchCmd, sessionCmd string)
 	mustMkdir(t, projectDir)
 	body := "project:\n  name: test\n"
 	if dispatchCmd != "" || sessionCmd != "" {
-		// A cli provider carries the command field(s); the doing tier points at it.
+		// A cli provider carries the command field(s); the doing role points at it.
 		body += "providers:\n  cli:\n"
 		if dispatchCmd != "" {
 			body += "    dispatch_command: \"" + dispatchCmd + "\"\n"
@@ -75,16 +75,15 @@ func setupDispatchRepoWithCommands(t *testing.T, dispatchCmd, sessionCmd string)
 		if sessionCmd != "" {
 			body += "    session_command: \"" + sessionCmd + "\"\n"
 		}
-		// The tier PINS the doing-tier default profile explicitly. `cli` is a
-		// cross-provider switch (the built-in doing tier names claude), and a tier
-		// that switches provider no longer inherits the built-in's model/effort
-		// (260805-j3cm's cross-provider cutoff — an inherited claude model would be
-		// the footgun that fix closes). Pinning the same values the built-in carries
-		// keeps every dispatch test's expectation ("the resolved doing-tier profile
-		// rides the spawn command") true and still derived from the canonical map, so
-		// a model bump does not touch these tests.
-		doingDefault, _ := agent.DefaultTier(agent.TierDoing)
-		body += "agent:\n  tiers:\n    doing: { provider: cli, model: " + doingDefault.Model + ", effort: " + doingDefault.Effort + " }\n"
+		// The role profile PINS the `doing` role's built-in model/effort explicitly.
+		// Model and effort come from the RESOLVED provider's own per-role fills, and
+		// `cli` is a project-defined provider with none, so an unpinned role would
+		// resolve them empty. Pinning the same values the built-in carries keeps
+		// every dispatch test's expectation ("the resolved `doing` profile rides the
+		// spawn command") true and still derived from the canonical defaults, so a
+		// model bump does not touch these tests.
+		doingDefault, _ := agent.DefaultProfile(agent.RoleDoing)
+		body += "agent:\n  profiles:\n    doing: { provider: cli, model: " + doingDefault.Model + ", effort: " + doingDefault.Effort + " }\n"
 	}
 	mustWrite(t, filepath.Join(projectDir, "config.yaml"), body)
 
@@ -176,16 +175,16 @@ func TestDispatchStart_LaunchesAndPersistsState(t *testing.T) {
 		t.Errorf("pid/pgid = %d/%d, want positive", rec.PID, rec.PGID)
 	}
 	// spawn.WithProfile appends the resolved --model/--effort to a non-templated
-	// command (append mode), so the persisted spawn_cmd carries the doing-tier
-	// profile appended to the base command. The model is derived from the doing
-	// tier's built-in default (pinned once in agent.TestDefaultTierProfilesArePinned)
+	// command (append mode), so the persisted spawn_cmd carries the `doing` role's
+	// profile appended to the base command. The model is derived from the `doing`
+	// role's built-in default (pinned once in agent.TestDefaultRoleProfilesArePinned)
 	// so a model bump does not touch this test.
-	doingDefault, _ := agent.DefaultTier(agent.TierDoing)
+	doingDefault, _ := agent.DefaultProfile(agent.RoleDoing)
 	if !strings.HasPrefix(rec.SpawnCmd, "sh -c 'exit 0'") {
 		t.Errorf("spawn_cmd = %q, want the base command as prefix", rec.SpawnCmd)
 	}
 	if !strings.Contains(rec.SpawnCmd, "--model "+doingDefault.Model) {
-		t.Errorf("spawn_cmd = %q, want the resolved doing-tier model appended", rec.SpawnCmd)
+		t.Errorf("spawn_cmd = %q, want the resolved `doing` role model appended", rec.SpawnCmd)
 	}
 }
 
@@ -198,7 +197,7 @@ func TestDispatchStart_NoDispatchCommandErrors(t *testing.T) {
 	}
 	msg := err.Error()
 	if !strings.Contains(msg, "doing") || !strings.Contains(msg, "dispatch_command") {
-		t.Errorf("error = %q, want mention of tier 'doing' and dispatch_command", msg)
+		t.Errorf("error = %q, want mention of role 'doing' and dispatch_command", msg)
 	}
 	// Must name the config key to set (no fallback to a session command).
 	if !strings.Contains(msg, "providers.claude.dispatch_command") {
@@ -807,7 +806,7 @@ func TestDispatchStart_AutoPaneNoSessionCommand_Integration(t *testing.T) {
 // from the former TestDispatchStart_PaneRequiresSessionCommand, which asserted the
 // same hint against the ambient default socket and so failed on a host with no
 // tmux running): pane mode composes session_command and must never substitute
-// dispatch_command, so the error names the stage's resolved tier and the exact
+// dispatch_command, so the error names the stage's resolved role and the exact
 // session_command config key. Its headless mirror is
 // TestDispatchStart_HeadlessStillRequiresDispatchCommand.
 func TestDispatchStart_ExplicitPaneWithoutSessionCommandPersistsNothing(t *testing.T) {
@@ -835,7 +834,7 @@ func TestDispatchStart_ExplicitPaneWithoutSessionCommandPersistsNothing(t *testi
 		t.Errorf("error = %q, want the session_command config-key hint", err.Error())
 	}
 	if !strings.Contains(err.Error(), "doing") {
-		t.Errorf("error = %q, want mention of the resolved tier", err.Error())
+		t.Errorf("error = %q, want mention of the resolved role", err.Error())
 	}
 	if strings.Contains(stderr, "falling back to headless") {
 		t.Errorf("explicit --pane must not soft-fall-back, stderr = %q", stderr)
@@ -1187,9 +1186,9 @@ func TestDispatchStart_SplitPanesStackInTheRightColumn(t *testing.T) {
 	}
 
 	// A DIFFERENT stage, so this is a second concurrent worker rather than an
-	// overwrite of the first. It must be the OTHER doing-tier stage (review-pr):
-	// the fixture points only the doing tier at the `cli` provider, so a stage
-	// outside it (e.g. review → the review tier) resolves the BUILT-IN claude
+	// overwrite of the first. It must be the OTHER `doing`-role stage (review-pr):
+	// the fixture points only the doing role at the `cli` provider, so a stage
+	// outside it (e.g. review → the review role) resolves the BUILT-IN claude
 	// provider and launches the real `claude` CLI — alive on a dev box where
 	// claude exists (a false local pass, plus a stray real agent session in the
 	// test server), dead instantly on CI where it doesn't.

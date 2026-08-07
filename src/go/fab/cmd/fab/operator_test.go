@@ -140,7 +140,7 @@ func TestFindWindowExact(t *testing.T) {
 	})
 }
 
-// TestOperatorProfile verifies the pure operator-tier resolver that backs the
+// TestOperatorProfile verifies the pure `operator`-role resolver that backs the
 // operator's coordinating-agent model selection: a nil config resolves the
 // built-in operator default {claude, claude-sonnet-5, medium}, and a project
 // override is honored (per-field merge over the built-in).
@@ -151,9 +151,9 @@ func TestOperatorProfile(t *testing.T) {
 		t.Errorf("operatorProfile(nil) = %+v, want the built-in operator default", got)
 	}
 
-	// A project override of the operator tier is honored (only effort here;
+	// A project override of the `operator` role is honored (only effort here;
 	// provider+model inherit the built-in via per-field merge).
-	cfg := &config.Config{Agent: config.AgentConfig{Tiers: map[string]config.TierProfile{
+	cfg := &config.Config{Agent: config.AgentConfig{Profiles: map[string]config.RoleProfile{
 		"operator": {Effort: "high"},
 	}}}
 	got = operatorProfile(cfg)

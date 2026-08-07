@@ -19,7 +19,7 @@ import (
 )
 
 // fieldsForTest returns the shipped registry, failing the test on a construction
-// error (the registry lint / tier invariant).
+// error (the registry lint / role-profile invariant).
 func fieldsForTest(t *testing.T) []configref.Field {
 	t.Helper()
 	f, err := configref.Fields()
@@ -72,11 +72,12 @@ agent:
 
 // TestRender_FenceOmitsOverriddenFields: a field the user has overridden live above
 // the fence is NOT re-advertised inside the fence (it shows what you could override
-// but haven't). agent.tiers is live here, so the fence must not scaffold `agent:`.
+// but haven't). agent.profiles is live here, and it shares the `agent:` top-level key
+// with the two advertised depth knobs, so the fence must not scaffold `agent:` at all.
 func TestRender_FenceOmitsOverriddenFields(t *testing.T) {
 	fields := fieldsForTest(t)
 	src := `agent:
-    tiers:
+    profiles:
         review:
             model: claude-fable-5
 `
@@ -84,11 +85,37 @@ func TestRender_FenceOmitsOverriddenFields(t *testing.T) {
 
 	_, fenceBody, _ := sliceFence(t, out)
 	if strings.Contains(fenceBody, "agent:") {
-		t.Errorf("fence must omit the already-overridden agent.tiers field.\n--- fence ---\n%s", fenceBody)
+		t.Errorf("fence must omit the already-overridden agent field.\n--- fence ---\n%s", fenceBody)
 	}
 	// But an un-overridden advertise field IS scaffolded (fully commented).
-	if !strings.Contains(fenceBody, "# providers") {
-		t.Errorf("fence must advertise the un-overridden providers field.\n--- fence ---\n%s", fenceBody)
+	if !strings.Contains(fenceBody, "# dispatch:") {
+		t.Errorf("fence must advertise the un-overridden dispatch field.\n--- fence ---\n%s", fenceBody)
+	}
+}
+
+// TestRender_FenceDemotesAgentMachinery pins the 260806-j9nh fence-slimming
+// requirement: the advertised agent surface is exactly the two depth knobs, so an
+// un-overridden project's fence carries `agent: session/workers` and NO `providers:`
+// or `agent.profiles` scaffold. Those rows keep their registry entries and their
+// `fab config reference` segments — they are demoted from the per-project fence
+// only.
+func TestRender_FenceDemotesAgentMachinery(t *testing.T) {
+	fields := fieldsForTest(t)
+	out, _ := render("", fields, "2.15.0")
+	_, fenceBody, _ := sliceFence(t, out)
+
+	for _, want := range []string{"agent.session", "agent.workers"} {
+		if !strings.Contains(fenceBody, want) {
+			t.Errorf("fence must advertise %q.\n--- fence ---\n%s", want, fenceBody)
+		}
+	}
+	// The machinery keys must not be SCAFFOLDED. Their segments open with a
+	// `# providers:` / `#   profiles:` block line, which is what a scaffold looks
+	// like; the knob segment's prose may still NAME them in a pointer line.
+	for _, absent := range []string{"# providers:", "#   profiles:"} {
+		if strings.Contains(fenceBody, absent) {
+			t.Errorf("fence must not scaffold %q (demoted to advertise:false).\n--- fence ---\n%s", absent, fenceBody)
+		}
 	}
 }
 
@@ -323,9 +350,19 @@ func TestRender_InteriorColumn0CommentInLiveBlock(t *testing.T) {
 // fixture must restate all three to be an equals-default case.
 func TestRender_BHygieneFlagsEqualsDefault(t *testing.T) {
 	fields := fieldsForTest(t)
+	// claude also ships its six per-role fills (260806-j9nh), so an equals-default
+	// fixture must restate those too. They are DERIVED from agent.DefaultProfile
+	// rather than typed out, so a model bump does not turn this into a false
+	// negative that silently stops exercising the equals-default path.
+	claudeProfiles := "        profiles:\n"
+	for _, role := range agent.RoleNames() {
+		p, _ := agent.DefaultProfile(role)
+		claudeProfiles += "            " + role + ": { model: " + p.Model + ", effort: " + p.Effort + " }\n"
+	}
 	src := "providers:\n" +
 		"    claude:\n" +
 		"        session_command: '" + agent.DefaultSessionCommand + "'\n" +
+		claudeProfiles +
 		"    codex:\n" +
 		"        session_command: '" + agent.DefaultCodexSessionCommand + "'\n" +
 		"        dispatch_command: '" + agent.DefaultCodexDispatchCommand + "'\n" +

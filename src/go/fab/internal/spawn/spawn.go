@@ -20,7 +20,7 @@ var DefaultSpawnCommand = agent.DefaultSessionCommand
 
 // Command reads the default provider's session command from the given config.yaml
 // path via the shared internal/config loader (the single config.yaml parser).
-// Returns providers.<default-tier.provider>.session_command resolved over
+// Returns providers.<default-role.provider>.session_command resolved over
 // fab-kit's built-in provider table, or DefaultSpawnCommand if it resolves empty
 // or the file cannot be read/parsed. The path-based signature is kept because
 // `fab agent --repo <path>` builds the path from an arbitrary repo root.
@@ -30,9 +30,10 @@ func Command(configPath string) string {
 		return DefaultSpawnCommand
 	}
 
-	// The session command lives on the default tier's provider. Resolve the
-	// default tier to find which provider, then that provider's session command.
-	profile, err := agent.ResolveTier(cfg, agent.TierDefault)
+	// The session command lives on the default role's provider (which the
+	// agent.session knob selects). Resolve the role to find which provider, then
+	// that provider's session command.
+	profile, err := agent.ResolveRole(cfg, agent.RoleDefault)
 	if err != nil {
 		return DefaultSpawnCommand
 	}
@@ -68,7 +69,7 @@ const (
 //     deliberate: the configured spawn_command may already pin a --model/
 //     --effort, and a trailing occurrence wins on the claude CLI (duplicate
 //     --effort is accepted without a parse error), so the caller's deliberate
-//     tier choice overrides whatever the spawn_command defaulted to.
+//     role choice overrides whatever the spawn_command defaulted to.
 //
 // An empty value mirrors the documented `empty ⇒ omit` convention (_preamble.md
 // § Per-Stage Model Resolution): in append mode it omits the flag entirely; in

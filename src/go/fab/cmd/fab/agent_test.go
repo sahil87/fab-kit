@@ -36,10 +36,10 @@ func runAgentPrint(t *testing.T, args ...string) (string, error) {
 	return out.String(), err
 }
 
-// TestAgentPrintDefaultTier: `fab agent --print` with no tier arg resolves the
-// default tier (claude/claude-fable-5/high) and appends the profile to the
+// TestAgentPrintDefaultRole: `fab agent --print` with no role arg resolves the
+// `default` role (claude/claude-fable-5/high) and appends the profile to the
 // non-templated claude session command.
-func TestAgentPrintDefaultTier(t *testing.T) {
+func TestAgentPrintDefaultRole(t *testing.T) {
 	agentTestRepo(t, `providers:
   claude:
     session_command: "claude --dangerously-skip-permissions"
@@ -54,9 +54,9 @@ func TestAgentPrintDefaultTier(t *testing.T) {
 	}
 }
 
-// TestAgentPrintOperatorTier: `fab agent operator --print` resolves the operator
-// tier (claude-sonnet-5/medium).
-func TestAgentPrintOperatorTier(t *testing.T) {
+// TestAgentPrintOperatorRole: `fab agent operator --print` resolves the `operator`
+// role (claude-sonnet-5/medium).
+func TestAgentPrintOperatorRole(t *testing.T) {
 	agentTestRepo(t, `providers:
   claude:
     session_command: "claude"
@@ -72,17 +72,16 @@ func TestAgentPrintOperatorTier(t *testing.T) {
 }
 
 // TestAgentPrintTemplatedSessionCommand: a templated session_command has the
-// resolved profile substituted (not appended); no literal braces survive. The tier
-// pins the model/effort because `codex` is a cross-provider switch off the
-// claude-shaped default tier, and such a tier no longer inherits the built-in's
-// model/effort (260805-j3cm) — the fill comes from the tier, a provider fill, or a
-// flag.
+// resolved profile substituted (not appended); no literal braces survive. The role
+// profile pins the model/effort because `codex` supplies no per-role fills of its
+// own (260806-j9nh) — model/effort come from the role profile, that provider's
+// fills, or a flag.
 func TestAgentPrintTemplatedSessionCommand(t *testing.T) {
 	agentTestRepo(t, `providers:
   codex:
     session_command: "codex -m {model} -c model_reasoning_effort={effort}"
 agent:
-  tiers:
+  profiles:
     default: { provider: codex, model: gpt-5.3-codex, effort: high }
 `)
 	out, err := runAgentPrint(t)
@@ -95,18 +94,18 @@ agent:
 	}
 }
 
-// TestAgentPrintProviderFillSuppliesTemplate (260805-j3cm): a cross-provider tier
-// that pins no model/effort takes them from the named provider's DEFAULT FILL
-// (`providers.<name>.model`/`.effort`) — the "extra set of config that fills the
-// templates". This is the fill-precedence rung between an explicit tier field and
-// empty.
+// TestAgentPrintProviderFillSuppliesTemplate: a role profile that pins no
+// model/effort takes them from the named provider's DEFAULT FILL (the deprecated
+// flat `providers.<name>.model`/`.effort` spelling of `profiles.default`) — the
+// "extra set of config that fills the templates". This is the fill-precedence rung
+// between an explicit `agent.profiles.<role>` field and empty.
 func TestAgentPrintProviderFillSuppliesTemplate(t *testing.T) {
 	agentTestRepo(t, `providers:
   codex:
     model: gpt-5.3-codex
     effort: high
 agent:
-  tiers:
+  profiles:
     default: { provider: codex }
 `)
 	out, err := runAgentPrint(t)
@@ -121,14 +120,15 @@ agent:
 	}
 }
 
-// TestAgentPrintBuiltinCodexNoFill (260805-j3cm): naming the codex BUILT-IN with no
-// fill anywhere composes a bare `codex` — the cross-provider cutoff leaves
-// model/effort empty and WithProfile drops each placeholder's token plus its
-// preceding flag, so the installed CLI's own default model applies. Crucially it
-// does NOT leak the claude-shaped default-tier model across the provider switch.
+// TestAgentPrintBuiltinCodexNoFill: naming the codex BUILT-IN with no fill anywhere
+// composes a bare `codex` — codex ships grammar only, so model/effort resolve empty
+// and WithProfile drops each placeholder's token plus its preceding flag, letting
+// the installed CLI's own default model apply. Crucially it does NOT leak claude's
+// `default`-role model across the provider switch: model/effort come only from the
+// RESOLVED provider's own fills (260806-j9nh).
 func TestAgentPrintBuiltinCodexNoFill(t *testing.T) {
 	agentTestRepo(t, `agent:
-  tiers:
+  profiles:
     default: { provider: codex }
 `)
 	out, err := runAgentPrint(t)
@@ -142,7 +142,7 @@ func TestAgentPrintBuiltinCodexNoFill(t *testing.T) {
 
 // TestAgentPrintBuiltinFallback: with no providers config, the built-in claude
 // provider supplies the templated default session command, into which the
-// default-tier profile is substituted (the constant is a {model}/{effort}
+// `default`-role profile is substituted (the constant is a {model}/{effort}
 // template, so this path resolves via substitution, not append).
 func TestAgentPrintBuiltinFallback(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
@@ -151,22 +151,22 @@ func TestAgentPrintBuiltinFallback(t *testing.T) {
 		t.Fatalf("agent --print: %v", err)
 	}
 	// Pin the full resolved command: the built-in templated default with the
-	// default tier {claude-fable-5, high} substituted into its placeholders.
+	// `default` role's {claude-fable-5, high} substituted into its placeholders.
 	want := "claude --dangerously-skip-permissions -n \"$(basename \"$(pwd)\")\" --model claude-fable-5 --effort high\n"
 	if out != want {
-		t.Errorf("output = %q, want the default-tier profile substituted into the templated built-in command %q", out, want)
+		t.Errorf("output = %q, want the `default`-role profile substituted into the templated built-in command %q", out, want)
 	}
 }
 
-// TestAgentPrintUnknownTierErrors: an unknown tier name exits non-zero.
-func TestAgentPrintUnknownTierErrors(t *testing.T) {
+// TestAgentPrintUnknownRoleErrors: an unknown role name exits non-zero.
+func TestAgentPrintUnknownRoleErrors(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 	_, err := runAgentPrint(t, "bogus")
 	if err == nil {
-		t.Fatal("expected an error for an unknown tier")
+		t.Fatal("expected an error for an unknown role")
 	}
 	if !strings.Contains(err.Error(), "bogus") {
-		t.Errorf("error should name the unknown tier, got: %v", err)
+		t.Errorf("error should name the unknown role, got: %v", err)
 	}
 }
 
@@ -180,7 +180,7 @@ func TestAgentPrintNoSessionCommandErrors(t *testing.T) {
   myagent:
     dispatch_command: "myagent run"
 agent:
-  tiers:
+  profiles:
     default: { provider: myagent }
 `)
 	_, err := runAgentPrint(t)
@@ -194,7 +194,7 @@ agent:
 
 // --- provider-addressed form (`fab agent --provider <name>`) ---
 
-// TestAgentPrintProviderExplicitProfile: --provider bypasses tier resolution and
+// TestAgentPrintProviderExplicitProfile: --provider bypasses role resolution and
 // substitutes the explicitly supplied --model/--effort into the provider's
 // templated session_command.
 func TestAgentPrintProviderExplicitProfile(t *testing.T) {
@@ -248,10 +248,10 @@ func TestAgentPrintProviderEmptyProfileAppendsNothing(t *testing.T) {
 	}
 }
 
-// TestAgentPrintProviderBypassesTier: the provider form ignores tier resolution
-// entirely — the default tier's model/effort must NOT leak into the composed
-// command (the tier path would have substituted claude-fable-5/high).
-func TestAgentPrintProviderBypassesTier(t *testing.T) {
+// TestAgentPrintProviderBypassesRole: the provider form ignores role resolution
+// entirely — the `default` role's model/effort must NOT leak into the composed
+// command (the role path would have substituted claude-fable-5/high).
+func TestAgentPrintProviderBypassesRole(t *testing.T) {
 	agentTestRepo(t, `providers:
   claude:
     session_command: "claude --model {model} --effort {effort}"
@@ -261,7 +261,7 @@ func TestAgentPrintProviderBypassesTier(t *testing.T) {
 		t.Fatalf("agent --provider claude --print: %v", err)
 	}
 	if out != "claude\n" {
-		t.Errorf("output = %q, want %q — the default tier's profile must not leak into the provider path", out, "claude\n")
+		t.Errorf("output = %q, want %q — the `default` role's profile must not leak into the provider path", out, "claude\n")
 	}
 }
 
@@ -279,13 +279,13 @@ func TestAgentPrintProviderBuiltinClaude(t *testing.T) {
 	}
 }
 
-// TestAgentTierAndProviderMutuallyExclusive: supplying both the [tier] positional
+// TestAgentRoleAndProviderMutuallyExclusive: supplying both the [role] positional
 // and --provider is a usage error — no command is printed or exec'd.
-func TestAgentTierAndProviderMutuallyExclusive(t *testing.T) {
+func TestAgentRoleAndProviderMutuallyExclusive(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 	out, err := runAgentPrint(t, "doing", "--provider", "claude")
 	if err == nil {
-		t.Fatal("expected an error when both [tier] and --provider are given")
+		t.Fatal("expected an error when both [role] and --provider are given")
 	}
 	if !strings.Contains(err.Error(), "mutually exclusive") {
 		t.Errorf("error should state the mutual exclusion, got: %v", err)
@@ -299,7 +299,7 @@ func TestAgentTierAndProviderMutuallyExclusive(t *testing.T) {
 }
 
 // TestAgentModelEffortRequireProvider: --model or --effort without --provider is a
-// usage error (the tier path's profile comes from the tier, so a bare --model has
+// usage error (the role path's profile comes from the role, so a bare --model has
 // no coherent semantics).
 func TestAgentModelEffortRequireProvider(t *testing.T) {
 	for _, flag := range []string{"--model", "--effort"} {
@@ -312,7 +312,7 @@ func TestAgentModelEffortRequireProvider(t *testing.T) {
 			if !strings.Contains(err.Error(), "require --provider") {
 				t.Errorf("error should say the flags require --provider, got: %v", err)
 			}
-			// See the note in TestAgentTierAndProviderMutuallyExclusive: assert no
+			// See the note in TestAgentRoleAndProviderMutuallyExclusive: assert no
 			// command was composed rather than an empty buffer (cobra's usage block).
 			if strings.Contains(out, "--dangerously-skip-permissions") {
 				t.Errorf("no session command should be composed on a usage error, got %q", out)
@@ -322,9 +322,9 @@ func TestAgentModelEffortRequireProvider(t *testing.T) {
 }
 
 // TestAgentEmptyProviderStillMutuallyExclusive: an EXPLICITLY EMPTY `--provider=`
-// is a supplied flag, so the mutual exclusion with the [tier] positional still
+// is a supplied flag, so the mutual exclusion with the [role] positional still
 // trips. Pins the guard on cobra's Flag.Changed rather than on value emptiness —
-// an emptiness test would let this invocation fall through to the tier path and
+// an emptiness test would let this invocation fall through to the role path and
 // print a command.
 func TestAgentEmptyProviderStillMutuallyExclusive(t *testing.T) {
 	agentTestRepo(t, `providers:
@@ -333,21 +333,21 @@ func TestAgentEmptyProviderStillMutuallyExclusive(t *testing.T) {
 `)
 	out, err := runAgentPrint(t, "doing", "--provider=")
 	if err == nil {
-		t.Fatal("expected an error for [tier] plus an explicitly-empty --provider=")
+		t.Fatal("expected an error for [role] plus an explicitly-empty --provider=")
 	}
 	if !strings.Contains(err.Error(), "mutually exclusive") {
 		t.Errorf("error should state the mutual exclusion, got: %v", err)
 	}
-	// See the note in TestAgentTierAndProviderMutuallyExclusive: assert no command
+	// See the note in TestAgentRoleAndProviderMutuallyExclusive: assert no command
 	// was composed rather than an empty buffer (cobra's usage block).
 	if strings.Contains(out, "--dangerously-skip-permissions") {
 		t.Errorf("no session command should be composed on a usage error, got %q", out)
 	}
 }
 
-// TestAgentEmptyProviderAloneIsLookupFailure: a bare `--provider=` (no tier) takes
+// TestAgentEmptyProviderAloneIsLookupFailure: a bare `--provider=` (no role) takes
 // the PROVIDER path — the empty name resolves to nothing, so it is the
-// unknown-provider lookup failure, never a silent fallback to the default tier.
+// unknown-provider lookup failure, never a silent fallback to the `default` role.
 // The error's config-key hint substitutes a `<name>` placeholder for the empty
 // name, so it never suggests the malformed `providers.` path.
 func TestAgentEmptyProviderAloneIsLookupFailure(t *testing.T) {
@@ -370,7 +370,7 @@ func TestAgentEmptyProviderAloneIsLookupFailure(t *testing.T) {
 		t.Errorf("hint must not suggest the malformed path %q, got: %v", "providers.", err)
 	}
 	if strings.Contains(out, "--dangerously-skip-permissions") {
-		t.Errorf("the tier path must not run for --provider=, got %q", out)
+		t.Errorf("the role path must not run for --provider=, got %q", out)
 	}
 }
 
