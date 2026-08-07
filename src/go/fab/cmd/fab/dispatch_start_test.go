@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
 )
 
@@ -45,6 +46,12 @@ func setupDispatchRepoWithCommands(t *testing.T, dispatchCmd, sessionCmd string)
 	// pane id and every pane test's expected shape would depend on where the suite
 	// runs. Tests that exercise the split path set it themselves.
 	t.Setenv("TMUX_PANE", "")
+	// $HOME is the SYSTEM config layer (~/.fab-kit/config.yaml), which the cascade
+	// merges under the project file. Isolated for the same hermeticity reason as the
+	// two env signals above: a developer's own `dispatch:` block (a column width, a
+	// providers entry) would otherwise reach into these tests and change a resolved
+	// command or a pane's expected geometry.
+	t.Setenv("HOME", t.TempDir())
 	repoRoot = t.TempDir()
 	folder := "260310-abcd-my-change"
 	id = "abcd"
@@ -1146,9 +1153,17 @@ func TestDispatchStart_SplitPane_Integration(t *testing.T) {
 }
 
 // TestDispatchStart_SplitPanesStackInTheRightColumn is the placement rule: with a
-// live titled sibling already present, the SECOND dispatch splits THAT pane rather
+// live recorded sibling already present, the SECOND dispatch splits THAT pane rather
 // than the dispatcher's, so workers stack down a right-hand column instead of each
 // one halving the dispatcher's pane again. All three panes share one window.
+//
+// REGRESSION (260807-g4a5): the first worker's pane TITLE is deliberately clobbered
+// before the second dispatch, reproducing what a harness running inside the worker
+// does within seconds of spawn (Claude Code rewrites the pane title via terminal
+// escapes). The title-keyed probe this replaced found nothing in that state, so every
+// later worker re-split the dispatcher and carved another full-height column until
+// the dispatching agent was a sliver. Record-keyed detection is title-independent, so
+// stacking must survive the clobber — this test fails against the old implementation.
 func TestDispatchStart_SplitPanesStackInTheRightColumn(t *testing.T) {
 	repoRoot, id := setupDispatchRepoWithCommands(t, "", `sh -c 'sleep 30' _`)
 	tmuxScoped, dispatcherPane := startPrivateTmuxWithPane(t)
@@ -1164,6 +1179,11 @@ func TestDispatchStart_SplitPanesStackInTheRightColumn(t *testing.T) {
 	}
 	if !dispatch.PaneAlive(first.Pane, "") {
 		t.Fatalf("pane %s must be alive for the sibling probe to find it", first.Pane)
+	}
+
+	// The clobber: the worker's harness owns its pane title from here on.
+	if out, err := tmuxScoped("select-pane", "-t", first.Pane, "-T", "✳ some harness title"); err != nil {
+		t.Fatalf("could not clobber the worker's pane title: %v (%q)", err, out)
 	}
 
 	// A DIFFERENT stage, so this is a second concurrent worker rather than an
@@ -1213,9 +1233,15 @@ func TestDispatchStart_SplitPanesStackInTheRightColumn(t *testing.T) {
 		t.Error("both workers share a top edge; the second split must be vertical (-v), stacking below the first")
 	}
 
-	// Both titles are set, so a THIRD dispatch would find the newest sibling.
+	// Titles are still SET at spawn — for identification only, now that placement no
+	// longer reads them. The second worker's is untouched (only the first was
+	// clobbered above), and the clobbered one proves the point: placement found it
+	// anyway.
 	if got := paneTitle(t, tmuxScoped, second.Pane); got != dispatch.WindowName(id, "review-pr") {
 		t.Errorf("second worker's pane title = %q, want %q", got, dispatch.WindowName(id, "review-pr"))
+	}
+	if got := paneTitle(t, tmuxScoped, first.Pane); got == dispatch.WindowName(id, "apply") {
+		t.Error("the first worker's title was expected to STAY clobbered — the regression scenario did not hold")
 	}
 
 	// Killing one worker pane leaves the dispatcher's window (and the other worker)
@@ -1237,6 +1263,72 @@ func TestDispatchStart_SplitPanesStackInTheRightColumn(t *testing.T) {
 	}
 }
 
+// TestDispatchStart_UnreadableRecordWarnsAndStillLaunches is the record-read half of
+// the degradation contract (the tmux-probe half is covered by the sized-split retry
+// tests): a corrupt {stage}.yaml in the checkout's dispatch tree must reach
+// launchPane's stderr warning AND still launch the worker. Before this, the record
+// walk swallowed every read failure, so a broken tree silently produced blind
+// placement with nothing in the output to explain it.
+//
+// A live recorded sibling sits alongside the corrupt record, so the test also pins
+// the partial-set behavior: the readable record still wins the intersection and the
+// worker STACKS — a read failure degrades the probe, it does not discard it.
+func TestDispatchStart_UnreadableRecordWarnsAndStillLaunches(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", `sh -c 'sleep 30' _`)
+	tmuxScoped, dispatcherPane := startPrivateTmuxWithPane(t)
+	dir := dispatch.DirFor(repoRoot, id)
+
+	if _, err := runStart(t, "apply prompt", "abcd", "apply"); err != nil {
+		t.Fatalf("first split dispatch failed: %v", err)
+	}
+	first, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load apply: %v", err)
+	}
+
+	// A record the walk cannot parse, in a second change's dir so it neither
+	// overwrites nor is overwritten by the dispatch under test.
+	corrupt := dispatch.DirFor(repoRoot, "zzzz")
+	if err := os.MkdirAll(corrupt, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, dispatch.YAMLPath(corrupt, "apply"), "pane: [unterminated\n")
+
+	_, stderr, err := runStartCapturingStderr(t, "review-pr prompt", "abcd", "review-pr")
+	if err != nil {
+		t.Fatalf("a corrupt record must degrade placement, not fail the dispatch: %v", err)
+	}
+	if !strings.Contains(stderr, "worker-column placement probe failed") {
+		t.Errorf("stderr = %q, want the degraded-probe warning", stderr)
+	}
+	// The warning must name WHAT failed and WHERE the worker went, so the degraded
+	// placement is explainable from output alone.
+	for _, want := range []string{"zzzz/apply.yaml", "stacking the worker under pane " + first.Pane} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr = %q, want it to name %q", stderr, want)
+		}
+	}
+
+	second, err := dispatch.Load(dir, "review-pr")
+	if err != nil {
+		t.Fatalf("the worker must still have launched and been recorded: %v", err)
+	}
+	if !dispatch.PaneAlive(second.Pane, "") {
+		t.Errorf("worker pane %s is not alive; the degraded probe must not cost the dispatch", second.Pane)
+	}
+	// The readable sibling still won the intersection: same left edge, distinct top.
+	if got, want := paneFormat(t, tmuxScoped, second.Pane, "#{pane_left}"),
+		paneFormat(t, tmuxScoped, first.Pane, "#{pane_left}"); got != want {
+		t.Errorf("second worker's left edge = %s, want the sibling's %s (a partial record read still stacks)", got, want)
+	}
+	if paneFormat(t, tmuxScoped, second.Pane, "#{pane_top}") == paneFormat(t, tmuxScoped, first.Pane, "#{pane_top}") {
+		t.Error("both workers share a top edge; the stacking split must be vertical (-v)")
+	}
+	if got := paneWindow(t, tmuxScoped, second.Pane); got != paneWindow(t, tmuxScoped, dispatcherPane) {
+		t.Errorf("worker landed in window %s, want the dispatcher's", got)
+	}
+}
+
 // paneFormat reads any tmux format string for a pane through the verified socket.
 func paneFormat(t *testing.T, tmuxScoped func(...string) (string, error), paneID, format string) string {
 	t.Helper()
@@ -1245,6 +1337,97 @@ func paneFormat(t *testing.T, tmuxScoped func(...string) (string, error), paneID
 		t.Fatalf("read %s for %s: %v (%q)", format, paneID, err, out)
 	}
 	return out
+}
+
+// paneInt reads a numeric tmux format string for a pane.
+func paneInt(t *testing.T, tmuxScoped func(...string) (string, error), paneID, format string) int {
+	t.Helper()
+	raw := paneFormat(t, tmuxScoped, paneID, format)
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		t.Fatalf("%s for %s is not numeric: %q", format, paneID, raw)
+	}
+	return n
+}
+
+// appendProjectConfig appends to the repo's project config, for tests that need a
+// key the shared fixture does not write.
+func appendProjectConfig(t *testing.T, repoRoot, extra string) {
+	t.Helper()
+	path := filepath.Join(repoRoot, "fab", "project", "config.yaml")
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, path, string(body)+extra)
+}
+
+// TestDispatchStart_CarvingSplitSizesTheWorkerColumn is the sizing rule: the
+// column-CARVING split runs `-l <n>%`, so the dispatching agent — the pane the user
+// is actually watching — keeps the rest of the window instead of being halved. The
+// width comes from `dispatch.column_width` (default 35), and the STACKING split that
+// follows leaves the left/right separator untouched: the column invariant.
+func TestDispatchStart_CarvingSplitSizesTheWorkerColumn(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		extra string
+		want  int
+	}{
+		{"default width", "", config.DefaultDispatchColumnWidth},
+		{"configured width", "dispatch:\n  column_width: 20\n", 20},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repoRoot, id := setupDispatchRepoWithCommands(t, "", `sh -c 'sleep 30' _`)
+			if tc.extra != "" {
+				appendProjectConfig(t, repoRoot, tc.extra)
+			}
+			tmuxScoped, dispatcherPane := startPrivateTmuxWithPane(t)
+			dir := dispatch.DirFor(repoRoot, id)
+			windowWidth := paneInt(t, tmuxScoped, dispatcherPane, "#{window_width}")
+
+			if _, err := runStart(t, "apply prompt", "abcd", "apply"); err != nil {
+				t.Fatalf("split dispatch failed: %v", err)
+			}
+			first, err := dispatch.Load(dir, "apply")
+			if err != nil {
+				t.Fatalf("Load apply: %v", err)
+			}
+
+			// tmux sizes the NEW pane to the requested percentage of the window; the
+			// ±1 tolerance absorbs integer rounding and the separator column.
+			gotWidth := paneInt(t, tmuxScoped, first.Pane, "#{pane_width}")
+			wantWidth := windowWidth * tc.want / 100
+			if gotWidth < wantWidth-1 || gotWidth > wantWidth+1 {
+				t.Errorf("worker column is %d cols of a %d-col window, want ~%d (%d%%)",
+					gotWidth, windowWidth, wantWidth, tc.want)
+			}
+			// The point of the sizing: the dispatcher keeps the majority.
+			dispatcherWidth := paneInt(t, tmuxScoped, dispatcherPane, "#{pane_width}")
+			if dispatcherWidth <= gotWidth {
+				t.Errorf("dispatcher kept %d cols vs the worker's %d; a sized carve must leave the dispatcher more",
+					dispatcherWidth, gotWidth)
+			}
+
+			// A second worker STACKS: the column's width — and therefore the
+			// dispatcher's — is unchanged, because `-v` never moves the left/right
+			// separator.
+			if _, err := runStart(t, "review-pr prompt", "abcd", "review-pr"); err != nil {
+				t.Fatalf("second split dispatch failed: %v", err)
+			}
+			if got := paneInt(t, tmuxScoped, dispatcherPane, "#{pane_width}"); got != dispatcherWidth {
+				t.Errorf("dispatcher width changed to %d after a stacking split, want %d unchanged (the column invariant)",
+					got, dispatcherWidth)
+			}
+			second, err := dispatch.Load(dir, "review-pr")
+			if err != nil {
+				t.Fatalf("Load review-pr: %v", err)
+			}
+			if got := paneInt(t, tmuxScoped, second.Pane, "#{pane_width}"); got != gotWidth {
+				t.Errorf("stacked worker is %d cols wide, want the column's %d (a `-v` split must not resize the column)",
+					got, gotWidth)
+			}
+		})
+	}
 }
 
 // TestDispatchStart_ServerFlagKeepsTheNewWindowShape: `--server <name>` targets a

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -615,9 +616,10 @@ func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
 	// The only rows with a real built-in default today. Every other row is
 	// "no built-in default" and MUST render as JSON null (not [], {}, or "").
 	hasDefault := map[string]bool{
-		"providers":          true,
-		"agent.tiers":        true,
-		"dispatch.watchable": true, // bool: false IS the built-in default, not "absent"
+		"providers":             true,
+		"agent.tiers":           true,
+		"dispatch.watchable":    true, // bool: false IS the built-in default, not "absent"
+		"dispatch.column_width": true, // int: an absent yaml int reads as unset, so 35 is real
 	}
 	for _, obj := range arr {
 		key, _ := obj["key"].(string)
@@ -742,6 +744,7 @@ func TestConfigReferenceScopeAssignments(t *testing.T) {
 		"providers":                  configref.ScopeBoth,
 		"agent.tiers":                configref.ScopeBoth,
 		"dispatch.watchable":         configref.ScopeBoth,
+		"dispatch.column_width":      configref.ScopeBoth,
 		"stage_hooks":                configref.ScopeProject,
 		"branch_prefix":              configref.ScopeProject,
 	}
@@ -1037,5 +1040,89 @@ func TestConfigReferenceDispatchWatchable(t *testing.T) {
 	}
 	if cfg.GetDispatchWatchable() {
 		t.Error("the reference's dispatch block must be inert (watchable=false when parsed)")
+	}
+}
+
+// TestConfigReferenceDispatchColumnWidth: the `dispatch.column_width` row (the
+// pane-worker column width) is present, correctly scoped, advertised, and carries
+// the CANONICAL default rather than a literal copy. Its rendered prose lives inside
+// the shared `dispatch:` segment — `dispatch` is one YAML block, so a second
+// `# dispatch:` parent would collide into a duplicate key if a reader uncommented
+// both — which is why this row's own Segment is deliberately empty (the
+// project.name / project.description precedent).
+func TestConfigReferenceDispatchColumnWidth(t *testing.T) {
+	// Isolate HOME so the cascade cannot merge the developer's real system config
+	// over the reference (the TestConfigReferenceRoundTrips discipline).
+	t.Setenv("HOME", t.TempDir())
+
+	fields, err := configref.Fields()
+	if err != nil {
+		t.Fatalf("Fields returned an error: %v", err)
+	}
+	var row, watchable *configref.Field
+	for i := range fields {
+		switch fields[i].Key {
+		case "dispatch.column_width":
+			row = &fields[i]
+		case "dispatch.watchable":
+			watchable = &fields[i]
+		}
+	}
+	if row == nil {
+		t.Fatal("registry is missing the dispatch.column_width row")
+	}
+	// The canonical built-in default, sourced from the config symbol — a literal
+	// here would be the second copy the registry exists to avoid.
+	if row.Default != config.DefaultDispatchColumnWidth {
+		t.Errorf("dispatch.column_width Default = %#v, want %d (config.DefaultDispatchColumnWidth)",
+			row.Default, config.DefaultDispatchColumnWidth)
+	}
+	// Scope `both` is load-bearing: a project-scoped field would be PRUNED out of
+	// ~/.fab-kit/config.yaml, defeating the machine-wide preference.
+	if row.Scope != configref.ScopeBoth {
+		t.Errorf("dispatch.column_width Scope = %q, want %q (settable machine-wide)", row.Scope, configref.ScopeBoth)
+	}
+	if !row.Advertise {
+		t.Error("dispatch.column_width must be advertised (it is scaffolded into the managed fence)")
+	}
+	if row.Segment != "" {
+		t.Error("dispatch.column_width must carry NO Segment of its own — it is rendered inside the shared dispatch.watchable Segment")
+	}
+	if watchable == nil {
+		t.Fatal("registry is missing the dispatch.watchable row (the shared segment's owner)")
+	}
+	// The shared segment must document the width: this row's only discoverability
+	// surface, so the semantics a reader needs to set it live there.
+	for _, want := range []string{"column_width", "-h -l <n>%", "1..99", "pre-3.1"} {
+		if !strings.Contains(watchable.Segment, want) {
+			t.Errorf("the shared dispatch Segment must mention %q (the sizing semantics and the degrade rule)", want)
+		}
+	}
+
+	out, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+	// Rendered COMMENTED beside watchable, under ONE `dispatch:` parent.
+	wantScaffold := "#   column_width: " + strconv.Itoa(config.DefaultDispatchColumnWidth)
+	if !strings.Contains(out, wantScaffold) {
+		t.Errorf("the reference must scaffold %q commented.\n--- got ---\n%s", wantScaffold, out)
+	}
+	if n := strings.Count(out, "# dispatch:"); n != 1 {
+		t.Errorf("the reference renders %d `# dispatch:` parents, want exactly 1 (both keys share one block, or uncommenting both would duplicate the key)", n)
+	}
+
+	// The commented scaffold must parse as an inert config: the width stays at its
+	// default rather than registering as an override.
+	tmp := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(tmp, []byte(out), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.LoadPath(tmp)
+	if err != nil {
+		t.Fatalf("the rendered reference must parse: %v", err)
+	}
+	if got := cfg.GetDispatchColumnWidth(); got != config.DefaultDispatchColumnWidth {
+		t.Errorf("the reference's dispatch block must be inert, got column_width %d", got)
 	}
 }

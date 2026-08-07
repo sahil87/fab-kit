@@ -33,6 +33,7 @@
 package dispatch
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -255,6 +256,78 @@ func Load(dir, stage string) (*Dispatch, error) {
 		return nil, fmt.Errorf("parse dispatch state: %w", err)
 	}
 	return &d, nil
+}
+
+// recordedPanes returns the set of tmux pane IDs recorded by every dispatch record
+// in the checkout that lives on the given tmux SERVER — the identity source
+// pane-worker PLACEMENT keys on (see SiblingDispatchPane).
+//
+// It walks .fab-dispatch/*/ under repoRoot and loads each {stage}.yaml through the
+// package's own Load, so the record schema has one reader. Records with no Pane
+// (every headless dispatch) contribute nothing.
+//
+// The SERVER FILTER is exact equality against Dispatch.Server, because a tmux pane
+// ID is per-SOCKET, not global: a `%17` recorded by a `--server work` dispatch names
+// a completely different pane from the `%17` in a default-socket window, so an
+// unfiltered set could false-match and stack a worker onto an unrelated pane.
+// Default-socket dispatches record Server "" and are therefore matched by a
+// default-socket probe (server ""), which is the same equality test — no special
+// case.
+//
+// Scope is ALL record dirs, not just the active change's: nothing stops one tmux
+// window from hosting two changes' workers, and an extra directory listing is
+// cheaper than a misplaced pane. Over-collecting is safe because the caller
+// INTERSECTS this set with one window's live pane list — a pane belonging to
+// another window (or a dead one) simply never matches.
+//
+// Errors are REPORTED but never fatal, and the set returned alongside them is the
+// partial one collected so far: an absent .fab-dispatch/ tree is the benign
+// first-dispatch case (empty set, nil error), while an unreadable dir entry or a
+// corrupt record is a real failure the caller surfaces as a warning (see
+// SiblingDispatchPane) without failing a dispatch that would otherwise launch —
+// placement is cosmetic (§ SplitTarget). Returning the partial set rather than
+// discarding it is strictly safer: a missing record can only fail to FIND a
+// sibling (degrading to the first-worker carve), never invent one, since the
+// caller still intersects with the window's live pane list.
+func recordedPanes(repoRoot, server string) (map[string]bool, error) {
+	panes := map[string]bool{}
+	root := filepath.Join(repoRoot, DirName)
+	dirs, err := os.ReadDir(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return panes, nil
+		}
+		return panes, fmt.Errorf("read dispatch state dir: %w", err)
+	}
+	var errs []error
+	for _, d := range dirs {
+		if !d.IsDir() {
+			continue
+		}
+		dir := filepath.Join(root, d.Name())
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("read dispatch dir %s: %w", d.Name(), err))
+			continue
+		}
+		for _, f := range files {
+			name := f.Name()
+			// {stage}.yaml only — {stage}-result.yaml is the WORKER's result file,
+			// which also ends in .yaml but is not a dispatch record.
+			if !strings.HasSuffix(name, yamlSuffix) || strings.HasSuffix(name, resultSuffix) {
+				continue
+			}
+			rec, err := Load(dir, strings.TrimSuffix(name, yamlSuffix))
+			if err != nil {
+				errs = append(errs, fmt.Errorf("read dispatch record %s/%s: %w", d.Name(), name, err))
+				continue
+			}
+			if rec.IsPane() && rec.Server == server {
+				panes[rec.Pane] = true
+			}
+		}
+	}
+	return panes, errors.Join(errs...)
 }
 
 // ReadExit reads {stage}.exit. It returns (present, code): present is false when

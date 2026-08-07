@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`fab dispatch {start,restart,status,wait,logs,kill,clean}` — process manager for CLI-dispatched pipeline stages in two launch modes, resolved per invocation by an explicit-first ladder ending in auto (`$TMUX` ⇒ pane, else headless): headless (detached `sh -c` on `dispatch_command`, five states) and pane (`session_command` in a tmux pane split into the dispatcher's window; three states). `restart` relaunches the persisted prompt; `status`/`wait` are the one-shot and blocking observers."
+description: "`fab dispatch {start,restart,status,wait,logs,kill,clean}` — process manager for CLI-dispatched pipeline stages in two launch modes, resolved per invocation by an explicit-first ladder ending in auto (`$TMUX` ⇒ pane, else headless): headless (detached `sh -c` on `dispatch_command`, five states) and pane (`session_command` in a tmux pane, stacked in a record-keyed column carved at `dispatch.column_width`; three states). `restart` relaunches the persisted prompt; `status`/`wait` observe."
 ---
 # fab dispatch
 
@@ -128,13 +128,11 @@ A `--headless` boolean flag SHALL exist as the explicit opt-out from auto pane s
 
 | # | Condition | Shape | tmux call | Identity carried by |
 |---|-----------|-------|-----------|---------------------|
-| 1 | `$TMUX_PANE` non-empty **and** no `--server` | **split** — a pane inside the **dispatching agent's own window** | `tmux split-window {-h\|-v} -t <target> -P -F '#{pane_id}' -c <repo-root> "<resolved-cmd> <shell-quoted-pointer>"`, then `tmux select-pane -t <new-pane> -T fab-{id}-{stage}` | the tmux **pane title** |
+| 1 | `$TMUX_PANE` non-empty **and** no `--server` | **split** — a pane inside the **dispatching agent's own window** | `tmux split-window {-h -l <n>%\|-v} -t <target> -P -F '#{pane_id}' -c <repo-root> "<resolved-cmd> <shell-quoted-pointer>"`, then `tmux select-pane -t <new-pane> -T fab-{id}-{stage}` | the tmux **pane title** |
 | 2 | `--server <name>` supplied | **new window** | `tmux -L <name> new-window -n fab-{id}-{stage} -P -F '#{pane_id}' -c <repo-root> "…"` | the tmux **window name** |
 | 3 | `$TMUX_PANE` empty | **new window** | `tmux new-window -n fab-{id}-{stage} -P -F '#{pane_id}' -c <repo-root> "…"` | the tmux **window name** |
 
 This realizes the **two-tier tmux hierarchy**: an **operator** opens worktree agents as tmux **windows** (that path is untouched), and each **worktree agent**'s stage workers appear as **panes beside it** — so a stage worker no longer consumes a window in the operator's (and run-kit's) window list. Rows 2 and 3 reproduce the pre-split behavior **byte-identically**, which is what makes the change additive: `--server` may name a socket other than the one the caller's pane lives on, where the caller's `$TMUX_PANE` id is meaningless (pane ids are server-global, not global); an empty `$TMUX_PANE` means the dispatcher — a headless orchestrator passing an explicit `--pane` — has no pane of its own to split.
-
-**Split placement SHALL be a stacked right column.** `start` probes the caller's window via `tmux list-panes -t "$TMUX_PANE" -F '#{pane_id} #{pane_title}'` (a `-t` pane target resolves to that pane's window) and keeps the **last** row whose title carries the `fab-` prefix — list-panes order is pane-index order, so the last such pane is the newest worker. If one exists, the new worker splits **that** pane with `-v`, stacking down the column; if none does, it splits `$TMUX_PANE` itself with `-h`, carving the column out of the dispatcher's pane. A **failing probe SHALL degrade** to the `-h` split off `$TMUX_PANE` with a stderr warning — placement is cosmetic and MUST NOT fail a dispatch that would otherwise launch.
 
 **The identity string is shape-independent.** `WindowName(id, stage)` composes the same `fab-{id}-{stage}` string for both shapes and it is stored in the record's same `window` field, so there is **no schema change and no migration**. In the split shape it rides the **pane title** (`select-pane -T`), because a split pane has no window name of its own — its window is the dispatcher's. A **failed title set is non-fatal** (a stderr warning at most): the worker is already running and its pane ID — the real identity — is already in hand, so refusing the dispatch over a cosmetic label would be strictly worse.
 
@@ -148,12 +146,6 @@ This realizes the **two-tier tmux hierarchy**: an **operator** opens worktree ag
 - **WHEN** `fab dispatch start <change> <stage>` auto-selects pane mode
 - **THEN** the worker's pane shares the dispatcher's `#{window_id}`, no new window is created, the pane's title is `fab-{id}-{stage}`, and the report reads `pane %N, split, title fab-{id}-{stage}`
 
-#### Scenario: a second worker stacks under the first
-
-- **GIVEN** a live worker pane titled `fab-{id}-apply` in the dispatcher's window
-- **WHEN** a second dispatch for another stage of the same change runs from the same dispatcher
-- **THEN** the new pane splits the **first worker's** pane (not the dispatcher's), all three panes share one window, and both workers' titles are set
-
 #### Scenario: `--server` and an absent `$TMUX_PANE` keep the new-window shape
 
 - **GIVEN** either `--server <name>` supplied (whatever `$TMUX_PANE` holds) or an empty `$TMUX_PANE`
@@ -165,6 +157,47 @@ This realizes the **two-tier tmux hierarchy**: an **operator** opens worktree ag
 - **GIVEN** a split worker pane in the dispatching agent's window
 - **WHEN** `fab dispatch kill <change> <stage>` runs
 - **THEN** only that pane dies; the dispatcher's pane, its window, and any sibling worker pane all survive, and the dispatch reads `orphaned`
+
+### Requirement: Split placement is a record-keyed stacked column, carved once at `dispatch.column_width`
+
+**Sibling detection SHALL key on dispatch RECORDS, never on pane titles.** `start` collects the `pane:` field of every `.fab-dispatch/*/{stage}.yaml` record in the checkout whose `server:` **equals the socket being probed**, intersects that set with `tmux list-panes -t "$TMUX_PANE" -F '#{pane_id}'` (a `-t` pane target resolves to that pane's window), and keeps the **last** pane present in both — list-panes order is pane-index order, so the last match is the newest worker. A pane ID is the correct identity for the same reason `status`/`kill`/`capture` key on it: it is server-global and stable for the pane's lifetime. A pane **title** is not — a harness running inside the worker pane rewrites it via terminal escapes within seconds of spawn — so titles are **set** at spawn for identification only, and **no code path reads `#{pane_title}` for placement**. `{stage}-result.yaml` is not a record, and records with an empty `pane:` (every headless dispatch) contribute nothing.
+
+The **server filter is exact equality**, because a pane ID is per-**socket** rather than global: a `%17` recorded by a `--server work` dispatch names a different pane from the `%17` on the default socket, so an unfiltered set could stack a worker onto an unrelated pane. Default-socket dispatches record `server: ""` and are matched by a default-socket probe under that same equality test — no special case. Enumeration scope is **every** record dir in the checkout, not only the active change's, since nothing stops one window from hosting two changes' workers; over-collecting is safe because the intersection with one window's live pane list **is** the liveness *and* same-window filter — a dead pane, or a live pane in another window, simply never matches, so no separate `PaneAlive` probe or window lookup is needed.
+
+**The column invariant.** The first worker splits the dispatcher's own pane `-h`, **carving** the Left/Right column at `dispatch.column_width` percent (default 35, so the agent the user is watching keeps the rest); every later worker splits the last live recorded worker `-v`, stacking **inside** that column, unsized. Only the carving split is ever sized — sizing a stacking split would fight the user's own resizes within the column. fab issues **no `select-layout`**, never rearranges user-made panes, and never re-touches the vertical Left/Right separator once carved. This is a **creation-time rule, not an enforcement loop**: an already-mangled window is left alone until its panes die.
+
+The decision is a `SplitPlacement{Target, Direction, SizePercent}` returned by `SplitTarget(server, dispatcherPane, repoRoot, columnWidth)`, whose pure halves — `lastRecordedPane` (the intersection), `splitPlacement` (the decision), `splitArgs` (the argv) — are table-testable without a tmux server or a record tree, matching `SelectMode`/`DerivePaneState`'s shape in the package. The width is read from config in the cobra layer (`cfg.GetDispatchColumnWidth()`; see [_shared/configuration.md](/_shared/configuration.md) § `dispatch`) and rides the placement, so the "size the carve, never a stack" rule exists in exactly one place.
+
+`SplitPlacement` and `SplitTarget` are the package's whole exported placement surface: the tmux flags (`splitRight`/`splitBelow`/`sizeFlag`), the argv composer (`splitArgs`), and the sibling probe are package-scope, and the cobra layer reads a placement only through `SplitPlacement.Describe()` — the stacked-column wording its degraded-probe warning prints — so no caller outside `internal/dispatch` handles a raw `-h`/`-v`.
+
+**Placement is cosmetic, so every failure degrades warn-only** and never fails a dispatch that would otherwise launch. Each warning names both what failed and where the worker actually landed (`worker-column placement probe failed (…); carving a new worker column off pane %N` / `… stacking the worker under pane %N`):
+
+| Failure | Outcome |
+|---------|---------|
+| `tmux list-panes` fails | no window to intersect ⇒ the **sized** carve off the dispatcher (a fallback column that halved the dispatcher would reintroduce the squeeze the width exists to prevent) |
+| an unreadable dispatch dir / corrupt `{stage}.yaml` | the records that **did** read are kept, so a partial failure still stacks when a live sibling is among them — an unread record can only fail to *find* a sibling, never invent one |
+| an absent `.fab-dispatch/` tree | the ordinary first-dispatch case, **not** a failure: empty set, no warning |
+| tmux rejects `-l <n>%` (every tmux before 3.1, or a window too narrow) | the identical split is retried **unsized**; the first failure becomes the warning |
+| `select-pane -T` fails | non-fatal, as for the new-window shape's label |
+
+One consequence is deliberate: when the **dispatcher is itself a pane worker** (a stage worker dispatching a stage of its own), its own pane is in the record set, so it can be its own sibling and the new worker stacks under it rather than carving a second column. That is the wanted outcome — the dispatcher already lives in a worker column — and it is self-limiting, since the next dispatch finds the child below it and stacks under that.
+
+`restart` reaches this placement through the shared launch path with no restart-specific branch, so a relaunched worker stacks in the right column exactly as a fresh `start` would.
+
+#### Scenario: a clobbered pane title does not misplace the next worker
+
+- **GIVEN** a live worker pane recorded in `.fab-dispatch/abcd/apply.yaml` whose pane **title has been rewritten** by the harness running inside it
+- **WHEN** a second pane dispatch starts from the same dispatcher pane
+- **THEN** the probe still finds that worker, the new pane splits it `-v` (not the dispatcher), and all three panes share one window
+- **AND** GIVEN a recorded pane that is dead, or live in another window, or recorded against a different `server:`, it never matches and the dispatch carves a fresh sized column instead
+
+#### Scenario: the carving split is sized and the stacking split is not
+
+- **GIVEN** `dispatch.column_width` resolving to 35
+- **WHEN** the first pane worker of a window is dispatched
+- **THEN** the split argv carries `-h -l 35%` and the dispatcher keeps ~65% of the window width
+- **AND** GIVEN a second worker stacking under it, that argv carries `-v` and no `-l`
+- **AND** GIVEN a tmux that rejects the size, the split is retried unsized, the worker still launches, and stderr carries the one-line warning
 
 ### Requirement: Prompt delivery is a file plus a one-line pointer in pane mode
 
@@ -472,6 +505,46 @@ Cleanup SHALL happen at exactly **two deterministic moments** and never on a tim
 
 ## Design Decisions
 
+### Worker placement keys on the record's pane ID, and the live `list-panes` intersection is the whole filter
+
+**Decision**: `SiblingDispatchPane` collects the `pane:` field of every `.fab-dispatch/*/{stage}.yaml` record in the checkout that was recorded against the socket being probed, then keeps the **last** pane in `tmux list-panes -t <dispatcherPane> -F '#{pane_id}'` that appears in that set.
+
+**Why**: Pane IDs are server-global and stable for the pane's lifetime — the same reason `status`/`kill`/`capture` key on them — whereas a pane title is rewritten by the harness running inside the worker. That is what makes a title-keyed probe unusable: it finds no sibling, so every worker takes the no-sibling branch and re-splits the dispatcher, degrading the window into N equal-width columns with the session agent squeezed to a sliver. Intersecting with the window's own live pane list collapses three filters into one probe — liveness (a dead pane is absent), same-window scoping (a `-t <pane>` target resolves to that pane's window), and the geometric "last" ordering the stacked column is built in — which is also what makes the all-record-dirs enumeration scope safe: a pane recorded by another change in another window never matches. Filtering on `Server` equality is required because pane IDs are per-socket, so a `--server`-recorded `%N` would otherwise false-match an unrelated default-socket pane.
+
+**Rejected**: Per-record `PaneAlive` probes plus a separate window lookup (N tmux calls for the answer one `list-panes` already gives, and it would still need the list order to define "last"). Scanning only the active change's record dir (a window can host two changes' workers). Keeping the title scan as a fallback — it is the broken signal, so a fallback would silently resurrect the bug. Enforcing the layout with `select-layout main-vertical` after every pane event (rearranges the user's hand-made panes and resets manual resizes on every dispatch). A repair pass over an already-mangled window (fab only stops creating new mess; existing columns stay until their panes die). Workers in a separate `fab-{id}-workers` window (loses side-by-side glanceability).
+
+*Introduced by*: 260807-g4a5-pane-worker-column-invariant
+
+### The size rides the resolved placement, so one rule also covers the degraded path
+
+**Decision**: `SplitTarget` returns a `SplitPlacement{Target, Direction, SizePercent}` and sets `SizePercent` only on the column-carving `splitRight` decision; `splitArgs` renders `-l {n}%` from it, and `OpenSplitPane` merely executes the placement.
+
+**Why**: "Size the carving split, never a stacking split" then exists once — in the decision — rather than at each call site, and the degraded branch (probe failed ⇒ carve off the dispatcher) is the *same* `splitRight` decision, so it inherits the size for free instead of needing its own copy of the rule. That matters because an unsized fallback column would halve the dispatcher and reintroduce exactly the squeeze the width exists to prevent. Bundling also keeps `OpenSplitPane`'s parameter list from growing another argument, and the percentage form (rather than a cell count) keeps the column proportional across window resizes.
+
+**Rejected**: A `sizePercent` parameter threaded separately through `SplitTarget` and `OpenSplitPane` (two places to remember the direction condition). Sizing inside `OpenSplitPane` by re-deriving the direction (a second copy of the rule, free to drift from `SplitTarget`).
+
+*Introduced by*: 260807-g4a5-pane-worker-column-invariant
+
+### A rejected size retries unsized rather than probing the tmux version
+
+**Decision**: `OpenSplitPane` runs the sized split and, when tmux rejects it while a size was requested, retries the identical split with the size dropped, returning the first failure as a non-fatal warning.
+
+**Why**: It covers the whole class of "this tmux will not take this size" — pre-3.1 with no `-l N%` syntax, a window too narrow for the requested percentage — with no version string to parse (`3.1a`, `next-3.4`, distro forks) and no extra tmux round-trip on the happy path. It is also exactly the existing degradation contract: placement is cosmetic, so it warns and proceeds.
+
+**Rejected**: A `tmux -V` version probe (a second call on every dispatch, plus version-string parsing that rots). Failing the dispatch (contradicts placement-is-cosmetic). Silently dropping the size (the user set a knob; a silent no-op is unexplainable from output).
+
+*Introduced by*: 260807-g4a5-pane-worker-column-invariant
+
+### A record-read failure returns its partial set alongside the error
+
+**Decision**: `recordedPanes` returns `(map[string]bool, error)`. An absent `.fab-dispatch/` tree is the benign empty-set/nil-error case; every real read or parse failure is joined into `SiblingDispatchPane`'s error and surfaced by the cobra layer's warning, which names both the failure and the resolved placement — while the records that *did* read are still returned.
+
+**Why**: Discarding the partial set on any failure would turn one corrupt record into a forced carve, whereas keeping it is strictly safer: a record that could not be read can only fail to *find* a sibling, never invent one, because the caller still intersects with the window's live pane list. So the degraded answer is either the clean answer or the sized carve — never a misplacement. Distinguishing `os.IsNotExist` on the tree root from a real failure is what keeps the ordinary first dispatch silent instead of warning on every run.
+
+**Rejected**: Returning only the set and swallowing errors (a corrupt record then degrades placement invisibly, against the warn-only contract). Returning only the error and dropping the set (loses a usable answer for a partial failure). Warning on an absent tree (the common case is not a problem).
+
+*Introduced by*: 260807-g4a5-pane-worker-column-invariant
+
 ### Observation is a blocking `wait` over an internal derivation tick, not an fsnotify watch
 
 **Decision**: `fab dispatch wait` blocks by re-deriving state on a fixed ~2s in-process tick (`dispatch.TickInterval`) over the existing loader plus `DeriveState`/`DerivePaneState`, with the loop expressed as a pure control structure (`Wait(ctx, observe, tick, timeout)`) whose `Observer` the cobra layer fills with `status`'s own composition.
@@ -581,11 +654,11 @@ Cleanup SHALL happen at exactly **two deterministic moments** and never on a tim
 ### Pane dispatches get a `fab-{id}-{stage}` identity, not the operator's `»` marker
 **Decision**: A pane dispatch's identity string is `fab-{id}-{stage}` and carries no `»`/`›` prefix — in both pane shapes, whether the string rides a window name or a pane title.
 **Why**: The `»` prefix is the operator's enrollment marker — it asserts the window is in the operator's monitored set and that the operator owns its lifecycle. A pipeline dispatch has neither property, so pre-marking would make the operator's tab bar lie about what it tracks. A distinct, greppable name convention gives the same at-a-glance identification without the false claim, and an operator that genuinely enrolls a window still adds the marker through its own idempotent primitive.
-**Rejected**: Prefixing `»` at creation (falsely signals operator ownership). Leaving the window/pane unlabelled (indistinguishable from an ad-hoc shell tab — and the split shape's sibling probe needs the label to find existing workers).
+**Rejected**: Prefixing `»` at creation (falsely signals operator ownership). Leaving the window/pane unlabelled (indistinguishable from an ad-hoc shell tab, and the string is what makes a worker greppable at a glance).
 *Introduced by*: 260805-zxe0-interactive-pane-stage-dispatch
 
 ### Pane workers split the dispatching agent's window, with the new window as fallback
-**Decision**: A pane-mode worker opens as a **pane split into the dispatching agent's own window** whenever `$TMUX_PANE` is non-empty and no `--server` was supplied; otherwise it keeps opening as a **new window** named `fab-{id}-{stage}`. Split placement is a **stacked right column**: `-v` off the last `fab-`-titled sibling pane in that window, or `-h` off `$TMUX_PANE` when there is none. The decision is the pure `SelectPaneShape`; both env reads stay in the cobra layer.
+**Decision**: A pane-mode worker opens as a **pane split into the dispatching agent's own window** whenever `$TMUX_PANE` is non-empty and no `--server` was supplied; otherwise it keeps opening as a **new window** named `fab-{id}-{stage}`. The decision is the pure `SelectPaneShape`; both env reads stay in the cobra layer. WHERE inside that window the pane lands is a separate decision — the stacked right column of § Split placement.
 **Why**: The tmux hierarchy is genuinely **two-tier** — an operator opens worktree agents as windows, and each agent dispatches its own stage workers — but pane dispatch collapsed both tiers onto windows, so every stage worker surfaced as another window in the operator's and run-kit's window list, drowning the tier that actually maps to worktrees. Splitting the dispatcher's window puts a worker exactly where its dispatcher is, which is also the layout the native agent-team UI uses, so it reads as intended rather than as clutter. The new-window shape is kept — not replaced — because the two conditions that select it are the two where a split is *impossible*, not merely undesirable: with `--server` the caller's pane id is meaningless on the named socket (pane ids are server-global), and with `$TMUX_PANE` unset there is no pane to split at all. Keeping it as the fallback makes the change additive: every pre-existing caller's output and layout is byte-identical. The stacked column, rather than repeated splits of the dispatcher's own pane, keeps the dispatcher's pane from halving with every worker. Placement degrades rather than fails (a failed sibling probe falls back to `-h`, a failed title set only warns) because both are cosmetic and the worker is already running by then.
 **Rejected**: Replacing the new-window shape outright (breaks headless orchestrators and `--server` callers, which have no pane to split). A `--split`/`--window` flag (the environment already answers the question, and a flag would have to be threaded through every dispatching skill for no added expressiveness). A second record field for the pane title (the string is identical to the window name, so a second field carries no information and would break every existing record's schema for nothing). Splitting `$TMUX_PANE` every time (each worker would halve the dispatcher's pane again, so the third worker leaves the dispatcher unreadable).
 *Introduced by*: off-pipeline follow-up to 260806-mnri-dispatch-worker-lifecycle-supervision (pane dispatch splits the dispatching agent's window)

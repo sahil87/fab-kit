@@ -2,6 +2,7 @@ package dispatch
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
@@ -9,7 +10,8 @@ import (
 
 // This file holds the tmux side of PANE-MODE dispatch (`fab dispatch start
 // --pane`): server reachability, worker-pane creation (split or new window),
-// pane liveness, and pane kill.
+// worker-COLUMN placement (which pane a new worker splits, in which direction, and
+// how wide the column is carved), pane liveness, and pane kill.
 //
 // It lives in the platform-INDEPENDENT core rather than the build-tagged
 // dispatch_posix.go / dispatch_windows.go split for the same reason WrapperArgv
@@ -244,42 +246,61 @@ func OpenWindow(server, name, dir, cmd string) (paneID string, err error) {
 		"new-window", "-P", "-F", "#{pane_id}", "-n", name, "-c", dir, cmd)
 }
 
-// OpenSplitPane splits targetPane to create the worker's pane, titles it, and
-// returns the new pane's ID. Unlike OpenWindow the worker lands in the SAME tmux
-// window as targetPane — the two-tier hierarchy's inner tier.
+// OpenSplitPane executes an already-resolved SplitPlacement to create the worker's
+// pane, titles it, and returns the new pane's ID. Unlike OpenWindow the worker lands
+// in the SAME tmux window as the split target — the two-tier hierarchy's inner tier.
 //
-// PLACEMENT is a stacked right column, matching the native agent-team layout:
+// The placement decision (which pane, which direction, how wide) is SplitTarget's;
+// this function only executes it, so the decision stays inspectable and pure while
+// this stays a thin tmux wrapper.
 //
-//   - The first worker splits targetPane HORIZONTALLY (`-h`), carving the right
-//     half of the dispatcher's window out as the worker column.
-//   - Every later worker splits the LAST live worker pane VERTICALLY (`-v`), so
-//     workers stack down that column instead of shrinking the dispatcher further.
-//
-// The caller supplies the already-chosen target and direction (see
-// SplitTarget/SiblingDispatchPane); this function only executes the split, so the
-// placement decision stays inspectable and this stays a thin tmux wrapper.
+// SIZE DEGRADATION: a size is only ever requested for the column-carving split, and
+// tmux may refuse it — `-l <n>%` needs tmux ≥ 3.1, and a window can be too narrow
+// for the requested percentage. Either way the split is retried UNSIZED rather than
+// failing: placement is cosmetic, so the worker must still launch. The refusal is
+// returned as a warning instead of an error. Retrying beats probing `tmux -V` first:
+// it costs no extra round-trip on the happy path, needs no version-string parsing
+// (`3.1a`, `next-3.4`, distro forks), and covers the too-narrow case a version
+// check would miss.
 //
 // TITLE: a split pane has no window name of its own — its window belongs to the
 // dispatcher — so the dispatch's identity string rides the PANE TITLE instead
-// (`select-pane -T`). A title-set failure is NON-FATAL: the worker is already
+// (`select-pane -T`). Titles are still set for IDENTIFICATION only; placement no
+// longer reads them (harnesses running inside the worker rewrite them — see
+// SiblingDispatchPane). A title-set failure is NON-FATAL: the worker is already
 // running and its pane ID (the real identity, which every later probe keys on) is
 // already in hand, so refusing the dispatch over a cosmetic label would be a
-// strictly worse outcome. It is returned as titleErr for the caller to warn about.
+// strictly worse outcome.
+//
+// Both non-fatal outcomes come back as warnings for the caller to surface; only a
+// split that cannot be placed at all is an error.
 //
 // cmd is passed as split-window's shell-command argument, so — exactly as in
 // OpenWindow — it is the WHOLE left-hand side including its own shell expansions,
 // which expand at invocation inside the new pane.
-func OpenSplitPane(server, targetPane, direction, title, dir, cmd string) (paneID string, titleErr error, err error) {
-	paneID, err = runPaneCreator(server, "split-window", title,
-		"split-window", direction, "-t", targetPane, "-P", "-F", "#{pane_id}", "-c", dir, cmd)
+func OpenSplitPane(server string, place SplitPlacement, title, dir, cmd string) (paneID string, warnings []error, err error) {
+	paneID, err = runPaneCreator(server, "split-window", title, splitArgs(place, dir, cmd)...)
+	if err != nil && place.SizePercent > 0 {
+		// The parenthetical names BOTH refusal causes: a pre-3.1 tmux has no
+		// percentage size at all, and any tmux refuses one a too-narrow window
+		// cannot satisfy. Naming only the version would send a user on a
+		// tmux-upgrade hunt for a window-geometry problem.
+		warnings = append(warnings, fmt.Errorf(
+			"tmux rejected the sized split (%s %d%%): %w; retrying unsized (a percentage size needs tmux 3.1+ and a window wide enough for it)",
+			sizeFlag, place.SizePercent, err))
+		unsized := place
+		unsized.SizePercent = 0
+		paneID, err = runPaneCreator(server, "split-window", title, splitArgs(unsized, dir, cmd)...)
+	}
 	if err != nil {
-		return "", nil, err
+		return "", warnings, err
 	}
 	if _, stderr, terr := pane.RunCmd("tmux", pane.WithServer(server,
 		"select-pane", "-t", paneID, "-T", title)...); terr != nil {
-		titleErr = pane.StderrError(fmt.Errorf("tmux select-pane -T: %w", terr), stderr)
+		warnings = append(warnings, pane.StderrError(
+			fmt.Errorf("could not set pane title %q: %w", title, terr), stderr))
 	}
-	return paneID, titleErr, nil
+	return paneID, warnings, nil
 }
 
 // runPaneCreator executes a tmux command that PRINTS the created pane's id
@@ -299,76 +320,180 @@ func runPaneCreator(server, verb, label string, args ...string) (string, error) 
 	return paneID, nil
 }
 
-// DispatchTitlePrefix is the prefix every dispatch identity string carries
-// ("fab-{id}-{stage}", see WindowName). SiblingDispatchPane matches on it to tell
-// existing worker panes apart from the dispatcher's own pane and from any
-// unrelated pane the user split off by hand.
-const DispatchTitlePrefix = "fab-"
-
-// Split direction arguments for OpenSplitPane, named so the two placement rules
-// are not bare tmux flags at the call site.
+// Split argv flags for OpenSplitPane, named so the placement rules are not bare
+// tmux flags at the call site. They are PACKAGE-SCOPE: the placement is decided
+// (SplitTarget), rendered (splitArgs), and described (SplitPlacement.Describe) here,
+// so no caller outside this package ever handles a raw tmux flag.
 const (
-	// SplitRight carves the worker column out of the dispatcher's pane.
-	SplitRight = "-h"
-	// SplitBelow stacks a worker under the previous one, inside that column.
-	SplitBelow = "-v"
+	// splitRight carves the worker column out of the dispatcher's pane.
+	splitRight = "-h"
+	// splitBelow stacks a worker under the previous one, inside that column.
+	splitBelow = "-v"
+	// sizeFlag sizes a split (`-l <n>%`, tmux ≥ 3.1). Only the column-carving
+	// splitRight is ever sized; see SplitPlacement.
+	sizeFlag = "-l"
 )
+
+// SplitPlacement is a resolved worker-pane placement: WHICH pane to split, in WHICH
+// direction, and — for the column-carving split only — how wide to carve the column.
+//
+// The three travel together because they are one decision (SplitTarget's), and
+// bundling them is what keeps the "size the carving split, never a stacking split"
+// rule in exactly one place: the degraded branch is the same splitRight decision, so
+// it inherits the size instead of needing its own copy of the rule.
+type SplitPlacement struct {
+	// Target is the pane to split — an existing worker pane when stacking, the
+	// dispatcher's own pane when carving the column.
+	Target string
+	// Direction is splitRight (carve) or splitBelow (stack).
+	Direction string
+	// SizePercent is the new pane's width as a percent of the window, rendered as
+	// `-l <n>%`. Zero means UNSIZED (tmux even-splits), which is always the case for
+	// a splitBelow: sizing a stacking split would fight the user's own resizes
+	// inside the column, and the left/right separator must never be re-touched.
+	SizePercent int
+}
+
+// Describe renders the placement in the stacked-column vocabulary the rule is
+// documented in ("carving a new worker column" / "stacking under") — the human half
+// of the cobra layer's degraded-probe warning.
+//
+// It lives here, as a method, so the bare tmux `-h`/`-v` flag the placement carries
+// never leaves this package: the direction constants stay package-scope, and the only
+// cross-package reader of Direction is this vocabulary rather than the flag.
+func (p SplitPlacement) Describe() string {
+	if p.Direction == splitRight {
+		return fmt.Sprintf("carving a new worker column off pane %s", p.Target)
+	}
+	return fmt.Sprintf("stacking the worker under pane %s", p.Target)
+}
 
 // SiblingDispatchPane returns the LAST live dispatch worker pane in targetPane's
 // window, or "" when there is none.
 //
-// It probes `tmux list-panes -t <targetPane> -F '#{pane_id} #{pane_title}'` —
-// window-scoped, since `-t` on a pane resolves to that pane's window — and keeps
-// the last row whose title carries DispatchTitlePrefix. "Last" is tmux's
-// list-panes order, which is the pane-index order the stacked column was built
-// in, so the newest worker is the one a further split lands under.
+// Detection keys on DISPATCH RECORDS, not pane titles. It intersects the pane IDs
+// recorded across the checkout's dispatch records for THIS server (recordedPanes —
+// pane IDs are per-socket, so records from another socket are filtered out before
+// the intersection) with `tmux list-panes -t <targetPane> -F '#{pane_id}'` —
+// window-scoped, since `-t` on a pane resolves to that pane's window — and keeps the
+// last row present in both.
 //
-// A probe FAILURE returns ("", err) and the caller degrades to splitting the
-// dispatcher's own pane: placement is cosmetic, so an unparseable or failing
-// probe must never fail a dispatch that would otherwise launch fine.
-func SiblingDispatchPane(server, targetPane string) (string, error) {
+// The record is the right identity source because a pane ID is server-global and
+// stable for the pane's lifetime, which is already why status/kill/capture key on
+// it. A pane TITLE is not: a harness running inside the worker pane (Claude Code and
+// friends) rewrites it via terminal escapes within seconds of spawn, so a
+// title-keyed probe finds nothing and every subsequent worker takes the
+// no-sibling branch — re-splitting the dispatcher and carving yet another
+// full-height column until the dispatching agent is a sliver. Titles are still SET
+// at spawn, for identification only.
+//
+// The intersection is also the whole filter: a dead pane and a pane in another
+// window are both absent from this window's live list-panes output, so no separate
+// liveness probe or window lookup is needed — and "last" stays tmux's list-panes
+// order, i.e. the pane-index order the column was built in, so a further split lands
+// under the newest worker.
+//
+// One consequence is deliberate: when the DISPATCHER is itself a pane worker (a
+// stage worker dispatching a stage of its own), its pane is in the record set, so it
+// can be its own "sibling" and the new worker stacks under it rather than carving a
+// second column. That is the wanted outcome — the dispatcher already lives in a
+// worker column, and stacking keeps that column — and it is self-limiting: the next
+// dispatch finds the child below it and stacks under that instead.
+//
+// BOTH halves of the probe can fail, and NEITHER failure is fatal — placement is
+// cosmetic, so a failing probe must never fail a dispatch that would otherwise launch
+// fine. The two degrade differently only because they can:
+//
+//   - A failing `list-panes` leaves no window to intersect against, so it returns
+//     ("", err) and the caller carves a column off the dispatcher's own pane.
+//   - A failing RECORD READ (an unreadable dir, a corrupt {stage}.yaml) still leaves
+//     the panes that WERE read, so the partial intersection is returned ALONGSIDE the
+//     error. A missing record can only fail to find a sibling, never invent one, so
+//     the answer is either the same one a clean read would give or the first-worker
+//     carve — and the caller warns either way rather than silently placing blind.
+func SiblingDispatchPane(server, targetPane, repoRoot string) (string, error) {
 	out, stderr, err := pane.RunCmd("tmux", pane.WithServer(server,
-		"list-panes", "-t", targetPane, "-F", "#{pane_id} #{pane_title}")...)
+		"list-panes", "-t", targetPane, "-F", "#{pane_id}")...)
 	if err != nil {
 		return "", pane.StderrError(fmt.Errorf("tmux list-panes: %w", err), stderr)
 	}
-	return lastDispatchPane(out), nil
+	recorded, recErr := recordedPanes(repoRoot, server)
+	return lastRecordedPane(out, recorded), recErr
 }
 
-// lastDispatchPane is the pure parsing half of SiblingDispatchPane: it maps
-// list-panes output ("<pane-id> <pane-title>" per line) to the last pane id whose
-// title carries DispatchTitlePrefix, or "" when none does. Extracted so the row
-// grammar is unit-testable without a tmux server.
-func lastDispatchPane(out string) string {
+// lastRecordedPane is the pure half of SiblingDispatchPane: given list-panes output
+// (one pane id per line, in pane-index order) and the set of pane ids the dispatch
+// records claim, it returns the LAST id present in both, or "" when none is.
+// Extracted so the row grammar and the intersection are unit-testable without a tmux
+// server or a record tree.
+func lastRecordedPane(out string, recorded map[string]bool) string {
 	found := ""
 	for _, line := range strings.Split(out, "\n") {
-		id, title, ok := strings.Cut(strings.TrimSpace(line), " ")
-		if !ok || id == "" {
+		id := strings.TrimSpace(line)
+		if id == "" {
 			continue
 		}
-		if strings.HasPrefix(strings.TrimSpace(title), DispatchTitlePrefix) {
+		if recorded[id] {
 			found = id
 		}
 	}
 	return found
 }
 
-// SplitTarget resolves WHICH pane a new worker splits and in WHICH direction,
-// applying the stacked-right-column rule against the live window:
+// SplitTarget resolves a new worker's SplitPlacement, applying the stacked-column
+// rule against the live window:
 //
-//	a live worker sibling exists → split THAT pane below (SplitBelow), stacking
-//	                               the column
-//	none (or the probe failed)   → split the dispatcher's own pane to the right
-//	                               (SplitRight), creating the column
+//	a live recorded worker sibling → split THAT pane below (splitBelow), stacking
+//	                                 the column; unsized
+//	none (or the probe failed)     → split the dispatcher's own pane to the right
+//	                                 (splitRight), CARVING the column at
+//	                                 columnWidth percent
 //
-// The probe error is returned alongside the (already degraded) decision rather
-// than replacing it, so the caller can warn without the dispatch failing.
-func SplitTarget(server, dispatcherPane string) (target, direction string, probeErr error) {
-	sibling, err := SiblingDispatchPane(server, dispatcherPane)
-	if err != nil || sibling == "" {
-		return dispatcherPane, SplitRight, err
+// This is the column INVARIANT: the vertical left/right separator is created exactly
+// once, by the carving split, and never touched again — fab issues no select-layout,
+// never rearranges user-made panes, and never fights a manual resize. It is a
+// creation-time rule, not an enforcement loop: an already-mangled window is left
+// alone until its panes die.
+//
+// columnWidth is the resolved dispatch.column_width (percent). It applies to the
+// carving split ONLY — including the DEGRADED carve below, since a fallback column
+// that halved the dispatcher would reintroduce exactly the squeeze the width exists
+// to prevent.
+//
+// A probe error is returned ALONGSIDE a usable decision rather than replacing it, so
+// the caller can warn without the dispatch failing. Which decision depends on how much
+// the probe still managed to answer: a failing list-panes (or an unreadable record
+// tree) leaves no sibling and lands on the degraded carve, while a single unreadable
+// record leaves the others intact and may still stack. Either way the caller warns.
+func SplitTarget(server, dispatcherPane, repoRoot string, columnWidth int) (SplitPlacement, error) {
+	sibling, err := SiblingDispatchPane(server, dispatcherPane, repoRoot)
+	return splitPlacement(sibling, dispatcherPane, columnWidth), err
+}
+
+// splitPlacement is the pure decision half of SplitTarget: it maps the probe's
+// answer to a placement. An empty sibling (none found, or the probe failed) is the
+// first-worker/degraded case, which carves a sized column off the dispatcher.
+func splitPlacement(sibling, dispatcherPane string, columnWidth int) SplitPlacement {
+	if sibling == "" {
+		return SplitPlacement{Target: dispatcherPane, Direction: splitRight, SizePercent: columnWidth}
 	}
-	return sibling, SplitBelow, nil
+	return SplitPlacement{Target: sibling, Direction: splitBelow}
+}
+
+// splitArgs composes the `tmux split-window` argv for a placement (without the
+// `-L <server>` prefix, which pane.WithServer adds), printing the new pane's id so
+// no follow-up lookup can race a fast-exiting worker.
+//
+// The size argument is emitted only when the placement carries one — which, by
+// SplitPlacement's contract, means only for a column-carving split. It is rendered
+// as a PERCENTAGE (`-l 35%`) so the column scales with the window rather than
+// pinning a cell count that would be wrong on the next resize.
+func splitArgs(place SplitPlacement, dir, cmd string) []string {
+	args := []string{"split-window", place.Direction, "-t", place.Target}
+	if place.SizePercent > 0 {
+		args = append(args, sizeFlag, strconv.Itoa(place.SizePercent)+"%")
+	}
+	return append(args, "-P", "-F", "#{pane_id}", "-c", dir, cmd)
 }
 
 // PaneAlive reports whether a pane dispatch's tmux pane still exists — the

@@ -1,0 +1,57 @@
+id: g4a5
+name: 260807-g4a5-pane-worker-column-invariant
+created: 2026-08-07T12:05:45Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 20
+    acceptance_count: 24
+    acceptance_completed: 24
+confidence:
+    certain: 8
+    confident: 5
+    tentative: 1
+    unresolved: 0
+    score: 3.8
+    fuzzy: true
+    dimensions:
+        signal: 72.9
+        reversibility: 80.7
+        competence: 82.5
+        disambiguation: 76.8
+stage_metrics:
+    intake: {started_at: "2026-08-07T12:05:45Z", driver: fab-new, iterations: 1, completed_at: "2026-08-07T12:11:25Z"}
+    apply: {started_at: "2026-08-07T12:57:56Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-07T13:09:14Z"}
+    review: {started_at: "2026-08-07T13:09:14Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-07T13:17:48Z"}
+    hydrate: {started_at: "2026-08-07T13:17:48Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-07T13:29:31Z"}
+    ship: {started_at: "2026-08-07T13:29:31Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-07T13:35:26Z"}
+    review-pr: {started_at: "2026-08-07T13:35:26Z", driver: git-pr, iterations: 1, completed_at: "2026-08-07T13:52:09Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/536
+change_type_source: explicit
+true_impact:
+    added: 1932
+    deleted: 198
+    net: 1734
+    excluding:
+        added: 1239
+        deleted: 147
+        net: 1092
+    tests:
+        added: 842
+        deleted: 43
+        net: 799
+    computed_at: "2026-08-07T13:35:26Z"
+    computed_at_stage: ship
+summary: Pane-worker placement keys on dispatch-record pane IDs instead of clobberable pane titles, and the column-carving split is sized at the new dispatch.column_width (default 35), holding the column invariant
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-07T13:52:09Z

@@ -958,3 +958,85 @@ func TestGetDispatchWatchable_NilAndEmptyConfig(t *testing.T) {
 		t.Error("empty-config GetDispatchWatchable must report false")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// dispatch.column_width — the pane-worker column width (scope `both`).
+// ---------------------------------------------------------------------------
+
+// TestLoad_DispatchColumnWidth: an in-range value parses and is reported verbatim;
+// every out-of-range value — including an ABSENT key, which yaml cannot distinguish
+// from an explicit 0 — resolves to DefaultDispatchColumnWidth. 0 and 100 are the
+// degenerate widths the fallback exists for (0 gives the worker nothing, 100 leaves
+// the dispatching agent nothing).
+func TestLoad_DispatchColumnWidth(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"in-range value parses", "dispatch:\n  column_width: 20\n", 20},
+		{"absent key ⇒ default", "project:\n  name: t\n", DefaultDispatchColumnWidth},
+		{"absent width beside a live watchable ⇒ default", "dispatch:\n  watchable: true\n", DefaultDispatchColumnWidth},
+		{"explicit 0 reads as unset ⇒ default", "dispatch:\n  column_width: 0\n", DefaultDispatchColumnWidth},
+		{"negative ⇒ default", "dispatch:\n  column_width: -10\n", DefaultDispatchColumnWidth},
+		{"100 leaves the dispatcher nothing ⇒ default", "dispatch:\n  column_width: 100\n", DefaultDispatchColumnWidth},
+		{"over 100 ⇒ default", "dispatch:\n  column_width: 250\n", DefaultDispatchColumnWidth},
+		{"1 is in range", "dispatch:\n  column_width: 1\n", 1},
+		{"99 is in range", "dispatch:\n  column_width: 99\n", 99},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isolateSystemConfig(t)
+			fabRoot := writeProjectConfig(t, tt.body)
+			cfg, err := Load(fabRoot)
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if got := cfg.GetDispatchColumnWidth(); got != tt.want {
+				t.Errorf("GetDispatchColumnWidth() = %d, want %d (config %q)", got, tt.want, tt.body)
+			}
+		})
+	}
+}
+
+// TestCascade_DispatchColumnWidthFromSystemLayer: `dispatch` is scope `both`, so a
+// personal column width set once in ~/.fab-kit/config.yaml reaches every repo — the
+// whole point of the scope (a project-scoped key would be PRUNED from the system
+// layer with a warning). The project layer still wins where it sets one.
+func TestCascade_DispatchColumnWidthFromSystemLayer(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, "dispatch:\n  column_width: 25\n")
+	fabRoot := writeProjectConfig(t, "project:\n  name: t\n")
+
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.GetDispatchColumnWidth(); got != 25 {
+		t.Errorf("system-layer column_width = %d, want 25 (scope `both`, not pruned)", got)
+	}
+
+	home2 := isolateSystemConfig(t)
+	writeSystemConfig(t, home2, "dispatch:\n  column_width: 25\n")
+	projRoot := writeProjectConfig(t, "dispatch:\n  column_width: 40\n")
+	cfg2, err := Load(projRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg2.GetDispatchColumnWidth(); got != 40 {
+		t.Errorf("project column_width = %d, want the project's 40 to beat the system's 25", got)
+	}
+}
+
+// TestGetDispatchColumnWidth_NilAndEmptyConfig: the accessor is nil-safe and reports
+// the built-in default for a zero Config — the value every caller falls back to when
+// config could not be loaded at all.
+func TestGetDispatchColumnWidth_NilAndEmptyConfig(t *testing.T) {
+	var nilCfg *Config
+	if got := nilCfg.GetDispatchColumnWidth(); got != DefaultDispatchColumnWidth {
+		t.Errorf("nil-config GetDispatchColumnWidth() = %d, want %d", got, DefaultDispatchColumnWidth)
+	}
+	if got := (&Config{}).GetDispatchColumnWidth(); got != DefaultDispatchColumnWidth {
+		t.Errorf("empty-config GetDispatchColumnWidth() = %d, want %d", got, DefaultDispatchColumnWidth)
+	}
+}
