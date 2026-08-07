@@ -20,6 +20,7 @@ curl -fsSL https://shll.ai/install | sh
 
 Installs the entire shll toolkit via Homebrew, handling tap trust automatically. fab-kit relies on its sibling tools (`wt` for worktrees, `idea` for the backlog), so the full-toolkit install is the supported path.
 
+
 ## The 6 Stages
 
 Every change (a self-contained feature or fix with its own folder) moves through six stages:
