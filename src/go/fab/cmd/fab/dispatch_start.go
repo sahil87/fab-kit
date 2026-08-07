@@ -470,7 +470,7 @@ func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoo
 		place, probeErr := dispatch.SplitTarget(server, target.dispatcherPane, repoRoot, target.columnWidth)
 		if probeErr != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), "warning: worker-column placement probe failed (%v); %s\n",
-				probeErr, describePlacement(place))
+				probeErr, place.Describe())
 		}
 		var warnings []error
 		paneID, warnings, err = dispatch.OpenSplitPane(server, place, title, repoRoot, windowCmd)
@@ -495,18 +495,6 @@ func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoo
 	rec.Window = title
 	rec.Server = server
 	return report, nil
-}
-
-// describePlacement renders a resolved SplitPlacement as the human half of the
-// degraded-probe warning. It exists so the warning states the OUTCOME in the
-// stacked-column vocabulary the rule is documented in ("carving a new column" /
-// "stacking under"), rather than leaking the bare tmux `-h`/`-v` flag the placement
-// carries.
-func describePlacement(place dispatch.SplitPlacement) string {
-	if place.Direction == dispatch.SplitRight {
-		return fmt.Sprintf("carving a new worker column off pane %s", place.Target)
-	}
-	return fmt.Sprintf("stacking the worker under pane %s", place.Target)
 }
 
 // launchHeadless launches the detached wrapper and records the pid/pgid on rec:

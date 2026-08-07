@@ -413,11 +413,11 @@ func TestSplitPlacement(t *testing.T) {
 		want        SplitPlacement
 	}{
 		{"no sibling ⇒ carve a sized column off the dispatcher", "", "%1", 35,
-			SplitPlacement{Target: "%1", Direction: SplitRight, SizePercent: 35}},
+			SplitPlacement{Target: "%1", Direction: splitRight, SizePercent: 35}},
 		{"probe failed (empty sibling) ⇒ the same sized carve", "", "%1", 20,
-			SplitPlacement{Target: "%1", Direction: SplitRight, SizePercent: 20}},
+			SplitPlacement{Target: "%1", Direction: splitRight, SizePercent: 20}},
 		{"a sibling ⇒ stack under it, unsized", "%2", "%1", 35,
-			SplitPlacement{Target: "%2", Direction: SplitBelow, SizePercent: 0}},
+			SplitPlacement{Target: "%2", Direction: splitBelow, SizePercent: 0}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -434,7 +434,7 @@ func TestSplitPlacement(t *testing.T) {
 // PERCENTAGE so the column scales with the window, and the pane-id format request
 // is present in both shapes so no follow-up lookup can race a fast-exiting worker.
 func TestSplitArgs(t *testing.T) {
-	carve := SplitArgs(SplitPlacement{Target: "%1", Direction: SplitRight, SizePercent: 35},
+	carve := splitArgs(SplitPlacement{Target: "%1", Direction: splitRight, SizePercent: 35},
 		"/repo", "claude 'go'")
 	wantCarve := []string{"split-window", "-h", "-t", "%1", "-l", "35%",
 		"-P", "-F", "#{pane_id}", "-c", "/repo", "claude 'go'"}
@@ -442,7 +442,7 @@ func TestSplitArgs(t *testing.T) {
 		t.Errorf("carving argv = %q, want %q", carve, wantCarve)
 	}
 
-	stack := SplitArgs(SplitPlacement{Target: "%2", Direction: SplitBelow},
+	stack := splitArgs(SplitPlacement{Target: "%2", Direction: splitBelow},
 		"/repo", "claude 'go'")
 	wantStack := []string{"split-window", "-v", "-t", "%2",
 		"-P", "-F", "#{pane_id}", "-c", "/repo", "claude 'go'"}
@@ -452,11 +452,26 @@ func TestSplitArgs(t *testing.T) {
 
 	// A zero/absent size is the UNSIZED signal in either direction — tmux's own even
 	// split — never a literal `-l 0%`, which tmux would reject.
-	unsizedCarve := SplitArgs(SplitPlacement{Target: "%1", Direction: SplitRight}, "/repo", "cmd")
+	unsizedCarve := splitArgs(SplitPlacement{Target: "%1", Direction: splitRight}, "/repo", "cmd")
 	for _, arg := range unsizedCarve {
-		if arg == SizeFlag {
-			t.Errorf("a zero-size placement must emit no %s argument, got %q", SizeFlag, unsizedCarve)
+		if arg == sizeFlag {
+			t.Errorf("a zero-size placement must emit no %s argument, got %q", sizeFlag, unsizedCarve)
 		}
+	}
+}
+
+// TestSplitPlacementDescribe pins the placement's own vocabulary: Describe is the
+// only cross-package reader of Direction, which is what keeps the bare tmux `-h`/`-v`
+// flag inside this package. The two phrasings are the ones the degraded-probe warning
+// is documented with, so they are asserted rather than left to the cobra layer.
+func TestSplitPlacementDescribe(t *testing.T) {
+	carve := SplitPlacement{Target: "%1", Direction: splitRight, SizePercent: 35}.Describe()
+	if carve != "carving a new worker column off pane %1" {
+		t.Errorf("carve description = %q, want the column-carving wording", carve)
+	}
+	stack := SplitPlacement{Target: "%2", Direction: splitBelow}.Describe()
+	if stack != "stacking the worker under pane %2" {
+		t.Errorf("stack description = %q, want the stacking wording", stack)
 	}
 }
 
@@ -492,7 +507,7 @@ done
 case "$1" in split-window) echo "%42" ;; esac
 exit 0`)
 
-	place := SplitPlacement{Target: "%1", Direction: SplitRight, SizePercent: 35}
+	place := SplitPlacement{Target: "%1", Direction: splitRight, SizePercent: 35}
 	paneID, warnings, err := OpenSplitPane("", place, "fab-abcd-apply", "/repo", "cmd")
 	if err != nil {
 		t.Fatalf("a rejected size must degrade, not fail the dispatch: %v", err)
@@ -503,7 +518,7 @@ exit 0`)
 	if len(warnings) != 1 {
 		t.Fatalf("want exactly one warning (the rejected size), got %d: %v", len(warnings), warnings)
 	}
-	for _, want := range []string{SizeFlag, "35%", "retrying unsized"} {
+	for _, want := range []string{sizeFlag, "35%", "retrying unsized"} {
 		if !strings.Contains(warnings[0].Error(), want) {
 			t.Errorf("warning %q must name %q so the fallback is explainable from output", warnings[0], want)
 		}
@@ -538,7 +553,7 @@ func TestOpenSplitPane_UnsizedSplitIsNotRetried(t *testing.T) {
 echo "can't find pane" >&2
 exit 1`)
 
-	_, _, err := OpenSplitPane("", SplitPlacement{Target: "%2", Direction: SplitBelow}, "fab-abcd-apply", "/repo", "cmd")
+	_, _, err := OpenSplitPane("", SplitPlacement{Target: "%2", Direction: splitBelow}, "fab-abcd-apply", "/repo", "cmd")
 	if err == nil {
 		t.Fatal("a failing unsized split must be an error, not a silent degrade")
 	}
@@ -553,14 +568,14 @@ exit 1`)
 // later workers stack BELOW the previous worker, and the size rides tmux's `-l`.
 // Swap the directions and every dispatch would shrink the dispatcher's own pane.
 func TestSplitFlagsAreDistinct(t *testing.T) {
-	if SplitRight != "-h" {
-		t.Errorf("SplitRight = %q, want tmux's horizontal split flag -h", SplitRight)
+	if splitRight != "-h" {
+		t.Errorf("splitRight = %q, want tmux's horizontal split flag -h", splitRight)
 	}
-	if SplitBelow != "-v" {
-		t.Errorf("SplitBelow = %q, want tmux's vertical split flag -v", SplitBelow)
+	if splitBelow != "-v" {
+		t.Errorf("splitBelow = %q, want tmux's vertical split flag -v", splitBelow)
 	}
-	if SizeFlag != "-l" {
-		t.Errorf("SizeFlag = %q, want tmux's split size flag -l", SizeFlag)
+	if sizeFlag != "-l" {
+		t.Errorf("sizeFlag = %q, want tmux's split size flag -l", sizeFlag)
 	}
 }
 

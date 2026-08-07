@@ -136,11 +136,11 @@ resurrect the bug).
 
 #### The size rides the resolved placement, so one rule covers the fallback path
 **Decision**: `SplitTarget` returns a `SplitPlacement{Target, Direction, SizePercent}` and sets
-`SizePercent` only on the column-carving `SplitRight` decision; `SplitArgs` renders `-l {n}%`
+`SizePercent` only on the column-carving `splitRight` decision; `splitArgs` renders `-l {n}%`
 from it, and `OpenSplitPane` merely executes the placement.
 **Why**: "Size the carving split, never a stacking split" then exists once, in the decision, not
 at each call site — and the degraded branch (probe failed ⇒ carve off the dispatcher) is the same
-`SplitRight` decision, so it inherits the size for free rather than needing its own copy of the
+`splitRight` decision, so it inherits the size for free rather than needing its own copy of the
 rule. Bundling also keeps `OpenSplitPane`'s parameter list from growing a seventh argument.
 **Rejected**: A `sizePercent` parameter threaded separately through `SplitTarget` and
 `OpenSplitPane` (two places to remember the direction condition). Sizing inside `OpenSplitPane`
@@ -275,9 +275,9 @@ first decision).
 
 ## Deletion Candidates
 
-- `dispatch.SplitArgs` / `dispatch.SizeFlag` (`internal/dispatch/pane_mode.go:471`, `:328`) — newly **exported** with no cross-package caller; both are used only inside `pane_mode.go` and its in-package tests, so the export widens the package surface for nothing.
-- `dispatch.SplitBelow` (`internal/dispatch/pane_mode.go:325`) — no cross-package caller left: `cmd/fab` used to pass a bare `direction` into `OpenSplitPane` and now passes a `SplitPlacement` that carries it. Its twin `SplitRight` is **still** referenced cross-package (`cmd/fab/dispatch_start.go:506`, in `describePlacement`), so the pair can drop to package scope only if that comparison moves into the dispatch package (see the nice-to-have below).
-- `describePlacement` (`cmd/fab/dispatch_start.go:506`) — candidate for relocation rather than deletion: it is the only cross-package reader of a `SplitPlacement`'s `Direction`, so as a method on `SplitPlacement` it would keep the placement vocabulary beside the type and free both direction constants to become package-scope.
+- ~~`dispatch.SplitArgs` / `dispatch.SizeFlag`~~ — **CLOSED (review-pr)**: unexported to `splitArgs` / `sizeFlag`; they were used only inside `pane_mode.go` and its in-package tests, so the export widened the package surface for nothing (Copilot review comment on PR #536).
+- ~~`dispatch.SplitBelow`~~ — **CLOSED (review-pr)**: unexported to `splitBelow`, together with its twin `SplitRight` → `splitRight`, once the `describePlacement` comparison moved into the dispatch package (below).
+- ~~`describePlacement` (`cmd/fab/dispatch_start.go`)~~ — **CLOSED (review-pr)**: relocated as `SplitPlacement.Describe()`, so the placement vocabulary sits beside the type, the cobra layer reads no raw tmux flag, and both direction constants are package-scope.
 - `dispatch.SiblingDispatchPane` (`internal/dispatch/pane_mode.go:394`) — exported but reached only through `SplitTarget`, which is the sole cmd-layer entry point; the export predates this change but is now unambiguously internal-only.
 
 ## Assumptions

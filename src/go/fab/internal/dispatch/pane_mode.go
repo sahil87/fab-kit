@@ -279,14 +279,18 @@ func OpenWindow(server, name, dir, cmd string) (paneID string, err error) {
 // OpenWindow — it is the WHOLE left-hand side including its own shell expansions,
 // which expand at invocation inside the new pane.
 func OpenSplitPane(server string, place SplitPlacement, title, dir, cmd string) (paneID string, warnings []error, err error) {
-	paneID, err = runPaneCreator(server, "split-window", title, SplitArgs(place, dir, cmd)...)
+	paneID, err = runPaneCreator(server, "split-window", title, splitArgs(place, dir, cmd)...)
 	if err != nil && place.SizePercent > 0 {
+		// The parenthetical names BOTH refusal causes: a pre-3.1 tmux has no
+		// percentage size at all, and any tmux refuses one a too-narrow window
+		// cannot satisfy. Naming only the version would send a user on a
+		// tmux-upgrade hunt for a window-geometry problem.
 		warnings = append(warnings, fmt.Errorf(
-			"tmux rejected the sized split (%s %d%%): %w; retrying unsized (tmux < 3.1 has no percentage size)",
-			SizeFlag, place.SizePercent, err))
+			"tmux rejected the sized split (%s %d%%): %w; retrying unsized (a percentage size needs tmux 3.1+ and a window wide enough for it)",
+			sizeFlag, place.SizePercent, err))
 		unsized := place
 		unsized.SizePercent = 0
-		paneID, err = runPaneCreator(server, "split-window", title, SplitArgs(unsized, dir, cmd)...)
+		paneID, err = runPaneCreator(server, "split-window", title, splitArgs(unsized, dir, cmd)...)
 	}
 	if err != nil {
 		return "", warnings, err
@@ -317,15 +321,17 @@ func runPaneCreator(server, verb, label string, args ...string) (string, error) 
 }
 
 // Split argv flags for OpenSplitPane, named so the placement rules are not bare
-// tmux flags at the call site.
+// tmux flags at the call site. They are PACKAGE-SCOPE: the placement is decided
+// (SplitTarget), rendered (splitArgs), and described (SplitPlacement.Describe) here,
+// so no caller outside this package ever handles a raw tmux flag.
 const (
-	// SplitRight carves the worker column out of the dispatcher's pane.
-	SplitRight = "-h"
-	// SplitBelow stacks a worker under the previous one, inside that column.
-	SplitBelow = "-v"
-	// SizeFlag sizes a split (`-l <n>%`, tmux ≥ 3.1). Only the column-carving
-	// SplitRight is ever sized; see SplitPlacement.
-	SizeFlag = "-l"
+	// splitRight carves the worker column out of the dispatcher's pane.
+	splitRight = "-h"
+	// splitBelow stacks a worker under the previous one, inside that column.
+	splitBelow = "-v"
+	// sizeFlag sizes a split (`-l <n>%`, tmux ≥ 3.1). Only the column-carving
+	// splitRight is ever sized; see SplitPlacement.
+	sizeFlag = "-l"
 )
 
 // SplitPlacement is a resolved worker-pane placement: WHICH pane to split, in WHICH
@@ -333,19 +339,33 @@ const (
 //
 // The three travel together because they are one decision (SplitTarget's), and
 // bundling them is what keeps the "size the carving split, never a stacking split"
-// rule in exactly one place: the degraded branch is the same SplitRight decision, so
+// rule in exactly one place: the degraded branch is the same splitRight decision, so
 // it inherits the size instead of needing its own copy of the rule.
 type SplitPlacement struct {
 	// Target is the pane to split — an existing worker pane when stacking, the
 	// dispatcher's own pane when carving the column.
 	Target string
-	// Direction is SplitRight (carve) or SplitBelow (stack).
+	// Direction is splitRight (carve) or splitBelow (stack).
 	Direction string
 	// SizePercent is the new pane's width as a percent of the window, rendered as
 	// `-l <n>%`. Zero means UNSIZED (tmux even-splits), which is always the case for
-	// a SplitBelow: sizing a stacking split would fight the user's own resizes
+	// a splitBelow: sizing a stacking split would fight the user's own resizes
 	// inside the column, and the left/right separator must never be re-touched.
 	SizePercent int
+}
+
+// Describe renders the placement in the stacked-column vocabulary the rule is
+// documented in ("carving a new worker column" / "stacking under") — the human half
+// of the cobra layer's degraded-probe warning.
+//
+// It lives here, as a method, so the bare tmux `-h`/`-v` flag the placement carries
+// never leaves this package: the direction constants stay package-scope, and the only
+// cross-package reader of Direction is this vocabulary rather than the flag.
+func (p SplitPlacement) Describe() string {
+	if p.Direction == splitRight {
+		return fmt.Sprintf("carving a new worker column off pane %s", p.Target)
+	}
+	return fmt.Sprintf("stacking the worker under pane %s", p.Target)
 }
 
 // SiblingDispatchPane returns the LAST live dispatch worker pane in targetPane's
@@ -423,10 +443,10 @@ func lastRecordedPane(out string, recorded map[string]bool) string {
 // SplitTarget resolves a new worker's SplitPlacement, applying the stacked-column
 // rule against the live window:
 //
-//	a live recorded worker sibling → split THAT pane below (SplitBelow), stacking
+//	a live recorded worker sibling → split THAT pane below (splitBelow), stacking
 //	                                 the column; unsized
 //	none (or the probe failed)     → split the dispatcher's own pane to the right
-//	                                 (SplitRight), CARVING the column at
+//	                                 (splitRight), CARVING the column at
 //	                                 columnWidth percent
 //
 // This is the column INVARIANT: the vertical left/right separator is created exactly
@@ -455,12 +475,12 @@ func SplitTarget(server, dispatcherPane, repoRoot string, columnWidth int) (Spli
 // first-worker/degraded case, which carves a sized column off the dispatcher.
 func splitPlacement(sibling, dispatcherPane string, columnWidth int) SplitPlacement {
 	if sibling == "" {
-		return SplitPlacement{Target: dispatcherPane, Direction: SplitRight, SizePercent: columnWidth}
+		return SplitPlacement{Target: dispatcherPane, Direction: splitRight, SizePercent: columnWidth}
 	}
-	return SplitPlacement{Target: sibling, Direction: SplitBelow}
+	return SplitPlacement{Target: sibling, Direction: splitBelow}
 }
 
-// SplitArgs composes the `tmux split-window` argv for a placement (without the
+// splitArgs composes the `tmux split-window` argv for a placement (without the
 // `-L <server>` prefix, which pane.WithServer adds), printing the new pane's id so
 // no follow-up lookup can race a fast-exiting worker.
 //
@@ -468,10 +488,10 @@ func splitPlacement(sibling, dispatcherPane string, columnWidth int) SplitPlacem
 // SplitPlacement's contract, means only for a column-carving split. It is rendered
 // as a PERCENTAGE (`-l 35%`) so the column scales with the window rather than
 // pinning a cell count that would be wrong on the next resize.
-func SplitArgs(place SplitPlacement, dir, cmd string) []string {
+func splitArgs(place SplitPlacement, dir, cmd string) []string {
 	args := []string{"split-window", place.Direction, "-t", place.Target}
 	if place.SizePercent > 0 {
-		args = append(args, SizeFlag, strconv.Itoa(place.SizePercent)+"%")
+		args = append(args, sizeFlag, strconv.Itoa(place.SizePercent)+"%")
 	}
 	return append(args, "-P", "-F", "#{pane_id}", "-c", dir, cmd)
 }
