@@ -1,0 +1,4 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-06T15:48:11Z"}
+{"args":"Refactor: move built-in agent defaults (role profiles + provider table) from Go maps to an embedded defaults.yaml consumed as layer 0 of the config cascade — behavior-neutral","cmd":"fab-new","event":"command","ts":"2026-08-06T15:48:11Z"}
+{"delta":"+4.9","event":"confidence","score":4.9,"trigger":"calc-score","ts":"2026-08-06T15:52:21Z"}
+{"cmd":"fab-draft","event":"command","ts":"2026-08-06T15:53:13Z"}
