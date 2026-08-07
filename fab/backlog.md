@@ -22,3 +22,4 @@
 - [ ] [h1eu] 2026-08-06: (BUG) fab batch switch applies branch_prefix while /git-branch and naming.md say no prefix — the two branch-creating paths fork; decide and unify (spec f044)
 - [ ] [k6t2] 2026-08-06: (BUG) fab-help silently drops internal-consistency-check/internal-retrospect/internal-skill-optimize — skillToGroupMap omits them and the documented 'Other' fallback bucket does not exist in fabhelp.go
 - [ ] [nztj] 2026-08-06: (BUG) slugRegex (change.go:21) accepts uppercase and unbounded words, contradicting documented lowercase/2-6-word slug rules — tighten the regex (case-insensitive-filesystem rationale in architecture.md:58)
+- [ ] [zfl7] 2026-08-07: fab dispatch pane-mode worker UX polish: done-worker pane hygiene (reap/zoom-park after done result read) + richer pane names/colors for stage workers — welcome but cuts into understanding of the worker grammar; deferred from deck-v layout discussion 2026-08-07
