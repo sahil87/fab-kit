@@ -627,7 +627,7 @@ providers:
 	}
 }
 
-// --- Cascade (lpb5): project > system (~/.fab-kit/config.yaml) > defaults ---
+// --- Cascade: system (~/.fab-kit/config.yaml) > project > defaults ---
 
 // captureWarnings redirects the loader's warning writer for the duration of the
 // test and returns a function yielding what was written. The fail-open scope +
@@ -672,20 +672,20 @@ func writeProjectConfig(t *testing.T, content string) string {
 }
 
 // TestCascade_MapsMergePerKey: agent.profiles merges per-key across the two
-// files — a project role field and a system role field compose, project wins on a
+// files — a project role field and a system role field compose, SYSTEM wins on a
 // conflicting leaf, and a system-only role survives alongside a project-only one.
 func TestCascade_MapsMergePerKey(t *testing.T) {
 	home := isolateSystemConfig(t)
 	writeSystemConfig(t, home, `
 agent:
   profiles:
-    doing: { provider: claude, model: system-model, effort: low }
+    doing: { provider: claude, model: system-model }
     sysonly: { model: sys-only-model }
 `)
 	fabRoot := writeProjectConfig(t, `
 agent:
   profiles:
-    doing: { model: project-model }
+    doing: { model: project-model, effort: low }
     projonly: { model: proj-only-model }
 `)
 
@@ -694,20 +694,20 @@ agent:
 		t.Fatalf("Load: %v", err)
 	}
 
-	// doing.model: project wins (project-model); doing.effort inherited from
-	// system (low); doing.provider inherited from system (claude).
+	// doing.model: SYSTEM wins (system-model); doing.provider is a system-only
+	// leaf; doing.effort is a PROJECT-only leaf that survives the per-key merge.
 	doing, ok := cfg.GetAgentProfile("doing")
 	if !ok {
 		t.Fatal("expected a merged 'doing' role profile")
 	}
-	if doing.Model != "project-model" {
-		t.Errorf("doing.model = %q, want project-model (project wins)", doing.Model)
+	if doing.Model != "system-model" {
+		t.Errorf("doing.model = %q, want system-model (system wins)", doing.Model)
 	}
 	if doing.Effort != "low" {
-		t.Errorf("doing.effort = %q, want low (inherited from system layer)", doing.Effort)
+		t.Errorf("doing.effort = %q, want low (project-layer leaf composes in)", doing.Effort)
 	}
 	if doing.Provider != "claude" {
-		t.Errorf("doing.provider = %q, want claude (inherited from system layer)", doing.Provider)
+		t.Errorf("doing.provider = %q, want claude (system-layer leaf)", doing.Provider)
 	}
 
 	// A system-only role survives (per-key merge, not whole-map replacement).
@@ -720,13 +720,14 @@ agent:
 	}
 }
 
-// TestCascade_ScalarReplaceProjectWins: a scalar set in both layers takes the
-// project value (providers.claude.session_command is `both`-scoped, so it is a
+// TestCascade_ScalarReplaceSystemWins: a scalar set in both layers takes the
+// SYSTEM value — the machine-wide preference outranks the repo's committed
+// suggestion (providers.claude.session_command is `both`-scoped, so it is a
 // valid system-file override to exercise end-to-end). A system-only provider
 // entry survives alongside it (per-key map merge). The list-replace rule is
 // exercised separately in TestCascade_ListReplace (lists are project-scoped, so
 // the generic rule is asserted on the merge helper directly).
-func TestCascade_ScalarReplaceProjectWins(t *testing.T) {
+func TestCascade_ScalarReplaceSystemWins(t *testing.T) {
 	home := isolateSystemConfig(t)
 	writeSystemConfig(t, home, `
 providers:
@@ -746,8 +747,8 @@ providers:
 		t.Fatalf("Load: %v", err)
 	}
 	claude, ok := cfg.GetProvider("claude")
-	if !ok || claude.SessionCommand != "project-session" {
-		t.Errorf("claude.session_command = %q ok=%v, want project-session (scalar: project wins)", claude.SessionCommand, ok)
+	if !ok || claude.SessionCommand != "system-session" {
+		t.Errorf("claude.session_command = %q ok=%v, want system-session (scalar: system wins)", claude.SessionCommand, ok)
 	}
 	// System-only provider survives (per-key map merge).
 	if codex, ok := cfg.GetProvider("codex"); !ok || codex.DispatchCommand != "codex exec" {
@@ -758,15 +759,102 @@ providers:
 // TestCascade_ListReplace: a list present in BOTH layers is replaced wholesale by
 // the higher layer (never concatenated). test_paths is project-scoped, so to
 // exercise the generic list-replace merge rule we build the layers directly via
-// deepMerge (the rule is field-agnostic — it operates on decoded YAML values,
+// MergeLayers (the rule is field-agnostic — it operates on decoded YAML values,
 // before scope pruning or unmarshal).
 func TestCascade_ListReplace(t *testing.T) {
-	base := map[string]any{"xs": []any{"a", "b", "c"}}
-	over := map[string]any{"xs": []any{"z"}}
-	merged := deepMerge(base, over)
+	lower := map[string]any{"xs": []any{"a", "b", "c"}}
+	higher := map[string]any{"xs": []any{"z"}}
+	merged := MergeLayers(lower, higher)
 	got, _ := merged["xs"].([]any)
 	if len(got) != 1 || got[0] != "z" {
 		t.Errorf("list merge = %v, want [z] (lists replace, never concatenate)", merged["xs"])
+	}
+}
+
+// TestIsEmptyValue: the single emptiness predicate the merge and the provenance
+// surfaces share. null / "" / [] / {} are empty (they fall through); `false` and
+// `0` are REAL values that must survive a merge.
+func TestIsEmptyValue(t *testing.T) {
+	empty := []any{nil, "", []any{}, map[string]any{}, map[any]any{}}
+	for _, v := range empty {
+		if !IsEmptyValue(v) {
+			t.Errorf("IsEmptyValue(%#v) = false, want true", v)
+		}
+	}
+	real := []any{false, 0, 0.0, "x", []any{nil}, map[string]any{"k": nil}}
+	for _, v := range real {
+		if IsEmptyValue(v) {
+			t.Errorf("IsEmptyValue(%#v) = true, want false", v)
+		}
+	}
+}
+
+// TestMergeLayers_EmptySkip: an empty leaf at ANY tier neither wins nor blocks —
+// it falls through to the next tier down — while `false`/`0` override normally.
+// The table is the merge rule's contract; the loader and the origin projection
+// both resolve through it.
+func TestMergeLayers_EmptySkip(t *testing.T) {
+	cases := []struct {
+		name   string
+		lower  map[string]any
+		higher map[string]any
+		want   any
+	}{
+		{"null falls through", map[string]any{"k": "low"}, map[string]any{"k": nil}, "low"},
+		{"empty string falls through", map[string]any{"k": "low"}, map[string]any{"k": ""}, "low"},
+		{"empty list falls through", map[string]any{"k": "low"}, map[string]any{"k": []any{}}, "low"},
+		{"empty map falls through", map[string]any{"k": "low"}, map[string]any{"k": map[string]any{}}, "low"},
+		{"false is a real override", map[string]any{"k": true}, map[string]any{"k": false}, false},
+		{"zero is a real override", map[string]any{"k": 42}, map[string]any{"k": 0}, 0},
+		{"non-empty replaces", map[string]any{"k": "low"}, map[string]any{"k": "high"}, "high"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := MergeLayers(tc.lower, tc.higher)["k"]; got != tc.want {
+				t.Errorf("merged k = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+
+	t.Run("all-empty mapping defines nothing", func(t *testing.T) {
+		merged := MergeLayers(
+			map[string]any{"agent": map[string]any{"workers": "codex"}},
+			map[string]any{"agent": map[string]any{"workers": nil}},
+		)
+		agent, _ := merged["agent"].(map[string]any)
+		if agent["workers"] != "codex" {
+			t.Errorf("agent.workers = %#v, want codex (an all-empty mapping falls through)", agent["workers"])
+		}
+	})
+}
+
+// TestCascade_EmptyProjectLeafFallsThrough: end-to-end through Load — an explicit
+// null in the PROJECT file no longer shadows the system layer, while an explicit
+// `false` in the SYSTEM file still overrides the project's `true` (false is a
+// real value, never skipped).
+func TestCascade_EmptyProjectLeafFallsThrough(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, `
+agent:
+  workers: codex
+dispatch:
+  reap_done: false
+`)
+	fabRoot := writeProjectConfig(t, `
+agent:
+  workers: null
+dispatch:
+  reap_done: true
+`)
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.GetAgentWorkers(); got != "codex" {
+		t.Errorf("agent.workers = %q, want codex (an explicit null falls through)", got)
+	}
+	if cfg.GetDispatchReapDone() {
+		t.Error("dispatch.reap_done = true, want false (an explicit false is a real override)")
 	}
 }
 
@@ -853,7 +941,7 @@ providers:
 	}
 }
 
-// --- Environment override layer: env > project > system > defaults ---
+// --- Environment override tier: env > system > project > defaults ---
 
 func TestParseYAMLValue(t *testing.T) {
 	t.Run("scalar", func(t *testing.T) {
@@ -927,8 +1015,8 @@ agent:
 	if !ok {
 		t.Fatal("merged review profile missing")
 	}
-	if review.Provider != "codex" || review.Model != "project-review" || review.Effort != "low" {
-		t.Errorf("review profile = %+v, want env provider + project model + system effort", review)
+	if review.Provider != "codex" || review.Model != "system-review" || review.Effort != "low" {
+		t.Errorf("review profile = %+v, want env provider + system model + system effort", review)
 	}
 	if doing, ok := cfg.GetAgentProfile("doing"); !ok || doing.Effort != "high" {
 		t.Errorf("project-only doing profile lost under env map merge: %+v ok=%v", doing, ok)
@@ -1148,31 +1236,39 @@ func TestEnvCascade_NoVariablesPreservesFileMerge(t *testing.T) {
 	}
 }
 
-func TestEnvCascade_ExplicitNullRemainsPresent(t *testing.T) {
-	isolateSystemConfig(t)
-	fabRoot := writeProjectConfig(t, "agent:\n  workers: project-worker\n")
-	t.Setenv("FAB_AGENT_WORKERS", "null")
+// TestEnvCascade_ExplicitNullFallsThrough: an environment variable whose YAML
+// parses to an empty value is UNSET at the environment tier, exactly as an empty
+// leaf is at every other tier — it contributes neither an overlay leaf nor a
+// provenance entry, and the layer below stays effective.
+func TestEnvCascade_ExplicitNullFallsThrough(t *testing.T) {
+	for _, tt := range []struct{ name, envValue string }{
+		{"explicit null", "null"},
+		{"empty flow list", "[]"},
+		{"empty flow mapping", "{}"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			isolateSystemConfig(t)
+			fabRoot := writeProjectConfig(t, "agent:\n  workers: project-worker\n")
+			t.Setenv("FAB_AGENT_WORKERS", tt.envValue)
 
-	layers, err := LoadLayers(filepath.Join(fabRoot, "project", "config.yaml"))
-	if err != nil {
-		t.Fatalf("LoadLayers: %v", err)
-	}
-	envAgent, ok := layers.Env["agent"].(map[string]any)
-	if !ok {
-		t.Fatalf("environment agent layer missing: %#v", layers.Env)
-	}
-	if value, present := envAgent["workers"]; !present || value != nil {
-		t.Fatalf("environment workers = %#v, present=%v; want explicit nil with presence", value, present)
-	}
-	effectiveAgent, ok := layers.Effective["agent"].(map[string]any)
-	if !ok {
-		t.Fatalf("effective agent layer missing: %#v", layers.Effective)
-	}
-	if value, present := effectiveAgent["workers"]; !present || value != nil {
-		t.Fatalf("effective workers = %#v, present=%v; want explicit nil override", value, present)
-	}
-	if got := layers.EnvOrigins["agent.workers"]; got != "FAB_AGENT_WORKERS" {
-		t.Fatalf("environment origin = %q, want FAB_AGENT_WORKERS", got)
+			layers, err := LoadLayers(filepath.Join(fabRoot, "project", "config.yaml"))
+			if err != nil {
+				t.Fatalf("LoadLayers: %v", err)
+			}
+			if _, present := layers.Env["agent"]; present {
+				t.Fatalf("an empty environment value must contribute no overlay leaf: %#v", layers.Env)
+			}
+			if got := layers.EnvOrigins["agent.workers"]; got != "" {
+				t.Fatalf("environment origin = %q, want none (the variable is unset)", got)
+			}
+			effectiveAgent, ok := layers.Effective["agent"].(map[string]any)
+			if !ok {
+				t.Fatalf("effective agent layer missing: %#v", layers.Effective)
+			}
+			if effectiveAgent["workers"] != "project-worker" {
+				t.Fatalf("effective workers = %#v, want project-worker (the empty override falls through)", effectiveAgent["workers"])
+			}
+		})
 	}
 }
 
@@ -1367,8 +1463,10 @@ func TestCascade_DispatchModeFromSystemLayer(t *testing.T) {
 	}
 }
 
-// TestCascade_DispatchModeProjectWins: the project layer beats the system layer.
-func TestCascade_DispatchModeProjectWins(t *testing.T) {
+// TestCascade_DispatchModeSystemWins: the system layer beats the project layer —
+// the machine-wide preference is what a preference-class key resolves to,
+// whichever value the repo's file happens to set.
+func TestCascade_DispatchModeSystemWins(t *testing.T) {
 	home := isolateSystemConfig(t)
 	writeSystemConfig(t, home, "dispatch:\n  mode: pane\n")
 	root := writeProjectConfig(t, "dispatch:\n  mode: headless\n")
@@ -1376,8 +1474,8 @@ func TestCascade_DispatchModeProjectWins(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if got := cfg.GetDispatchMode(); got != "headless" {
-		t.Errorf("project dispatch.mode = %q, want headless over system pane", got)
+	if got := cfg.GetDispatchMode(); got != "pane" {
+		t.Errorf("dispatch.mode = %q, want system pane over project headless", got)
 	}
 }
 
@@ -1449,7 +1547,7 @@ func TestLoad_DispatchColumnWidth(t *testing.T) {
 // TestCascade_DispatchColumnWidthFromSystemLayer: `dispatch` is scope `both`, so a
 // personal column width set once in ~/.fab-kit/config.yaml reaches every repo — the
 // whole point of the scope (a project-scoped key would be PRUNED from the system
-// layer with a warning). The project layer still wins where it sets one.
+// layer with a warning). It also OUTRANKS a project-file value.
 func TestCascade_DispatchColumnWidthFromSystemLayer(t *testing.T) {
 	home := isolateSystemConfig(t)
 	writeSystemConfig(t, home, "dispatch:\n  column_width: 25\n")
@@ -1470,8 +1568,8 @@ func TestCascade_DispatchColumnWidthFromSystemLayer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if got := cfg2.GetDispatchColumnWidth(); got != 40 {
-		t.Errorf("project column_width = %d, want the project's 40 to beat the system's 25", got)
+	if got := cfg2.GetDispatchColumnWidth(); got != 25 {
+		t.Errorf("column_width = %d, want the system's 25 to beat the project's 40", got)
 	}
 }
 
@@ -1526,8 +1624,9 @@ func TestLoad_DispatchReapDone(t *testing.T) {
 // TestCascade_DispatchReapDoneFromSystemLayer: `dispatch` is scope `both`, so the
 // opt-OUT set once in ~/.fab-kit/config.yaml reaches a repo whose project config
 // never mentions it — the whole point of the scope for a preference this personal
-// (a project-scoped key would be PRUNED from the system layer with a warning). The
-// project layer still wins where it sets one, in both directions.
+// (a project-scoped key would be PRUNED from the system layer with a warning). It
+// also OUTRANKS a project-file value, in both directions — `false` is a real value
+// and is never skipped as "empty".
 func TestCascade_DispatchReapDoneFromSystemLayer(t *testing.T) {
 	home := isolateSystemConfig(t)
 	writeSystemConfig(t, home, "dispatch:\n  reap_done: false\n")
@@ -1548,8 +1647,8 @@ func TestCascade_DispatchReapDoneFromSystemLayer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if !cfg2.GetDispatchReapDone() {
-		t.Error("a project `true` must beat a system `false`")
+	if cfg2.GetDispatchReapDone() {
+		t.Error("a system `false` must beat a project `true`")
 	}
 
 	home3 := isolateSystemConfig(t)
@@ -1559,8 +1658,8 @@ func TestCascade_DispatchReapDoneFromSystemLayer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg3.GetDispatchReapDone() {
-		t.Error("a project `false` must beat a system `true`")
+	if !cfg3.GetDispatchReapDone() {
+		t.Error("a system `true` must beat a project `false`")
 	}
 }
 

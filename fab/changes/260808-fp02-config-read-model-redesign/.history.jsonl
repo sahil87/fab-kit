@@ -1,0 +1,14 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-08T21:19:21Z"}
+{"args":"Config read-model redesign + UX follow-ups (backlog fp02)","cmd":"fab-new","event":"command","ts":"2026-08-08T21:19:21Z"}
+{"delta":"+3.2","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-08-08T21:25:38Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-08T21:29:07Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-08T21:29:16Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-08T21:30:14Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-08T22:05:13Z"}
+{"event":"review","result":"failed","ts":"2026-08-08T22:43:40Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-08T22:43:40Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-08T23:00:47Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-08T23:10:07Z"}
+{"event":"review","result":"passed","ts":"2026-08-08T23:10:07Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-08T23:11:13Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-08T23:22:20Z"}

@@ -5,7 +5,7 @@
 > written up in the config-upgrade effort's backlog doc (`fab/plans/sahil/config-upgrade.md`, all six
 > decisions user-confirmed). It is written across the **three-change** config-upgrade effort:
 > **Change 1** (260708-ff2v) — the per-field metadata table + `fab config explain` restructure +
-> `--json` — **Change 2** (260708-lpb5) — the four-layer environment > project > system > built-in cascade resolution + scope enforcement +
+> `--json` — **Change 2** (260708-lpb5) — the four-tier environment > system > project > built-in cascade resolution + scope enforcement +
 > the `fab config show [--origin]` / `fab config init --system` visibility commands — and **Change 3**
 > (260708-j0qm) — `fab config upgrade` + the managed fence + the `fab_version` → `fab/.fab-version`
 > relocation + the migration + registry-driven `fab config init --project` (scaffold config.yaml
@@ -97,7 +97,10 @@ the default, and a plain `bool` would have made an absent key indistinguishable 
 `reap_done: false` — silently disabling reaping for every project that never sets the key. It is
 therefore modeled as a **`*bool`** in `internal/config.DispatchConfig` (`nil` = unset = `true`), the one
 place the three siblings' shapes diverge; the registry row still carries the plain `true`, because the
-*default* is a value, not a pointer.
+*default* is a value, not a pointer. The empty-skip read model does not retire the pointer: `false` is a
+real value that survives the merge, but the loader's merged tree carries no built-in-defaults tier (see
+§ The defaults tier is materialized for the READ MODEL), so an unset key still reaches Unmarshal as
+absent.
 The same rule governs the **per-role fills** inside the `providers` default: every built-in's
 `profiles` map is projected, because all three ship real fills (`260806-ywkx`). The convention applies
 one level down instead — claude's map is exhaustive (all six roles), while codex's and gemini's are
@@ -135,10 +138,12 @@ key. It also matches the fence generator, whose override detection is top-level-
 
 ## Scope taxonomy (decision 6)
 
-`scope` states which cascade layer(s) may override a field. The rationale: the **system** layer
+`scope` states which cascade tier(s) may override a field. The rationale: the **system** tier
 (`~/.fab-kit/config.yaml`, [Change 2]) is restricted to *preference-class* fields — personal model/harness
 choices — while *semantics-class* fields stay in the project file so the repo remains reproducible for
-teammates and CI.
+teammates and CI. That restriction is also what makes the system tier's precedence over the project file
+(§ Override cascade) safe: the only fields it can outrank are the ones where "my machine beats this
+repo's suggestion" is the intended answer.
 
 | scope | Meaning | Fields |
 |-------|---------|--------|
@@ -328,33 +333,85 @@ carry-forward; `default` → `fab config show --origin`.
 
 ---
 
-## Cascade & six-verb command surface (Change 2 + environment layer + 260808-ihiv — landed)
+## Cascade & six-verb command surface (Change 2 + environment layer + 260808-ihiv + 260808-fp02 — landed)
 
 The file cascade, scope enforcement, and two visibility commands landed in Change 2 (260708-lpb5);
-the generic environment override layer extends that same loader seam. Recorded here in authoritative
-detail alongside the Change 1 schema.
+the generic environment override layer extends that same loader seam; the read-model redesign
+(260808-fp02) fixed the merge rule, the tier order, and the visibility surfaces below. Recorded here in
+authoritative detail alongside the Change 1 schema.
 
-### Override cascade [Change 2 — landed]
+### Override cascade
 
-Effective config resolves across four layers, highest precedence first, at the single loader seam
+Effective config resolves across four tiers, highest precedence first, at the single loader seam
 `internal/config.LoadPath` (so every consumer — preflight, impact, status, resolve-agent, dispatch,
 agent, operator, batch, spawn, prmeta — sees effective config with zero per-caller change):
 
 1. **environment** — YAML-valued variables derived from registry keys
-2. **project** — `fab/project/config.yaml`
-3. **system** — `~/.fab-kit/config.yaml` (co-located with the version cache; XDG path rejected — decision 5)
+2. **system** — `~/.fab-kit/config.yaml` (co-located with the version cache; XDG path rejected — decision 5)
+3. **project** — `fab/project/config.yaml`
 4. **built-in defaults** — the Go tables in the `fab` binary (this spec's table), applied at the
    existing point-of-use seams (`internal/agent`'s role/provider resolution, the nil-safe accessors)
+   and projected as a materialized read-model tier by `configref.DefaultsMap` (below)
 
-All materialized layers merge at the YAML map level, before unmarshal, by **per-field deep merge**: maps
-merge per-key (the existing `agent.profiles` precedent), **lists replace** (never concatenate), scalars
-replace — environment wins. Environment names are derived mechanically as `FAB_` plus the uppercase
+**The system tier outranks the project file.** For a *preference-class* key — "which worker provider do
+I like on this machine" — a repo's committed suggestion losing to the user's own machine-wide choice is
+the point: the alternative made a personal `~/.fab-kit/config.yaml` preference silently inert in any
+repo that happened to pin the key. What makes the order safe is that **scope enforcement is retained**:
+only `scope: system`/`both` fields are honored in the system file at all, so a semantics-class key
+(`source_paths`, `test_paths`, `stage_hooks`, …) can never appear there and the repo stays reproducible
+for teammates and CI. The flip changes no on-disk shape, so it ships **without a migration** — it is
+carried by docs and release notes (the constitution's migration rule governs user-data *restructuring*).
+
+All materialized tiers merge at the YAML map level, before unmarshal, **per leaf**: maps merge per-key
+(the existing `agent.profiles` precedent), **lists replace** (never concatenate), scalars replace, and
+each leaf takes the value of the highest tier that defines it **non-empty**.
+
+**Empty-skip.** A leaf whose value at some tier is `null`, `""`, `[]`, or `{}` neither wins nor blocks —
+it falls through to the tier below. This removes explicit-null/presence semantics from the READ side
+entirely: an explicit `key: null` shadowing a lower tier was a footgun, not a feature, and modelling it
+cost a presence bit threaded through every provenance path. `false` and `0` are **real values and are
+never skipped** — a bool/int override must survive (a project `dispatch: {reap_done: false}` resolves
+`false`). A mapping whose every leaf is empty defines nothing and falls through wholesale. The rule has
+one implementation, `config.MergeLayers` over `config.IsEmptyValue`, which the loader and every
+provenance surface share, so visibility cannot disagree with resolution.
+
+Environment names are derived mechanically as `FAB_` plus the uppercase
 dotted registry key with dots replaced by underscores; values are YAML-parsed, preserving scalar,
 list, and map types. The loader walks the ordered registry-key enumeration rather than the process
-environment, accepts only `scope: system`/`both`, and treats an empty value as unset. A malformed value
+environment, accepts only `scope: system`/`both`, and treats an empty value as unset — both a blank
+variable and one whose YAML parses empty, so the environment obeys the same empty-skip rule as every
+other tier and contributes neither an overlay leaf nor a provenance entry. A malformed value
 or a project-scoped environment override emits a `fab: warning:` and is ignored; an unknown/unrelated
 `FAB_*` variable is never examined. The supported user-facing examples are `FAB_AGENT_WORKERS` and
 `FAB_AGENT_SESSION`; `FAB_AGENTS` (plural) is unrelated and has no config meaning.
+
+### The defaults tier is materialized for the READ MODEL, not for the loader
+
+`configref.DefaultsMap()` projects every registry row's canonical `default` into one YAML-shaped map —
+the real bottom tier the visibility and mutation surfaces merge beneath the files and the environment.
+`DefaultsMapFor(cfg)` is the same projection with the *derived* `agent.profiles` rows resolved against
+the **live** config (below).
+
+The loader deliberately does **not** merge that map. Two reasons, the second decisive:
+
+- `internal/config` cannot import `internal/configref` — `configref → agent → config` would close an
+  import cycle, which is why `internal/configscope` exists as a leaf in the first place.
+- The `agent.profiles` default is **derived** (resolved from the depth knobs and the provider fills),
+  not stored. Merging it into the loader's tree would land a full `{provider, model, effort}` in
+  `Config.Agent.Profiles`, which the resolver reads as a **user override** outranking the provider's own
+  fills — inverting the documented fill precedence and breaking `--provider` swaps. A registry-defaults
+  tier is sound for display and provenance; it is not sound for the resolver.
+
+The retained point-of-use seams therefore remain the loader's fourth tier (their wholesale collapse is
+still deferred), and `internal/config.DispatchConfig.ReapDone` stays a `*bool` for the same reason: the
+loader's merged tree carries no defaults, so an unset key still reaches Unmarshal as absent and the
+pointer is what keeps absent distinguishable from an explicit `false`.
+
+### Presence semantics are gone from the read side
+
+`fab config show --origin` no longer tracks layer presence separately from value. "This tier defines
+the leaf" is `!config.IsEmptyValue(value)` — the same test the merge applies — so the winner rule, the
+shadow warnings, and the merge are one definition rather than three mechanisms.
 
 The cascade is **fail-open** (config must never brick): an absent system file
 is byte-identical to the pre-cascade single-file behavior; a malformed or unreadable system file emits
@@ -368,14 +425,39 @@ environment walk cannot drift from the reference schema.
 
 ### Six intent-grouped verbs
 
-- `fab config show [<key>] [--origin]` — a pure query. Plain bare output prints the environment-over-project-over-
-  system merge as YAML; built-in defaults are NOT materialized here (they apply at
+- `fab config show [<key>] [--origin]` — a pure query. Plain bare output prints the environment-over-system-over-
+  project merge as YAML; built-in defaults are NOT materialized here (they apply at
   point-of-use), surfaced explicitly only by `--origin`, which adds per-field provenance (exact
-  `$FAB_…` variable / project path / system path / `default`, following the
-  `git config --show-origin` precedent) with per-key drill-down for map-valued fields. It surfaces
-  typo'd overrides that silently no-op today (the intended field shows origin `default`). With a
-  known dotted key, scalar/list output is the raw effective value, map output is its YAML subtree,
-  and `--origin` annotates that selected value; unknown keys fail non-zero naming the key.
+  `$FAB_…` variable / system path / project path / `default`, following the
+  `git config --show-origin` precedent) with per-key drill-down for map-valued fields. Bare
+  `--origin` is **winner-only**: one line per leaf. It surfaces
+  typo'd overrides that silently no-op (the intended field shows origin `default`). With a
+  known dotted key, scalar/list output is the raw effective value and map output is its YAML subtree;
+  unknown keys fail non-zero naming the key.
+
+  **Keyed `--origin` lists the key's FULL STACK** — one line per tier that defines it, highest first,
+  the winner marked `(effective)` and the rest `(shadowed)`. No new flag: the winner-only view is the
+  all-keys listing's job, and the keyed view is where "why is my override not taking effect" gets
+  answered. A map-valued key drills down per leaf, each leaf listing its own defining tiers; a
+  descendant under an ancestor a higher tier replaced reports that replacing tier. Rendering:
+
+  ```
+  $ fab config show agent.workers --origin
+  agent.workers = codex    # env $FAB_AGENT_WORKERS  (effective)
+  agent.workers = kimi3    # system /home/u/.fab-kit/config.yaml  (shadowed)
+  agent.workers = claude   # default  (shadowed)
+  ```
+
+  The keyed listing names the tier (`env`/`system`/`project`/`default`) alongside its label, because a
+  stack of two bare file paths is not readable; the winner-only listing keeps the bare
+  `git config --show-origin` label vocabulary.
+
+  **The composed `agent.profiles.*` drill-down rows are knob-aware.** They are derived from the depth
+  knobs and the provider fills rather than stored, so composing them against the registry's nil-config
+  `Default` made every role's provider row read `claude # default` even when a knob named another
+  provider. They now compose against the LIVE config (`configref.DefaultsMapFor`), so the reported
+  provider (and its fills) is what the role would actually dispatch to. Resolution stays
+  provider-neutral: a knob naming a provider fab ships nothing for is reported verbatim.
 - `fab config explain [<key>] [--json]` — the registry documentation query. Bare forms render the
   full commented YAML or JSON table; keyed forms render the owning segment or its row(s).
   `reference` is an invisible compatibility alias.
@@ -383,11 +465,27 @@ environment walk cannot drift from the reference schema.
   `internal/configupgrade`, never whole-document YAML marshal. Keys are registry-validated, including
   documented deep scalar leaves. `set` accepts only a single-line, comment-free YAML `string`, `bool`,
   `int`, or `float`; structural map keys, collection-valued leaves, collection/null values, multiline
-  input, and YAML comments are refused with manual-edit guidance. Fence-only deep keys materialize
-  every ancestor from the registry renderer before insertion. `unset` is deliberately kind-ungated so
+  input, and YAML comments are refused with manual-edit guidance. An **empty value
+  is refused** too, pointing at `fab config unset`: under empty-skip an empty leaf falls through and can
+  never be effective, so writing one is a pure footgun rather than a way to clear a key. Emptiness is
+  tested on the **parsed** value (`config.IsEmptyValue`), so the quoted-empty spellings (`''`, `""`) and
+  an explicit `null` are refused alongside a blank or whitespace-only argument. Fence-only deep
+  keys materialize every ancestor from the registry renderer before insertion.
+
+  **`set` warns when a higher tier shadows the write.** The write is valid, so it succeeds and exits 0,
+  but a `fab: warning:` on stderr names the tier that actually wins
+  (`agent.workers is shadowed by env $FAB_AGENT_WORKERS — the written value is not in effect`). It fires
+  for either target — project shadowed by system or environment, `--system` shadowed by environment —
+  and NOT for `--system` over a project value, which the system tier outranks. The check is fail-open:
+  an unresolvable repo or unreadable layer prints nothing rather than failing a completed write.
+
+  `unset` is deliberately kind-ungated so
   it can repair malformed overrides. System writes accept only `scope: system`/`both`, never add a
   project fence, and create a missing file with the canonical scaffold header. Unsetting an absent
-  known key is an exit-zero notice. The shared YAML value parser retains collections in either flow
+  known key is an exit-zero notice that now **names the tier where the key IS live** plus the command
+  that would remove it (`live in system ~/.fab-kit/config.yaml — use: fab config unset agent.workers
+  --system`); an environment tier is named as one `unset` cannot remove, and a key supplied only by the
+  built-in default keeps the bare notice. The shared YAML value parser retains collections in either flow
   or block style for the environment overlay only; ENV list/map support does not widen the mutation
   contract.
 - `fab config init [--system]` — bare init generates the project file; `--project` remains a

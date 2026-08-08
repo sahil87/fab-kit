@@ -36,7 +36,7 @@ func dispatchReapCmd() *cobra.Command {
 // `--server`-started dispatch is reaped correctly with no flag).
 //
 // The WHOLE guard lives here rather than at the skill call site: the knob resolves
-// through the four-layer config cascade (env > project > system ~/.fab-kit/config.yaml >
+// through the four-tier config cascade (env > system ~/.fab-kit/config.yaml > project >
 // defaults), which only Go can read — a skill parsing fab/project/config.yaml
 // directly would miss the system layer, which is exactly where a machine-wide
 // `both`-scope preference lives. The skill wiring is therefore unconditional and
@@ -106,7 +106,7 @@ func runDispatchReap(cmd *cobra.Command, changeArg, stage string) error {
 	return nil
 }
 
-// dispatchReapEnabled resolves dispatch.reap_done through the four-layer config
+// dispatchReapEnabled resolves dispatch.reap_done through the four-tier config
 // cascade. It re-walks to the fab root rather than threading one out of
 // resolveDispatchDir: the walk is a cheap upward directory search, and leaving that
 // shared helper's signature alone keeps its three other call sites untouched.

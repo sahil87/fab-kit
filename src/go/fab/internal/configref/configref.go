@@ -474,7 +474,7 @@ checklist:
 			Key:         "agent.session",
 			Default:     agent.DefaultProviderName,
 			Kind:        configvalue.KindString,
-			Description: "Provider for the Tier-1 (session) roles — the agents you talk to: fab agent, fab operator, fab batch worker sessions (roles default and operator). Names an entry in the providers table; applies at launch time. Scope both — settable once machine-wide. Default claude.",
+			Description: "Provider for the Tier-1 (session) roles — the agents you talk to: fab agent, fab operator, fab batch worker sessions (roles default and operator). Names an entry in the providers table; applies at launch time. Scope both — settable once machine-wide, where it outranks the project file. Default claude.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
 			Segment:     agentSegment(roles),
@@ -483,7 +483,7 @@ checklist:
 			Key:         "agent.workers",
 			Default:     agent.DefaultProviderName,
 			Kind:        configvalue.KindString,
-			Description: "Provider for the Tier-2 (worker) roles — the agents pipeline stages dispatch to: apply, review, hydrate, ship, review-pr (roles doing, review, hydrate, fast). Names an entry in the providers table; applies at every stage dispatch. Scope both — settable once machine-wide. Default claude.",
+			Description: "Provider for the Tier-2 (worker) roles — the agents pipeline stages dispatch to: apply, review, hydrate, ship, review-pr (roles doing, review, hydrate, fast). Names an entry in the providers table; applies at every stage dispatch. Scope both — settable once machine-wide, where it outranks the project file. Default claude.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
 			// Rendered inline in the agent.session Segment (agent is one YAML block,
@@ -524,7 +524,7 @@ checklist:
 			Key:         "dispatch.mode",
 			Default:     config.DefaultDispatchMode,
 			Kind:        configvalue.KindString,
-			Description: "Preferred stage-dispatch mode: pane, native, or headless. Resolution starts at the preference and descends pane → native → headless without ascending, choosing the first mode supported by the provider and environment. Scope both — settable once machine-wide. Default native.",
+			Description: "Preferred stage-dispatch mode: pane, native, or headless. Resolution starts at the preference and descends pane → native → headless without ascending, choosing the first mode supported by the provider and environment. Scope both — settable once machine-wide, where it outranks the project file. Default native.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
 			Segment:     dispatchSegment(),
@@ -537,7 +537,7 @@ checklist:
 			// canonical config symbol, never a literal copy.
 			Default:     config.DefaultDispatchColumnWidth,
 			Kind:        configvalue.KindInt,
-			Description: "Pane-worker column width, in percent of the window, applied by the column-carving `-h` split that opens a pane-mode stage worker beside its dispatching agent (`split-window -h -l <n>%`). Only that first split is sized — later workers stack inside the column with unsized `-v` splits. Out-of-range values (and an absent key) resolve to the default. Scope both — settable once machine-wide. Default 35.",
+			Description: "Pane-worker column width, in percent of the window, applied by the column-carving `-h` split that opens a pane-mode stage worker beside its dispatching agent (`split-window -h -l <n>%`). Only that first split is sized — later workers stack inside the column with unsized `-v` splits. Out-of-range values (and an absent key) resolve to the default. Scope both — settable once machine-wide, where it outranks the project file. Default 35.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
 			// Rendered inline in the dispatch.mode Segment (dispatch is one YAML
@@ -554,7 +554,7 @@ checklist:
 			// config symbol, never a literal copy.
 			Default:     config.DefaultDispatchReapDone,
 			Kind:        configvalue.KindBool,
-			Description: "Done-worker pane reaping. When true, `fab dispatch reap` kills a pane-mode stage worker's tmux pane once its result file is present, reclaiming the column space a finished worker would otherwise hold for the rest of the run. Reap is not kill: it never touches a running, orphaned, or failed dispatch, and it removes no .fab-dispatch/ state. Set false to keep a done worker's scrollback. Scope both — settable once machine-wide. Default true.",
+			Description: "Done-worker pane reaping. When true, `fab dispatch reap` kills a pane-mode stage worker's tmux pane once its result file is present, reclaiming the column space a finished worker would otherwise hold for the rest of the run. Reap is not kill: it never touches a running, orphaned, or failed dispatch, and it removes no .fab-dispatch/ state. Set false to keep a done worker's scrollback. Scope both — settable once machine-wide, where it outranks the project file. Default true.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
 			// Rendered inline in the dispatch.mode Segment, same as
@@ -660,7 +660,8 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#                      profiles.default > empty (empty drops the placeholder's\n" +
 		"#                      token, so the CLI's own default applies). Scope `both`,\n" +
 		"#                      so a machine-wide fill is settable once in\n" +
-		"#                      ~/.fab-kit/config.yaml. (The pre-2.17.0 flat\n" +
+		"#                      ~/.fab-kit/config.yaml, where it outranks the project\n" +
+		"#                      file. (The pre-2.17.0 flat\n" +
 		"#                      providers.<name>.model / .effort is still read as an alias\n" +
 		"#                      for profiles.default; the 2.16.19-to-2.17.0 migration\n" +
 		"#                      rewrites it.)\n" +
@@ -769,7 +770,8 @@ func agentSegment(roles []roleRow) string {
 	b.WriteString("# which `fab config explain` prints in full (it is machinery, so the managed\n")
 	b.WriteString("# fence omits it) — fab-kit ships claude, codex and gemini, so `workers: codex`\n")
 	b.WriteString("# needs no other config. Both default to claude. Scope `both`, so the choice is\n")
-	b.WriteString("# settable once machine-wide in ~/.fab-kit/config.yaml.\n")
+	b.WriteString("# settable once machine-wide in ~/.fab-kit/config.yaml, where it outranks\n")
+	b.WriteString("# the project file.\n")
 	b.WriteString("#\n")
 	// The role→depth partition, compacted to one line per depth. internal/agent OWNS
 	// the partition; agent.IsSessionRole is the exported read of it, so this rendering
@@ -821,8 +823,8 @@ func dispatchSegment() string {
 		"# HOW, never WHETHER. `pane` is the watchable preference (no `auto` value):\n" +
 		"# outside tmux it descends to native or headless. Default native reproduces the\n" +
 		"# shipped behavior (claude native; codex/gemini headless). Scope `both`, so it\n" +
-		"# is settable once machine-wide in ~/.fab-kit/config.yaml. Invalid values warn\n" +
-		"# and fail open to " + config.DefaultDispatchMode + ".\n" +
+		"# is settable once machine-wide in ~/.fab-kit/config.yaml, where it outranks\n" +
+		"# the project file. Invalid values warn and fail open to " + config.DefaultDispatchMode + ".\n" +
 		"#\n" +
 		"# dispatch.column_width — width, in PERCENT of the window, of the pane-worker\n" +
 		"# column a pane-mode stage worker is opened into. The first worker CARVES the\n" +
@@ -833,7 +835,8 @@ func dispatchSegment() string {
 		"# the default (an absent yaml int is indistinguishable from 0, and 0/100 are\n" +
 		"# degenerate widths). A tmux too old for `-l <n>%` (pre-3.1) degrades to an\n" +
 		"# unsized split with a warning rather than failing the dispatch. Scope `both`,\n" +
-		"# so it is settable once machine-wide in ~/.fab-kit/config.yaml.\n" +
+		"# so it is settable once machine-wide in ~/.fab-kit/config.yaml, where it\n" +
+		"# outranks the project file.\n" +
 		"#\n" +
 		"# dispatch.reap_done — whether `fab dispatch reap` reclaims a DONE pane-mode\n" +
 		"# worker's tmux pane. A pane worker never exits on completion (it writes\n" +
@@ -846,7 +849,7 @@ func dispatchSegment() string {
 		"# .fab-dispatch/ state — the record and result file stay, so a reaped dispatch\n" +
 		"# still reads `done` forever. Set false to keep a done worker's pane and its\n" +
 		"# scrollback. Scope `both`, so it is settable once machine-wide in\n" +
-		"# ~/.fab-kit/config.yaml. Default " + strconv.FormatBool(config.DefaultDispatchReapDone) + ".\n" +
+		"# ~/.fab-kit/config.yaml, where it outranks the project file. Default " + strconv.FormatBool(config.DefaultDispatchReapDone) + ".\n" +
 		"# dispatch:\n" +
 		"#   mode: " + config.DefaultDispatchMode + "\n" +
 		"#   column_width: " + strconv.Itoa(config.DefaultDispatchColumnWidth) + "\n" +
