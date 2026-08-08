@@ -299,10 +299,10 @@ Every subagent prompt MUST instruct the subagent to read the following project f
 Immediately before dispatching a pipeline-stage sub-agent, the dispatching skill runs:
 
 ```sh
-fab resolve-agent <stage>
+fab resolve-agent <stage> --alias
 ```
 
-Output is byte-stable and ordered: `model=<id>` first, then optional `effort=<level>`, `provider=<name>`, and `dispatch=<command>` lines; each optional line is omitted when empty. The resolver's role/depth/fill precedence and the conditions that emit `dispatch=` live in `_cli-fab.md` § fab resolve-agent; `docs/specs/stage-models.md` owns the design. Resolved strings pass through verbatim — fab validates no effort enum and corrects no incompatible pair.
+Output is byte-stable and ordered: `model=<alias-or-id>` first, then optional `effort=<level>`, `provider=<name>`, and `dispatch=<command>` lines; each optional line is omitted when empty. `--alias` adapts recognized Claude model IDs for the native Agent-tool seam; non-Claude IDs pass through, while `dispatch=` always embeds the full ID. The resolver's role/depth/fill precedence and the conditions that emit `dispatch=` live in `_cli-fab.md` § fab resolve-agent; `docs/specs/stage-models.md` owns the design. Resolved strings pass through verbatim — fab validates no effort enum and corrects no incompatible pair.
 
 | Profile half | Native Agent-tool seam | Empty value | Constraint |
 |--------------|------------------------|-------------|------------|
