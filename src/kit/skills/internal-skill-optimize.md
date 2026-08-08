@@ -9,7 +9,7 @@ Condense a skill (or all skills) to their core — remove verbosity, redundant e
 
 This skill runs two distinct kinds of pass with **different scoping rules**:
 
-- **Content optimization** (the bloat-signal trim) — operates on the requested skill. A consumer-skill pass treats every `_*.md` partial as read-only reference context and never trims one as a side effect; a dedicated pass invoked explicitly with a partial's name (e.g. `/internal-skill-optimize _preamble`) legitimately applies the same content signals to that partial. Batch mode skips partials.
+- **Content optimization** (the bloat-signal trim) — operates on the requested skill. A consumer-skill pass treats every `_*.md` partial as read-only reference context and never trims one as a side effect; a dedicated pass invoked explicitly with a partial's name (e.g. `/internal-skill-optimize _preamble`) legitimately applies the same content signals to that partial. In batch mode, content optimization likewise skips partials (structural checks below still cover them).
 - **Structural checks** (TOC + reference depth) — operate on **all** skill files **including `_*.md` partials**, because a long partial with no TOC (e.g. a 700+ line `_cli-fab.md`) or a partial that chains references more than one level deep is a real structural defect the content rule would wrongly exempt. Structural checks only add a Contents block or report a depth finding — they never trim a partial's prose.
 
 ---
@@ -41,7 +41,7 @@ This skill runs two distinct kinds of pass with **different scoping rules**:
 
 For each skill file, read it fully and evaluate against these bloat signals.
 
-**Content signals** (apply to individual skills and to an explicitly named partial; skip partials only as consumer-side context and in batch mode):
+**Content signals** (apply to individual skills and to an explicitly named partial; in consumer and batch passes partials are read-only context — content signals never apply to them, though the structural signals below do):
 
 | Signal | What to look for |
 |--------|-----------------|
