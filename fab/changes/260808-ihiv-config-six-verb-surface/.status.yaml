@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 15
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-08-08T19:58:34Z", driver: fab-continue, iterations: 12, completed_at: "2026-08-08T20:04:28Z"}
     review: {started_at: "2026-08-08T20:04:28Z", driver: fab-continue, iterations: 12, completed_at: "2026-08-08T20:16:24Z"}
     hydrate: {started_at: "2026-08-08T20:16:24Z", driver: fab-continue, iterations: 1, completed_at: "2026-08-08T20:22:30Z"}
-    ship: {started_at: "2026-08-08T20:22:30Z", driver: fab-continue, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-08T20:22:30Z", driver: fab-continue, iterations: 1, completed_at: "2026-08-08T20:26:18Z"}
+    review-pr: {started_at: "2026-08-08T20:26:18Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/555
 true_impact:
-    added: 2906
-    deleted: 243
-    net: 2663
+    added: 3765
+    deleted: 311
+    net: 3454
     excluding:
-        added: 2365
-        deleted: 163
-        net: 2202
+        added: 3155
+        deleted: 220
+        net: 2935
     tests:
-        added: 742
-        deleted: 26
-        net: 716
-    computed_at: "2026-08-08T20:22:30Z"
-    computed_at_stage: hydrate
+        added: 1190
+        deleted: 34
+        net: 1156
+    computed_at: "2026-08-08T20:26:18Z"
+    computed_at_stage: ship
 change_type_source: explicit
 summary: fab config becomes a six-verb surface — keyed show, explain (with an invisible reference alias), scalar-only surgical set/unset through the configupgrade fence engine, and bare init defaulting to project mode
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-08T20:22:30Z
+last_updated: 2026-08-08T20:26:18Z
