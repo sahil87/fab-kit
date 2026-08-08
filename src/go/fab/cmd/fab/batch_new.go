@@ -10,6 +10,7 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/backlog"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/shellquote"
 	"github.com/spf13/cobra"
 )
 
@@ -26,6 +27,7 @@ func batchNewCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&listFlag, "list", false, "Show pending backlog items and their IDs")
 	cmd.Flags().BoolVar(&allFlag, "all", false, "Open tabs for all pending backlog items")
+	cmd.Flags().String("workers", "", "set FAB_AGENT_WORKERS in each launched tab")
 
 	return cmd
 }
@@ -91,6 +93,7 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 	// so no literal braces reach tmux.
 	configPath := filepath.Join(fabRoot, "project", "config.yaml")
 	spawnCmd := defaultRoleSpawnCommand(configPath)
+	workers, workersSet := workersOverride(cmd)
 
 	// Process each ID. Launch failures (wt create, tmux new-window) are
 	// reported per item with a failure count and a non-zero exit when any
@@ -131,12 +134,10 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 		}
 		wtPath := strings.TrimSpace(wtOut)
 
-		// Escape single quotes for shell
-		safe := strings.ReplaceAll(content, "'", "'\\''")
-
 		// Open tmux window. The worktree already exists at this point, so a
 		// launch failure names it as the recovery/cleanup hint.
-		shellCmd := fmt.Sprintf("%s '/fab-new %s'", spawnCmd, safe)
+		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single("/fab-new "+content))
+		shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
 		if _, stderr, err := pane.RunCmd("tmux", "new-window", "-n", "fab-"+id, "-c", wtPath, shellCmd); err != nil {
 			fmt.Fprintf(errW, "  [%s] FAILED: tmux new-window: %v (worktree already created at %s)\n",
 				id, pane.StderrError(err, stderr), wtPath)

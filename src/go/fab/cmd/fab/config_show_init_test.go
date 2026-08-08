@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/configscope"
 )
 
 // setupConfigRepo creates a temp fab/ repo with the given project config.yaml
@@ -25,7 +26,11 @@ func setupConfigRepo(t *testing.T, projectYAML string) (repo, home string) {
 	}
 	home = t.TempDir()
 	// chdirTestEnv restores cwd + env on cleanup; HOME isolates the system layer.
-	chdirTestEnv(t, repo, map[string]string{"HOME": home})
+	env := map[string]string{"HOME": home}
+	for _, key := range configscope.DottedKeys() {
+		env["FAB_"+strings.ToUpper(strings.ReplaceAll(key, ".", "_"))] = ""
+	}
+	chdirTestEnv(t, repo, env)
 	return repo, home
 }
 
@@ -205,6 +210,103 @@ func TestConfigShowOrigin_HigherLayerScalarReplacesSubtree(t *testing.T) {
 	if !sawProvidersLeaf {
 		t.Errorf("expected a single `providers = oops` leaf at the project origin:\n%s", out)
 	}
+}
+
+func TestConfigShow_EnvironmentEffectiveAndOrigins(t *testing.T) {
+	setupConfigRepo(t, `
+agent:
+  session: claude
+  workers: claude
+`)
+	t.Setenv("FAB_AGENT_SESSION", "gemini")
+	t.Setenv("FAB_AGENT_WORKERS", "codex")
+
+	plain, err := runConfig(t, "show")
+	if err != nil {
+		t.Fatalf("config show: %v", err)
+	}
+	if !strings.Contains(plain, "session: gemini") || !strings.Contains(plain, "workers: codex") {
+		t.Errorf("plain show must include env-effective values:\n%s", plain)
+	}
+
+	origin, err := runConfig(t, "show", "--origin")
+	if err != nil {
+		t.Fatalf("config show --origin: %v", err)
+	}
+	for keyValue, variable := range map[string]string{
+		"agent.session = gemini": "$FAB_AGENT_SESSION",
+		"agent.workers = codex":  "$FAB_AGENT_WORKERS",
+	} {
+		found := false
+		for _, line := range strings.Split(origin, "\n") {
+			if strings.Contains(line, keyValue) {
+				found = true
+				if !strings.Contains(line, "# "+variable) {
+					t.Errorf("origin line %q does not name %s", line, variable)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("origin output missing %q:\n%s", keyValue, origin)
+		}
+	}
+}
+
+func TestConfigShowOrigin_EnvironmentMapUsesRowVariable(t *testing.T) {
+	setupConfigRepo(t, "agent:\n  profiles:\n    review: {model: project-model}\n")
+	t.Setenv("FAB_AGENT_PROFILES", "{review: {provider: codex, effort: high}}")
+
+	out, err := runConfig(t, "show", "--origin")
+	if err != nil {
+		t.Fatalf("config show --origin: %v", err)
+	}
+	for _, leaf := range []string{
+		"agent.profiles.review.provider = codex",
+		"agent.profiles.review.effort = high",
+	} {
+		found := false
+		for _, line := range strings.Split(out, "\n") {
+			if strings.Contains(line, leaf) {
+				found = true
+				if !strings.Contains(line, "# $FAB_AGENT_PROFILES") {
+					t.Errorf("map-valued env leaf has wrong origin: %q", line)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("origin output missing %q:\n%s", leaf, out)
+		}
+	}
+	if !strings.Contains(out, "agent.profiles.review.model = project-model") {
+		t.Errorf("env map must preserve non-conflicting project leaf:\n%s", out)
+	}
+}
+
+func TestConfigShowOrigin_EnvironmentNullRemainsPresent(t *testing.T) {
+	setupConfigRepo(t, "agent:\n  workers: project-worker\n")
+	t.Setenv("FAB_AGENT_WORKERS", "null")
+
+	plain, err := runConfig(t, "show")
+	if err != nil {
+		t.Fatalf("config show: %v", err)
+	}
+	if !strings.Contains(plain, "workers: null") {
+		t.Fatalf("plain show must preserve the explicit null override:\n%s", plain)
+	}
+
+	origin, err := runConfig(t, "show", "--origin")
+	if err != nil {
+		t.Fatalf("config show --origin: %v", err)
+	}
+	for _, line := range strings.Split(origin, "\n") {
+		if strings.Contains(line, "agent.workers =") {
+			if !strings.Contains(line, "agent.workers = null") || !strings.Contains(line, "# $FAB_AGENT_WORKERS") {
+				t.Fatalf("explicit null must retain its env value and origin, got %q", line)
+			}
+			return
+		}
+	}
+	t.Fatalf("origin output missing agent.workers:\n%s", origin)
 }
 
 // TestConfigInitSystem_WritesScaffoldAndRefusesOverwrite: `fab config init

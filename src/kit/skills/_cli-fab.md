@@ -414,15 +414,16 @@ The `providers:` block documents fab-kit's **three built-in providers** — `cla
 
 **Exit code**: 0 on success (pure query — no runtime error paths). A usage error (e.g. an extra positional argument, rejected by `cobra.NoArgs`) exits `2` (caught before RunE). Writes no file.
 
-### The config cascade (project > system > defaults)
+### The config cascade (environment > project > system > defaults)
 
-`fab config show` and `show --origin` display the **effective** config after resolving the three-layer cascade the loader (`internal/config.LoadPath`) applies to *every* config read:
+`fab config show` and `show --origin` display the **effective** config after resolving the four-layer cascade the loader (`internal/config.LoadPath`) applies to *every* config read:
 
-1. **project** — `fab/project/config.yaml` (highest precedence)
-2. **system** — `~/.fab-kit/config.yaml` (user-global, all repos on the machine)
-3. **built-in defaults** — the Go tables in the binary
+1. **environment** — YAML-valued variables derived generically from registry keys (highest precedence)
+2. **project** — `fab/project/config.yaml`
+3. **system** — `~/.fab-kit/config.yaml` (user-global, all repos on the machine)
+4. **built-in defaults** — the Go tables in the binary
 
-The two files merge by **per-field deep merge**: maps merge per-key (the `agent.profiles` precedent), lists replace (never concatenate), scalars replace — project wins. The cascade is **fail-open** (config must never brick): an absent system file is byte-identical to before; a malformed/unreadable system file emits a `fab: warning:` on stderr and is skipped; a malformed *project* file still errors as before. **Scope enforcement**: a project-scoped field placed in the system file is ignored with a `fab: warning:` (only `scope: system`/`both` fields — today `agent.*` and `providers` — are honored there). Warnings go to stderr and never change stdout contracts or exit codes.
+Layers merge by **per-field deep merge**: maps merge per-key (the `agent.profiles` precedent), lists replace (never concatenate), scalars replace — environment wins. Environment names are mechanically `FAB_` + the uppercase dotted registry key with `.` replaced by `_`; values are parsed as YAML, so scalars, lists, and maps retain config types. The loader walks only the ordered registry keys, honors only `scope: system`/`both`, treats an empty value as unset, and fails open: a malformed value or project-scoped override emits a `fab: warning:` on stderr and is skipped; unrelated/unknown `FAB_*` variables are never scanned. The deliberately advertised variables are `FAB_AGENT_WORKERS` and `FAB_AGENT_SESSION`; similarly named `FAB_AGENTS` is unrelated and has no config meaning. The file-layer behavior remains unchanged: an absent or malformed/unreadable system file is skipped (with a warning for malformed/unreadable), while a malformed *project* file still errors. Warnings never change stdout contracts or exit codes.
 
 ### fab config show `[--origin]`
 
@@ -430,12 +431,12 @@ Pure query (no file writes) for the current repo. `docs/specs/config.md` owns th
 
 | Mode | Output |
 |------|--------|
-| `fab config show` | Project-over-system file merge as YAML; built-in defaults remain point-of-use values and are not materialized |
-| `fab config show --origin` | Effective values including defaults, with origin `project path` / `system path` / `default`; map fields (`agent.profiles`, `providers`) drill down per key |
+| `fab config show` | Environment-over-project-over-system merge as YAML; built-in defaults remain point-of-use values and are not materialized |
+| `fab config show --origin` | Effective values including defaults, with origin `$ENV_VARIABLE` / `project path` / `system path` / `default`; map fields (`agent.profiles`, `providers`) drill down per key |
 
 ```
 fab config show               # effective config as YAML
-fab config show --origin      # each field: value + origin (project path / system path / default)
+fab config show --origin      # each field: value + origin ($ENV_VARIABLE / project path / system path / default)
 ```
 
 No positional arguments (`cobra.NoArgs`). Requires a fab repo (walks up for `fab/`, like `fab preflight`). Writes no file.
@@ -683,7 +684,7 @@ It kills the pane **only when all three** hold — and owns the whole guard itse
 
 1. the record is **pane-mode** (a `pane:`-bearing record), **and**
 2. the **derived state is `done`** (`{stage}-result.yaml` present — pane liveness is irrelevant to the state), **and**
-3. **`dispatch.reap_done` resolves `true`** (default `true`) through the three-layer config cascade — the reason the policy check lives in Go: a skill reading `fab/project/config.yaml` directly would miss the machine-wide system layer `~/.fab-kit/config.yaml`, which for a `both`-scope preference is exactly where it is usually set.
+3. **`dispatch.reap_done` resolves `true`** (default `true`) through the four-layer config cascade (environment > project > system > built-in defaults) — the reason the policy check lives in Go: a skill reading `fab/project/config.yaml` directly would miss the higher-precedence environment layer and the machine-wide system layer `~/.fab-kit/config.yaml`, which for a `both`-scope preference is exactly where it is usually set.
 
 Every other case is a **no-op that names its reason and exits 0**:
 
@@ -1074,10 +1075,12 @@ The envelope is exactly `{tool, version, schema_version, root}`. Per the toolkit
 ## fab operator
 
 ```
-fab operator
+fab operator [--workers <provider>]
 ```
 
 Singleton tmux-tab launcher for `/fab-operator`. Requires `$TMUX` (else exit 1, `ERROR: not inside a tmux session`). The singleton check is an **exact, server-wide** window-name match: `tmux list-windows -a` enumerated and compared exactly (never tmux target resolution, whose prefix/glob fallback would let e.g. `operator-logs` mask the real check; `-a` enforces the one-operator-per-SERVER invariant across sessions). If a window named exactly `operator` exists anywhere on the server → select it by window ID, switching the client to its session when needed (`Switched to existing operator tab.`); else create the window running `{operator-session-command} '/fab-operator'` (`Launched operator.`).
+
+**`--workers <provider>`** is launch sugar for the new-window path: the shell command is prefixed with the safely quoted assignment `FAB_AGENT_WORKERS='<provider>'`. The value passes through verbatim with no provider lookup or validation. When the singleton already exists, selection is unchanged and no new environment can be injected.
 
 **Launch cwd (no git-repo dependency)**: the new window's working directory (`tmux new-window -c <dir>`) is resolved by trying `git rev-parse --show-toplevel` first and falling back to `os.Getwd()` when that fails. The operator launches **inside a git repo** (cwd = repo root) **or from a neutral parent directory** (cwd = current directory), and errors only if both resolutions fail. This matches the per-tmux-server, cross-repo singleton model: the operator's natural launch point is a neutral dir with no `fab/` project.
 
@@ -1116,7 +1119,7 @@ Duration is Go format (`3m`, `5m`, `2m`). Invalid → exit 1.
 ## fab agent
 
 ```
-fab agent [role] [--provider <name> [--model <id>] [--effort <level>]] [--print] [--repo <path>]
+fab agent [role] [--provider <name> [--model <id>] [--effort <level>]] [--workers <provider>] [--print] [--repo <path>]
 ```
 
 Launch (or `--print`) the profile-resolved agent **session** command in the current shell, with model and effort substituted.
@@ -1131,6 +1134,7 @@ Common to both modes:
 - **Default (exec)**: replaces this process with the composed command via `sh -c` (so shell expansions like `$(basename "$(pwd)")` expand at invocation). `fab agent` starts the default-role agent right here; `fab agent operator` starts the coordinator profile. **No TTY guard** — exec-and-let-the-agent-CLI-handle-it (document-don't-validate).
 - **`--print`**: prints the fully-resolved command instead of executing. Lets the operator compose a worker spawn from a real profile.
 - **`--repo <path>`**: reads `<path>/fab/project/config.yaml` instead of the current repo. Composes with either addressing mode.
+- **`--workers <provider>`**: sets `FAB_AGENT_WORKERS=<provider>` in the exec environment for the launched session, replacing any value inherited from the parent environment rather than appending a second entry. It is pure pass-through launch sugar: no provider lookup or validation, and `--print` remains exactly the resolved session command with no assignment added.
 
 Provider-mode specifics:
 
@@ -1151,11 +1155,13 @@ Multi-target operations: `fab batch <new|switch|archive> [flags] [targets...]`.
 
 | Subcommand | Flags / default | Operation | Guards and failure behavior |
 |------------|-----------------|-----------|-----------------------------|
-| `new` | `[--list] [--all] [ids...]`; no args ⇒ `--list`; no `--quiet` | Parse pending `- [ ] [xxxx]` backlog items (including continuation lines), create one worktree/window per ID, run `/fab-new {description}`; `--all` selects all pending | Launch path requires `$TMUX`, then `wt` (`brew install sahil87/tap/wt`); list path requires neither. Empty `--all` errors `ERROR: No pending backlog items found.` Unknown IDs and backlog items with empty content warn-and-skip (exit 0). Per-item `wt`/tmux failures include child stderr, continue, then exit non-zero with `ERROR: {N} of {M} item(s) failed to launch` |
-| `switch` | `[--list] [--all] [--quiet\|-q] [changes...]`; no args ⇒ `--list` | Resolve active changes in-process, create branch worktrees, run `/fab-switch {change}`; `--all` excludes `archive/` | Same launch guards; empty set errors `ERROR: No changes found.` Resolver and `wt` errors warn-and-skip with specific/child stderr. Quiet suppresses progress but not list/data output or stderr |
+| `new` | `[--list] [--all] [--workers <provider>] [ids...]`; no args ⇒ `--list`; no `--quiet` | Parse pending `- [ ] [xxxx]` backlog items (including continuation lines), create one worktree/window per ID, run `/fab-new {description}`; `--all` selects all pending | Launch path requires `$TMUX`, then `wt` (`brew install sahil87/tap/wt`); list path requires neither. Empty `--all` errors `ERROR: No pending backlog items found.` Unknown IDs and backlog items with empty content warn-and-skip (exit 0). Per-item `wt`/tmux failures include child stderr, continue, then exit non-zero with `ERROR: {N} of {M} item(s) failed to launch` |
+| `switch` | `[--list] [--all] [--quiet\|-q] [--workers <provider>] [changes...]`; no args ⇒ `--list` | Resolve active changes in-process, create branch worktrees, run `/fab-switch {change}`; `--all` excludes `archive/` | Same launch guards; empty set errors `ERROR: No changes found.` Resolver and `wt` errors warn-and-skip with specific/child stderr. Quiet suppresses progress but not list/data output or stderr |
 | `archive` | `[--yes\|-y] [--dry-run] [--quiet\|-q] [changes...]` | Archive `hydrate: done\|skipped` changes in-process via `ArchiveWithBacklog`; no agent, tmux, `wt`, or fab-on-PATH dependency | Uses the consent matrix below. `--dry-run --yes` is mutually exclusive. Quiet suppresses progress only, never consent, data, stderr, or footer |
 
 `new` uses `wt create --non-interactive --worktree-name {id}`, window `fab-{id}`, and `{worker-session-command} '/fab-new {description}'`. Both launchers compose the default-role provider `session_command` through `internal/spawn`, substituting templated `{model}`/`{effort}` or appending them for a plain command; no placeholders reach tmux. Missing `wt` exits 1 after the tmux guard with `ERROR: wt is required for 'fab batch new' — install it via: brew install sahil87/tap/wt` (or `'fab batch switch'`); missing tmux is `ERROR: not inside a tmux session`.
+
+On `new` and `switch`, **`--workers <provider>`** safely prefixes every tmux shell command with `FAB_AGENT_WORKERS='<provider>'`. Embedded single quotes are shell-escaped; the value is otherwise passed through without provider validation. Omitting the flag leaves the launch command byte-for-byte unchanged.
 
 `switch` names branches `{branch_prefix}{folder_name}`. It probes local `git show-ref --verify --quiet refs/heads/<b>`, then `git ls-remote --heads origin <b>`: existing branches use `--checkout <branch>`, new branches use the positional, and an offline remote probe degrades to the positional so `wt` re-checks. Quiet leaves successful stdout empty because tmux creation is the result; list output and stderr remain.
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -36,6 +37,95 @@ func runAgentPrint(t *testing.T, args ...string) (string, error) {
 	cmd.SetArgs(append([]string{"--print"}, args...))
 	err := cmd.Execute()
 	return out.String(), err
+}
+
+func TestAgentWorkersOverride(t *testing.T) {
+	agentTestRepo(t, `providers:
+  claude:
+    session_command: "claude"
+`)
+
+	t.Run("exec environment receives the supplied value", func(t *testing.T) {
+		originalExec := execAgent
+		t.Cleanup(func() { execAgent = originalExec })
+
+		var gotPath string
+		var gotArgv, gotEnv []string
+		execAgent = func(path string, argv, env []string) error {
+			gotPath = path
+			gotArgv = append([]string(nil), argv...)
+			gotEnv = append([]string(nil), env...)
+			return nil
+		}
+
+		cmd := agentCmd()
+		cmd.SetArgs([]string{"--workers", "kimi3"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("agent --workers: %v", err)
+		}
+		if gotPath != "/bin/sh" {
+			t.Errorf("exec path = %q, want /bin/sh", gotPath)
+		}
+		if len(gotArgv) != 3 || gotArgv[1] != "-c" || strings.Contains(gotArgv[2], agentWorkersEnv) {
+			t.Errorf("exec argv = %#v; workers override must remain out of the resolved command", gotArgv)
+		}
+		want := agentWorkersEnv + "=kimi3"
+		found := false
+		for _, entry := range gotEnv {
+			if entry == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("exec environment missing %q", want)
+		}
+	})
+
+	// An inherited FAB_AGENT_WORKERS must be REPLACED in the exec environment, not
+	// shadowed by a second entry: syscall.Exec passes the slice through verbatim and
+	// duplicate resolution is unspecified (a direct exec's getenv takes the first
+	// match). The `default` role resolves off agent.session, so the parent value
+	// cannot perturb the provider this test resolves.
+	t.Run("an inherited value is replaced, not duplicated", func(t *testing.T) {
+		t.Setenv(agentWorkersEnv, "inherited")
+
+		originalExec := execAgent
+		t.Cleanup(func() { execAgent = originalExec })
+
+		var gotEnv []string
+		execAgent = func(path string, argv, env []string) error {
+			gotEnv = append([]string(nil), env...)
+			return nil
+		}
+
+		cmd := agentCmd()
+		cmd.SetArgs([]string{"--workers", "kimi3"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("agent --workers: %v", err)
+		}
+
+		var found []string
+		for _, entry := range gotEnv {
+			if strings.HasPrefix(entry, agentWorkersEnv+"=") {
+				found = append(found, entry)
+			}
+		}
+		want := []string{agentWorkersEnv + "=kimi3"}
+		if !reflect.DeepEqual(found, want) {
+			t.Errorf("%s entries = %#v, want %#v", agentWorkersEnv, found, want)
+		}
+	})
+
+	t.Run("print output remains the resolved command only", func(t *testing.T) {
+		out, err := runAgentPrint(t, "--workers", "unregistered-provider")
+		if err != nil {
+			t.Fatalf("agent --print --workers: %v", err)
+		}
+		if strings.Contains(out, agentWorkersEnv) || strings.Contains(out, "unregistered-provider") {
+			t.Errorf("--workers leaked into --print output: %q", out)
+		}
+	})
 }
 
 // TestAgentPrintDefaultRole: `fab agent --print` with no role arg resolves the

@@ -118,6 +118,9 @@ func TestBatchNewCmd_Structure(t *testing.T) {
 	if cmd.Flags().Lookup("all") == nil {
 		t.Error("missing --all flag")
 	}
+	if cmd.Flags().Lookup("workers") == nil {
+		t.Error("missing --workers flag")
+	}
 }
 
 // chdirBatchNewFixture creates a temp fab root (fab/backlog.md with the given
@@ -408,4 +411,23 @@ func TestRunBatchNew_SpawnCommandProfileInjection(t *testing.T) {
 			t.Errorf("non-templated session_command missing the appended default profile:\n%s", string(args))
 		}
 	})
+}
+
+func TestRunBatchNew_WorkersOverride(t *testing.T) {
+	root := chdirBatchNewFixture(t, testBacklog)
+	writeBatchNewConfig(t, root, "claude")
+	t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
+	capture := stubBatchNewTmuxCapture(t)
+
+	if _, stderr, err := runBatchNewCmd(t, "--workers", "co'dex; $(touch nope)", "90g5"); err != nil {
+		t.Fatalf("batch new --workers: %v\nstderr: %s", err, stderr)
+	}
+	args, err := os.ReadFile(capture)
+	if err != nil {
+		t.Fatalf("reading tmux capture: %v", err)
+	}
+	want := "FAB_AGENT_WORKERS='co'\\''dex; $(touch nope)' claude --model claude-fable-5 --effort high '/fab-new"
+	if !strings.Contains(string(args), want) {
+		t.Errorf("tmux command missing safely quoted workers prefix %q:\n%s", want, args)
+	}
 }

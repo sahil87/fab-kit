@@ -31,6 +31,9 @@ func TestOperatorCmd_Structure(t *testing.T) {
 	if cmd.Short == "" {
 		t.Error("Short should not be empty")
 	}
+	if cmd.Flags().Lookup("workers") == nil {
+		t.Error("missing --workers flag")
+	}
 
 	// Verify tick-start and time subcommands are registered
 	subNames := make(map[string]bool)
@@ -63,6 +66,83 @@ func TestRunOperator_NoTmux(t *testing.T) {
 	}
 	if err.Error() != "not inside a tmux session" {
 		t.Errorf("error = %q, want %q", err.Error(), "not inside a tmux session")
+	}
+}
+
+func TestRunOperator_WorkersOverride(t *testing.T) {
+	root := t.TempDir()
+	chdirTestEnv(t, root, map[string]string{"TMUX": "/tmp/tmux-test/default,123,0"})
+
+	bin := t.TempDir()
+	capture := filepath.Join(t.TempDir(), "tmux-args")
+	scripts := map[string]string{
+		"git": "if [ \"$1\" = rev-parse ]; then printf '%s\\n' \"$PWD\"; fi",
+		"tmux": `if [ "$1" = list-windows ]; then exit 0; fi
+printf '%s\n' "$@" >> ` + capture,
+	}
+	for name, body := range scripts {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	cmd := operatorCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--workers", "co'dex; $(touch nope)"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("operator --workers: %v", err)
+	}
+
+	args, err := os.ReadFile(capture)
+	if err != nil {
+		t.Fatalf("reading tmux capture: %v", err)
+	}
+	want := "FAB_AGENT_WORKERS='co'\\''dex; $(touch nope)' "
+	if !strings.Contains(string(args), want) || !strings.Contains(string(args), "'/fab-operator'") {
+		t.Errorf("tmux command missing safely quoted workers prefix %q:\n%s", want, args)
+	}
+}
+
+func TestRunOperator_WorkersOverrideDoesNotRelaunchExistingSingleton(t *testing.T) {
+	root := t.TempDir()
+	chdirTestEnv(t, root, map[string]string{"TMUX": "/tmp/tmux-test/default,123,0"})
+
+	bin := t.TempDir()
+	capture := filepath.Join(t.TempDir(), "tmux-args")
+	tmuxScript := `if [ "$1" = list-windows ]; then
+  printf '@7\toperator\n'
+  exit 0
+fi
+printf '%s\n' "$@" >> ` + capture
+	if err := os.WriteFile(filepath.Join(bin, "tmux"), []byte("#!/bin/sh\n"+tmuxScript+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	var out bytes.Buffer
+	cmd := operatorCmd()
+	cmd.SetOut(&out)
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--workers", "codex"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("operator --workers with existing singleton: %v", err)
+	}
+
+	args, err := os.ReadFile(capture)
+	if err != nil {
+		t.Fatalf("reading tmux capture: %v", err)
+	}
+	got := string(args)
+	if strings.Contains(got, "new-window") || strings.Contains(got, agentWorkersEnv) {
+		t.Errorf("existing singleton must be selected without a workers relaunch:\n%s", got)
+	}
+	if !strings.Contains(got, "select-window\n-t\n@7") || !strings.Contains(got, "switch-client\n-t\n@7") {
+		t.Errorf("existing singleton was not selected by exact window id:\n%s", got)
+	}
+	if out.String() != "Switched to existing operator tab.\n" {
+		t.Errorf("stdout = %q", out.String())
 	}
 }
 

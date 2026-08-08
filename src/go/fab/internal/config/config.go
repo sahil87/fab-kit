@@ -292,15 +292,15 @@ func readDotFabVersion(fabRoot string) string {
 }
 
 // LoadPath reads a config.yaml at an explicit path and returns the EFFECTIVE
-// config after resolving the three-layer cascade at this single seam:
+// config after resolving the four-layer cascade at this single seam:
 //
-//	project (the path given)  >  system (~/.fab-kit/config.yaml)  >  built-in defaults
+//	env  >  project (the path given)  >  system (~/.fab-kit/config.yaml)  >  built-in defaults
 //
-// The two FILES merge here at the YAML map level (per-field deep merge: maps
-// merge per-key recursively, lists replace, scalars replace, project wins); the
-// built-in-defaults layer stays where it lives today — the point-of-use fallbacks
-// (internal/agent's role/provider resolution, the nil-safe accessors) — which composes
-// to identical three-layer semantics with zero per-caller change.
+// The env overlay and two FILES merge here at the YAML map level (per-field deep
+// merge: maps merge per-key recursively, lists replace, scalars replace, env
+// wins); the built-in-defaults layer stays where it lives today — the
+// point-of-use fallbacks (internal/agent's role/provider resolution, the nil-safe
+// accessors) — which composes to four-layer semantics with zero per-caller change.
 //
 // Fail-open contract (config must never brick):
 //   - Absent system file ⇒ byte-identical to the pre-cascade single-file behavior
@@ -322,11 +322,12 @@ func LoadPath(path string) (*Config, error) {
 	}
 
 	systemMap := loadSystemLayer()
+	envMap, _ := loadEnvLayer()
 
-	// Merge project OVER system (project wins per field). A nil project map (file
-	// absent) still lets the system layer through — the system layer is
-	// user-global and must apply even in a repo with no project config.
-	merged := deepMerge(systemMap, projectMap)
+	// Merge project OVER system, then env OVER both. A nil project map (file
+	// absent) still lets the system layer through; a nil env map preserves the
+	// pre-env file merge byte-for-byte.
+	merged := deepMerge(deepMerge(systemMap, projectMap), envMap)
 
 	var cfg Config
 	if len(merged) > 0 {
@@ -370,7 +371,13 @@ type Layers struct {
 	// skipped fail-open). Project-scoped keys are already removed, so a key present
 	// here is genuinely a system-layer contributor.
 	System map[string]any
-	// Effective is deepMerge(System, Project) — the merged tree LoadPath unmarshals.
+	// Env is the recognized, scope-eligible environment overlay. EnvOrigins maps
+	// each dotted registry key present in Env to the environment variable that
+	// supplied it (without the display-only '$' prefix).
+	Env        map[string]any
+	EnvOrigins map[string]string
+	// Effective is deepMerge(deepMerge(System, Project), Env) — the merged tree
+	// LoadPath unmarshals.
 	Effective map[string]any
 }
 
@@ -385,13 +392,16 @@ func LoadLayers(projectPath string) (*Layers, error) {
 		return nil, err
 	}
 	systemMap := loadSystemLayer()
+	envMap, envOrigins := loadEnvLayer()
 	sysPath, _ := systemConfigPath() // "" only if HOME is unresolvable (fail-open)
 	return &Layers{
 		ProjectPath: projectPath,
 		SystemPath:  sysPath,
 		Project:     projectMap,
 		System:      systemMap,
-		Effective:   deepMerge(systemMap, projectMap),
+		Env:         envMap,
+		EnvOrigins:  envOrigins,
+		Effective:   deepMerge(deepMerge(systemMap, projectMap), envMap),
 	}, nil
 }
 
@@ -436,6 +446,108 @@ func loadSystemLayer() map[string]any {
 	}
 	pruneProjectScoped(m, path)
 	return m
+}
+
+// ParseYAMLValue parses one config value using the same YAML decoder as config
+// files. It is exported so config-mutating CLI surfaces can share scalar/flow
+// parsing with the environment layer instead of growing a second interpretation
+// of config values.
+func ParseYAMLValue(raw string) (any, error) {
+	var value any
+	if err := yaml.Unmarshal([]byte(raw), &value); err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+// loadEnvLayer builds the highest-precedence config overlay by walking the
+// cycle-free dotted registry enumeration FORWARD. It deliberately never scans
+// FAB_* variables or reverse-parses their names: underscores in a key segment
+// would otherwise be ambiguous with the dots replaced by underscores.
+//
+// Only system/both-scoped rows are eligible. Project-scoped variables warn and
+// are ignored to preserve repository reproducibility. Empty values behave as
+// unset; malformed or Config-incompatible YAML warns and is skipped. Every path
+// is fail-open — an environment preference must never brick config loading.
+func loadEnvLayer() (map[string]any, map[string]string) {
+	var overlay map[string]any
+	var origins map[string]string
+	for _, key := range configscope.DottedKeys() {
+		envName := envNameForKey(key)
+		raw, set := os.LookupEnv(envName)
+		if !set || raw == "" {
+			continue
+		}
+
+		scope, known := configscope.ScopeFor(topLevel(key))
+		if !known {
+			continue // parity/lint tests make this unreachable; stay fail-open
+		}
+		if scope == configscope.ScopeProject {
+			fmt.Fprintf(warnw, "fab: warning: ignoring project-scoped environment override $%s for %q (project-scoped fields belong in fab/project/config.yaml)\n", envName, key)
+			continue
+		}
+
+		value, err := ParseYAMLValue(raw)
+		if err != nil {
+			fmt.Fprintf(warnw, "fab: warning: ignoring malformed environment override $%s for %q (%v)\n", envName, key, err)
+			continue
+		}
+		fragment := make(map[string]any)
+		setDotted(fragment, key, value)
+		if err := validateConfigFragment(fragment); err != nil {
+			fmt.Fprintf(warnw, "fab: warning: ignoring malformed environment override $%s for %q (%v)\n", envName, key, err)
+			continue
+		}
+		if overlay == nil {
+			overlay = make(map[string]any)
+			origins = make(map[string]string)
+		}
+		overlay = deepMerge(overlay, fragment)
+		origins[key] = envName
+	}
+	return overlay, origins
+}
+
+// validateConfigFragment checks one environment variable independently against
+// Config's YAML shape. Keeping the probe per-variable preserves fail-open
+// behavior: one incompatible override is skipped without discarding valid env
+// values or allowing it to poison the final merged-tree unmarshal.
+func validateConfigFragment(fragment map[string]any) error {
+	data, err := yaml.Marshal(fragment)
+	if err != nil {
+		return err
+	}
+	var probe Config
+	return yaml.Unmarshal(data, &probe)
+}
+
+func envNameForKey(key string) string {
+	return "FAB_" + strings.ToUpper(strings.ReplaceAll(key, ".", "_"))
+}
+
+func topLevel(key string) string {
+	if i := strings.IndexByte(key, '.'); i >= 0 {
+		return key[:i]
+	}
+	return key
+}
+
+// setDotted nests value beneath key's dotted path in root. Every intermediate
+// mapping is created by this helper from the registry enumeration, so replacing a
+// non-map intermediate is safe and deterministic.
+func setDotted(root map[string]any, key string, value any) {
+	parts := strings.Split(key, ".")
+	cur := root
+	for _, part := range parts[:len(parts)-1] {
+		next, ok := cur[part].(map[string]any)
+		if !ok {
+			next = make(map[string]any)
+			cur[part] = next
+		}
+		cur = next
+	}
+	cur[parts[len(parts)-1]] = value
 }
 
 // pruneProjectScoped removes project-scoped top-level keys from a system-layer map

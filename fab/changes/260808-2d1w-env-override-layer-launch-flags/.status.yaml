@@ -1,0 +1,57 @@
+id: 2d1w
+name: 260808-2d1w-env-override-layer-launch-flags
+created: 2026-08-08T09:41:57Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 11
+    acceptance_count: 38
+    acceptance_completed: 38
+confidence:
+    certain: 7
+    confident: 5
+    tentative: 0
+    unresolved: 0
+    score: 4.4
+    fuzzy: true
+    dimensions:
+        signal: 75.8
+        reversibility: 84.2
+        competence: 84.6
+        disambiguation: 77.9
+stage_metrics:
+    intake: {started_at: "2026-08-08T09:41:57Z", driver: fab-new, iterations: 1, completed_at: "2026-08-08T09:46:02Z"}
+    apply: {started_at: "2026-08-08T10:49:56Z", driver: fab-fff, iterations: 4, completed_at: "2026-08-08T10:56:16Z"}
+    review: {started_at: "2026-08-08T10:56:16Z", driver: fab-fff, iterations: 4, completed_at: "2026-08-08T11:03:55Z"}
+    hydrate: {started_at: "2026-08-08T11:03:55Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T11:09:58Z"}
+    ship: {started_at: "2026-08-08T11:09:58Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T11:12:52Z"}
+    review-pr: {started_at: "2026-08-08T11:12:52Z", driver: git-pr, iterations: 1, completed_at: "2026-08-08T11:25:21Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/553
+change_type_source: explicit
+true_impact:
+    added: 1644
+    deleted: 148
+    net: 1496
+    excluding:
+        added: 1010
+        deleted: 104
+        net: 906
+    tests:
+        added: 667
+        deleted: 16
+        net: 651
+    computed_at: "2026-08-08T11:12:52Z"
+    computed_at_stage: ship
+summary: adds scope-gated environment overrides, environment provenance, and --workers session-launch sugar
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-08T11:25:21Z

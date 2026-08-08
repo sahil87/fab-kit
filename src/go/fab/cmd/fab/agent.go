@@ -15,7 +15,7 @@ import (
 )
 
 // agentCmd implements
-// `fab agent [role] [--provider <name> [--model <id>] [--effort <level>]] [--print] [--repo <path>]`
+// `fab agent [role] [--provider <name> [--model <id>] [--effort <level>]] [--workers <provider>] [--print] [--repo <path>]`
 // — launch (or print) the resolved agent session command in the current shell. It
 // replaces `fab spawn-command`, with a semantic upgrade: the printed/exec'd command
 // is profile-resolved (model/effort substituted), not placeholder-stripped.
@@ -61,6 +61,12 @@ import (
 //     `fab spawn-command` replacement — profile-resolved, not stripped).
 //   - `--repo <path>`: reads <path>/fab/project/config.yaml instead of the current
 //     repo (the operator's fetch-another-repo's-command use case).
+//   - `--workers <provider>`: sets FAB_AGENT_WORKERS=<provider> in the exec
+//     environment, REPLACING any entry inherited from the parent rather than
+//     appending a second one (duplicate resolution is unspecified). It does not
+//     alter `--print` output or validate the value.
+var execAgent = syscall.Exec
+
 func agentCmd() *cobra.Command {
 	var printOnly bool
 	var repo string
@@ -108,6 +114,7 @@ func agentCmd() *cobra.Command {
 	cmd.Flags().StringVar(&provider, "provider", "", "address a provider directly (bypasses role resolution); mutually exclusive with the [role] positional")
 	cmd.Flags().StringVar(&model, "model", "", "model id for the --provider form (empty: the provider command's model token is dropped, so its CLI default applies)")
 	cmd.Flags().StringVar(&effort, "effort", "", "reasoning effort for the --provider form (empty: the effort token is dropped)")
+	cmd.Flags().String("workers", "", "set FAB_AGENT_WORKERS for the launched agent session")
 	return cmd
 }
 
@@ -153,7 +160,11 @@ func runAgent(cmd *cobra.Command, role, provider string, providerSet bool, model
 	// Exec the composed command in the current shell so shell expansions expand
 	// at invocation time and the agent CLI replaces this process. No TTY guard:
 	// the agent CLI surfaces its own error when stdin is not a terminal.
-	return syscall.Exec("/bin/sh", []string{"/bin/sh", "-c", resolvedCmd}, os.Environ())
+	env := os.Environ()
+	if workers, set := workersOverride(cmd); set {
+		env = envWithWorkers(env, workers)
+	}
+	return execAgent("/bin/sh", []string{"/bin/sh", "-c", resolvedCmd}, env)
 }
 
 // unknownProviderError is the shared `--provider <name>` LOOKUP failure for the
