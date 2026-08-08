@@ -283,7 +283,7 @@ Existing `.status.yaml` files created before the stage-field removal (v5p2) may 
 
 1. **Remove the `stage:` line** — current stage is now derived from the `active` entry in the progress map
 2. **Ensure `intake:` is present in the progress map** — intake is a formal pipeline stage. If missing, add `intake: done` (the preflight script also infers this automatically)
-3. **Set the appropriate stage to `active`** — e.g., if the old `stage:` was `spec`, set `spec: active` in the progress map
+3. **Set the appropriate stage to `active`** — e.g., if the old `stage:` was `apply`, set `apply: active` in the progress map
 
 Skills will tolerate old-format files — the preflight script infers `intake: done` when the entry is missing.
 

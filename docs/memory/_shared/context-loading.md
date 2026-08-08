@@ -44,7 +44,7 @@ Current mapping:
 |----------|------------|
 | `fab-new`, `fab-draft`, `fab-dedupe` | `[_generation, _srad, _intake]` (consumers declare underlying helpers rather than inheriting transitively — the `_pipeline` precedent) |
 | `fab-continue` | `[_srad]` (+ point-of-use in-body reads of `_generation`/`_review`) |
-| `fab-ff`, `fab-fff` | `[_generation, _review, _srad, _pipeline]` (orchestrator-level rework edits `plan.md` sections directly, so `_generation` stays unconditional — finding f074 refuted; `_pipeline` is the shared ff/fff pipeline bracket and constitutes the wrappers' entire body, so its load is unconditional by construction (szxd)) |
+| `fab-ff`, `fab-fff` | `[_generation, _review, _srad, _pipeline]` (orchestrator-level rework edits `plan.md` sections directly, so `_generation` stays unconditional; `_pipeline` is the shared ff/fff pipeline bracket and constitutes the wrappers' entire body, so its load is unconditional by construction (szxd)) |
 | `fab-adopt` | `[_srad, _generation, _review, _pipeline]` |
 | `fab-clarify` | `[_srad]` |
 | `fab-operator` | `[_cli-agents, _cli-fab, _cli-external]` (`_cli-agents` carries the agent-CLI interaction primitives the operator's spawn/pre-send/peek steps reference — see [runtime/agent-primitives.md](/runtime/agent-primitives.md)) |
