@@ -1,0 +1,57 @@
+id: j9rb
+name: 260808-j9rb-kit-path-override
+created: 2026-08-08T09:51:10Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 9
+    acceptance_count: 29
+    acceptance_completed: 29
+confidence:
+    certain: 5
+    confident: 7
+    tentative: 0
+    unresolved: 0
+    score: 3.8
+    fuzzy: true
+    dimensions:
+        signal: 68.8
+        reversibility: 83.3
+        competence: 79.6
+        disambiguation: 74.6
+stage_metrics:
+    intake: {started_at: "2026-08-08T09:51:10Z", driver: fab-new, iterations: 1, completed_at: "2026-08-08T09:54:24Z"}
+    apply: {started_at: "2026-08-08T09:54:24Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T10:08:16Z"}
+    review: {started_at: "2026-08-08T10:08:16Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T10:14:29Z"}
+    hydrate: {started_at: "2026-08-08T10:14:29Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T10:21:57Z"}
+    ship: {started_at: "2026-08-08T10:21:57Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T10:25:21Z"}
+    review-pr: {started_at: "2026-08-08T10:25:21Z", driver: git-pr, iterations: 1, completed_at: "2026-08-08T10:35:25Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/552
+change_type_source: explicit
+true_impact:
+    added: 964
+    deleted: 69
+    net: 895
+    excluding:
+        added: 484
+        deleted: 30
+        net: 454
+    tests:
+        added: 372
+        deleted: 3
+        net: 369
+    computed_at: "2026-08-08T10:25:21Z"
+    computed_at_stage: ship
+summary: documents environment-only FAB_KIT_PATH content resolution, provenance, cache bypass, migration discovery, and lifecycle stamping guards
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-08T10:35:25Z

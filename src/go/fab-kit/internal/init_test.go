@@ -277,6 +277,7 @@ func TestCopyDir(t *testing.T) {
 }
 
 func TestInit_RequiresGitRepoBeforeAnyWork(t *testing.T) {
+	t.Setenv(KitPathEnv, "")
 	requireGit(t)
 	dir := t.TempDir() // not a git repository
 	chdir(t, dir)
@@ -310,6 +311,7 @@ func TestInit_RequiresGitRepoBeforeAnyWork(t *testing.T) {
 }
 
 func TestInit_ThreadsVersionsIntoSync(t *testing.T) {
+	t.Setenv(KitPathEnv, "")
 	requireGit(t)
 	dir := t.TempDir()
 	if out, err := exec.Command("git", "init", dir).CombinedOutput(); err != nil {
@@ -464,6 +466,7 @@ func TestWarnIfFabVersionIgnored_SilentOutsideGitRepo(t *testing.T) {
 }
 
 func TestInit_FromSubdirectoryWritesAtRepoRoot(t *testing.T) {
+	t.Setenv(KitPathEnv, "")
 	requireGit(t)
 	root := t.TempDir()
 	if out, err := exec.Command("git", "init", root).CombinedOutput(); err != nil {
@@ -509,5 +512,24 @@ func TestInit_FromSubdirectoryWritesAtRepoRoot(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "fab", ".kit-migration-version")); err != nil {
 		t.Errorf(".kit-migration-version not at repo root: %v", err)
+	}
+}
+
+func TestInit_RefusesEnvironmentOverrideBeforeGitOrNetwork(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(KitPathEnv, t.TempDir())
+
+	err := Init("2.3.1")
+	if err == nil {
+		t.Fatal("expected init to refuse the kit override")
+	}
+	for _, want := range []string{KitPathEnv, "unset", "fab init"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want substring %q", err, want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "fab")); !os.IsNotExist(err) {
+		t.Errorf("init mutated the repo before refusal: %v", err)
 	}
 }

@@ -49,6 +49,10 @@ func runConfigUpgrade(fabGoBin, repoRoot string) {
 // a re-run retries instead of short-circuiting on "Already on the latest
 // version".
 func Upgrade(systemVersion, targetVersion string, useLatest bool) error {
+	if err := RefuseKitPathOverride("upgrade-repo"); err != nil {
+		return err
+	}
+
 	// Must be in a fab repo
 	cfg, err := ResolveConfig()
 	if err != nil {

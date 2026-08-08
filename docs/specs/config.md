@@ -169,6 +169,28 @@ one-line data change (in `internal/configscope`).
 
 ---
 
+## `FAB_KIT_PATH` is deliberately outside the registry (Change 6 — landed)
+
+`FAB_KIT_PATH=<dir>` is a per-process kit-**content** resolution override used for fab-kit development.
+It is deliberately not a `config.yaml` field, registry row, scoped key, cascade layer, or persisted
+machine preference. Kit resolution happens in the router/fab-kit reader path before the fab-go config
+cascade exists, and persisting a repository- or machine-specific source path would make teammates or
+later shells silently consume stale/arbitrary kit content.
+
+Both content-reader seams special-case the variable directly: fab-go's `internal/kitpath.KitDir()`
+feeds `fab kit-path`, templates, reference files, and other workflow reads; fab-kit's resolver feeds
+`fab sync` and `fab migrations-status`. A non-empty value is absolutized, must name an existing
+directory, and fails loudly without normal-path/cache fallback when invalid. Under the override, sync
+prints `kit: <dir> (FAB_KIT_PATH override)` and skips cache resolution plus the cache-version guard.
+`fab doctor` prints the same provenance in normal output without adding a health check. `fab init` and
+`fab upgrade-repo` refuse to run until the variable is unset because they stamp release-version state.
+Binary selection remains version-pinned and unchanged.
+
+This is intentionally separate from any generic `FAB_*` mapping over registry rows: there is no row to
+map, and env-only behavior is the hermeticity boundary rather than an additional config layer.
+
+---
+
 ## Advertise semantics — the A/B/C field-category model
 
 `advertise` is the "C flag" of the field-category model the config-upgrade effort uses. Under that

@@ -12,6 +12,10 @@ import (
 // systemVersion is the embedded version of the fab-kit binary, threaded into
 // Sync so the version guard compares against the real binary version.
 func Init(systemVersion string) error {
+	if err := RefuseKitPathOverride("init"); err != nil {
+		return err
+	}
+
 	// 0. Precondition: must be inside a git repository — checked BEFORE any
 	// download or config write, so a failed init leaves no stale artifacts
 	// behind (sync would fail on this anyway, but only after downloading the

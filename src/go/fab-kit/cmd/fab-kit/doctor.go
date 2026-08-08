@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab-kit/internal"
 	"github.com/spf13/cobra"
 )
 
@@ -44,6 +45,9 @@ func runDoctorChecks(cmd *cobra.Command, porcelain bool) int {
 
 	if !porcelain {
 		fmt.Fprintln(w, "fab-doctor: checking prerequisites...")
+		if dir, set, _ := internal.KitPathOverride(); set {
+			fmt.Fprintf(w, "kit: %s (%s override)\n", dir, internal.KitPathEnv)
+		}
 	}
 
 	checks := []checkResult{
