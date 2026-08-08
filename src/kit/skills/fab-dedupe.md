@@ -75,8 +75,6 @@ After context loading:
 fab log command "fab-dedupe"
 ```
 
-Best-effort — always exits 0 given valid usage. No shell guard needed. No change ID is passed (none is active).
-
 ---
 
 ## Detector Configuration
@@ -238,21 +236,19 @@ Bind the procedure's inputs as follows.
 
 A cluster that grades mostly Tentative is telling you it should not be auto-consolidated. Let it fail the gate rather than talking the score up.
 
-**STOP after the procedure's Step 9** (intake at `ready`). Do **not** activate the change and do **not** create a git branch — there is no Step 10 or 11 here, exactly as in `/fab-draft`. Those steps live only in `fab-new.md`'s tail, which this skill never reads, so there is no momentum hazard.
+**STOP after the procedure's Step 9** (intake at `ready`). Do not activate the
+change or create a branch; those are `/fab-new`-only steps.
 
 ### Output
 
-Per drafted intake, report name and confidence. Then the Activation Preamble `Next:` line (`_preamble.md` § Activation Preamble):
+Per drafted intake, report name and confidence, then apply `_preamble.md`
+§ Activation Preamble for each drafted name at intake state:
 
 ```
 Drafted 2 changes:
   260728-a1b2-consolidate-test-fixtures    Confidence: 4.2 / 5.0 (6 decisions)
   260728-c3d4-consolidate-frontmatter      Confidence: 3.1 / 5.0 (4 decisions)
-
-Next: /fab-switch {name} to make it active, then /fab-continue, /fab-ff, /fab-fff, /fab-proceed, or /fab-clarify
 ```
-
-(The command list after "then" is the state table's intake row, derived per `_preamble.md` § Lookup Procedure — default first, not hardcoded.)
 
 When no clusters are accepted, end with the report and no `Next:` line — nothing was created.
 
@@ -301,7 +297,3 @@ Coverage: swept `src/go` (test helpers) 2026-07-28 · not yet swept: `src/kit`, 
 | Modifies `.fab-status.yaml`? | No — changes are not activated |
 | Modifies git state? | No |
 | Refactors code? | **No** — that is the drafted change's job |
-
----
-
-Next: `/fab-switch {name} to make it active, then` {intake-state commands per `_preamble.md` § Lookup Procedure: `/fab-continue, /fab-ff, /fab-fff, /fab-proceed, or /fab-clarify`}

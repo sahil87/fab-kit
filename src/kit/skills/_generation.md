@@ -57,8 +57,7 @@ metadata:
 
 ## Plan Generation Procedure
 
-> Merges requirement generation (formerly the standalone Spec Generation Procedure / `spec.md`),
-> tasks generation, and acceptance generation into a single walk. The procedure derives
+> Generates requirements, tasks, and acceptance criteria in a single walk. The procedure derives
 > `## Requirements` from the intake, then — in the same pass — emits an imperative Task entry and a
 > declarative Acceptance entry per requirement. **One skill call, one context window** co-generating
 > all three sections is the strongest alignment guarantee: the same agent that writes a requirement
@@ -67,16 +66,14 @@ metadata:
 > `CHK-NNN` IDs verbatim (handled by the migration, not this procedure).
 
 > **Invocation**: This procedure is invoked from `/fab-continue` Apply Behavior at apply
-> entry, before any task is executed. It is not a planning-stage step. There is no `spec` stage and
-> no separate `spec.md` artifact — the canonical artifact flow is `intake.md → plan.md → code`.
+> entry, before any task is executed. The canonical artifact flow is `intake.md → plan.md → code`.
 
 1. Read the template from `$(fab kit-path)/templates/plan.md`
 2. Fill in metadata fields:
    - `{CHANGE_NAME}`: From the intake (the human-readable name)
    - `{YYMMDD-XXXX-slug}`: The change folder name
    - Keep the `Intake` link pointing at `intake.md`
-3. **Generate `## Requirements` from the intake-derived design** (absorbs the former Spec
-   Generation Procedure):
+3. **Generate `## Requirements` from the intake-derived design**:
    - For each domain/topic affected by this change, create a `### {Domain}: {Topic}` section with
      RFC 2119 requirement statements (MUST, SHALL, SHOULD, MAY), each with a stable `R#` ID and at
      least one GIVEN/WHEN/THEN scenario.

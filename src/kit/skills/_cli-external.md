@@ -31,23 +31,14 @@ carries (the operator's spawning sequence, the escalation `rk notify` usage, the
 tool-owned usage knowledge: that is delegated to each owned tool's own bundle at
 use-time, so this file never goes stale against a tool's release cadence.
 
-Each owned tool serves two use-time surfaces, and this file delegates to both:
+Each owned tool exposes two version-locked surfaces: `<tool> skill` for its usage
+briefing and `<tool> help-dump` for its exhaustive command tree and flags.
 
-- **`<tool> skill`** — the tool's **usage briefing** (when to reach for it, its
-  capabilities map, composition patterns, gotchas). Use it for a tool's usage
-  knowledge beyond the fab-owned content retained here.
-- **`<tool> help-dump`** — the tool's **exhaustive command tree** as JSON. Use it
-  for any specific flag or subcommand.
+### Delegation and binary gate
 
-Both surfaces are **version-locked by construction** (embedded in the same binary
-as the flags they describe), so neither can document a capability the installed
-binary lacks.
-
-### The `skill` delegation (usage knowledge)
-
-For any owned tool's usage knowledge beyond the fab-owned content retained in this
-file, run `<tool> skill` at use-time — **`command -v`-gated fail-silent** for all
-four owned binaries, per the absent-binary discipline below:
+`wt`, `idea`, `rk`, and `hop` are optional sibling binaries. Gate every
+informational delegation on `command -v` and fail silently when the binary is
+absent:
 
 ```sh
 command -v wt   >/dev/null 2>&1 && wt skill        # gated, fail silently
@@ -70,16 +61,12 @@ the fallback pointer. The retained fab-owned choreography already covers the
 operator-critical `wt` semantics, so the fallback never needs to reproduce a tool
 gist.
 
-> The `skill` delegation scopes to the **four owned binaries** (`wt`, `idea`,
-> `rk`, `hop`) — the same scope as `help-dump` below. `tmux` is third-party and
-> has no `skill` bundle; `/loop` is a Claude Code skill, not a binary — neither
-> is covered.
-
 ### The `help-dump` contract
 
-Each owned tool — `wt`, `idea`, `rk`, `hop` (and `fab` itself) — exposes a **hidden
-but stable** `help-dump` subcommand that emits its entire command tree as JSON. It
-is not listed in `--help`, but the shape is stable across all of them:
+For any specific flag or subcommand, run the gated `<tool> help-dump` (or
+`<tool> <cmd> --help`) and treat that output as authoritative. The JSON envelope
+contains `tool`, `version`, `schema_version`, and a recursive `root` command tree;
+it does not contain `captured_at`.
 
 ```json
 {
@@ -99,56 +86,22 @@ is not listed in `--help`, but the shape is stable across all of them:
 }
 ```
 
-Fields: `tool`, `version`, `schema_version` (currently `1`), and a recursive
-`root` → `commands[]` tree where each node carries `name`, `path`, `short`,
-`usage`, and `text`. The tree is recursive — `commands[]` nests for subcommand
-groups. Per the shll v0.0.23 help-dump standard the envelope carries **no
-`captured_at`**: the capture timestamp is owned by shll.ai's puller (a tool
-cannot know its own capture time — it is stamped after capture), so emitting it
-is forbidden toolkit-wide. `fab` and `wt` already omit it; any peer tool still
-emitting `captured_at` (empty or otherwise) drops it on its own release cadence.
+### Functional entry points
 
-**Use it at use-time.** For any specific flag or subcommand, run `<tool> help-dump`
-(or `<tool> <cmd> --help`) and treat *that*, not this file, as authoritative for
-the exhaustive surface. `help-dump` is the command-tree sibling of `skill` above
-(usage knowledge) — this file inlines neither; both are delegated at use-time.
-
-> The `help-dump` delegation scopes to the same **four owned binaries** (`wt`,
-> `idea`, `rk`, `hop`) as the `skill` delegation. `tmux` is third-party and has no
-> `help-dump`; `/loop` is a Claude Code skill, not a binary — neither is covered.
-
-### Absent-binary discipline
-
-All four owned binaries are **separate sibling formulas** that may legitimately
-be absent — `wt` (`sahil87/tap/wt`), `idea` (`sahil87/tap/idea`), `rk` (run-kit —
-formula `sahil87/tap/run-kit` since run-kit v3.0.0, with `rk` kept as a symlink
-alias), and `hop` (the multi-repo navigator). None is a Homebrew dependency of
-`fab-kit`. **Every use-time delegation — `skill` and `help-dump`, for every owned
-binary — MUST be `command -v`-gated and fail silently** (never surface
-`command not found` or any error/warning when the tool is absent):
-
-```sh
-command -v wt   >/dev/null 2>&1 && wt skill        # gated, fail silently
-command -v idea >/dev/null 2>&1 && idea help-dump  # gated, fail silently
-command -v rk   >/dev/null 2>&1 && rk help-dump    # gated, fail silently
-command -v hop  >/dev/null 2>&1 && hop skill       # gated, fail silently
-```
-
-**Fail silently (delegations) vs. stop with hint (functional entry points).**
-The fail-silent rule governs the *informational* delegations above. `wt` remains
+The fail-silent rule governs informational delegations. `wt` remains
 **functionally required** for worktree-based flows — the operator's
 spawn-in-worktree sequence (`fab-operator.md` §2 wt Gate) and `fab batch
 new`/`switch` (an upfront `exec.LookPath("wt")` guard in the binary). Those entry
 points do NOT silently skip: they stop with an actionable install hint
-(`… install it via: brew install sahil87/tap/wt`), because proceeding without
-`wt` would fail their core purpose. The two behaviors are complementary, not
-contradictory — skip what is optional, stop early on what is required.
+(`… install it via: brew install sahil87/tap/wt`).
 
 ---
 
 ## wt (Worktree Manager)
 
-`wt` manages git worktrees for parallel development. Installed as a standalone formula: `brew install sahil87/tap/wt`. It may legitimately be absent — informational delegations gate on `command -v wt` and skip silently, while the worktree entry points that *require* it (the operator's spawn sequence, `fab batch new`/`switch`) stop with that install hint instead (per § Absent-binary discipline).
+`wt` manages git worktrees for parallel development. Install it with
+`brew install sahil87/tap/wt`; required worktree entry points stop with that hint
+when it is absent (per § Functional entry points).
 
 > `wt`'s command set (`list`/`create`/`delete`/…), the `wt create` flags
 > (`--non-interactive`/`--worktree-name`/`--reuse`/`--base`/`--checkout` + the
@@ -156,7 +109,7 @@ contradictory — skip what is optional, stop early on what is required.
 > new-branch-only, exit 2 on an existing branch; `--checkout <branch>` is the
 > existing-branch opt-in and conflicts with both `--base` and the positional) are
 > **tool-owned** — read them at use-time via `wt skill` (usage) / `wt help-dump`
-> (flags), `command -v`-gated fail-silent, per § Reference Model. What stays below is
+> (flags), gated per § Delegation and binary gate. What stays below is
 > **fab-owned**: how the operator drives `wt create` for spawning, and which wt
 > form the fab routing rule selects when (that decision is fab's).
 
@@ -186,27 +139,27 @@ The change folder doesn't exist yet, so there's no branch name to use:
 
 1. `wt create --non-interactive` — auto-generates worktree name, creates on default branch
 2. Agent runs `/fab-new` to create the change folder — its Step 11 then renames the worktree's disposable branch to the change folder name inline (the rename guard passes: the `wt create` branch resolves to no change)
-3. No operator action needed — the branch already matches the change; the operator does NOT send `/git-branch` (the former post-intake send predates fab-new's inline branch creation)
+3. No operator action needed — the branch already matches the change; the operator does NOT send `/git-branch`
 
 ---
 
 ## idea (Backlog Manager)
 
-Standalone binary for backlog idea management — CRUD for `fab/backlog.md` (the inbox that feeds `/fab-new <id>`). Installed as a standalone formula: `brew install sahil87/tap/idea` (not a `fab` subcommand). It may legitimately be absent — every invocation gates on `command -v idea` and degrades gracefully (`/fab-new <id>` resolves backlog IDs from `fab/backlog.md` itself, so an absent `idea` loses no functionality).
+Standalone binary for backlog idea management — CRUD for `fab/backlog.md` (the
+inbox that feeds `/fab-new <id>`). Install it with
+`brew install sahil87/tap/idea`; `/fab-new <id>` can resolve backlog IDs directly
+when it is absent.
 
-`idea`'s verbs (`add`/`list`/`show`/`done`/`reopen`/`edit`/`rm` + bare-text shorthand), its persistent flags (`--file`/`--main` + worktree-vs-main-backlog resolution), its query-matching rule, and the `fab/backlog.md` line format are all **tool-owned** — read them at use-time via `idea skill` (usage) / `idea help-dump` (flags), `command -v`-gated fail-silent, per § Reference Model.
+`idea`'s verbs, flags, matching rules, and backlog line format are tool-owned;
+delegate per § Delegation and binary gate.
 
 ---
 
 ## hop (Multi-Repo Navigator)
 
-`hop` is a separate sibling formula (like all four owned binaries), so it can legitimately be absent. Every `hop` invocation MUST be `command -v hop`-gated and skip silently when absent (per § Reference Model — never surface `command not found` or any error/warning). This mirrors the `rk` fail-silent discipline.
-
-`hop` is the **repo locator** — the discovery front-end to the same repo/worktree space `wt` operates on: where `wt` enumerates the worktrees *within* a repo, `hop` enumerates the *repos* themselves (registered in `~/.config/hop/hop.yaml`). Its discovery commands (`ls`/`ls --trees`/`where`) and grammar are **tool-owned** — read them at use-time via the gated delegation:
-
-```sh
-command -v hop >/dev/null 2>&1 && hop skill   # usage briefing; gated, fail silently
-```
+`hop` is the **repo locator** for the same space `wt` operates on: `wt`
+enumerates worktrees within a repo, while `hop` enumerates registered repos.
+Its discovery grammar is tool-owned; delegate per § Delegation and binary gate.
 
 **Why it matters to the operator (fab-owned).** Multi-repo coordination needs the absolute main-worktree root of a *sibling* repo — e.g. to spawn an agent into it (see the **Repo-targeted spawning** note in the `wt` section, which requires running `wt create` in the target repo's directory and reading `fab agent --print --repo <target-repo>`). `hop` is how an agent **discovers** those locations rather than hardcoding paths; the specific discovery command is in `hop skill`.
 
@@ -233,13 +186,13 @@ Terminal multiplexer commands used by the operator for agent observation and int
 
 ## rk (run-kit)
 
-run-kit is the tmux session manager with a web UI that may host the operator's session. Since run-kit v3.0.0 the Homebrew formula and primary binary are named `run-kit` (`sahil87/tap/run-kit`); `rk` is kept as a symlink alias and remains the invocation form used throughout fab skills. All `rk` usage is subject to the **detection / fail-silent rule** stated once in `_preamble.md` § Run-Kit (rk) Reference — check `command -v rk` first and skip silently when rk is absent (never error, never warn).
+run-kit is the tmux session manager with a web UI that may host the operator's
+session. The Homebrew formula and primary binary are `run-kit`
+(`sahil87/tap/run-kit`); `rk` is the invocation used throughout fab skills.
 
-`rk`'s command surface is **tool-owned** — the `rk notify` contract (Web Push delivery, fail-silent-by-contract guarantee), `rk context` (server-URL discovery, iframe windows via `@rk_type`/`@rk_url`, the `/proxy/{port}/` pattern, the Visual Display Recipe + visual-explainer integration), and the rest (`daemon`/`doctor`/`serve`/…). Read it at use-time via the gated delegation:
-
-```sh
-command -v rk >/dev/null 2>&1 && rk skill   # usage briefing; gated, fail silently
-```
+`rk`'s command surface is tool-owned; delegate per § Delegation and binary gate.
+This includes `rk notify`, `rk context`, iframe windows, proxy URLs, and the
+visual display recipe.
 
 The **dynamic** environment (current server URL, session, pane) stays in `rk context` — run at use-time, never hardcoded. `rk skill` is the static usage briefing; `rk context` reports the live environment (the two are distinct per `shll standards skill`).
 

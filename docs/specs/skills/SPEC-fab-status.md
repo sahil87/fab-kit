@@ -2,6 +2,8 @@
 
 ## Summary
 
+**Source organization:** The source states the current renderer contract without superseded-format narration.
+
 Read-only status display. Shows change name, branch, stage progress (out of 6 total stages), plan progress (tasks + acceptance counts), confidence score, optional impact line (sourced from `.status.yaml` `true_impact` block), optional refactor-growth soft warning, version drift warning, and next command suggestion.
 
 ## Flow

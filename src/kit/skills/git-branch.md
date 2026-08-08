@@ -12,7 +12,6 @@ allowed-tools: Bash(git:*)
 
 - Arguments
 - Behavior
-- Output
 - Error Handling
 - Key Properties
 
@@ -185,14 +184,6 @@ Branch: {branch_name} (created|checked out|checked out, tracking origin/{branch_
 ```
 
 The trailing note appears only on the create/rename actions with a dirty tree (see Step 4's dirty-tree note).
-
----
-
-## Output
-
-```
-Branch: {branch_name} (created|checked out|checked out, tracking origin/{branch_name}|renamed from {old_branch}|created, leaving {old_branch} intact|already active)[ — note: {dirty_count} uncommitted change(s) carried over from {old_branch}]
-```
 
 ---
 

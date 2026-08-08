@@ -8,32 +8,58 @@ metadata:
 ---
 # Shared Pipeline Bracket
 
-> This file defines the shared pipeline bracket used by `/fab-ff` and `/fab-fff`. The calling
-> skill (the **driver**) declares two parameters before executing this bracket — read them from
-> the driver's own file:
+> This file defines the shared bracket used by `/fab-ff` and `/fab-fff`; each
+> driver binds the parameters in § Driver Framing.
 >
-> **Partial consumer**: `/fab-adopt` declares `_pipeline` as a helper but does NOT execute the
-> full bracket — it runs its own Steps 0–6 and reuses only the § Auto-Rework Loop (for its
-> diff-only review verdict) and Step 3's hydrate dispatch. It is not a `{driver}` of the full
-> apply → review → hydrate sequence.
+> `/fab-adopt` is a partial consumer: it reuses only § Auto-Rework Loop and
+> Step 3's hydrate dispatch, not the full bracket.
 >
-> - **`{driver}`** — the driver name passed to the `fab status` event commands this bracket
->   shows it on (the fail/recovery commands are deliberately driver-less — see the Behavior
->   note below) and used in re-run guidance: `fab-ff` or `fab-fff`
-> - **`{terminal}`** — the bracket's terminal stage: `hydrate` for `/fab-ff` (the pipeline ends
->   after Step 3), or `review-pr` for `/fab-fff` (the fff-only Steps 4–5 — ship and review-pr —
->   live in `fab-fff.md` and run after this bracket's Step 3)
->
-> Orchestration that differs between drivers (the fff-only ship/review-pr steps, driver-specific
-> Output blocks and error rows) stays in each driver's own file. This partial is the single
-> authoritative source for everything the two drivers share.
+> Driver-specific ship/review-pr steps, output deltas, and errors stay local.
 
 ## Contents
 
+- Driver Framing
 - Pre-flight
 - Context Loading
 - Behavior
 - Shared Error Handling
+
+---
+
+## Driver Framing
+
+Both drivers run the confidence-gated, resumable apply → review → hydrate
+bracket, with bounded auto-rework and no in-bracket `/fab-clarify` invocation.
+They accept the same arguments:
+
+- **`<change-name>`** *(optional)* — target a change instead of the active one;
+  resolve it per `_preamble.md` § Change-name override.
+- **`--force`** *(optional)* — bypass only the intake confidence gate and add
+  `(force mode -- gate bypassed)` to the output header.
+
+The driver binds `{driver}` to its command name for status events and re-run
+guidance, and `{terminal}` to `hydrate` (`fab-ff`) or `review-pr` (`fab-fff`).
+Every output includes the driver header, Implementation, Review, and Hydrate
+sections, then `Pipeline complete.` and the state-table `Next:` guidance.
+Resumes add `(resuming)` and report each completed stage as skipped; failures
+stop at the reached state and derive `Next:` from `_preamble.md`.
+
+```
+/{driver} — {confidence header}
+
+--- Implementation ---
+{apply output}
+
+--- Review ---
+{review output}
+
+--- Hydrate ---
+{hydrate output}
+
+Pipeline complete.
+
+Next: {per state table}
+```
 
 ---
 
@@ -55,11 +81,17 @@ Load per `_preamble.md` Sections 1-3 (config, constitution, intake, memory index
 
 ## Behavior
 
-> **Note**: All `.status.yaml` mutations in this bracket use `fab status` event commands (`start`, `advance`, `finish`, `reset`, `fail`, `set-acceptance`) rather than direct file edits. The driver argument is optional in the CLI; this bracket passes `{driver}` wherever a command below shows it (the Resumability `fab status start <change> review` recovery, preserved verbatim from the pre-extraction drivers, passes none).
->
-> **Dispatch**: Sub-skill invocations dispatch through the adapter selected by the `dispatch=` branch in the dispatch-adapter note below — native Agent-tool (`general-purpose` subagent) when `dispatch=` is absent, else the CLI adapter (`fab dispatch`, optionally `--pane` per `_preamble.md` § CLI-Adapter Dispatch → *Pane mode*) — per `_preamble.md` § Subagent Dispatch. Whichever adapter runs it, the worker reads the target skill file, follows the specified behavior, and returns a structured result to the pipeline. Every `/fab-continue`-behavior subagent prompt MUST include the **block-contract carve-out**: **do NOT run `fab status` transition commands (`start`/`advance`/`finish`/`reset`/`fail`/`skip`); return results only** — the orchestrator runs those stages' transitions (finish/fail/reset) itself — **but the prompt DOES end with a terminal `fab status refresh`** (a pull-based recompute, not a transition, so the orchestrator still owns every transition; see `_preamble.md` § Dispatch-Prompt Obligations). This is the **universal block contract**, not an override this orchestrator imposes: post-intake `/fab-continue` blocks (Apply / Review / Hydrate Behavior) never own their transitions for **any** caller — plain `/fab-continue` is itself a one-stage sequencer that dispatches the block identically and runs the transition after it returns (see `fab-continue.md` Normal Flow Step 1). The orchestrator here is therefore a **pure sequencer**: dispatch block → read returned status/findings → decide proceed / loop / stop; it never reaches into block internals.
->
-> **Per-stage model resolution + dispatch adapter** (see `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution for the canonical contract): immediately **before** dispatching each stage's sub-agent, run `fab resolve-agent <stage> --alias` and **surface** the resolved `model=/effort=/dispatch=` lines (carry them into the dispatch prompt and/or echo them in this orchestrator's step output, so a skipped or mis-resolved role — or a CLI dispatch — is visible rather than silent), then **branch on `dispatch=` presence**: absent ⇒ **native Agent-tool dispatch** through the two seams — the **model** half via the Agent tool's `model` parameter (the `--alias` flag emits the Agent-tool-valid short alias directly on the `model=` line; empty model ⇒ omit/inherit) and the **effort** half via an explicit imperative instruction in the dispatch prompt — ``Operate at `<effort>` reasoning effort for this task.`` (empty effort ⇒ omit; the Agent tool has no effort param). `dispatch=` present ⇒ the **CLI adapter** (`fab dispatch`) per `_preamble.md` § CLI-Adapter Dispatch (start-on-stdin → a **background blocking** `fab dispatch wait <change> <stage> --timeout 300` (foreground blocking where the harness has no notify-on-exit background command) → five-state handling **with its bounded recovery policy** — one automatic `fab dispatch restart` on `orphaned`, peek-on-suspicion on every timeout-return of `wait`, then escalate; never a send-keys nudge, and the budget lives in *this* orchestrator's context, not on disk; the profile rides the `dispatch=` command, so the Agent-tool seams do not apply; NO fallback to a session command; on `done`, read the result, run `fab dispatch reap <change> <stage>` unconditionally per `_preamble.md` § CLI-Adapter Dispatch, then proceed with the sequencer transition; no STATE cleanup after `done`). Within that CLI arm the worker's mode **auto-resolves** (pane inside tmux — `$TMUX` set — headless outside), so pass **no** mode flag by default; `--pane` forces an interactive tmux worker (three reachable states — `running`/`done`/`orphaned`; requires both a reachable tmux server and a provider `session_command`, so never added speculatively) and `--headless` forces a detached one inside tmux — an option inside the branch, never a third branch; see `_preamble.md` § CLI-Adapter Dispatch → *Pane mode*. The Claude Code adapter is the Agent tool's `model` parameter; the resolution itself is provider-neutral. The `review` stage (Step 2) resolves **once** for its single review sub-agent, exactly like every other stage.
+All `.status.yaml` mutations in this bracket use the `fab status` event commands shown below rather than direct file edits. The bracket passes `{driver}` wherever a command shows it; the Resumability recovery intentionally passes none.
+
+### Stage Dispatch Procedure
+
+For every apply, review, and hydrate dispatch below:
+
+1. Run `fab resolve-agent <stage> --alias` immediately before dispatch and surface its `model=/effort=/provider=/dispatch=` lines.
+2. Run the Dispatch Contract for `<stage>` per `_preamble.md` § CLI-Adapter Dispatch, including its native/CLI branch, recovery budget, pane-mode rules, result handling, reap, and no-state-cleanup rule.
+3. In the worker prompt, name the `/fab-continue` Behavior section and carry `_preamble.md` § Dispatch-Prompt Obligations (standard context, result obligation, block-contract carve-out, and terminal refresh).
+4. Read the returned result; the bracket remains the pure sequencer and owns every `finish`/`fail`/`reset` transition.
+5. For review, resolve once for the single review worker and include `change_type` from `.status.yaml` in the prompt.
 
 ### Resumability
 
@@ -69,7 +101,7 @@ Check `progress` from preflight. Skip stages already `done`. If `{terminal}: don
 
 *(Skip if `progress.apply` is `done`.)* Since the intake gate already passed in pre-flight, if `progress.intake` is not `done`, finish intake: `fab status finish <change> intake {driver}` (auto-activates apply).
 
-Resolve the apply model + adapter: run `fab resolve-agent apply --alias` (the `--alias` flag emits the Agent-tool-valid short alias on the `model=` line), surface the resolved `model=/effort=/dispatch=` (echo them and/or carry them into the dispatch prompt — a skipped resolution or a CLI dispatch is then visible), then **branch on `dispatch=`** (per the Behavior dispatch note above + `_preamble.md` § CLI-Adapter Dispatch): absent ⇒ native dispatch (model via the Agent `model` param, empty ⇒ omit/inherit; effort via an imperative prompt instruction ``Operate at `<effort>` reasoning effort for this task.``, empty ⇒ omit); present ⇒ CLI dispatch via `fab dispatch` (the profile rides the `dispatch=` command). Dispatch `/fab-continue` as subagent — Apply Behavior, change: `{id}` (prompt carries the block-contract carve-out: no `fab status` transition commands; terminal `fab status refresh`; return results only). The subagent runs both apply sub-steps in a single invocation: (1) Plan Generation — co-generate `plan.md` (`## Requirements` + `## Tasks` + `## Acceptance`) from `intake.md` per **Plan Generation Procedure** (`_generation.md`), unless `plan.md` already exists; (2) Task Execution — parse unchecked tasks under `## Tasks`, execute in dependency order, run tests, mark `[x]` on completion. Returns completion status or failure with task ID and reason.
+Run the Stage Dispatch Procedure for `apply`, targeting `/fab-continue` Apply Behavior for `{id}`. The worker runs both apply sub-steps in one invocation: (1) Plan Generation — co-generate `plan.md` (`## Requirements` + `## Tasks` + `## Acceptance`) from `intake.md` per `_generation.md` unless `plan.md` exists; (2) Task Execution — execute unchecked `## Tasks` in dependency order, run tests, and mark each `[x]`. It returns completion status or a task ID and reason.
 
 No `/fab-clarify` runs here. Under-specified requirements are resolved inline by the apply agent as graded SRAD assumptions in `plan.md` `## Assumptions` — not via any clarify ceremony.
 
@@ -81,7 +113,7 @@ On success: run `fab status finish <change> apply {driver}`.
 
 *(Skip if `progress.review` is `done`.)*
 
-Resolve the review model + adapter: run `fab resolve-agent review --alias` (the `--alias` flag emits the Agent-tool-valid short alias on the `model=` line), surface the resolved `model=/effort=/dispatch=`, then **branch on `dispatch=`** (per the Behavior dispatch note above): absent ⇒ native dispatch — the resolved model AND effort-prompt instruction (``Operate at `<effort>` reasoning effort for this task.``) govern the single review sub-agent (empty model ⇒ omit/inherit; empty effort ⇒ omit); present ⇒ one CLI dispatch of the review block via `fab dispatch`. Before dispatching, read `change_type` from the change's `.status.yaml` (e.g. `grep '^change_type:' fab/changes/<change>/.status.yaml` — `fab preflight` does not emit it) and carry it in the block dispatch prompt — the review worker's parsimony/deletion-candidate skip condition keys on it. Dispatch `/fab-continue` as subagent — Review Behavior, change: `{id}` (prompt carries the block-contract carve-out: no `fab status` transition commands; terminal `fab status refresh`; return results only — verdict transitions belong to this orchestrator). The subagent is the single review worker: it reads `_review.md` at entry and runs the whole review inline (no nested reviewer dispatch — both checklists ride the one merged procedure) and returns one unified structured findings set (must-fix / should-fix / nice-to-have) with pass/fail status.
+Run the Stage Dispatch Procedure for `review`, targeting `/fab-continue` Review Behavior for `{id}`. The single worker reads `_review.md`, runs both checklists inline, and returns one structured findings set (must-fix / should-fix / nice-to-have) with a pass/fail verdict.
 
 **Pass**: run `fab status finish <change> review {driver}`. Proceed to Step 3 (Hydrate).
 
@@ -101,8 +133,8 @@ The agent triages the sub-agent's prioritized findings and autonomously selects 
 
 1. **Status pair**: run `fab status fail <change> review` then `fab status reset <change> apply {driver}`. This fail+reset pair repeats on **every** failed review verdict that starts a new cycle — not just the first failure — so every conforming run leaves the same `.status.yaml` history shape. The `reset apply` cascade drives review → `pending`, which **preserves** `stage_metrics.review.iterations` (timing fields cleared, counter untouched per `status.go:646–660`) — it never advances the counter; only item 3 does.
 2. **Triage + rework action**: triage the prioritized findings, select exactly one path per the decision heuristics below, and apply its edits (uncheck tasks / edit `plan.md` / edit `## Requirements`).
-3. **Re-dispatch apply**: re-run `fab resolve-agent apply --alias` (the `--alias` flag emits the Agent-tool-valid short alias on the `model=` line), surface the resolved `model=/effort=/dispatch=`, then **branch on `dispatch=`** (native two-seam dispatch when absent; CLI `fab dispatch` when present, per the Behavior dispatch note above), then dispatch `/fab-continue` as a subagent — Apply Behavior, same prompt contract as Step 1 (block-contract carve-out: no `fab status` transition commands; terminal `fab status refresh`; return results only). On success, run `fab status finish <change> apply {driver}` — this auto-activates review (review → `active`), the **one** counted transition that advances `stage_metrics.review.iterations` for this cycle (`status.go:627`). Re-entering review here via `finish apply` (not `reset review`, not any non-`active` path) is what makes the cycle count truthfully; this `finish apply` MUST run every cycle, even when item 2 was a trivial fix.
-4. **Fresh re-review**: re-run `fab resolve-agent review --alias`, surface the resolved `model=/effort=/dispatch=`, then **branch on `dispatch=`** (native: resolved model + effort-prompt instruction, omitted when empty; CLI: one `fab dispatch` of the review block), then dispatch a **fresh** `/fab-continue` Review Behavior subagent, same prompt contract as Step 2. Never reuse a prior review subagent's context.
+3. **Re-dispatch apply**: run the Stage Dispatch Procedure for `apply` with the Step 1 target. On success, run `fab status finish <change> apply {driver}` — this auto-activates review (review → `active`), the **one** counted transition that advances `stage_metrics.review.iterations` for this cycle (`status.go:627`). Re-entering review here via `finish apply` (not `reset review`, not any non-`active` path) is what makes the cycle count truthfully; this `finish apply` MUST run every cycle, even when item 2 was a trivial fix.
+4. **Fresh re-review**: run the Stage Dispatch Procedure for `review` with the Step 2 target in a **fresh** worker. Never reuse a prior review worker's context.
 5. **Verdict**: pass → run `fab status finish <change> review {driver}` and proceed to Step 3. Fail → if fewer than `{max_cycles}` cycles have run, start the next cycle at item 1 (the fail+reset pair fires again); after the `{max_cycles}`-th failed cycle, stop per **Stop** below.
 
 **Decision heuristics** (applied at item 2 of each cycle — disjoint: each failure description routes to exactly one path):
@@ -130,7 +162,7 @@ Run /fab-continue <change> for manual rework options.
 
 *(Skip if `progress.hydrate` is `done`.)*
 
-Resolve the hydrate model + adapter: run `fab resolve-agent hydrate --alias` (the `--alias` flag emits the Agent-tool-valid short alias on the `model=` line), surface the resolved `model=/effort=/dispatch=`, then **branch on `dispatch=`** (per the Behavior dispatch note above): absent ⇒ native dispatch (model via the Agent `model` param, empty ⇒ omit/inherit; effort via the imperative prompt instruction ``Operate at `<effort>` reasoning effort for this task.``, empty ⇒ omit); present ⇒ CLI dispatch via `fab dispatch`. Dispatch `/fab-continue` as subagent — Hydrate Behavior, change: `{id}` (prompt carries the block-contract carve-out: no `fab status` transition commands; terminal `fab status refresh`; return results only). The subagent validates review passed, hydrates into `docs/memory/`, and returns completion status.
+Run the Stage Dispatch Procedure for `hydrate`, targeting `/fab-continue` Hydrate Behavior for `{id}`. The worker validates review passed, hydrates `docs/memory/`, and returns completion status.
 
 On success: run `fab status finish <change> hydrate {driver}`.
 

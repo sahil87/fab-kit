@@ -43,8 +43,6 @@ After context loading, log the command invocation:
 fab log command "fab-discuss"
 ```
 
-This is best-effort — the command always exits 0 (failures surface only as a stderr warning) and resolves the active change via `.fab-status.yaml` if one exists.
-
 ---
 
 ## Behavior

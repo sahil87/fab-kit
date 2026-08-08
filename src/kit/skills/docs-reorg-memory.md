@@ -21,9 +21,9 @@ description: "Analyze memory files for themes and suggest reorganization. Read-o
 
 Read all memory files across all domains in `docs/memory/`, identify themes (up to 10), diagnose **tree shape** (folder fan-out/depth **and** over-size files), detect **duplicate coverage** (the same topic in 2+ files), triage `_unsorted/` staging, and propose a reorganization plan. Read-only by default — files only moved/rewritten with explicit user approval.
 
-This is also the **memory rebalancer**: when a domain folder grows too wide or too deep, this skill proposes splitting it into sub-domains (or merging trivially-small siblings); when a single topic file grows into several topics, it proposes a **file split** (`split-file`); when two files cover the same topic, it proposes a **file merge** (`merge-file`) — and, on approval, **performs the moves**, rewrites the **bundle-relative** links they break, and regenerates indexes via `fab memory-index`. The ideal-shape bounds below (folder **and** file granularity) are the trigger.
+As the **memory rebalancer**, the skill proposes `split-file` / `merge-file` operations and domain splits, merges, or flattening when the ideal-shape bounds below are exceeded. On approval it performs the moves, rewrites affected **bundle-relative** links, and regenerates indexes via `fab memory-index`.
 
-> **FKF-aware moves (`$(fab kit-path)/reference/fkf.md` §7).** Memory↔memory links are **bundle-relative** (`](/{domain}[/{sub}]/{file}.md)`, resolved from `docs/memory/`), so a moved file's *inbound* links only need the path-after-`/` updated when the file changes domain/sub-domain, and **sibling-relative breakage largely disappears** — that is the §7 rationale ("reorg rewrites *far* fewer links"). Every move MUST **preserve the moved file's FKF frontmatter** (`type: memory` + `description:`) verbatim — never strip or regenerate it. The bulk of link rewriting under FKF is updating bundle-relative targets *to* a moved file; bare/relative sibling links no longer dominate the blast radius.
+> **FKF-aware moves (`$(fab kit-path)/reference/fkf.md` §7).** Memory↔memory links are **bundle-relative** (`](/{domain}[/{sub}]/{file}.md)`, resolved from `docs/memory/`), so a move updates the path-after-`/` only when the target changes domain/sub-domain. Every move MUST **preserve the moved file's FKF frontmatter** (`type: memory` + `description:`) verbatim — never strip or regenerate it.
 
 ### Ideal Shape Bounds
 
@@ -124,7 +124,10 @@ Then emit an explicit **Shape Report** flagging every folder that violates the I
 
 A folder is `✓ ok`, `⚠ over width`, `⚠ over depth`, or `⚠ under floor`. The `Depth` column counts folder levels (domain = 1, sub-domain = 2); since the ≤3 bound counts the *topic file's* path segments, `⚠ over depth` fires for any folder deeper than 2 — its files sit at ≥4 segments. Reserved domains (`_shared`, `_unsorted`) are listed as `— exempt`.
 
-**File rows — reactive, not prophylactic.** A topic file over `[mxgu]`'s soft cap (~400 lines OR ~15KB — sourced from the Step 1 `warnings[]` `file-size` findings, `count` = lines / `bytes` = size; older-binary fallback measures during the read-all-files pass) is a **split candidate**, but a split is **proposed only when its heading clusters reveal ≥2 genuine topics**. A long-but-cohesive file is reported (`⚠ over size — long but cohesive; no split proposed`) and **left alone** — the same soft-SHOULD stance as the folder bounds (split reactively when a genuine cluster emerges, never prophylactically). If every folder is within bounds AND no file is over size, say so and skip straight to "structure is fine".
+**File rows — reactive, not prophylactic.** Apply § `split-file`: only an
+over-size file with at least two genuine topic clusters is a split candidate.
+Report a long cohesive file without proposing a split. If every folder and file
+is within bounds, skip to "structure is fine".
 
 **Compatibility report (only when a pre-fab-kit divergence was found in Step 1).** When the Step 1 compatibility detection found any missing-frontmatter files, tombstone rows, or custom groupings, emit a Compatibility section enumerating them and the proposed remediation. **Omit this section entirely when no compatibility findings exist** — a born-compatible fab-kit tree sees no behavioral change.
 
@@ -233,13 +236,14 @@ After this orchestration completes (or if there were no compatibility findings),
 
 On approval, for each approved migration:
 
-1. **Move files / sections, preserving FKF frontmatter.** Execute section moves (`move-section`) and file moves (`split-domain` / `merge-domain` / `flatten` / `move` / `split-file` / `merge-file`) to their new paths. Use `git mv` semantics where possible to preserve history; a plain move is acceptable when `git mv` is unavailable. **A moved file keeps its FKF frontmatter (`type: memory` + `description:`) byte-for-byte** — moving never strips, regenerates, or re-stamps it (FKF §3; only `fab memory-index` round-trips index/log frontmatter, never topic-file `type:`). For a **`split-file`**, each cluster's blocks move **verbatim** into a new topic file (`type: memory` + a fresh change-id-free `description:`); the original path stays for the dominant topic or is removed. For a **`merge-file`**, B's unique sections move (via the `move-section` machinery) into canonical file A, then the emptied B is deleted.
+1. **Move files / sections, preserving FKF frontmatter.** Execute approved moves using `git mv` semantics when available. A moved file keeps `type: memory` and `description:` byte-for-byte. Apply the canonical § `split-file` rules to file splits; for `merge-file`, move B's unique sections into A and delete the emptied B.
 2. **Rewrite bundle-relative links** broken by the move — every link in the proposal's **Link Impact** note. Edit each link's path-after-`/` to the moved file's new bundle path (`](/{new-domain}[/{sub}]/{file}.md)`), preserving any `#anchor`. A link to a sibling whose bundle path did NOT change needs no edit (§7). The guard below confirms no `](/…)` memory link dangles.
 3. **Author `description:` frontmatter** — the single hand-curated index field. For any new topic file a split creates, add a `description:` frontmatter line (copy or synthesize from the source file's existing description) **alongside `type: memory`** (the FKF constant — stamp it on any genuinely new topic file so it is FKF-conforming; a *moved* file already carries it from step 1). Any `description:` you author **carries no change-ids** — it is a routing signal, not a provenance record (FKF §3.2). For each **new sub-domain**, create a **stub `index.md` BEFORE `fab memory-index` runs (step 4)**: the stub is only the `description:` frontmatter block (a one-liner summarizing the cluster), nothing else — the same stub-before-index pattern as `/docs-hydrate-memory` (FKF §5 stub-before-index). Step 4's regeneration fills in the generated body and round-trips the description.
 4. **Regenerate indexes (and logs)**: run `fab memory-index`. It rewrites the root, every domain `index.md`, AND every sub-domain `index.md` from folder contents (including the new sub-domain reference rows in the parent), and regenerates each folder's `log.md` (merging any `log.seed.md` seed input beneath the git-projected entries — FKF §6). Generated content is never hand-edited (see the Index-previews blockquote above) — the `description:` frontmatter from step 3 (including the sub-domain stubs) is the only hand-curated part.
 5. **Verify (no-dangling-link guard).** Confirm no headings were lost AND no broken bundle-relative link remains. **A remaining dangling `](/…)` memory link is a hard block** — do NOT finalize that migration until every broken link is rewritten. Report any dangling link found and the file it is in. **Abort escape**: if a dangling link cannot be rewritten (its target is genuinely gone, or the correct target is ambiguous), abort that migration instead of blocking indefinitely — roll back its moves and link rewrites (restore original paths), re-run `fab memory-index`, report the rollback, and continue with the remaining approved migrations.
 
-For a **`split-file`**, the Link Impact rewrite (step 2) applies the anchored-vs-un-anchored rule: an **anchored** inbound link (`#heading`) is rewritten to the new file its heading moved to; an **un-anchored** inbound link is rewritten to the **dominant-topic file**. A `split-file` with **no dominant topic AND un-anchored inbound links** is ambiguous → take the abort escape above (roll back that migration, regenerate, continue). A **`merge-file`** rewrites every inbound link that pointed at the emptied B to canonical A (the no-dangling-link guard confirms none dangle after B is deleted).
+Apply § `split-file`'s anchored/unanchored link and ambiguity rules. A
+`merge-file` rewrites every inbound link from emptied B to canonical A.
 
 **`_unsorted/` triage apply.** For each approved `_unsorted/` triage proposal: a **`move`** rides the normal per-migration apply above (it is a `move` Migration Map row — relocate the file into the named domain, rewrite bundle-relative links, regenerate). A **`delete`** is applied **only after explicit per-file confirmation** — confirm each staged file individually, then remove it (git recoverability bounds the risk). `_unsorted/` itself is never split/merged/flattened; only its staged files are triaged.
 
@@ -271,13 +275,13 @@ If no changes needed: `Current structure is well-organized — no reorganization
 
 ### Completion chain → `/docs-distill-memory`
 
-After the completion output above (regardless of whether any migration ran — the composition order is *structure first (reorg), prose second (distill)*), emit a `Next:` line pointing at `/docs-distill-memory` so the fixed reorg → distill order is self-guiding with zero new command surface. This is the other half of the bidirectional chain — distill already points back at reorg in its own `Next:` line.
+After the completion output above, emit a `Next:` line pointing at `/docs-distill-memory`: the composition order is *structure first (reorg), prose second (distill)*.
 
-**Reuse the Step 1 call — no second survey.** Reorg already runs a single `fab memory-index --check --json` (Step 1, one call feeding three consumers). Its `warnings[]` array already carries the `narration-density` and description-tier findings, so the chain reuses **that call's output** — it does **not** run a second `fab memory-index` call. The counts therefore reflect the **Step 1 pre-migration snapshot** — best-effort: approved migrations (moves, `split-file`/`merge-file`, and especially the compatibility description-backfill) can make them stale by completion; that is fine, because distill re-surveys at entry. Aggregate the flagged files with **distill's survey rule** so the two skills' counts agree:
-
-- Count four finding kinds — `malformed[]` `description-change-id` + `description-over-cap` (blocking) and `warnings[]` `description-length` (501–1000 advisory) + `narration-density`.
-- A file with **multiple findings counts once** (dedupe by `path`); a **sub-domain file rolls up to its domain** (first path segment under `docs/memory/`).
-- **Re-apply the distillation exclusion set** — drop any finding whose path is an `index.md` or `_shared/removed-domains.md` before counting.
+**Reuse the Step 1 call — no second survey.** Use its `malformed[]` and
+`warnings[]` snapshot and aggregate the four distillation finding kinds exactly
+per `docs-distill-memory.md` § Step 0 Aggregation rules. Counts are best-effort
+because approved migrations can change the tree before completion; distill
+re-surveys at entry.
 
 Then emit, when N ≥ 1 flagged files across M domains (listed **first**, before the other options):
 
@@ -287,7 +291,8 @@ Next: /docs-distill-memory (N files flagged across M domains), or /fab-new
 
 When N = 0 (nothing flagged), omit the count-bearing pointer and emit the normal completion `Next:` (e.g. `Next: /fab-new`).
 
-**Older-binary fallback (graceful degradation).** On the older-binary path (no `warnings[]` machine surface — the same fallback Step 1 already handles, with its upgrade warning), the counts are unavailable, so **omit them**: emit a plain pointer `Next: /docs-distill-memory, or /fab-new` (or the normal `Next:` line) — never a fabricated `(N files flagged …)` count. This follows the `_preamble` § Next Steps Convention skill-file-wins carve-out (reorg defines its own completion ending).
+When Step 1 uses its older-binary fallback, omit unavailable counts and emit a
+plain `Next: /docs-distill-memory, or /fab-new`; never fabricate counts.
 
 ---
 
@@ -300,7 +305,7 @@ When N = 0 (nothing flagged), omit the count-bearing pointer and emit the normal
 | File write/move fails during apply | Report error, roll back that migration, continue |
 | Content verification fails | Warn, show missing heading, ask to proceed |
 | `fab memory-index` unavailable (older binary) | Warn; fall back to hand-updating affected `index.md` files (legacy path) and tell the user to upgrade `fab` |
-| `fab memory-index --check --json` loss tiers / `--json` / `warnings` key unavailable (older binary) | See Step 1 older-binary fallback (legacy prose detection for `losses[]`; read-all-files line counts for `file-size`; direct folder listing for `_unsorted/`) + upgrade warning |
+| `fab memory-index --check --json` machine surface unavailable | Use Step 1's older-binary fallback |
 | `split-file` with no dominant topic AND un-anchored inbound links (ambiguous retarget) | Take the abort escape (Step 5 Verify item): roll back that migration, regenerate indexes, continue with the rest |
 | `_unsorted/` triage `delete` proposal | Apply **only after explicit per-file confirmation**; never batch-delete staged files. `move` proposals ride the normal per-migration apply |
 | Broken bundle-relative link remains after a move | **Hard block** — report the dangling `](/…)` link; do not finalize that migration until it is rewritten. If it cannot be rewritten, take the abort escape defined in Step 5's Verify item (apply item 5): roll back that migration, regenerate indexes, continue with the rest |
@@ -318,7 +323,7 @@ When N = 0 (nothing flagged), omit the count-bearing pointer and emit the normal
 | FKF-aware moves? | Yes — links are **bundle-relative** (`](/{domain}[/{sub}]/{file}.md)`, FKF §7); a move rewrites only links whose bundle path changes (far fewer than relative links would), preserves the moved file's `type: memory` + `description:` frontmatter, and stamps `type: memory` on any genuinely new topic file |
 | Requires config/constitution? | No |
 | Is the memory rebalancer? | Yes — shape diagnosis (folder **and** file granularity) + split/merge/flatten + `split-file`/`merge-file` + the file-moving apply path live here |
-| Splits over-size files? | Yes — the Shape Report flags a topic file over ~400 lines / ~15KB (from `warnings[]` `file-size`; older-binary ⇒ read-pass line counts) as a `split-file` candidate, proposed only for a ≥2-topic file; a long-but-cohesive file is reported, not split. Bodies move verbatim (restyling is `/docs-distill-memory`'s job) |
+| Splits over-size files? | Yes — exactly per § `split-file`; restyling remains `/docs-distill-memory`'s job |
 | Detects duplicate coverage? | Yes — flags the same topic in 2+ files (`## Duplicate Coverage` table); remediation is a `merge-file` (or `move-section` for partial overlap), with a cross-reference to the open single-sourcing seam audit (not scope) |
 | Triages `_unsorted/`? | Yes — per-file `move`-to-domain (default) or `delete` (explicit per-file confirmation) for stale ephemera; `_unsorted/` keeps its width/depth exemption (never split/merged/flattened). Signal: `warnings[]` `unsorted-nonempty`; older-binary ⇒ direct folder listing |
 | Orchestrates a pre-fab-kit compatibility migration? | Yes — mechanical detection via `fab memory-index --check --json` (exit 2 + `losses[]`: `description`/`tombstone`/`grouping`; older-binary ⇒ legacy prose); on approval runs the strict-order remediation (relocate tombstones → backfill sub-agent → regenerate once) per Step 5's Compatibility orchestration. Decline = report and stop, no mutation |

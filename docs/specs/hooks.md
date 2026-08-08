@@ -6,7 +6,10 @@ Fab-kit uses **no Claude Code hooks at all.** Historically fab registered inline
 
 **Hooks may enhance, never own — and fab now produces no agent state at all.** The three session handlers used to be push-by-nature runtime telemetry: they wrote `.fab-runtime.yaml` `_agents` entries (idle/active liveness) that the `fab pane` commands read. That whole *producer* subsystem was divested. Agent-state detection was never core fab — it is a tmux-context observation feature that got bolted onto fab because no owner existed. run-kit's `rk agent-setup` is that owner now. fab-kit stopped PRODUCING agent lifecycle state and became a pure CONSUMER of a shared tmux pane-option convention: the pane commands read `@rk_agent_state` (see `docs/specs/skills/SPEC-_cli-fab.md` § fab pane and `docs/memory/runtime/pane-commands.md`). The earlier `artifact-write` handler (a PostToolUse Write/Edit hook that recomputed artifact-derived `.status.yaml` state) was removed for a different reason: a hook fires only in the Claude harness, so correctness-critical pipeline state (change type, intake confidence, plan counts) must be pull-based via `fab status refresh`, not written only behind a hook (see § Artifact bookkeeping is pull-based).
 
-Canonical command reference: `src/kit/skills/_cli-fab.md` § fab hook (removed in 2.14.0). Go source: `src/go/fab/internal/refresh/` (the pull-based successor). Agent-state convention (read side): `docs/memory/runtime/runtime-agents.md`.
+Current command references: `src/kit/skills/_cli-fab.md` § fab status for
+pull-based refresh and § fab pane for agent-state reads. Go refresh source:
+`src/go/fab/internal/refresh/`. Agent-state convention:
+`docs/memory/runtime/runtime-agents.md`.
 
 ## Removed command family (2.14.0)
 

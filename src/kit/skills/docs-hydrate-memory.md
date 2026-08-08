@@ -97,10 +97,26 @@ For each source: identify **domains** (logical topic areas) and **topics** withi
 For each topic:
 1. Create `docs/memory/{domain}/` if needed
 2. Create `docs/memory/{domain}/index.md` if needed — a stub carrying only the `description:` frontmatter one-liner for the domain, created before Step 4 runs (`fab memory-index` reads it into the root index row — see Index Ownership). When placing a topic into a sub-domain, likewise create the `docs/memory/{domain}/{sub-domain}/index.md` stub if needed
-3. If target file doesn't exist → create it from the canonical memory-file shape — **read `$(fab kit-path)/templates/memory.md`** (the single source of truth, the same on-demand template read used for `$(fab kit-path)/templates/intake.md`) and fill its leading FKF frontmatter (`type: memory` constant + a `description:` one-liner, per `$(fab kit-path)/reference/fkf.md` §3.1–§3.2) and its Overview / Requirements / Design Decisions skeleton in **present-truth body style** (present tense, no transition narration; §3.3). The `description:` is a curated **one-line index-row summary capped at 500 characters and free of change-ids** (FKF §3.2) — detail *and* provenance citations belong in the body, never in the description (`fab memory-index` warns advisory at 501–1000 chars and **BLOCKS** `--check` past 1000 chars or on any change-id in `description:`). **No `## Changelog` section** — the template carries none and memory files no longer carry one (FKF §3.3); change history lives in the per-folder generated `log.md` (§6).
-4. If target file exists → **merge as current truth** (present-truth body style, FKF §3.3): rewrite the affected section to state current truth rather than append a change-keyed delta entry — superseded statements are **removed, not narrated** (no "renamed X→Y in {id}", no "was `old.value`"); body provenance is citation-only (trailing `(change-id)` / `*Introduced by*`), and **headings carry no change-ids** — a heading names its topic (`## Dispatch States`), never a change (`### Dispatch States (xu0k)`); never introduce a change-id-suffixed heading (FKF §3.3). Any *why* / rejected alternative goes into a `## Design Decisions` entry in the four-field shape (**Decision** / **Why** / **Rejected** / *Introduced by*), never inline narration, and the changelog-bullet shape (`- **{change-id} — retired X**`) is banned inside `## Design Decisions` (that is `log.md`'s job, §6). Preserve existing/manually-added content; keep its `description:` frontmatter accurate, **within the 500-char one-liner cap, and free of change-ids** (FKF §3.2), and **stamp the `type: memory` constant when the existing/legacy file is missing it** so the merge leaves an FKF-conforming file (FKF §2/§3.1 require `type: memory` on every memory file). **After any body edit, re-check the `description:` still routes** — one line, ≤500 chars, change-id-free (a body edit can leave it stale, FKF §3.2)
+3. If target file doesn't exist → read `$(fab kit-path)/templates/memory.md`,
+   create its full topic-file skeleton, and apply the FKF authoring rules below.
+4. If target file exists → merge the affected section as current truth under the
+   same rules. Preserve manual content, stamp a missing `type: memory`, and
+   re-check that `description:` still routes after any body edit.
 
-**Author the FKF frontmatter** on every file you create or whose summary changes — the `type: memory` constant (§3.1) plus the `description:` one-liner (§3.2) that is the source for the generated index row (Step 4). The `description:` is capped at **500 characters** and **carries no change-ids** — neither a `— xu0k`-style suffix nor a `(d9rs)`-style citation (FKF §3.2); it is a routing signal, not a summary or a provenance record, so detail *and* provenance citations belong in the body. Do NOT hand-write index rows. **Present-truth body (FKF §3.3)**: write the body in present tense as current truth — no transition narration ("renamed X→Y in {id}", "was `old.value`"), no description of superseded behavior; body provenance is citation-only (trailing `(change-id)` / `*Introduced by*`), and **headings carry no change-ids** (a heading names its topic, never a change). Any *why* / rejected alternative goes into a `## Design Decisions` entry in the four-field shape (**Decision** / **Why** / **Rejected** / *Introduced by*), never inline narration; the changelog-bullet shape (`- **{change-id} — retired X**`) is banned inside `## Design Decisions` (change history is `log.md`'s job, §6). **Bundle-relative cross-links**: any memory↔memory link you write MUST use the bundle-relative `/...` form (resolved from `docs/memory/`, FKF §7); links *out* of the bundle (source, specs, URLs) stay repo-relative/absolute-URL.
+### FKF authoring rules
+
+- Lead every created or updated topic file with `type: memory` and a one-line,
+  change-id-free `description:` of at most 500 characters (FKF §3.1–§3.2).
+  Detail and provenance belong in the body; never hand-write generated index rows.
+- Write present truth only (FKF §3.3): remove superseded statements instead of
+  narrating transitions; keep provenance as trailing citations or
+  `*Introduced by*`; keep change IDs out of headings.
+- Put durable rationale in a `## Design Decisions` entry using **Decision**,
+  **Why**, **Rejected**, and *Introduced by*. Never use a changelog bullet there.
+- Use the template's Overview / Requirements / Design Decisions skeleton for new
+  files and omit `## Changelog`; folder `log.md` owns change history.
+- Use bundle-relative `/...` links within memory; external links remain
+  repo-relative or absolute.
 
 **Shape bounds (SHOULD guidance)** when placing topics into domains:
 - Aim for **~5–12 topic files per folder**. Past ~12, `fab memory-index` warns — consider a sub-domain.
@@ -157,7 +173,10 @@ Cross-reference against existing memory — exclude already-covered areas.
 
 ### Step 3: Memory File Generation
 
-For each selected gap: read **all source files** in scope, then synthesize into **one memory file per gap** from the canonical memory-file shape — **read `$(fab kit-path)/templates/memory.md`** and fill its full skeleton, per ingest Step 3 (FKF frontmatter pair `type: memory` + a curated `description:` one-liner **capped at 500 characters and free of change-ids** per FKF §3.2 — detail and provenance citations go in the body, not the description; **present-truth body** — present tense, no transition narration, **no change-ids in headings**, §3.3; any *why* / rejected alternative as a four-field `## Design Decisions` entry, never inline narration and never a changelog bullet; **no `## Changelog`**; bundle-relative `/...` cross-links). Fill the scaffold from the analyzed code: Overview, Requirements as RFC 2119 statements derived from code not invented, Design Decisions where inferable; strip the template's guidance comments.
+For each selected gap, read all source files in scope and synthesize one memory
+file per gap using ingest Step 3 and its FKF authoring rules. Derive RFC 2119
+requirements from code, include Design Decisions where inferable, and strip the
+template's guidance comments.
 
 Mark ambiguous inferences with `[INFERRED]` inline near the relevant requirement.
 

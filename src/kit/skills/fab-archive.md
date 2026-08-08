@@ -119,16 +119,16 @@ Next: {per state table — initialized}
 
 ## Key Properties
 
-| Property | Value |
-|----------|-------|
-| Advances stage? | No — post-pipeline housekeeping |
-| Idempotent? | Yes — re-archive is a soft skip that still re-attempts the backlog mark (recovering a previously-failed mark); `fab change archive` marks the backlog idempotently (`already`) |
-| Leaves uncommitted changes? | Yes — moved files + backlog/index edits (see Dirty-tree disclosure in § Purpose) |
-| Modifies `.status.yaml`? | No (may update `last_updated`) |
-| Modifies `.fab-status.yaml`? | Yes — conditionally removes symlink (via command) |
-| Modifies `docs/memory/`? | No |
-| Uses `Edit`? | No — the skill only formats the command's YAML output |
-| Requires hydrate done? | Yes |
+| Property | Archive | Restore |
+|----------|---------|---------|
+| Advances stage? | No — post-pipeline housekeeping | No — post-archive housekeeping |
+| Idempotent? | Re-archive is a soft skip and re-attempts the idempotent backlog mark | Detects already-restored folders |
+| Leaves uncommitted changes? | Yes — moved files + backlog/index edits | Yes — moved files + archive-index edits |
+| Modifies `.status.yaml`? | No (may update `last_updated`) | No |
+| Modifies `.fab-status.yaml`? | Conditionally removes it | Only with `--switch` |
+| Modifies `docs/memory/`? | No | No |
+| Uses `Edit`? | No — formats command YAML | No — formats command YAML |
+| Requires hydrate done? | Yes | No |
 
 ---
 
@@ -192,15 +192,3 @@ Next: {per state table — if --switch: restored change's state; otherwise: acti
 | Script exits 1: "Multiple archives match" | Parse matches from stderr, ask user to pick |
 | Folder already in `fab/changes/` | Script handles — reports `already_in_changes` |
 | Index entry not found | Script handles — reports `not_found` |
-
-### Key Properties
-
-| Property | Value |
-|----------|-------|
-| Advances stage? | No — post-archive housekeeping |
-| Idempotent? | Yes — the command detects already-restored folders |
-| Leaves uncommitted changes? | Yes — moved files + archive-index edits (see Dirty-tree disclosure in § Purpose) |
-| Modifies `.status.yaml`? | No |
-| Modifies `.fab-status.yaml`? | Only with `--switch` flag (via the command) |
-| Modifies `docs/memory/`? | No |
-| Requires hydrate done? | No — restores any archived change regardless of state |

@@ -125,7 +125,7 @@ Full subcommand table (headline in `_preamble` § Common fab Commands):
 | `set-summary` / `get-summary` | `set-summary <change> <text>` / `get-summary <change> [--json]` | Per-change one-line log summary (`.status.yaml` `summary:` field — the FKF C-lite `log.md` source, §6.3). `set-summary` writes it (the conflict-free write path — each change touches only its own `.status.yaml`); `get-summary` prints it (empty line when absent — the generator then falls back to the change slug). `omitempty`: an empty summary round-trips to absent. No stage auto-populates it. `get-summary --json` → `{"summary":"…"}` (object-wrapped so fields can be added additively; empty summary → `{"summary":""}`) |
 | `set-acceptance` | `set-acceptance <change> <field> <value>` | Updates `plan:` block. Valid fields: `generated` (bool), `task_count`, `acceptance_count`, `acceptance_completed` (int) |
 | `set-checklist` | `set-checklist [args...]` | **Removed** — exits 1 with `"set-checklist" is now "set-acceptance" — run fab status set-acceptance instead.` Use `set-acceptance` |
-| `set-confidence` | `set-confidence <change> <counts...> <score> [--indicative]` | Basic confidence block. `--indicative` is a deprecated accepted-but-ignored no-op (1.10.0) — it writes nothing |
+| `set-confidence` | `set-confidence <change> <counts...> <score> [--indicative]` | Basic confidence block. `--indicative` is an accepted-but-ignored no-op |
 | `set-confidence-fuzzy` | `set-confidence-fuzzy <change> <counts...> <score> <dims...> [--indicative]` | With SRAD dimensions. `--indicative` is a deprecated no-op (see above) |
 | `add-issue` / `get-issues` | `<change> <id>` / `<change> [--json]` | Issue ID array — idempotent / one per line. `get-issues --json` → `["DEV-988"]` (empty → `[]`, never `null`) |
 | `add-pr` / `get-prs` | `<change> <url>` / `<change> [--json]` | PR URL array — idempotent / one per line. `get-prs --json` → `["https://…/pull/42"]` (empty → `[]`, never `null`) |
@@ -174,7 +174,7 @@ See `_preamble.md` § Common fab Commands. Modes:
 
 | Mode | Usage | Behavior |
 |------|-------|----------|
-| Normal | `fab score <change>` | Parse `intake.md` (the sole scoring source; `--stage` defaults to `intake`), compute, write `.status.yaml`. No `indicative` key is written (retired 1.10.0). Exits non-zero (error on stderr) when `.status.yaml` fails to load, the confidence write-back or `.history.jsonl` confidence-log append fails, or `intake.md` cannot be read — no silent partial success; the YAML report appears on stdout only when scoring *and* persistence succeed |
+| Normal | `fab score <change>` | Parse `intake.md` (the sole scoring source; `--stage` defaults to `intake`), compute, write `.status.yaml`. No `indicative` key is written. Exits non-zero (error on stderr) when `.status.yaml` fails to load, the confidence write-back or `.history.jsonl` confidence-log append fails, or `intake.md` cannot be read — no silent partial success; the YAML report appears on stdout only when scoring *and* persistence succeed |
 | Gate | `fab score --check-gate [--stage intake] <change>` | Read-only threshold compare; non-zero below the flat 3.0 intake gate (the single gate — `--stage` defaults to `intake`, so the flag is optional). An `intake.md` read failure also exits non-zero (distinguishable on stderr from a gate fail) rather than gating on a partial Assumptions table |
 
 ### Schema (in `.status.yaml`)
@@ -190,7 +190,7 @@ confidence:
 
 > The grade counts are **derived** from each row's composite (the 80/50/20 bands), not read from the hand-written Grade column, and are informational — only `score` gates the pipeline.
 
-> The `confidence.indicative` flag is retired (1.10.0): intake scoring is now authoritative, not indicative, so the flag's distinction is meaningless with one scoring source. It is no longer written; a legacy `indicative: true` key on disk is tolerated on read and harmlessly dropped on the next save.
+> `confidence.indicative` is not written. An `indicative: true` key on disk is tolerated on read and dropped on the next save.
 
 ### Formula
 
@@ -452,7 +452,7 @@ Both modes **refuse to overwrite** an existing target file (non-zero exit, messa
 
 ### fab config upgrade
 
-The **single, comment-aware writer** of `fab/project/config.yaml` going forward (2.15.0). It reconciles the file against the binary's field registry mechanically — retiring the comment-clobbering whole-file rewrite (`setFabVersion`) at the root and replacing the hand-written comment-backfill migration pattern.
+The **single, comment-aware writer** of `fab/project/config.yaml`. It reconciles the file against the binary's field registry mechanically.
 
 ```
 fab config upgrade            # reconcile config.yaml against the registry (idempotent)
@@ -467,18 +467,6 @@ Reconciliation, under the A/B/C field-category model:
 
 **Byte-stable and idempotent** — running it twice yields a byte-identical file (the `fab memory-index` discipline). Before writing, the reconciled document is **validated as YAML** and a run that would produce an unparseable file is **refused** (original left untouched) rather than bricking the repo. The write is atomic (`internal/atomicfile`). Requires a fab repo (walks up for `fab/`); `cobra.NoArgs`. `fab upgrade-repo` **auto-runs** it after sync (fail-open: if the installed fab-go predates the subcommand, it prints a reminder and the upgrade continues).
 
----
-
-## fab hook (removed in 2.14.0)
-
-The `fab hook` command family — `session-start`, `stop`, `user-prompt`, `artifact-write`, and `sync` — was **removed outright** in 2.14.0 (no deprecation shim period). fab no longer registers, writes, or owns any Claude Code hook. An un-migrated `.claude/settings.local.json` that still invokes `fab hook <x>` will now get a cobra *unknown command* error (exit 1) until the `2.13.6-to-2.14.0` migration removes the entries; that migration strips the three session-scoped entries (both the inline `fab hook …` and legacy `on-*.sh` forms) and deletes the dead `.fab-runtime.yaml`/`.lock` files. Two facts that outlived the hooks:
-
-**Agent state is a consumed convention, not a produced hook (ioku).** The former `session-start`/`stop`/`user-prompt` handlers used to WRITE `.fab-runtime.yaml` `_agents` agent active/idle state that the `fab pane` commands read. That producer subsystem — the hook writes, the throttled GC sweep, the grandparent PID walker, the runtime file, and the `_agents` matching — was deleted wholesale. fab is now a pure CONSUMER of the `@rk_agent_state` tmux pane-option convention written by run-kit's `rk agent-setup` (see `fab pane` below).
-
-**Artifact bookkeeping is no longer a hook.** The former `artifact-write` PostToolUse handler that recomputed `change_type`/confidence (from `intake.md`) and the `plan.*` counts (from `plan.md`) is gone — that state is correctness-critical (a hook fires only in the Claude harness, so a sed edit or a non-Claude agent left it stale). It is now recomputed by the pull-based **`fab status refresh`** (see the `fab status` family above), self-healed at the transition seams (`fab status advance`/`finish`, `fab preflight`), which preserves the `change_type_source: explicit` guard. The plan counters remain a **write-time cache**: readers (`fab preflight`, `fab pr-meta`, `fab status plan`) prefer a **live count derived from `plan.md` `## Acceptance` checkboxes at read time** and fall back to the cached counter only when `plan.md` (or its `## Acceptance` section) is absent — so a hook-bypassing edit cannot make those readers report a stale acceptance count.
-
----
-
 ## fab pane
 
 Tmux pane operations with fab context enrichment. `fab pane <map|capture|send|process|window-name> [flags...]`
@@ -487,7 +475,7 @@ Tmux pane operations with fab context enrichment. `fab pane <map|capture|send|pr
 
 **Persistent flag** (all subcommands): `--server <name>` / `-L <name>` (default `""`) — target tmux socket (`tmux -L <name>`). Defaults to `$TMUX` / tmux default. Lets daemons on one tmux server inspect panes on another.
 
-**§ agent state (`@rk_agent_state` convention — read-only, ioku).** `map`/`capture`/`send` resolve a pane's agent lifecycle state by READING the tmux pane user option `@rk_agent_state` (value `"<state>:<epoch_seconds>"`, `state ∈ active | waiting | idle`), written by run-kit's `rk agent-setup` global agent-harness hooks (covering Claude Code, Codex, Copilot, Gemini, OpenCode — not just Claude). fab is a pure CONSUMER: it never writes the option and needs no run-kit software installed — it reads with plain tmux (`map` via the `#{@rk_agent_state}` field on its existing `list-panes -F` call; `send`/`capture` via `tmux show-options -pv -t <pane> @rk_agent_state`). `active` = turn in progress, `waiting` = blocked on a human (permission prompt / menu / elicitation), `idle` = turn complete. The epoch suffix is mandatory — idle duration is `now - epoch`; only `idle` carries a duration. An absent option, unknown token, or missing/non-integer epoch is **unknown** (`—` in tables, `null` in JSON, refused by `send` without `--force`). No staleness heuristic: a stale `active` (e.g. an Esc-interrupted agent) still refuses sends — `--force` is the escape hatch. (fab no longer produces this state — the old `.fab-runtime.yaml` `_agents` hook pipeline was divested; see § fab hook.)
+**§ agent state (`@rk_agent_state` convention — read-only).** `map`/`capture`/`send` resolve a pane's agent lifecycle state by READING the tmux pane user option `@rk_agent_state` (value `"<state>:<epoch_seconds>"`, `state ∈ active | waiting | idle`), written by run-kit's `rk agent-setup` global agent-harness hooks (covering Claude Code, Codex, Copilot, Gemini, OpenCode — not just Claude). fab is a pure CONSUMER: it never writes the option and needs no run-kit software installed — it reads with plain tmux (`map` via the `#{@rk_agent_state}` field on its existing `list-panes -F` call; `send`/`capture` via `tmux show-options -pv -t <pane> @rk_agent_state`). `active` = turn in progress, `waiting` = blocked on a human (permission prompt / menu / elicitation), `idle` = turn complete. The epoch suffix is mandatory — idle duration is `now - epoch`; only `idle` carries a duration. An absent option, unknown token, or missing/non-integer epoch is **unknown** (`—` in tables, `null` in JSON, refused by `send` without `--force`). No staleness heuristic: a stale `active` (e.g. an Esc-interrupted agent) still refuses sends — `--force` is the escape hatch.
 
 ### map — `fab pane map [--json] [--session <name>] [--all-sessions] [--server <name>]`
 
@@ -583,12 +571,12 @@ The shell is launched with `setsid` semantics (Go's `SysProcAttr{Setsid:true}`, 
 | 2 | `--server <name>` supplied | **new window** | `tmux -L <name> new-window -n fab-{id}-{stage} -c <repo-root> "<resolved-cmd> <shell-quoted-pointer>"` | the **window name** |
 | 3 | `$TMUX_PANE` unset | **new window** | `tmux new-window -n fab-{id}-{stage} -c <repo-root> "…"` | the **window name** |
 
-This is the **two-tier tmux hierarchy**: an operator opens worktree agents as **windows** (unchanged), and a worktree agent's stage workers appear as **panes beside it**, so a stage worker no longer costs a window in the operator's tab bar. Rows 2 and 3 are the pre-split behavior, byte-identical: `--server` may name a **different socket**, on which the caller's own `$TMUX_PANE` id is meaningless, and an unset `$TMUX_PANE` means the dispatcher (a headless orchestrator passing `--pane`) has no pane to split. Specifics:
+This is the **two-tier tmux hierarchy**: an operator opens worktree agents as **windows**, and a worktree agent's stage workers appear as **panes beside it**. `--server` may name a **different socket**, on which the caller's own `$TMUX_PANE` id is meaningless; an unset `$TMUX_PANE` means the dispatcher (a headless orchestrator passing `--pane`) has no pane to split. Specifics:
 
-- **Split placement = a stacked right column** (the Claude-teams layout), keyed on **dispatch records, not pane titles**. `start` collects the `pane:` field of every `.fab-dispatch/*/{stage}.yaml` record in the checkout **whose `server:` matches the socket being probed** (pane IDs are per-socket, so a `--server work` record's `%17` would otherwise false-match an unrelated `%17` on the default socket — default-socket records carry `server: ""`, and equality is the whole test), probes the caller's window with `tmux list-panes -t "$TMUX_PANE" -F '#{pane_id}'`, and keeps the **last** pane present in both. If one exists, the new worker splits **that** pane with `-v` (stacking down the column, unsized); if none does, it splits `$TMUX_PANE` itself with `-h -l <n>%` (**carving** the column at `dispatch.column_width`, default 35 — so the dispatching agent keeps the rest). A pane ID is the right identity because it is server-global and stable for the pane's lifetime; a pane **title** is not — the harness running inside a worker rewrites it within seconds, which is why a title-keyed probe found nothing and every worker re-split the dispatcher into yet another full-height column. The intersection with the window's live pane list *is* the liveness + same-window filter, so no separate probe is needed. **This is the column invariant**: the vertical left/right separator is created once by the carving split and never touched again — no `select-layout`, no rearranging user-made panes, no fighting a manual resize. It is a creation-time rule, not a repair pass: an already-mangled window is left alone until its panes die.
+- **Split placement = a stacked right column** (the Claude-teams layout), keyed on **dispatch records, not pane titles**. `start` collects the `pane:` field of every `.fab-dispatch/*/{stage}.yaml` record in the checkout **whose `server:` matches the socket being probed** (pane IDs are per-socket, so a `--server work` record's `%17` would otherwise false-match an unrelated `%17` on the default socket — default-socket records carry `server: ""`, and equality is the whole test), probes the caller's window with `tmux list-panes -t "$TMUX_PANE" -F '#{pane_id}'`, and keeps the **last** pane present in both. If one exists, the new worker splits **that** pane with `-v` (stacking down the column, unsized); if none does, it splits `$TMUX_PANE` itself with `-h -l <n>%` (**carving** the column at `dispatch.column_width`, default 35 — so the dispatching agent keeps the rest). Pane IDs are server-global and stable for the pane's lifetime; pane titles are mutable. The intersection with the window's live pane list *is* the liveness + same-window filter, so no separate probe is needed. **This is the column invariant**: the vertical left/right separator is created once by the carving split and never touched again — no `select-layout`, no rearranging user-made panes, no fighting a manual resize. It is a creation-time rule, not a repair pass: an already-mangled window is left alone until its panes die.
 - **Placement degrades, never fails** (it is cosmetic), and every degradation is **warn-only on stderr** — the warning names the failure *and* the placement it resolved to (`worker-column placement probe failed (…); carving a new worker column off pane %N` / `… stacking the worker under pane %N`), so a degraded probe is explainable from output rather than silent. A failing `list-panes` leaves no window to intersect, so it falls back to the sized `-h` carve off `$TMUX_PANE` (the fallback is sized too — a fallback column that halved the dispatcher would reintroduce the squeeze). An unreadable dispatch dir or corrupt `{stage}.yaml` warns the same way but **keeps the records that did read**: a record that could not be read can only fail to *find* a sibling, never invent one, so a partial failure still stacks when a live sibling is among the readable ones. An **absent** `.fab-dispatch/` tree is the ordinary first-dispatch case, not a failure — empty set, no warning. A tmux that rejects `-l <n>%` (every tmux before 3.1, or a window too narrow for the percentage) retries the same split **unsized** with a stderr warning naming both causes.
-- **The identity string is the same either way** — `fab-{id}-{stage}` — and is recorded in `{stage}.yaml`'s `window` field in **both** shapes, whose meaning is therefore "window name (new-window) or pane title (split)". No schema change, no migration. Titles are set at spawn for **identification only** — placement no longer reads them — so a **failed title set** is non-fatal (stderr warning only): the pane ID is the real identity and the worker is already running.
-- **The pane ID is the identity for everything downstream**, so `status`, `kill`, `fab pane capture`, and refuse-if-running are **shape-blind** and unchanged. Killing a split worker's pane leaves the dispatching agent's window intact (plain `kill-pane` semantics).
+- **The identity string is the same either way** — `fab-{id}-{stage}` — and is recorded in `{stage}.yaml`'s `window` field in **both** shapes, whose meaning is therefore "window name (new-window) or pane title (split)". Titles are set at spawn for **identification only** — placement does not read them — so a **failed title set** is non-fatal (stderr warning only): the pane ID is the real identity and the worker is already running.
+- **The pane ID is the identity for everything downstream**, so `status`, `kill`, `fab pane capture`, and refuse-if-running are **shape-blind**. Killing a split worker's pane leaves the dispatching agent's window intact (plain `kill-pane` semantics).
 
 - **Prompt delivery = file + pointer.** The full prompt still arrives on **stdin** and is persisted to `{stage}-prompt.md`; the worker receives only a **one-line pointer** to that path, embedded at spawn as the command's single **shell-quoted** prompt argument (per `_cli-agents.md` § Spawn Composition's "shell-escape any user-supplied text before embedding it" — the pointer names a repo-derived path, so a checkout under a directory containing a `'` must not break the `new-window`/`split-window` command). A multi-thousand-token prompt cannot ride `send-keys`/argv reliably, and embedding at spawn sidesteps the printed-prompt trap (there is no pre-existing buffer to probe). Prompt *content* is identical to the headless prompt. The resolved `session_command` itself is inserted **verbatim**, so its own shell expansions still expand inside the new pane.
 - **The pane path has TWO prerequisites — a reachable tmux server AND a `session_command` — and BOTH failures are asymmetric by SELECTION SOURCE.** Under an **explicitly** selected pane (`--pane`, or `--server` acting as the pane signal) either shape exits non-zero, launching nothing and writing no state — a caller who asked for watchability must not be silently downgraded: an unreachable server gives `pane mode requires a reachable tmux server, but <target> is unreachable; start tmux (or pass --server <name>), or pass --headless (drop --pane/--server) to dispatch headless` (the message names **pane mode**, not `--pane`, since `--server` alone can be the explicit signal), a missing `session_command` gives the usual `providers.<name>.session_command` config-key hint. Under **auto**, either shape instead **soft-falls-back to headless**, printing its one-line notice to **stderr** and proceeding with a headless launch that produces a headless-shaped record:
@@ -815,7 +803,7 @@ Exit codes:
 - `0` — success; YAML document on stdout.
 - non-zero — `<base>` is empty/invalid or `git diff` failed; actionable message on stderr (e.g., `base ref is empty`). The subcommand does not run `git merge-base` itself — callers must resolve the merge-base upstream and pass the result. The caller decides whether to abort or skip.
 
-Consumers: `fab pr-meta` (which renders the PR body `**Impact**` line via the same `internal/impact` package) and the apply-finish, hydrate-finish, and ship-finish hooks (write the result into `.status.yaml` `true_impact`; ship-finish is the authoritative write in the standard pipeline — the earlier writes see `HEAD == merge-base` until commits exist). `/git-pr` no longer calls `fab impact` directly — it delegates the whole `## Meta` block to `fab pr-meta`.
+Consumers: `fab pr-meta` (which renders the PR body `**Impact**` line via the same `internal/impact` package) and the apply-finish, hydrate-finish, and ship-finish hooks (write the result into `.status.yaml` `true_impact`; ship-finish is the authoritative write in the standard pipeline — the earlier writes see `HEAD == merge-base` until commits exist). `/git-pr` delegates the whole `## Meta` block to `fab pr-meta`.
 
 ---
 
@@ -825,7 +813,7 @@ Consumers: `fab pr-meta` (which renders the PR body `**Impact**` line via the sa
 fab pr-meta <change> --type <type> [--issues "DEV-1 DEV-2"]
 ```
 
-Renders the complete `## Meta` block of a fab-generated PR as final markdown on stdout — the deterministic replacement for the natural-language Meta formatting that previously lived in `/git-pr` Step 3c. The block is byte-for-byte stable across runs, so the Meta block stops drifting between PRs.
+Renders the complete, byte-stable `## Meta` block of a fab-generated PR as final markdown on stdout.
 
 Arguments and flags:
 - `<change>` — 4-char ID, folder substring, or full folder name (resolved via the same `resolve` package as every other subcommand).
@@ -975,8 +963,7 @@ Shape warnings (non-fatal, stderr — the "detect" half of the memory-tree-shape
 - Warnings are advisory: they never block, never modify files, and never affect the byte-stable
   index output (so a regen-with-warnings is still idempotent).
 
-Content warnings (stderr — the malformed-detection + description-length work of 260715-xu0k, plus the
-FKF present-truth guards of 260718-mxgu). All are gathered in the same pass as the shape warnings and
+Content warnings are gathered in the same pass as the shape warnings and
 printed to stderr on **both** the write and `--check` paths; **none change the byte-stable rendered
 index output** (an offending value keeps rendering exactly as it does now — validation is
 stderr/exit-code only). They split into a **BLOCKING** class (fails `--check`) and an **ADVISORY** class
@@ -993,8 +980,7 @@ stderr/exit-code only). They split into a **BLOCKING** class (fails `--check`) a
   when a `description:` value carries a **registry-gated change-id** — a full `YYMMDD-XXXX-slug`
   folder-name token whose registered folder matches, or a bare registered 4-char id (the same
   `attributeCommit` false-positive-free gating: `code`/`yaml`/any unregistered 4-char word never
-  matches). The FKF §3.2 change-id ban is now **enforced** (260718-mxgu — the advisory-only posture
-  demonstrably failed).
+  matches). The FKF §3.2 change-id ban is **enforced**.
 - `✖ … has a <N>-character \`description:\` (blocking cap: 1000, soft cap: 500) — trim to a one-liner; detail belongs in the file body`
   when a `description:` value exceeds **1000 runes** (2× the soft cap — gross over-cap; hardcoded
   package const `DescriptionBlockingLenThreshold`). The 501–1000 range keeps the advisory length nag below.
@@ -1002,10 +988,9 @@ stderr/exit-code only). They split into a **BLOCKING** class (fails `--check`) a
 **ADVISORY** `⚠` (never fail `--check`):
 - `⚠ … has a <N>-character \`description:\` (soft cap: 500) — trim to a one-liner; detail belongs in the file body`
   when a `description:` value is in the **501–1000** range (over the 500 soft cap, at or under the
-  1000 blocking cap; `DescriptionLenWarnThreshold`, runes, NOT config-overridable). As of **260718-dsrx**
-  this nag **rides the `--check --json` `warnings[]` array** (kind `description-length`, `count` = the rune
-  length) — the canonical machine surface the `/docs-distill-memory` survey consumes for its over-cap
-  heuristic, replacing an agent-side frontmatter re-check.
+  1000 blocking cap; `DescriptionLenWarnThreshold`, runes, NOT config-overridable). This nag **rides
+  the `--check --json` `warnings[]` array** (kind `description-length`, `count` = the rune length), the
+  canonical machine surface the `/docs-distill-memory` survey consumes for its over-cap heuristic.
 - `⚠ … has <N> narration markers (threshold: 5) — distillation debt; consider /docs-distill-memory`
   when a **topic file's** body carries ≥ 5 narration markers — case-insensitive transition stems
   (`no longer`/`previously`/`renamed`/`supersed`) plus registry-gated change-id tokens **outside the
@@ -1044,13 +1029,9 @@ Flags:
   suppress the human-readable text; the exit code is unchanged. Mirrors the `fab pane` /
   `fab migrations-status` `--json` convention (snake_case). Shape:
   `{"tier": 0|1|2, "drift": bool, "losses": [{"category": "description"|"tombstone"|"grouping", "path": "<repo-rel index>", "detail": "<lost text | dropped link target | flattened heading>"}], "malformed": [{"kind": "malformed-fence"|"malformed-description"|"description-change-id"|"description-over-cap", "path": "<repo-rel file>", "detail": "<offending value | matched change-id, omitted for fence/over-cap>"}], "warnings": [{"kind": "description-length"|"narration-density"|"file-size"|"unsorted-nonempty"|"broken-link", "path": "<repo-rel file/folder>", "count": <N — rune length for description-length; line count for file-size; marker count for narration-density; staged-file count for unsorted-nonempty>, "bytes": <N — file-size findings only, omitted otherwise>, "detail": "<broken link target, omitted otherwise>"}]}`.
-  The `malformed` array (blocking findings) is **additive** (260715-xu0k), and the `warnings` array
-  (advisory findings — the machine surface [dsrx] consumes instead of parsing stderr) is **additive**
-  (260718-mxgu, extended by 260718-dsrx to carry the `description-length` kind so the survey's
-  over-cap heuristic has a machine surface instead of an agent-side frontmatter re-check): the
-  `tier`/`drift`/`losses` keys are unchanged, so `/docs-reorg-memory`'s compatibility detection (which
-  branches on `tier` / reads `losses`) is unaffected — as is every existing `warnings[]` consumer (the
-  five advisory kinds join one additive array). `losses`, `malformed`, and `warnings` are always
+  The `malformed` array (blocking findings) and `warnings` array (advisory findings) are **additive**:
+  `/docs-reorg-memory` compatibility detection continues to branch on `tier` and read `losses`, and
+  the five advisory kinds share one `warnings[]` array. `losses`, `malformed`, and `warnings` are always
   present (empty arrays, never `null`).
 - `--rebuild` — **DESTRUCTIVE** freeze-on-write escape hatch (FKF §6.4): discard the accumulated
   frozen `log.md` state and re-project every `log.md` from current git (the pre-freeze behavior, made
@@ -1070,8 +1051,8 @@ benign drift — see below):
   (no regen needed).
 - **`1`** — **benign drift**: regen would change content but destroy nothing (e.g. an *improved*
   `description:`, a stale `log.md`, a `log.md` gaining merged
-  `log.seed.md` entries, or absent/changed FKF frontmatter). This is the former "out of date"
-  condition — existing consumers treating "non-zero = stale" still work unchanged. **All `log.md`
+  `log.seed.md` entries, or absent/changed FKF frontmatter). Consumers may treat non-zero as stale.
+  **All `log.md`
   and FKF-frontmatter drift is benign (tier 1)** — a `log.md` is a C-lite git projection (plus any
   merged seed), not a row-table index, so the three destructive-loss detectors below are skipped for
   it, and FKF added **no new tier-2 category** (FKF / OQ4 decision); a preserved seed is never
@@ -1096,10 +1077,10 @@ benign drift — see below):
   — it relocates tombstone rows itself and dispatches `/docs-hydrate-memory` backfill mode for the
   descriptions; backfill alone does not relocate tombstones.)
 
-**The BLOCKING content class — a distinct signal, not a drift tier (260715-xu0k + 260718-mxgu).** Four
-`✖` findings form the blocking class: malformed frontmatter (unclosed fence, quote-strip failure —
-source corruption, 260715-xu0k) plus the two FKF §3.2 description escalations (a registry-gated
-**change-id** in `description:`, and a **gross over-cap** `description:` > 1000 runes — 260718-mxgu).
+**The BLOCKING content class is a distinct signal, not a drift tier.** Four `✖` findings form the
+blocking class: malformed frontmatter (unclosed fence, quote-strip failure) plus the two FKF §3.2
+description escalations (a registry-gated **change-id** in `description:`, and a **gross over-cap**
+`description:` > 1000 runes).
 They **floor the `--check` exit at 1 even when index drift is clean (tier 0)** — the loom case is
 provably tier 0 (the committed garbage/over-cap/change-id row is byte-identical to what regeneration
 produces from the source), so a pure drift comparison exits 0 and would never catch it; the blocking
@@ -1112,7 +1093,7 @@ offending file (restore the closing `---` / matching quotes for corruption; trim
 hydrate/reorg refuse-before-regen guards (which key on exit == 2). The **advisory** warnings — the
 501–1000 length nag, narration density, file size, `_unsorted` staging, and broken links — never
 affect the exit code (blocking blocks, advisory nags). Internally the blocking predicate is
-`Warning.IsBlocking()` (the former `IsMalformed()`, generalized); the `--json` key stays `malformed`
+`Warning.IsBlocking()`; the `--json` key stays `malformed`
 for consumer compatibility.
 
 Callers pick a threshold: **CI / pre-commit** fails on exit ≥ 1 (any drift **or** any blocking
@@ -1183,7 +1164,7 @@ Per node: `name=cmd.Name()`, `path=cmd.CommandPath()`, `short=cmd.Short`, `usage
 
 The envelope is exactly `{tool, version, schema_version, root}`. Per the toolkit help-dump standard it carries **no `captured_at`** — the capture timestamp is owned by shll.ai (a tool cannot know its own capture time; the puller stamps it after capture).
 
-`tool` is the literal `"fab"` (the user-facing binary), which differs from the repo/site slug `fab-kit`. shll.ai's puller *pulls* this output on a schedule (invoking `fab help-dump` itself) and renders it as fab-kit's command reference — fab-kit pushes nothing (the former release-workflow push step was torn down in `260603-mtf9`).
+`tool` is the literal `"fab"` (the user-facing binary), which differs from the repo/site slug `fab-kit`. shll.ai's puller invokes `fab help-dump` on a schedule and renders the result as fab-kit's command reference; fab-kit pushes nothing.
 
 ---
 
@@ -1195,7 +1176,7 @@ fab operator
 
 Singleton tmux-tab launcher for `/fab-operator`. Requires `$TMUX` (else exit 1, `ERROR: not inside a tmux session`). The singleton check is an **exact, server-wide** window-name match: `tmux list-windows -a` enumerated and compared exactly (never tmux target resolution, whose prefix/glob fallback would let e.g. `operator-logs` mask the real check; `-a` enforces the one-operator-per-SERVER invariant across sessions). If a window named exactly `operator` exists anywhere on the server → select it by window ID, switching the client to its session when needed (`Switched to existing operator tab.`); else create the window running `{operator-session-command} '/fab-operator'` (`Launched operator.`).
 
-**Launch cwd (no git-repo dependency)**: the new window's working directory (`tmux new-window -c <dir>`) is resolved by trying `git rev-parse --show-toplevel` first and falling back to `os.Getwd()` when that fails — so the operator launches **inside a git repo** (cwd = repo root, today's behavior) **or from a neutral parent directory** (cwd = current directory). It no longer hard-fails with `cannot determine repo root`; it errors only if both git-root resolution AND `os.Getwd()` fail. This matches the per-tmux-server, cross-repo singleton model: the operator's natural launch point is a neutral dir with no `fab/` project.
+**Launch cwd (no git-repo dependency)**: the new window's working directory (`tmux new-window -c <dir>`) is resolved by trying `git rev-parse --show-toplevel` first and falling back to `os.Getwd()` when that fails. The operator launches **inside a git repo** (cwd = repo root) **or from a neutral parent directory** (cwd = current directory), and errors only if both resolutions fail. This matches the per-tmux-server, cross-repo singleton model: the operator's natural launch point is a neutral dir with no `fab/` project.
 
 **Session command resolution (no `fab/`-project dependency) + operator-role profile**: the operator resolves the **operator role** in-process (`agent.ResolveRole(cfg, "operator")`) → its provider (the `agent.session` knob, since `operator` is a Tier-1 role) → that provider's `session_command`, then injects the role's `{model, effort}` via `spawn.WithProfile`. When a `fab/` project is resolvable (`resolve.FabRoot()` succeeds) the config supplies the knob + provider; when `resolve.FabRoot()` **fails** — the operator is launched from a neutral directory with no `fab/` project anywhere up the tree (its natural cross-repo home) — this is **non-fatal**: `config.Load` returns an empty config, so `ResolveRole`/`ResolveProvider` degrade to fab-kit's built-in operator profile (`claude-sonnet-5`/`medium`) + built-in claude provider (`spawn.DefaultSpawnCommand`). `WithProfile` is grammar-forgiving: for a **template** `session_command` containing `{model}`/`{effort}` — including the built-in claude default, which is templated — it **substitutes** the resolved values in place (all-or-nothing; an empty value drops the placeholder's token and a preceding `-`-flag); for a command carrying **no placeholder** (e.g. a user's plain-form config carried forward by the 2.13.0 migration) it instead **appends** `--model <model> --effort <effort>` to the END (last-wins; each flag omitted when its value is empty, per the `empty ⇒ omit` convention). A provider without a `session_command` falls back to `spawn.DefaultSpawnCommand` (the templated claude default, still profile-substituted). So a `fab/`-less launch composes a fully-defaulted command: default session command + the built-in operator `{model, effort}` (byte-identical whether resolved by substitution or, for a plain user command, by append).
 
@@ -1235,7 +1216,7 @@ Duration is Go format (`3m`, `5m`, `2m`). Invalid → exit 1.
 fab agent [role] [--provider <name> [--model <id>] [--effort <level>]] [--print] [--repo <path>]
 ```
 
-Launch (or `--print`) the resolved agent **session** command in the current shell. Replaces `fab spawn-command`, with a semantic upgrade: the printed/exec'd command is **profile-resolved** (model/effort substituted), not placeholder-stripped.
+Launch (or `--print`) the profile-resolved agent **session** command in the current shell, with model and effort substituted.
 
 Two **mutually exclusive addressing modes** compose the command:
 
@@ -1245,8 +1226,8 @@ Two **mutually exclusive addressing modes** compose the command:
 Common to both modes:
 
 - **Default (exec)**: replaces this process with the composed command via `sh -c` (so shell expansions like `$(basename "$(pwd)")` expand at invocation). `fab agent` starts the default-role agent right here; `fab agent operator` starts the coordinator profile. **No TTY guard** — exec-and-let-the-agent-CLI-handle-it (document-don't-validate).
-- **`--print`**: prints the fully-resolved command instead of executing (the `fab spawn-command` replacement — profile-resolved, not stripped). Lets the operator compose a worker spawn from a real profile.
-- **`--repo <path>`**: reads `<path>/fab/project/config.yaml` instead of the current repo (the operator's fetch-another-repo's-command use case, carried over from `fab spawn-command --repo`). Composes with either addressing mode.
+- **`--print`**: prints the fully-resolved command instead of executing. Lets the operator compose a worker spawn from a real profile.
+- **`--repo <path>`**: reads `<path>/fab/project/config.yaml` instead of the current repo. Composes with either addressing mode.
 
 Provider-mode specifics:
 
@@ -1259,8 +1240,6 @@ Provider-mode specifics:
 
 The procedural knowledge for *using* the composed command — opening it in a tmux window, delivering a prompt reliably, peeking, awaiting — plus the per-provider invocation grammar and model-discovery recipes live in the `_cli-agents` helper (`helpers: [_cli-agents]`).
 
-*(`fab spawn-command` is removed in this release with no deprecation alias — its only CLI consumer was the operator skill, updated in the same kit. `fab batch` and the operator launcher use the internal `spawn` package, not this CLI command.)*
-
 ---
 
 ## fab batch
@@ -1271,8 +1250,8 @@ Multi-target operations: `fab batch <new|switch|archive> [flags] [targets...]`. 
 - **`switch`** — resolve change names (in-process via `resolve.ToFolder`, like the rest of the family — no `fab`-on-PATH dependency; an unresolvable name warns with the resolver's specific error, e.g. `Multiple changes match…`, and skips), create worktrees with branch names (applying `branch_prefix` from config), start agents with `/fab-switch {change}`. No args → `--list`. `--all` → all active changes (excludes `archive/`); empty set → exit 1, `ERROR: No changes found.`. Branch naming: `{branch_prefix}{folder_name}`. Requires `$TMUX` (else exit 1, `ERROR: not inside a tmux session`). **Branch routing** (per wt's 2af2 contract — the positional is new-branch-only, exiting 2 on an existing branch): `switch` probes branch existence (local `git show-ref --verify --quiet refs/heads/<b>`, then `git ls-remote --heads origin <b>`) and passes `--checkout <branch>` for an existing branch (the common case — its purpose is attaching worktrees to *existing* changes) or the positional for a new one; a failed/offline remote probe degrades to the positional (wt itself re-checks and errors). A `wt create` failure is warn-and-skipped with the **child stderr surfaced** in the warning line (wt's typed exit-2 fix hint), via `pane.RunCmd`/`pane.StderrError`. **Profile injection**: same as `new` — the worker spawn command is composed from the default role's provider `session_command` with the default role's `{model}`/`{effort}` substituted/appended via `internal/spawn`, so a profile rides the worker and no literal braces reach tmux. **`--quiet` / `-q`**: suppresses the `Opening N tabs for all changes...` preamble (`--all` path) and the per-change resolved-name line, leaving stdout empty on a successful run (no summary footer is added — tmux window creation is the observable effect); `--list` output and all stderr (resolve warnings, worktree-create errors) are unaffected.
 - **`archive`** — find changes with `hydrate: done|skipped`, then archive each mechanically in a Go loop via `internal/archive.ArchiveWithBacklog` (move, index, backlog mark-done, pointer). No agent or Claude session is spawned; resolution uses `resolve.ToFolder` (no `fab`-on-PATH dependency). **Flag surface (diverges from new/switch):** archive is the one bulk-mutating member whose moves are effectively irreversible within the loop, so instead of staying list-by-default behind `--all` it uses a list-then-confirm model with a `--yes` escape hatch (apt/npm/gh-style):
   - **bare invocation (interactive stdin)** → lists the archivable set, then prompts `Archive these N? [y/N]` with **default No** — a bare Enter or any non-`y`/`yes` (case-insensitive) answer aborts (exit 0, nothing archived); `y`/`yes` archives all.
-  - **`--yes` / `-y`** → archives all archivable changes with no prompt (the non-interactive escape hatch; resolved behavior of the former `--all`).
-  - **`--dry-run`** → lists what would be archived; no prompt, no action (the former `--list`).
+  - **`--yes` / `-y`** → archives all archivable changes with no prompt (the non-interactive escape hatch).
+  - **`--dry-run`** → lists what would be archived; no prompt, no action.
   - **non-TTY stdin without `--yes`** → refuses rather than hangs: returns a single multi-line error so `main()`'s centralized printer emits it once as `ERROR: refusing to prompt for confirmation on a non-interactive stdin.` followed by `Re-run with --yes to archive non-interactively` on stderr, then exits non-zero (the handler does not print its own `ERROR:` lines, avoiding a doubled prefix). This matters because the tmux/operator runtime is frequently non-interactive — those call sites pass `--yes`.
   - **explicit args** (`fab batch archive foo bar`) → archive the named changes with **no prompt and no TTY guard** (naming them IS the opt-in; the prompt applies only to the bare/archive-all path).
   - **`--dry-run --yes`** → mutually exclusive → exits non-zero (`ERROR: --dry-run and --yes are mutually exclusive`).

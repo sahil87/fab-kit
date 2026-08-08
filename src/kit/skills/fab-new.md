@@ -156,7 +156,3 @@ Next: {per state table — intake state (no activation preamble)}
 | Advances stage? | Yes — intake to `ready` |
 | Modifies `.fab-status.yaml`? | Yes — activates the new change (Step 10) |
 | Modifies git state? | Yes — creates/checks out the change branch (Step 11, non-fatal) |
-
----
-
-Next: {derive at runtime per `_preamble.md` § Lookup Procedure — intake state, default first: `/fab-continue, /fab-ff, /fab-fff, /fab-proceed, or /fab-clarify`}

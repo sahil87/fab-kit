@@ -31,7 +31,7 @@ description: "Set up a new project, manage config/constitution, or apply version
 - **No arguments** — full structural bootstrap
 - **`config [section]`** — create/update `fab/project/config.yaml` interactively; optional `[section]` edits one section directly (valid: `project`, `source_paths`, `checklist`)
 - **`constitution`** — create/amend `fab/project/constitution.md` with semantic versioning
-- **`migrations [file]`** — apply version migrations to sync project files with the installed kit (absorbed from fab-update)
+- **`migrations [file]`** — apply version migrations to sync project files with the installed kit
 - **`validate`** — redirect message: "Validation is built into `/fab-setup config` and `/fab-setup constitution` — each validates after every edit."
 
 Any unrecognized argument triggers: "Unknown subcommand: {arg}. Valid: config, constitution, migrations. Run `/fab-setup` with no arguments for full setup."
@@ -66,15 +66,13 @@ After the pre-flight check passes, log the command invocation:
 fab log command "fab-setup"
 ```
 
-This is best-effort — the command always exits 0 (failures surface only as a stderr warning) and resolves the active change via `.fab-status.yaml` if one exists.
-
 ---
 
 ## Bootstrap Behavior
 
 When invoked with no arguments, perform the full structural bootstrap. `/fab-setup` delegates directory/skeleton/deployment creation to `fab sync` (step 1c) while handling interactive config/constitution generation itself.
 
-> **Ordering note**: `fab sync` runs immediately after the interactive config/constitution steps (1a/1b) — it requires a resolvable pinned version (`fab/.fab-version`, stamped by `fab init`). Its scaffolding operations are copy-if-absent / line-ensure merges, so the outcome is identical to the former sync-last order via idempotency.
+> **Ordering note**: `fab sync` runs immediately after the interactive config/constitution steps (1a/1b) because it requires a resolvable pinned version (`fab/.fab-version`, stamped by `fab init`). Its scaffolding operations are idempotent copy-if-absent / line-ensure merges.
 
 ### Phase 0: Prerequisite Check
 
@@ -152,9 +150,9 @@ Create a new `fab/project/config.yaml` interactively or update specific sections
 
 ### Config Create Mode
 
-**Create-mode trigger** (canonical): `fab/project/config.yaml` is missing, is a placeholder generation (contains the example identity value `My Project` — the embedded-stub fallback's default name), OR is missing the required fields `project.name`/`project.description` — e.g. the canonical `fab init` flow generates `config.yaml` from the registry (via `fab config init --project`, or a minimal embedded stub if the installed fab-go predates it) before sync's copy-if-absent runs.
+**Create-mode trigger** (canonical): `fab/project/config.yaml` is missing, is a placeholder generation (contains the example identity value `My Project` — the embedded-stub fallback's default name), OR is missing the required fields `project.name`/`project.description`. `fab init` generates `config.yaml` from the registry via `fab config init --project`, with a minimal embedded-stub fallback when that command is unavailable, before sync's copy-if-absent runs.
 
-> **What `fab init` already seeded.** `fab init` runs a mechanical, non-interactive detection at the Go layer and passes it to `fab config init --project`, so the generated file already carries **live** identity fields where detection was confident: `project.name` from the repo folder name, `source_paths` from an existing `src/` directory, and `test_paths` from the ecosystem marker table below. `project.description` is never detected mechanically (there is no reliable source) and is absent from the generated file. Your job in create mode is to **refine** these seeded values to what the user actually wants and to **add the description** — not to fill an empty template.
+> **Generated config inputs.** `fab init` runs mechanical, non-interactive detection at the Go layer and passes it to `fab config init --project`, so the generated file carries **live** identity fields where detection is confident: `project.name` from the repo folder name, `source_paths` from an existing `src/` directory, and `test_paths` from the ecosystem marker table below. `project.description` is absent because there is no reliable mechanical source. Create mode **refines** these seeded values and **adds the description**.
 
 When that trigger holds:
 
@@ -173,7 +171,7 @@ When that trigger holds:
      | *(no marker / unrecognized)* | — | leave empty; standing examples remain the reference |
 
      Record the detected ecosystem + pattern set (or "no convention detected") for the note in step 6. Note the Go-layer detection is intentionally conservative (folder name; `src/`; single-file markers only) — JS/TS package.json-dep detection and any non-obvious call are your job here, so the seeded file may lack a `test_paths` your inspection can now add.
-3. **Refine the registry-generated `config.yaml`** (the scaffold template was retired in 2.15.0 — `config.yaml` is generated from the registry, not substituted from a template). `fab init` already generated the file with the detected identity fields live above the managed reference fence (or a minimal embedded stub carrying the same detected seed if the installed fab-go predated `fab config init --project`). Apply the user's refinements in place via **targeted string replacement** (the same comment-preserving edit update-mode uses — NOT a full rewrite; the managed fence and every comment stay intact):
+3. **Refine the registry-generated `config.yaml`**. The file carries detected identity fields live above the managed reference fence (or the same detected seed in a minimal embedded stub when `fab config init --project` is unavailable). Apply the user's refinements in place via **targeted string replacement** (the same comment-preserving edit update-mode uses — NOT a full rewrite; the managed fence and every comment stay intact):
    - `project.name` → the user's name (the seeded folder-name default is often right — replace only if the user chose differently); **add `project.description`** (the generated file has no description key — insert one under `project:`)
    - `source_paths` → the user's source paths (replacing the seeded `src/` if different)
    - `test_paths` → the detected patterns. **For `test_paths`**: if the generated file has a live `test_paths:` key (detection seeded one), replace its value only if your richer inspection found a better set; if `test_paths` sits only inside the commented fence (no marker was detected at init), add a live `test_paths:` above the fence when your inspection now finds a convention, else leave the fence untouched — the field stays inherited/advertised.
@@ -181,8 +179,8 @@ When that trigger holds:
    test_paths:
      - "**/*_test.go"
    ```
-   When no ecosystem was recognized (or the stack uses inline tests like Rust), leave `test_paths` unset (it stays advertised in the fence); the impact breakdown collapses to a single total (today's behavior). Do **not** hand-add or remove the managed reference fence — `fab config upgrade` (auto-run by `fab upgrade-repo`) owns it.
-4. **Do NOT touch the pinned version**: the engine version lives in `fab/.fab-version` (stamped by `fab init`), NOT in `config.yaml` — there is no `fab_version:` key to preserve or stamp (relocated in 2.15.0). Leave `fab/.fab-version` alone.
+   When no ecosystem was recognized (or the stack uses inline tests like Rust), leave `test_paths` unset (it stays advertised in the fence); the impact breakdown collapses to a single total. Do **not** hand-add or remove the managed reference fence — `fab config upgrade` (auto-run by `fab upgrade-repo`) owns it.
+4. **Do NOT touch the pinned version**: the engine version lives in `fab/.fab-version` (stamped by `fab init`), NOT in `config.yaml` — there is no `fab_version:` key to preserve or stamp. Leave `fab/.fab-version` alone.
 5. Validate the edited `config.yaml` (YAML parses; `project.name`/`project.description` present).
 6. Output: `Updated fab/project/config.yaml`, then a **test_paths detection note**:
    - **Detected**: `Detected {ecosystem} — set test_paths to {patterns}. Edit fab/project/config.yaml if wrong.`

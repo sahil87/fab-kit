@@ -7,6 +7,8 @@
 
 ## Summary
 
+**Source organization:** The source keeps the ship-time memory refresh contract as concise present truth.
+
 Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no questions. Resolves PR type from status/intake/diff. Generates PR body from fab artifacts when available. Records PR URL in `.status.yaml`.
 
 **State hardening** (260612-g8st): verifies git state before mutating — detached-HEAD STOP before any commit/push; the branch guard uses the *resolved* default branch (symbolic-ref → `gh repo view` → probed literal `main`/`master`; always non-empty); staging is scoped (`git add -u` + expected-area guard for untracked files — never `git add -A`); Step 3 branches on the PR's `state` (OPEN short-circuit / CLOSED fresh PR / MERGED STOP).
