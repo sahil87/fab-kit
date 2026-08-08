@@ -18,11 +18,18 @@
 > § Skill wiring → *Amendments are explicit*: the protocol now names three adapters, states the
 > per-adapter delivery mechanism and observable-state subset, and records that steering a pane worker
 > changes no obligation. Nothing was silently redefined inside a skill file.
+>
+> **Amended by `260808-tv3g-native-apply-worker-resume`** — worker continuation (reusing the **apply**
+> worker across rework cycles) is recorded as a **native-adapter-only** capability with a mandatory
+> fresh-dispatch fallback, and the headless adapter is stated to be deliberately non-resumable while the
+> pane adapter is left unchanged. Same explicit-amendment route as above: the capability is amended
+> into this spec rather than silently redefined inside a skill file.
 
 Fab runs a six-stage pipeline (`intake → apply → review → hydrate → ship → review-pr`). Every
 post-intake stage is executed by **dispatching a worker** in a fresh context that returns a structured
 result (see [`stage-models.md`](stage-models.md) § Why this is possible now, and `_preamble.md`
-§ Subagent Dispatch). Historically there was one way to dispatch a worker — the Claude Code **Agent
+§ Subagent Dispatch) — except a **continued** native apply worker, which is deliberately *not* fresh
+(§ 1). Historically there was one way to dispatch a worker — the Claude Code **Agent
 tool** (an in-harness sub-agent). Cross-harness dispatch (e.g. a codex orchestrator running `apply` on
 claude, or a claude orchestrator handing a stage to codex) added a second: a **detached CLI process**
 observed via files. A third recovers what that detached process cannot offer — **watch and steer**: an
@@ -64,6 +71,30 @@ the **model** on the Agent tool's `model` parameter (a short alias via `fab reso
 no effort parameter). The worker runs in-process; its result is the sub-agent's returned message. The
 orchestrator observes the five states (below) **structurally** — it holds the sub-agent handle, so
 "running/done/failed" are direct properties of the Agent-tool call.
+
+**Worker continuation is a native-adapter-only capability** (amendment, `260808-tv3g`). Because the
+handle lives entirely in the orchestrator's own context, the native adapter can *keep* a worker rather
+than re-dispatch it: an auto-rework-capable orchestrator names its **apply** worker `apply-{id}` at
+dispatch and, on a later rework cycle, sends the triaged findings and chosen rework action to that name
+instead of paying a cold start, and instructs the worker to RE-READ from disk every artifact the
+orchestrator edited at that item — always plan.md — because its in-context copy predates those edits.
+The continued worker is bound by the **same** dispatch-prompt obligations as a fresh one (result,
+block-contract carve-out, terminal `fab status refresh`); only the standard **context files** are not
+re-carried, because the worker still holds them. **Continuation is an optimization with a mandatory
+fallback**: an unreachable handle — the orchestrator session was resumed or restarted, the harness has
+no named-agent/message capability, the send errors, or the worker was never named — falls back to an
+ordinary fresh dispatch carrying the full obligations, so no protocol guarantee is conditioned on a
+session surviving. A resumed worker also keeps its first-dispatch `{model, effort}`: resolution runs
+only on fresh dispatches. Scope is **apply inside the rework loop only** — review workers are
+deliberately never named or continued (reviewer independence), and hydrate and every other stage always
+dispatch fresh. `_preamble.md` § Worker Continuation owns the mechanics.
+
+**The other two adapters carry no continuation.** Adapter 2 (headless CLI) is **deliberately
+non-resumable** — resuming a detached CLI worker would require session-ID persistence and a provider
+`resume_command` grammar, which the contract does not define and no adapter may improvise. Adapter 3
+(interactive pane) is **unchanged here**: a pane worker is steerable by a human but the pipeline never
+sends it keys (§ Steering a pane worker changes no contract), so pipeline-driven pane resume needs its
+own runtime verb and is a separate follow-up change, not an implicit consequence of this amendment.
 
 ### 2. Headless CLI adapter — `fab dispatch start` (new in 3c)
 
@@ -238,7 +269,10 @@ Whatever adapter dispatches a stage, the prompt handed to the worker MUST:
 2. **Carry the standard subagent context files** — `fab/project/config.yaml`,
    `fab/project/constitution.md`, and (optional) `context.md` / `code-quality.md` / `code-review.md`
    (`_preamble.md` § Standard Subagent Context). A worker in a fresh context/harness has no other
-   awareness of project principles.
+   awareness of project principles. **This obligation binds every *dispatch*.** A **continuation**
+   message to an already-running named worker (§ 1, native adapter only) carries obligations 1 and 3
+   only — the worker already holds the context files, which is the point of continuing it;
+   `_preamble.md` § Worker Continuation owns the mechanics.
 3. **End with a post-stage `fab status refresh` epilogue** so the worker recomputes state from
    artifacts after finishing (the pull-based state-recompute surface change 3a lands — `fab status
    refresh`, replacing the removed artifact-write hook). This keeps a dispatched stage's `.status.yaml`
@@ -246,10 +280,11 @@ Whatever adapter dispatches a stage, the prompt handed to the worker MUST:
 
 **Delivery mechanism is adapter-specific; obligations are not.** *How* the prompt reaches the worker
 varies — the dispatched prompt itself (native), the command's stdin (headless), or a prompt **file** plus
-a one-line **pointer** to it (pane). The three obligations above bind the prompt's *content* identically
-in every case: a pane worker that reads its pointer is reading the same block prompt, with the same
-result-file, context-file, and refresh-epilogue obligations, that the other two adapters hand over
-directly.
+a one-line **pointer** to it (pane). The three obligations above bind every **dispatch** prompt's
+*content* identically: a pane worker that reads its pointer is reading the same block prompt, with the
+same result-file, context-file, and refresh-epilogue obligations, that the other two adapters hand over
+directly. A **continuation** message is not a dispatch and carries obligations 1 and 3 only — see
+obligation 2's carve-out above.
 
 ### The five-state machine (every adapter observes a subset of it)
 

@@ -1,0 +1,55 @@
+id: tv3g
+name: 260808-tv3g-native-apply-worker-resume
+created: 2026-08-08T22:51:20Z
+created_by: Sahil Ahuja
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 7
+    acceptance_count: 21
+    acceptance_completed: 21
+confidence:
+    certain: 7
+    confident: 2
+    tentative: 0
+    unresolved: 0
+    score: 4.8
+    fuzzy: true
+    dimensions:
+        signal: 75.6
+        reversibility: 87.8
+        competence: 88.9
+        disambiguation: 84.4
+stage_metrics:
+    intake: {started_at: "2026-08-08T22:51:20Z", driver: fab-new, iterations: 1, completed_at: "2026-08-08T22:55:29Z"}
+    apply: {started_at: "2026-08-08T23:23:50Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-08T23:27:49Z"}
+    review: {started_at: "2026-08-08T23:27:49Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-08T23:37:57Z"}
+    hydrate: {started_at: "2026-08-08T23:37:57Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T23:42:10Z"}
+    ship: {started_at: "2026-08-08T23:42:10Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-08-08T23:42:10Z"
+    computed_at_stage: hydrate
+summary: Auto-rework loop resumes its native-arm apply worker (apply-{id}) across cycles with a mandatory fresh-dispatch fallback; continuation messages carry the result + refresh obligations only.
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-08T23:42:10Z

@@ -279,7 +279,7 @@ Orchestrator skills (`/fab-ff`, `/fab-fff`, and the prefix-step orchestrator `/f
 
 ### Standard Subagent Context
 
-Every subagent prompt MUST instruct the subagent to read the following project files **before** executing its task. This ensures subagents operate with full awareness of project principles, constraints, and conventions — regardless of nesting depth.
+Every subagent **dispatch** prompt MUST instruct the subagent to read the following project files **before** executing its task. This ensures subagents operate with full awareness of project principles, constraints, and conventions — regardless of nesting depth. A *continuation* message to an already-running named worker is not a dispatch and deliberately does **not** re-carry them (§ Worker Continuation).
 
 **Required** (subagent reports error if missing):
 - `fab/project/config.yaml`
@@ -320,6 +320,25 @@ User-directed overrides are per invocation and ride the same single `fab resolve
 Every dispatch site MUST surface the resolved `model=`/`effort=`/`provider=`/`dispatch=` lines; an all-empty resolution is a signal to flag, not a reason to dispatch blind. `--alias` emits the Agent-tool-valid short alias directly. The operator launcher is the deliberate exception: it resolves without `--alias`; `WithProfile` substitutes `{model}`/`{effort}` in templated `session_command` values (dropping an empty placeholder and its preceding flag) or appends `--model <full-id> --effort <level>` to plain commands. See `docs/specs/stage-models.md` § Skill wiring.
 
 Every post-intake stage uses this resolution before its dispatched sub-agent, including plain `/fab-continue`; intake remains in the main session. A stage skill genuinely run without dispatch MAY report the configured profile but MUST NOT attempt to switch the session model.
+
+### Worker Continuation (native arm)
+
+On the **native Agent-tool arm only**, an auto-rework-capable orchestrator MAY keep its apply worker alive across rework cycles instead of paying a cold start per cycle. A continued worker still holds the always-load layer, `intake.md`, `plan.md`, the affected memory, and the source files it just wrote — and, unlike a fresh worker, it also remembers what the reviewer already rejected. `_pipeline.md` § Auto-Rework Loop wires this; the mechanics live here.
+
+- **Naming.** When the native branch dispatches the **apply** stage from an auto-rework-capable orchestrator (`/fab-ff`, `/fab-fff`, and `/fab-adopt` as a partial consumer of that loop), the Agent call passes `name: "apply-{id}"`, where `{id}` is the 4-char change ID — e.g. `apply-tv3g`.
+- **Continuation.** A later rework cycle resumes that worker by sending the new instructions to `apply-{id}` (SendMessage) instead of spawning a fresh agent. The continuation prompt carries the **triaged findings** and the **rework action** the orchestrator chose, and instructs the worker to RE-READ from disk every artifact the orchestrator edited at that item — always plan.md — because its in-context copy predates those edits. It re-states the block contract: return results only, run no `fab status` **transition** command (`start`/`advance`/`finish`/`reset`/`fail`/`skip`), and end with the terminal `fab status refresh`. It deliberately does **NOT** re-carry the standard subagent context files (§ Standard Subagent Context) — the worker already holds them, which is the entire point of continuing it.
+- **Fallback rule (load-bearing).** Continuation is an **optimization, never a correctness dependency**. Reachability is established **by attempting the send** — there is no separate probe, and a send that fails or errors *is* the unreachable signal. Dispatch fresh — per the ordinary Stage Dispatch Procedure, including the full § Dispatch-Prompt Obligations — whenever the named worker is unreachable:
+
+  | Unreachable because | Consequence |
+  |---------------------|-------------|
+  | The orchestrator session was resumed or restarted (handles do not survive) | Fresh dispatch |
+  | The harness has no named-agent / SendMessage capability | Fresh dispatch |
+  | The send errors | Fresh dispatch |
+  | The worker was never named (e.g. the stage went through the CLI adapter) | Fresh dispatch |
+
+  A fresh fallback dispatch **re-establishes the name wherever the native branch and the naming capability exist**, so subsequent cycles can continue it. The fallback path is today's behavior verbatim — same prompt, same obligations, same transitions — so a broken resume path degrades to the status quo, never to a pipeline failure (Constitution III).
+- **Profile fixity.** A resumed worker keeps the model and effort it was first dispatched with; `fab resolve-agent apply --alias` is **NOT** re-run on the resume path. Resolution runs — and is surfaced — only on **fresh** dispatches, initial or fallback. Re-resolving on a resume would surface a value the cycle cannot honor, which is the opposite of what the surfacing rule is for.
+- **Scope guard.** Continuation exists **only** for the apply worker inside the auto-rework loop. **Review workers are never named and never continued** (`_pipeline.md` Auto-Rework Loop item 4's fresh-worker rule is reviewer-independence design and is untouched). Hydrate and every other stage are unaffected and always dispatch fresh. The **CLI-adapter branch (`dispatch=` present) is entirely out of scope**: headless is non-resumable by decision, and pane resume is a separate change.
 
 ### CLI-Adapter Dispatch (the `dispatch=` path)
 
@@ -414,10 +433,10 @@ Per `docs/specs/harness-adapters.md` § Dispatch-prompt obligations, **whatever 
    ```
 
    The **`status` vs `verdict` split is load-bearing**: a completed review with `verdict: fail` is dispatch-state `done` (result present) — the orchestrator then takes the normal review-fail path. Dispatch-state `failed` is reserved for worker/infrastructure failure.
-2. **Carry the standard subagent context files** — `fab/project/config.yaml`, `fab/project/constitution.md`, and (optional) `context.md` / `code-quality.md` / `code-review.md` (§ Standard Subagent Context). Already true for native prompts; the CLI prompt content MUST carry the same instruction — a worker on a fresh harness has no other awareness of project principles.
+2. **Carry the standard subagent context files** — `fab/project/config.yaml`, `fab/project/constitution.md`, and (optional) `context.md` / `code-quality.md` / `code-review.md` (§ Standard Subagent Context). Already true for native prompts; the CLI prompt content MUST carry the same instruction — a worker on a fresh harness has no other awareness of project principles. **This obligation binds every *dispatch***; a **continuation** message to an already-running named worker carries obligations 1 and 3 only, because the worker already holds the context files (§ Worker Continuation).
 3. **End with a terminal `fab status refresh` epilogue** so the worker recomputes state from artifacts after finishing (the 3a pull-based recompute). This is the sole `fab status` command a dispatched block runs — see the block-contract carve-out below.
 
-**Delivery mechanism varies; the obligations do not.** *How* the prompt reaches the worker is adapter-specific — the dispatched prompt itself (native), the command's **stdin** (headless CLI), or a **prompt file** plus a one-line **pointer** to it that `fab dispatch start --pane` hands the interactive worker at spawn. Compose the prompt content **identically in every case**: the pane worker that follows its pointer is reading the same block prompt, with the same three obligations above. Nothing about the prompt is written differently for `--pane`; only `fab dispatch` chooses how it is handed over.
+**Delivery mechanism varies; the obligations do not.** *How* the prompt reaches the worker is adapter-specific — the dispatched prompt itself (native), the command's **stdin** (headless CLI), or a **prompt file** plus a one-line **pointer** to it that `fab dispatch start --pane` hands the interactive worker at spawn. Compose the **dispatch** prompt content **identically in every case**: the pane worker that follows its pointer is reading the same block prompt, with the same three obligations above. Nothing about the prompt is written differently for `--pane`; only `fab dispatch` chooses how it is handed over. (A continuation message is not a dispatch — see obligation 2's carve-out.)
 
 **Block-contract carve-out.** The universal block-contract line the dispatch sites carry — "do NOT run `fab status` commands; return results only" — is refined to prohibit `fab status` **transition** commands (`start`/`advance`/`finish`/`reset`/`fail`/`skip`) while **REQUIRING** the terminal `fab status refresh`: refresh is a pull-based recompute, not a transition, so it does not violate the invariant that **the orchestrator (sequencer) owns all transitions**. Every adapter's block prompt carries this carve-out — including a `--pane` dispatch, where a user may converse with the worker mid-stage: **steering is contract-neutral**, so a steered worker still owes its result file and its terminal refresh, and still never runs a transition command.
 

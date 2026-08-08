@@ -28,9 +28,11 @@ Stated exactly once, in the Auto-Rework Loop. Every cycle (the initial Step 2 fa
 
 1. **Status pair**: `fab status fail <change> review` then `fab status reset <change> apply {driver}` — repeats on **every** failed verdict that starts a cycle, so conforming runs leave identical `.status.yaml` histories (`stage_metrics.review.iterations` feeds PR meta). The `reset apply` cascade drives review → `pending`, which **preserves** `iterations` (timing fields cleared, counter untouched per `status.go:646–660`); it never advances the counter — only item 3 does.
 2. **Triage + one rework action**: fix code / revise plan / revise requirements per the decision heuristics (disjoint since 260612-w7dp: code-fails-a-correct-requirement → fix code; the-requirement-itself-wrong-or-drifted → revise requirements — each failure description appears exactly once)
-3. **Re-dispatch apply**: fresh `/fab-continue` Apply Behavior subagent (no-`fab status` prompt contract); on success `fab status finish <change> apply {driver}` — the auto-activation of review here (review → `active`) is the **one** counted transition that advances `iterations` for this cycle (`status.go:627`, `Iterations++` only on `active`). It MUST run every cycle, even after a trivial fix.
-4. **Fresh re-review**: a new `/fab-continue` Review Behavior subagent — never reuse a prior review subagent's context
+3. **Re-dispatch apply (resume-first, 260808-tv3g)**: continue the native-arm `apply-{id}` worker from **this** orchestrator session via SendMessage with the item-2 rework instructions when it is reachable; otherwise dispatch a fresh `/fab-continue` Apply Behavior subagent (the verbatim prior behavior, and the mandatory fallback). Either path carries the no-`fab status`-transition prompt contract; on success `fab status finish <change> apply {driver}` — the auto-activation of review here (review → `active`) is the **one** counted transition that advances `iterations` for this cycle (`status.go:627`, `Iterations++` only on `active`). It MUST run every cycle, even after a trivial fix. `_preamble.md` § Worker Continuation owns the naming/continuation/fallback/profile-fixity/scope mechanics; this item carries only the wiring.
+4. **Fresh re-review**: a new `/fab-continue` Review Behavior subagent — never reuse a prior review subagent's context (untouched by the apply-worker continuation: review workers are never named and never continued)
 5. **Verdict**: pass → `finish review {driver}`, proceed to Step 3; fail → next cycle at item 1, or stop after the `{max_cycles}`-th failed cycle
+
+**Worker release (260808-tv3g)**: after item 5's `finish review` (pass) or the exhaustion stop, the orchestrator stops continuing `apply-{id}` — passive release, no teardown call; hydrate and every later stage always dispatch fresh.
 
 **Cycle-count invariant (260615-qg64)**: `stage_metrics.review.iterations` is the number `fab pr-meta` renders as "{N} cycle(s)" (`prmeta.go` `reviewCell`). It is advanced by **exactly one** event — a review transition to `state == "active"` (`status.go:627`) — so the choreography MUST drive **exactly one** review `→ active` re-entry per rework cycle, via item 3's `finish apply` auto-activation, and MUST NOT re-enter review by any non-`active` path nor rely on `reset` to bump/zero the counter (the `reset` cascade preserves-without-incrementing, `status.go:646–660`). Re-entering review by a non-counting path (or skipping the per-cycle `finish apply`) is the under-count bug that collapses a multi-cycle run to "1 cycle". **Baseline convention** (the Go regression test `TestStageMetrics_IterationsAccumulateAcrossReworkCycles` is the oracle): `iterations` counts the **initial** review entry **plus** each rework re-entry — i.e. the total number of review `→ active` transitions. The Step-1 `finish apply` activates review once (iterations = 1); each rework cycle adds one. So an **initial review attempt + N rework cycles** leaves `iterations == N + 1`, rendered "{N+1} cycle(s)" — e.g. an initial fail + 2 rework cycles (final pass) → iterations 3 → "✓ 3 cycles", never "✓ 1 cycle". This is a **choreography property, not a state-machine one**: the Go layer (`internal/status`, `internal/prmeta`) is correct as-is and is NOT changed — the fix lives in this prose.
 
@@ -70,7 +72,8 @@ Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
 │   the resolve call, 260613-yky7 added `--alias`; see _preamble.md § Subagent
 │   Dispatch → Per-Stage Model Resolution)
 │
-├─ Step 1: Apply (fab resolve-agent apply --alias → subagent: /fab-continue Apply Behavior — plan co-gen + tasks)
+├─ Step 1: Apply (fab resolve-agent apply --alias → subagent: /fab-continue Apply Behavior — plan co-gen + tasks;
+│  │        native branch names the worker apply-{id} — _preamble.md § Worker Continuation, 260808-tv3g)
 │  ├─ fab status finish <change> intake {driver}  (if intake not done)
 │  └─ fab status finish <change> apply {driver}   (on success)
 │
@@ -81,7 +84,10 @@ Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
 │  ├─ Pass: fab status finish <change> review {driver} → Step 3
 │  └─ Fail: Auto-Rework Loop (≤{max_cycles} cycles — code-review.md
 │     Rework Budget knob, default 3; per-cycle choreography above;
-│     items 3/4 re-resolve apply/review before re-dispatch)
+│     item 3 RESUMES the native apply-{id} worker when reachable —
+│     no re-resolve on that path (profile fixity); a fresh
+│     fallback dispatch re-resolves apply as before; item 4
+│     always re-resolves review for its fresh worker)
 │     └─ Exhaustion: fab status fail <change> review (no reset) → STOP
 │
 ├─ Step 3: Hydrate (fab resolve-agent hydrate --alias → subagent: /fab-continue Hydrate Behavior)
@@ -94,8 +100,8 @@ Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
 
 | Agent | Step | Purpose |
 |-------|------|---------|
-| /fab-continue (Apply) | 1, rework item 3 | Plan co-generation + task execution; no `fab status` calls |
-| /fab-continue (Review) | 2, rework item 4 | Reads `_review.md`; dispatches the single review sub-agent (both checklists in one prompt); returns one unified findings set |
+| /fab-continue (Apply) | 1, rework item 3 | Plan co-generation + task execution; no `fab status` transition calls. Named `apply-{id}` on the native branch and **resumed** at item 3 when reachable (260808-tv3g); a fresh worker on the initial dispatch and on every fallback |
+| /fab-continue (Review) | 2, rework item 4 | Reads `_review.md`; dispatches the single review sub-agent (both checklists in one prompt); returns one unified findings set. Always fresh — never named, never continued |
 | /fab-continue (Hydrate) | 3 | Memory hydration; no `fab status` calls |
 
 ### Bookkeeping commands (hook candidates)

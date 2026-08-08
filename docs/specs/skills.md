@@ -363,7 +363,7 @@ skeleton, Steps 1–3, and Stage Dispatch Procedure. `fab-ff.md` binds only the
 2. Run apply (single subagent invocation): co-generate `plan.md` (## Requirements from `intake.md` + ## Tasks + ## Acceptance), then execute unchecked tasks under `## Tasks` in dependency order, running tests after each. Under-specified requirements are resolved inline as graded SRAD assumptions in `plan.md` — no clarify step.
 3. **Review** — dispatch to a single sub-agent (fresh context). The sub-agent returns prioritized findings (must-fix / should-fix / nice-to-have); it inspects items under `plan.md` `## Acceptance` against `## Requirements` and judges the diff on its own merits
 4. **On pass** — advance to hydrate
-5. **On fail** — auto-rework loop (up to `{max_cycles}` cycles, default 3): triage findings by priority, autonomously select rework path (fix code, revise plan, revise requirements), re-apply, spawn fresh sub-agent for re-review. Escalation after 2 consecutive fix-code attempts. Stop after `{max_cycles}` failed cycles with summary.
+5. **On fail** — auto-rework loop (up to `{max_cycles}` cycles, default 3): triage findings by priority, autonomously select rework path (fix code, revise plan, revise requirements), re-apply (resume-first: continue the named `apply-{id}` worker on the native arm when reachable, else dispatch fresh), spawn fresh sub-agent for re-review. Escalation after 2 consecutive fix-code attempts. Stop after `{max_cycles}` failed cycles with summary.
 6. Hydrate into `docs/memory/`
 
 ---
@@ -399,7 +399,7 @@ skeleton, Steps 1–3, and Stage Dispatch Procedure. `fab-ff.md` binds only the
 1. **Intake gate** (skip if `--force`): Check confidence >= 3.0 (flat). Abort if below threshold.
 2. **Resumability**: Check `progress` map — skip any stage already marked `done` or `skipped`. Re-invoking after interruption picks up from the first incomplete stage.
 3. **Step 1 — Implementation**: Run apply (one subagent call) — co-generate `plan.md` (## Requirements from `intake.md` + ## Tasks + ## Acceptance), then execute unchecked tasks under `## Tasks` in dependency order, running tests after each. Under-specified requirements are resolved inline as graded SRAD assumptions — no clarify step.
-4. **Step 2 — Review**: Dispatch to review sub-agent (fresh context, prioritized findings). On failure, triage findings by priority and autonomously select rework path (fix code, revise plan, revise requirements). Re-review via fresh sub-agent. Retry up to `{max_cycles}` cycles (default 3; escalation after 2 consecutive fix-code). Bail with summary after `{max_cycles}` failed cycles.
+4. **Step 2 — Review**: Dispatch to review sub-agent (fresh context, prioritized findings). On failure, triage findings by priority and autonomously select rework path (fix code, revise plan, revise requirements), then re-apply resume-first (continue the named `apply-{id}` worker on the native arm when reachable, else dispatch fresh). Re-review via fresh sub-agent. Retry up to `{max_cycles}` cycles (default 3; escalation after 2 consecutive fix-code). Bail with summary after `{max_cycles}` failed cycles.
 5. **Step 3 — Hydrate**: Hydrate into memory.
 6. **Step 4 — Ship**: Dispatch `/git-pr` to commit, push, and create PR.
 7. **Step 5 — Review-PR**: Dispatch `/git-pr-review` to process PR review comments.
