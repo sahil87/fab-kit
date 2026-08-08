@@ -925,7 +925,7 @@ Next: Complete intake.md, then /fab-continue
 
 **Behavior**:
 1. Resolve the PR for the current branch via `gh pr view`
-2. **If no reviews exist** — request a Copilot review (`gh pr edit --add-reviewer copilot-pull-request-reviewer`) and poll every 30 seconds for up to 10 minutes (20 attempts). If the review arrives, process its comments in the same run; if not, the timeout outcome leaves `review-pr` `active` with a re-run message. There is no Codex/Claude cascade — Copilot is the only automated reviewer, honoring the Copilot toggle in `code-review.md` § Review Tools (absent = enabled).
+2. **If no reviews exist** — request a Copilot review (`gh pr edit --add-reviewer copilot-pull-request-reviewer`) and poll every 30 seconds for up to 10 minutes (20 attempts). If the review arrives, process its comments in the same run; if not, the timeout outcome leaves `review-pr` `active` with a re-run message. Copilot is the only automated reviewer, honoring the Copilot toggle in `code-review.md` § Review Tools (absent = enabled).
 3. **If reviews with inline comments exist** — fetch all comments, triage each:
    - **fix**: applies a targeted code change, then posts `Fixed — {description}. ({sha})` as a reply
    - **defer**: posts `Deferred — {reason}.`
