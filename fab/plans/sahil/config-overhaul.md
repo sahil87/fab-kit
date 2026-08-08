@@ -53,6 +53,62 @@ hoisting), `fab config init --system` (registry filtered to `scope ∈ {system, 
 commented), plus `src/kit/scaffold/` for the non-config project files and one **embedded
 stub config.yaml in the fab-kit binary** (the skew fallback — the last true second copy).
 
+## Orchestration — parallelism & dependency map
+
+> For the operator dispatching these changes as parallel worktree agents (one change =
+> one worktree = one full pipeline run off backlog `[x3cf]`).
+
+```
+t=0 (parallel):  C1 env layer    C2 verbs    C3 mode ladder    C6 FAB_KIT_PATH
+                      │              │             │
+                      │              │             ▼
+                      │              │        C4 renames        (strictly after C3)
+                      │              │             │
+                      └──────────────┴──────┬──────┘
+                                            ▼
+                                     C5 consolidation           (last)
+```
+
+**Hard edges** (semantic — never parallelize across them):
+
+- **C3 → C4**: both rewrite the same provider blocks (`defaults.yaml` comments, the same
+  spec/memory sections); the second to land owns the sweep of the first's text, so running
+  them concurrently guarantees a semantic merge.
+- **C2 → C5 and C3 → C5**: C5's fence pointers render `fab config set --system` (C2's
+  verb), its item 1 folds `dispatch.mode: native` into `defaults.yaml` (C3's knob), and it
+  extends the same `internal/configupgrade` engine + `cmd/fab/config.go` that C2 reworks.
+- **C4 → C5** (recommended, not hard): landing C5 first forces C4 to re-sweep C5's new
+  fence/defaults text — wasted rework, not wrongness.
+
+**Fully parallel at t=0**: C1, C2, C3, C6 — no semantic coupling. Two soft couplings to
+expect as *mechanical* rebases (operator stacked-merge rule: mechanical rebase OK,
+semantic conflict hands back):
+
+- **C1 ↔ C2** share the YAML value-parsing helper (C1 introduces it; C2's `set` reuses
+  it). Whichever merges second rebases onto the helper — small and mechanical.
+- **C1/C2/C3** all edit `_cli-fab.md` (+ SPEC mirror), `docs/specs/config.md`, and
+  `_shared/configuration.md` — in *different sections*; textual adjacency only.
+
+**C6 is edge-free**: different seam (shim + kit-path resolution), mostly a different
+binary; only trivial `_cli-fab.md` / doctor-output adjacency. Slot it wherever a pane is
+free.
+
+**Conflict-surface table** (what overlaps where):
+
+| Shared surface | Touched by | Nature |
+|---|---|---|
+| `_cli-fab.md` + SPEC mirror | C1 C2 C3 C4 C6 | different sections — mechanical |
+| `docs/specs/config.md` | C1 C2 C3 C5 | different sections — mechanical |
+| `_shared/configuration.md` | C1 C2 C3 C4 C5 | different sections — mechanical |
+| `defaults.yaml` | C3 C4 C5 | semantic — serialized by C3 → C4 → C5 |
+| `internal/configupgrade`, `cmd/fab/config.go` | C2 C5 | semantic — C5 after C2 |
+| `resolve_agent.go`, `internal/dispatch` | C3 | exclusive |
+| shim + kit-path resolution | C6 | exclusive |
+
+**Critical path**: C3 → C4 → C5 — start C3 at t=0 regardless of how many other panes run.
+**Conservative waves** (fewer panes): A = {C1, C2, C6} → B = {C3} → C = {C4} → D = {C5}.
+**Single-agent fallback**: plan order 1 → 2 → 3 → 4 → 5, with 6 slotted anywhere.
+
 ---
 
 ## Change 1 — per-session selection: the env override layer + launch flags
