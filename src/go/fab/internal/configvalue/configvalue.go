@@ -1,6 +1,6 @@
-// Package configvalue parses the scalar and flow-collection values accepted by
-// `fab config set`. It is dependency-free apart from yaml.v3 so the same
-// semantics can be reused by other config input surfaces.
+// Package configvalue parses standalone YAML values for config input surfaces.
+// It retains collection support for environment overlays; mutation callers
+// apply their narrower scalar-only contract after parsing.
 package configvalue
 
 import (
@@ -43,9 +43,10 @@ type Parsed struct {
 	Node *yaml.Node
 }
 
-// Parse accepts exactly one YAML scalar or a flow-style sequence/mapping. Block
-// collections are refused: the CLI contract uses flow syntax (`[a, b]`,
-// `{a: b}`), which remains a single shell argument and a single config line.
+// Parse accepts exactly one YAML value — a scalar, or a sequence/mapping in
+// either flow or block style. Environment overrides depend on block collections
+// resolving; callers that need less (such as `fab config set`) impose their own
+// line/style/kind constraints on top.
 func Parse(input string) (Parsed, error) {
 	text := strings.TrimSpace(input)
 	if text == "" {
@@ -71,9 +72,6 @@ func Parse(input string) (Parsed, error) {
 	kind, err := nodeKind(node)
 	if err != nil {
 		return Parsed{}, err
-	}
-	if (node.Kind == yaml.SequenceNode || node.Kind == yaml.MappingNode) && node.Style&yaml.FlowStyle == 0 {
-		return Parsed{}, fmt.Errorf("%s value must use YAML flow syntax", kind)
 	}
 	return Parsed{Text: text, Kind: kind, Node: node}, nil
 }

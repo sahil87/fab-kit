@@ -452,7 +452,7 @@ fab config set <key> <value> [--system]
 fab config unset <key> [--system]
 ```
 
-Both route through `internal/configupgrade`'s comment-preserving path splicer and atomic writer; neither marshals the whole document. `set` validates the key and expected YAML kind (scalars plus flow collections such as `[a, b]`), supports documented deep map leaves, and materializes fence-only fields above the managed fence. `unset` accepts any current value shape so it remains the repair path, removes only the live override, and lets the fence advertise the field again. Unsetting a known absent key exits 0 with a notice.
+Both route through `internal/configupgrade`'s comment-preserving path splicer and atomic writer; neither marshals the whole document. `set` accepts only documented **scalar leaves** and a single-line, comment-free YAML scalar value (`string`, `bool`, `int`, or `float`). It refuses structural map keys, collection-valued leaves, collection/null values, multiline input, and YAML comments with an explicit manual-edit remedy. Fence-only deep fields materialize every ancestor from the registry renderer before the scalar is inserted; opaque provider names remain supported through quoted YAML mapping keys. `unset` stays kind-ungated so it can repair any current value shape, removes only the live override, and lets the fence advertise the field again. Unsetting a known absent key exits 0 with a notice. The shared value parser remains collection-aware (flow or block style) solely because environment overlays accept lists and maps; that broader ENV contract does not widen `set`. Relative to the pre-2.17.3 env layer, four degenerate spellings now warn-and-skip instead of resolving to surprising values: whitespace-only, comment-only, multi-document, and bare-date (`!!timestamp`) env values are rejected per-variable, fail-open.
 
 Without `--system`, the target is `fab/project/config.yaml`. With it, the target is `~/.fab-kit/config.yaml`; only `scope: system`/`both` keys are accepted, and a missing file is created with the canonical system scaffold header and no project reference fence. Unknown keys fail naming the key and point to `fab config explain`.
 
@@ -1079,7 +1079,7 @@ Contract shape (`schema_version: 1`):
 }
 ```
 
-Per node: `name=cmd.Name()`, optional `aliases=cmd.Aliases` (omitted when empty), `path=cmd.CommandPath()`, `short=cmd.Short`, `usage=cmd.UseLine()`, `text=cmd.UsageString()`. At every level the walk drops `completion`, `help`, and any `Hidden` command, then sorts surviving children by `Name()` for byte-stable output. JSON is 2-space indented with HTML escaping disabled, so `<`, `>`, `&` in help text are preserved verbatim.
+Per node: `name=cmd.Name()`, `path=cmd.CommandPath()`, `short=cmd.Short`, `usage=cmd.UseLine()`, `text=cmd.UsageString()`. At every level the walk drops `completion`, `help`, and any `Hidden` command, then sorts surviving children by `Name()` for byte-stable output. JSON is 2-space indented with HTML escaping disabled, so `<`, `>`, `&` in help text are preserved verbatim.
 
 The envelope is exactly `{tool, version, schema_version, root}`. Per the toolkit help-dump standard it carries **no `captured_at`** — the capture timestamp is owned by shll.ai (a tool cannot know its own capture time; the puller stamps it after capture).
 

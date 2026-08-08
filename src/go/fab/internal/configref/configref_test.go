@@ -33,6 +33,7 @@ func TestResolveKey(t *testing.T) {
 		wantField string
 		wantOwner string
 		wantKind  configvalue.Kind
+		wantErr   bool
 	}{
 		{key: "agent.workers", wantOK: true, wantField: "agent.workers", wantOwner: "agent.session", wantKind: configvalue.KindString},
 		{key: "agent.profiles.review.model", wantOK: true, wantField: "agent.profiles", wantOwner: "agent.session", wantKind: configvalue.KindString},
@@ -54,13 +55,27 @@ func TestResolveKey(t *testing.T) {
 		{key: "providers.codex.profiles.unknown.model"},
 		{key: "stage_hooks.unknown.pre"},
 		{key: `"agent".workers`},
-		{key: "providers.123.session_command"},
+		{key: "providers.123.session_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
+		{key: "providers.true.session_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
+		{key: "providers.on.session_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
+		{key: "providers.-local.session_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
+		{key: "providers.测试.session_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
+		{key: "providers.#local.session_command", wantErr: true},
+		{key: "providers.local:dev.session_command", wantErr: true},
+		{key: "providers. local.session_command", wantErr: true},
+		{key: "providers.local\nname.session_command", wantErr: true},
 		{key: "providers.claude.v2.session_command"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {
 			got, ok, err := ResolveKey(tt.key)
+			if tt.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "dotted config-key grammar") {
+					t.Fatalf("ResolveKey(%q) error = %v, want dotted-key-grammar refusal", tt.key, err)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("ResolveKey: %v", err)
 			}
@@ -74,6 +89,30 @@ func TestResolveKey(t *testing.T) {
 				t.Fatalf("ResolveKey(%q) = field %q owner %q kind %q; want %q %q %q", tt.key, got.Field.Key, got.Owner.Key, got.Kind, tt.wantField, tt.wantOwner, tt.wantKind)
 			}
 		})
+	}
+}
+
+func TestKeyedRenderAcceptsOpaqueProviderNames(t *testing.T) {
+	for _, name := range []string{"123", "true", "on", "-local", "测试"} {
+		key := "providers." + name + ".session_command"
+		if _, err := RenderKey(key); err != nil {
+			t.Errorf("RenderKey(%q): %v", key, err)
+		}
+	}
+}
+
+func TestRenderedRegistryGuidanceUsesExplain(t *testing.T) {
+	text, err := Render()
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	if strings.Contains(text, "fab config reference") {
+		t.Fatalf("current registry guidance advertises the invisible alias:\n%s", text)
+	}
+	for _, want := range []string{"fab config explain", "fab config explain --json"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("registry guidance is missing %q", want)
+		}
 	}
 }
 

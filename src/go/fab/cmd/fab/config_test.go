@@ -119,7 +119,7 @@ func TestConfigReferenceCoversBinaryKeys(t *testing.T) {
 	// TestConfigReferenceOmitsRelocatedFabVersion).
 	for seg := range segments {
 		if !containsKeyToken(out, seg) {
-			t.Errorf("binary-consumed config key %q (from Config yaml tags) is not documented in `fab config reference`", seg)
+			t.Errorf("binary-consumed config key %q (from Config yaml tags) is not documented in `fab config explain`", seg)
 		}
 	}
 }
@@ -214,13 +214,16 @@ func TestConfigReferenceByteStable(t *testing.T) {
 		t.Fatalf("Render returned an error: %v", err)
 	}
 	if first != second {
-		t.Errorf("`fab config reference` output is not byte-stable across renders")
+		t.Errorf("`fab config explain` output is not byte-stable across renders")
 	}
 }
 
 // TestConfigReferenceCommandPrintsAndExitsZero drives the cobra command end to
-// end: it prints the reference to stdout and exits 0 with no args, and rejects
-// extra args (cobra.NoArgs).
+// end via the invisible `reference` alias: it prints the reference to stdout and
+// exits 0 with no args, and rejects a second positional. Note the rejection is a
+// RUNTIME unknown-key error from RunE (exit 1) — explain is
+// cobra.MaximumNArgs(1), so `reference extra` passes arg validation and fails
+// key lookup, not a parse-time usage error (exit 2).
 func TestConfigReferenceCommandPrintsAndExitsZero(t *testing.T) {
 	cmd := configCmd()
 	var out strings.Builder
@@ -245,7 +248,7 @@ func TestConfigReferenceCommandPrintsAndExitsZero(t *testing.T) {
 	cmd2.SetErr(&errBuf)
 	cmd2.SetArgs([]string{"reference", "extra"})
 	if err := cmd2.Execute(); err == nil {
-		t.Error("`config reference extra` should be rejected (cobra.NoArgs)")
+		t.Error("`config reference extra` should be rejected (unknown-key lookup in RunE)")
 	}
 }
 
@@ -468,7 +471,7 @@ func TestConfigReferenceDocumentsThreeBuiltInProviders(t *testing.T) {
 		}
 	}
 	// The superseded j3cm framing must not survive either — it renders into
-	// `fab config reference` and would now be a user-facing inaccuracy.
+	// `fab config explain` and would now be a user-facing inaccuracy.
 	for _, retired := range []string{
 		"GRAMMAR ONLY",
 		"fab ships no model ID",
@@ -621,7 +624,7 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 // hand-maintained list of built-in names. Asserting the key set EQUALS the agent
 // table (rather than merely contains the three names known today) is what makes a
 // built-in added or renamed in defaults.yaml surface here automatically instead of
-// silently drifting out of `fab config reference --json`.
+// silently drifting out of `fab config explain --json`.
 //
 // It also pins the projection: the two command fields and the per-role fill map
 // cross over verbatim from ResolveProvider, while the DEPRECATED flat pair never
@@ -740,7 +743,7 @@ func TestConfigReferenceRetiresLegacyKeys(t *testing.T) {
 }
 
 // TestConfigReferenceJSONIsValidAndByteStable is the --json VALIDITY + STABILITY
-// contract: `fab config reference --json` emits a well-formed JSON array of
+// contract: `fab config explain --json` emits a well-formed JSON array of
 // per-field objects, and repeated renders are byte-identical (the same
 // byte-stable stdout contract Change 2/3 tooling relies on).
 func TestConfigReferenceJSONIsValidAndByteStable(t *testing.T) {
@@ -753,7 +756,7 @@ func TestConfigReferenceJSONIsValidAndByteStable(t *testing.T) {
 		t.Fatalf("RenderJSON returned an error: %v", err)
 	}
 	if first != second {
-		t.Error("`fab config reference --json` output is not byte-stable across renders")
+		t.Error("`fab config explain --json` output is not byte-stable across renders")
 	}
 
 	var arr []map[string]any
@@ -1062,7 +1065,7 @@ func TestConfigReferenceConsolidateDetectors(t *testing.T) {
 		t.Error("consolidate.detectors must be advertised (it is scaffolded into the managed fence)")
 	}
 	if strings.TrimSpace(row.Segment) == "" {
-		t.Error("consolidate.detectors carries no rendered Segment, so `fab config reference` would not document it")
+		t.Error("consolidate.detectors carries no rendered Segment, so `fab config explain` would not document it")
 	}
 
 	// The placeholders are substituted SHELL-QUOTED (PR #520 review). A template
@@ -1084,7 +1087,7 @@ func TestConfigReferenceConsolidateDetectors(t *testing.T) {
 		t.Fatalf("Render returned an error: %v", err)
 	}
 	if !containsKeyToken(out, "detectors") {
-		t.Error("consolidate.detectors is not documented in `fab config reference`")
+		t.Error("consolidate.detectors is not documented in `fab config explain`")
 	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")

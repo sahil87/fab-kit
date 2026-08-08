@@ -25,13 +25,12 @@ type HelpDoc struct {
 // Node mirrors a single cobra command in the dumped tree. The Commands slice is
 // always non-nil so leaves serialize as [] (matching the reference), never null.
 type Node struct {
-	Name     string   `json:"name"`              // cmd.Name()
-	Aliases  []string `json:"aliases,omitempty"` // registered aliases; omitted when none
-	Path     string   `json:"path"`              // cmd.CommandPath() — e.g. "fab change new"
-	Short    string   `json:"short"`             // cmd.Short
-	Usage    string   `json:"usage"`             // cmd.UseLine()
-	Text     string   `json:"text"`              // cmd.UsageString() — raw -h body, byte-for-byte
-	Commands []Node   `json:"commands"`          // recursive; [] for a leaf (never null)
+	Name     string `json:"name"`     // cmd.Name()
+	Path     string `json:"path"`     // cmd.CommandPath() — e.g. "fab change new"
+	Short    string `json:"short"`    // cmd.Short
+	Usage    string `json:"usage"`    // cmd.UseLine()
+	Text     string `json:"text"`     // cmd.UsageString() — raw -h body, byte-for-byte
+	Commands []Node `json:"commands"` // recursive; [] for a leaf (never null)
 }
 
 // helpDumpCmd is a hidden, CI/build-time-only command that serializes the live
@@ -72,7 +71,6 @@ func dumpDoc(root *cobra.Command, version string) HelpDoc {
 func buildNode(cmd *cobra.Command) Node {
 	node := Node{
 		Name:     cmd.Name(),
-		Aliases:  append([]string(nil), cmd.Aliases...),
 		Path:     cmd.CommandPath(),
 		Short:    cmd.Short,
 		Usage:    cmd.UseLine(),

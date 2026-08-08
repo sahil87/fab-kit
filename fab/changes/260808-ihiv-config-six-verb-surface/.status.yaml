@@ -7,13 +7,13 @@ issues: []
 progress:
     intake: done
     apply: done
-    review: active
-    hydrate: pending
-    ship: pending
+    review: done
+    hydrate: done
+    ship: active
     review-pr: pending
 plan:
     generated: true
-    task_count: 14
+    task_count: 15
     acceptance_count: 30
     acceptance_completed: 30
 confidence:
@@ -30,23 +30,26 @@ confidence:
         disambiguation: 77.7
 stage_metrics:
     intake: {started_at: "2026-08-08T09:42:16Z", driver: fab-new, iterations: 1, completed_at: "2026-08-08T09:45:04Z"}
-    apply: {started_at: "2026-08-08T11:30:42Z", driver: fab-fff, iterations: 4, completed_at: "2026-08-08T11:37:48Z"}
-    review: {started_at: "2026-08-08T11:37:48Z", driver: fab-fff, iterations: 4}
+    apply: {started_at: "2026-08-08T19:58:34Z", driver: fab-continue, iterations: 12, completed_at: "2026-08-08T20:04:28Z"}
+    review: {started_at: "2026-08-08T20:04:28Z", driver: fab-continue, iterations: 12, completed_at: "2026-08-08T20:16:24Z"}
+    hydrate: {started_at: "2026-08-08T20:16:24Z", driver: fab-continue, iterations: 1, completed_at: "2026-08-08T20:22:30Z"}
+    ship: {started_at: "2026-08-08T20:22:30Z", driver: fab-continue, iterations: 1}
 prs: []
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 2906
+    deleted: 243
+    net: 2663
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 2365
+        deleted: 163
+        net: 2202
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-08-08T11:37:48Z"
-    computed_at_stage: apply
+        added: 742
+        deleted: 26
+        net: 716
+    computed_at: "2026-08-08T20:22:30Z"
+    computed_at_stage: hydrate
 change_type_source: explicit
+summary: fab config becomes a six-verb surface — keyed show, explain (with an invisible reference alias), scalar-only surgical set/unset through the configupgrade fence engine, and bare init defaulting to project mode
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-08T11:37:48Z
+last_updated: 2026-08-08T20:22:30Z

@@ -225,7 +225,7 @@ func configShowCmd() *cobra.Command {
 	return cmd
 }
 
-// renderShowKey composes built-in < system < project for exactly one known
+// renderShowKey composes built-in < system < project < environment for exactly one known
 // dotted key. Scalars/lists print as the raw value; mappings print their YAML
 // subtree. With --origin, scalar/list output gets one suffix while mappings use
 // the existing honest per-leaf origin projection.
@@ -246,9 +246,12 @@ func renderShowKey(layers *config.Layers, key string, withOrigin bool) (string, 
 	sysSub := subtreeAt(layers.System, top)
 	projSub := subtreeAt(layers.Project, top)
 	envSub := subtreeAt(layers.Env, top)
-	effective := mergeGeneric(defValue, sysSub.value)
-	effective = mergeGeneric(effective, projSub.value)
-	effective = mergeGeneric(effective, envSub.value)
+	effective := defSub.value
+	for _, layer := range []originValue{sysSub, projSub, envSub} {
+		if layer.set {
+			effective = mergeGeneric(effective, layer.value)
+		}
+	}
 	value, present := valueAtPath(effective, parts[1:])
 	if !present {
 		value = nil
@@ -266,7 +269,10 @@ func renderShowKey(layers *config.Layers, key string, withOrigin bool) (string, 
 			return renderCompactValue(value) + "  # " + selected[0].origin + "\n", nil
 		}
 		if len(selected) == 0 {
-			return "null  # default\n", nil
+			if origin, ok := originAtPath(top, parts[1:], defSub, sysSub, projSub, envSub, layers.EnvOrigins, layers.SystemPath, layers.ProjectPath); ok {
+				return renderCompactValue(value) + "  # " + origin + "\n", nil
+			}
+			return renderCompactValue(value) + "  # default\n", nil
 		}
 		return renderOriginLines(selected), nil
 	}
@@ -455,12 +461,6 @@ func defaultSubtree(fields []configref.Field, top string) any {
 // rows under one top-level key nest at disjoint paths, so in practice this only
 // unions sibling sub-keys (session + workers + profiles under `agent`).
 func mergeGeneric(base, over any) any {
-	if base == nil {
-		return over
-	}
-	if over == nil {
-		return base
-	}
 	bm, bok := asGenericMap(base)
 	om, ook := asGenericMap(over)
 	if !bok || !ook {
@@ -530,66 +530,20 @@ func subtreeAt(m map[string]any, top string) originValue {
 // non-map would have wiped it before the lower map could merge in), matching
 // deepMerge applied layer-by-layer.
 func flattenOrigin(prefix string, def, sys, proj, env originValue, envOrigins map[string]string, systemOrigin, projectOrigin string) []originLine {
-	// Highest-precedence present layer (env > project > system > default) sets the shape.
-	// A non-map winner replaces the whole subtree (deepMerge's map-vs-non-map rule).
-	switch {
-	case env.set:
-		if _, isMap := asGenericMap(env.value); !isMap {
-			return []originLine{{key: prefix, value: renderScalar(env.value), origin: envOrigin(prefix, envOrigins)}}
-		}
-	case proj.set:
-		if _, isMap := asGenericMap(proj.value); !isMap {
-			return []originLine{{key: prefix, value: renderScalar(proj.value), origin: projectOrigin}}
-		}
-	case sys.set:
-		if _, isMap := asGenericMap(sys.value); !isMap {
-			return []originLine{{key: prefix, value: renderScalar(sys.value), origin: systemOrigin}}
-		}
-	case def.set:
-		if _, isMap := asGenericMap(def.value); !isMap {
-			return []originLine{{key: prefix, value: renderScalar(def.value), origin: "default"}}
-		}
-	default:
+	winner, origin := highestOriginValue(prefix, def, sys, proj, env, envOrigins, systemOrigin, projectOrigin)
+	if !winner.set {
 		// No layer sets this node at all — nothing to emit.
 		return nil
+	}
+	if _, isMap := asGenericMap(winner.value); !isMap {
+		return []originLine{{key: prefix, value: renderScalar(winner.value), origin: origin}}
 	}
 
 	// The winning layer is a map ⇒ drill per-key. A layer joins the drill-down only
 	// if it is a map AND no higher-precedence present layer shadowed it with a
 	// non-map. Walk high→low: once a present layer is a non-map, every lower layer
 	// is shadowed (dropped); a present map lets lower layers keep merging.
-	envMap, envIsMap := asGenericMap(env.value)
-	projMap, projIsMap := asGenericMap(proj.value)
-	sysMap, sysIsMap := asGenericMap(sys.value)
-	defMap, defIsMap := asGenericMap(def.value)
-
-	shadowed := false // set once a higher present layer was a non-map
-	keepEnv := env.set && envIsMap
-	if env.set && !envIsMap {
-		shadowed = true
-	}
-	keepProj := !shadowed && proj.set && projIsMap
-	if !shadowed && proj.set && !projIsMap {
-		shadowed = true
-	}
-	keepSys := !shadowed && sys.set && sysIsMap
-	if !shadowed && sys.set && !sysIsMap {
-		shadowed = true
-	}
-	keepDef := !shadowed && def.set && defIsMap
-
-	if !keepEnv {
-		envMap = nil
-	}
-	if !keepProj {
-		projMap = nil
-	}
-	if !keepSys {
-		sysMap = nil
-	}
-	if !keepDef {
-		defMap = nil
-	}
+	defMap, sysMap, projMap, envMap := mergeableOriginMaps(def, sys, proj, env)
 
 	keys := unionKeys(defMap, sysMap, projMap, envMap)
 	sort.Strings(keys)
@@ -601,6 +555,75 @@ func flattenOrigin(prefix string, def, sys, proj, env originValue, envOrigins ma
 			envOrigins, systemOrigin, projectOrigin)...)
 	}
 	return out
+}
+
+// originAtPath walks the same per-layer shapes as flattenOrigin but retains
+// empty mappings, which have provenance even though they produce no flattened
+// leaf. A non-map encountered before the requested node is a replacing ancestor
+// and therefore supplies the descendant's winning origin.
+func originAtPath(prefix string, parts []string, def, sys, proj, env originValue, envOrigins map[string]string, systemOrigin, projectOrigin string) (string, bool) {
+	winner, origin := highestOriginValue(prefix, def, sys, proj, env, envOrigins, systemOrigin, projectOrigin)
+	if !winner.set {
+		return "", false
+	}
+	if len(parts) == 0 {
+		return origin, true
+	}
+	if _, isMap := asGenericMap(winner.value); !isMap {
+		return origin, true
+	}
+
+	defMap, sysMap, projMap, envMap := mergeableOriginMaps(def, sys, proj, env)
+	child := parts[0]
+	return originAtPath(prefix+"."+child, parts[1:],
+		mapGet(defMap, child), mapGet(sysMap, child), mapGet(projMap, child), mapGet(envMap, child),
+		envOrigins, systemOrigin, projectOrigin)
+}
+
+func highestOriginValue(prefix string, def, sys, proj, env originValue, envOrigins map[string]string, systemOrigin, projectOrigin string) (originValue, string) {
+	switch {
+	case env.set:
+		return env, envOrigin(prefix, envOrigins)
+	case proj.set:
+		return proj, projectOrigin
+	case sys.set:
+		return sys, systemOrigin
+	case def.set:
+		return def, "default"
+	default:
+		return originValue{}, ""
+	}
+}
+
+func mergeableOriginMaps(def, sys, proj, env originValue) (defMap, sysMap, projMap, envMap map[string]any) {
+	envMap, envIsMap := asGenericMap(env.value)
+	projMap, projIsMap := asGenericMap(proj.value)
+	sysMap, sysIsMap := asGenericMap(sys.value)
+	defMap, defIsMap := asGenericMap(def.value)
+
+	shadowed := false
+	if !env.set || !envIsMap {
+		envMap = nil
+	}
+	if env.set && !envIsMap {
+		shadowed = true
+	}
+	if shadowed || !proj.set || !projIsMap {
+		projMap = nil
+	}
+	if !shadowed && proj.set && !projIsMap {
+		shadowed = true
+	}
+	if shadowed || !sys.set || !sysIsMap {
+		sysMap = nil
+	}
+	if !shadowed && sys.set && !sysIsMap {
+		shadowed = true
+	}
+	if shadowed || !def.set || !defIsMap {
+		defMap = nil
+	}
+	return defMap, sysMap, projMap, envMap
 }
 
 // envOrigin returns the variable that supplied an environment leaf. Origins are
@@ -686,11 +709,12 @@ func configSetCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set <key> <value>",
 		Short: "Set one config override without rewriting comments",
-		Long: "Validates one registry key and YAML scalar or flow-collection value, " +
-			"then surgically writes only that path through the comment-preserving config engine. " +
-			"Use --system for ~/.fab-kit/config.yaml; project-scoped keys are refused there.",
+		Long: "Accepts only known scalar leaf keys and single-line, comment-free YAML scalar values " +
+			"(string, bool, int, or float), then surgically writes only that path through the " +
+			"comment-preserving config engine. Collection-valued keys and values require a manual " +
+			"config-file edit. Use --system for ~/.fab-kit/config.yaml; project-scoped keys are refused there.",
 		Example: `  fab config set agent.workers codex
-  fab config set source_paths '[src/, lib/]'
+  fab config set dispatch.column_width 42
   fab config set agent.session gemini --system`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {

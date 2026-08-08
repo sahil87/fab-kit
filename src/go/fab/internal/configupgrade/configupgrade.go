@@ -351,12 +351,103 @@ func reconcilePreamble(preamble string, existingParked []string, fields []config
 
 // renderMutation rebuilds only the managed fence around an already-mutated live
 // area. Unlike reconcilePreamble it does not carry renames, park unknown keys, or
-// inspect unrelated values for upgrade advisories. The live-key scan exists only
-// to omit already-overridden registry segments from the shared fence renderer.
+// inspect unrelated values for upgrade advisories. Mutation fence rendering is
+// leaf-aware: a shared segment contains only its advertised rows that are not live.
 func renderMutation(preamble string, existingParked []string, fields []configref.Field, kitVersion string) (string, []string) {
-	liveKeys := liveTopLevelKeys(preamble)
-	fence := renderFence(fields, liveKeys, kitVersion)
+	livePaths := liveDottedPaths(preamble)
+	fence := renderFenceWithSegments(fields, kitVersion, func(index int, f configref.Field) string {
+		return mutationFenceSegment(fields, index, livePaths)
+	})
 	return assemble(preamble, fence, existingParked, nil), nil
+}
+
+func liveDottedPaths(document string) [][]string {
+	var paths [][]string
+	var root map[string]any
+	if err := yaml.Unmarshal([]byte(document), &root); err == nil {
+		var walk func([]string, any)
+		walk = func(path []string, value any) {
+			paths = append(paths, append([]string{}, path...))
+			if children, ok := value.(map[string]any); ok {
+				for key, child := range children {
+					next := append(append([]string{}, path...), key)
+					walk(next, child)
+				}
+			}
+		}
+		for key, value := range root {
+			walk([]string{key}, value)
+		}
+		return paths
+	}
+
+	// Unset is intentionally a repair path for malformed values. If a surviving
+	// unrelated value still prevents YAML decoding, retain the scanner's exact
+	// block-form paths as the conservative fallback.
+	for _, entry := range scanLiveKeyLines(strings.Split(document, "\n")) {
+		paths = append(paths, append([]string{}, entry.path...))
+	}
+	return paths
+}
+
+func mutationFenceSegment(fields []configref.Field, ownerIndex int, livePaths [][]string) string {
+	top := topLevel(fields[ownerIndex].Key)
+	var live [][]string
+	advertised := 0
+	for i := ownerIndex; i < len(fields) && topLevel(fields[i].Key) == top; i++ {
+		if i > ownerIndex && fields[i].Segment != "" {
+			break
+		}
+		if !fields[i].Advertise {
+			continue
+		}
+		advertised++
+		fieldPath := strings.Split(fields[i].Key, ".")
+		if containsPath(livePaths, fieldPath) {
+			live = append(live, fieldPath)
+		}
+	}
+	if len(live) == 0 {
+		return fields[ownerIndex].Segment
+	}
+	if len(live) == advertised {
+		return ""
+	}
+	return segmentWithoutLiveRows(fields[ownerIndex].Segment, live)
+}
+
+func segmentWithoutLiveRows(segment string, livePaths [][]string) string {
+	lines := strings.Split(CommentOutSegment(segment), "\n")
+	virtual := append([]string{}, lines...)
+	for i, line := range virtual {
+		virtual[i] = strings.TrimPrefix(line, "# ")
+	}
+
+	remove := make(map[int]bool, len(livePaths))
+	for _, entry := range scanLiveKeyLines(virtual) {
+		for _, live := range livePaths {
+			if pathEqual(entry.path, live) {
+				remove[entry.line] = true
+				break
+			}
+		}
+	}
+	out := make([]string, 0, len(lines)-len(remove))
+	for i, line := range lines {
+		if !remove[i] {
+			out = append(out, line)
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+func containsPath(paths [][]string, want []string) bool {
+	for _, path := range paths {
+		if pathEqual(path, want) {
+			return true
+		}
+	}
+	return false
 }
 
 // splitFence divides the original file into three parts:
@@ -631,20 +722,30 @@ func commentPrecedesBlockContinuation(lines []string, idx int) bool {
 // NOT already live above the fence, then the END anchor. Fields are emitted in
 // registry order for byte-stability.
 func renderFence(fields []configref.Field, liveKeys map[string]bool, kitVersion string) string {
+	return renderFenceWithSegments(fields, kitVersion, func(_ int, f configref.Field) string {
+		if liveKeys[topLevel(f.Key)] {
+			return ""
+		}
+		return f.Segment
+	})
+}
+
+func renderFenceWithSegments(fields []configref.Field, kitVersion string, segmentFor func(int, configref.Field) string) string {
 	var b strings.Builder
 	b.WriteString(anchorLine(fmt.Sprintf(beginPrefix, kitVersion)))
 	b.WriteString("\n")
 	b.WriteString(fenceHeaderComment)
 
-	for _, f := range fields {
+	for i, f := range fields {
 		if !f.Advertise || f.Segment == "" {
 			continue
 		}
-		if liveKeys[topLevel(f.Key)] {
+		segment := segmentFor(i, f)
+		if segment == "" {
 			continue // already overridden above the fence — not re-advertised
 		}
 		b.WriteString("\n#\n")
-		b.WriteString(CommentOutSegment(f.Segment))
+		b.WriteString(CommentOutSegment(segment))
 	}
 
 	b.WriteString("\n")

@@ -449,11 +449,10 @@ func loadSystemLayer() map[string]any {
 	return m
 }
 
-// ParseYAMLValue parses one config value with the same scalar/flow semantics as
-// `fab config set` (internal/configvalue — the single value parser, so the
-// environment layer and the config-mutating CLI surfaces cannot grow two
-// interpretations of config values), then decodes it to the generic shape the
-// layer merge uses.
+// ParseYAMLValue parses one environment override through the shared value
+// parser, including its collection support in either YAML style, then decodes it to the generic
+// shape the layer merge uses. Mutation callers apply a narrower scalar-only
+// contract on top of that parser.
 func ParseYAMLValue(raw string) (any, error) {
 	parsed, err := configvalue.Parse(raw)
 	if err != nil {

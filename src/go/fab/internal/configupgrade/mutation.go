@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -15,7 +16,10 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configvalue"
 )
 
-var liveKeyLineRe = regexp.MustCompile(`^( *)([A-Za-z_][A-Za-z0-9_-]*):(.*)$`)
+// The scanner accepts ordinary plain keys plus quoted string keys emitted for
+// dynamic path segments such as numeric provider names. Quoting belongs to the
+// YAML file only; the dotted command grammar remains canonical and unquoted.
+var liveKeyLineRe = regexp.MustCompile(`^( *)((?:"(?:[^"\\]|\\.)*"|'(?:[^']|'')*')|(?:[^ \t:#"'\\][^ \t:"'\\]*)):(.*)$`)
 
 // SystemScaffoldHeader is the canonical preamble for ~/.fab-kit/config.yaml.
 // Both init and a first `set --system` use this exact text.
@@ -41,12 +45,9 @@ func Set(path, key, rawValue, kitVersion string) (Result, error) {
 	if !ok {
 		return Result{}, fmt.Errorf("unknown config key %q — run `fab config explain %s` to inspect valid keys", key, key)
 	}
-	value, err := configvalue.Parse(rawValue)
+	value, err := parseSetScalar(key, match, rawValue)
 	if err != nil {
-		return Result{}, fmt.Errorf("invalid value for %q: %w", key, err)
-	}
-	if value.Kind != match.Kind {
-		return Result{}, fmt.Errorf("config key %q expects a YAML %s, got %s", key, match.Kind, value.Kind)
+		return Result{}, err
 	}
 
 	fields, err := configref.Fields()
@@ -64,7 +65,7 @@ func Set(path, key, rawValue, kitVersion string) (Result, error) {
 		}
 	}
 	live = ensureRegistryMaterialization(live, key, match.Owner)
-	mutated, _, err := setLivePath(live, key, value)
+	mutated, _, err := setLivePath(live, key, value.Text)
 	if err != nil {
 		return Result{}, fmt.Errorf("setting config key %q: %w", key, err)
 	}
@@ -121,12 +122,9 @@ func SetSystem(path, key, rawValue string) (Result, error) {
 	if match.Field.Scope != configscope.ScopeSystem && match.Field.Scope != configscope.ScopeBoth {
 		return Result{}, fmt.Errorf("config key %q has project scope and cannot be set in ~/.fab-kit/config.yaml", key)
 	}
-	value, err := configvalue.Parse(rawValue)
+	value, err := parseSetScalar(key, match, rawValue)
 	if err != nil {
-		return Result{}, fmt.Errorf("invalid value for %q: %w", key, err)
-	}
-	if value.Kind != match.Kind {
-		return Result{}, fmt.Errorf("config key %q expects a YAML %s, got %s", key, match.Kind, value.Kind)
+		return Result{}, err
 	}
 
 	original, exists, err := readFile(path)
@@ -143,7 +141,7 @@ func SetSystem(path, key, rawValue string) (Result, error) {
 		}
 	}
 	live = ensureRegistryMaterialization(live, key, match.Owner)
-	mutated, _, err := setLivePath(live, key, value)
+	mutated, _, err := setLivePath(live, key, value.Text)
 	if err != nil {
 		return Result{}, fmt.Errorf("setting system config key %q: %w", key, err)
 	}
@@ -161,6 +159,63 @@ func SetSystem(path, key, rawValue string) (Result, error) {
 		return Result{}, fmt.Errorf("configupgrade: writing %s: %w", path, err)
 	}
 	return Result{Changed: true}, nil
+}
+
+// parseSetScalar enforces the deliberately narrow mutation contract. The
+// shared configvalue parser remains collection-aware because environment
+// overrides accept collections in either style; the set command does not.
+func parseSetScalar(key string, match configref.KeyMatch, rawValue string) (configvalue.Parsed, error) {
+	if !scalarKind(match.Kind) {
+		return configvalue.Parsed{}, fmt.Errorf(
+			"config key %q is collection-valued; `fab config set` accepts scalar leaf values only — edit the target config file directly (run `fab config explain %s` for field details)",
+			key, key,
+		)
+	}
+	if strings.ContainsAny(rawValue, "\r\n") {
+		return configvalue.Parsed{}, fmt.Errorf(
+			"value for %q must be a single-line YAML scalar (string, bool, int, or float) — edit the target config file directly",
+			key,
+		)
+	}
+	if inlineCommentIndex(rawValue) >= 0 {
+		return configvalue.Parsed{}, fmt.Errorf(
+			"value for %q must not contain a YAML comment — quote literal # data or edit the target config file directly",
+			key,
+		)
+	}
+
+	value, err := configvalue.Parse(rawValue)
+	if err != nil {
+		return configvalue.Parsed{}, fmt.Errorf("invalid value for %q: %w — edit the target config file directly", key, err)
+	}
+	if value.Node.Style&(yaml.LiteralStyle|yaml.FoldedStyle) != 0 || strings.ContainsAny(value.Node.Value, "\r\n") {
+		return configvalue.Parsed{}, fmt.Errorf(
+			"value for %q must be a single-line YAML scalar (string, bool, int, or float) — edit the target config file directly",
+			key,
+		)
+	}
+	if !scalarKind(value.Kind) {
+		return configvalue.Parsed{}, fmt.Errorf(
+			"value for %q must be a single-line YAML scalar (string, bool, int, or float), got %s — edit the target config file directly",
+			key, value.Kind,
+		)
+	}
+	if value.Kind != match.Kind {
+		return configvalue.Parsed{}, fmt.Errorf(
+			"config key %q expects a YAML %s, got %s — run `fab config explain %s` before editing the target config file",
+			key, match.Kind, value.Kind, key,
+		)
+	}
+	return value, nil
+}
+
+func scalarKind(kind configvalue.Kind) bool {
+	switch kind {
+	case configvalue.KindString, configvalue.KindBool, configvalue.KindInt, configvalue.KindFloat:
+		return true
+	default:
+		return false
+	}
 }
 
 // UnsetSystem removes one system-visible override. Like project Unset it does
@@ -222,7 +277,8 @@ type liveKeyLine struct {
 	line       int
 	indent     int
 	key        string
-	path       string
+	keyToken   string
+	path       []string
 	colon      int
 	value      string
 	commentPos int
@@ -235,8 +291,8 @@ type liveKeyLine struct {
 // values. setLivePath then fills only the requested value, so a later unset can
 // remove the path cleanly without leaving generated comments outside the fence.
 func ensureRegistryMaterialization(document, key string, owner configref.Field) string {
-	top := strings.SplitN(key, ".", 2)[0]
-	if _, ok := findLiveEntry(scanLiveKeyLines(splitMutationLines(document)), top); ok || owner.Segment == "" {
+	parts := strings.Split(key, ".")
+	if _, ok := findLiveEntry(scanLiveKeyLines(splitMutationLines(document)), parts[:1]); ok || owner.Segment == "" {
 		return document
 	}
 
@@ -258,24 +314,17 @@ func registryMaterializationSkeleton(owner configref.Field, key string) (string,
 			virtual[i] = strings.TrimPrefix(line, "# ")
 		}
 	}
-	top := strings.SplitN(key, ".", 2)[0]
-	var root, target liveKeyLine
-	rootFound, targetFound := false, false
+	parts := strings.Split(key, ".")
+	var out []string
+	rootFound := false
 	for _, entry := range scanLiveKeyLines(virtual) {
-		switch entry.path {
-		case top:
-			root, rootFound = entry, true
-		case key:
-			target, targetFound = entry, true
+		if pathHasPrefix(parts, entry.path) {
+			out = append(out, virtual[entry.line][:entry.colon+1])
+			rootFound = rootFound || pathEqual(entry.path, parts[:1])
 		}
 	}
 	if !rootFound {
 		return "", false
-	}
-
-	out := []string{virtual[root.line][:root.colon+1]}
-	if targetFound && target.path != root.path {
-		out = append(out, virtual[target.line][:target.colon+1])
 	}
 	return strings.Join(out, "\n"), true
 }
@@ -283,7 +332,7 @@ func registryMaterializationSkeleton(owner configref.Field, key string) (string,
 func scanLiveKeyLines(lines []string) []liveKeyLine {
 	type parent struct {
 		indent int
-		path   string
+		path   []string
 	}
 	var stack []parent
 	var out []liveKeyLine
@@ -293,13 +342,17 @@ func scanLiveKeyLines(lines []string) []liveKeyLine {
 		if m == nil {
 			continue
 		}
+		key, ok := decodeLiveKeyToken(m[2])
+		if !ok {
+			continue
+		}
 		indent := len(m[1])
 		for len(stack) > 0 && indent <= stack[len(stack)-1].indent {
 			stack = stack[:len(stack)-1]
 		}
-		path := m[2]
+		path := []string{key}
 		if len(stack) > 0 {
-			path = stack[len(stack)-1].path + "." + path
+			path = append(append([]string{}, stack[len(stack)-1].path...), key)
 		}
 		colon := indent + len(m[2])
 		rest := line[colon+1:]
@@ -311,7 +364,8 @@ func scanLiveKeyLines(lines []string) []liveKeyLine {
 		out = append(out, liveKeyLine{
 			line:       i,
 			indent:     indent,
-			key:        m[2],
+			key:        key,
+			keyToken:   m[2],
 			path:       path,
 			colon:      colon,
 			value:      strings.TrimSpace(valuePart),
@@ -325,12 +379,13 @@ func scanLiveKeyLines(lines []string) []liveKeyLine {
 	return out
 }
 
-func setLivePath(document, key string, value configvalue.Parsed) (string, bool, error) {
+func setLivePath(document, key, value string) (string, bool, error) {
 	lines := splitMutationLines(document)
 	entries := scanLiveKeyLines(lines)
-	if entry, ok := findLiveEntry(entries, key); ok {
+	parts := strings.Split(key, ".")
+	if entry, ok := findLiveEntry(entries, parts); ok {
 		end := liveEntryEnd(lines, entry)
-		lines[entry.line] = replaceLiveValue(lines[entry.line], entry, value.Text)
+		lines[entry.line] = replaceLiveValue(lines[entry.line], entry, value)
 		if end > entry.line+1 {
 			if isBlockScalarIndicator(entry.value) {
 				// A block scalar's indented body is value data, including lines that
@@ -345,19 +400,17 @@ func setLivePath(document, key string, value configvalue.Parsed) (string, bool, 
 		return joinMutationLines(lines), true, nil
 	}
 
-	parts := strings.Split(key, ".")
 	for n := len(parts) - 1; n >= 1; n-- {
-		prefix := strings.Join(parts[:n], ".")
-		entry, ok := findLiveEntry(entries, prefix)
+		entry, ok := findLiveEntry(entries, parts[:n])
 		if !ok {
 			continue
 		}
 		if entry.value != "" {
 			parsed, err := configvalue.Parse(entry.value)
 			if err != nil || parsed.Kind != configvalue.KindMapping {
-				return "", false, fmt.Errorf("live ancestor %q is not a mapping", prefix)
+				return "", false, fmt.Errorf("live ancestor %q is not a mapping", strings.Join(parts[:n], "."))
 			}
-			rendered, err := setFlowMappingText(entry.value, parts[n:], value.Text)
+			rendered, err := setFlowMappingText(entry.value, parts[n:], value)
 			if err != nil {
 				return "", false, err
 			}
@@ -370,9 +423,9 @@ func setLivePath(document, key string, value configvalue.Parsed) (string, bool, 
 		addition := make([]string, 0, len(parts)-n)
 		indent := entry.indent + step
 		for i := n; i < len(parts); i++ {
-			line := strings.Repeat(" ", indent) + parts[i] + ":"
+			line := strings.Repeat(" ", indent) + renderMappingKey(parts[i]) + ":"
 			if i == len(parts)-1 {
-				line += " " + value.Text
+				line += " " + value
 			}
 			addition = append(addition, line)
 			indent += step
@@ -386,9 +439,9 @@ func setLivePath(document, key string, value configvalue.Parsed) (string, bool, 
 		addition = append(addition, "")
 	}
 	for i, part := range parts {
-		line := strings.Repeat(" ", i*4) + part + ":"
+		line := strings.Repeat(" ", i*4) + renderMappingKey(part) + ":"
 		if i == len(parts)-1 {
-			line += " " + value.Text
+			line += " " + value
 		}
 		addition = append(addition, line)
 	}
@@ -399,21 +452,20 @@ func setLivePath(document, key string, value configvalue.Parsed) (string, bool, 
 func unsetLivePath(document, key string) (string, bool, error) {
 	lines := splitMutationLines(document)
 	entries := scanLiveKeyLines(lines)
-	if entry, ok := findLiveEntry(entries, key); ok {
+	parts := strings.Split(key, ".")
+	if entry, ok := findLiveEntry(entries, parts); ok {
 		end := liveEntryEnd(lines, entry)
 		if isBlockScalarIndicator(entry.value) {
 			lines = removeBlockScalarEntry(lines, entry, end)
 		} else {
 			lines = removeMutationRange(lines, entry.line, end)
 		}
-		lines = pruneEmptyParents(lines, strings.Split(key, ".")[:len(strings.Split(key, "."))-1])
+		lines = pruneEmptyParents(lines, parts[:len(parts)-1])
 		return joinMutationLines(lines), true, nil
 	}
 
-	parts := strings.Split(key, ".")
 	for n := len(parts) - 1; n >= 1; n-- {
-		prefix := strings.Join(parts[:n], ".")
-		entry, ok := findLiveEntry(entries, prefix)
+		entry, ok := findLiveEntry(entries, parts[:n])
 		if !ok || entry.value == "" {
 			continue
 		}
@@ -439,13 +491,33 @@ func unsetLivePath(document, key string) (string, bool, error) {
 	return document, false, nil
 }
 
-func findLiveEntry(entries []liveKeyLine, path string) (liveKeyLine, bool) {
+func findLiveEntry(entries []liveKeyLine, path []string) (liveKeyLine, bool) {
 	for _, entry := range entries {
-		if entry.path == path {
+		if pathEqual(entry.path, path) {
 			return entry, true
 		}
 	}
 	return liveKeyLine{}, false
+}
+
+func pathEqual(left, right []string) bool {
+	return len(left) == len(right) && pathHasPrefix(left, right)
+}
+
+func pathHasPrefix(path, prefix []string) bool {
+	if len(prefix) > len(path) {
+		return false
+	}
+	for i := range prefix {
+		if path[i] != prefix[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func pathDescendsFrom(path, parent []string) bool {
+	return len(path) > len(parent) && pathHasPrefix(path, parent)
 }
 
 func replaceLiveValue(line string, entry liveKeyLine, value string) string {
@@ -454,7 +526,11 @@ func replaceLiveValue(line string, entry liveKeyLine, value string) string {
 	if entry.commentPos >= 0 {
 		comment = strings.TrimSpace(rest[entry.commentPos:])
 	}
-	out := line[:entry.colon+1] + " " + value
+	keyToken := entry.keyToken
+	if keyToken == entry.key {
+		keyToken = renderMappingKey(entry.key)
+	}
+	out := line[:entry.indent] + keyToken + ": " + value
 	if comment != "" {
 		out += " " + comment
 	}
@@ -463,7 +539,7 @@ func replaceLiveValue(line string, entry liveKeyLine, value string) string {
 
 func childIndentStep(entries []liveKeyLine, parent liveKeyLine) int {
 	for _, entry := range entries {
-		if entry.line > parent.line && entry.indent > parent.indent && strings.HasPrefix(entry.path, parent.path+".") {
+		if entry.line > parent.line && entry.indent > parent.indent && pathDescendsFrom(entry.path, parent.path) {
 			return entry.indent - parent.indent
 		}
 	}
@@ -549,15 +625,14 @@ func mutationCommentContinuesBlock(lines []string, start, parentIndent int) bool
 func pruneEmptyParents(lines []string, parentParts []string) []string {
 	for len(parentParts) > 0 {
 		entries := scanLiveKeyLines(lines)
-		path := strings.Join(parentParts, ".")
-		parent, ok := findLiveEntry(entries, path)
+		parent, ok := findLiveEntry(entries, parentParts)
 		if !ok || parent.value != "" {
 			parentParts = parentParts[:len(parentParts)-1]
 			continue
 		}
 		hasChild := false
 		for _, entry := range entries {
-			if entry.line > parent.line && strings.HasPrefix(entry.path, path+".") {
+			if entry.line > parent.line && pathDescendsFrom(entry.path, parent.path) {
 				hasChild = true
 				break
 			}
@@ -663,6 +738,7 @@ func inlineCommentIndex(s string) int {
 type flowPairSpan struct {
 	key                  string
 	start, end           int
+	keyStart, keyEnd     int
 	valueStart, valueEnd int
 }
 
@@ -679,8 +755,12 @@ func setFlowMappingText(mapping string, parts []string, value string) (string, e
 		if pair.key != parts[0] {
 			continue
 		}
+		keyToken := mapping[pair.keyStart:pair.keyEnd]
+		if keyToken == pair.key {
+			keyToken = renderMappingKey(pair.key)
+		}
 		if len(parts) == 1 {
-			return mapping[:pair.valueStart] + value + mapping[pair.valueEnd:], nil
+			return mapping[:pair.keyStart] + keyToken + mapping[pair.keyEnd:pair.valueStart] + value + mapping[pair.valueEnd:], nil
 		}
 		child := mapping[pair.valueStart:pair.valueEnd]
 		parsed, parseErr := configvalue.Parse(child)
@@ -691,7 +771,7 @@ func setFlowMappingText(mapping string, parts []string, value string) (string, e
 		if err != nil {
 			return "", err
 		}
-		return mapping[:pair.valueStart] + mutated + mapping[pair.valueEnd:], nil
+		return mapping[:pair.keyStart] + keyToken + mapping[pair.keyEnd:pair.valueStart] + mutated + mapping[pair.valueEnd:], nil
 	}
 
 	insert := flowPathText(parts, value)
@@ -712,9 +792,9 @@ func setFlowMappingText(mapping string, parts []string, value string) (string, e
 
 func flowPathText(parts []string, value string) string {
 	if len(parts) == 1 {
-		return parts[0] + ": " + value
+		return renderMappingKey(parts[0]) + ": " + value
 	}
-	return parts[0] + ": {" + flowPathText(parts[1:], value) + "}"
+	return renderMappingKey(parts[0]) + ": {" + flowPathText(parts[1:], value) + "}"
 }
 
 func unsetFlowMappingText(mapping string, parts []string) (mutated string, removed, empty bool, err error) {
@@ -791,9 +871,56 @@ func parseFlowMappingSpans(mapping string) ([]flowPairSpan, error) {
 		if err != nil {
 			return nil, err
 		}
-		pairs = append(pairs, flowPairSpan{key: key, start: start, end: end, valueStart: valueStart, valueEnd: valueEnd})
+		pairs = append(pairs, flowPairSpan{
+			key: key, start: start, end: end,
+			keyStart: keyStart, keyEnd: keyEnd,
+			valueStart: valueStart, valueEnd: valueEnd,
+		})
 	}
 	return pairs, nil
+}
+
+func decodeLiveKeyToken(token string) (string, bool) {
+	if token == "" || token[0] != '\'' && token[0] != '"' {
+		return token, token != ""
+	}
+	var node yaml.Node
+	if err := yaml.Unmarshal([]byte(token), &node); err != nil || len(node.Content) != 1 {
+		return "", false
+	}
+	scalar := node.Content[0]
+	if scalar.Kind != yaml.ScalarNode || scalar.Tag != "!!str" {
+		return "", false
+	}
+	return scalar.Value, true
+}
+
+// renderMappingKey keeps ordinary string keys plain, but double-quotes any
+// dynamic segment whose bare spelling would resolve as a non-string YAML key.
+// The explicit YAML 1.1 bool spellings are quoted too so generated config stays
+// string-keyed for readers that still recognize that compatibility schema.
+func renderMappingKey(key string) string {
+	if plainMappingKeyRoundTripsAsString(key) {
+		return key
+	}
+	return strconv.Quote(key)
+}
+
+func plainMappingKeyRoundTripsAsString(key string) bool {
+	switch strings.ToLower(key) {
+	case "y", "yes", "n", "no", "true", "false", "on", "off", "null", "~":
+		return false
+	}
+	var document yaml.Node
+	if err := yaml.Unmarshal([]byte(key+": null\n"), &document); err != nil || len(document.Content) != 1 {
+		return false
+	}
+	root := document.Content[0]
+	if root.Kind != yaml.MappingNode || len(root.Content) != 2 {
+		return false
+	}
+	keyNode := root.Content[0]
+	return keyNode.Kind == yaml.ScalarNode && keyNode.Tag == "!!str" && keyNode.Value == key
 }
 
 func decodeFlowKey(raw string) (string, error) {

@@ -110,8 +110,10 @@ func TestConfigShow_KeyedValueOriginAndUnknown(t *testing.T) {
 	if out != "codex  # "+wantOrigin+"\n" {
 		t.Fatalf("keyed origin output = %q", out)
 	}
-	if _, err := runConfig(t, "show", "agent.workerz"); err == nil || !strings.Contains(err.Error(), "agent.workerz") {
-		t.Fatalf("unknown keyed show should name the key, got %v", err)
+	for _, key := range []string{"agent.workerz", "providers.#local.session_command"} {
+		if _, err := runConfig(t, "show", key); err == nil || !strings.Contains(err.Error(), key) {
+			t.Fatalf("unknown/structurally invalid keyed show %q should name the key, got %v", key, err)
+		}
 	}
 }
 
@@ -169,6 +171,100 @@ func TestConfigSetUnset_ProjectRoundTripAndNoop(t *testing.T) {
 	}
 }
 
+func TestConfigSetShow_LiteralDottedKeyDoesNotShadowNestedPath(t *testing.T) {
+	const literal = "agent.workers: literal # unrelated dotted key"
+	for _, tc := range []struct {
+		name     string
+		original string
+	}{
+		{"instead of nested block", literal + "\n"},
+		{"alongside nested block", literal + "\nagent:\n    workers: claude\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, _ := setupConfigRepo(t, tc.original)
+			if _, err := runConfig(t, "set", "agent.workers", "codex"); err != nil {
+				t.Fatalf("config set: %v", err)
+			}
+			out, err := runConfig(t, "show", "agent.workers")
+			if err != nil {
+				t.Fatalf("config show: %v", err)
+			}
+			if out != "codex\n" {
+				t.Fatalf("keyed show = %q, want the nested value", out)
+			}
+
+			data, err := os.ReadFile(filepath.Join(repo, "fab", "project", "config.yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Count(string(data), literal) != 1 {
+				t.Fatalf("set changed the unrelated literal dotted key\n%s", data)
+			}
+		})
+	}
+}
+
+func TestConfigUnset_LiteralDottedKeyDoesNotMatchNestedPath(t *testing.T) {
+	const literal = "agent.workers: literal # unrelated dotted key"
+	for _, tc := range []struct {
+		name     string
+		original string
+		wantNoop bool
+	}{
+		{"instead of nested block", literal + "\n", true},
+		{"alongside nested block", literal + "\nagent:\n    workers: codex\n", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, _ := setupConfigRepo(t, tc.original)
+			out, err := runConfig(t, "unset", "agent.workers")
+			if err != nil {
+				t.Fatalf("config unset: %v", err)
+			}
+			if tc.wantNoop && !strings.Contains(out, "nothing to unset") {
+				t.Fatalf("literal-only unset should be a no-op, got %q", out)
+			}
+
+			data, err := os.ReadFile(filepath.Join(repo, "fab", "project", "config.yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Count(string(data), literal) != 1 {
+				t.Fatalf("unset changed the unrelated literal dotted key\n%s", data)
+			}
+			if tc.wantNoop && string(data) != tc.original {
+				t.Fatalf("literal-only unset changed bytes\n--- got ---\n%s\n--- want ---\n%s", data, tc.original)
+			}
+
+			shown, err := runConfig(t, "show", "agent.workers")
+			if err != nil {
+				t.Fatalf("config show after unset: %v", err)
+			}
+			if shown != "claude\n" {
+				t.Fatalf("keyed show after unset = %q, want inherited default", shown)
+			}
+		})
+	}
+}
+
+func TestConfigSet_OpaqueProviderNamesAreEffective(t *testing.T) {
+	for _, name := range []string{"123", "true", "on", "-local", "测试"} {
+		t.Run(name, func(t *testing.T) {
+			setupConfigRepo(t, "")
+			key := "providers." + name + ".session_command"
+			if _, err := runConfig(t, "set", key, "tool"); err != nil {
+				t.Fatalf("config set %q: %v", key, err)
+			}
+			out, err := runConfig(t, "show", key)
+			if err != nil {
+				t.Fatalf("config show %q: %v", key, err)
+			}
+			if out != "tool\n" {
+				t.Fatalf("config show %q = %q, want %q", key, out, "tool\n")
+			}
+		})
+	}
+}
+
 func TestConfigSetUnset_ValidationAndSystemScope(t *testing.T) {
 	_, home := setupConfigRepo(t, "agent:\n    workers: claude\n")
 	for _, tc := range []struct {
@@ -176,7 +272,10 @@ func TestConfigSetUnset_ValidationAndSystemScope(t *testing.T) {
 		want string
 	}{
 		{[]string{"set", "agent.workerz", "codex"}, "agent.workerz"},
-		{[]string{"set", "agent.workers", "{bad: kind}"}, "expects a YAML string"},
+		{[]string{"set", "providers.#local.session_command", "tool"}, "dotted config-key grammar"},
+		{[]string{"set", "agent.workers", "{bad: kind}"}, "single-line YAML scalar"},
+		{[]string{"set", "agent.workers", "codex # note"}, "must not contain a YAML comment"},
+		{[]string{"set", "source_paths", "[src/]"}, "scalar leaf"},
 		{[]string{"set", "source_paths", "[src/]", "--system"}, "project scope"},
 	} {
 		if _, err := runConfig(t, tc.args...); err == nil || !strings.Contains(err.Error(), tc.want) {
@@ -418,6 +517,84 @@ func TestConfigShowOrigin_EnvironmentNullRemainsPresent(t *testing.T) {
 		}
 	}
 	t.Fatalf("origin output missing agent.workers:\n%s", origin)
+}
+
+func TestConfigShowKey_EnvironmentNullWins(t *testing.T) {
+	setupConfigRepo(t, "agent:\n  workers: project-worker\n")
+	t.Setenv("FAB_AGENT_WORKERS", "null")
+
+	plain, err := runConfig(t, "show", "agent.workers")
+	if err != nil {
+		t.Fatalf("config show agent.workers: %v", err)
+	}
+	if plain != "null\n" {
+		t.Fatalf("keyed show ignored the explicit environment null: %q", plain)
+	}
+
+	origin, err := runConfig(t, "show", "agent.workers", "--origin")
+	if err != nil {
+		t.Fatalf("config show agent.workers --origin: %v", err)
+	}
+	if origin != "null  # $FAB_AGENT_WORKERS\n" {
+		t.Fatalf("keyed show lost explicit-null provenance: %q", origin)
+	}
+}
+
+func TestConfigShowKey_UsesNearestReplacedAncestorOrigin(t *testing.T) {
+	setupConfigRepo(t, "providers:\n  codex:\n    session_command: project-command\n")
+	t.Setenv("FAB_PROVIDERS", "null")
+
+	plain, err := runConfig(t, "show", "providers.codex.session_command")
+	if err != nil {
+		t.Fatalf("config show descendant: %v", err)
+	}
+	if plain != "null\n" {
+		t.Fatalf("ancestor replacement did not null the descendant: %q", plain)
+	}
+
+	origin, err := runConfig(t, "show", "providers.codex.session_command", "--origin")
+	if err != nil {
+		t.Fatalf("config show descendant --origin: %v", err)
+	}
+	if origin != "null  # $FAB_PROVIDERS\n" {
+		t.Fatalf("descendant lost the nearest replaced ancestor's provenance: %q", origin)
+	}
+}
+
+func TestConfigShowKey_EmptyCollectionKeepsWinningOrigin(t *testing.T) {
+	t.Run("environment mapping", func(t *testing.T) {
+		setupConfigRepo(t, "")
+		t.Setenv("FAB_PROVIDERS", "{custom: {}}")
+
+		plain, err := runConfig(t, "show", "providers.custom")
+		if err != nil {
+			t.Fatalf("config show empty mapping: %v", err)
+		}
+		if plain != "{}\n" {
+			t.Fatalf("empty mapping output = %q", plain)
+		}
+
+		origin, err := runConfig(t, "show", "providers.custom", "--origin")
+		if err != nil {
+			t.Fatalf("config show empty mapping --origin: %v", err)
+		}
+		if origin != "{}  # $FAB_PROVIDERS\n" {
+			t.Fatalf("empty mapping lost its effective value or environment origin: %q", origin)
+		}
+	})
+
+	t.Run("project sequence", func(t *testing.T) {
+		repo, _ := setupConfigRepo(t, "source_paths: []\n")
+
+		origin, err := runConfig(t, "show", "source_paths", "--origin")
+		if err != nil {
+			t.Fatalf("config show empty sequence --origin: %v", err)
+		}
+		want := "[]  # " + filepath.Join(repo, "fab", "project", "config.yaml") + "\n"
+		if origin != want {
+			t.Fatalf("empty sequence lost its compact value or project origin: got %q, want %q", origin, want)
+		}
+	})
 }
 
 // TestConfigInitSystem_WritesScaffoldAndRefusesOverwrite: `fab config init

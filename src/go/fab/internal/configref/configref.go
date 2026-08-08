@@ -80,6 +80,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
@@ -916,6 +917,15 @@ func ResolveKey(key string) (KeyMatch, bool, error) {
 	if err != nil {
 		return KeyMatch{}, false, err
 	}
+	parts := strings.Split(key, ".")
+	if len(parts) >= 2 && parts[0] == "providers" {
+		if reason := invalidProviderName(parts[1]); reason != "" {
+			return KeyMatch{}, false, fmt.Errorf(
+				"config key %q uses provider name %q, which cannot be represented by the dotted config-key grammar: %s",
+				key, parts[1], reason,
+			)
+		}
+	}
 	if !validDottedKey(key) {
 		return KeyMatch{}, false, nil
 	}
@@ -934,7 +944,6 @@ func ResolveKey(key string) (KeyMatch, bool, error) {
 		}
 	}
 
-	parts := strings.Split(key, ".")
 	switch {
 	case len(parts) == 3 && parts[0] == "agent" && parts[1] == "profiles" &&
 		contains(agent.RoleNames(), parts[2]):
@@ -1001,9 +1010,19 @@ func validDottedKey(key string) bool {
 	if key == "" || key != strings.TrimSpace(key) {
 		return false
 	}
-	for _, part := range strings.Split(key, ".") {
+	parts := strings.Split(key, ".")
+	for index, part := range parts {
 		if part == "" {
 			return false
+		}
+		// Provider names are user-defined map keys, not schema identifiers. Keep
+		// the surrounding providers/profiles/role/leaf axes strict while accepting
+		// any canonical unquoted segment on this one dynamic axis.
+		if len(parts) >= 2 && parts[0] == "providers" && index == 1 {
+			if !validProviderName(part) {
+				return false
+			}
+			continue
 		}
 		for i := 0; i < len(part); i++ {
 			c := part[i]
@@ -1015,6 +1034,33 @@ func validDottedKey(key string) bool {
 		}
 	}
 	return true
+}
+
+func validProviderName(name string) bool {
+	return invalidProviderName(name) == ""
+}
+
+// invalidProviderName keeps the dotted CLI grammar unambiguous. Provider names
+// remain opaque (digits, bool-like words, a leading hyphen, and Unicode are all
+// accepted); the mutation writer quotes their on-disk YAML key when needed.
+func invalidProviderName(name string) string {
+	if name == "" {
+		return "the name is empty"
+	}
+	if name != strings.TrimSpace(name) {
+		return "leading or trailing whitespace requires quoting"
+	}
+	for _, r := range name {
+		if unicode.IsSpace(r) || unicode.IsControl(r) {
+			return "whitespace and control characters require quoting"
+		}
+		// Dots are path separators. The remaining characters are YAML indicators
+		// or quoted/escaped spellings that would make the dotted input ambiguous.
+		if strings.ContainsRune(".:,[]{}#&*!|>'\"%@`\\", r) {
+			return fmt.Sprintf("character %q requires quoting", r)
+		}
+	}
+	return ""
 }
 
 func contains(values []string, want string) bool {

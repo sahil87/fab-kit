@@ -842,8 +842,9 @@ command values are wired to the file's keys.
 
 ## Out of scope (deferred)
 
-- **User (`~/.fab-kit`) config layer** — was dropped here; subsequently shipped as the three-layer
-  config cascade (project > system `~/.fab-kit/config.yaml` > defaults, `260708-lpb5`). `agent` and
+- **User (`~/.fab-kit`) config layer** — was dropped here; subsequently shipped as the system rung
+  (`260708-lpb5`) of the current four-layer cascade (environment > project > system
+  `~/.fab-kit/config.yaml` > defaults). `agent` and
   `providers` are both scope `both`, so the depth knobs, a per-role provider fill, and a role override
   are all settable once per machine.
 - **Non-claude default fills** — *no longer deferred*: shipped by `260806-ywkx`. See § Three built-in
