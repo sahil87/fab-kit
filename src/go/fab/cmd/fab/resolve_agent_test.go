@@ -420,7 +420,7 @@ func TestResolveAgentOverrideProviderBuiltInFill(t *testing.T) {
 		t.Fatalf("resolve-agent apply --provider codex: %v", err)
 	}
 	want := "model=" + model + "\neffort=" + effort + "\nprovider=codex\n" +
-		"dispatch=codex exec -m " + model + " -c model_reasoning_effort=" + effort + "\n"
+		"dispatch=codex exec --dangerously-bypass-approvals-and-sandbox -m " + model + " -c model_reasoning_effort=" + effort + "\n"
 	if out != want {
 		t.Errorf("output = %q, want %q (the swap re-derives from codex's own fills, never claude's)", out, want)
 	}
@@ -440,7 +440,7 @@ func TestResolveAgentOverrideFullTriple(t *testing.T) {
 		t.Fatalf("resolve-agent with overrides: %v", err)
 	}
 	want := "model=gpt-5.3-codex\neffort=high\nprovider=codex\n" +
-		"dispatch=codex exec -m gpt-5.3-codex -c model_reasoning_effort=high\n"
+		"dispatch=codex exec --dangerously-bypass-approvals-and-sandbox -m gpt-5.3-codex -c model_reasoning_effort=high\n"
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
@@ -470,7 +470,7 @@ func TestResolveAgentOverrideProviderTakesFill(t *testing.T) {
 		t.Fatalf("resolve-agent apply --provider codex: %v", err)
 	}
 	want := "model=gpt-5.3-codex\neffort=" + effort + "\nprovider=codex\n" +
-		"dispatch=codex exec -m gpt-5.3-codex -c model_reasoning_effort=" + effort + "\n"
+		"dispatch=codex exec --dangerously-bypass-approvals-and-sandbox -m gpt-5.3-codex -c model_reasoning_effort=" + effort + "\n"
 	if out != want {
 		t.Errorf("output = %q, want the user's flat-fill model to beat the built-in %q", out, want)
 	}
@@ -516,7 +516,7 @@ func TestResolveAgentOverrideAliasKeepsNonClaudeVerbatim(t *testing.T) {
 		t.Fatalf("resolve-agent with overrides --alias: %v", err)
 	}
 	want := "model=gpt-5.3-codex\neffort=" + effort + "\nprovider=codex\n" +
-		"dispatch=codex exec -m gpt-5.3-codex -c model_reasoning_effort=" + effort + "\n"
+		"dispatch=codex exec --dangerously-bypass-approvals-and-sandbox -m gpt-5.3-codex -c model_reasoning_effort=" + effort + "\n"
 	if out != want {
 		t.Errorf("output = %q, want %q (non-Claude model verbatim; full ID in dispatch=)", out, want)
 	}
@@ -658,7 +658,7 @@ agent:
 	// the project scope's provider, and an explicit role-level pin outranks the
 	// resolved provider's fills — so gemini is invoked with the codex model ID
 	// rather than with providers.gemini.profiles.default.model.
-	want := "model=gpt-5.3-codex\neffort=high\nprovider=gemini\ndispatch=gemini -m gpt-5.3-codex\n"
+	want := "model=gpt-5.3-codex\neffort=high\nprovider=gemini\ndispatch=gemini --approval-mode=yolo -m gpt-5.3-codex\n"
 	if out != want {
 		t.Errorf("output = %q, want %q\n(the two scopes deep-merge into one agent.profiles.doing map "+
 			"before resolution, and an explicit role-level model/effort outranks the resolved provider's "+

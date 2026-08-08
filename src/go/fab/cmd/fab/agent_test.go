@@ -116,7 +116,7 @@ agent:
 	}
 	// The command grammar comes from the codex BUILT-IN (no session_command
 	// configured), the fill from the provider entry.
-	want := "codex -m gpt-5.3-codex -c model_reasoning_effort=high\n"
+	want := "codex --dangerously-bypass-approvals-and-sandbox -m gpt-5.3-codex -c model_reasoning_effort=high\n"
 	if out != want {
 		t.Errorf("output = %q, want the built-in codex grammar filled from providers.codex %q", out, want)
 	}
@@ -139,7 +139,7 @@ func TestAgentPrintBuiltinCodexTakesItsOwnFill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("agent --print: %v", err)
 	}
-	want := "codex -m " + fill.Model + " -c model_reasoning_effort=" + fill.Effort + "\n"
+	want := "codex --dangerously-bypass-approvals-and-sandbox -m " + fill.Model + " -c model_reasoning_effort=" + fill.Effort + "\n"
 	if out != want {
 		t.Errorf("output = %q, want codex's own default-role fill %q", out, want)
 	}
@@ -453,8 +453,8 @@ func TestAgentProviderNoSessionCommandErrors(t *testing.T) {
 
 // TestAgentProviderBuiltinCodexNoConfig (260805-j3cm): `fab agent --provider codex`
 // works with NO providers: block at all — codex is a built-in. With no --model the
-// composition drops both placeholder tokens, so a bare `codex` results and the
-// installed CLI's own default model applies. The provider form bypasses role
+// composition drops both placeholder tokens while preserving the fixed bypass
+// flag, so the installed CLI's own default model applies. The provider form bypasses role
 // resolution, so codex's shipped per-role fills (260806-ywkx) do not apply on this
 // path — see TestAgentPrintBuiltinCodexTakesItsOwnFill for the role path.
 func TestAgentProviderBuiltinCodexNoConfig(t *testing.T) {
@@ -464,15 +464,15 @@ func TestAgentProviderBuiltinCodexNoConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("agent --provider codex --print: %v", err)
 	}
-	if out != "codex\n" {
-		t.Errorf("output = %q, want a bare \"codex\\n\" from the built-in grammar", out)
+	if out != "codex --dangerously-bypass-approvals-and-sandbox\n" {
+		t.Errorf("output = %q, want the model-free built-in codex grammar with its bypass flag", out)
 	}
 
 	out, err = runAgentPrint(t, "--provider", "gemini", "--model", "gemini-2.5-pro")
 	if err != nil {
 		t.Fatalf("agent --provider gemini --print: %v", err)
 	}
-	if out != "gemini -m gemini-2.5-pro\n" {
+	if out != "gemini --approval-mode=yolo -m gemini-2.5-pro\n" {
 		t.Errorf("output = %q, want the built-in gemini grammar with the model substituted", out)
 	}
 }

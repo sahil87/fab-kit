@@ -58,9 +58,11 @@ providers:
       fast:     { model: claude-sonnet-5, effort: medium }
   codex:
     # `codex exec` is a SUBCOMMAND (not a flag) and reads the prompt from stdin,
-    # which is where `fab dispatch` pipes it.
-    session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
-    dispatch_command: 'codex exec -m {model} -c model_reasoning_effort={effort}'
+    # which is where `fab dispatch` pipes it. Both forms bypass approvals and the
+    # sandbox: stage workers are unattended and cannot answer approval prompts,
+    # matching claude's shipped `--dangerously-skip-permissions` posture.
+    session_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
+    dispatch_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
     # Sparse: a role absent here resolves the `default` entry, so hydrate and
     # operator get the frontier model at `high` without a row of their own. The
     # codex CLI takes a concrete model SLUG (no alias mechanism), so these are
@@ -74,9 +76,12 @@ providers:
     # No {effort}: the gemini CLI has no reasoning-effort flag, so a resolved
     # effort has nowhere to go. No `-p` on the dispatch command either: gemini's
     # -p takes prompt TEXT (appended after stdin), whereas `fab dispatch` pipes
-    # the prompt to stdin, which gemini reads as the prompt in non-TTY mode.
-    session_command: 'gemini -m {model}'
-    dispatch_command: 'gemini -m {model}'
+    # the prompt to stdin, which gemini reads as the prompt in non-TTY mode. Both
+    # forms use yolo approval mode because unattended workers cannot answer
+    # approval prompts; the explicit approval-mode spelling avoids deprecated
+    # `--yolo` while matching the full-auto policy of the other built-ins.
+    session_command: 'gemini --approval-mode=yolo -m {model}'
+    dispatch_command: 'gemini --approval-mode=yolo -m {model}'
     # Model-only, for the same no-{effort} reason. These are the gemini CLI's own
     # stable ALIASES, not versioned IDs: `-m pro` / `-m flash` resolve to whatever
     # that CLI's current best pro/flash model is for the caller's entitlement, and

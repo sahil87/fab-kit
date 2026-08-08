@@ -77,8 +77,8 @@ Each provider MAY additionally carry **`profiles`** — a map keyed by role name
 | Built-in | `session_command` | `dispatch_command` | `profiles` |
 |----------|-------------------|--------------------|------------|
 | `claude` | templated default | **none** → native Agent-tool dispatch | all six roles |
-| `codex` | `codex -m {model} -c model_reasoning_effort={effort}` | `codex exec -m {model} -c model_reasoning_effort={effort}` | sparse — `default`, `doing`, `review`, `fast` |
-| `gemini` | `gemini -m {model}` | `gemini -m {model}` | sparse — `default`, `fast` (model only) |
+| `codex` | `codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}` | `codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}` | sparse — `default`, `doing`, `review`, `fast` |
+| `gemini` | `gemini --approval-mode=yolo -m {model}` | `gemini --approval-mode=yolo -m {model}` | sparse — `default`, `fast` (model only) |
 
 **All three ship per-role fills**, so naming a provider on a depth knob is a complete configuration: `agent.workers: codex` resolves a model suited to each role, and **role differentiation survives the provider swap** (apply/review run at codex's higher effort while ship takes its cheaper `fast` model). The non-claude maps are **sparse** — a role absent from a map resolves that provider's `default` entry — and the merge is per **field**, so a codex row carrying `effort` only takes its model from `default`. Two per-provider shapes are load-bearing: **gemini's fills are model-only** (that CLI has no reasoning-effort flag, the same reason its grammars carry no `{effort}`), and **gemini's fills are the CLI's own stable aliases (`pro`, `flash`)** rather than versioned IDs — `gemini -m pro` resolves to whatever that CLI's current best pro model is for the caller's entitlement, so those rows do not rot (at the cost of a gemini-CLI version floor: a CLI predating alias support passes `pro` through as an unknown model ID and fails there).
 
@@ -98,7 +98,7 @@ providers:
 
 The two command fields are deliberately unmerged because session and dispatch are **different invocations of the same binary** (claude interactive `-n <name>` vs headless `-p`; codex TUI vs `codex exec`) — no single template expresses both. `{model}`/`{effort}` placeholders in either command are substituted at resolve time via `spawn.WithProfile` (reused, not reimplemented — see [configuration.md](/_shared/configuration.md) § `providers` for the template/append modes and the empty-value token-drop rule).
 
-Two per-provider grammar specifics: **gemini carries no `{effort}` placeholder** (the gemini CLI has no reasoning-effort flag, so a resolved effort has nowhere to go), and **gemini's `dispatch_command` is the bare `gemini -m {model}` with no `-p`** — `fab dispatch` pipes the prompt to gemini's stdin, which it reads as the prompt in non-TTY mode, whereas `-p` takes prompt TEXT appended after stdin. **codex reads its prompt from stdin** via the `exec` subcommand. `fab config reference` presents all three as **commented reference-style built-in defaults** — with only `claude.session_command` shown live as the baseline example; see [configuration.md](/_shared/configuration.md) § `providers` for the rendered presentation and its parse-side guarantees, and § The machinery is documented, not scaffolded for why the managed fence omits the block.
+The non-claude built-ins carry explicit full-auto grammar on both command forms: codex uses `--dangerously-bypass-approvals-and-sandbox`, and gemini uses the non-deprecated `--approval-mode=yolo` spelling. Two other per-provider specifics remain load-bearing: **gemini carries no `{effort}` placeholder** (the gemini CLI has no reasoning-effort flag, so a resolved effort has nowhere to go), and **gemini's `dispatch_command` is `gemini --approval-mode=yolo -m {model}` with no `-p`** — `fab dispatch` pipes the prompt to gemini's stdin, which it reads as the prompt in non-TTY mode, whereas `-p` takes prompt TEXT appended after stdin. **codex reads its prompt from stdin** via the `exec` subcommand. `fab config reference` presents all three as **commented reference-style built-in defaults** — with only `claude.session_command` shown live as the baseline example; see [configuration.md](/_shared/configuration.md) § `providers` for the rendered presentation and its parse-side guarantees, and § The machinery is documented, not scaffolded for why the managed fence omits the block.
 
 **Provider names are opaque — fab NEVER infers a provider from a model string.** Two entries fronting the same vendor under different names are different providers, each with its own fills.
 
@@ -113,13 +113,13 @@ Two per-provider grammar specifics: **gemini carries no `{effort}` placeholder**
 
 - **GIVEN** `providers.codex.dispatch_command` and a role resolving to `codex`
 - **WHEN** a stage on that role is dispatched
-- **THEN** `fab dispatch` runs the resolved `codex exec …` command (cross-harness), profile substituted
+- **THEN** `fab dispatch` runs the resolved `codex exec --dangerously-bypass-approvals-and-sandbox …` command (cross-harness), profile substituted
 
 #### Scenario: naming a built-in provider with no `providers:` block
 
 - **GIVEN** a config with `agent: { profiles: { review: { provider: codex, model: <codex-model-id>, effort: high } } }` and no `providers:` block at all
 - **WHEN** `fab resolve-agent review` runs
-- **THEN** it emits `provider=codex` plus `dispatch=codex exec -m <codex-model-id> -c model_reasoning_effort=high` — resolved entirely from the Go built-in grammar
+- **THEN** it emits `provider=codex` plus `dispatch=codex exec --dangerously-bypass-approvals-and-sandbox -m <codex-model-id> -c model_reasoning_effort=high` — resolved entirely from the Go built-in grammar
 - **AND** with no agent override at all, the same command emits no `dispatch=` line (the built-in claude provider carries none) — a built-in provider is inert until named
 
 ### Requirement: Six roles with fixed referents
@@ -234,7 +234,7 @@ The stage→role mapping is **fab-owned and NOT user-overridable** (`stageRoles`
 
 - **GIVEN** a default config (apply → `doing` → claude)
 - **WHEN** `fab resolve-agent apply --provider codex` runs
-- **THEN** `provider=codex` with codex's own `doing` fill — its shipped model (inherited from codex's `default`, since the `doing` row carries effort only) at codex's `doing` effort — and `dispatch=codex exec …` with both placeholders substituted
+- **THEN** `provider=codex` with codex's own `doing` fill — its shipped model (inherited from codex's `default`, since the `doing` row carries effort only) at codex's `doing` effort — and `dispatch=codex exec --dangerously-bypass-approvals-and-sandbox …` with both placeholders substituted
 - **WHEN** `fab resolve-agent apply --effort high` runs (no `--provider`)
 - **THEN** `provider=claude` with the role's own model and `effort=high` — a within-role override, not a usage error
 - **WHEN** `fab resolve-agent apply --provider bogus` runs
@@ -287,7 +287,7 @@ Both modes compose through the same `spawn.WithProfile` (template substitution o
 
 Provider-mode rules:
 
-- **Omitted `--model`/`--effort`** leave the value empty and follow `WithProfile`'s empty-value rule (template mode drops the placeholder's token plus a preceding `-`-flag; append mode omits the flag), so a bare provider invocation results and the installed CLI's own default model applies — the way to spawn a provider whose current model IDs the caller does not know. **This path bypasses the provider's per-role fills too**: `providers.<name>.profiles` is deliberately NOT consulted by `fab agent --provider` (the bypass is total — it skips role resolution *and* the fill), so an empty flag means empty, not the configured fill. The fills apply on the resolution surface (`fab resolve-agent`, role resolution), not on this launcher.
+- **Omitted `--model`/`--effort`** leave the value empty and follow `WithProfile`'s empty-value rule (template mode drops the placeholder's token plus a preceding `-`-flag; append mode omits the flag), so a profile-free provider invocation results and the installed CLI's own default model applies — the way to spawn a provider whose current model IDs the caller does not know. Provider-level flags without placeholders remain in that command. **This path bypasses the provider's per-role fills too**: `providers.<name>.profiles` is deliberately NOT consulted by `fab agent --provider` (the bypass is total — it skips role resolution *and* the fill), so an empty flag means empty, not the configured fill. The fills apply on the resolution surface (`fab resolve-agent`, role resolution), not on this launcher.
 - **`--model`/`--effort` require `--provider`** — supplying either alone is a usage error (non-zero exit).
 - **`--provider` and the `[role]` positional are mutually exclusive** — supplying both is a usage error naming the exclusion (a hand-written `RunE` check, since cobra's `MarkFlagsMutuallyExclusive` relates only flags and the role is a positional).
 - Both guards, and the mode selection itself, key on cobra's `Flag.Changed` — whether the flag was **supplied** — not on its value being non-empty, so `fab agent doing --provider=` and `fab agent --model= --print` still error rather than falling through to the role path.
@@ -298,10 +298,10 @@ The procedural knowledge for *using* a composed command — opening it in a tmux
 
 #### Scenario: provider-addressed spawn with no model supplied
 
-- **GIVEN** `providers.codex.session_command: 'codex -m {model} -c model_reasoning_effort={effort}'`
+- **GIVEN** `providers.codex.session_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'`
 - **WHEN** `fab agent --provider codex --print` runs
-- **THEN** stdout is a bare `codex` — both placeholder tokens and their preceding flags dropped — so the CLI's own default model applies
-- **AND** `fab agent --provider codex --model <codex-model-id> --effort high --print` prints `codex -m <codex-model-id> -c model_reasoning_effort=high`
+- **THEN** stdout is `codex --dangerously-bypass-approvals-and-sandbox` — both placeholder tokens and their preceding flags are dropped while the provider-level bypass flag remains — so the CLI's own default model applies
+- **AND** `fab agent --provider codex --model <codex-model-id> --effort high --print` prints `codex --dangerously-bypass-approvals-and-sandbox -m <codex-model-id> -c model_reasoning_effort=high`
 
 #### Scenario: unknown provider name
 
@@ -382,6 +382,12 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 **Why**: Shipping no fills was the *silent* failure: `agent.workers: codex` resolved an empty model identically for all four workers roles, so the provider CLI's own default ran everywhere and the role taxonomy flattened exactly where a user first exercises the knob. A stale ID is the loud, cheap failure by comparison — the CLI rejects it immediately and the fix is one line. Three more facts close the gap the rot argument was defending: gemini's fills are the CLI's own *aliases*, which do not rot at all; a bump is a reviewable data diff in an embedded YAML file, pinned by a test so it is always deliberate; and fab-kit releases every few days, so users see refreshed suggestions at kit cadence rather than CLI cadence. presence=intent is untouched — a built-in provider is inert until a knob, role override, or flag names it, so adding fills changes no default behavior while both depth knobs ship `claude`.
 **Rejected**: Keeping fills out of the release (preserves the silent role-flattening for the flagship one-line UX); a CI staleness check or catalog fetch against provider APIs (fab is validation-free by constitution, and a network dependency in resolution is worse than a stale string); seeding the fills into each project's `config.yaml` (pins in every repo, rotting independently of the binary); inferring a provider from a model string (breaks provider neutrality).
 *Introduced by*: 260805-j3cm-builtin-provider-templates-and-fill; *Updated by*: 260806-ywkx-ship-codex-gemini-fills (fills ship for codex/gemini too; the refresh-cadence policy replaces the rot argument)
+
+### Non-Claude Built-in Commands Run Full-Auto
+**Decision**: Both codex command forms carry `--dangerously-bypass-approvals-and-sandbox`, and both gemini command forms carry `--approval-mode=yolo`. Project and system provider-command overrides remain the approval-gated escape hatch.
+**Why**: Headless and pane stage workers are unattended and have no approval-answering channel; ship and review-pr also require network and repository operations. Explicit bypass grammar gives codex and gemini the same autonomous execution policy as claude's shipped `--dangerously-skip-permissions` command.
+**Rejected**: Codex `--full-auto` (retains a workspace-write sandbox that blocks required network operations); bypassing only `dispatch_command` (leaves pane workers gated); approval-gated built-ins or per-project fixes (break the complete one-knob provider swap).
+*Introduced by*: 260808-clxw-codex-gemini-bypass-flags
 
 ### Gemini's Fills Are CLI Aliases; Codex's Are Slugs Read from the Installed Catalog
 **Decision**: `providers.gemini.profiles` ships the gemini CLI's own stable aliases (`default: pro`, `fast: flash`), model-only. `providers.codex.profiles` ships concrete model slugs, sparse and per field — a `default` model plus effort, higher effort on `doing`/`review`, and a cheaper model at low effort on `fast`.

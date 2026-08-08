@@ -1,0 +1,55 @@
+id: clxw
+name: 260808-clxw-codex-gemini-bypass-flags
+created: 2026-08-08T03:39:41Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 6
+    acceptance_count: 17
+    acceptance_completed: 17
+confidence:
+    certain: 4
+    confident: 5
+    tentative: 0
+    unresolved: 0
+    score: 4.6
+    fuzzy: true
+    dimensions:
+        signal: 76.1
+        reversibility: 81.1
+        competence: 82.8
+        disambiguation: 81.1
+stage_metrics:
+    intake: {started_at: "2026-08-08T03:39:41Z", driver: fab-new, iterations: 1, completed_at: "2026-08-08T03:44:09Z"}
+    apply: {started_at: "2026-08-08T03:44:09Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T03:55:12Z"}
+    review: {started_at: "2026-08-08T03:55:12Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T03:59:35Z"}
+    hydrate: {started_at: "2026-08-08T03:59:35Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T04:04:46Z"}
+    ship: {started_at: "2026-08-08T04:04:46Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-08-08T04:04:46Z"
+    computed_at_stage: hydrate
+summary: adds full-auto approval bypass grammar to built-in codex and gemini provider commands and documents the policy
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-08T04:04:46Z
