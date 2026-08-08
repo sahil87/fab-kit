@@ -144,10 +144,14 @@ func TestDispatchRestart_RecordAndOutputMatchStart(t *testing.T) {
 	// only the pid/pgid numbers differ, so compare after stripping them.
 	stripIdentity := func(s string) string {
 		open := strings.Index(s, "(")
-		if open < 0 {
+		mode := strings.Index(s, "mode:")
+		// Unexpected shape — no identity parens, or no `mode:` after them.
+		// Leave the string whole so the comparison below fails with both
+		// outputs printed, rather than slicing on a -1 index.
+		if open < 0 || mode < open {
 			return s
 		}
-		return s[:open] + s[strings.Index(s, "mode:"):]
+		return s[:open] + s[mode:]
 	}
 	if stripIdentity(startOut) != stripIdentity(restartOut) {
 		t.Errorf("restart output %q is not shaped like start's %q", restartOut, startOut)

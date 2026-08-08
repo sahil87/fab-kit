@@ -84,7 +84,7 @@ The registry-rendered `dispatch:` segment, config reference JSON, upgrade golden
 
 #### R8: Kit Skills and Specs State the Ladder Consistently
 
-Canonical files under `src/kit/skills/` and the complete `docs/specs/skills/SPEC-*.md` mirror class MUST replace watchable/presence-as-policy claims with the explicit mode/capability ladder. The affected aggregate specs (`harness-adapters.md`, `stage-models.md`, `config.md`, `architecture.md`, and `glossary.md`) MUST document the same behavior and exact automatic-selection reason strings. Deployed `.claude/skills/` and `docs/memory/` MUST remain untouched.
+Canonical files under `src/kit/skills/` and the complete `docs/specs/skills/SPEC-*.md` mirror class MUST replace watchable/presence-as-policy claims with the explicit mode/capability ladder. The affected aggregate specs (`harness-adapters.md`, `stage-models.md`, `config.md`, `architecture.md`, and `glossary.md`) MUST document the same behavior and exact automatic-selection reason strings. Deployed `.claude/skills/` and `docs/memory/` MUST remain untouched *by this apply sweep* — `.claude/skills/` is gitignored deployed output, and `docs/memory/` is the hydrate stage's surface, rewritten there and shipped in the same PR.
 
 - **GIVEN** a repository-wide search for the retired doctrine and suffix strings
 - **WHEN** the apply sweep completes
@@ -97,7 +97,7 @@ Canonical files under `src/kit/skills/` and the complete `docs/specs/skills/SPEC
 - Do not rename `session_command` or `dispatch_command`; Change 4 owns that sweep.
 - Do not add environment-layer behavior, config mutation verbs, source consolidation, or kit-path overrides from Changes 1, 2, 5, or 6.
 - Do not change `internal/configscope` behavior; only its stale dispatch-key comment may change because the existing top-level `dispatch` row already has scope `both`.
-- Do not edit `.claude/skills/` or `docs/memory/`; canonical skills and pre-implementation specs are the apply-stage surfaces.
+- Do not edit `.claude/skills/` or `docs/memory/` **during apply**; canonical skills and pre-implementation specs are the apply-stage surfaces. `docs/memory/` still changes later, at hydrate, which is the stage that owns it.
 
 ### Design Decisions
 

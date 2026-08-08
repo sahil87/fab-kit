@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
@@ -189,9 +190,34 @@ func dispatchLineFor(prov config.ProviderConfig, preference, tmuxEnv string) (st
 	}
 }
 
+// noDispatchCapabilityError reports that no rung at or below the configured
+// dispatch.mode preference is reachable for this provider. Selection descends
+// pane → native → headless and never ascends, so the remedies name only the
+// rungs the preference can actually reach — suggesting session_command under a
+// `headless` preference would point at a capability the ladder would skip.
 func noDispatchCapabilityError(provider, preference string, cause error) error {
-	return fmt.Errorf("provider %q has no dispatch capability at or below dispatch.mode %q; configure providers.%s.session_command for pane, providers.%s.native for native, or providers.%s.dispatch_command for headless: %w",
-		provider, preference, provider, provider, provider, cause)
+	var remedies []string
+	if preference == string(dispatch.ModePane) {
+		remedies = append(remedies, fmt.Sprintf("providers.%s.session_command for pane", provider))
+	}
+	if preference == string(dispatch.ModePane) || preference == string(dispatch.ModeNative) {
+		remedies = append(remedies, fmt.Sprintf("providers.%s.native for native", provider))
+	}
+	remedies = append(remedies, fmt.Sprintf("providers.%s.dispatch_command for headless", provider))
+	return fmt.Errorf("provider %q has no dispatch capability at or below dispatch.mode %q; configure %s: %w",
+		provider, preference, joinRemedies(remedies), cause)
+}
+
+// joinRemedies renders a remedy list as prose: "A", "A or B", "A, B, or C".
+func joinRemedies(remedies []string) string {
+	switch len(remedies) {
+	case 1:
+		return remedies[0]
+	case 2:
+		return remedies[0] + " or " + remedies[1]
+	default:
+		return strings.Join(remedies[:len(remedies)-1], ", ") + ", or " + remedies[len(remedies)-1]
+	}
 }
 
 // formatAgentProfile renders a resolved profile as the byte-stable stdout

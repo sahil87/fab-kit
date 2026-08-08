@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
 )
 
 // resolveAgentTestRepo creates a temp repo with fab/project/config.yaml holding
@@ -937,5 +939,48 @@ func TestResolveAgentNoCapabilityErrors(t *testing.T) {
 	_, err = runResolveAgentCmd(t, "apply", "--provider", "missing")
 	if err == nil || !strings.Contains(err.Error(), "unknown provider") {
 		t.Fatalf("explicit unknown provider must retain lookup error, got %v", err)
+	}
+}
+
+// TestNoDispatchCapabilityErrorRemediesRespectCeiling: the preference is a
+// ceiling and selection never ascends, so the remedies must name only the rungs
+// at or below it. Offering session_command under a `headless` preference would
+// point at a capability the ladder would skip.
+func TestNoDispatchCapabilityErrorRemediesRespectCeiling(t *testing.T) {
+	for _, tc := range []struct {
+		preference string
+		want       string
+		absent     []string
+	}{
+		{
+			preference: "pane",
+			want:       "configure providers.void.session_command for pane, providers.void.native for native, or providers.void.dispatch_command for headless:",
+		},
+		{
+			preference: "native",
+			want:       "configure providers.void.native for native or providers.void.dispatch_command for headless:",
+			absent:     []string{"session_command"},
+		},
+		{
+			preference: "headless",
+			want:       "configure providers.void.dispatch_command for headless:",
+			absent:     []string{"session_command", ".native"},
+		},
+	} {
+		t.Run(tc.preference, func(t *testing.T) {
+			err := noDispatchCapabilityError("void", tc.preference, dispatch.ErrNoMode)
+			got := err.Error()
+			if !strings.Contains(got, tc.want) {
+				t.Errorf("error = %q, want it to contain %q", got, tc.want)
+			}
+			for _, above := range tc.absent {
+				if strings.Contains(got, above) {
+					t.Errorf("error = %q, must not offer %q above the %q ceiling", got, above, tc.preference)
+				}
+			}
+			if !errors.Is(err, dispatch.ErrNoMode) {
+				t.Errorf("error = %v, want it to wrap its cause", err)
+			}
+		})
 	}
 }
