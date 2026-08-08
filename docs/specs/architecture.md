@@ -225,16 +225,17 @@ checklist:
 # HEADLESS dispatch, in either direction: --pane likewise never falls back to
 # dispatch_command) — unless dispatch.watchable (below) is set and the orchestrator
 # is inside tmux, which makes such a provider pane-eligible instead. fab-kit
-# ships THREE built-in providers — claude (the default), codex, and gemini — as
-# GRAMMAR ONLY: the command templates are in the binary, but no built-in carries a
-# model/effort fill (non-claude model IDs rot at CLI cadence). So naming codex or
-# gemini needs no providers: block at all; the blocks below merely restate a
-# built-in default and therefore ship commented, like every other default. Each
-# provider MAY also carry a per-ROLE fill map, profiles.<role>.{model, effort},
-# supplying the {model}/{effort} placeholders when that provider plays that role
-# (precedence: invocation flag > agent.profiles.<role> field > profiles.<role> >
+# ships THREE built-in providers — claude (the default), codex, and gemini — each
+# with BOTH its command grammar and its per-ROLE fill map, profiles.<role>.{model,
+# effort}, supplying the {model}/{effort} placeholders when that provider plays that
+# role (precedence: invocation flag > agent.profiles.<role> field > profiles.<role> >
 # profiles.default > empty; the `default` entry is the provider's cross-role
-# fallback). claude's dispatch_command ships commented because uncommenting it
+# fallback, so the sparse non-claude maps are well-defined for the roles they omit).
+# So naming codex or gemini needs no providers: block at all; the blocks below merely
+# restate a built-in default and therefore ship commented, like every other default.
+# Non-claude fills are refreshed at kit-release cadence and pass through unvalidated —
+# pin a newer model with providers.<name>.profiles.<role>.model. claude's
+# dispatch_command ships commented because uncommenting it
 # changes default behavior (set dispatch.watchable below instead when you only want
 # a watchable pane; flips claude native→headless CLI dispatch); codex/gemini's
 # built-in dispatch_commands mean pointing a role at one flips that role's stages
@@ -242,10 +243,11 @@ checklist:
 # (Automated PR reviewer toggles moved to code-review.md § Review Tools — absent = enabled.)
 # Per-provider notes (kept out of the blocks below so uncommenting a whole block
 # stays valid YAML): claude -p and codex exec both read the prompt from stdin;
-# set providers.codex.profiles to current codex model IDs (e.g. gpt-5.3-codex) — fab
-# ships none; gemini carries no {effort} (no reasoning-effort flag) and no -p (it
-# reads the stdin-piped prompt in non-TTY mode; -p would take prompt text appended
-# after stdin). This whole block is advertise:false — documented in
+# codex's -m takes a concrete model SLUG, so its shipped fills are pinned IDs;
+# gemini carries no {effort} (no reasoning-effort flag, so its fills carry none
+# either) and no -p (it reads the stdin-piped prompt in non-TTY mode; -p would take
+# prompt text appended after stdin), and its fills are that CLI's own stable aliases
+# rather than versioned IDs. This whole block is advertise:false — documented in
 # `fab config reference`, not scaffolded into every project's managed fence.
 providers:
   claude:
@@ -256,13 +258,13 @@ providers:
   # codex:
   #   session_command: codex -m {model} -c model_reasoning_effort={effort}
   #   dispatch_command: codex exec -m {model} -c model_reasoning_effort={effort}
-  #   profiles:
-  #     default: { model: gpt-5.3-codex, effort: medium }   # example fill — fab ships no codex model ID
+  #   profiles:                            # sparse — run `fab config reference` for the live values
+  #     default: { model: <model-id>, effort: <effort> }   # example: shape only
   # gemini:
   #   session_command: gemini -m {model}
   #   dispatch_command: gemini -m {model}   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)
-  #   profiles:
-  #     default: { model: gemini-2.5-pro }  # example fill — fab ships no gemini model ID
+  #   profiles:                            # model-only: the gemini CLI has no reasoning-effort flag
+  #     default: { model: <model-id> }     # example: shape only
 
 # agent.session / agent.workers are the TWO ADVERTISED KNOBS, selecting a provider
 # by agent DEPTH: session = the Tier-1 roles you talk to (default, operator —

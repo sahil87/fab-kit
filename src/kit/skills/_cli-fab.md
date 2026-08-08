@@ -327,37 +327,40 @@ effort=high
 provider=claude
 
 # with the workers knob (or agent.profiles.doing.provider) pointed at a
-# dispatch-carrying provider that has a fill —
-# (`agent.workers: codex` + `providers.codex.profiles.doing: { model: gpt-5.3-codex, effort: high }`) —
-# the dispatch= line appears; --alias leaves a non-Claude model= verbatim:
+# dispatch-carrying provider (`agent.workers: codex` — no `providers:` block
+# needed, since codex ships its own fills) the dispatch= line appears, and
+# --alias leaves a non-Claude model= verbatim. Values are illustrative — run
+# `fab config reference` for the fills your binary actually ships:
 $ fab resolve-agent apply --alias
-model=gpt-5.3-codex
-effort=high
+model=<codex-model-id>
+effort=xhigh
 provider=codex
-dispatch=codex exec -m gpt-5.3-codex -c model_reasoning_effort=high
+dispatch=codex exec -m <codex-model-id> -c model_reasoning_effort=xhigh
 ```
 
 **Invocation-time overrides** — `--provider <name>`, `--model <id>`, `--effort <level>` are the top rung of the fill precedence above, riding the same single resolution call:
 
-- **`--provider`** swaps the resolved provider and **re-derives `dispatch=` from the NAMED provider's `dispatch_command`** — so the emitted `dispatch=` presence can differ from the stage's unoverridden one. That is a **query result, not an adapter move**: `fab dispatch start` accepts no override flags and re-resolves the stage from config itself, so only a **config** override (`agent.workers`/`agent.session`, or `agent.profiles.<role>.provider`) actually relocates a stage between native Agent-tool dispatch and CLI dispatch. An override-only `dispatch=` line is not actionable, and the two remedies are **not interchangeable**: dispatching the stage natively with the overridden model/effort works only for a **within-claude** `--model`/`--effort` override (the native seam is the Agent tool's `model` param, a Claude-alias enum), so for a cross-provider `--provider` override the config override above is the **sole executable path** (see § fab dispatch and `_preamble.md` § Per-Stage Model Resolution). A swap **re-derives** an unoverridden `model`/`effort` from the NEW provider's own per-role fills (`profiles.<role>`, then `profiles.default`, then empty) — no cutoff rule is involved, because nothing was inherited across providers in the first place. An explicit `agent.profiles.<role>.model` still wins over the swap: a pin the user wrote is the user's own escape hatch. **Swapping to a provider with no fills lands on an empty `model=`** (the inherit signal) — that is `codex`/`gemini` today, since fab ships them grammar-only.
+- **`--provider`** swaps the resolved provider and **re-derives `dispatch=` from the NAMED provider's `dispatch_command`** — so the emitted `dispatch=` presence can differ from the stage's unoverridden one. That is a **query result, not an adapter move**: `fab dispatch start` accepts no override flags and re-resolves the stage from config itself, so only a **config** override (`agent.workers`/`agent.session`, or `agent.profiles.<role>.provider`) actually relocates a stage between native Agent-tool dispatch and CLI dispatch. An override-only `dispatch=` line is not actionable, and the two remedies are **not interchangeable**: dispatching the stage natively with the overridden model/effort works only for a **within-claude** `--model`/`--effort` override (the native seam is the Agent tool's `model` param, a Claude-alias enum), so for a cross-provider `--provider` override the config override above is the **sole executable path** (see § fab dispatch and `_preamble.md` § Per-Stage Model Resolution). A swap **re-derives** an unoverridden `model`/`effort` from the NEW provider's own per-role fills (`profiles.<role>`, then `profiles.default`, then empty) — no cutoff rule is involved, because nothing was inherited across providers in the first place. An explicit `agent.profiles.<role>.model` still wins over the swap: a pin the user wrote is the user's own escape hatch. **Swapping to a built-in lands on that built-in's own shipped fill** — all three carry per-role fills, so `--provider codex` resolves a real model rather than the inherit signal. Only a provider with no fills anywhere (a project-defined `providers:` entry carrying grammar alone) lands on an empty `model=`.
 - **`--model` / `--effort` are valid WITHOUT `--provider`** here — a within-role override of the profile this pure query would otherwise print. **Deliberate asymmetry with `fab agent`**, where they stay a usage error without `--provider`: `resolve-agent` is a pure query whose whole output is a profile (overriding one field is unambiguous), while `fab agent` is a session launcher with two mutually exclusive addressing modes, where a bare `--model` would invent an undocumented role-override surface. See § fab agent.
 - All three guards key on whether the flag was **supplied** (not on value emptiness), so `--model=` explicitly clears the model (emitting the inherit signal) rather than being ignored, and `--provider=` resolves an empty provider (the lookup failure below) rather than falling back to the depth knob.
 - **An unknown `--provider` name is a LOOKUP failure** — non-zero exit naming the resolvable set (fab-kit's built-in table ∪ the project's `providers:` keys, sorted), mirroring `fab agent`'s error. It is not validation of any command's content: resolved strings still pass through verbatim.
 
 ```
-# swap a single stage onto codex for this run (no config change):
-$ fab resolve-agent review --provider codex --model gpt-5.3-codex --effort high
-model=gpt-5.3-codex
+# swap a single stage onto codex for this run, pinning a specific model
+# (no config change; the explicit flags beat codex's own shipped fill):
+$ fab resolve-agent review --provider codex --model <codex-model-id> --effort high
+model=<codex-model-id>
 effort=high
 provider=codex
-dispatch=codex exec -m gpt-5.3-codex -c model_reasoning_effort=high
+dispatch=codex exec -m <codex-model-id> -c model_reasoning_effort=high
 
-# no fill configured for the swapped-to provider → empty model, no effort line,
-# and both placeholder tokens drop out of the dispatch command:
+# no --model/--effort → the swapped-to provider's OWN shipped fills apply
+# (values illustrative; `fab config reference` prints what your binary ships):
 $ fab resolve-agent apply --provider codex
-model=
+model=<codex-model-id>
+effort=xhigh
 provider=codex
-dispatch=codex exec
+dispatch=codex exec -m <codex-model-id> -c model_reasoning_effort=xhigh
 
 # a bare within-role override (valid here; a usage error on `fab agent`):
 $ fab resolve-agent apply --effort medium
@@ -405,7 +408,7 @@ Only the `--json` flag; no positional arguments (`fab config reference extra-arg
 
 **Full schema coverage**: covers BOTH the binary-consumed keys (modeled on the `Config` struct) AND the skill-consumed keys (read by markdown skills, invisible to Go reflection) — `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `providers.*` (`session_command`/`dispatch_command`/`profiles.<role>.{model,effort}`), `agent.session`, `agent.workers`, `agent.profiles.*` (`provider`/`model`/`effort`), `dispatch.watchable` + `dispatch.column_width` + `dispatch.reap_done`, `stage_hooks.*`, `branch_prefix`. (The retired `review_tools` block moved to `fab/project/code-review.md` § Review Tools; `agent.spawn_command` moved to `providers.claude.session_command`; `fab_version` moved OUT of config.yaml to the plain-text sibling `fab/.fab-version` in 2.15.0 and is no longer a config-file key.) Baseline keys appear live with example values (including the `providers:` claude `session_command` and the two `agent:` depth knobs); the opt-in override blocks (`agent.profiles`, `stage_hooks`, `branch_prefix`) appear commented-out with fab-kit's built-in defaults shown, so uncommenting is opting in. **The reference is the FULL schema; a project's managed fence is slimmer** — `agent.profiles` and `providers` are `advertise: false` as of 2.17.0, so they are documented here but no longer scaffolded into every repo (see § fab config upgrade and `docs/specs/config.md`).
 
-The `providers:` block documents fab-kit's **three built-in providers** — `claude` (the default), `codex`, and `gemini` — as **grammar only**: their command templates live in the binary (`internal/agent`'s built-in provider table), so **naming `codex`/`gemini` on a depth knob, in `agent.profiles.<role>.provider`, or on a `--provider` flag resolves with no `providers:` block at all**. Only claude carries fills (its six per-role `profiles.<role>`); codex/gemini ship grammar only, because non-claude model IDs rot at CLI cadence — the fill belongs in config (`providers.<name>.profiles.<role>`, scope `both` — settable once per machine in `~/.fab-kit/config.yaml`), so naming one today resolves an EMPTY model and the provider CLI's own default applies. The codex/gemini blocks render **commented** because they merely restate a built-in default, exactly like every other non-overridden default — a commented block registers no project override, and a built-in provider is inert until a knob, a role override, or a flag names it. Note codex/gemini DO carry a `dispatch_command` (so pointing a role at one flips that role's stages to CLI dispatch) while claude's built-in deliberately does not (native Agent-tool dispatch; its commented `dispatch_command` line flips claude's stages the same way when uncommented). Gemini's commands carry no `{effort}` placeholder (the gemini CLI has no reasoning-effort flag) and no `-p` on `dispatch_command` (gemini reads the `fab dispatch` stdin-piped prompt in non-TTY mode).
+The `providers:` block documents fab-kit's **three built-in providers** — `claude` (the default), `codex`, and `gemini` — each carrying **both** its command grammar **and** its per-role fills in the binary (`internal/agent`'s built-in provider table), so **naming `codex`/`gemini` on a depth knob, in `agent.profiles.<role>.provider`, or on a `--provider` flag resolves a real model for every role with no `providers:` block at all**. claude's fill map is exhaustive (all six roles); codex's and gemini's are **sparse** — a role they omit resolves that provider's `default` entry. Non-claude fills are **refreshed at kit-release cadence** and pass through unvalidated; pin a newer model with one config line (`providers.<name>.profiles.<role>.model`, scope `both` — settable once per machine in `~/.fab-kit/config.yaml`). The codex/gemini blocks render **commented** because they merely restate a built-in default, exactly like every other non-overridden default — a commented block registers no project override, and a built-in provider is inert until a knob, a role override, or a flag names it. Note codex/gemini DO carry a `dispatch_command` (so pointing a role at one flips that role's stages to CLI dispatch) while claude's built-in deliberately does not (native Agent-tool dispatch; its commented `dispatch_command` line flips claude's stages the same way when uncommented). Gemini's commands carry no `{effort}` placeholder (the gemini CLI has no reasoning-effort flag — so its fills carry no effort either) and no `-p` on `dispatch_command` (gemini reads the `fab dispatch` stdin-piped prompt in non-TTY mode).
 
 **Output**: byte-stable for a given binary version (same convention as `fab resolve` / `fab resolve-agent`). The emitted document round-trips — its live keys parse cleanly back into `Config`.
 

@@ -61,12 +61,12 @@ func wantRoleEffort(t *testing.T, role string) string {
 }
 
 // pinnedRoleLine renders an `agent.profiles` YAML line for `role` that points at
-// `provider` while PINNING the role's own built-in model/effort. Model and effort
-// come from the RESOLVED provider's per-role fills, and a non-claude provider ships
-// grammar only, so a role pointed at one resolves them empty unless pinned. Pinning
-// the same values the built-in carries keeps each test's expectation ("the resolved
-// role profile rides the output") true while staying DERIVED from the canonical
-// defaults, so a model bump touches no test.
+// `provider` while PINNING the role's own built-in claude model/effort. Model and
+// effort otherwise come from the RESOLVED provider's own per-role fills, so a role
+// pointed at another provider would resolve THAT provider's values. Pinning claude's
+// keeps each test's expectation ("the resolved role profile rides the output") true
+// and independent of the other providers' fills, while staying DERIVED from the
+// canonical defaults — so a model bump touches no test.
 func pinnedRoleLine(t *testing.T, role, provider string) string {
 	t.Helper()
 	p, ok := agent.DefaultProfile(role)
@@ -398,22 +398,34 @@ func TestResolveAgentByteStable(t *testing.T) {
 
 // --- Invocation-time overrides (260805-j3cm) ---
 
-// TestResolveAgentOverrideProviderNoFill: `--provider codex` on a default config
-// swaps the provider, re-derives dispatch= from the codex BUILT-IN's
-// dispatch_command, and — because a swap does not retain the old provider's
-// model/effort and no codex fill is configured — resolves an empty model with the
-// effort= line omitted. Both placeholder tokens (and their preceding flags) drop out
-// of the dispatch command, so the codex CLI's own default model applies.
-func TestResolveAgentOverrideProviderNoFill(t *testing.T) {
+// TestResolveAgentOverrideProviderBuiltInFill: `--provider codex` on a default
+// config swaps the provider, re-derives dispatch= from the codex BUILT-IN's
+// dispatch_command, and — because a swap re-derives model/effort from the NEW
+// provider's own fills — resolves codex's shipped `doing` profile rather than
+// retaining any claude value. Since 260806-ywkx that profile is a real one, so both
+// placeholder tokens are substituted rather than dropped.
+//
+// Expectations are DERIVED from ResolveProvider, so a fill bump touches
+// defaults.yaml and the pinned table in internal/agent only.
+func TestResolveAgentOverrideProviderBuiltInFill(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
+
+	codex, _ := agent.ResolveProvider(nil, "codex")
+	// doing carries an effort of its own and inherits the model from `default`.
+	model := codex.Profiles[agent.RoleDefault].Model
+	effort := codex.Profiles[agent.RoleDoing].Effort
 
 	out, err := runResolveAgentCmd(t, "apply", "--provider", "codex")
 	if err != nil {
 		t.Fatalf("resolve-agent apply --provider codex: %v", err)
 	}
-	want := "model=\nprovider=codex\ndispatch=codex exec\n"
+	want := "model=" + model + "\neffort=" + effort + "\nprovider=codex\n" +
+		"dispatch=codex exec -m " + model + " -c model_reasoning_effort=" + effort + "\n"
 	if out != want {
-		t.Errorf("output = %q, want %q (no claude model may leak across the swap)", out, want)
+		t.Errorf("output = %q, want %q (the swap re-derives from codex's own fills, never claude's)", out, want)
+	}
+	if strings.Contains(out, "claude") {
+		t.Errorf("output = %q — no claude model may leak across the swap", out)
 	}
 }
 
@@ -435,22 +447,32 @@ func TestResolveAgentOverrideFullTriple(t *testing.T) {
 }
 
 // TestResolveAgentOverrideProviderTakesFill: an unoverridden model/effort on a
-// provider SWAP refills from that provider's default fill (providers.<name>.model /
-// .effort) — precedence rung 3.
+// provider SWAP refills from that provider's fills — and a config carrying the
+// pre-2.17.0 FLAT spelling still wins there, because the flat fill is folded into
+// the user's own `profiles.default` (260806-ywkx) rather than read as a rung below
+// the BUILT-IN one. Without that fold, shipping codex fills would silently shadow
+// this pinned model with fab-kit's.
+//
+// The effort still comes from codex's built-in `doing` fill: the flat spelling is a
+// `default`-ROLE value, and a role-specific entry outranks the default entry — the
+// same precedence a user writing `profiles.default.effort` by hand would get.
 func TestResolveAgentOverrideProviderTakesFill(t *testing.T) {
 	resolveAgentTestRepo(t, `providers:
   codex:
     model: gpt-5.3-codex
     effort: high
 `)
+	codex, _ := agent.ResolveProvider(nil, "codex")
+	effort := codex.Profiles[agent.RoleDoing].Effort
+
 	out, err := runResolveAgentCmd(t, "apply", "--provider", "codex")
 	if err != nil {
 		t.Fatalf("resolve-agent apply --provider codex: %v", err)
 	}
-	want := "model=gpt-5.3-codex\neffort=high\nprovider=codex\n" +
-		"dispatch=codex exec -m gpt-5.3-codex -c model_reasoning_effort=high\n"
+	want := "model=gpt-5.3-codex\neffort=" + effort + "\nprovider=codex\n" +
+		"dispatch=codex exec -m gpt-5.3-codex -c model_reasoning_effort=" + effort + "\n"
 	if out != want {
-		t.Errorf("output = %q, want the provider fill %q", out, want)
+		t.Errorf("output = %q, want the user's flat-fill model to beat the built-in %q", out, want)
 	}
 }
 
@@ -481,15 +503,20 @@ func TestResolveAgentOverrideModelWithoutProvider(t *testing.T) {
 
 // TestResolveAgentOverrideAliasKeepsNonClaudeVerbatim: --alias is a best-effort
 // adapter — an overridden non-Claude model passes through verbatim on model=, and
-// dispatch= always embeds the full ID.
+// dispatch= always embeds the full ID. The unoverridden effort comes from codex's
+// own built-in `doing` fill (derived, so a bump does not touch this test).
 func TestResolveAgentOverrideAliasKeepsNonClaudeVerbatim(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
+
+	codex, _ := agent.ResolveProvider(nil, "codex")
+	effort := codex.Profiles[agent.RoleDoing].Effort
 
 	out, err := runResolveAgentCmd(t, "apply", "--provider", "codex", "--model", "gpt-5.3-codex", "--alias")
 	if err != nil {
 		t.Fatalf("resolve-agent with overrides --alias: %v", err)
 	}
-	want := "model=gpt-5.3-codex\nprovider=codex\ndispatch=codex exec -m gpt-5.3-codex\n"
+	want := "model=gpt-5.3-codex\neffort=" + effort + "\nprovider=codex\n" +
+		"dispatch=codex exec -m gpt-5.3-codex -c model_reasoning_effort=" + effort + "\n"
 	if out != want {
 		t.Errorf("output = %q, want %q (non-Claude model verbatim; full ID in dispatch=)", out, want)
 	}

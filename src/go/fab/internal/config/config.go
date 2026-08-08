@@ -82,16 +82,22 @@ type ProviderProfile struct {
 //
 //	invocation flag  >  agent.profiles.<role>.<field>
 //	                 >  providers.<p>.profiles.<role>.<field>
-//	                 >  providers.<p>.profiles.default.<field>
-//	                 >  providers.<p>.<field>  (deprecated flat fill)  >  empty
+//	                 >  providers.<p>.profiles.default.<field>  >  empty
+//
+// The deprecated flat providers.<p>.<field> is NOT a rung of its own — it is folded
+// into that override's own profiles.default (see Model and Effort below).
 //
 // Model and Effort are the DEPRECATED FLAT FILL (pre-2.17.0
-// providers.<name>.model/.effort). They are still read, but as the rung BELOW
-// Profiles["default"] rather than as an alias for it, so a config that has not yet
-// run the 2.16.19-to-2.17.0 migration keeps resolving; new configs write
-// providers.<name>.profiles.default instead. One fill per provider resolved the same
-// model for every role, which is exactly the role differentiation the nested map
-// restores.
+// providers.<name>.model/.effort). They are still read, as an ALIAS for the
+// override's own Profiles["default"]: internal/agent.ResolveProvider folds them into
+// that entry per field before merging fab-kit's built-in table, so a config that has
+// not yet run the 2.16.19-to-2.17.0 migration keeps resolving AND keeps outranking
+// the built-in fill it is trying to replace. The override's own profiles.default wins
+// where it sets a field (the modern spelling beats its alias), and a built-in ROLE
+// fill still outranks the folded default exactly as it outranks a hand-written
+// profiles.default. New configs write providers.<name>.profiles.default instead. One
+// fill per provider resolved the same model for every role, which is exactly the role
+// differentiation the nested map restores.
 //
 // The whole table is scope `both`, so a machine-wide fill is settable once in
 // ~/.fab-kit/config.yaml.
@@ -100,8 +106,9 @@ type ProviderConfig struct {
 	DispatchCommand string                     `yaml:"dispatch_command"`
 	Profiles        map[string]ProviderProfile `yaml:"profiles"`
 
-	// Deprecated: the flat fill. Read as the rung below Profiles["default"]; see
-	// the type doc. Removed from the documented surface in 2.17.0.
+	// Deprecated: the flat fill. Read as an ALIAS for Profiles["default"] — folded
+	// into it per field by internal/agent.ResolveProvider; see the type doc.
+	// Removed from the documented surface in 2.17.0.
 	Model  string `yaml:"model"`
 	Effort string `yaml:"effort"`
 }

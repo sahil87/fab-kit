@@ -82,7 +82,7 @@ resolver consumes; distinguishing an empty list from an empty map from an empty 
 Go-side implementation detail that carries no cascade meaning and would make `--json` emit
 `null`/`[]`/`{}`/`""` inconsistently for the same "no default" concept. So a **non-null** `default`
 always denotes a real built-in value (today: the `providers` row's **three built-in providers** —
-claude/codex/gemini, `260805-j3cm`, with claude's six per-role fills — the resolved `agent.profiles` defaults, the two depth knobs' `claude`, `dispatch.watchable`'s
+claude/codex/gemini, `260805-j3cm`, each with its per-role fills — the resolved `agent.profiles` defaults, the two depth knobs' `claude`, `dispatch.watchable`'s
 `false`, `dispatch.column_width`'s `35`, and `dispatch.reap_done`'s `true`); every other row is `null`.
 **The three `dispatch` rows are
 the convention's boundary cases and are deliberately not `null`**: for a **bool** there is no "absent"
@@ -97,12 +97,12 @@ the default, and a plain `bool` would have made an absent key indistinguishable 
 therefore modeled as a **`*bool`** in `internal/config.DispatchConfig` (`nil` = unset = `true`), the one
 place the three siblings' shapes diverge; the registry row still carries the plain `true`, because the
 *default* is a value, not a pointer.
-The same rule governs the **per-role fills** inside the `providers` default: claude's `profiles` map is
-projected (six real built-in values), while codex's and gemini's are **omitted entirely** rather than
-emitted as an empty map — fab-kit ships those two as *grammar only* (non-claude model IDs rot at CLI
-cadence), so an empty `profiles: {}` would assert a built-in fill that deliberately does not exist.
-Their fills are documented in the row's `description`/`segment` and settable in either layer
-(`providers` is scope `both`); they are simply not defaulted. The **deprecated flat**
+The same rule governs the **per-role fills** inside the `providers` default: every built-in's
+`profiles` map is projected, because all three ship real fills (`260806-ywkx`). The convention applies
+one level down instead — claude's map is exhaustive (all six roles), while codex's and gemini's are
+**sparse**, and a role fab-kit ships no fill for is **omitted entirely** rather than emitted as an
+empty object, since that would assert a built-in fill that deliberately does not exist (the omitted
+roles resolve the provider's `default` entry). The **deprecated flat**
 `providers.<name>.model`/`.effort` is likewise absent from every `default`: it exists only as a
 read-time alias for `profiles.default` until the `2.16.19-to-2.17.0` migration rewrites a config.
 
