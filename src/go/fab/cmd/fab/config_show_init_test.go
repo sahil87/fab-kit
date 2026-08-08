@@ -82,15 +82,126 @@ providers:
 	}
 }
 
-// TestConfigShow_RejectsExtraArgsAndWritesNoFile: show is a pure query — extra
-// positional args are rejected by cobra.NoArgs, and it writes no file.
+// TestConfigShow_RejectsTooManyArgs: show accepts one key but rejects two.
 func TestConfigShow_RejectsExtraArgs(t *testing.T) {
 	setupConfigRepo(t, "providers:\n  claude:\n    session_command: x\n")
-	if _, err := runConfig(t, "show", "extra"); err == nil {
-		t.Error("`config show extra` should be rejected (cobra.NoArgs)")
+	if _, err := runConfig(t, "show", "agent.workers", "extra"); err == nil {
+		t.Error("`config show` should reject more than one key")
 	}
-	if _, err := runConfig(t, "show", "--origin", "extra"); err == nil {
-		t.Error("`config show --origin extra` should be rejected (cobra.NoArgs)")
+	if _, err := runConfig(t, "show", "--origin", "agent.workers", "extra"); err == nil {
+		t.Error("`config show --origin` should reject more than one key")
+	}
+}
+
+func TestConfigShow_KeyedValueOriginAndUnknown(t *testing.T) {
+	repo, _ := setupConfigRepo(t, "agent:\n    workers: codex\n")
+	out, err := runConfig(t, "show", "agent.workers")
+	if err != nil {
+		t.Fatalf("keyed show: %v", err)
+	}
+	if out != "codex\n" {
+		t.Fatalf("keyed scalar output = %q, want raw value", out)
+	}
+	out, err = runConfig(t, "show", "agent.workers", "--origin")
+	if err != nil {
+		t.Fatalf("keyed show --origin: %v", err)
+	}
+	wantOrigin := filepath.Join(repo, "fab", "project", "config.yaml")
+	if out != "codex  # "+wantOrigin+"\n" {
+		t.Fatalf("keyed origin output = %q", out)
+	}
+	if _, err := runConfig(t, "show", "agent.workerz"); err == nil || !strings.Contains(err.Error(), "agent.workerz") {
+		t.Fatalf("unknown keyed show should name the key, got %v", err)
+	}
+}
+
+func TestConfigShow_KeyedListOriginIsCompact(t *testing.T) {
+	repo, _ := setupConfigRepo(t, "source_paths:\n    - src/\n    - scripts/\n")
+	out, err := runConfig(t, "show", "source_paths", "--origin")
+	if err != nil {
+		t.Fatalf("keyed list show --origin: %v", err)
+	}
+	want := "[src/, scripts/]  # " + filepath.Join(repo, "fab", "project", "config.yaml") + "\n"
+	if out != want {
+		t.Fatalf("keyed list origin output = %q, want compact flow value %q", out, want)
+	}
+}
+
+func TestConfigShow_KeyedMapUsesPerLeafOrigins(t *testing.T) {
+	_, home := setupConfigRepo(t, "agent:\n    profiles:\n        review:\n            model: project-model\n")
+	writeSystemConfig(t, home, "agent:\n    profiles:\n        review:\n            effort: high\n")
+	out, err := runConfig(t, "show", "agent.profiles.review", "--origin")
+	if err != nil {
+		t.Fatalf("keyed map --origin: %v", err)
+	}
+	for _, want := range []string{"agent.profiles.review.model = project-model", "agent.profiles.review.effort = high"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q\n%s", want, out)
+		}
+	}
+}
+
+func TestConfigSetUnset_ProjectRoundTripAndNoop(t *testing.T) {
+	repo, _ := setupConfigRepo(t, "# owned\nagent:\n    workers: claude # inline\n")
+	path := filepath.Join(repo, "fab", "project", "config.yaml")
+	out, err := runConfig(t, "set", "agent.workers", "codex")
+	if err != nil {
+		t.Fatalf("config set: %v", err)
+	}
+	if !strings.Contains(out, "Set agent.workers") {
+		t.Fatalf("missing set confirmation: %q", out)
+	}
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), "workers: codex # inline") || !strings.Contains(string(data), "# owned") {
+		t.Fatalf("set did not preserve comments\n%s", data)
+	}
+	if _, err := runConfig(t, "unset", "agent.workers"); err != nil {
+		t.Fatalf("config unset: %v", err)
+	}
+	data, _ = os.ReadFile(path)
+	live := strings.SplitN(string(data), "# >>> fab reference", 2)[0]
+	if strings.Contains(live, "workers:") || !strings.Contains(live, "# inline") {
+		t.Fatalf("unset did not remove only the live override\n%s", data)
+	}
+	out, err = runConfig(t, "unset", "agent.workers")
+	if err != nil || !strings.Contains(out, "nothing to unset") {
+		t.Fatalf("absent unset must be exit-zero with notice: out=%q err=%v", out, err)
+	}
+}
+
+func TestConfigSetUnset_ValidationAndSystemScope(t *testing.T) {
+	_, home := setupConfigRepo(t, "agent:\n    workers: claude\n")
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"set", "agent.workerz", "codex"}, "agent.workerz"},
+		{[]string{"set", "agent.workers", "{bad: kind}"}, "expects a YAML string"},
+		{[]string{"set", "source_paths", "[src/]", "--system"}, "project scope"},
+	} {
+		if _, err := runConfig(t, tc.args...); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%v: want error containing %q, got %v", tc.args, tc.want, err)
+		}
+	}
+	if _, err := runConfig(t, "set", "agent.workers", "codex", "--system"); err != nil {
+		t.Fatalf("system set: %v", err)
+	}
+	systemPath := filepath.Join(home, ".fab-kit", "config.yaml")
+	data, err := os.ReadFile(systemPath)
+	if err != nil || !strings.Contains(string(data), "\n  workers: codex") {
+		t.Fatalf("system set did not create the expected file: err=%v\n%s", err, data)
+	}
+	if _, err := runConfig(t, "unset", "agent.workers", "--system"); err != nil {
+		t.Fatalf("system unset: %v", err)
+	}
+}
+
+func TestConfigSetUnset_ExactArgs(t *testing.T) {
+	setupConfigRepo(t, "")
+	for _, args := range [][]string{{"set", "agent.workers"}, {"set", "agent.workers", "codex", "extra"}, {"unset"}, {"unset", "agent.workers", "extra"}} {
+		if _, err := runConfig(t, args...); err == nil {
+			t.Errorf("%v should fail exact-argument validation", args)
+		}
 	}
 }
 
@@ -372,14 +483,5 @@ func TestConfigInitSystem_WritesScaffoldAndRefusesOverwrite(t *testing.T) {
 	after, _ := os.ReadFile(path)
 	if string(after) != scaffold {
 		t.Error("refused overwrite must leave the existing file byte-identical")
-	}
-}
-
-// TestConfigInitBare_UsageError: bare `fab config init` (no --system) is a usage
-// error — project bootstrap is /fab-setup's job.
-func TestConfigInitBare_UsageError(t *testing.T) {
-	setupConfigRepo(t, "providers:\n  claude:\n    session_command: x\n")
-	if _, err := runConfig(t, "init"); err == nil {
-		t.Error("bare `config init` (no --system) must be a usage error")
 	}
 }

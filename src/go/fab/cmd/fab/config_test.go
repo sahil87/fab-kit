@@ -249,6 +249,68 @@ func TestConfigReferenceCommandPrintsAndExitsZero(t *testing.T) {
 	}
 }
 
+func TestConfigExplainVisibleAliasAndKeyedSelection(t *testing.T) {
+	cmd := configCmd()
+	var out strings.Builder
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"explain", "project.name"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("config explain project.name: %v", err)
+	}
+	want, err := configref.RenderKey("project.name")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != want || !strings.Contains(out.String(), "project:") {
+		t.Fatalf("keyed explain did not render the owning segment\n--- got ---\n%s", out.String())
+	}
+
+	jsonCmd := configCmd()
+	var jsonOut strings.Builder
+	jsonCmd.SetOut(&jsonOut)
+	jsonCmd.SetErr(&jsonOut)
+	jsonCmd.SetArgs([]string{"explain", "dispatch.column_width", "--json"})
+	if err := jsonCmd.Execute(); err != nil {
+		t.Fatalf("keyed explain --json: %v", err)
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal([]byte(jsonOut.String()), &rows); err != nil || len(rows) != 3 {
+		t.Fatalf("keyed JSON should return the owning dispatch rows: len=%d err=%v\n%s", len(rows), err, jsonOut.String())
+	}
+
+	help := configCmd()
+	var helpOut strings.Builder
+	help.SetOut(&helpOut)
+	help.SetErr(&helpOut)
+	help.SetArgs([]string{"--help"})
+	if err := help.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(helpOut.String(), "explain") || strings.Contains(helpOut.String(), "\n  reference") {
+		t.Fatalf("group help must show explain but hide its reference alias\n%s", helpOut.String())
+	}
+	for _, section := range []string{"Inspect Commands:", "Modify Commands:", "Lifecycle Commands:"} {
+		if !strings.Contains(helpOut.String(), section) {
+			t.Errorf("group help is missing %q\n%s", section, helpOut.String())
+		}
+	}
+	visible := make(map[string]string)
+	for _, child := range configCmd().Commands() {
+		if child.IsAvailableCommand() {
+			visible[child.Name()] = child.GroupID
+		}
+	}
+	wantVisible := map[string]string{
+		"show": "inspect", "explain": "inspect",
+		"set": "modify", "unset": "modify",
+		"init": "lifecycle", "upgrade": "lifecycle",
+	}
+	if !reflect.DeepEqual(visible, wantVisible) {
+		t.Errorf("visible config commands/groups = %#v, want %#v", visible, wantVisible)
+	}
+}
+
 // TestConfigReferenceMentionsCommandPlaceholders guards that the reference's
 // providers block documents the optional {model}/{effort} placeholders (the codex
 // example command carries them, showing template-substitution mode).

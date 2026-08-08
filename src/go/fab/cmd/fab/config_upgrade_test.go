@@ -131,18 +131,21 @@ func TestConfigInitProjectCommand(t *testing.T) {
 	}
 }
 
-// TestConfigInitBareAndBothFlagsRejected: bare `fab config init` is a usage error,
-// and passing both --system and --project errors.
-func TestConfigInitBareAndBothFlagsRejected(t *testing.T) {
-	setupInitRepo(t)
+// TestConfigInitBareDefaultsProjectAndBothFlagsRejected: bare init generates the
+// project file, while passing both explicit modes still errors.
+func TestConfigInitBareDefaultsProjectAndBothFlagsRejected(t *testing.T) {
+	fabRoot := setupInitRepo(t)
 
 	bare := configCmd()
 	var b1 strings.Builder
 	bare.SetOut(&b1)
 	bare.SetErr(&b1)
 	bare.SetArgs([]string{"init"})
-	if err := bare.Execute(); err == nil {
-		t.Error("bare `config init` should be a usage error")
+	if err := bare.Execute(); err != nil {
+		t.Fatalf("bare `config init` should select project mode: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(fabRoot, "project", "config.yaml")); err != nil {
+		t.Fatalf("bare init did not create project config: %v", err)
 	}
 
 	both := configCmd()

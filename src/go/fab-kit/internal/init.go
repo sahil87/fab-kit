@@ -36,7 +36,7 @@ func Init(systemVersion string) error {
 	fmt.Printf("Latest version: %s\n", latest)
 
 	// 2. Ensure cached — the returned path is the pinned fab-go binary used to
-	// generate config.yaml from the registry (single-writer discipline).
+	// generate config.yaml through the registry-backed writing engine.
 	fabGoBin, err := EnsureCached(latest)
 	if err != nil {
 		return err
@@ -44,7 +44,7 @@ func Init(systemVersion string) error {
 
 	// 3. Stamp fab/.fab-version (the plain-text sibling that replaced the
 	// config.yaml fab_version: key — 260708-j0qm). config.yaml is no longer
-	// version-stamped; fab config upgrade is its only writer going forward.
+	// version-stamped; internal/configupgrade is its sole writing engine.
 	if err := stampFabVersion(repoRoot, latest); err != nil {
 		return err
 	}
@@ -98,8 +98,8 @@ func stampMigrationVersion(repoRoot, version string) error {
 // needed. This is the sibling of stampMigrationVersion (same plain-text,
 // one-line-plus-newline shape) that replaced the old config.yaml fab_version:
 // stamp (260708-j0qm): deployed-kit version vs migration baseline are kept
-// distinct, and config.yaml is no longer written by init/upgrade — fab config
-// upgrade is its only writer going forward.
+// distinct, and config.yaml is no longer written directly by init/upgrade —
+// internal/configupgrade remains its sole writing engine.
 func stampFabVersion(repoRoot, version string) error {
 	path := filepath.Join(repoRoot, dotFabVersionRelPath)
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {

@@ -147,7 +147,7 @@ func Upgrade(systemVersion, targetVersion string, useLatest bool) error {
 
 	// Stamp fab/.fab-version only after a successful sync (F18). config.yaml is no
 	// longer version-stamped (260708-j0qm) — the version lives in the plain-text
-	// sibling, and fab config upgrade is config.yaml's only writer.
+	// sibling, leaving internal/configupgrade as config.yaml's sole writing engine.
 	if err := stampFabVersion(cfg.RepoRoot, targetVersion); err != nil {
 		return fmt.Errorf("cannot write fab/.fab-version: %w", err)
 	}

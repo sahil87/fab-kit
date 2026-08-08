@@ -1,8 +1,8 @@
 // Package configupgrade mechanically reconciles fab/project/config.yaml against
-// the binary-owned field registry (internal/configref). It is the ONLY writer of
-// config.yaml going forward (Change 3 of the config-upgrade effort): the
+// the binary-owned field registry (internal/configref). It is the ONLY writing
+// engine for existing config files: the
 // comment-clobbering setFabVersion masher is deleted, so every config.yaml write
-// flows through this comment-aware, byte-stable path.
+// flows through this comment-aware, byte-stable package.
 //
 // THE FIELD-CATEGORY MODEL (docs/specs/config.md § Advertise semantics). At upgrade
 // time every registry field is one of:
@@ -295,8 +295,6 @@ func readFile(path string) (string, bool, error) {
 // report. Extracted from Upgrade (which owns file I/O) so it is directly
 // unit-testable and provably deterministic.
 func render(original string, fields []configref.Field, kitVersion string) (string, []string) {
-	var report []string
-
 	preamble, belowFence, existingParked := splitFence(original)
 
 	// Everything outside the fence is the user's and is NEVER silently dropped.
@@ -308,6 +306,16 @@ func render(original string, fields []configref.Field, kitVersion string) (strin
 	if strings.TrimSpace(belowFence) != "" {
 		preamble = strings.TrimRight(preamble, "\n") + "\n" + strings.TrimLeft(belowFence, "\n")
 	}
+	return reconcilePreamble(preamble, existingParked, fields, kitVersion)
+}
+
+// reconcilePreamble performs the Upgrade-only reconciliation of already-extracted
+// user-owned live content while preserving parked blocks from an existing fence.
+// Surgical mutation deliberately does not call this function: rename carry,
+// unknown-key parking, and B-hygiene are whole-file upgrade concerns and must not
+// affect an unrelated key during set/unset.
+func reconcilePreamble(preamble string, existingParked []string, fields []configref.Field, kitVersion string) (string, []string) {
+	var report []string
 
 	// Live top-level keys the user has above the fence (the A set), plus their
 	// verbatim source blocks for rename carry-forward.
@@ -339,6 +347,16 @@ func render(original string, fields []configref.Field, kitVersion string) (strin
 		report = append(report, fmt.Sprintf("parked removed field %q below the fence (delete when done)", k))
 	}
 	return out, report
+}
+
+// renderMutation rebuilds only the managed fence around an already-mutated live
+// area. Unlike reconcilePreamble it does not carry renames, park unknown keys, or
+// inspect unrelated values for upgrade advisories. The live-key scan exists only
+// to omit already-overridden registry segments from the shared fence renderer.
+func renderMutation(preamble string, existingParked []string, fields []configref.Field, kitVersion string) (string, []string) {
+	liveKeys := liveTopLevelKeys(preamble)
+	fence := renderFence(fields, liveKeys, kitVersion)
+	return assemble(preamble, fence, existingParked, nil), nil
 }
 
 // splitFence divides the original file into three parts:

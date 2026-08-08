@@ -15,7 +15,7 @@ import (
 func newSyntheticTree() *cobra.Command {
 	root := &cobra.Command{Use: "fab", Short: "root"}
 
-	visible := &cobra.Command{Use: "visible", Short: "a visible <leaf> & more"}
+	visible := &cobra.Command{Use: "visible", Aliases: []string{"seen"}, Short: "a visible <leaf> & more"}
 	hidden := &cobra.Command{Use: "secret", Short: "hidden", Hidden: true}
 	completion := &cobra.Command{Use: "completion", Short: "auto-gen completion"}
 	help := &cobra.Command{Use: "help", Short: "auto-gen help"}
@@ -99,9 +99,9 @@ func TestDumpDoc_JSONKeyOrder(t *testing.T) {
 	// help-dump standard forbids it; the puller stamps the capture timestamp).
 	assertKeyOrder(t, out, "tool", "version", "schema_version", "root")
 
-	// Node: name, path, short, usage, text, commands. The synthetic root has a
+	// Node: name, optional aliases, path, short, usage, text, commands. The synthetic root has a
 	// surviving child, so a nested node is present and its order is exercised too.
-	assertKeyOrder(t, out, "name", "path", "short", "usage", "text", "commands")
+	assertKeyOrder(t, out, "name", "aliases", "path", "short", "usage", "text", "commands")
 }
 
 func TestBuildNode_FiltersAndSort(t *testing.T) {
@@ -115,6 +115,9 @@ func TestBuildNode_FiltersAndSort(t *testing.T) {
 	}
 	if node.Commands[0].Name != "visible" {
 		t.Errorf("surviving child = %q, want %q", node.Commands[0].Name, "visible")
+	}
+	if len(node.Commands[0].Aliases) != 1 || node.Commands[0].Aliases[0] != "seen" {
+		t.Errorf("aliases = %v, want [seen]", node.Commands[0].Aliases)
 	}
 
 	// None of the filtered names should appear.
