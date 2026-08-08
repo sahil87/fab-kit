@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 7
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-08-08T09:54:20Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-08T10:02:01Z"}
     review: {started_at: "2026-08-08T10:02:01Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-08T10:08:53Z"}
     hydrate: {started_at: "2026-08-08T10:08:53Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T10:12:21Z"}
-    ship: {started_at: "2026-08-08T10:12:21Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-08T10:12:21Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T10:15:37Z"}
+    review-pr: {started_at: "2026-08-08T10:15:37Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/551
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 362
+    deleted: 29
+    net: 333
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 18
+        deleted: 15
+        net: 3
     tests:
         added: 0
         deleted: 0
         net: 0
-    computed_at: "2026-08-08T10:12:21Z"
-    computed_at_stage: hydrate
+    computed_at: "2026-08-08T10:15:37Z"
+    computed_at_stage: ship
 summary: Narrowed optimizer prose policies for partial targeting, present-truth narration, protected output literals, sibling duplication, and owner-or-pointer guidance.
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-08T10:12:21Z
+last_updated: 2026-08-08T10:15:37Z
