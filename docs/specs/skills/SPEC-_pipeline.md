@@ -14,6 +14,7 @@ Shared pipeline bracket for `/fab-ff` and `/fab-fff`; `/fab-adopt` is a partial 
 |-----------|-----------|------------|
 | `{driver}` — passed to the `fab status` event commands the bracket shows it on (the fail/recovery commands are deliberately driver-less — 260612-w7dp scoped the wrappers' claim) and used in re-run guidance | `fab-ff` | `fab-fff` |
 | `{terminal}` — the bracket's terminal stage | `hydrate` (pipeline ends after Step 3) | `review-pr` (fff-only Steps 4–5 live in `fab-fff.md`) |
+| `{confidence header}` — the exact output header line, defined in the driver's own § Output (`--force` appends the gate-bypassed suffix) | header in `fab-ff.md` § Output | header in `fab-fff.md` § Output |
 
 A third value, **`{max_cycles}`**, is defined by the bracket itself (260612-c5tr — the formerly dead "Max cycles" knob is wired): the integer from the `Max cycles: {N}` line under `## Rework Budget` in `fab/project/code-review.md` (always-load layer), defaulting to **3** when the file, section, or line is absent. Only the cycle cap is configurable; the escalation threshold (2 consecutive fix-code) stays fixed.
 

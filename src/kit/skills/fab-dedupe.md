@@ -248,6 +248,8 @@ Per drafted intake, report name and confidence, then apply `_preamble.md`
 Drafted 2 changes:
   260728-a1b2-consolidate-test-fixtures    Confidence: 4.2 / 5.0 (6 decisions)
   260728-c3d4-consolidate-frontmatter      Confidence: 3.1 / 5.0 (4 decisions)
+
+Next: {per § Activation Preamble, once per drafted name}
 ```
 
 When no clusters are accepted, end with the report and no `Next:` line — nothing was created.

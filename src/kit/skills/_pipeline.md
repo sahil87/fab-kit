@@ -38,7 +38,9 @@ They accept the same arguments:
   `(force mode -- gate bypassed)` to the output header.
 
 The driver binds `{driver}` to its command name for status events and re-run
-guidance, and `{terminal}` to `hydrate` (`fab-ff`) or `review-pr` (`fab-fff`).
+guidance, `{terminal}` to `hydrate` (`fab-ff`) or `review-pr` (`fab-fff`), and
+`{confidence header}` to the exact header line its own § Output defines (the
+`--force` suffix above appends to that line).
 Every output includes the driver header, Implementation, Review, and Hydrate
 sections, then `Pipeline complete.` and the state-table `Next:` guidance.
 Resumes add `(resuming)` and report each completed stage as skipped; failures
