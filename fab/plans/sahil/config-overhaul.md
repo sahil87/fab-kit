@@ -1,10 +1,10 @@
 # Config management overhaul — per-session env layer, verbs, dispatch modes, field names, source consolidation
 
 > Backlog detail doc — written 2026-08-08 after a `/fab-discuss` session (the env-layer
-> change added later the same day from a follow-on discussion). All open decisions below are
-> **resolved** (user-confirmed in that session). The work is split into five changes, each
-> independently shippable, in dependency order — intended to be picked up by other agents
-> via `/fab-new`.
+> change added later the same day from a follow-on discussion; Change 6 folded in from
+> backlog `[kpth]` the same day). All open decisions below are **resolved** (user-confirmed
+> in that session). The work is split into six changes, each independently shippable, in
+> dependency order — intended to be picked up by other agents via `/fab-new`.
 >
 > **Reordered 2026-08-08 (user-confirmed)**: the env override layer runs **first** — it has
 > zero dependencies on the rest of the plan and delivers runtime provider switching (the
@@ -18,7 +18,7 @@
 
 ## Goal
 
-Five related cleanups to how fab-kit's configuration is inspected, mutated, and resolved:
+Six related cleanups to how fab-kit's configuration is inspected, mutated, and resolved:
 
 1. **Per-session selection** — a scope-gated environment override layer
    (env > project > system > defaults) plus launch-flag sugar, so two parallel sessions in
@@ -32,6 +32,10 @@ Five related cleanups to how fab-kit's configuration is inspected, mutated, and 
    `interactive_command`/`headless_command`.
 5. **Source consolidation** — one embedded values file, zero stub copies, a `--check` drift
    mode, and a fence that teaches which file each setting belongs in.
+6. **Kit-dev resolution override** — a per-process `FAB_KIT_PATH` honored at the
+   kit-resolution seam (shim + `kit-path`), so a kit-dev worktree can run its own unshipped
+   `src/kit/`. The env-override *pattern* of Change 1 applied to infrastructure resolution —
+   deliberately not a config field.
 
 ## The source map (current state, for orientation)
 
@@ -48,6 +52,62 @@ managed fence), `fab config upgrade` (the single writer; fence regeneration, par
 hoisting), `fab config init --system` (registry filtered to `scope ∈ {system, both}`, all
 commented), plus `src/kit/scaffold/` for the non-config project files and one **embedded
 stub config.yaml in the fab-kit binary** (the skew fallback — the last true second copy).
+
+## Orchestration — parallelism & dependency map
+
+> For the operator dispatching these changes as parallel worktree agents (one change =
+> one worktree = one full pipeline run off backlog `[x3cf]`).
+
+```
+t=0 (parallel):  C1 env layer    C2 verbs    C3 mode ladder    C6 FAB_KIT_PATH
+                      │              │             │
+                      │              │             ▼
+                      │              │        C4 renames        (strictly after C3)
+                      │              │             │
+                      └──────────────┴──────┬──────┘
+                                            ▼
+                                     C5 consolidation           (last)
+```
+
+**Hard edges** (semantic — never parallelize across them):
+
+- **C3 → C4**: both rewrite the same provider blocks (`defaults.yaml` comments, the same
+  spec/memory sections); the second to land owns the sweep of the first's text, so running
+  them concurrently guarantees a semantic merge.
+- **C2 → C5 and C3 → C5**: C5's fence pointers render `fab config set --system` (C2's
+  verb), its item 1 folds `dispatch.mode: native` into `defaults.yaml` (C3's knob), and it
+  extends the same `internal/configupgrade` engine + `cmd/fab/config.go` that C2 reworks.
+- **C4 → C5** (recommended, not hard): landing C5 first forces C4 to re-sweep C5's new
+  fence/defaults text — wasted rework, not wrongness.
+
+**Fully parallel at t=0**: C1, C2, C3, C6 — no semantic coupling. Two soft couplings to
+expect as *mechanical* rebases (operator stacked-merge rule: mechanical rebase OK,
+semantic conflict hands back):
+
+- **C1 ↔ C2** share the YAML value-parsing helper (C1 introduces it; C2's `set` reuses
+  it). Whichever merges second rebases onto the helper — small and mechanical.
+- **C1/C2/C3** all edit `_cli-fab.md` (+ SPEC mirror), `docs/specs/config.md`, and
+  `_shared/configuration.md` — in *different sections*; textual adjacency only.
+
+**C6 is edge-free**: different seam (shim + kit-path resolution), mostly a different
+binary; only trivial `_cli-fab.md` / doctor-output adjacency. Slot it wherever a pane is
+free.
+
+**Conflict-surface table** (what overlaps where):
+
+| Shared surface | Touched by | Nature |
+|---|---|---|
+| `_cli-fab.md` + SPEC mirror | C1 C2 C3 C4 C6 | different sections — mechanical |
+| `docs/specs/config.md` | C1 C2 C3 C5 | different sections — mechanical |
+| `_shared/configuration.md` | C1 C2 C3 C4 C5 | different sections — mechanical |
+| `defaults.yaml` | C3 C4 C5 | semantic — serialized by C3 → C4 → C5 |
+| `internal/configupgrade`, `cmd/fab/config.go` | C2 C5 | semantic — C5 after C2 |
+| `resolve_agent.go`, `internal/dispatch` | C3 | exclusive |
+| shim + kit-path resolution | C6 | exclusive |
+
+**Critical path**: C3 → C4 → C5 — start C3 at t=0 regardless of how many other panes run.
+**Conservative waves** (fewer panes): A = {C1, C2, C6} → B = {C3} → C = {C4} → D = {C5}.
+**Single-agent fallback**: plan order 1 → 2 → 3 → 4 → 5, with 6 slotted anywhere.
 
 ---
 
@@ -375,6 +435,52 @@ binary (`internal/init.go`).
 
 ---
 
+## Change 6 — `FAB_KIT_PATH`: session-scoped kit-resolution override (kit development)
+
+> Folded in from backlog `[kpth]` (2026-08-08). Today **nothing** can make a kit-dev
+> worktree run its own unshipped `src/kit/`: `fab/.fab-version` correctly pins the last
+> released kit (it is a data-migration stamp — bumping it early would lie), the shim
+> consults `~/.fab-kit/local-versions/{v}` only for the PINNED version (a `just
+> install`-populated 2.17.1 is invisible while the stamp says 2.17.0), and the shim binary
+> carries zero `FAB_*` env overrides (verified via `strings`, 2026-08-08). Consequence:
+> `fab sync` perpetually redeploys the released kit over `.claude/skills/`, and
+> `$(fab kit-path)` serves stale templates / `reference/fkf.md` / migrations — agents in
+> the dev repo exercise one-release-behind skills. Live evidence: change 260808-s2sz burned
+> a full review cycle + a failed T007 + a user decision on exactly this (acceptance A-014
+> "deployed copies match sources" was unsatisfiable and had to be relaxed to sync-SOURCE
+> equality).
+
+- **Honor a per-process `FAB_KIT_PATH=<dir>` at the kit-resolution seam** — the shim and
+  the fab binary, wherever the kit directory is resolved — so `sync`, `kit-path`,
+  templates, reference docs, and migrations ALL follow one override. Deliberately **not**
+  a `fab sync --source` flag: a sync-only override recreates the score-binary/source
+  version-skew disease for every other kit reader.
+- **A sibling of Change 1, deliberately NOT part of its mechanism.** Change 1's generic
+  mapping walks *registry rows*; the kit path is *not a config field* and must never
+  become one — a committed `kit.path` would break hermeticity for teammates, a persistent
+  machine-wide setting would recreate the stale-kit disease this change diagnoses, and the
+  shim resolves the kit *before* any config cascade exists. Env-only is the guardrail, so
+  this is a special-cased variable at a different seam, landed in both binaries.
+- **Guardrails** (from `[kpth]`):
+  1. **Provenance is mandatory** — `fab sync` output and `fab doctor` print
+     `kit: <dir> (FAB_KIT_PATH override)`, so a lingering shell export can never silently
+     mix kits.
+  2. **Hermeticity untouched** — per-process env only; no stamp or cache mutation; user
+     repos see zero behavior change.
+  3. **Set-once ergonomics via the dev repo's own existing `.envrc`** — in-repo autodetect
+     rejected (it would make dev-repo behavior diverge invisibly from user repos). This
+     does not contradict Change 1's direnv rejection: that decision declined to *document
+     direnv as the end-user pattern* for worker selection; here `.envrc` is the fab-kit dev
+     repo's own tooling, not a user-facing pattern.
+- Independent of all other changes; ships any time (it is kit-dev tooling only).
+
+**Obligations**: shim + `src/go` kit-path resolution + tests; `_cli-fab.md` (§ fab sync /
+kit-path env note) + SPEC mirror; `fab doctor` output; this plan / `docs/specs/config.md`
+env-override note; memory `distribution/kit-architecture.md` (kit-resolution section).
+**No migration** (env-only, opt-in, no persisted state).
+
+---
+
 ## Resolved decisions (all user-confirmed 2026-08-08)
 
 1. **Discard the k0v3 branch** (worktree nimble-ravine) — the code it patched is stale;
@@ -412,6 +518,13 @@ binary (`internal/init.go`).
     dependency on the verb surface, the mode ladder, the renames, or the consolidation, and
     it is the change that unlocks runtime provider switching; the former Changes 1–4 shift
     down to 2–5 with relative order preserved.
+14. **`FAB_KIT_PATH` is Change 6, not part of Change 1** (folded from backlog `[kpth]`,
+    user-confirmed 2026-08-08) — same env-override philosophy, different seam: kit
+    resolution happens in the shim before any config cascade exists, the kit path is
+    deliberately not a registry field (env-only is the hermeticity guardrail), and it
+    touches the fab-kit binary, which Change 1 never does. Rejected within it:
+    `fab sync --source` (per-reader skew), in-repo autodetect (invisible dev/user
+    divergence), a persistent `kit.path` setting (recreates the stale-kit disease).
 
 ## Context: why
 
@@ -431,6 +544,10 @@ binary (`internal/init.go`).
 - **The source pain**: five value/schema sources plus a stub copy made "which config comes
   from where" a real question even for the maintainer. After Change 5: values / schema /
   scope, one home each, everything else rendered.
+- **The kit-dev pain**: the dev repo's own agents run one-release-behind skills because
+  nothing can point kit resolution at the worktree's `src/kit/` — a stale-by-design stamp
+  doing its job correctly, with no session-scoped escape hatch. Change 6 adds the escape
+  hatch without touching the stamp.
 - **Prior art in this folder**: `config-upgrade.md` (2026-07-08, all three changes shipped)
   is the direct predecessor and established the registry/cascade/fence machinery this plan
   builds on.
