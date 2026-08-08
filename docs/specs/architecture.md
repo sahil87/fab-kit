@@ -242,9 +242,12 @@ checklist:
 # to CLI dispatch.
 # (Automated PR reviewer toggles moved to code-review.md § Review Tools — absent = enabled.)
 # Per-provider notes (kept out of the blocks below so uncommenting a whole block
-# stays valid YAML): claude -p and codex exec both read the prompt from stdin;
-# codex's -m takes a concrete model SLUG, so its shipped fills are pinned IDs;
-# gemini carries no {effort} (no reasoning-effort flag, so its fills carry none
+# stays valid YAML): claude -p and codex exec both read the prompt from stdin.
+# Codex carries --dangerously-bypass-approvals-and-sandbox; gemini carries
+# --approval-mode=yolo. Both flags are deliberate because unattended stage workers
+# cannot answer approval prompts; override a provider command to restore approvals.
+# Codex's -m takes a concrete model SLUG, so its shipped fills are pinned IDs.
+# Gemini carries no {effort} (no reasoning-effort flag, so its fills carry none
 # either) and no -p (it reads the stdin-piped prompt in non-TTY mode; -p would take
 # prompt text appended after stdin), and its fills are that CLI's own stable aliases
 # rather than versioned IDs. This whole block is advertise:false — documented in
@@ -256,13 +259,13 @@ providers:
     profiles:                              # the six per-role fills — run `fab config reference` for the live values
       doing: { model: <model-id>, effort: <effort> }   # example: shape only
   # codex:
-  #   session_command: codex -m {model} -c model_reasoning_effort={effort}
-  #   dispatch_command: codex exec -m {model} -c model_reasoning_effort={effort}
+  #   session_command: codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
+  #   dispatch_command: codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
   #   profiles:                            # sparse — run `fab config reference` for the live values
   #     default: { model: <model-id>, effort: <effort> }   # example: shape only
   # gemini:
-  #   session_command: gemini -m {model}
-  #   dispatch_command: gemini -m {model}   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)
+  #   session_command: gemini --approval-mode=yolo -m {model}
+  #   dispatch_command: gemini --approval-mode=yolo -m {model}   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)
   #   profiles:                            # model-only: the gemini CLI has no reasoning-effort flag
   #     default: { model: <model-id> }     # example: shape only
 

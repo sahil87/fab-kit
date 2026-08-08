@@ -663,13 +663,17 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# yields valid YAML — strip the leading '# ' from every line of a block):\n" +
 		"#   claude.dispatch_command — claude -p reads the prompt from stdin; uncommenting\n" +
 		"#     runs claude's stages as headless CLI processes instead of native sub-agents.\n" +
-		"#   codex — codex exec reads the prompt from stdin. Its -m takes a concrete model\n" +
+		"#   codex — codex exec reads the prompt from stdin; both commands carry\n" +
+		"#     --dangerously-bypass-approvals-and-sandbox. Its -m takes a concrete model\n" +
 		"#     SLUG, so the fills below are pinned IDs: override one to pin a newer model.\n" +
-		"#   gemini — no {effort} (the gemini CLI has no reasoning-effort flag, so its fills\n" +
-		"#     carry none either) and no -p: gemini's -p takes prompt TEXT (appended after\n" +
-		"#     stdin), whereas fab dispatch pipes the prompt to stdin, which gemini reads as\n" +
-		"#     the prompt in non-TTY mode. Its fills are that CLI's own stable ALIASES\n" +
+		"#   gemini — both commands carry --approval-mode=yolo. There is no {effort} (the\n" +
+		"#     gemini CLI has no reasoning-effort flag, so its fills carry none either) and\n" +
+		"#     no -p: gemini's -p takes prompt TEXT (appended after stdin), whereas fab\n" +
+		"#     dispatch pipes the prompt to stdin, which gemini reads as the prompt in\n" +
+		"#     non-TTY mode. Its fills are that CLI's own stable ALIASES\n" +
 		"#     rather than versioned IDs, so they track its current best model on their own.\n" +
+		"# The bypass flags are deliberate: unattended stage workers cannot answer approval\n" +
+		"# prompts. Override either provider command to restore an approval-gated posture.\n" +
 		"providers:\n" +
 		"  claude:\n" +
 		"    session_command: '" + agent.DefaultSessionCommand + "'\n" +

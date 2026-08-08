@@ -864,11 +864,12 @@ func TestResolveProvider(t *testing.T) {
 // exists only as a read-time alias for a user's profiles.default).
 func TestResolveProvider_BuiltInCodexAndGemini(t *testing.T) {
 	cases := []struct {
-		name              string
-		session, dispatch string
+		name                  string
+		session, dispatch     string
+		approvalBypassGrammar string
 	}{
-		{"codex", DefaultCodexSessionCommand, DefaultCodexDispatchCommand},
-		{"gemini", DefaultGeminiSessionCommand, DefaultGeminiDispatchCommand},
+		{"codex", DefaultCodexSessionCommand, DefaultCodexDispatchCommand, "--dangerously-bypass-approvals-and-sandbox"},
+		{"gemini", DefaultGeminiSessionCommand, DefaultGeminiDispatchCommand, "--approval-mode=yolo"},
 	}
 	for _, c := range cases {
 		prov, ok := ResolveProvider(nil, c.name)
@@ -880,6 +881,12 @@ func TestResolveProvider_BuiltInCodexAndGemini(t *testing.T) {
 		}
 		if prov.DispatchCommand != c.dispatch {
 			t.Errorf("%s.DispatchCommand = %q, want %q (a non-claude built-in carries one, so naming it flips the stage to CLI dispatch)", c.name, prov.DispatchCommand, c.dispatch)
+		}
+		if !strings.Contains(prov.SessionCommand, c.approvalBypassGrammar) {
+			t.Errorf("%s.SessionCommand = %q, want approval-bypass grammar %q (stage workers cannot answer approval prompts)", c.name, prov.SessionCommand, c.approvalBypassGrammar)
+		}
+		if !strings.Contains(prov.DispatchCommand, c.approvalBypassGrammar) {
+			t.Errorf("%s.DispatchCommand = %q, want approval-bypass grammar %q (stage workers cannot answer approval prompts)", c.name, prov.DispatchCommand, c.approvalBypassGrammar)
 		}
 		if len(prov.Profiles) == 0 {
 			t.Errorf("%s built-in carries no per-role fills — naming it on a depth knob must resolve a real model for every role", c.name)

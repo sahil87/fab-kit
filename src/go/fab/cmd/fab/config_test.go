@@ -344,6 +344,15 @@ func TestConfigReferenceDocumentsThreeBuiltInProviders(t *testing.T) {
 			t.Errorf("providers block must document the built-in command %q", cmd)
 		}
 	}
+	for _, want := range []string{
+		"--dangerously-bypass-approvals-and-sandbox",
+		"--approval-mode=yolo",
+		"unattended stage workers cannot answer approval",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("providers block must document the built-in full-auto policy with %q", want)
+		}
+	}
 
 	// Gemini carries NO {effort} placeholder (the gemini CLI has no
 	// reasoning-effort flag) and NO -p on its command (fab dispatch pipes the

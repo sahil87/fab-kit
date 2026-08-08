@@ -227,16 +227,16 @@ providers:
       hydrate:  { model: claude-opus-5,   effort: high }
       fast:     { model: claude-sonnet-5, effort: medium }
   codex:
-    session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
-    dispatch_command: 'codex exec -m {model} -c model_reasoning_effort={effort}'
+    session_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
+    dispatch_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
     profiles:                                 # sparse — an absent role takes `default`
       default: { model: gpt-5.6-sol,  effort: high }
       doing:   { effort: xhigh }
       review:  { effort: xhigh }
       fast:    { model: gpt-5.6-luna, effort: low }
   gemini:
-    session_command: 'gemini -m {model}'
-    dispatch_command: 'gemini -m {model}'
+    session_command: 'gemini --approval-mode=yolo -m {model}'
+    dispatch_command: 'gemini --approval-mode=yolo -m {model}'
     profiles:                                 # model-only: no reasoning-effort flag
       default: { model: pro }
       fast:    { model: flash }
@@ -247,6 +247,13 @@ provider's map resolves that provider's `default` entry, so codex's `hydrate` an
 codex's `default` model and effort, and gemini's non-`fast` roles on gemini's `default` model, without
 a row of their own. (The merge is per FIELD, so codex's `doing`/`review` rows — effort only — take
 their model from `default` too.)
+
+**All three also ship a full-auto posture.** Codex uses
+`--dangerously-bypass-approvals-and-sandbox`; Gemini uses the non-deprecated
+`--approval-mode=yolo` spelling. Pipeline workers are unattended and have no channel for answering
+approval prompts, so both the interactive session command (used by pane mode) and headless dispatch
+command carry the provider's bypass flag. Users who require approval-gated workers override the
+corresponding `providers.<name>.session_command` or `.dispatch_command`.
 
 Two per-provider shapes are load-bearing:
 
@@ -385,13 +392,13 @@ providers:
   # (Shape only below; § Three built-in providers above carries the live values,
   # and `fab config reference` prints what your binary actually ships.)
   # codex:
-  #   session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
-  #   dispatch_command: 'codex exec -m {model} -c model_reasoning_effort={effort}'
+  #   session_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
+  #   dispatch_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
   #   profiles:
   #     default: { model: <codex-model-id>, effort: high }   # e.g. — pin a newer model here
   # gemini:
-  #   session_command: 'gemini -m {model}'
-  #   dispatch_command: 'gemini -m {model}'   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)
+  #   session_command: 'gemini --approval-mode=yolo -m {model}'
+  #   dispatch_command: 'gemini --approval-mode=yolo -m {model}'   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)
   #   profiles:
   #     default: { model: <gemini-model-id> }  # e.g. — no effort: the gemini CLI has no such flag
 ```

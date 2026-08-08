@@ -1,0 +1,14 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-08T03:39:41Z"}
+{"args":"Add approval/sandbox bypass flags to the built-in codex and gemini provider commands in src/go/fab/internal/agent/defaults.yaml — fix ship/review-pr stage workers hitting codex's interactive approval wall on git push / gh calls under agent.workers: codex; sibling fix for gemini","cmd":"fab-new","event":"command","ts":"2026-08-08T03:39:41Z"}
+{"delta":"+4.6","event":"confidence","score":4.6,"trigger":"calc-score","ts":"2026-08-08T03:41:06Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-08-08T03:42:25Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-08T03:43:55Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-08T03:44:09Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-08T03:46:36Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-08T03:55:12Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-08T03:59:35Z"}
+{"event":"review","result":"passed","ts":"2026-08-08T03:59:35Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-08T04:01:04Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-08T04:04:46Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-08T04:07:16Z"}
+{"event":"review","result":"passed","ts":"2026-08-08T04:10:44Z"}
