@@ -10,6 +10,8 @@ The status summary printed by `fab change switch` ends with `Next: {routing_stag
 
 **Prose optimization** (260620-skop): skill content trimmed (Output prose compressed, the redundant `### Switch Flow` sub-section folded into Argument Flow, the "config.yaml not found → No impact" error row dropped as it duplicates Key Properties) and a `## Contents` TOC added; no behavioral change (Flow / Tools / Sub-agents unchanged).
 
+**Prose packaging** (260808-s2sz): the canonical output's field semantics and conditional variants are two small tables. Routing-stage/default-command mappings, all six display states, zero-score rendering, no-argument listing, and `--none` strings are unchanged.
+
 ## Flow
 
 ```

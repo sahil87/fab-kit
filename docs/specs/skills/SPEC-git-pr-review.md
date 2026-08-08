@@ -15,6 +15,8 @@ Processes PR review comments from any reviewer (human or bot). Fully autonomous 
 
 **Prose optimization** (260620-skop): skill content is trimmed to remove re-explanation of partial-owned concepts and release archaeology while retaining one source statement each for the `copilot-pull-request-reviewer`-on-`reviews` predicate, the REST-not-GraphQL confirmation rule, and the MUST-NOT-yield directive. The SPEC keeps the supporting n30u/u1m1 memory citation below; it is not duplicated in the skill source. Flow, tools, and sub-agent behavior are unchanged.
 
+**Prose packaging** (260808-s2sz): the request-side and landed-review identities are a four-row surface/login/rule table followed by the GraphQL omission trap, while Step 6 and 6.5 share one outcome-to-stage-to-commit table. The synchronous 20-attempt poll, disposition prefixes, and terminal push semantics are unchanged.
+
 **`allowed-tools` semantics**: per the current official Claude Code skills contract, `allowed-tools` pre-approves listed tools without restricting other tools. The source frontmatter therefore remains `Bash(git:*), Bash(gh:*), Bash(command:*)`; the body’s Read/Edit operations remain callable under normal permission settings.
 
 ## Arguments

@@ -19,6 +19,8 @@ The rework loop is NOT defined here — the file's trailing note points at the o
 
 **Prose optimization** (260620-skop): a `## Contents` TOC added to `_review.md` (structural check, file >100 lines); no prose trimmed and no behavioral change (Flow unchanged). This SPEC also received a `## Contents` block under the same structural check.
 
+**Prose packaging** (260808-s2sz): the mode table is the single mode contract, the checklist headings carry the only repeated gating annotations, and the one-worker/no-nesting invariant is stated once at Review Agent Dispatch. Preconditions, both checklists, cascade behavior, findings tiers, and verdict rules are unchanged.
+
 ## Flow
 
 ```

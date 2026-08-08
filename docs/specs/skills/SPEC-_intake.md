@@ -11,7 +11,7 @@ Shared pre-boundary **Create-Intake Procedure** (fab-new Steps 0–9) used by fo
 | `{questioning-mode}` — how Step 8 resolves ambiguity | `interactive` | `interactive` | `interactive` | `promptless-defer` |
 
 - **`interactive`** — Step 8 asks the user via SRAD (no fixed cap; conversational mode when 5+ Unresolved). The `/fab-new`/`/fab-draft`/`/fab-dedupe` behavior.
-- **`promptless-defer`** — Step 8 records each would-be-asked Unresolved decision as an Unresolved row with Rationale `Deferred — promptless dispatch` instead of asking, per the `_srad.md` § Critical Rule promptless-dispatch carve-out (quoted verbatim in the helper). The intake gate is the structural backstop: a deferred decision blocks by itself only when its composite is below 20 (a composite ≥ 20 row still adds penalty and can help fail the gate alongside other weak rows; emergent from the demerit curve, no special gate) — so a genuine unknown must be scored with honestly-low dimensions to land it there.
+- **`promptless-defer`** — Step 8 records each would-be-asked Unresolved decision as an Unresolved row with Rationale `Deferred — promptless dispatch` instead of asking, by pointing to `_srad.md` § Critical Rule's canonical promptless-dispatch carve-out. The intake gate is the structural backstop: a deferred decision blocks by itself only when its composite is below 20 (a composite ≥ 20 row still adds penalty and can help fail the gate alongside other weak rows; emergent from the demerit curve, no special gate) — so a genuine unknown must be scored with honestly-low dimensions to land it there.
 
 This is the **only** behavioral fork in intake creation, and it is legitimately invocation-level (who resolves ambiguity: human-now vs. defer-and-surface) — exactly parallel to the post-boundary autonomy fork.
 
@@ -26,6 +26,8 @@ This is the **only** behavioral fork in intake creation, and it is legitimately 
 This is an internal partial (`user-invocable: false`, `disable-model-invocation: true`, `metadata: internal: true`) — never invoked directly. Canonical source is the flat `src/kit/skills/_intake.md`; `fab sync` deploys it to `.claude/skills/_intake/SKILL.md`.
 
 **Prose optimization** (260620-skop): a single-entry `## Contents` TOC added to `_intake.md` (structural check, file >100 lines, applied mechanically though the file has one `##` section); no prose trimmed and no behavioral change (Flow unchanged).
+
+**Prose packaging** (260808-s2sz): the helper header now binds `{questioning-mode}` in one consumer table, Step 7 states score/persistence/output in three lines, and Step 8 points to SRAD's canonical promptless carve-out while retaining the dispatcher-specific return contract. Steps 0–9 and every call-site boundary are unchanged.
 
 ## Flow
 

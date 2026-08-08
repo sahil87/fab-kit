@@ -26,9 +26,7 @@ helpers: [_generation, _srad, _intake]
 
 `/fab-dedupe` finds code that should have been a shared utility and wasn't. It sweeps a scoped area for duplicate and near-duplicate functions, groups them into **clusters**, decomposes each cluster into a shared core plus opt-in variation layers, proposes a canonical home, and — for the clusters you accept — drafts a change intake per cluster group.
 
-The skill **does not refactor**. It produces intakes; `/fab-fff` (or `/fab-continue`) does the work with review in the loop. This is deliberate: collapsing two 70%-overlapping helpers into one is design work with real semantic risk, and the pipeline already has a gated stage for that.
-
-**Why an intake and not a bespoke report**: the intake's `## Assumptions` SRAD table is the natural per-cluster risk record ("these 12 helpers are identical" = Certain; "these two differ in error handling" = Tentative), and `fab score`'s intake gate already refuses to auto-run a change full of Tentatives. A custom artifact would reinvent that machinery.
+The skill **does not refactor**: it records each risky consolidation in a scored intake for `/fab-fff` or `/fab-continue` to implement and review.
 
 **Language-agnostic by construction.** Detectors are configured commands, probed at run time and skipped silently when absent. A repo with no detectors installed still works — the agent sweeps unaided, just with a smaller seed.
 
@@ -79,7 +77,7 @@ fab log command "fab-dedupe"
 
 ## Detector Configuration
 
-Detectors **seed** the sweep; they do not perform it. Every shipping duplicate-detection tool finds Type-1/2 clones (literal or renamed); the clusters worth consolidating are usually Type-3/4 — same behavior, different names, different bodies — which is the agent's job.
+Detectors only seed Type-1/2 candidates; the agent finds behaviorally equivalent Type-3/4 clusters.
 
 Read `consolidate.detectors` from `fab/project/config.yaml`. Absent → use the default list below.
 
@@ -168,7 +166,7 @@ Worked example (the `src/go` sweep that motivated this rule):
 
 → `newFabRoot(t, opts...)` with functional options — **not** one flat `newFixtureRepo(t, ...)` signature covering every member's needs.
 
-**Why this matters, not just how**: forcing one signature per cluster produces a bad API — every member's specifics get folded into one parameter list, and members that need only the base look artificially divergent. The layered form also feeds Step 4's ranking (below) and gives the drafted intake a per-member migration story instead of a single lossy signature.
+Layering avoids a lossy flat API, drives divergence ranking, and preserves each member's migration story.
 
 **Do not cluster on name similarity alone.** Two functions named `parseConfig` in different packages may be unrelated; two named `mustTempRepo` and `newFixtureDir` may be identical. Read the bodies.
 
@@ -178,7 +176,7 @@ Worked example (the `src/go` sweep that motivated this rule):
 
 Rank clusters by consolidation value: high call-site count and low divergence first, low count and high divergence last. A 12-member cluster whose members mostly need only the base layer is a trivial win; a 3-member cluster with subtle behavioral differences may not be worth doing at all.
 
-**A member that needs only the base layer counts as LOW divergence** — even when its body looks different from the others'. Textual difference is not behavioral divergence; what matters is how many layers a member pulls in. Rank on the layer profile, not on how similar the bodies read.
+**Base-only members count as LOW divergence**; rank layer profiles, not textual similarity.
 
 Present the sweep report — read-only, nothing has been written:
 

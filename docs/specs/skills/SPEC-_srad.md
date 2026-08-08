@@ -2,11 +2,13 @@
 
 ## Summary
 
-SRAD autonomy framework helper — the decision framework planning skills apply when generating artifacts: four-dimension scoring (Signal Strength, Reversibility, Agent Competence, Disambiguation Type) on a continuous 0–100 scale, weighted-mean aggregation `composite = 0.20·S + 0.30·R + 0.30·A + 0.20·D` (R/A up-weighted to 0.30 — SRAD v2, 260618-4yi8) to **indicative** confidence grades via half-open thresholds (≥80 Certain / ≥50 Confident / ≥20 Tentative / else Unresolved — the grade is derived from the composite, never an input to the score), the Critical Rule (a genuine unknown is surfaced and MUST be asked; blocking is **emergent from the demerit scoring curve** — a `composite < 20` row penalizes ≥ 2.0 — with **no** hard-fail short-circuit and **no** `R<25 ∧ A<25` override), skill-specific autonomy levels covering all seven declaring skills (4 columns + a fab-draft/fab-dedupe/fab-clarify covering note, both fab-draft and fab-dedupe following the fab-new column), worked examples, artifact markers (`<!-- assumed: ... -->` / `<!-- clarified: ... -->`), and the Assumptions Summary block format (omit-when-zero scoped to displayed output only — artifacts always carry `## Assumptions`).
+SRAD autonomy framework helper — the decision framework planning skills apply when generating artifacts: four-dimension scoring (Signal Strength, Reversibility, Agent Competence, Disambiguation Type) on a continuous 0–100 scale, weighted-mean aggregation `composite = 0.20·S + 0.30·R + 0.30·A + 0.20·D` (R/A up-weighted to 0.30 — SRAD v2, 260618-4yi8) to **indicative** confidence grades via half-open thresholds (≥80 Certain / ≥50 Confident / ≥20 Tentative / else Unresolved — the grade is derived from the composite, never an input to the score), the Critical Rule (a genuine unknown is surfaced and MUST be asked; blocking is **emergent from the demerit scoring curve** — a `composite < 20` row penalizes ≥ 2.0 — with **no** hard-fail short-circuit and **no** `R<25 ∧ A<25` override), skill-specific autonomy levels covering all seven declaring skills (four core-skill columns plus explicit fab-draft/fab-dedupe/fab-clarify rows), worked examples, artifact markers (`<!-- assumed: ... -->` / `<!-- clarified: ... -->`), and the Assumptions Summary block format (omit-when-zero scoped to displayed output only — artifacts always carry `## Assumptions`).
 
 Extracted from `_preamble.md` § SRAD Autonomy Framework in 260611-zc9m (the preamble keeps a 3-line pointer). This is an internal partial (`user-invocable: false`) — never invoked directly. It is loaded via the frontmatter `helpers:` list of the planning skills: `fab-new`, `fab-draft`, `fab-dedupe` (added 260728-4v91), `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify`. Non-planning skills do not load it.
 
 **Prose optimization** (260620-skop): a `## Contents` TOC added to `_srad.md` (structural check, file >100 lines); no prose trimmed and no behavioral change (Flow unchanged).
+
+**Prose packaging** (260808-s2sz): Critical Rule is one rule plus one promptless-dispatch carve-out, and the three additional declaring skills are explicit table rows. The weighted formula, half-open thresholds, emergent blocking semantics, examples, marker literals, and Assumptions schema remain canonical and unchanged.
 
 ## Flow
 
@@ -44,9 +46,9 @@ Planning skill declares helpers: [..., _srad]
 │
 ├─ Skill-Specific Autonomy Levels
 │  (fab-new / fab-continue / fab-fff / fab-ff postures
-│   + covering note: fab-draft = fab-new's column,
-│   fab-dedupe = fab-new's column (fan-out),
-│   fab-clarify = the escape valve itself)
+│   + table rows: fab-draft = fab-new's column,
+│     fab-dedupe = fab-new's column (fan-out),
+│     fab-clarify = the escape valve itself)
 │
 ├─ Worked Examples (3, one-liner style — each
 │  example's arithmetic reaches the grade it teaches)

@@ -18,6 +18,8 @@ The procedures are **extracted from `fab-operator.md`** (moved, not rewritten): 
 
 This is an internal partial (`user-invocable: false`, `disable-model-invocation: true`, `metadata: internal: true`) — never invoked directly. It is **opt-in** via a consumer's `helpers:` frontmatter (or an in-body point-of-use read), **not** part of the always-load layer: `/fab-operator` declares `helpers: [_cli-agents, _cli-fab, _cli-external]`. Canonical source is the flat `src/kit/skills/_cli-agents.md`; `fab sync` deploys it to `.claude/skills/_cli-agents/SKILL.md`.
 
+**Prose packaging** (260808-s2sz): provider-form fill bypass is one sentence plus the `_cli-fab` command-contract pointer; the Claude row no longer re-explains Peek; and dictionary ownership/fill/freshness rules are separate bullets. Invocation grammars, pane procedures, discovery recipes, and instrumentation fallback behavior are unchanged.
+
 > **Unlike `_cli-fab.md` / `_cli-external.md`, this partial carries a SPEC.** `docs/specs/skills.md` § New Skill Checklist item 6 excludes those two as **pure-reference** partials whose content mirrors an external command surface (a SPEC would be a third copy of the same tables). `_cli-agents.md` defines *procedures* — behavior — so it falls on the "every other behavioral partial gets a SPEC" side of that policy. The exclusion policy is worded to name the two files explicitly rather than keying on the `_cli-` prefix.
 
 ## Section Structure

@@ -8,6 +8,8 @@ Rewrites an existing `docs/memory/` domain's topic files to the **FKF present-tr
 
 Introduced as the deliberately-deferred **step 3 of the present-truth effort**: steps 1–2 (the FKF §3.2 change-id ban + §3.3 present-truth body-style rule, and the forward-looking memory writers) shipped in `260717-3plm`; this skill cleans the corpus those rules did not retroactively fix.
 
+**Prose packaging** (260808-s2sz): Output uses two combined templates—survey and domain/terminal/next—with non-emitted branch labels. Per-domain approval, apply-all/cherry-pick/skip grammar, explicit-domain completion survey, exit-2 handling, and remaining-domain routing are unchanged.
+
 ## Niche vs. the sibling doc skills
 
 - `/docs-reorg-memory` reorganizes **structure** (splits/merges/moves + bundle-relative link rewrites) — it never rewrites body prose to a style.

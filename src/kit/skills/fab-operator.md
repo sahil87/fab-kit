@@ -28,23 +28,17 @@ Start via `fab operator` (singleton tmux tab named `operator`). The launcher req
 
 ## 1. Principles
 
-**Coordinate, don't execute.** The operator routes instructions to the right agent — it never implements work directly. If ambiguous, ask. Exception: operational maintenance (merge PR, archive, delete worktree) is executed directly by the operator since these are coordination-level actions, not pipeline work.
-
-**Multi-repo aware.** The operator spans multiple repos and multiple tmux sessions on a **single tmux server** — one operator per server (§8). Every agent is addressed as a `(session, repo, pane)` tuple: the **pane ID is the primary key** (server-global and stable), with `repo` (the agent's absolute main-worktree root) and `session` (its tmux session name) layered on as dimensions, not replacements. Every monitored entry, every `branch_map` entry, and every watch is repo-qualified. State lives in one server-keyed file, not per-repo (§4, §9).
-
-**Spawn-in-worktree.** The operator's own pane is reserved for coordination state — pane maps, autopilot queue, operator state file bookkeeping (see §4). All pipeline work (`/fab-new`, `/fab-proceed`, `/fab-fff`, `/fab-ff`, `/fab-continue`, `/git-branch`, `/git-pr`) MUST run in a freshly spawned agent tab in its own worktree — never in the operator pane itself. The first action for any new request is `wt create --non-interactive`, then spawn the agent tab (see §6). Even a one-liner change gets its own worktree.
-
-**Automate the routine.** The operator exists to take work off the user's hands. Auto-answer prompts, nudge stuck agents, rebase stale PRs, spawn agents from backlog — act on the user's behalf for routine operational decisions. The PR review stage is the safety net. Never ask whether to monitor a spawned agent — if the operator spawned it, monitor it.
-
-**Not a lifecycle enforcer.** Individual agents self-govern via their own pipeline skills. The operator does not validate stage transitions or enforce pipeline rules. If an agent is at an unexpected stage, report it factually.
-
-**Context discipline.** The operator never reads change artifacts (intakes, specs, plans). Its context window is reserved for coordination state — pane maps, stage snapshots, the operator state file. This keeps long-running sessions lean.
-
-**State re-derivation.** Before every action, re-query live state via `fab pane map --all-sessions` (so every session on the server is seen, not just the operator's own). Panes die, stages advance, agents finish — stale state leads to wrong actions. Never rely on conversation memory for pane, repo, session, or stage values.
-
-**Self-manage context.** The operator is long-lived. When context approaches capacity, run `/clear` and restart the loop. Continuity is maintained via the operator state file — the monitored set and autopilot queue survive a clear. After clearing, re-read context files, re-read the operator state file, and resume.
-
-**Pipeline-first routing.** The operator MUST route all new work through `/fab-new` (to generate intake) then a pipeline command (`/fab-fff`, `/fab-ff`, or `/fab-continue`). The operator MUST NOT dispatch raw inline implementation instructions (e.g., "fix the login bug by changing line 42 in auth.ts") directly to agent panes. The operator MUST NOT send `/fab-continue` to skip intake for new work — `/fab-new` is always the entry point. Exception: operational maintenance commands (see "Coordinate, don't execute" above) are coordination-level actions and remain direct.
+| Principle | Rule |
+|-----------|------|
+| Coordinate, don't execute | Route implementation to agents; ask when ambiguous. Perform only coordination-level maintenance such as merge, archive, and worktree deletion directly (§6). |
+| Multi-repo aware | Address every agent as `(session, repo, pane)` on one tmux server, with pane ID primary and every monitored/watch/`branch_map` entry repo-qualified; state is one server-keyed file (§4, §8, §9). |
+| Spawn in a worktree | Reserve the operator pane for coordination. Every pipeline command, including a one-line change, starts with `wt create --non-interactive` and runs in a fresh agent tab (§6). |
+| Automate the routine | Auto-answer, nudge, rebase, and spawn for routine operations; PR review is the safety net. Every operator-spawned agent is monitored automatically (§4–§7). |
+| Do not enforce lifecycle | Agents self-govern pipeline transitions; report unexpected stages factually (§4). |
+| Keep context lean | Never read intake/spec/plan artifacts; retain only pane maps, snapshots, and operator state (§2, §4). |
+| Re-derive state | Before every action, query `fab pane map --all-sessions`; never trust conversational pane/repo/session/stage values (§4). |
+| Self-manage context | Near capacity, `/clear`, reload context and the state file, then resume; monitored/autopilot state survives (§4). |
+| Route pipeline-first | New work MUST enter through `/fab-new`, then `/fab-fff`, `/fab-ff`, or `/fab-continue`; never send raw implementation instructions or use `/fab-continue` to skip intake. Coordination maintenance remains direct (§6). |
 
 ---
 
@@ -280,23 +274,17 @@ Example (this is the literal markdown the operator emits, shown fenced here only
 | `slack-alerts` | ~/code/bar | 🟢 | 0 new · 1m ago |
 ```
 
-**Header line**: `🛰️ **Operator** · {HH:MM} · tick #{N} · **{N} tracked**`. The 🛰️ emoji and bold give it prominence. `N tracked` is the total count of all entries (changes + watches) — no per-type or per-repo counts.
-
-**Repo-section anchor**: `📂 **{repo-path}** · {session}` — one per repo, with the repo's change table beneath it. The 📂 emoji is the section landmark the eye jumps to. The session label drops the literal word "session:". A repo whose main-worktree root could not be resolved (`null` in the `repo` JSON field) renders under a `📂 **(unresolved repo)**` anchor rather than being dropped.
-
-**Change table** columns (consistent across all repo sections):
-
-| Column | Content |
-|--------|---------|
-| (autopilot) | `▶` if autopilot-driven, blank otherwise. Center-aligned, header-less |
-| ID | Change ID (4-char) in a `code span` |
-| Health | Health emoji — universal position across all types |
-| Stage | Stage text (e.g. `apply → review`), with the `⚠️` stuck marker trailing when applicable |
-| PR | Full PR URL from the `pr_url` JSON field when present (ship/review-pr stages); blank otherwise |
-
-**Watches table** columns: `Watch` (name in `code span`), `Target` (the watch's `target_repo`), `Health` (emoji), `Status` (counts + relative timestamp). Watches render after all repo sections.
-
-**Ordering**: Repo sections first (repos sorted by path, sessions sorted by name within a repo, changes sorted by enrollment time within a session), then the Watches section (watches sorted alphabetically by name).
+| Element | Format | Notes |
+|---------|--------|-------|
+| Header | `🛰️ **Operator** · {HH:MM} · tick #{N} · **{N} tracked**` | Total includes changes + watches; no per-type/repo count |
+| Repo anchor | `📂 **{repo-path}** · {session}` | One per repo; omit `session:` label. Null roots render `📂 **(unresolved repo)**` |
+| Change table | Headerless centered `▶`, `ID`, `Health`, `Stage`, `PR` | ID is a code span; Stage may trail `⚠️`; PR is the full `pr_url`, never markdown display text |
+| Watches table | `Watch`, `Target`, `Health`, `Status` | Watch name is a code span; Target is `target_repo`; Status is counts + relative time |
+| Ordering | Repo → session → change; then watches | Sort repos by path, sessions by name, changes by enrollment, watches by name |
+| Styling | Emoji, bold, italic, code spans, plain URLs | Bold header/title/count/repo; health emoji is the color channel; action log stays italic |
+| Stuck marker | `⚠️` after Stage | Same non-terminal >15m idle condition as 🔴 (§8) |
+| Autopilot marker | `▶` or blank | Marks queue-driven changes; completion remains visible through ✅ |
+| Watch timestamp | `{N}s ago` / `{N}m ago` / `{N}h ago` | Floor division at 60s and 60m |
 
 **Health emoji** (geometric glyphs like `●◌✗` render monochrome and are NOT used):
 
@@ -307,14 +295,6 @@ Example (this is the literal markdown the operator emits, shown fenced here only
 | stuck / errored | >15m idle at non-terminal | `last_error` set | 🔴 |
 | complete | reached terminal/stop stage | — | ✅ |
 | paused | — | `enabled: false` | ⚪ |
-
-**Markdown styling**: emoji carry the health color; **bold** marks the header title, `N tracked`, and repo-path anchors; `code spans` mark change/watch IDs and watch names; the PR cell holds a **full URL as plain text** (selectable/copyable in any terminal, including a plain xterm — markdown `[#N](url)` link syntax is deliberately NOT used because xterm shows only the `#N` display text, not a copyable URL). The autopilot `▶` is a plain monochrome glyph in its own column.
-
-**Stuck marker**: `⚠️` trails the Stage cell text on any change row whose idle duration has exceeded the stuck threshold (§8, default 15m) at a non-terminal stage — the same condition that shows the 🔴 health emoji. It is a redundant inline flag drawing the eye to rows needing manual investigation; rows below the threshold carry no marker.
-
-**Autopilot marker**: `▶` marks changes driven by the autopilot queue. Non-autopilot changes (manually enrolled or watch-spawned) show blank. Queue state is readable from the list — which entries have `▶`, which are complete.
-
-**Watch timestamps**: Relative format (`{N}m ago`) matching the idle duration format: `{N}s ago` (< 60s), `{N}m ago` (60s–59m), `{N}h ago` (>= 60m). Floor division.
 
 ### Idle Message
 
@@ -360,22 +340,20 @@ Evaluate in order:
 1. Binary yes/no or confirmation → `y`
 2. `[Y/n]` or `[y/N]` → `y`
 3. Claude Code permission prompt → `y`
-4. Numbered menu:
-   - Classify the prompt as **Routine** or **Strategic** using LLM judgment over the terminal capture. Signals: option text length, semantic distinctness of options, surrounding agent context, reversibility of the choice. No hardcoded keyword list.
-     - **Routine** (tool/permission prompts, binary-framed menus, synonymous-option menus) → `1` (first/default).
-     - **Strategic** (multi-option choices representing materially different directions — scope, PR split, pipeline shape, commit organization, spec/approach decisions) → **non-blocking** handling, split by whether a defensible recommendation exists (see **Non-Blocking Strategic Handling** below). A Strategic classification **never** ends the operator's turn.
-   - On classification uncertainty, treat as Strategic. False-negative strategic commits the queue to an unchosen direction; false-positive strategic costs at most a notification (and, if auto-picked, a reversal at PR review — §1).
-5. Open-ended, answer determinable from visible context → send that answer
-6. Cannot determine keystrokes → escalate to user (left open). Rule-6 escalations are **excluded** from auto-pick and from the 30m idle auto-default — the operator does not know the correct keystrokes, so sending a guess would emit nonsense into the pane.
+4. Numbered menu or multi-choice → classify with LLM judgment using option length, semantic distinctness, surrounding context, and reversibility; no keyword list. Treat uncertainty as Strategic, then use the decision table below.
+5. Open-ended answer determinable from visible context → send that answer.
+6. Cannot determine keystrokes → use the decision table's hard-exclusion row.
 
 ### Non-Blocking Strategic Handling
 
-A Strategic classification (rule 4 above) **MUST NOT block the loop**. The operator handles the prompt out-of-band within the current tick and proceeds to the next monitored change in the **same** tick. Two branches:
+Strategic handling MUST NOT block the loop: decide out-of-band, continue with the next monitored change in the same tick, and detect any asynchronous user resolution on a later tick.
 
-- **Strategic + defensible recommendation** → **auto-pick-and-notify.** The operator picks its recommended option (LLM judgment over the capture — the same signals rule 4 lists: option text, distinctness, surrounding context, reversibility), sends it (after the **Sending Auto-Answers** re-capture guard below), fires a notification (see **Notification Send**), and keeps ticking. The PR review stage is the reversal point (§1 "The PR review stage is the safety net").
-- **Strategic + no defensible default** → **leave open and notify.** The operator leaves the prompt open for the user, fires a notification, and keeps ticking. The 30m **Idle Auto-Default** (below) remains the backstop for these left-open prompts.
-
-In both branches the operator **continues ticking**. The user answers asynchronously — by responding to the notification's guidance or by typing directly into the agent's pane — and the operator **picks up the resolution on a later tick** via its normal re-capture/re-detection.
+| Classification | Action | Notify | Watchdog |
+|----------------|--------|--------|----------|
+| Routine menu (tool/permission, binary-framed, synonymous options) | Send first/default (`1`) after the re-capture guard | No | None |
+| Strategic + defensible recommendation | Auto-pick the recommendation after the re-capture guard; PR review is the reversal point | Yes | None; already resolved |
+| Strategic + no defensible default | Leave open and keep ticking | Yes | 30m idle auto-default |
+| Cannot determine keystrokes (rule 6) | Leave open for the user; never guess | Escalate | Hard-excluded from auto-pick and auto-default |
 
 ### Notification Send
 
@@ -398,20 +376,9 @@ Before `tmux send-keys`: run the §3 pre-send gate (`_cli-agents.md` § Pre-Send
 
 ### Idle Auto-Default on Strategic Escalations
 
-This is the watchdog for a **left-open** Strategic prompt — the no-defensible-default branch of **Non-Blocking Strategic Handling** above. (Auto-picked Strategic prompts are already resolved, so the watchdog has nothing to act on for them.) When rule 4 leaves a prompt open as **Strategic**, the operator starts a per-prompt idle timer measured in real time from the moment the left-open log line is written. If the prompt remains idle for 30 minutes, the operator auto-answers the prompt and logs using the distinct `auto-defaulted` format (§5 Logging). The timer runs in the background — it does **not** block the loop; the operator keeps ticking and fires the auto-default on whatever later tick crosses the 30-minute mark.
-
-**Threshold**: 30 minutes, hardcoded. No operator-state-file field, per-change override, or environment variable exposes this value.
-
-**Idle clock reset**: the idle timer resets on any terminal-state change in the pane — new content appended by the agent, user keystrokes that alter the prompt display, or the prompt's own redraw. The timer is a watchdog on pane-idle-ness, not on escalation-open-ness. §4 Tick Behavior provides sub-minute resolution.
-
-**Answer selection** (in priority order):
-
-1. If the prompt text visibly states a default (e.g., `(default: 2)`, `Press enter for 2`, `[2]`), send that stated default.
-2. Otherwise, send `1`.
-
-This matches rule 4's existing "first/default" semantics for routine menus.
-
-**Scope (hard exclusion)**: the idle auto-default applies ONLY to **left-open** Strategic prompts from rule 4's no-defensible-default branch. It does NOT apply to auto-picked Strategic prompts (already resolved) and MUST NOT apply to rule 6 escalations ("cannot determine keystrokes") — the operator does not know what the correct keystrokes are, so sending `1` or the stated default would emit nonsense into the pane. Rule-6 escalations remain open pending user action regardless of idle duration.
+- **Timer:** only the left-open Strategic/no-default row starts a hardcoded 30m real-time timer at its log line; no state-file field, override, or env setting exposes it. The background timer never blocks ticks and fires on the first later tick crossing the threshold.
+- **Reset:** any terminal display change — agent output, user keystroke, or redraw — resets the pane-idle clock; §4 supplies sub-minute observation.
+- **Answer/scope:** send a visibly stated default (`(default: 2)`, `Press enter for 2`, `[2]`), else `1`. Auto-picked Strategic prompts and rule-6 cannot-determine escalations are hard-excluded regardless of idle duration.
 
 ### Logging
 
@@ -461,9 +428,7 @@ The spawn sequence is:
    fi
    ```
 
-   - **Existence guard is mandatory.** When the change folder/intake does not exist yet (the raw-text and backlog entry forms, before `/fab-new` runs inside the spawned agent), the operator MUST NOT attempt a switch — there is nothing to switch to, and `/fab-new` creates and then activates the change itself once the agent runs (activation at fab-new Step 10).
-   - **Scoped to the new worktree — no cross-tab collision.** The switch runs with the just-created worktree as CWD, so it writes *that worktree's* `.fab-status.yaml` — never the operator's own checkout or any other worktree. Each operator worktree is a dedicated, single-change checkout that owns its own per-worktree pointer file, so there is zero cross-tab collision risk (the very concern the transient-override path protects against — parallel tabs targeting different changes via one shared pointer — does not arise within a single dedicated worktree).
-   - **Fail-soft.** A `fab change switch` failure is non-fatal to the spawn — log one line and continue opening the agent tab. The transient `<change>` override on the embedded pipeline command still makes the pipeline resolve correctly even if the pointer write failed; the activation is an ergonomic enhancement, not a correctness prerequisite.
+   **Guard:** switch only an already-existing change, from the just-created worktree CWD, and fail soft. Raw/backlog forms wait for `/fab-new` Step 10; the dedicated worktree owns its own pointer, and the embedded transient override preserves correctness if activation fails.
 4. **Resolve dependencies** — if the change has a non-empty `depends_on` list, resolve it per repo: same-repo deps cherry-pick into the worktree, cross-repo deps are ordering-only barriers (see Dependency Resolution below)
 5. **Read the target repo's session command** — compose it per `_cli-agents.md` § Spawn Composition, in the **role-addressed** form with the target repo named: `fab agent --print --repo <target-repo>`. The operator-specific rule: **always pass `--repo <target-repo>`** — do NOT use the operator's own `config.yaml`, since each repo may configure a different provider/session command. (The provider-addressed form documented there is for ad-hoc cross-provider sessions, not operator worker spawns, which must carry the target repo's `default`-role profile.)
 6. **Open agent tab** — open the composed command per `_cli-agents.md` § Spawn Composition ("Open it in a pane", incl. the one-prompt/no-`&&`-chaining rule), with the operator's window-marker name: `tmux new-window -n "»<wt>" -c <worktree-path> "<spawn_cmd> '<command>'"` (where `<wt>` is the worktree name from step 2 and `<spawn_cmd>` is the target repo's command from step 5)
@@ -544,13 +509,11 @@ Dependencies are declared through three conversational paths, all of which coexi
 
 > **Pipeline-first routing (§1):** all three work paths below MUST go through the fab pipeline (`/fab-new` then a pipeline command for new work; the appropriate stage for already-intaked changes) — never raw implementation instructions to agent panes.
 
-The operator accepts work in three forms. Each runs the §6 spawn sequence above (establish target repo → `wt create` in it → existence-guarded pointer activation → resolve dependencies → `fab agent --print --repo <target-repo>` → open agent tab → enroll with `repo` + `session`); only the entry-form specifics below differ:
+Every form runs §6's target-repo worktree → guarded activation → dependencies → target-repo session command → tab → enrollment sequence:
 
-| Entry form | Target repo / pre-step | Initial command (sent via the spawn sequence's agent tab) |
-|------------|------------------------|-----------------------------------------------------------|
-| **Existing change** (already has intake or further) | The change's `repo` (monitored entry or `branch_map`) | Embed the single prompt `/fab-fff <change>` per `_cli-agents.md` § Spawn Composition. The transient override targets the pipeline; spawn step 3 also activates the worktree pointer. |
-| **Raw text** (e.g., "fix login after password reset") | The repo the user names; default the operator's launch repo | `/fab-new <shell_escaped_description>` — the raw description safely shell-escaped for inclusion in a single-quoted shell argument (do NOT insert unescaped raw text directly). No operator pointer-switch at spawn — the change folder doesn't exist yet, so §6 step 3's existence guard skips it; `/fab-new` creates and then activates the change inside the spawned agent (activation at fab-new Step 10) |
-| **Backlog ID or Linear issue** (structured) | Pre-step: resolve it; delegate optional `idea` lookup per `_cli-external.md` § Delegation and binary gate | `/fab-new <id>` — no pointer switch before the change exists; `/fab-new` owns activation |
+1. **Existing change:** use the monitored/`branch_map` repo and embed `/fab-fff <change>` as the single prompt per `_cli-agents.md` § Spawn Composition; the transient override targets the pipeline and spawn step 3 activates the pointer.
+2. **Raw text** (for example, "fix login after password reset"): use the named repo (default operator launch repo) and embed `/fab-new <shell_escaped_description>`. Shell-escape the raw description; never insert it unescaped. The existence guard skips activation until `/fab-new` creates and activates the change at Step 10.
+3. **Backlog ID or Linear issue:** resolve it first (optional `idea` lookup per `_cli-external.md` § Delegation and binary gate), then embed `/fab-new <id>`. The existence guard skips activation and `/fab-new` owns it.
 
 On completion (all three): PR ready, optionally archive. Both raw text and backlog paths use `/fab-new` to generate a proper intake with traceability. `/fab-new` captures the raw input in the intake's Origin section — the user just says "fix [description]" and the operator does the rest.
 
