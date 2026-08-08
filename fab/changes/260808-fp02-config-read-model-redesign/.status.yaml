@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 25
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-08-08T23:00:47Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-08T23:10:07Z"}
     hydrate: {started_at: "2026-08-08T23:10:07Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T23:22:20Z"}
     ship: {started_at: "2026-08-08T23:22:20Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T23:24:57Z"}
-    review-pr: {started_at: "2026-08-08T23:24:57Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-08-08T23:24:57Z", driver: git-pr, iterations: 1, completed_at: "2026-08-08T23:30:53Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/557
 change_type_source: explicit
@@ -54,4 +54,4 @@ true_impact:
     computed_at_stage: ship
 summary: 'Config read model redesigned: per-leaf deep merge with empty-skip (null/""/[]/{} fall through, false/0 real), precedence inverted to environment > system > project > built-in defaults with scope enforcement retained, defaults materialized as a read-model tier (configref.DefaultsMap/DefaultsMapFor, knob-aware), presence machinery deleted, keyed `show <key> --origin` a full-stack per-tier listing, `set` shadow warning + empty refusal, `unset` live-tier notice.'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-08T23:24:57Z
+last_updated: 2026-08-08T23:30:53Z
