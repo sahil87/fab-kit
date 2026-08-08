@@ -61,8 +61,10 @@ import (
 //     `fab spawn-command` replacement — profile-resolved, not stripped).
 //   - `--repo <path>`: reads <path>/fab/project/config.yaml instead of the current
 //     repo (the operator's fetch-another-repo's-command use case).
-//   - `--workers <provider>`: appends FAB_AGENT_WORKERS=<provider> to the exec
-//     environment. It does not alter `--print` output or validate the value.
+//   - `--workers <provider>`: sets FAB_AGENT_WORKERS=<provider> in the exec
+//     environment, REPLACING any entry inherited from the parent rather than
+//     appending a second one (duplicate resolution is unspecified). It does not
+//     alter `--print` output or validate the value.
 var execAgent = syscall.Exec
 
 func agentCmd() *cobra.Command {
@@ -160,7 +162,7 @@ func runAgent(cmd *cobra.Command, role, provider string, providerSet bool, model
 	// the agent CLI surfaces its own error when stdin is not a terminal.
 	env := os.Environ()
 	if workers, set := workersOverride(cmd); set {
-		env = append(env, agentWorkersEnv+"="+workers)
+		env = envWithWorkers(env, workers)
 	}
 	return execAgent("/bin/sh", []string{"/bin/sh", "-c", resolvedCmd}, env)
 }

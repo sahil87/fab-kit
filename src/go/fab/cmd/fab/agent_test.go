@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -78,6 +79,41 @@ func TestAgentWorkersOverride(t *testing.T) {
 		}
 		if !found {
 			t.Errorf("exec environment missing %q", want)
+		}
+	})
+
+	// An inherited FAB_AGENT_WORKERS must be REPLACED in the exec environment, not
+	// shadowed by a second entry: syscall.Exec passes the slice through verbatim and
+	// duplicate resolution is unspecified (a direct exec's getenv takes the first
+	// match). The `default` role resolves off agent.session, so the parent value
+	// cannot perturb the provider this test resolves.
+	t.Run("an inherited value is replaced, not duplicated", func(t *testing.T) {
+		t.Setenv(agentWorkersEnv, "inherited")
+
+		originalExec := execAgent
+		t.Cleanup(func() { execAgent = originalExec })
+
+		var gotEnv []string
+		execAgent = func(path string, argv, env []string) error {
+			gotEnv = append([]string(nil), env...)
+			return nil
+		}
+
+		cmd := agentCmd()
+		cmd.SetArgs([]string{"--workers", "kimi3"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("agent --workers: %v", err)
+		}
+
+		var found []string
+		for _, entry := range gotEnv {
+			if strings.HasPrefix(entry, agentWorkersEnv+"=") {
+				found = append(found, entry)
+			}
+		}
+		want := []string{agentWorkersEnv + "=kimi3"}
+		if !reflect.DeepEqual(found, want) {
+			t.Errorf("%s entries = %#v, want %#v", agentWorkersEnv, found, want)
 		}
 	})
 

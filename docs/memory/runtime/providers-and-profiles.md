@@ -315,7 +315,7 @@ Both modes compose through the same `spawn.WithProfile` (template substitution o
 
 - `--print` prints the fully-resolved command instead of executing — the output is **profile-resolved** (model/effort substituted), so callers that spawn from the printed command get the profile.
 - `--repo <path>` reads the target repo's config (the operator's fetch-another-repo's-command use case). Composes with either mode.
-- `--workers <provider>` appends `FAB_AGENT_WORKERS=<provider>` to the environment passed to the exec seam without changing either addressing mode's command resolution. It is accepted with `--print`, but printed output remains the command alone because no child process is executed.
+- `--workers <provider>` sets `FAB_AGENT_WORKERS=<provider>` in the environment passed to the exec seam without changing either addressing mode's command resolution. An entry inherited from the parent environment is removed rather than shadowed, so the override is authoritative regardless of how a consumer resolves duplicate entries. It is accepted with `--print`, but printed output remains the command alone because no child process is executed.
 - `fab agent` exec does NOT TTY-guard — exec-and-let-the-CLI-fail is acceptable (the underlying agent CLI already handles no-TTY), matching the document-don't-validate contract.
 
 Provider-mode rules:

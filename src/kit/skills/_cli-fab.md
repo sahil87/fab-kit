@@ -1134,7 +1134,7 @@ Common to both modes:
 - **Default (exec)**: replaces this process with the composed command via `sh -c` (so shell expansions like `$(basename "$(pwd)")` expand at invocation). `fab agent` starts the default-role agent right here; `fab agent operator` starts the coordinator profile. **No TTY guard** — exec-and-let-the-agent-CLI-handle-it (document-don't-validate).
 - **`--print`**: prints the fully-resolved command instead of executing. Lets the operator compose a worker spawn from a real profile.
 - **`--repo <path>`**: reads `<path>/fab/project/config.yaml` instead of the current repo. Composes with either addressing mode.
-- **`--workers <provider>`**: appends `FAB_AGENT_WORKERS=<provider>` to the exec environment for the launched session. It is pure pass-through launch sugar: no provider lookup or validation, and `--print` remains exactly the resolved session command with no assignment added.
+- **`--workers <provider>`**: sets `FAB_AGENT_WORKERS=<provider>` in the exec environment for the launched session, replacing any value inherited from the parent environment rather than appending a second entry. It is pure pass-through launch sugar: no provider lookup or validation, and `--print` remains exactly the resolved session command with no assignment added.
 
 Provider-mode specifics:
 
