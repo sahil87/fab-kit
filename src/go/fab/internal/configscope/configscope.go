@@ -1,5 +1,5 @@
 // Package configscope is the leaf source of truth for a config field's override
-// visibility (its "scope") across the cascade layers. It is deliberately
+// visibility (its "scope") across the file and environment cascade layers. It is deliberately
 // dependency-free (imports nothing internal) so that BOTH the config loader
 // (internal/config) and the reference generator (internal/configref) can consume
 // it without an import cycle.
@@ -17,7 +17,7 @@
 package configscope
 
 // Scope is a config field's override visibility across the cascade layers
-// (project file / system file / built-in defaults). It is the single scope enum
+// (environment / project file / system file / built-in defaults). It is the single scope enum
 // for the whole binary — internal/configref aliases this type so there is one
 // definition, not two.
 type Scope string
@@ -80,6 +80,36 @@ var keyScopes = map[string]Scope{
 	"branch_prefix": ScopeProject,
 }
 
+// dottedKeys is the ordered set of configref registry keys. The config loader
+// walks this list FORWARD to derive environment-variable names; it never scans or
+// reverse-parses FAB_* variables, which would make underscores ambiguous with
+// dotted-path separators. The richer registry cannot live in this package because
+// configref imports internal/agent, which imports internal/config, while this leaf
+// must remain importable by the loader without closing that cycle.
+//
+// Keep this list in byte-for-byte order with configref.Fields. A parity test in
+// internal/configref compares the two enumerations so a registry row cannot land
+// without becoming env-eligible (subject to its ScopeFor result).
+var dottedKeys = []string{
+	"project.name",
+	"project.description",
+	"project.linear_workspace",
+	"source_paths",
+	"test_paths",
+	"true_impact_exclude",
+	"checklist.extra_categories",
+	"consolidate.detectors",
+	"agent.session",
+	"agent.workers",
+	"agent.profiles",
+	"providers",
+	"dispatch.watchable",
+	"dispatch.column_width",
+	"dispatch.reap_done",
+	"stage_hooks",
+	"branch_prefix",
+}
+
 // ScopeFor returns the scope of a top-level config key and whether the key is
 // known. An unknown top-level key reports (ScopeProject, false); the loader
 // treats unknown keys as ignored-silently (matching project-file behavior), so
@@ -87,4 +117,11 @@ var keyScopes = map[string]Scope{
 func ScopeFor(topLevelKey string) (Scope, bool) {
 	s, ok := keyScopes[topLevelKey]
 	return s, ok
+}
+
+// DottedKeys returns the ordered dotted registry-key enumeration used by the
+// environment override layer. The returned slice is a copy so callers cannot
+// mutate the leaf package's source of truth.
+func DottedKeys() []string {
+	return append([]string(nil), dottedKeys...)
 }

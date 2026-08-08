@@ -17,6 +17,7 @@ func TestScopeFor(t *testing.T) {
 		"consolidate":         ScopeProject,
 		"providers":           ScopeBoth,
 		"agent":               ScopeBoth,
+		"dispatch":            ScopeBoth,
 		"stage_hooks":         ScopeProject,
 		"branch_prefix":       ScopeProject,
 	}
@@ -38,6 +39,42 @@ func TestScopeFor(t *testing.T) {
 	// tagged `yaml:"-"`, so nothing unmarshals it into the resolved version).
 	if s, ok := ScopeFor("fab_version"); ok {
 		t.Errorf("ScopeFor(\"fab_version\") = (%q, true), want unknown after the .fab-version relocation", s)
+	}
+}
+
+func TestDottedKeys(t *testing.T) {
+	want := []string{
+		"project.name",
+		"project.description",
+		"project.linear_workspace",
+		"source_paths",
+		"test_paths",
+		"true_impact_exclude",
+		"checklist.extra_categories",
+		"consolidate.detectors",
+		"agent.session",
+		"agent.workers",
+		"agent.profiles",
+		"providers",
+		"dispatch.watchable",
+		"dispatch.column_width",
+		"dispatch.reap_done",
+		"stage_hooks",
+		"branch_prefix",
+	}
+	got := DottedKeys()
+	if len(got) != len(want) {
+		t.Fatalf("DottedKeys() has %d keys, want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("DottedKeys()[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+
+	got[0] = "mutated"
+	if again := DottedKeys(); again[0] != want[0] {
+		t.Errorf("DottedKeys returned mutable package state: first key = %q, want %q", again[0], want[0])
 	}
 }
 

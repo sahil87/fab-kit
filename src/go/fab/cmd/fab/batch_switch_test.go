@@ -163,6 +163,9 @@ func TestBatchSwitchCmd_Structure(t *testing.T) {
 	if cmd.Flags().Lookup("quiet") == nil {
 		t.Error("missing --quiet flag")
 	}
+	if cmd.Flags().Lookup("workers") == nil {
+		t.Error("missing --workers flag")
+	}
 	if cmd.Flags().ShorthandLookup("q") == nil {
 		t.Error("missing -q shorthand for --quiet")
 	}
@@ -497,6 +500,31 @@ func TestRunBatchSwitch_SpawnCommandProfileInjection(t *testing.T) {
 			t.Errorf("non-templated session_command missing the appended default profile:\n%s", string(args))
 		}
 	})
+}
+
+func TestRunBatchSwitch_WorkersOverride(t *testing.T) {
+	_, change := batchSwitchFixture(t, "claude")
+	capture := stubBatchSwitchTmuxCapture(t)
+
+	cmd := batchSwitchCmd()
+	if err := cmd.Flags().Set("workers", "co'dex; $(touch nope)"); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	if err := runBatchSwitch(cmd, []string{change}, false, false, false); err != nil {
+		t.Fatalf("batch switch --workers: %v\nstderr: %s", err, errOut.String())
+	}
+
+	args, err := os.ReadFile(capture)
+	if err != nil {
+		t.Fatalf("reading tmux capture: %v", err)
+	}
+	want := "FAB_AGENT_WORKERS='co'\\''dex; $(touch nope)' claude --model claude-fable-5 --effort high '/fab-switch"
+	if !strings.Contains(string(args), want) {
+		t.Errorf("tmux command missing safely quoted workers prefix %q:\n%s", want, args)
+	}
 }
 
 // --- --quiet (o5f9): suppress the preamble + per-change line; no new footer ---

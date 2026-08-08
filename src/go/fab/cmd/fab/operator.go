@@ -21,6 +21,7 @@ func operatorCmd() *cobra.Command {
 		Short: "Launch operator in a dedicated tmux tab (singleton)",
 		RunE:  runOperator,
 	}
+	cmd.Flags().String("workers", "", "set FAB_AGENT_WORKERS in the launched operator tab")
 	cmd.AddCommand(operatorTickStartCmd(), operatorTimeCmd())
 	return cmd
 }
@@ -89,6 +90,8 @@ func runOperator(cmd *cobra.Command, args []string) error {
 
 	// Create new tab running the operator skill
 	shellCmd := fmt.Sprintf("%s '/fab-operator'", spawnCmd)
+	workers, workersSet := workersOverride(cmd)
+	shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
 	if _, stderr, err := pane.RunCmd("tmux", "new-window", "-c", windowDir, "-n", tabName, shellCmd); err != nil {
 		return pane.StderrError(fmt.Errorf("tmux new-window failed: %w", err), stderr)
 	}

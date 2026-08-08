@@ -10,6 +10,7 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/shellquote"
 	"github.com/spf13/cobra"
 )
 
@@ -35,6 +36,7 @@ func batchSwitchCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&listFlag, "list", false, "Show available changes")
 	cmd.Flags().BoolVar(&allFlag, "all", false, "Open tabs for all changes")
 	cmd.Flags().BoolVarP(&quietFlag, "quiet", "q", false, "Suppress per-change progress output")
+	cmd.Flags().String("workers", "", "set FAB_AGENT_WORKERS in each launched tab")
 
 	return cmd
 }
@@ -94,6 +96,7 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag, quietF
 	// placeholders so no literal braces reach the tmux new-window shell command.
 	configPath := filepath.Join(fabRoot, "project", "config.yaml")
 	spawnCmd := defaultRoleSpawnCommand(configPath)
+	workers, workersSet := workersOverride(cmd)
 	cfg, _ := config.Load(fabRoot)
 	branchPrefix := cfg.GetBranchPrefix()
 
@@ -133,11 +136,9 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag, quietF
 		}
 		wtPath := strings.TrimSpace(wtOut)
 
-		// Escape single quotes for shell
-		safe := strings.ReplaceAll(match, "'", "'\\''")
-
 		// Open tmux window
-		shellCmd := fmt.Sprintf("%s '/fab-switch %s'", spawnCmd, safe)
+		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single("/fab-switch "+match))
+		shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
 		exec.Command("tmux", "new-window", "-n", match, "-c", wtPath, shellCmd).Run()
 	}
 

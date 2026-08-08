@@ -3,15 +3,17 @@ package spawn
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/configscope"
 )
 
-// TestMain isolates $HOME for the whole internal/spawn test package. spawn.Command
-// resolves providers/agent.profiles through internal/config.LoadPath, whose lpb5
-// cascade merges ~/.fab-kit/config.yaml (via os.UserHomeDir) into every read. A
-// developer's real system config with a providers/agent.profiles override would
-// perturb the resolved-command assertions here. Pointing HOME at a fresh empty
-// temp dir makes those tests see only the project config.
+// TestMain isolates every external config layer for the whole internal/spawn test
+// package. spawn.Command resolves providers/agent through config.LoadPath, whose
+// cascade merges registry-derived environment overrides and
+// ~/.fab-kit/config.yaml into every read. Tests that need either layer opt back in
+// explicitly.
 func TestMain(m *testing.M) {
 	home, err := os.MkdirTemp("", "fab-spawn-test-home-")
 	if err != nil {
@@ -19,6 +21,9 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	os.Setenv("HOME", home)
+	for _, key := range configscope.DottedKeys() {
+		os.Unsetenv("FAB_" + strings.ToUpper(strings.ReplaceAll(key, ".", "_")))
+	}
 	code := m.Run()
 	os.RemoveAll(home)
 	os.Exit(code)

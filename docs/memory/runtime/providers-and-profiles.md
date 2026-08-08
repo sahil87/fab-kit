@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "The providers & agent-roles model — the two depth knobs (`agent.session`/`agent.workers`) picking a provider per Tier 1/Tier 2, the `providers:` table (opaque names → `session_command`/`dispatch_command` + per-role `profiles` fills; three built-ins; absent `dispatch_command` = native dispatch), the six roles and their fixed depth partition, the single fill precedence, the fixed stage→role map, `fab resolve-agent`, `fab agent`'s two addressing modes, `dispatch.watchable`, and the consumers."
+description: "The providers & agent-roles model — `agent.session`/`agent.workers` depth knobs, per-session `FAB_AGENT_SESSION`/`FAB_AGENT_WORKERS` overrides and `--workers` launch sugar; the `providers:` table and per-role fills; six fixed roles, fill precedence, stage→role mapping, `fab resolve-agent`, `fab agent`, `dispatch.watchable`, and consumers."
 ---
 # Providers & Agent Profiles
 
@@ -60,6 +60,38 @@ A knob supplies only the **provider** rung. Model and effort always come from th
 - **GIVEN** a config with no `agent:` block
 - **WHEN** any role or stage is resolved
 - **THEN** the provider is `claude` for every role, on fab-kit's shipped per-role models
+
+### Requirement: Per-session provider selection — environment and launch flags
+
+`FAB_AGENT_SESSION` and `FAB_AGENT_WORKERS` SHALL provide process-tree-local overrides for the two depth knobs. The current process and its descendants resolve these variables above project and system config, so two shell sessions in separate worktrees can select different worker providers without changing committed configuration. The variables are instances of the generic registry-derived environment mechanism documented in [_shared/configuration.md](/_shared/configuration.md) § Override Cascade & Scope Enforcement; both are honored because their registry rows have `scope: both`.
+
+- **`FAB_AGENT_SESSION=<provider>`** selects the Tier-1 provider for commands launched by that process tree.
+- **`FAB_AGENT_WORKERS=<provider>`** selects the Tier-2 provider used by `fab resolve-agent` and by `fab dispatch start` when it re-resolves a stage.
+- The values are YAML-parsed config overrides, not provider-validation surfaces; provider names remain opaque and an unknown name fails at the existing resolution lookup.
+- A set-but-empty variable behaves as unset. The override is never persisted in `config.yaml`, a change artifact, or runtime state.
+
+The session-spawning commands SHALL expose `--workers <provider>` as sugar for exporting `FAB_AGENT_WORKERS` into the spawned process tree:
+
+- `fab agent --workers <provider>` appends the exact assignment to the exec environment in both role-addressed and provider-addressed modes. It does not alter Tier-1 session-command resolution, and `--print` continues to print only that resolved command.
+- `fab batch new --workers <provider>`, `fab batch switch --workers <provider>`, and `fab operator --workers <provider>` prefix a shell-quoted assignment (`FAB_AGENT_WORKERS='<provider>'`) to a newly launched tmux shell command. Embedded quotes and shell metacharacters remain data.
+- An existing operator window is selected without relaunch, regardless of `--workers`.
+- The flag value passes through without validation. There is no `--session` flag; callers use `FAB_AGENT_SESSION` directly.
+
+These config variables are unrelated to the fab-kit binary's `FAB_AGENTS` skills-list override. The user-facing provider-selection variables are `FAB_AGENT_SESSION` and `FAB_AGENT_WORKERS`; the environment mechanism itself applies generically to every `both`/`system` registry row. (2d1w)
+
+#### Scenario: two sessions select different worker providers
+
+- **GIVEN** two process trees rooted in separate worktree shells
+- **WHEN** one launches with `FAB_AGENT_WORKERS=kimi3` and the other with `FAB_AGENT_WORKERS=codex`
+- **THEN** every Tier-2 stage in each tree resolves its own selected provider
+- **AND** neither worktree's `fab/project/config.yaml` changes
+
+#### Scenario: `--workers` is launch-only sugar
+
+- **GIVEN** `fab agent --workers codex` or a tmux launcher with the same flag
+- **WHEN** the new session starts
+- **THEN** its descendants inherit `FAB_AGENT_WORKERS=codex`
+- **AND** the launching command's Tier-1 provider/profile resolution and persisted state are unchanged
 
 ### Requirement: Providers table — session vs dispatch, plus per-role fills
 
@@ -272,7 +304,7 @@ The stage→role mapping is **fab-owned and NOT user-overridable** (`stageRoles`
 - **THEN** the opt-in applies (scope `both` — the cascade honors it rather than pruning it)
 - **AND** a project-level `dispatch.watchable: false` overrides it back off
 
-### Requirement: `fab agent [role] [--provider <name> [--model <id>] [--effort <level>]] [--print] [--repo <path>]` — session launcher
+### Requirement: `fab agent [role] [--provider <name> [--model <id>] [--effort <level>]] [--workers <provider>] [--print] [--repo <path>]` — session launcher
 
 `fab agent` SHALL compose an interactive session command in one of **two mutually exclusive addressing modes** and **exec it in the current shell**:
 
@@ -283,6 +315,7 @@ Both modes compose through the same `spawn.WithProfile` (template substitution o
 
 - `--print` prints the fully-resolved command instead of executing — the output is **profile-resolved** (model/effort substituted), so callers that spawn from the printed command get the profile.
 - `--repo <path>` reads the target repo's config (the operator's fetch-another-repo's-command use case). Composes with either mode.
+- `--workers <provider>` appends `FAB_AGENT_WORKERS=<provider>` to the environment passed to the exec seam without changing either addressing mode's command resolution. It is accepted with `--print`, but printed output remains the command alone because no child process is executed.
 - `fab agent` exec does NOT TTY-guard — exec-and-let-the-CLI-fail is acceptable (the underlying agent CLI already handles no-TTY), matching the document-don't-validate contract.
 
 Provider-mode rules:
@@ -376,6 +409,12 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 **Why**: A role is a fab-owned slot resolved through the fill precedence; provider-addressed spawning answers a different, mechanical question ("give me a codex session"), and a resolved role already names a provider, so mixing them has no coherent semantics. Bypass leaves the resolution path untouched, so no existing path changes behavior. On the role path the profile IS the role's, so a bare `--model` would either invent an undocumented override surface or be silently ignored — an explicit usage error is the only honest option and is trivially relaxable later. Emptiness-based guards would let `--provider=` and `--model=` fall silently through to the role path, so supplied-ness is the correct test.
 **Rejected**: A role-provider override flag (mutates role/budget policy to express a mechanics question); auto-creating a synthetic role (invents state the config never declared); letting `--model` override a resolved role's model on this launcher (a second, undocumented override surface); silently ignoring the flags (surprise-inducing CLI behavior); cobra's `MarkFlagsMutuallyExclusive` for the role pairing (it relates flags only — the role is a positional).
 *Introduced by*: 260805-nvad-cli-agents-helper-provider-spawn
+
+### Launch Flags Export One Shared Variable
+**Decision**: All four `--workers` surfaces export `FAB_AGENT_WORKERS`; `fab agent` uses its exec environment and the tmux launchers use a shell-quoted assignment prefix.
+**Why**: The spawned process tree reaches the same `LoadPath` seam used by both resolver and dispatch re-resolution, with no second selection mechanism.
+**Rejected**: New resolution flags on dispatch, tmux-version-specific `new-window -e`, provider validation, or persisted config edits.
+*Introduced by*: 260808-2d1w-env-override-layer-launch-flags
 
 ### Built-in Providers Ship Grammar AND Per-Role Fills, Refreshed at Kit-Release Cadence
 **Decision**: fab-kit's built-in provider table carries both halves for all three providers (claude, codex, gemini) — invocation grammar *and* per-role fills — inside the binary, as rows in the embedded `defaults.yaml`. The non-claude fills carry no staleness automation: no CI check against provider APIs, no model-catalog fetch. They are refreshed at **kit-release cadence** by editing the file, pass through **unvalidated** like every other resolved string, and are corrected by **one config line** (`providers.<name>.profiles.<role>.model`, settable once per machine because `providers` is `scope: both`). They are never seeded into a user's `config.yaml`, so an upgrade refreshes them and no project pins rot in place.

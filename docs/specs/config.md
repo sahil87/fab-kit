@@ -312,40 +312,52 @@ carry-forward; `default` → `fab config show --origin`.
 
 ---
 
-## Cascade & visibility commands (Change 2 — landed)
+## Cascade & visibility commands (Change 2 + environment layer — landed)
 
-The three-layer cascade, scope enforcement, and the two visibility commands landed in Change 2
-(260708-lpb5). Recorded here in authoritative detail alongside the Change 1 schema.
+The file cascade, scope enforcement, and two visibility commands landed in Change 2 (260708-lpb5);
+the generic environment override layer extends that same loader seam. Recorded here in authoritative
+detail alongside the Change 1 schema.
 
 ### Override cascade [Change 2 — landed]
 
-Effective config resolves across three layers, highest precedence first, at the single loader seam
+Effective config resolves across four layers, highest precedence first, at the single loader seam
 `internal/config.LoadPath` (so every consumer — preflight, impact, status, resolve-agent, dispatch,
 agent, operator, batch, spawn, prmeta — sees effective config with zero per-caller change):
 
-1. **project** — `fab/project/config.yaml`
-2. **system** — `~/.fab-kit/config.yaml` (co-located with the version cache; XDG path rejected — decision 5)
-3. **built-in defaults** — the Go tables in the `fab` binary (this spec's table), applied at the
+1. **environment** — YAML-valued variables derived from registry keys
+2. **project** — `fab/project/config.yaml`
+3. **system** — `~/.fab-kit/config.yaml` (co-located with the version cache; XDG path rejected — decision 5)
+4. **built-in defaults** — the Go tables in the `fab` binary (this spec's table), applied at the
    existing point-of-use seams (`internal/agent`'s role/provider resolution, the nil-safe accessors)
 
-The two **files** merge at the YAML map level, before unmarshal, by **per-field deep merge**: maps
+All materialized layers merge at the YAML map level, before unmarshal, by **per-field deep merge**: maps
 merge per-key (the existing `agent.profiles` precedent), **lists replace** (never concatenate), scalars
-replace — project wins. The cascade is **fail-open** (config must never brick): an absent system file
+replace — environment wins. Environment names are derived mechanically as `FAB_` plus the uppercase
+dotted registry key with dots replaced by underscores; values are YAML-parsed, preserving scalar,
+list, and map types. The loader walks the ordered registry-key enumeration rather than the process
+environment, accepts only `scope: system`/`both`, and treats an empty value as unset. A malformed value
+or a project-scoped environment override emits a `fab: warning:` and is ignored; an unknown/unrelated
+`FAB_*` variable is never examined. The supported user-facing examples are `FAB_AGENT_WORKERS` and
+`FAB_AGENT_SESSION`; `FAB_AGENTS` (plural) is unrelated and has no config meaning.
+
+The cascade is **fail-open** (config must never brick): an absent system file
 is byte-identical to the pre-cascade single-file behavior; a malformed or unreadable system file emits
 a `fab: warning:` on stderr and is skipped; a malformed **project** file keeps today's error behavior.
 **Scope enforcement**: a project-scoped field appearing in the system file is pruned with a
 `fab: warning:` (only `scope: system`/`both` fields are honored there); unknown keys are ignored
 silently. The scope taxonomy is single-sourced in the leaf package `internal/configscope`, which both
-the loader and the registry `internal/configref` consume without an import cycle.
+the loader and the registry `internal/configref` consume without an import cycle. `configscope` also
+owns the ordered dotted-key enumeration, with a parity test against `configref` so the generic
+environment walk cannot drift from the reference schema.
 
 ### Visibility commands [Change 2 — landed]
 
-- `fab config show [--origin]` — a pure query. Plain output prints the merge of the two FILES
-  (project over system) as YAML; built-in defaults are NOT materialized here (they apply at
-  point-of-use), surfaced explicitly only by `--origin`, which adds per-field provenance (project
-  path / system path / `default`, the `git config --show-origin` precedent) with per-key drill-down
-  for map-valued fields. It surfaces typo'd overrides that silently no-op today (the intended field
-  shows origin `default`).
+- `fab config show [--origin]` — a pure query. Plain output prints the environment-over-project-over-
+  system merge as YAML; built-in defaults are NOT materialized here (they apply at
+  point-of-use), surfaced explicitly only by `--origin`, which adds per-field provenance (exact
+  `$FAB_…` variable / project path / system path / `default`, following the
+  `git config --show-origin` precedent) with per-key drill-down for map-valued fields. It surfaces
+  typo'd overrides that silently no-op today (the intended field shows origin `default`).
 - `fab config init --system` — writes a `~/.fab-kit/config.yaml` scaffold containing ONLY
   `scope: system`/`both` fields, all commented — generated from this same table so it can't drift.
   Refuses to overwrite an existing file (no `--force`); bare `fab config init` is a usage error.

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/configscope"
 )
 
 // isolateSystemConfig points HOME at an empty temp dir so a test never picks up
@@ -19,6 +21,9 @@ func isolateSystemConfig(t *testing.T) string {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	for _, key := range configscope.DottedKeys() {
+		t.Setenv(envNameForKey(key), "")
+	}
 	return home
 }
 
@@ -839,6 +844,260 @@ providers:
 	}
 	if claude, ok := cfg.GetProvider("claude"); !ok || claude.SessionCommand != "from-system" {
 		t.Errorf("system layer must apply with no project file: %+v ok=%v", claude, ok)
+	}
+}
+
+// --- Environment override layer: env > project > system > defaults ---
+
+func TestParseYAMLValue(t *testing.T) {
+	t.Run("scalar", func(t *testing.T) {
+		got, err := ParseYAMLValue("codex")
+		if err != nil || got != "codex" {
+			t.Fatalf("ParseYAMLValue scalar = %#v, %v; want codex, nil", got, err)
+		}
+	})
+	t.Run("flow map", func(t *testing.T) {
+		got, err := ParseYAMLValue("{review: {provider: codex}}")
+		if err != nil {
+			t.Fatalf("ParseYAMLValue flow map: %v", err)
+		}
+		outer, ok := got.(map[string]any)
+		if !ok {
+			t.Fatalf("flow map type = %T, want map[string]any", got)
+		}
+		review, _ := outer["review"].(map[string]any)
+		if review["provider"] != "codex" {
+			t.Errorf("flow map = %#v, want review.provider=codex", got)
+		}
+	})
+	t.Run("invalid", func(t *testing.T) {
+		if _, err := ParseYAMLValue("{not-closed"); err == nil {
+			t.Fatal("invalid YAML must return an error")
+		}
+	})
+}
+
+func TestEnvNameForKey(t *testing.T) {
+	for key, want := range map[string]string{
+		"agent.workers":         "FAB_AGENT_WORKERS",
+		"dispatch.column_width": "FAB_DISPATCH_COLUMN_WIDTH",
+	} {
+		if got := envNameForKey(key); got != want {
+			t.Errorf("envNameForKey(%q) = %q, want %q", key, got, want)
+		}
+	}
+}
+
+// TestEnvCascade_PrecedenceAndMapMerge covers the motivating path end-to-end:
+// a scalar env override beats project/system, while a map-valued env row merges
+// per key with non-conflicting leaves from both file layers.
+func TestEnvCascade_PrecedenceAndMapMerge(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, `
+agent:
+  workers: gemini
+  profiles:
+    review: { model: system-review, effort: low }
+    hydrate: { effort: medium }
+`)
+	fabRoot := writeProjectConfig(t, `
+agent:
+  workers: claude
+  profiles:
+    review: { model: project-review }
+    doing: { effort: high }
+`)
+	t.Setenv("FAB_AGENT_WORKERS", "codex")
+	t.Setenv("FAB_AGENT_PROFILES", "{review: {provider: codex}}")
+
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.GetAgentWorkers(); got != "codex" {
+		t.Errorf("agent.workers = %q, want codex (env wins)", got)
+	}
+	review, ok := cfg.GetAgentProfile("review")
+	if !ok {
+		t.Fatal("merged review profile missing")
+	}
+	if review.Provider != "codex" || review.Model != "project-review" || review.Effort != "low" {
+		t.Errorf("review profile = %+v, want env provider + project model + system effort", review)
+	}
+	if doing, ok := cfg.GetAgentProfile("doing"); !ok || doing.Effort != "high" {
+		t.Errorf("project-only doing profile lost under env map merge: %+v ok=%v", doing, ok)
+	}
+	if hydrate, ok := cfg.GetAgentProfile("hydrate"); !ok || hydrate.Effort != "medium" {
+		t.Errorf("system-only hydrate profile lost under env map merge: %+v ok=%v", hydrate, ok)
+	}
+}
+
+func TestEnvCascade_ProjectScopedWarnedAndUnknownIgnored(t *testing.T) {
+	isolateSystemConfig(t)
+	warnings := captureWarnings(t)
+	fabRoot := writeProjectConfig(t, "source_paths:\n  - project-src/\n")
+	t.Setenv("FAB_SOURCE_PATHS", "[private-src/]")
+	t.Setenv("FAB_SOMETHING_UNKNOWN", "true")
+
+	layers, err := LoadLayers(filepath.Join(fabRoot, "project", "config.yaml"))
+	if err != nil {
+		t.Fatalf("LoadLayers: %v", err)
+	}
+	if len(layers.Env) != 0 {
+		t.Errorf("project-scoped env var must not enter env layer: %#v", layers.Env)
+	}
+	if got := layers.Effective["source_paths"]; fmt.Sprint(got) != "[project-src/]" {
+		t.Errorf("effective source_paths = %v, want project value", got)
+	}
+	w := warnings()
+	if !strings.Contains(w, "project-scoped environment override $FAB_SOURCE_PATHS") {
+		t.Errorf("scope warning must name FAB_SOURCE_PATHS, got %q", w)
+	}
+	if strings.Contains(w, "FAB_SOMETHING_UNKNOWN") {
+		t.Errorf("unknown FAB_* variables are not scanned and must not warn, got %q", w)
+	}
+}
+
+func TestEnvCascade_MalformedFailsOpenAndEmptyIsUnset(t *testing.T) {
+	isolateSystemConfig(t)
+	warnings := captureWarnings(t)
+	fabRoot := writeProjectConfig(t, "agent:\n  workers: claude\n")
+
+	t.Setenv("FAB_AGENT_WORKERS", "{not-closed")
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("malformed env value must fail open, got: %v", err)
+	}
+	if got := cfg.GetAgentWorkers(); got != "claude" {
+		t.Errorf("malformed env value must leave project value effective, got %q", got)
+	}
+	if w := warnings(); !strings.Contains(w, "malformed environment override $FAB_AGENT_WORKERS") {
+		t.Errorf("malformed env warning missing variable name: %q", w)
+	}
+
+	// Empty is the shell-level unset convention: no warning and no null override.
+	t.Setenv("FAB_AGENT_WORKERS", "")
+	warnings = captureWarnings(t)
+	cfg, err = Load(fabRoot)
+	if err != nil {
+		t.Fatalf("empty env value: %v", err)
+	}
+	if got := cfg.GetAgentWorkers(); got != "claude" {
+		t.Errorf("empty env value must behave as unset, got %q", got)
+	}
+	if w := warnings(); w != "" {
+		t.Errorf("empty env value must not warn, got %q", w)
+	}
+}
+
+func TestEnvCascade_TypeIncompatibleFailsOpen(t *testing.T) {
+	tests := []struct {
+		name        string
+		envName     string
+		envValue    string
+		projectYAML string
+		assertLower func(*testing.T, *Config)
+	}{
+		{
+			name:        "boolean field rejects string",
+			envName:     "FAB_DISPATCH_WATCHABLE",
+			envValue:    "not-a-bool",
+			projectYAML: "dispatch:\n  watchable: true\n",
+			assertLower: func(t *testing.T, cfg *Config) {
+				t.Helper()
+				if !cfg.GetDispatchWatchable() {
+					t.Error("invalid env bool must leave project watchable=true effective")
+				}
+			},
+		},
+		{
+			name:        "scalar field rejects map",
+			envName:     "FAB_AGENT_WORKERS",
+			envValue:    "{bogus: value}",
+			projectYAML: "agent:\n  workers: claude\n",
+			assertLower: func(t *testing.T, cfg *Config) {
+				t.Helper()
+				if got := cfg.GetAgentWorkers(); got != "claude" {
+					t.Errorf("invalid env map must leave project workers effective, got %q", got)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isolateSystemConfig(t)
+			warnings := captureWarnings(t)
+			fabRoot := writeProjectConfig(t, tt.projectYAML)
+			t.Setenv(tt.envName, tt.envValue)
+
+			layers, err := LoadLayers(filepath.Join(fabRoot, "project", "config.yaml"))
+			if err != nil {
+				t.Fatalf("LoadLayers must fail open: %v", err)
+			}
+			if layers.Env != nil || layers.EnvOrigins != nil {
+				t.Fatalf("incompatible override must be skipped, got Env=%#v origins=%#v", layers.Env, layers.EnvOrigins)
+			}
+
+			cfg, err := Load(fabRoot)
+			if err != nil {
+				t.Fatalf("config loading must not error: %v", err)
+			}
+			tt.assertLower(t, cfg)
+			if w := warnings(); !strings.Contains(w, "malformed environment override $"+tt.envName) {
+				t.Errorf("warning must name %s, got %q", tt.envName, w)
+			}
+		})
+	}
+}
+
+func TestEnvCascade_NoVariablesPreservesFileMerge(t *testing.T) {
+	home := isolateSystemConfig(t)
+	warnings := captureWarnings(t)
+	writeSystemConfig(t, home, "agent:\n  workers: gemini\n")
+	fabRoot := writeProjectConfig(t, "agent:\n  session: codex\n")
+
+	layers, err := LoadLayers(filepath.Join(fabRoot, "project", "config.yaml"))
+	if err != nil {
+		t.Fatalf("LoadLayers: %v", err)
+	}
+	if layers.Env != nil || layers.EnvOrigins != nil {
+		t.Errorf("no variables set must yield nil env layer/provenance, got Env=%#v origins=%#v", layers.Env, layers.EnvOrigins)
+	}
+	agentMap, _ := layers.Effective["agent"].(map[string]any)
+	if agentMap["session"] != "codex" || agentMap["workers"] != "gemini" {
+		t.Errorf("no-env file merge changed: %#v", layers.Effective)
+	}
+	if w := warnings(); w != "" {
+		t.Errorf("no env variables must emit no warning, got %q", w)
+	}
+}
+
+func TestEnvCascade_ExplicitNullRemainsPresent(t *testing.T) {
+	isolateSystemConfig(t)
+	fabRoot := writeProjectConfig(t, "agent:\n  workers: project-worker\n")
+	t.Setenv("FAB_AGENT_WORKERS", "null")
+
+	layers, err := LoadLayers(filepath.Join(fabRoot, "project", "config.yaml"))
+	if err != nil {
+		t.Fatalf("LoadLayers: %v", err)
+	}
+	envAgent, ok := layers.Env["agent"].(map[string]any)
+	if !ok {
+		t.Fatalf("environment agent layer missing: %#v", layers.Env)
+	}
+	if value, present := envAgent["workers"]; !present || value != nil {
+		t.Fatalf("environment workers = %#v, present=%v; want explicit nil with presence", value, present)
+	}
+	effectiveAgent, ok := layers.Effective["agent"].(map[string]any)
+	if !ok {
+		t.Fatalf("effective agent layer missing: %#v", layers.Effective)
+	}
+	if value, present := effectiveAgent["workers"]; !present || value != nil {
+		t.Fatalf("effective workers = %#v, present=%v; want explicit nil override", value, present)
+	}
+	if got := layers.EnvOrigins["agent.workers"]; got != "FAB_AGENT_WORKERS" {
+		t.Fatalf("environment origin = %q, want FAB_AGENT_WORKERS", got)
 	}
 }
 

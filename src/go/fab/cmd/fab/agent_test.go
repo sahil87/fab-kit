@@ -38,6 +38,60 @@ func runAgentPrint(t *testing.T, args ...string) (string, error) {
 	return out.String(), err
 }
 
+func TestAgentWorkersOverride(t *testing.T) {
+	agentTestRepo(t, `providers:
+  claude:
+    session_command: "claude"
+`)
+
+	t.Run("exec environment receives the supplied value", func(t *testing.T) {
+		originalExec := execAgent
+		t.Cleanup(func() { execAgent = originalExec })
+
+		var gotPath string
+		var gotArgv, gotEnv []string
+		execAgent = func(path string, argv, env []string) error {
+			gotPath = path
+			gotArgv = append([]string(nil), argv...)
+			gotEnv = append([]string(nil), env...)
+			return nil
+		}
+
+		cmd := agentCmd()
+		cmd.SetArgs([]string{"--workers", "kimi3"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("agent --workers: %v", err)
+		}
+		if gotPath != "/bin/sh" {
+			t.Errorf("exec path = %q, want /bin/sh", gotPath)
+		}
+		if len(gotArgv) != 3 || gotArgv[1] != "-c" || strings.Contains(gotArgv[2], agentWorkersEnv) {
+			t.Errorf("exec argv = %#v; workers override must remain out of the resolved command", gotArgv)
+		}
+		want := agentWorkersEnv + "=kimi3"
+		found := false
+		for _, entry := range gotEnv {
+			if entry == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("exec environment missing %q", want)
+		}
+	})
+
+	t.Run("print output remains the resolved command only", func(t *testing.T) {
+		out, err := runAgentPrint(t, "--workers", "unregistered-provider")
+		if err != nil {
+			t.Fatalf("agent --print --workers: %v", err)
+		}
+		if strings.Contains(out, agentWorkersEnv) || strings.Contains(out, "unregistered-provider") {
+			t.Errorf("--workers leaked into --print output: %q", out)
+		}
+	})
+}
+
 // TestAgentPrintDefaultRole: `fab agent --print` with no role arg resolves the
 // `default` role (claude/claude-fable-5/high) and appends the profile to the
 // non-templated claude session command.
