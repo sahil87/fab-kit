@@ -41,7 +41,7 @@ func TestResolveKey(t *testing.T) {
 		{key: "providers.codex.profiles.review.effort", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
 		{key: "stage_hooks.apply.pre", wantOK: true, wantField: "stage_hooks", wantOwner: "stage_hooks", wantKind: configvalue.KindString},
 		{key: "source_paths", wantOK: true, wantField: "source_paths", wantOwner: "source_paths", wantKind: configvalue.KindSequence},
-		{key: "dispatch.column_width", wantOK: true, wantField: "dispatch.column_width", wantOwner: "dispatch.watchable", wantKind: configvalue.KindInt},
+		{key: "dispatch.column_width", wantOK: true, wantField: "dispatch.column_width", wantOwner: "dispatch.mode", wantKind: configvalue.KindInt},
 		{key: "project", wantOK: true, wantField: "project.name", wantOwner: "project.name", wantKind: configvalue.KindMapping},
 		{key: "agent", wantOK: true, wantField: "agent.session", wantOwner: "agent.session", wantKind: configvalue.KindMapping},
 		{key: "agent.profiles.review", wantOK: true, wantField: "agent.profiles", wantOwner: "agent.session", wantKind: configvalue.KindMapping},

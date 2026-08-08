@@ -176,7 +176,7 @@ preference ceiling: automatic resolution descends only through `pane → native 
 fields are independent capabilities—`session_command` for pane, `native: true` for the Agent-tool
 adapter, `dispatch_command` for headless—and their presence never chooses policy. Claude ships all
 three; codex/gemini ship pane/headless grammar without native capability. The
-`2.17.2-to-2.18.0` migration rewrites live `dispatch.watchable: true` to `mode: pane`, removes live
+`2.17.3-to-2.18.0` migration rewrites live `dispatch.watchable: true` to `mode: pane`, removes live
 `watchable: false`, sweeps project and system config, and leaves commented/fence content untouched.
 There is no binary read-time alias; an unmigrated legacy key is inert.
 
