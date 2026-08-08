@@ -63,10 +63,9 @@ type ProviderProfile struct {
 //   - SessionCommand opens an interactive agent SESSION (the relocated
 //     agent.spawn_command semantics — consumed by fab operator / fab batch /
 //     fab agent).
-//   - DispatchCommand runs ONE headless stage task via fab dispatch. ABSENT
-//     DispatchCommand = native Agent-tool dispatch (the default). There is NO
-//     fallback between the two fields: absence of DispatchCommand signals native
-//     dispatch, never "use SessionCommand".
+//   - DispatchCommand runs ONE headless stage task via fab dispatch.
+//   - Native declares that the provider can run through the native Agent-tool
+//     adapter. Provider names are opaque, so this capability is shipped data.
 //
 // The two command fields are deliberately NOT merged into one: session and
 // dispatch are different invocations of the same binary (claude interactive `-n`
@@ -103,15 +102,40 @@ type ProviderProfile struct {
 // The whole table is scope `both`, so a machine-wide fill is settable once in
 // ~/.fab-kit/config.yaml.
 type ProviderConfig struct {
-	SessionCommand  string                     `yaml:"session_command"`
-	DispatchCommand string                     `yaml:"dispatch_command"`
-	Profiles        map[string]ProviderProfile `yaml:"profiles"`
+	SessionCommand  string `yaml:"session_command"`
+	DispatchCommand string `yaml:"dispatch_command"`
+	Native          bool   `yaml:"native"`
+	// NativeSet preserves YAML presence so an explicit `native: false` can
+	// override a built-in true value during the provider-table merge.
+	NativeSet bool                       `yaml:"-"`
+	Profiles  map[string]ProviderProfile `yaml:"profiles"`
 
 	// Deprecated: the flat fill. Read as an ALIAS for Profiles["default"] — folded
 	// into it per field by internal/agent.ResolveProvider; see the type doc.
 	// Removed from the documented surface in 2.17.0.
 	Model  string `yaml:"model"`
 	Effort string `yaml:"effort"`
+}
+
+// UnmarshalYAML preserves whether native was explicitly present. A plain bool
+// cannot distinguish absent from false, but provider overrides need that
+// distinction to disable a built-in native capability deliberately.
+func (p *ProviderConfig) UnmarshalYAML(value *yaml.Node) error {
+	type plain ProviderConfig
+	var decoded plain
+	if err := value.Decode(&decoded); err != nil {
+		return err
+	}
+	*p = ProviderConfig(decoded)
+	if value.Kind == yaml.MappingNode {
+		for i := 0; i+1 < len(value.Content); i += 2 {
+			if value.Content[i].Value == "native" {
+				p.NativeSet = true
+				break
+			}
+		}
+	}
+	return nil
 }
 
 // RoleProfile is a named `{provider, model, effort}` agent profile — one entry of
@@ -175,21 +199,11 @@ type ProjectConfig struct {
 // dispatch preferences (scope `both`, so a single ~/.fab-kit/config.yaml setting
 // covers every repo on the machine).
 //
-// Watchable is the WATCHABLE-PANE OPT-IN: when true, `fab resolve-agent` treats a
-// session_command-only provider (e.g. the built-in claude, which deliberately
-// ships NO dispatch_command) as CLI-dispatch-eligible — but ONLY when the
-// orchestrator itself sits inside tmux ($TMUX set). The rationale is that pane
-// mode composes `session_command`, not `dispatch_command`, so pane eligibility was
-// gated on a field pane mode never uses; before this flag the only way to get a
-// watchable claude worker was to uncomment claude's dispatch_command, which ALSO
-// flipped every out-of-tmux dispatch to headless CLI. With the opt-in, TMUX
-// PRESENCE decides: inside tmux the stage dispatches into a watchable pane,
-// outside it falls back to native Agent-tool dispatch (never headless CLI —
-// headless stays gated on a real dispatch_command).
-//
-// Default false ⇒ byte-stable behavior for every existing config. A provider's own
-// dispatch_command always wins; watchable only ADDS eligibility for providers that
-// have none.
+// Mode is the PREFERRED dispatch rung. Automatic resolution starts there and
+// descends pane → native → headless, never ascending, until provider capability
+// and environment make a rung possible. The default is native, which preserves
+// the shipped built-in behavior: claude runs natively while codex/gemini descend
+// to their headless dispatch commands.
 //
 // ColumnWidth is the WORKER-COLUMN WIDTH, in percent of the window, used by the
 // column-carving `-h` split that opens a pane-mode worker beside its dispatching
@@ -212,10 +226,14 @@ type ProjectConfig struct {
 // reaping for every project that never sets the key. nil = unset = the default; a
 // non-nil pointer is the user's explicit choice either way.
 type DispatchConfig struct {
-	Watchable   bool  `yaml:"watchable"`
-	ColumnWidth int   `yaml:"column_width"`
-	ReapDone    *bool `yaml:"reap_done"`
+	Mode        string `yaml:"mode"`
+	ColumnWidth int    `yaml:"column_width"`
+	ReapDone    *bool  `yaml:"reap_done"`
 }
+
+// DefaultDispatchMode is the built-in dispatch.mode preference. It is the
+// canonical symbol both GetDispatchMode and internal/configref consume.
+const DefaultDispatchMode = "native"
 
 // DefaultDispatchColumnWidth is the built-in dispatch.column_width — the percent of
 // the window a pane-mode worker column takes when it is carved, leaving the
@@ -741,15 +759,20 @@ func (c *Config) GetAgentWorkers() string {
 	return c.Agent.Workers
 }
 
-// GetDispatchWatchable returns dispatch.watchable — the watchable-pane opt-in — or
-// false when unset (nil-safe). False is the byte-stable default: a stage whose
-// provider carries no dispatch_command stays on native Agent-tool dispatch exactly
-// as before. See DispatchConfig for the tmux-presence semantics.
-func (c *Config) GetDispatchWatchable() bool {
-	if c == nil {
-		return false
+// GetDispatchMode returns the validated dispatch.mode preference (nil-safe).
+// Absent resolves to DefaultDispatchMode. Invalid values warn and fail open to
+// the same default: a malformed personal preference must not brick every repo.
+func (c *Config) GetDispatchMode() string {
+	if c == nil || c.Dispatch.Mode == "" {
+		return DefaultDispatchMode
 	}
-	return c.Dispatch.Watchable
+	switch c.Dispatch.Mode {
+	case "pane", "native", "headless":
+		return c.Dispatch.Mode
+	default:
+		fmt.Fprintf(warnw, "fab: warning: invalid dispatch.mode %q; using %q\n", c.Dispatch.Mode, DefaultDispatchMode)
+		return DefaultDispatchMode
+	}
 }
 
 // GetDispatchColumnWidth returns dispatch.column_width — the pane-worker column's
@@ -760,9 +783,7 @@ func (c *Config) GetDispatchWatchable() bool {
 // "carve an unsized column"; it reads as unset and resolves to the default. Values
 // outside 1..99 resolve to the default for the same reason they are nonsense as a
 // percentage: 0 would give the worker nothing and 100 would leave the dispatching
-// agent nothing — the exact outcome the knob exists to prevent. This mirrors the
-// GetDispatchWatchable bool boundary case (see DispatchConfig): for a scalar with
-// no "absent" state, the built-in value IS the fallback.
+// agent nothing — the exact outcome the knob exists to prevent.
 func (c *Config) GetDispatchColumnWidth() int {
 	if c == nil {
 		return DefaultDispatchColumnWidth
@@ -778,9 +799,9 @@ func (c *Config) GetDispatchColumnWidth() int {
 // unset (nil-safe in both senses: a nil *Config and a nil field both read as unset).
 //
 // The POINTER is what makes this accessor honest, and it is the one place the
-// difference shows: a default-TRUE bool cannot ride the Go zero value the way
-// GetDispatchWatchable's default-false one does, so `reap_done: false` must be
-// storable as a real value rather than collapsing into "absent". See DispatchConfig.
+// difference shows: a default-TRUE bool cannot ride the Go zero value, so
+// `reap_done: false` must be storable as a real value rather than collapsing into
+// "absent". See DispatchConfig.
 func (c *Config) GetDispatchReapDone() bool {
 	if c == nil || c.Dispatch.ReapDone == nil {
 		return DefaultDispatchReapDone

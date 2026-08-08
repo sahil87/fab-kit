@@ -168,35 +168,36 @@ Mechanics, all fixed by this spec:
   command itself is inserted verbatim so its own expansions still apply. A multi-thousand-token prompt
   cannot ride `send-keys` or argv reliably, and embedding the pointer *at spawn* also sidesteps the
   printed-prompt trap entirely — there is no pre-existing input buffer to probe.
-- **The pane path has TWO prerequisites — a reachable tmux server (required only here) and a
-  `session_command` on the resolved provider** — and for **both**, the failure depends on **how the mode
-  was selected** (see § Mode selection below). Under an **explicitly** selected pane (`--pane`, or
-  `--server` as the pane signal) either missing prerequisite is a **hard error** (non-zero exit, actionable
-  stderr, nothing launched and no state persisted): a caller who asked for watchability must not be
-  silently downgraded. Under **auto**, either instead **soft-falls-back to headless** — a one-line stderr
-  notice naming its shape, then a normal headless launch producing a headless-shaped record, with the
-  matching `auto:` reason on the output line. Shape (a) is an unreachable server, so a stale `$TMUX`
-  inherited from a killed server can never break an unattended dispatch that never asked for a pane;
-  shape (b) is a missing `session_command`, so a `dispatch_command`-only provider dispatches **identically
-  inside and outside tmux** rather than regressing into an error the moment the caller sits in a tmux pane.
-  Because shape (b) must be reachable, **pane-command composition is deferred until the mode is validated**
-  (probe passed AND `session_command` present) — validation writes no state and composes no command. The
-  fallback re-composes from `dispatch_command`, so the no-cross-fallback rule survives the mode change (a
-  provider carrying **neither** field still errors). Reachability is established by a real tmux query
-  rather than an `$TMUX` environment read, so a headless orchestrator can target a socket explicitly. The
-  **headless mode performs no tmux probe at all** — its tmux-independence guarantee is untouched.
-- **Mode selection = an explicit-first ladder ending in auto**, resolved per invocation inside
-  `fab dispatch start` (a single enforcement point covering both skill-driven and manual invocations).
-  In order: `--pane` ⇒ pane; `--headless` ⇒ headless; `--timeout` ⇒ headless (the bound only exists in
-  the headless wrapper); `--server` ⇒ pane (the flag exists solely to target a pane's socket); otherwise
-  **auto** — `$TMUX` set ⇒ pane, unset ⇒ headless. Each explicit rung keys on whether the flag was
-  *supplied*, not its value. `$TMUX` is the **defaulting** signal only ("a window opened without `-L`
-  lands on the server the caller is attached to"); it never replaces the reachability probe, which stays
-  the **validation** step once pane mode is chosen. An auto-selected pane targets the **current** server
-  (no `-L` unless `--server` was given). `--pane` + `--headless` is a usage error; `--headless` +
-  `--timeout` composes. When auto fired, the `dispatched …` line names the selection source
-  (`auto: tmux` / `auto: no tmux` / `auto: tmux unreachable` / `auto: no session_command`) so a surprising
-  mode is explainable from output; an explicitly selected mode's line carries no such suffix.
+- **The pane path has TWO prerequisites — a reachable tmux server and a `session_command` on the
+  resolved provider.** Under an explicit `--pane`/`--server`, either missing prerequisite is a hard error
+  with no launch or state write. Under automatic selection, a missing prerequisite skips pane and the
+  fixed ladder continues to native, then headless. Pane command composition is deferred until validation;
+  a failed real tmux probe re-runs selection with `pane unavailable: tmux unreachable`. Headless performs
+  no tmux probe. Command fields never substitute for one another: each rung composes only its own grammar.
+- **Mode selection = explicit overrides, then a preference ceiling**, resolved per invocation inside
+  `fab dispatch start`/`restart` through the same pure selector used by `fab resolve-agent`. In order,
+  `--pane` ⇒ pane; `--headless` ⇒ headless; `--timeout` ⇒ headless; `--server` ⇒ pane. With no signal,
+  start at `dispatch.mode` (default `native`) and descend only through `pane → native → headless`:
+  pane needs tmux + `session_command`, native needs `native: true`, headless needs `dispatch_command`.
+  Automatic selection never ascends. A native result is not launchable by `fab dispatch`; it errors
+  before state writes with `fab resolve-agent` re-resolution guidance. Automatic success appends exactly
+  `mode: <rung> (preferred)` or `mode: <rung> (descended: <reason>[; <reason>])`; pane reasons are
+  `pane unavailable: no tmux`, `pane unavailable: tmux unreachable`, or
+  `pane unavailable: no session_command`, followed in ladder order by
+  `native unavailable`. Explicit selection carries no suffix.
+
+  The complete selector reason set is:
+
+  - `mode: pane (preferred)`
+  - `mode: native (preferred)`
+  - `mode: headless (preferred)`
+  - `mode: native (descended: pane unavailable: no tmux)`
+  - `mode: native (descended: pane unavailable: tmux unreachable)`
+  - `mode: native (descended: pane unavailable: no session_command)`
+  - `mode: headless (descended: native unavailable)`
+  - `mode: headless (descended: pane unavailable: no tmux; native unavailable)`
+  - `mode: headless (descended: pane unavailable: tmux unreachable; native unavailable)`
+  - `mode: headless (descended: pane unavailable: no session_command; native unavailable)`
 - **No timeout**: `--timeout` is enforced by the headless `sh -c` wrapper (POSIX `timeout`), which pane
   mode never constructs, so `--pane --timeout` is a **usage error** rather than a silently unenforced
   bound.
@@ -472,22 +473,20 @@ authority.
 ## Relationship to `stage-models.md`
 
 [`stage-models.md`](stage-models.md) owns the **resolution** layer (stage → role →
-`{provider, model, effort}`, the top-level `providers:` command grammar, `fab resolve-agent`, verbatim
+`{provider, model, effort}`, the top-level `providers:` capability grammar, `fab resolve-agent`, verbatim
 pass-through, provider neutrality) and describes the
 **native Agent-tool adapter** as its harness-specific injection layer. This spec catalogs that native
 adapter as **one of three** dispatch adapters and adds the two `fab dispatch` modes — **headless CLI** and
 **interactive pane** — alongside it, plus the cross-adapter protocol all three share. The `dispatch=` line
-`fab resolve-agent` emits (when the resolved provider carries a `dispatch_command` — or, with
-`dispatch.watchable: true` and the orchestrator inside tmux, for a `session_command`-only provider: the
-watchable pane opt-in, `stage-models.md` § Watchable pane dispatch) is the seam the
-`fab dispatch` adapters consume; `stage-models.md` § Harness-adapter boundary points here for the runtime
-that RUNS it.
+is the adapter seam: `fab resolve-agent` resolves `dispatch.mode` against the provider's independent
+capabilities and `$TMUX`; native omits the line, while pane/headless emit their substituted command.
+`stage-models.md` § Harness-adapter boundary points here for the runtime that RUNS it.
 
-Resolution stays **adapter-independent** across all three, but it does **select** which of them runs: the
-adapter follows from whether the *resolved* provider carries a `dispatch_command` (or qualifies under the
-`dispatch.watchable` opt-in above). What selects the adapter
-is therefore the **config** a dispatch resolves from — a depth knob (`agent.workers`/`agent.session`) or `agent.profiles.<role>.provider`, plus the `providers:`
-table — not an invocation flag. An invocation-time `fab resolve-agent <stage> --provider <name>` override
+Resolution stays **adapter-independent** across all three, while the configured preference and capability
+ladder select the adapter. What selects it is therefore the **config** a dispatch resolves from —
+`dispatch.mode`, a depth knob (`agent.workers`/`agent.session`) or
+`agent.profiles.<role>.provider`, plus the `providers:` capability table — not command presence or an
+invocation flag. An invocation-time `fab resolve-agent <stage> --provider <name>` override
 (`260805-j3cm`) binds the **native adapter only**: `fab dispatch start` accepts no override flags and
 re-resolves the stage from config itself, so an overridden profile never reaches either `fab dispatch` mode
 (the headless mode would compose — or fail on the absence of — the *unoverridden* provider's
@@ -500,9 +499,9 @@ the native adapter's model seam is the Agent tool's `model` param — a Claude-a
 (`opus`/`sonnet`/`haiku`/`fable`) with no room for a non-Claude ID. So for a **cross-provider
 `--provider` override** the **sole executable path** is a config override — a depth knob (`agent.workers`/`agent.session`) or
 `agent.profiles.<role>.provider` — that `dispatch start`'s
-own re-resolution will see. Nothing else moves: the pane mode adds no resolver output and no provider
-config field — it composes the resolved provider's existing `session_command` (the same field
-`fab agent` and the operator launcher compose) through the same `internal/spawn` substitution. Mode
-selection is therefore **per-invocation** (the explicit-first ladder ending in the `$TMUX`-driven auto
-default — see § 3's *Mode selection*), not a property of a role or a provider. A provider whose interactive grammar genuinely diverges from its `session_command` would be the
+own re-resolution will see. Nothing else moves: pane composes the resolved provider's existing
+`session_command` (the same field `fab agent` and the operator launcher compose) through the same
+`internal/spawn` substitution. Mode selection is **per invocation**: explicit flags first, otherwise the
+configured descending ladder (§ 3's *Mode selection*), never a property inferred from command presence.
+A provider whose interactive grammar genuinely diverges from its `session_command` would be the
 trigger to add a dedicated field later — a data-only config addition, not a protocol change.

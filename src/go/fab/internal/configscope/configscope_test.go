@@ -56,7 +56,7 @@ func TestDottedKeys(t *testing.T) {
 		"agent.workers",
 		"agent.profiles",
 		"providers",
-		"dispatch.watchable",
+		"dispatch.mode",
 		"dispatch.column_width",
 		"dispatch.reap_done",
 		"stage_hooks",

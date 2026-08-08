@@ -51,7 +51,7 @@ This layer applies to every skill **unless the skill's own Context Loading secti
 
 Read these files first — they define the project's identity, constraints, and documentation landscape:
 
-- **`fab/project/config.yaml`** — project configuration: identity (name/description), `source_paths`/`test_paths`, true-impact excludes, plan-acceptance extra categories, the `providers:` table (per-provider `session_command`/`dispatch_command` plus the per-role `profiles.<role>.{model,effort}` fills), `agent.session`/`agent.workers` (the two depth knobs) and the sparse `agent.profiles` per-role overrides, `dispatch.watchable` (the watchable-pane opt-in), `dispatch.column_width` (the pane-worker column's width) and `dispatch.reap_done` (reclaim a done pane worker's pane; default `true`), optional `stage_hooks`
+- **`fab/project/config.yaml`** — project configuration: identity (name/description), `source_paths`/`test_paths`, true-impact excludes, plan-acceptance extra categories, the `providers:` table (independent per-provider `session_command`/`dispatch_command`/`native` capabilities plus the per-role `profiles.<role>.{model,effort}` fills), `agent.session`/`agent.workers` (the two depth knobs) and the sparse `agent.profiles` per-role overrides, `dispatch.mode` (the `pane → native → headless` preference ceiling; default `native`), `dispatch.column_width` (the pane-worker column's width) and `dispatch.reap_done` (reclaim a done pane worker's pane; default `true`), optional `stage_hooks`
 - **`fab/project/constitution.md`** — project principles and constraints (MUST/SHOULD/MUST NOT rules)
 - **`fab/project/context.md`** — free-form project context: tech stack, conventions, architecture *(optional — no error if missing)*
 - **`fab/project/code-quality.md`** — coding standards for apply/review: principles, anti-patterns, test strategy *(optional — no error if missing)*
@@ -329,10 +329,10 @@ Branch once, at the single surfaced `fab resolve-agent <stage> --alias` result:
 
 | `dispatch=` | Branch | Profile handling |
 |-------------|--------|------------------|
-| Absent | Native Agent-tool dispatch; default for built-in roles | Use the model/effort seams above |
-| Present | CLI adapter (`fab dispatch`); stages may mix adapters | The command embeds the full model ID and substituted effort, so do not apply the native seams and do not resolve again. There is **NO fallback** to a session command |
+| Absent | Native Agent-tool dispatch; the resolver selected the native rung | Use the model/effort seams above |
+| Present | CLI adapter (`fab dispatch`); stages may mix adapters | The line carries the selected pane/headless command with full model ID and substituted effort, so do not apply the native seams, execute the value, or resolve again |
 
-`dispatch.watchable` is a second reason `dispatch=` may be present, never a third branch: with the bool enabled and the orchestrator inside tmux, a `session_command`-only provider emits the line and tmux presence decides pane versus native. Dispatch sites still branch only on presence and never execute the value; `_cli-fab.md` § fab resolve-agent owns the provider-win, outside-tmux, and re-resolution details.
+`dispatch.mode` is a preference ceiling over `pane → native → headless`. The resolver starts at that rung and descends only, using provider capabilities (`session_command`, `native`, `dispatch_command`) plus `$TMUX`; command presence describes how a rung runs and never selects policy by itself. The result still has only the two branches above: `dispatch=` is absent iff native resolved and present with the already-substituted pane/headless command otherwise. Dispatch sites branch only on presence and never execute the value; `_cli-fab.md` § fab resolve-agent owns the ladder and no-rung errors.
 
 When `dispatch=` is present:
 
@@ -372,7 +372,7 @@ Escalation surfaces per-mode evidence, sends `rk notify` only behind the fail-si
 
 **Pane mode is an option inside the `dispatch=`-present branch, never a third branch:**
 
-- Auto mode passes no flag: pane inside tmux and headless outside. Force `--pane` only for explicit watch-and-steer outside tmux and `--headless` only for unattended work inside tmux; the flags are mutually exclusive. Forced pane requires reachable tmux plus a provider `session_command` and hard-errors without either; auto soft-falls back to headless. Surface the `dispatched …` selection suffixes `auto: tmux`, `auto: no tmux`, `auto: tmux unreachable`, and `auto: no session_command`.
+- Automatic mode passes no flag: `fab dispatch` re-resolves the configured `dispatch.mode` against current capabilities and environment. Force `--pane` or `--headless` only for a one-shot override; the flags are mutually exclusive and forced prerequisites hard-error. Automatic selection descends softly, never ascends, and surfaces `mode: <rung> (preferred)` or `mode: <rung> (descended: <reason>[; <reason>])`. Reasons are exactly `pane unavailable: no tmux`, `pane unavailable: tmux unreachable`, `pane unavailable: no session_command`, and `native unavailable`; combinations preserve ladder order. If re-resolution lands on native, `fab dispatch` errors before writing state and tells the caller to re-run `fab resolve-agent` for native dispatch.
 - Pane mode reaches only `running` / `done` / `orphaned`; `failed` and `failed (no-result)` are unreachable without an exit-code channel. It inherits the same prompt, wait, recovery, one-restart budget, and unconditional reap handling.
 - Pane output is tmux scrollback, not `{stage}.log`. Use `fab pane capture [-L <server>] <pane>` for peek/escalation; obtain the exact socket-included command from `fab dispatch logs <change> <stage>` because `status --json` does not carry the socket.
 - Steering is contract-neutral: the worker still owes `{stage}-result.yaml` and terminal `fab status refresh`, runs no transition command, and the orchestrator owns all transitions. Pane placement, column/sibling mechanics, identities, fallbacks, and the `dispatched …` output forms live only in `_cli-fab.md` § fab dispatch.

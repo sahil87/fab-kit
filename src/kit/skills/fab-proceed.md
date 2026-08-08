@@ -140,7 +140,7 @@ Relevance judgment is performed by the invoking agent inline — no external cla
 
 ### Subagent Dispatch (Prefix Steps)
 
-Each prefix step SHALL dispatch a `general-purpose` subagent with the standard context per `_preamble.md` § Subagent Dispatch. Resolve and surface the assigned role immediately before dispatch, then use the native model/effort seams. A resolved `dispatch=` line is visible but not taken: role names are not pipeline stages accepted by `fab dispatch start`, and prefix steps have no `{stage}-result.yaml` contract.
+Each prefix step SHALL dispatch a `general-purpose` subagent with the standard context per `_preamble.md` § Subagent Dispatch. Resolve and surface the assigned role immediately before dispatch, then use the native model/effort seams. A resolved `dispatch=` line (selected by the shared `dispatch.mode` capability ladder) is visible but not taken: role names are not pipeline stages accepted by `fab dispatch start`, and prefix steps have no `{stage}-result.yaml` contract. The prefix skill never executes the line's value.
 
 | Prefix step | Resolve command |
 |-------------|-----------------|

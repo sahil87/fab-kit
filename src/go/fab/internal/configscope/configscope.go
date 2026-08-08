@@ -71,8 +71,8 @@ var keyScopes = map[string]Scope{
 	"consolidate":         ScopeProject,
 	"providers":           ScopeBoth,
 	"agent":               ScopeBoth,
-	// dispatch is preference-class (`both`): dispatch.watchable expresses how the
-	// OPERATOR prefers to watch stage workers on THIS machine, not what the repo's
+	// dispatch is preference-class (`both`): dispatch.mode expresses how the
+	// OPERATOR prefers to launch stage workers on THIS machine, not what the repo's
 	// pipeline means, so it must be settable once machine-wide in
 	// ~/.fab-kit/config.yaml — the same reasoning that puts agent/providers here.
 	"dispatch":      ScopeBoth,
@@ -103,7 +103,7 @@ var dottedKeys = []string{
 	"agent.workers",
 	"agent.profiles",
 	"providers",
-	"dispatch.watchable",
+	"dispatch.mode",
 	"dispatch.column_width",
 	"dispatch.reap_done",
 	"stage_hooks",

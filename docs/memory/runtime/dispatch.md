@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`fab dispatch {start,restart,status,wait,logs,kill,reap,clean}` — process manager for CLI-dispatched pipeline stages in two launch modes, resolved per invocation by a ladder ending in auto (`$TMUX` ⇒ pane, else headless): headless (detached `sh -c` on `dispatch_command`, five states) and pane (`session_command` in a tmux pane, stacked in a column carved at `dispatch.column_width`; three states). `restart` relaunches the persisted prompt; `status`/`wait` observe; `reap` reclaims a done pane."
+description: "`fab dispatch {start,restart,status,wait,logs,kill,reap,clean}` manages pane and headless stage workers. Automatic launch uses the shared dispatch.mode ceiling and pane → native → headless descent; native redirects back to the harness before state writes. Covers prompt persistence, restart, observation, recovery, pane placement, and reaping."
 ---
 # fab dispatch
 
@@ -10,14 +10,15 @@ description: "`fab dispatch {start,restart,status,wait,logs,kill,reap,clean}` �
 
 `fab dispatch` is the **process manager for CLI-dispatched pipeline stages**, in **two launch modes** that share one state directory, one loader, one concurrency check, one launch path, and one state-string vocabulary:
 
-| Mode | Selection signals (resolved by the § Mode selection ladder, in precedence order) | Worker | Command composed | Completion observed via | tmux |
-|------|----------------------------------------------------------------------------------|--------|------------------|-------------------------|------|
-| **headless** | `--headless`, `--timeout`, or auto **outside** tmux | a detached `sh -c` process | the provider's `dispatch_command` | `{stage}.exit` + pid liveness + result file | never touched |
-| **pane** | `--pane`, `--server`, or auto **inside** tmux | an interactive agent session in a tmux pane the user can watch and steer — **split into the dispatching agent's own window**, or a **new window** when there is no pane to split | the provider's `session_command` | **result file** + pane liveness | **required** — as is a `session_command`; either prerequisite missing is a hard error when explicit, a soft fallback to headless when auto |
+| Mode | Requirement | Worker | Command composed | Completion observed via |
+|------|-------------|--------|------------------|-------------------------|
+| **pane** | reachable tmux + `session_command` | interactive tmux pane | provider `session_command` | result file + pane liveness |
+| **native** | `native: true` | native Agent-tool subagent | none in this command family | dispatching harness |
+| **headless** | `dispatch_command` | detached `sh -c` process | provider `dispatch_command` | exit file + pid liveness + result file |
 
-Headless mode is **tmux-independent**: it launches the resolved command (persisted in the record as `spawn_cmd`) detached, tracks it via a repo-root state dir, and exposes poll/logs/kill/clean surfaces. Pane mode exists to recover *watch and steer* on the CLI path — a detached headless worker is a black box no one can talk to, whereas an interactive tmux worker is the one universal interface every agent CLI supports natively. **Neither mode is an unconditional default**: `start` resolves the mode per invocation through an explicit-first ladder whose last rung is **auto** — pane when `$TMUX` is set (the run-kit context, where a pane is visible to the caller), headless when it is not (see § Mode selection). Together they are the **two non-native adapters** of the three-adapter cross-harness dispatch catalog (native Agent-tool / headless CLI / interactive pane), whose protocol is fixed by the human-curated spec `docs/specs/harness-adapters.md`. `restart` is the family's **recovery** verb across both modes: it relaunches a non-running dispatch from the prompt `start` persisted, so the caller needs no prompt in context, and it re-derives the mode from the *current* environment rather than the prior attempt's. `status` and `wait` are its two **observation** verbs over a single derivation — `status` the one-shot probe, `wait` its blocking sibling that returns the moment the state leaves `running` — so an orchestrator is *woken by* a state change rather than asking every 30s whether one happened.
+Headless mode is tmux-independent; pane mode restores watch-and-steer through the interactive CLI surface. `start` and `restart` launch these two non-native adapters, but automatic selection evaluates the full catalog: it starts at `dispatch.mode` and descends pane → native → headless. If native is the first possible rung, the command errors before writing prompt or dispatch state and directs the caller back to native dispatch. `restart` relaunches a non-running attempt from the persisted prompt and re-runs the ladder against current capabilities and environment. `status` and `wait` remain one-shot and blocking views of the same derived state.
 
-Dispatch is the runtime for **cross-harness stage dispatch** ("a codex orchestrator runs `apply` on claude"): a fundamentally launch-and-poll problem, not a pane-observation one. It *runs* the provider command that `fab resolve-agent` names (a role names a provider; the provider carries the commands — see [_shared/configuration.md](/_shared/configuration.md) § `providers` and [runtime/providers-and-profiles.md](/runtime/providers-and-profiles.md)). `fab dispatch` re-resolves the stage itself, so which mode a dispatch lands in is decided by the ladder below and never by the emitted `dispatch=` line — including a line emitted under the `dispatch.watchable` opt-in, where the emitted `session_command` is exactly what pane mode composes anyway (see [runtime/providers-and-profiles.md](/runtime/providers-and-profiles.md) § Watchable pane dispatch). Headless dispatch stays parallel to and independent of the tmux-bound interactive `fab pane` / `fab operator` family (see [pane-commands.md](/runtime/pane-commands.md) and [operator.md](/runtime/operator.md)); pane dispatch **borrows tmux as a launch surface** but does not join the operator's monitored set, and consumes the `_cli-agents` helper's spawn/deliver/peek procedures as its primitive layer (see [agent-primitives.md](/runtime/agent-primitives.md)).
+Dispatch is the runtime for cross-harness stage dispatch. It re-resolves the stage, provider, profile, preference, and current tmux reachability; the earlier `dispatch=` value is visibility for the skill, not an executable handoff. Provider fields remain pure capabilities, while `dispatch.mode` owns preference. Headless dispatch stays independent of the tmux-bound `fab pane` / `fab operator` family; pane dispatch borrows tmux as a launch surface without joining the operator's monitored set.
 
 The **skill wiring** consumes it: the dispatch-seam skills branch on the resolved `dispatch=` line and, when present, drive this command family — `fab dispatch start` (block prompt on stdin, no mode flag by default — the worker's mode auto-resolves, and `--pane`/`--headless` are passed only to force one) → a **blocking `fab dispatch wait <change> <stage> --timeout 300`**, run as a *background* command wherever the harness can re-invoke the agent on exit (foreground blocking is the cross-harness fallback) → the mode's reachable states → read `{stage}-result.yaml` on `done`, then `fab dispatch reap` to reclaim a finished pane worker's pane. The wiring is **push, not poll**: the orchestrator spends turns only when the wait returns, and a `running` return (the bound expired) is its peek-on-suspicion moment, which is why `--timeout 300` is a *peek cadence* rather than a poll interval. It lives in `_preamble.md` § CLI-Adapter Dispatch + § Dispatch-Prompt Obligations, where **pane mode is an option inside the `dispatch=`-present arm, never a third branch** (see [pipeline/execution-skills.md](/pipeline/execution-skills.md) § Status-transition ownership and [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution).
 
@@ -66,30 +67,30 @@ Per-stage files under `.fab-dispatch/{id}/`:
 
 `start` SHALL run a **shared prologue** followed by one of **two mode-specific launch tails**. The prologue resolves `<change>` to its 4-char ID (via `internal/resolve` — ID / folder substring / full name), loads config, resolves the stage's role → provider profile via `internal/agent` + `internal/spawn.WithProfile` (the same `{model}`/`{effort}` substitution `fab resolve-agent` performs), enforces refuse-if-running, obtains the stage prompt through a **`promptSource` seam** (`start`: stdin, persisted into `{stage}-prompt.md`), and clears stale per-stage files. The tail launches the worker and persists `{stage}.yaml` before returning. The prologue SHALL NOT be duplicated across the tails — nor across the two subcommands that run it (`start` and `restart` share it via `runDispatchLaunch`).
 
-Output names the mode's identity — and, in pane mode, its **shape**: `dispatched <id>/<stage> (pid N, pgid N)` (headless), `dispatched <id>/<stage> (pane %N, split, title fab-<id>-<stage>)` (pane, split shape), or `dispatched <id>/<stage> (pane %N, window fab-<id>-<stage>)` (pane, new-window shape — byte-identical to before the split shape existed). When the mode was chosen by **auto**, the report appends the selection **source** — `, auto: tmux` / `, auto: no tmux` / `, auto: tmux unreachable` / `, auto: no session_command` — so a surprising mode is explainable from output alone (compliance visibility); an explicitly-selected mode's line carries no suffix and is byte-identical to before auto selection existed.
+Output names the launched identity and pane shape. Automatic success also reports `mode: <rung> (preferred)` or `mode: <rung> (descended: <reasons>)`; forced-mode output carries no automatic-selection suffix.
 
-### Requirement: Mode selection is an explicit-first ladder ending in auto
+### Requirement: Explicit signals precede preference-bounded automatic descent
 
-`start` SHALL resolve its launch mode per invocation from an **explicit-signal-first ladder**, evaluated in order, the first match winning: `--pane` ⇒ pane; `--headless` ⇒ headless; `--timeout` ⇒ headless (the bound exists only in the headless wrapper); `--server` ⇒ pane (the flag exists solely to target a pane's socket); otherwise **auto** — `$TMUX` non-empty ⇒ pane, else headless. Each explicit rung SHALL key on whether the flag was **supplied** (`Flags().Changed`), not its value, so `--timeout 0` / `--server ""` still count as signals. An **empty** `$TMUX` reads as unset (Go cannot distinguish the two, and tmux never exports an empty value).
+`start` and `restart` SHALL honor explicit signals first: `--pane` selects pane; `--headless` or `--timeout` selects headless; `--server` selects pane. Explicit selections are hard requirements and continue to key on whether a flag was supplied. With no explicit signal, they use `dispatch.mode`, provider capabilities, and tmux availability. Selection starts at the configured rung, never ascends, and returns the first possible rung in pane → native → headless order.
 
-The ladder SHALL be a **pure function** — `dispatch.SelectMode(paneFlag, headlessFlag, timeoutSet, serverSet bool, tmuxEnv string) (Mode, AutoReason)` in `internal/dispatch/pane_mode.go` — performing no environment read and no tmux probe, so the whole matrix is table-testable without launching a process or a tmux server (matching `DeriveState`/`DerivePaneState`'s shape in the same package). It is called once per invocation from `launchFlags.resolveMode` — the shared flag-surface helper both `start`'s and `restart`'s cobra `RunE` run — which hands the resolved mode (never the raw `--pane` bool) to `runDispatchLaunch`, whence it reaches the command composition, the reachability probe, and the launch branch.
+`dispatch.SelectMode` is pure: it receives explicit signals, preferred mode, provider capabilities, and a tmux-availability value, and performs no environment read or tmux probe. `fab resolve-agent` supplies environment-derived availability; start/restart supply a real reachability result before any state write.
 
-`$TMUX` is the **defaulting** signal only — it means "a pane opened without `-L` lands on the server the caller is attached to". It never replaces `ServerReachable`, which stays the **validation** step once pane mode is chosen and is a real tmux query precisely so an explicit `--pane` works from a headless orchestrator where `$TMUX` is unset. An auto-selected pane targets the **current** server: no `-L` is passed unless `--server` was given.
+`$TMUX` remains a cheap availability input for the pure resolver, not a reachability guarantee. Start/restart use `ServerReachable` and re-run the ladder with tmux marked unreachable when the probe fails. An explicit `--pane` still probes and hard-errors instead of descending.
 
 `$TMUX_PANE` is a **separate signal that does not enter this ladder at all** — it selects the pane *shape* (split vs. new window) only after pane mode has already been chosen (see § A pane worker splits the dispatching agent's window). Keeping the two decisions apart is what lets `SelectMode`'s matrix stay unchanged by the split shape.
 
-#### Scenario: auto resolves from the environment
+#### Scenario: automatic selection descends without ascending
 
-- **GIVEN** no mode-related flag
-- **WHEN** `fab dispatch start <change> <stage>` runs with `$TMUX` set
-- **THEN** the mode resolves to pane against the current server, and the output line carries `auto: tmux`
-- **AND** with `$TMUX` unset (or empty), the mode resolves to headless — byte-identical to the pre-auto default apart from the `auto: no tmux` suffix
+- **GIVEN** no mode flag, `dispatch.mode: pane`, unreachable tmux, and a native-capable provider
+- **WHEN** `fab dispatch start <change> <stage>` runs
+- **THEN** selection descends to native and the command exits before writes with native-dispatch guidance
+- **AND** if native is unavailable but `dispatch_command` exists, it descends again and launches headless
 
 #### Scenario: an explicit signal always beats auto
 
 - **GIVEN** `$TMUX` set (auto would select pane)
 - **WHEN** `--headless` or `--timeout N` is supplied
-- **THEN** the mode resolves to headless with no `auto:` suffix
+- **THEN** the mode resolves to headless with no automatic-selection suffix
 
 ### Requirement: `--headless` is the explicit opt-out; `--pane` + `--headless` is a usage error
 
@@ -217,32 +218,13 @@ In **both** modes the full stage prompt arrives on **stdin** and is persisted to
 - **WHEN** `fab dispatch start <change> <stage> --pane` composes the window command
 - **THEN** the pointer is shell-escaped and parses as exactly one shell word, arriving at the worker byte-identical to the composed pointer
 
-### Requirement: The pane path has two prerequisites — hard error when explicit, soft fallback when auto
+### Requirement: Pane prerequisites hard-error when forced and trigger re-descent when automatic
 
-Pane mode SHALL require **both** a reachable tmux server **and** a `session_command` on the resolved provider, and **both** failure shapes SHALL be **asymmetric by selection source**. An **explicitly** selected pane (`--pane`, or `--server` acting as the pane signal) SHALL fail with a non-zero exit and an actionable stderr message — launching nothing and persisting **no** dispatch record — because a caller who asked for watchability must not be silently downgraded: an unreachable server yields the reachability error, a missing `session_command` the `providers.<name>.session_command` config-key hint. An **auto**-selected pane SHALL instead **soft-fall-back to headless**, printing the single stderr line for its shape (each a named constant) and then proceeding with a normal headless launch producing a headless-shaped record (`pid`/`pgid`, no `pane`/`window`/`server`):
+Pane requires a reachable tmux server and `session_command`. An explicit `--pane` or `--server` request hard-errors on either missing prerequisite, launches nothing, and writes no state. Automatic selection instead records the failed pane reason and continues down the same ladder: `pane unavailable: no tmux`, `pane unavailable: tmux unreachable`, or `pane unavailable: no session_command`.
 
-| Shape | Trigger | stderr notice (constant) | `auto:` reason |
-|-------|---------|--------------------------|----------------|
-| (a) | `ServerReachable` fails — a stale `$TMUX` inherited from a killed server, or no tmux | `pane auto-selection: tmux unreachable, falling back to headless` (`dispatch.FallbackNotice`) | `auto: tmux unreachable` |
-| (b) | tmux answered, but the provider carries no `session_command` (a `dispatch_command`-only provider) | `pane auto-selection: provider has no session_command, falling back to headless` (`dispatch.FallbackNoticeNoSessionCommand`) | `auto: no session_command` |
+The first possible lower rung wins. A native-capable provider therefore redirects to native before any write; a non-native provider with `dispatch_command` launches headless. If neither lower rung is available, start/restart return the shared no-reachable-capability error. Command composition occurs only after final selection, so each rung reads only its own capability field.
 
-Neither shape may break a dispatch that never asked for a pane: a stale `$TMUX` must not break an unattended run, and a `dispatch_command`-only provider must dispatch identically inside and outside tmux.
-
-**Pane-command composition is therefore deferred until the mode is validated** (probe passed AND `session_command` present) — composing it first would hard-fail shape (b) before the fallback decision point, turning a previously-working headless dispatch into an error demanding a `session_command` it never needed. Validation writes no state and composes no command, so both outcomes are safe before anything is persisted.
-
-The fallback **re-composes the provider command from `dispatch_command`**, so the no-cross-fallback rule survives the mode change: a provider carrying *neither* field still errors with the usual `dispatch_command` config-key hint, after the notice has explained why headless was attempted. The soft fallback is a **mode** change, not a cross-field fallback.
-
-- **GIVEN** a provider carrying `dispatch_command` but no `session_command`, a **reachable** tmux server via `$TMUX`, and no mode flag
-- **WHEN** `fab dispatch start <change> <stage>` runs
-- **THEN** stderr carries the shape-(b) notice, the launch is headless from `dispatch_command`, no tmux window is opened, and stdout's `dispatched …` line ends `auto: no session_command`
-
-- **GIVEN** the same provider and an explicit `--pane` against a reachable server
-- **WHEN** `fab dispatch start <change> <stage> --pane` runs
-- **THEN** it exits non-zero with the `providers.<name>.session_command` hint and persists no dispatch record
-
-Reachability SHALL be established by a **real tmux query** (`tmux [-L <server>] list-sessions` via `ServerReachable`), **not** an `$TMUX` environment read: a dispatching orchestrator may itself be headless — exactly the cross-harness caller pane mode exists for — so an `$TMUX`-only gate would make `--pane` unusable from those callers. This mirrors `fab resolve --pane`, where `--server` likewise replaces the `$TMUX` guard with socket-scoped discovery. In headless mode, **no tmux probe occurs at all**, preserving the tmux-independence guarantee.
-
-The probe distinguishes "a server answered" from "nothing answered", not "has sessions" from "has none": under tmux's default `exit-empty on` a server exits with its last session, so a zero-session server never persists to be probed and `--pane` correctly errors; under `exit-empty off` a sessionless server does persist and the probe passes, and a subsequent `new-window` that tmux cannot satisfy surfaces the child's own stderr via `internal/pane`'s `StderrError`. The probe is a reachability gate, not a launch guarantee — the launch carries its own actionable error.
+Reachability is established by `tmux [-L <server>] list-sessions` via `ServerReachable`, not inferred solely from `$TMUX`. Headless and native selections perform no tmux launch work.
 
 #### Scenario: unreachable tmux leaves no trace under an explicit `--pane`
 
@@ -250,11 +232,11 @@ The probe distinguishes "a server answered" from "nothing answered", not "has se
 - **WHEN** `fab dispatch start <change> <stage> --pane` runs
 - **THEN** it exits non-zero naming tmux reachability, the `--server` option, and the `--headless` alternative, and creates no `{stage}.yaml`
 
-#### Scenario: a stale `$TMUX` degrades to headless instead of failing
+#### Scenario: a stale `$TMUX` re-runs the ladder
 
-- **GIVEN** `$TMUX` set to a dead socket and no mode flag (auto selects pane)
+- **GIVEN** `$TMUX` set to a dead socket, no mode flag, and `dispatch.mode: pane`
 - **WHEN** `fab dispatch start <change> <stage>` runs
-- **THEN** stderr carries the one-line fallback notice, the launch is headless, and `{stage}.yaml` records `pid`/`pgid` with no `pane`/`window`/`server`
+- **THEN** pane is marked unreachable and selection continues to native or headless according to the provider's lower capabilities
 
 ### Requirement: `--pane` and `--timeout` are mutually exclusive
 
@@ -266,19 +248,17 @@ Supplying both flags SHALL be a usage error (non-zero exit) naming the exclusion
 - **WHEN** it runs
 - **THEN** it exits non-zero naming the `--pane`/`--timeout` exclusion, launching nothing and writing nothing
 
-### Requirement: Missing command field → error, no cross-fallback in either direction
+### Requirement: Each selected rung consumes only its own capability
 
-If the resolved role's provider lacks the field the **finally-selected** mode needs, `start` SHALL error clearly — naming the stage, the resolved role, the provider, and the config key (`providers.<name>.dispatch_command` for headless, `providers.<name>.session_command` for pane) — and MUST NOT fall back to the other field. The **no-cross-fallback rule holds in both directions**: headless never falls back to `session_command`, and pane mode never falls back to `dispatch_command`. This is the load-bearing dispatch-mode semantic (a fallback would silently flip a session-command-only provider into headless CLI dispatch, or the reverse); see [_shared/configuration.md](/_shared/configuration.md) § `providers` and [runtime/providers-and-profiles.md](/runtime/providers-and-profiles.md). Pane mode reading the provider table for `session_command` is **not** a fallback and **not** a resolver change: mode selection is per-invocation, `fab resolve-agent`'s output is identical either way, and pane mode reads the table itself exactly as `fab agent` does.
-
-The **auto-only soft fallback is a MODE change, not a cross-field fallback**, and does not weaken this rule: it re-selects headless and re-composes from `dispatch_command`, so a provider carrying neither field still errors with the `dispatch_command` hint (§ the pane path's two prerequisites). Because the mode may change during validation, the error a provider gets names the field of the mode that was actually launched.
+Pane composes only `session_command`; native uses only `native: true`; headless composes only `dispatch_command`. Automatic descent skips unavailable rungs rather than substituting fields. Forced pane/headless errors name the required provider key. Automatic selection with no reachable rung returns one actionable error and writes nothing.
 
 #### Scenario: a session-command-only provider dispatches under pane mode and errors without it
 
 - **GIVEN** a role whose provider carries a `session_command` but no `dispatch_command`
 - **WHEN** `fab dispatch start <change> <stage> --pane` runs with a reachable tmux server
 - **THEN** the dispatch succeeds using the composed `session_command`
-- **AND** GIVEN the same role, an explicitly headless `start` (`--headless`, or auto outside tmux) errors with the `dispatch_command` config-key hint
-- **AND** GIVEN a provider with no `session_command`, an explicit `--pane` errors with the `providers.<name>.session_command` hint (under **auto** the same provider soft-falls-back to headless instead)
+- **AND** GIVEN the same role, explicit `--headless` errors with the `dispatch_command` key hint
+- **AND** GIVEN a provider with no `session_command`, explicit `--pane` errors while automatic selection continues to the next lower capability
 
 ### Requirement: Refuse-if-running + last-attempt-only concurrency
 
@@ -313,8 +293,8 @@ A `start` **or `restart`** over a **completed** prior attempt (done / failed / o
 `restart` SHALL relaunch a **non-running** dispatch from the prompt `start` persisted at `{stage}-prompt.md`, so the caller does not need the block prompt in context (an orchestrator may have lost a multi-thousand-token prompt to compaction). It is `start` with **exactly one difference — the prompt's source** — because both run the same Go launch path (`runDispatchLaunch`, parameterized by a `promptSource`: `promptFromStdin` for `start`, `promptFromStateDir` for `restart`). Consequently `restart` SHALL carry:
 
 - the **same prologue** — change resolution, config + role→provider re-resolution (**config only**: like `start`, it exposes no `--provider`/`--model`/`--effort`), pane validation, refuse-if-running, and stale `{stage}.exit`/`-result.yaml`/`.log` clearing;
-- the **same mode-selection ladder** and the same flags with the same exclusions (`--pane`+`--headless` and `--pane`+`--timeout` are usage errors; `--headless`+`--timeout` composes), including the explicit-hard / auto-soft asymmetry on the pane path's two prerequisites — all single-sourced in the shared `addLaunchFlags` / `launchFlags.resolveMode` helper pair, so the flag surface cannot drift any more than the launch tail can;
-- the **same output and record byte-shape** — the `dispatched <id>/<stage> (<report>)` line including the `, auto: …` selection-source suffix rules, and the same `{stage}.yaml` keys.
+- the **same mode selector** and flags with the same exclusions; forced modes hard-error, while automatic mode re-descends against current capabilities and tmux reachability;
+- the **same output and record shape**, including the preferred/descended automatic reason text.
 
 The launch **mode — and the pane shape — SHALL be re-derived from the current environment**, never inherited from the prior attempt (the record carries no mode or shape discriminator to inherit from), so a restart issued from inside a tmux pane splits that pane's window even when the prior attempt opened a window. A restart **is** a fresh attempt under last-attempt-only, so it SHALL introduce **no new state string, no attempt counter, no attempt history, and no `restarted:` marker** — `status` cannot distinguish a restart from a `start`, by design. The prompt file is the **input**: `restart` reads it and leaves it **byte-identical** (re-writing it with its own bytes would only risk corruption on a partial write), while the *prior attempt's* exit/result/log are still cleared. Refuse-if-running SHALL **precede** the prompt read, and an absent prompt SHALL be a clear error — `no persisted prompt at <path> — nothing to relaunch; run \`fab dispatch start\` with the prompt on stdin` — that launches nothing and leaves any prior record intact.
 
@@ -331,7 +311,7 @@ The observation policy that *spends* a restart (one automatic restart on `orphan
 
 - **GIVEN** an `orphaned` **pane** dispatch and no reachable tmux server (`$TMUX` unset)
 - **WHEN** `fab dispatch restart` runs with no mode flag
-- **THEN** auto selects **headless** and the new record is headless-shaped (`pid`/`pgid`, no pane identity), composed from `dispatch_command`
+- **THEN** pane is marked unreachable and the selector chooses the first possible lower rung; native returns guidance before writes, while headless creates a headless-shaped record
 - **AND** the prior pane identity does not leak into the new record
 
 #### Scenario: a live dispatch refuses, even with no prompt on disk
@@ -651,7 +631,7 @@ A user MAY converse with a running pane worker mid-stage. This changes **no** co
 
 **Decision**: A restart resolves its launch mode from the *current* environment through the same ladder, and adds nothing to the record — no attempt counter, no history, no `restarted:` marker. `status` cannot tell a restart from a `start`.
 
-**Why**: The environment is exactly what changed when a worker died, so inheriting the prior attempt's mode would reproduce the failure — restarting a pane dispatch orphaned *by* a dead tmux server must land headless, and the auto ladder already does that for free. And a restart genuinely *is* a fresh attempt under last-attempt-only (a shipped design decision): a marker would be a second source of truth the state machine has no use for, and an on-disk counter would need reset semantics fab does not want to own. The recovery budget that bounds restarts therefore lives in the orchestrator's context, where the worst case after a context loss is one extra restart.
+**Why**: Capabilities and reachability may have changed when a worker died, so inheriting the prior attempt's mode would reproduce the failure. Re-running the configured descent ladder can land on native or headless after a pane server dies. A restart is still a fresh last-attempt-only run; counters and history remain outside the state model.
 
 **Rejected**: Persisting the prior mode and reusing it (re-fails on the condition that killed the worker); a `restarts:` key in `{stage}.yaml` (breaks last-attempt-only and invites a supervisor-shaped design); a `--same-mode` flag (no demonstrated need, and no stored discriminator to read).
 
@@ -675,29 +655,29 @@ A user MAY converse with a running pane worker mid-stage. This changes **no** co
 **Rejected**: Inline in `cmd/fab` (harder to table-test the state derivations without launching a real process).
 *Introduced by*: 260702-6sgj-fab-dispatch-command
 
-### Pane mode is a flag on `fab dispatch start`, not a new command family
-**Decision**: Interactive dispatch is `fab dispatch start <change> <stage> --pane`, sharing the role resolution, state directory, refuse-if-running concurrency, and `status`/`kill`/`logs`/`clean` surfaces with the headless path. Mode selection is **per-invocation** — resolved by the explicit-first ladder ending in the `$TMUX`-driven auto default, so a skill normally passes no mode flag at all — with **no provider config field**: pane mode composes the resolved provider's existing `session_command`, so `fab resolve-agent`'s output is identical either way.
-**Why**: The sequencer wiring already branches at `fab dispatch`, and the state-string vocabulary plus the `.fab-dispatch/{id}/` layout are exactly the machinery a pane dispatch needs; a parallel command family would duplicate all of it and force every dispatch site to learn a second grammar. Keeping the interactive invocation derivable from `session_command` — the same string `fab agent` composes — means no schema change and no new default behavior; a provider whose interactive grammar genuinely diverges from its session grammar is the trigger to add a field later, as a data-only config addition.
-**Rejected**: A new `fab pane-dispatch` command family (duplicates the state machine, the loader, and the concurrency check). A third per-provider command field (`pane_command`) in v1 (schema churn for a string already in the config). Declaring the mode in config rather than per invocation (watchability is a property of *this run*, not of a provider).
-*Introduced by*: 260805-zxe0-interactive-pane-stage-dispatch
+### Pane and Headless Share One Process-Manager Family
+**Decision**: Interactive pane dispatch and detached headless dispatch share `fab dispatch`, state layout, concurrency, observation, and cleanup. Pane composes `session_command`; headless composes `dispatch_command`; `dispatch.mode` controls automatic preference and flags force a single invocation.
+**Why**: Both non-native adapters owe the same result artifact and lifecycle state. Sharing the command family avoids duplicate machinery while keeping adapter capability grammar independent.
+**Rejected**: A parallel pane-dispatch family, a duplicate `pane_command`, or provider-command presence as mode policy.
+*Introduced by*: 260805-zxe0-interactive-pane-stage-dispatch; *Updated by*: 260808-yilt-dispatch-mode-descent-ladder
 
-### `$TMUX` presence is the mode default, resolved in Go by a pure ladder function
-**Decision**: The launch mode is resolved inside `fab dispatch start` by the pure, table-tested `dispatch.SelectMode(paneFlag, headlessFlag, timeoutSet, serverSet bool, tmuxEnv string) (Mode, AutoReason)` — an explicit-first ladder (`--pane` / `--headless` / `--timeout` ⇒ headless / `--server` ⇒ pane) whose last rung defaults from `$TMUX` presence. Skills get documentation changes only; the dispatch seam is untouched.
-**Why**: Resolving in Go is a **single enforcement point** covering manual and skill-driven invocations identically, so no dispatch site has to remember an environment check. `$TMUX` is the right *defaulting* signal because it means precisely "a window opened without `-L` lands on the server the caller is attached to" — the condition under which an un-targeted pane is visible to a human. A pure function (no env read, no tmux probe) makes the seven-input matrix table-testable without launching a process or a tmux server, matching `DeriveState`/`DerivePaneState` in the same package. Each explicit rung keys on `Flags().Changed` rather than value, so `--timeout 0` / `--server ""` remain signals; an empty `$TMUX` reads as unset because Go cannot distinguish the two and tmux never exports an empty value.
-**Rejected**: An inline `if` chain in `runDispatchStart` (untestable without real launches, and the file already delegates every derivable rule to `internal/dispatch`). A `dispatch.default_mode` config knob in v1 (the env default plus two explicit flags cover the matrix; a knob stays additive later). Detecting run-kit specifically rather than tmux (rk presence adds nothing — the pane lands in tmux either way). Reading `$TMUX` at the dispatch seam in every skill (N enforcement points, each able to drift).
-*Introduced by*: 260805-l9ng-auto-pane-dispatch-in-tmux
+### One Pure Selector Owns Preference-Bounded Adapter Descent
+**Decision**: `dispatch.SelectMode` handles forced signals first, then starts at `dispatch.mode` and descends pane → native → headless against independent provider/environment capabilities. `fab resolve-agent`, `fab dispatch start`, and `fab dispatch restart` share it.
+**Why**: A single pure matrix keeps resolver output and runtime launch aligned while allowing start/restart to contribute a real tmux reachability probe. Preference as a ceiling prevents the runtime from choosing a more interactive or native adapter than the user requested.
+**Rejected**: Command-presence policy, `$TMUX` as the entire default, ascending fallback, skill-side selection, and separate resolver/runtime matrices.
+*Introduced by*: 260808-yilt-dispatch-mode-descent-ladder
 
-### Every pane-path failure is asymmetric: soft under auto, hard under explicit
-**Decision**: Both pane-path prerequisites — a reachable tmux server and a `session_command` on the resolved provider — are validated *before* any command is composed, and both failures take the same asymmetry: an **auto**-selected pane degrades to headless with a one-line stderr notice per shape (`dispatch.FallbackNotice` / `dispatch.FallbackNoticeNoSessionCommand`), re-composing from `dispatch_command`, while an **explicitly** selected pane (`--pane`, or `--server` as the pane signal) keeps its hard error — non-zero exit, nothing launched, nothing persisted. The `dispatched …` line names the selection source whenever auto fired (`auto: tmux` / `auto: no tmux` / `auto: tmux unreachable` / `auto: no session_command`), and stays byte-identical for an explicit selection.
-**Why**: The two selection sources carry different caller intent. A stale `$TMUX`, or a provider that only ever dispatched headless, must never break a dispatch that *never asked* for a pane — that is a defaulting heuristic missing, not a request failing. Conversely, a caller who typed `--pane` asked for watchability, and a silent downgrade would defeat the request. Deferring composition until the mode is validated is what makes the `session_command` shape reachable at all: composing the pane command first hard-fails a `dispatch_command`-only provider before the fallback decision, so every CLI-dispatched stage of such a provider would regress inside tmux — the exact byte-preservation the auto default promises. Naming the selection source on the output line is the compliance-visibility seam: a surprising mode (or a fallback) is explainable from output alone, while keeping the explicit report byte-identical protects existing output assertions. The fallback re-composes from `dispatch_command` so the load-bearing no-cross-fallback rule survives the mode change.
-**Rejected**: A hard error under auto (a stale env var breaks unattended runs; a `dispatch_command`-only provider regresses outright inside run-kit). A soft fallback under explicit `--pane` (silently discards the caller's stated intent). Composing the pane command before mode validation (makes the `session_command` shape unreachable). Suffixing every dispatch line with its mode source (churns byte-stable output for explicitly-selected modes, where the source is already obvious from the flag).
-*Introduced by*: 260805-l9ng-auto-pane-dispatch-in-tmux
+### Forced Failures Are Hard; Automatic Failures Continue the Ladder
+**Decision**: Forced pane/headless selections hard-error on missing prerequisites. Automatic pane failures become named reasons and re-enter the selector with the failed capability removed; native or headless may then win. No command or state is written until a non-native launch rung is final.
+**Why**: Forced flags express an exact request, while automatic mode expresses a preference ceiling. Re-descent preserves that distinction and lets a native-capable provider avoid an unnecessary headless launch.
+**Rejected**: Silent downgrade of a forced mode, direct pane-to-headless fallback that skips native, and command composition before selection is final.
+*Introduced by*: 260808-yilt-dispatch-mode-descent-ladder
 
-### One `validatePane` helper bundles each shape's three values, so the asymmetry is one branch
-**Decision**: Both pane prerequisites are checked by a single `validatePane(prov, server, stage, providerName) *paneFallback` helper in `cmd/fab/dispatch_start.go`, returning `nil` when the pane path can proceed and otherwise a `paneFallback` struct bundling that shape's three per-shape values — the stderr `notice`, the `AutoReason`, and the plain `error` an explicit selection propagates. The call site then branches **once** on `reason != dispatch.ReasonAutoTmux`. The **probe runs before** the `session_command` read, so a provider failing *both* prerequisites reports shape (a). The shape-(b) error text is the shared `missingCommandError(stage, providerName, field)`, the same constructor `modeCommand` raises, and `modeCommand` keeps its own pane-branch absent-field check.
-**Why**: R3 requires identical asymmetric handling for two independent failure shapes. Bundling each shape's three values keeps exactly one auto-vs-explicit `if` in the command, where a per-shape branch would have grown a second copy of the same rule — the duplication the no-duplication acceptance criterion forbids. Validation is probe-plus-a-config-field-read only: it writes no state and composes no command, so **both** outcomes are safe before anything is persisted, which is what lets the explicit path guarantee "nothing launched, nothing persisted". Reachability is checked first because it is the environment-level precondition and it owns the pinned `pane mode requires a reachable tmux server` message, so reporting the environment problem first matches the ladder's outside-in ordering; the ordering is deliberately left an implementation detail rather than a pinned contract, so the both-shapes-failing regression test asserts the generic "falling back to headless" substring. Sharing `missingCommandError` between the pre-composition diagnosis and composition itself means the two sentences cannot drift, while retaining `modeCommand`'s own check keeps its independent contract that no mode ever composes an empty command.
-**Rejected**: A separate auto-vs-explicit branch per failure shape (two copies of one rule, free to diverge). Closures on the fallback struct for the hard error (`func(string, string) error` values that discarded both parameters — passing `stage`/`providerName` into `validatePane` makes the field a plain `error`). Reusing one generic notice for both shapes (they need different fixes — start tmux vs. configure a `session_command` — and the output suffix is the only explanation a caller gets). Diagnosing the missing `session_command` at composition time only (makes the auto fallback unreachable). Dropping `modeCommand`'s pane-branch check as now-redundant (it would let the function compose an empty command).
-*Introduced by*: 260805-l9ng-auto-pane-dispatch-in-tmux
+### Automatic Native Is a Pre-Write Redirect Boundary
+**Decision**: When start/restart automatic selection lands on native, it returns actionable native-dispatch guidance before prompt persistence, stale-file clearing, process launch, or record writes.
+**Why**: Native execution belongs to the harness's Agent-tool arm, not this process manager. Treating it as a redirect keeps the shared ladder honest without creating a fake native dispatch record.
+**Rejected**: Persisting a placeholder record, silently jumping past native to headless, or attempting to launch the Agent tool from Go.
+*Introduced by*: 260808-yilt-dispatch-mode-descent-ladder
 
 ### Real-tmux dispatch tests isolate by a verified private socket, never by `-L` alone
 **Decision**: Every `cmd/fab` test that starts a real tmux server runs against a **private socket** under a per-test `TMUX_TMPDIR`, and each such test hard-**fails up front** unless `$TMUX` is empty. A test that must issue **unscoped** `tmux new-session` / `kill-server` (the auto-inside-tmux integration tests, which prove auto passes no `-L`) additionally **verifies the server actually bound the private socket** before registering its cleanup, and scopes every later call — `kill-server` included — with an explicit `-S <verified-socket>`.

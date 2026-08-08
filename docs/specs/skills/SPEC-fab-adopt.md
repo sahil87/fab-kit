@@ -63,11 +63,11 @@ User invokes /fab-adopt [<slug>]
 │
 ├─ Step 3: Review — dispatched, mode: diff-only (resolve + branch on dispatch= — native Agent tool / CLI adapter)
 │  ├─ Bash: fab resolve-agent review --alias (surface model=/effort=/dispatch=;
-│  │        branch on dispatch= — native or CLI adapter, 260702-aetz;
-│  │        within the CLI arm the worker mode auto-resolves —
-│  │        pane inside tmux, headless outside — so no mode flag
-│  │        by default; --pane/--headless only to force one,
-│  │        260805-zxe0 / 260805-l9ng; the CLI arm's blocking
+│  │        branch on dispatch= — absence means the shared dispatch.mode
+│  │        capability ladder resolved native; presence means CLI adapter;
+│  │        within the CLI arm start re-resolves the same descending ladder
+│  │        from current config/environment, so no mode flag by default;
+│  │        --pane/--headless only force one; the CLI arm's blocking
 │  │        fab dispatch wait carries § CLI-Adapter Dispatch's
 │  │        bounded recovery policy — one automatic fab dispatch
 │  │        restart on orphaned, peek-on-suspicion, then escalate;

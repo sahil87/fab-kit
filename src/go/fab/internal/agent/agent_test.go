@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
+	"gopkg.in/yaml.v3"
 )
 
 // cfgWithProfiles builds a *config.Config with the given agent.profiles overrides.
@@ -794,8 +795,8 @@ func TestIsRoleName(t *testing.T) {
 	}
 }
 
-// TestResolveProvider: the built-in claude provider resolves with its default
-// session command and no dispatch command; a project override per-field merges;
+// TestResolveProvider: the built-in claude provider resolves with all three
+// capabilities; a project override per-field merges;
 // an unknown provider reports ok=false.
 func TestResolveProvider(t *testing.T) {
 	// Built-in claude, no project config.
@@ -806,11 +807,11 @@ func TestResolveProvider(t *testing.T) {
 	if prov.SessionCommand != DefaultSessionCommand {
 		t.Errorf("claude.SessionCommand = %q, want the built-in default", prov.SessionCommand)
 	}
-	if prov.DispatchCommand != "" {
-		t.Errorf("claude.DispatchCommand = %q, want empty (native dispatch)", prov.DispatchCommand)
+	if prov.DispatchCommand != DefaultDispatchCommand || !prov.Native {
+		t.Errorf("claude capabilities = %+v, want dispatch command %q and native=true", prov, DefaultDispatchCommand)
 	}
 
-	// Project override adds a dispatch_command; the session_command inherits the
+	// Project override replaces dispatch_command; the session/native capability inherits the
 	// built-in (per-field merge).
 	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
 		"claude": {DispatchCommand: "claude -p"},
@@ -824,6 +825,20 @@ func TestResolveProvider(t *testing.T) {
 	}
 	if prov.DispatchCommand != "claude -p" {
 		t.Errorf("dispatch_command = %q, want the override", prov.DispatchCommand)
+	}
+	if !prov.Native {
+		t.Error("native capability must survive a command-only override")
+	}
+
+	// YAML presence distinguishes an explicit false from absent, so users can
+	// disable a built-in capability rather than only enabling one.
+	var disableNative config.Config
+	if err := yaml.Unmarshal([]byte("providers:\n  claude:\n    native: false\n"), &disableNative); err != nil {
+		t.Fatal(err)
+	}
+	prov, _ = ResolveProvider(&disableNative, "claude")
+	if prov.Native {
+		t.Error("an explicit native:false override must disable the built-in capability")
 	}
 	// The built-in per-role fills survive a command-only override.
 	if prov.Profiles[RoleDoing].Model == "" {
@@ -880,7 +895,10 @@ func TestResolveProvider_BuiltInCodexAndGemini(t *testing.T) {
 			t.Errorf("%s.SessionCommand = %q, want %q", c.name, prov.SessionCommand, c.session)
 		}
 		if prov.DispatchCommand != c.dispatch {
-			t.Errorf("%s.DispatchCommand = %q, want %q (a non-claude built-in carries one, so naming it flips the stage to CLI dispatch)", c.name, prov.DispatchCommand, c.dispatch)
+			t.Errorf("%s.DispatchCommand = %q, want %q", c.name, prov.DispatchCommand, c.dispatch)
+		}
+		if prov.Native {
+			t.Errorf("%s.Native = true, want false", c.name)
 		}
 		if !strings.Contains(prov.SessionCommand, c.approvalBypassGrammar) {
 			t.Errorf("%s.SessionCommand = %q, want approval-bypass grammar %q (stage workers cannot answer approval prompts)", c.name, prov.SessionCommand, c.approvalBypassGrammar)
