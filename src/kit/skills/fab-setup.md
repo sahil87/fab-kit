@@ -103,7 +103,7 @@ Run `fab sync`. The command owns all non-interactive structural setup in one ide
 - **Skeleton files** (copy-if-absent from `$(fab kit-path)/scaffold/`): `fab/project/context.md`, `fab/project/code-quality.md`, `fab/project/code-review.md`, `docs/memory/index.md`, `docs/specs/index.md` (creating `docs/memory/` and `docs/specs/` as needed)
 - **Directories**: `fab/changes/`, `fab/changes/archive/`, `fab/changes/.gitkeep`
 - **`fab/.kit-migration-version`** (see 1d)
-- **Skill deployment**: copies skills from the cache kit to `.claude/skills/{name}/SKILL.md`
+- **Skill deployment**: verifies and repairs regular-file copies from the cache kit at `.claude/skills/{name}/SKILL.md` (replacing stale symlinks)
 - **`.gitignore`**: line-ensure merge of the kit's fragment (adds `.fab-*`, which covers `.fab-status.yaml`)
 
 **Sync-failure guard**: if `fab sync` exits non-zero, STOP immediately and surface its output — do not continue the bootstrap. (Sync requires a resolvable pinned version in `fab/.fab-version`, which `fab init` stamps.)
@@ -398,7 +398,7 @@ All migrations complete. fab/.kit-migration-version: {original} -> {final}
 
 ## Idempotency
 
-All paths are safe to re-run. Structural artifacts are created once (skipped on re-run). Symlinks are verified/repaired every run. Config/constitution edits are no-ops when unchanged. Migrations apply only remaining steps.
+All paths are safe to re-run. Structural artifacts are created once (skipped on re-run). Deployed skill copies are content-verified and repaired every run, with symlinks replaced by regular files. Config/constitution edits are no-ops when unchanged. Migrations apply only remaining steps.
 
 ---
 

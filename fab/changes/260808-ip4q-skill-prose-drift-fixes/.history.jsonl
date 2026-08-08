@@ -1,0 +1,24 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-08T01:30:22Z"}
+{"args":"Phase 1 (drift-bug fixes) of fab/plans/sahil/skill-prose-consolidation.md: fix the 10 defects in the Phase 1 table + verify allowed-tools frontmatter on git-pr.md/git-pr-review.md; update SPEC mirrors","cmd":"fab-new","event":"command","ts":"2026-08-08T01:30:22Z"}
+{"delta":"+4.8","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-08-08T01:32:33Z"}
+{"delta":"+0.0","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-08-08T01:32:53Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-08T01:34:00Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-08T01:34:07Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-08T01:50:30Z"}
+{"event":"review","result":"failed","ts":"2026-08-08T01:56:50Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-08T01:56:50Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-08T01:59:21Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-08T02:04:05Z"}
+{"event":"review","result":"failed","ts":"2026-08-08T02:12:42Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-08T02:12:42Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-08T02:14:28Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-08T02:16:28Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-08T02:27:34Z"}
+{"event":"review","result":"passed","ts":"2026-08-08T02:27:34Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-08T02:29:07Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-08T02:29:43Z"}
+{"action":"re-entry","event":"stage-transition","stage":"hydrate","ts":"2026-08-08T02:30:07Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-08T02:31:31Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-08T02:32:15Z"}
+{"cmd":"git-pr","event":"command","ts":"2026-08-08T02:33:27Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-08T02:44:58Z"}

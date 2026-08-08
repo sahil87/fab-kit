@@ -6,6 +6,8 @@ Fast-forward apply → review → hydrate (everything after intake) in one invoc
 
 **Helpers**: Declares `helpers: [_generation, _review, _srad, _pipeline]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
 
+**Dispatch prose contract**: the wrapper-level per-stage note mirrors the bracket's canonical adapter selection — resolve once with `--alias`, surface `model=/effort=/provider=/dispatch=`, then branch on `dispatch=` through `_preamble.md` § CLI-Adapter Dispatch.
+
 ## Flow
 
 ```

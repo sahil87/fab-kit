@@ -44,7 +44,7 @@ Execute the **shared pipeline bracket** (`_pipeline.md`, loaded via `helpers:`) 
 
 The bracket defines pre-flight (intake prerequisite + intake gate), context loading, resumability, Steps 1–3 (apply → review → hydrate), the auto-rework loop with its per-cycle choreography, and the exhaustion stop. The two steps below are fff-only.
 
-> **Per-stage model**: every stage dispatch (the bracket's Steps 1–3 and the fff-only Steps 4–5 below) resolves the stage's profile first, surfaces the resolved `model=/effort=` (so a skipped or mis-resolved role is visible, not silent), then dispatches through the two seams — model via the Agent tool's `model` param, resolved with `fab resolve-agent <stage> --alias` so the alias is Agent-tool-valid (empty ⇒ omit/inherit), and effort via an imperative instruction in the dispatch prompt (``Operate at `<effort>` reasoning effort for this task.``; empty effort ⇒ omit, since the Agent tool has no effort param) — see `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution.
+> **Per-stage model + adapter**: every stage dispatch resolves once with `fab resolve-agent <stage> --alias` and surfaces the resolved profile. The bracket's Steps 1–3 then branch on `dispatch=` presence per `_preamble.md` § CLI-Adapter Dispatch: absent ⇒ native Agent-tool dispatch through the two seams; present ⇒ the CLI adapter. The fff-only Steps 4–5 dispatch full skill behaviors through the native two seams, as specified below.
 
 > **Dispatch exception (ship and review-pr)**: unlike the bracket's `/fab-continue`-behavior subagents, `/git-pr` and `/git-pr-review` manage their own stage transitions internally — their subagent prompts do NOT carry the "do not run `fab status`" instruction.
 

@@ -1,5 +1,20 @@
 # fab-dedupe
 
+## Contents
+
+- Summary
+- Why an intake, not a bespoke artifact
+- Clusters are layered, not flat
+- Detectors seed; the agent clusters
+- Scope semantics
+- Cluster acceptance is conversational
+- Memory home
+- Flow
+- Configuration surface
+- Difference from /fab-draft
+- Re-run contract
+- Known limitations
+
 ## Summary
 
 Sweeps a scoped area of the codebase for duplicated and near-duplicated functions, clusters them by **behavioral shape**, decomposes each cluster into a **shared core plus opt-in variation layers**, proposes a canonical home, and drafts one change intake per accepted cluster group. Read-only through the sweep and report; writes only when the user accepts clusters.

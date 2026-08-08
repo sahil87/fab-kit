@@ -7,7 +7,7 @@
 
 ## Summary
 
-Bootstraps a new project or manages config/constitution/migrations. Creates `fab/project/` files and — via `fab sync` — `docs/memory/`, `docs/specs/`, deployed skill copies, and gitignore entries. Safe to re-run.
+Bootstraps a new project or manages config/constitution/migrations. Creates `fab/project/` files and — via `fab sync` — `docs/memory/`, `docs/specs/`, deployed skill copies, and gitignore entries. Skill deployment is content-checked copy mode: stale copies are repaired and existing symlinks are replaced with regular files. Safe to re-run.
 
 **Prose optimization** (260620-skop): skill content trimmed to remove re-explanation of partial-owned concepts and consolidate the seven Migrations Output Format blocks to one canonical block plus exact-string variant notes, and a `## Contents` TOC added; no behavioral change (Flow / Tools / Sub-agents unchanged).
 
