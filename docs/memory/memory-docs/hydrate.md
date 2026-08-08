@@ -16,7 +16,7 @@ description: "The /docs-hydrate-memory skill — argument routing, three modes (
 
 ### Standalone Hydrate Skill
 
-The system provides `/docs-hydrate-memory [sources...|folders...]` as an independent skill containing hydration and generation logic. It is defined in `$(fab kit-path)/skills/docs-hydrate-memory.md` and is auto-discovered by `sync/2-sync-workspace.sh`'s `*.md` glob pattern.
+The system provides `/docs-hydrate-memory [sources...|folders...]` as an independent skill containing hydration and generation logic. It is defined in `$(fab kit-path)/skills/docs-hydrate-memory.md` and is auto-discovered by `fab sync`'s kit-skills-dir enumeration (no manifest registration).
 
 ### Argument-Driven Mode Selection
 

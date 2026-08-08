@@ -1,5 +1,6 @@
 ## Open
 
+- [ ] [hk7p] 2026-08-08: Delete the orphaned hooklib hook-payload parsers (ParsePayload, MatchArtifactPath/ArtifactMatch) — zero non-test callers since the fab hook removal (relocated from docs/memory/runtime/runtime-agents.md by /docs-distill-memory)
 - [ ] [ngaw] 2026-02-23: Quality gate - how to decide which PR has had deep thought vs just surface level?
 - [ ] [v34t] 2026-02-23: A timeline or user journey mermaid diagram showing which commands are typed in the main repo vs the worktree
 - [ ] [q0lw] 2026-03-11: If fab binary or wt or idea binary not found, stop. Add to preamble?

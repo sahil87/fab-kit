@@ -92,7 +92,7 @@ Each prefix step (the `_intake` Create-Intake Procedure, `/fab-switch`, `/git-br
 - Hydrate, ship, review-pr invocations and apply-resumes (with `plan.md` present) load **neither** — saving 8.7–19.2KB per invocation on those paths.
 - `_srad` stays unconditional: apply records graded SRAD assumptions on the dominant path, and intake-stage backward-compat work also grades.
 
-`fab-ff`/`fab-fff` deliberately keep `[_generation, _review, _srad, _pipeline]` as unconditional frontmatter helpers — the equivalent finding (f074) was **refuted** because their auto-rework loop has the orchestrator itself editing `plan.md` `## Requirements`/`## Tasks`/`## Acceptance`, which genuinely needs `_generation` at orchestrator level. (`_pipeline` is the wrappers' entire body — unconditional by construction (szxd).)
+`fab-ff`/`fab-fff` deliberately keep `[_generation, _review, _srad, _pipeline]` as unconditional frontmatter helpers — their auto-rework loop has the orchestrator itself editing `plan.md` `## Requirements`/`## Tasks`/`## Acceptance`, which genuinely needs `_generation` at orchestrator level. (`_pipeline` is the wrappers' entire body — unconditional by construction (szxd).)
 
 ### Shared Pipeline Bracket (`_pipeline.md`)
 
@@ -122,7 +122,7 @@ Before executing the first unchecked task, the agent reads existing source files
 
 1. Parse `plan.md` `## Tasks` (everything between `## Tasks` and the next `##` heading or EOF) for unchecked items (`- [ ]`)
 2. Execute tasks in dependency order
-3. Respect parallel markers `[P]` (semantics unchanged from the legacy `tasks.md` convention)
+3. Respect parallel markers `[P]`
 4. For each unchecked task:
    1. Read source files relevant to this task
    2. Implement per spec, constitution, and extracted patterns
@@ -163,7 +163,7 @@ The single agent's prompt carries **both checklists**:
 #### Validation Checks (plan-conformance, `full` mode only)
 
 The single review agent performs these plan-conformance checks in `full` mode (the tasks-all-`[x]` check is a Precondition, not repeated as a step):
-1. All acceptance items in `plan.md` `## Acceptance` verified and checked off — inspects relevant code/tests per `A-NNN` item (or `CHK-NNN` for in-flight migrated changes), marks `[x]` in place. `fab status refresh` propagates the count to `plan.acceptance_completed`, self-healed at the transition seams; review MAY also call `fab status set-acceptance` for explicit updates
+1. All acceptance items in `plan.md` `## Acceptance` verified and checked off — inspects relevant code/tests per `A-NNN` item, marks `[x]` in place. `fab status refresh` propagates the count to `plan.acceptance_completed`, self-healed at the transition seams; review MAY also call `fab status set-acceptance` for explicit updates
 2. Run tests affected by the change (scoped to modules touched, not the full suite)
 3. Features match the requirements (spot-check key scenarios from `plan.md`'s `## Requirements`)
 4. No memory drift detected (implementation doesn't contradict memory files)

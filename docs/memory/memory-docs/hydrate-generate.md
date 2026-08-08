@@ -27,9 +27,9 @@ description: "`/docs-hydrate-memory` generate mode — codebase scanning, gap de
 
 When multiple arguments are provided, they MUST all resolve to the same mode. Mixed-mode invocations SHALL be rejected with: "Cannot mix ingest sources (URLs, .md files) with generate targets (folders). Run separately."
 
-### No-Args Replaces Usage Error
+### No-Args Enters Generate Mode
 
-When `/docs-hydrate-memory` is invoked with no arguments, it SHALL enter generate mode instead of displaying a usage error. The previous "Usage: /fab-hydrate ..." abort behavior is removed.
+When `/docs-hydrate-memory` is invoked with no arguments, it SHALL enter generate mode (there is no usage-error abort).
 
 ### Codebase Gap Detection
 
