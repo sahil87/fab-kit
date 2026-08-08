@@ -20,7 +20,7 @@ import (
 // (full Sync needs git/yq/direnv/network). Same seam pattern as isBrewInstalled.
 var runSync = Sync
 
-// Sync performs the full workspace sync using the cached kit directory.
+// Sync performs the full workspace sync using the resolved kit directory.
 // systemVersion is the embedded version of the fab-kit binary (feeds the
 // version guard). kitVersion is the kit content version to sync; when empty
 // (the plain `fab sync` path) it is read from fab/.fab-version.
@@ -57,6 +57,15 @@ func Sync(systemVersion, kitVersion string, shimOnly, projectOnly bool) error {
 
 	fabDir := filepath.Join(repoRoot, "fab")
 
+	kitDir, err := ResolveKitDir(fabVersion)
+	if err != nil {
+		return err
+	}
+	overrideActive := os.Getenv(KitPathEnv) != ""
+	if overrideActive {
+		fmt.Printf("kit: %s (%s override)\n", kitDir, KitPathEnv)
+	}
+
 	// Collected (non-aborting) deployment failure — sync continues its
 	// remaining repair steps but MUST exit non-zero at the end.
 	var deployErr error
@@ -67,39 +76,40 @@ func Sync(systemVersion, kitVersion string, shimOnly, projectOnly bool) error {
 			return err
 		}
 
-		// Step 2: Version guard
-		if err := versionGuard(fabVersion, systemVersion); err != nil {
-			return err
+		if !overrideActive {
+			// Step 2: Version guard
+			if err := versionGuard(fabVersion, systemVersion); err != nil {
+				return err
+			}
+
+			// Step 3: Ensure cache
+			fmt.Printf("Resolving kit v%s from cache...\n", fabVersion)
+			if _, err := EnsureCached(fabVersion); err != nil {
+				return err
+			}
+			kitDir = CachedKitDir(fabVersion)
 		}
 
-		// Step 3: Ensure cache
-		fmt.Printf("Resolving kit v%s from cache...\n", fabVersion)
-		if _, err := EnsureCached(fabVersion); err != nil {
-			return err
-		}
-
-		cachedKitDir := CachedKitDir(fabVersion)
-
-		// Step 4: Workspace scaffolding (all from cache)
-		if err := scaffoldDirectories(repoRoot, fabDir, cachedKitDir, fabVersion); err != nil {
+		// Step 4: Workspace scaffolding from the resolved kit.
+		if err := scaffoldDirectories(repoRoot, fabDir, kitDir, fabVersion); err != nil {
 			return fmt.Errorf("scaffolding failed: %w", err)
 		}
 
-		scaffoldDir := filepath.Join(cachedKitDir, "scaffold")
+		scaffoldDir := filepath.Join(kitDir, "scaffold")
 		if dirExists(scaffoldDir) {
 			if err := scaffoldTreeWalk(scaffoldDir, repoRoot); err != nil {
 				return fmt.Errorf("scaffold tree-walk failed: %w", err)
 			}
 		}
 
-		deployErr = deploySkills(repoRoot, cachedKitDir)
+		deployErr = deploySkills(repoRoot, kitDir)
 
 		// No hook registration: fab no longer produces agent-state, so the whole
 		// `fab hook` command family (and hook sync) was removed. Settings-side
 		// cleanup of any lingering `fab hook …` entries is handled by the
 		// 2.13.6-to-2.14.0 migration, not by sync.
 
-		cleanLegacyAgents(repoRoot, cachedKitDir)
+		cleanLegacyAgents(repoRoot, kitDir)
 
 		// Step 5: Direnv allow
 		runDirenvAllow(repoRoot)

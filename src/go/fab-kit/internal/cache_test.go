@@ -127,3 +127,67 @@ func TestCachedKitDir_FallbackToRemote(t *testing.T) {
 		t.Errorf("expected remote kit path, got %s", kit)
 	}
 }
+
+func TestResolveKitDir_EnvironmentOverride(t *testing.T) {
+	parent := t.TempDir()
+	kitDir := filepath.Join(parent, "worktree-kit")
+	if err := os.Mkdir(kitDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(parent)
+	t.Setenv(KitPathEnv, "worktree-kit")
+
+	got, err := ResolveKitDir("0.43.0")
+	if err != nil {
+		t.Fatalf("ResolveKitDir: %v", err)
+	}
+	if got != kitDir {
+		t.Errorf("ResolveKitDir = %q, want %q", got, kitDir)
+	}
+}
+
+func TestResolveKitDir_InvalidEnvironmentOverride(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		path func(*testing.T) string
+	}{
+		{
+			name: "missing",
+			path: func(t *testing.T) string { return filepath.Join(t.TempDir(), "missing") },
+		},
+		{
+			name: "file",
+			path: func(t *testing.T) string {
+				path := filepath.Join(t.TempDir(), "kit-file")
+				if err := os.WriteFile(path, []byte("not a directory"), 0644); err != nil {
+					t.Fatal(err)
+				}
+				return path
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(KitPathEnv, tc.path(t))
+			_, err := ResolveKitDir("0.43.0")
+			if err == nil {
+				t.Fatal("expected invalid override to fail")
+			}
+			if !strings.Contains(err.Error(), KitPathEnv) || !strings.Contains(err.Error(), "not a directory") {
+				t.Errorf("error = %q, want %s not-a-directory error", err, KitPathEnv)
+			}
+		})
+	}
+}
+
+func TestResolveKitDir_UnsetPreservesCacheResolution(t *testing.T) {
+	t.Setenv(KitPathEnv, "")
+	t.Setenv("HOME", t.TempDir())
+
+	got, err := ResolveKitDir("0.43.0")
+	if err != nil {
+		t.Fatalf("ResolveKitDir: %v", err)
+	}
+	if want := CachedKitDir("0.43.0"); got != want {
+		t.Errorf("ResolveKitDir = %q, want cached path %q", got, want)
+	}
+}

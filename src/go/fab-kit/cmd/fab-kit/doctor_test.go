@@ -5,10 +5,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sahil87/fab-kit/src/go/fab-kit/internal"
 	"github.com/spf13/cobra"
 )
 
-func newTestDoctorCmd(porcelain bool) (*cobra.Command, *bytes.Buffer) {
+func newTestDoctorCmd(t *testing.T, porcelain bool) (*cobra.Command, *bytes.Buffer) {
+	t.Helper()
+	t.Setenv(internal.KitPathEnv, "")
 	var buf bytes.Buffer
 	cmd := doctorCmd()
 	cmd.SetOut(&buf)
@@ -20,7 +23,7 @@ func newTestDoctorCmd(porcelain bool) (*cobra.Command, *bytes.Buffer) {
 }
 
 func TestRunDoctorChecks_ReturnsResults(t *testing.T) {
-	cmd, buf := newTestDoctorCmd(false)
+	cmd, buf := newTestDoctorCmd(t, false)
 
 	// Run checks (non-porcelain) — we don't call Execute because it calls os.Exit
 	failures := runDoctorChecks(cmd, false)
@@ -44,7 +47,7 @@ func TestRunDoctorChecks_ReturnsResults(t *testing.T) {
 }
 
 func TestRunDoctorChecks_Porcelain(t *testing.T) {
-	cmd, buf := newTestDoctorCmd(true)
+	cmd, buf := newTestDoctorCmd(t, true)
 
 	failures := runDoctorChecks(cmd, true)
 
@@ -66,6 +69,34 @@ func TestRunDoctorChecks_Porcelain(t *testing.T) {
 	// If there are failures, output should be non-empty
 	if failures > 0 && output == "" {
 		t.Error("porcelain mode with failures should produce output")
+	}
+}
+
+func TestRunDoctorChecks_ReportsEnvironmentOverride(t *testing.T) {
+	cmd, buf := newTestDoctorCmd(t, false)
+	kitDir := t.TempDir()
+	t.Setenv(internal.KitPathEnv, kitDir)
+
+	runDoctorChecks(cmd, false)
+
+	output := buf.String()
+	want := "kit: " + kitDir + " (" + internal.KitPathEnv + " override)"
+	if !strings.Contains(output, want) {
+		t.Errorf("expected override provenance %q, got:\n%s", want, output)
+	}
+	if !strings.Contains(output, "/7 checks passed") {
+		t.Errorf("override provenance must not change the seven-check summary, got:\n%s", output)
+	}
+}
+
+func TestRunDoctorChecks_PorcelainOmitsEnvironmentOverride(t *testing.T) {
+	cmd, buf := newTestDoctorCmd(t, true)
+	t.Setenv(internal.KitPathEnv, t.TempDir())
+
+	runDoctorChecks(cmd, true)
+
+	if strings.Contains(buf.String(), internal.KitPathEnv+" override") {
+		t.Errorf("porcelain output must omit informational override provenance, got:\n%s", buf.String())
 	}
 }
 

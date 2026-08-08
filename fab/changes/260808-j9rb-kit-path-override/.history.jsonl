@@ -1,0 +1,10 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-08T09:51:10Z"}
+{"args":"Implement Change 6 (FAB_KIT_PATH: session-scoped kit-resolution override for kit development) of fab/plans/sahil/config-overhaul.md","cmd":"fab-new","event":"command","ts":"2026-08-08T09:51:10Z"}
+{"delta":"+3.8","event":"confidence","score":3.8,"trigger":"calc-score","ts":"2026-08-08T09:53:21Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-08T09:54:09Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-08T09:54:24Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-08T09:57:26Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-08T10:08:16Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-08T10:14:29Z"}
+{"event":"review","result":"passed","ts":"2026-08-08T10:14:29Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-08T10:21:57Z"}

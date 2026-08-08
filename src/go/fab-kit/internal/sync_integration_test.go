@@ -44,6 +44,7 @@ func prependPrereqShims(t *testing.T) {
 func setupSyncRepo(t *testing.T) string {
 	t.Helper()
 	requireGit(t)
+	t.Setenv(KitPathEnv, "")
 
 	repo := t.TempDir()
 	if out, err := exec.Command("git", "init", repo).CombinedOutput(); err != nil {
@@ -89,6 +90,84 @@ func setupSyncRepo(t *testing.T) string {
 	t.Setenv("FAB_AGENTS", "claude")
 	chdir(t, repo)
 	return repo
+}
+
+func TestSync_EnvironmentOverrideSkipsCacheAndVersionGuard(t *testing.T) {
+	repo := setupSyncRepo(t)
+
+	// Leave only a cached binary: there is no cached kit content to read. A
+	// successful sync therefore proves the override is the content source.
+	home := os.Getenv("HOME")
+	if err := os.RemoveAll(filepath.Join(home, ".fab-kit")); err != nil {
+		t.Fatal(err)
+	}
+	binDir := filepath.Join(home, ".fab-kit", "versions", "9.0.0")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "fab-go"), []byte("#!/bin/sh\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	overrideKit := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(overrideKit, "skills"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(overrideKit, "VERSION"), []byte("unshipped\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(overrideKit, "skills", "override-only.md"), []byte("# override content\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(KitPathEnv, overrideKit)
+
+	var err error
+	out := captureStdout(t, func() {
+		// Without the override, 9.0.0 > 0.1.0 would trip versionGuard.
+		err = Sync("0.1.0", "9.0.0", false, false)
+	})
+	if err != nil {
+		t.Fatalf("Sync with override: %v\noutput:\n%s", err, out)
+	}
+	provenance := "kit: " + overrideKit + " (" + KitPathEnv + " override)"
+	if !strings.Contains(out, provenance) {
+		t.Errorf("expected provenance %q, output:\n%s", provenance, out)
+	}
+	if strings.Contains(out, "Resolving kit v9.0.0 from cache") {
+		t.Errorf("override sync must skip cache resolution, output:\n%s", out)
+	}
+	if _, err := os.Stat(filepath.Join(repo, ".claude", "skills", "override-only", "SKILL.md")); err != nil {
+		t.Errorf("override skill was not deployed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(repo, ".project-sync-ran")); err != nil {
+		t.Errorf("project sync scripts must still run under override: %v", err)
+	}
+}
+
+func TestSync_ProjectOnlyReportsAndValidatesEnvironmentOverride(t *testing.T) {
+	repo := setupSyncRepo(t)
+	overrideKit := t.TempDir()
+	t.Setenv(KitPathEnv, overrideKit)
+
+	var err error
+	out := captureStdout(t, func() { err = Sync("dev", "dev", false, true) })
+	if err != nil {
+		t.Fatalf("Sync --project with override: %v", err)
+	}
+	if !strings.Contains(out, "kit: "+overrideKit+" ("+KitPathEnv+" override)") {
+		t.Errorf("project-only sync did not report override provenance:\n%s", out)
+	}
+	if _, err := os.Stat(filepath.Join(repo, ".project-sync-ran")); err != nil {
+		t.Errorf("project-only sync script did not run: %v", err)
+	}
+
+	if err := os.RemoveAll(overrideKit); err != nil {
+		t.Fatal(err)
+	}
+	err = Sync("dev", "dev", false, true)
+	if err == nil || !strings.Contains(err.Error(), KitPathEnv) {
+		t.Fatalf("invalid project-only override error = %v, want loud %s error", err, KitPathEnv)
+	}
 }
 
 // snapshotTree maps every file under root (excluding .git/) to its content.

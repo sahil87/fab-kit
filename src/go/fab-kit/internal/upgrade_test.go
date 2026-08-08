@@ -53,6 +53,7 @@ func populateRemoteCache(t *testing.T, home, version string) {
 // currentVersion, chdirs into it, and pre-populates the cache for targetVersion.
 func setupUpgradeRepo(t *testing.T, currentVersion, targetVersion string) string {
 	t.Helper()
+	t.Setenv(KitPathEnv, "")
 	repo := t.TempDir()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -242,6 +243,7 @@ func requireGit(t *testing.T) {
 // --- Remaining Upgrade branches (260612-tb6f, F45) ---
 
 func TestUpgrade_MissingKitVersionFileFails(t *testing.T) {
+	t.Setenv(KitPathEnv, "")
 	repo := t.TempDir()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -372,6 +374,7 @@ func TestUpgrade_DiscoveryFailureWarnsWithoutStamp(t *testing.T) {
 }
 
 func TestUpgrade_NoFabVersionInstallPath(t *testing.T) {
+	t.Setenv(KitPathEnv, "")
 	repo := t.TempDir()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -416,6 +419,7 @@ func TestUpgrade_NoFabVersionInstallPath(t *testing.T) {
 // branch must still walk up to locate fab/project/config.yaml and proceed —
 // rather than falsely reporting "not in a fab-managed repo" (Copilot #506).
 func TestUpgrade_NoFabVersionFromSubdirectory(t *testing.T) {
+	t.Setenv(KitPathEnv, "")
 	repo := t.TempDir()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -584,5 +588,24 @@ func TestUpgrade_ExplicitArgIgnoresLatest(t *testing.T) {
 	v, _ := readFabVersion(repo)
 	if v != "2.2.0" {
 		t.Errorf("fab_version = %q, want 2.2.0 (explicit arg wins over --latest)", v)
+	}
+}
+
+func TestUpgrade_RefusesEnvironmentOverrideBeforeRepoResolution(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(KitPathEnv, t.TempDir())
+
+	err := Upgrade("2.3.1", "2.3.1", false)
+	if err == nil {
+		t.Fatal("expected upgrade-repo to refuse the kit override")
+	}
+	for _, want := range []string{KitPathEnv, "unset", "fab upgrade-repo"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want substring %q", err, want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "fab")); !os.IsNotExist(err) {
+		t.Errorf("upgrade-repo mutated the repo before refusal: %v", err)
 	}
 }

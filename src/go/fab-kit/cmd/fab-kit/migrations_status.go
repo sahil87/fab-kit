@@ -59,10 +59,13 @@ func runMigrationsStatus(cmd *cobra.Command, asJSON bool) error {
 	}
 	local := strings.TrimSpace(string(localData))
 
-	// Engine version + migrations dir: from the cached kit for fab_version.
-	// This is a read-only query — resolve the already-cached kit rather than
-	// forcing a download. The kit is present whenever the repo has been synced.
-	kitDir := internal.CachedKitDir(cfg.FabVersion)
+	// Engine version + migrations dir: from the environment override when set,
+	// otherwise from the already-cached kit for fab_version. This read-only
+	// query never forces a download.
+	kitDir, err := internal.ResolveKitDir(cfg.FabVersion)
+	if err != nil {
+		return err
+	}
 	engineData, err := os.ReadFile(filepath.Join(kitDir, "VERSION"))
 	if err != nil {
 		return fmt.Errorf("cannot read engine VERSION at %s: %w. Run 'fab sync' to populate the kit cache", filepath.Join(kitDir, "VERSION"), err)

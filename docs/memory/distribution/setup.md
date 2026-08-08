@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "The /fab-setup skill — structural bootstrap (sync-first order: doctor → config → constitution → fab sync), its subcommand architecture (config, constitution, migrations), delegation to fab-kit sync, and Config Create-Mode (generates config.yaml via fab config init --project with a detected identity seed + test_paths marker detection). Covers the fail-loud scaffold merge and the gitignore-aware .gitignore dedup."
+description: "The /fab-setup skill — structural bootstrap (doctor → config → constitution → fab sync), subcommands, config create-mode, and delegation to fab-kit sync's resolved kit source. Covers the seven-check doctor gate, fail-loud scaffold merge, and gitignore-aware .gitignore dedup."
 ---
 # Setup
 
@@ -8,13 +8,13 @@ description: "The /fab-setup skill — structural bootstrap (sync-first order: d
 
 ## Overview
 
-`/fab-setup` is the structural bootstrap skill that creates the `fab/` directory layout. It also provides subcommands for managing `config.yaml` and `constitution.md` (with built-in validation), and for running version migrations. It delegates structural setup to `fab-kit sync` (which reads kit content from the system cache). It does not handle memory hydration — that responsibility belongs to `/docs-hydrate-memory`.
+`/fab-setup` is the structural bootstrap skill that creates the `fab/` directory layout. It also provides subcommands for managing `config.yaml` and `constitution.md` (with built-in validation), and for running version migrations. It delegates structural setup to `fab-kit sync`, which reads from `FAB_KIT_PATH` when set and otherwise from the version cache. It does not handle memory hydration — that responsibility belongs to `/docs-hydrate-memory`.
 
 ## Requirements
 
 ### Prerequisite Check (Phase 0)
 
-`/fab-setup` (bare bootstrap only) runs `fab doctor` as an early gate before creating any project artifacts. If doctor exits non-zero, setup stops immediately and surfaces the doctor output with fix hints. This gate does not apply to subcommands (`config`, `constitution`, `migrations`).
+`/fab-setup` (bare bootstrap only) runs `fab doctor` as an early gate before creating any project artifacts. If doctor exits non-zero, setup stops immediately and surfaces the doctor output with fix hints. `FAB_KIT_PATH` provenance in normal doctor output is informational and does not alter the seven-check result or gate. This gate does not apply to subcommands (`config`, `constitution`, `migrations`).
 
 ### Structural Bootstrap Only
 
@@ -108,16 +108,16 @@ Each subcommand operates independently — they can be invoked directly without 
 
 ## Delegation Pattern
 
-`/fab-setup` delegates structural setup to `fab-kit sync` (which resolves kit content from the system cache) and adds interactive configuration on top. This means `fab-kit sync` can be run independently (e.g., in CI or after a bootstrap download) without requiring `/fab-setup`.
+`/fab-setup` delegates structural setup to `fab-kit sync` and adds interactive configuration on top. Sync resolves `{kit-dir}` from a validated `FAB_KIT_PATH` when set, otherwise from the local-then-remote version cache. This means `fab-kit sync` can be run independently (e.g., in CI or after a bootstrap download) without requiring `/fab-setup`.
 
 | Responsibility | Owner | Notes |
 |---|---|---|
 | Directories (`changes/`, `memory/`, `specs/`) | `fab-kit sync` | Non-interactive, scriptable |
 | `fab/.kit-migration-version` | `fab-kit sync` | New project → engine version; existing project (has `config.yaml`) → `0.1.0`; existing file → preserved |
-| Skeleton files (`memory/index.md`, `specs/index.md`) | `fab-kit sync` | Copies from `{cache}/kit/scaffold/`; idempotent — skips if file exists |
-| Skill deployment (Claude Code, OpenCode, Codex, Gemini) | `fab-kit sync` | Deploys from `{cache}/kit/skills/`; conditional on agent CLI availability |
-| `.envrc` entries | `fab-kit sync` | Line-ensuring merge from `{cache}/kit/scaffold/fragment-.envrc` |
-| `.gitignore` entries | `fab-kit sync` | Line-ensuring merge from `{cache}/kit/scaffold/fragment-.gitignore` |
+| Skeleton files (`memory/index.md`, `specs/index.md`) | `fab-kit sync` | Copies from `{kit-dir}/scaffold/`; idempotent — skips if file exists |
+| Skill deployment (Claude Code, OpenCode, Codex, Gemini) | `fab-kit sync` | Deploys from `{kit-dir}/skills/`; conditional on agent CLI availability |
+| `.envrc` entries | `fab-kit sync` | Line-ensuring merge from `{kit-dir}/scaffold/fragment-.envrc` |
+| `.gitignore` entries | `fab-kit sync` | Line-ensuring merge from `{kit-dir}/scaffold/fragment-.gitignore` |
 | Hook registration | *(none)* | `fab-kit sync` registers no Claude Code hook and never touches `.claude/settings.local.json` — there is no `fab hook` command family (ioku). Agent-state is read from run-kit's `@rk_agent_state` convention; artifact bookkeeping is pull-based via `fab status refresh` (y022). Cleanup of any lingering hook entries in an existing project is the migrations' job — `2.13.6-to-2.14.0` (the checkout it runs in) and `2.15.7-to-2.15.8` (every worktree, main checkout included — see [migrations.md](/distribution/migrations.md) § `2.15.7-to-2.15.8`) |
 | `config.yaml` | `/fab-setup config` (delegated by `/fab-setup`) | Shells out to `fab config init --project` with the detected identity seed (j0qm) — there is no scaffold `config.yaml` template and no placeholder substitution. Refines the fab-init-seeded live values + adds the description; stub fallback if the binary predates the subcommand |
 | `constitution.md` | `/fab-setup constitution` (delegated by `/fab-setup`) | Reads `scaffold/constitution.md` skeleton, generates principles from project context |
@@ -177,4 +177,3 @@ Each subcommand operates independently — they can be invoked directly without 
 **Why**: Reduces the dropped-ball two-step flow where users had to remember a separate `/fab-update` command after upgrading the kit. Makes migrations discoverable from the same command namespace as config and constitution management.
 **Rejected**: Keeping `/fab-update` as a separate top-level skill — created a discoverability gap and a two-step flow that was easy to forget.
 *Introduced by*: 260216-tk7a-DEV-1037-consolidate-setup-upgrade-flow
-

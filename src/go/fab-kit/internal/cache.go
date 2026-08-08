@@ -8,6 +8,8 @@ import (
 
 // Cache directory names under ~/.fab-kit/
 const (
+	// KitPathEnv names the per-process kit content override.
+	KitPathEnv     = "FAB_KIT_PATH"
 	localCacheDir  = ".fab-kit/local-versions" // populated by `just build`, always takes priority
 	remoteCacheDir = ".fab-kit/versions"       // populated by shim auto-fetch from GitHub releases
 )
@@ -43,6 +45,46 @@ func CachedKitDir(version string) string {
 		return localKit
 	}
 	return filepath.Join(RemoteCacheDir(version), "kit")
+}
+
+// KitPathOverride resolves and validates the per-process kit content override.
+// When absolutization succeeds, the returned path remains available on later
+// validation errors so informational callers such as doctor can report it.
+func KitPathOverride() (dir string, set bool, err error) {
+	raw := os.Getenv(KitPathEnv)
+	if raw == "" {
+		return "", false, nil
+	}
+
+	absolute, err := filepath.Abs(raw)
+	if err != nil {
+		return raw, true, fmt.Errorf("%s is set but %q cannot be made absolute: %w", KitPathEnv, raw, err)
+	}
+	info, err := os.Stat(absolute)
+	if err != nil {
+		return absolute, true, fmt.Errorf("%s is set but %s is not a directory: %w", KitPathEnv, absolute, err)
+	}
+	if !info.IsDir() {
+		return absolute, true, fmt.Errorf("%s is set but %s is not a directory", KitPathEnv, absolute)
+	}
+	return absolute, true, nil
+}
+
+// ResolveKitDir returns the reader-facing kit directory. The environment
+// override wins when active; otherwise cache resolution remains unchanged.
+func ResolveKitDir(version string) (string, error) {
+	if dir, set, err := KitPathOverride(); set || err != nil {
+		return dir, err
+	}
+	return CachedKitDir(version), nil
+}
+
+// RefuseKitPathOverride protects lifecycle commands that stamp release state.
+func RefuseKitPathOverride(command string) error {
+	if os.Getenv(KitPathEnv) == "" {
+		return nil
+	}
+	return fmt.Errorf("%s is set — unset it before running 'fab %s' (the override must not influence version stamping)", KitPathEnv, command)
 }
 
 // ResolveBinary returns the path to the fab-go binary for a version,

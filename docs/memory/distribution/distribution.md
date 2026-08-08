@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "How src/kit/ is distributed — Homebrew formula (fab router + fab-kit direct; wt/idea standalone siblings, no depends_on), always-route policy, fab init bootstrap, fab upgrade-repo (offline-first, --latest opt-in), release workflow, auto-download (timeouts, flock, atomic rename, digest verify), fail-loud exit contracts (exit 3 = not-a-fab-managed-repo), update brew-safety, the shll.ai README/docs-site pull surface, toolkit-standards conformance."
+description: "How src/kit/ is distributed — Homebrew binaries, version caches, the environment-only FAB_KIT_PATH content override, fab init/sync/doctor/upgrade-repo lifecycle contracts, releases, hardened auto-download, fail-loud exit codes, update safety, and the shll.ai documentation and toolkit-standards surfaces."
 ---
 # Distribution
 
@@ -99,20 +99,27 @@ fab init
 ```
 
 `fab init` (a fab-kit subcommand, routed via the `fab` router, not dispatched to fab-go) SHALL:
-1. Verify the CWD is inside a git repository — checked BEFORE any download or config write, so a failed init leaves no stale artifacts behind. Fails with `fab init requires a git repository — run 'git init' first` (non-zero exit, no network fetch, no `fab/` files created)
-2. Resolve the latest release version from GitHub
-3. Ensure the version is cached (verified, atomic download if not — see Auto-Download Hardening above); kit content is served from the system cache, never copied into the repo
-4. Stamp `fab/.fab-version` to `{latest}` (the plain-text sibling — `fab_version` is not a `config.yaml` key) (j0qm)
-5. **Generate `fab/project/config.yaml` from the registry** (j0qm) by shelling out to the pinned fab-go `fab config init --project` with a mechanically-detected identity seed (repo-folder name, `src/`, on-disk test markers) — with an embedded-stub fallback when the pinned fab-go predates the subcommand, so a fresh repo never fails preflight for lack of a config.yaml (see [kit-architecture.md](/distribution/kit-architecture.md) § fab-kit `Init` config generation). Runs before the scaffold walk, preserving the new-vs-existing classification
-6. Stamp `fab/.kit-migration-version` to the engine version (before sync, so a fresh project isn't classified as legacy)
-7. Call `Sync(systemVersion, latest, …)` directly (the same logic as `fab-kit sync`) — the embedded binary version feeds the version guard and the just-resolved kit version is passed explicitly. A sync failure propagates: `fab init` exits non-zero
 
-`fab-kit sync` follows a 6-step pipeline, resolving all kit content from the system cache (`~/.fab-kit/versions/{version}/kit/`) rather than `src/kit/` in the repo: (1) validates prerequisites (`git`, `bash`, `yq` v4+, `direnv`), (2) version guard (ensures `fab_version` <= system `fab-kit` version; when tripped it attempts `fab update` and then verifies post-state — it ALWAYS fails the current run, either with `fab-kit was updated to vX — re-run 'fab sync'` or with actionable too-old/release-lag/unverifiable instructions; see [kit-architecture.md](/distribution/kit-architecture.md)), (3) ensures cache (verified, atomic download if needed), (4) workspace scaffolding from cache (directories, scaffold tree-walk with fragment merges and copy-if-absent, skill deployment to detected agents, hook sync, version stamp, legacy cleanup), (5) direnv allow, (6) project-level `fab/sync/*.sh` scripts. Supports `--shim` (steps 1-5 only) and `--project` (step 6 only) flags; mutually exclusive. **Deployment write failures are fail-loud** (260612-dn2c, F21): failed skill writes are counted per-skill (never as `created`/`repaired`), surfaced as `WARN: {agent}: failed to deploy {skill}: …` on stderr plus a `failed N` figure in the per-agent tally, and make `Sync` return non-nil (no `Done.`) — `fab sync` exits non-zero, the failure signal `/fab-setup` and scripts rely on. Scaffolding write failures (directories, `.gitkeep`s, the `.kit-migration-version` writes — whose silent failure used to silently disable migration discovery — and the kit `VERSION` read) propagate the same way. **Distinguishable "not a fab-managed repo" exit** (52i9): a plain `fab sync` (no explicit `kitVersion`) run outside a fab-managed repo does NOT collapse to that generic exit `1` — it prints `not in a fab-managed repo. Run 'fab init' to set one up` to stderr and exits **`3` (`internal.ExitNotManaged`)** via the shared `RequireManagedRepo()` guard, so callers (`wt`'s default init, `hop`, operator scripts) can branch on "not applicable here" vs. a real sync failure without replicating fab's `config.yaml` walk-up. The managed-repo check gates **before** the git-root resolution, so a non-git, non-fab directory also exits `3` (symmetric with `fab-kit migrations-status`, which shares the same guard) — see [kit-architecture.md](/distribution/kit-architecture.md) § Distinguishable Exit Codes. A genuine sync failure (corrupt config, failed write, version-guard trip) still exits `1`, unchanged; `fab upgrade-repo` outside a managed repo is unaffected and still exits `1`.
+1. Refuse a non-empty `FAB_KIT_PATH` before repository discovery, downloads, config writes, sync, or version stamps; the error names the variable and instructs the caller to unset it
+2. Verify the CWD is inside a git repository — checked before any download or config write, so a failed init leaves no stale artifacts behind. Fails with `fab init requires a git repository — run 'git init' first` (non-zero exit, no network fetch, no `fab/` files created)
+3. Resolve the latest release version from GitHub
+4. Ensure the version is cached (verified, atomic download if not — see Auto-Download Hardening above); kit content is served from the system cache, never copied into the repo
+5. Stamp `fab/.fab-version` to `{latest}` (the plain-text sibling — `fab_version` is not a `config.yaml` key) (j0qm)
+6. **Generate `fab/project/config.yaml` from the registry** (j0qm) by shelling out to the pinned fab-go `fab config init --project` with a mechanically-detected identity seed (repo-folder name, `src/`, on-disk test markers) — with an embedded-stub fallback when the pinned fab-go predates the subcommand, so a fresh repo never fails preflight for lack of a config.yaml (see [kit-architecture.md](/distribution/kit-architecture.md) § fab-kit `Init` config generation). Runs before the scaffold walk, preserving the new-vs-existing classification
+7. Stamp `fab/.kit-migration-version` to the engine version (before sync, so a fresh project isn't classified as legacy)
+8. Call `Sync(systemVersion, latest, …)` directly (the same logic as `fab-kit sync`) — the embedded binary version feeds the version guard and the just-resolved kit version is passed explicitly. A sync failure propagates: `fab init` exits non-zero
+
+`fab-kit sync` resolves kit content through the shared fab-kit reader seam. A non-empty `FAB_KIT_PATH` is absolutized, must name an existing directory, and wins over the version caches; invalid values fail loudly without fallback. Sync prints `kit: <absolute-dir> (FAB_KIT_PATH override)`, skips the version guard and `EnsureCached`, and runs prerequisites, workspace scaffolding, skill deployment, direnv allow, and project scripts against the declared source. Without the override, the 6-step pipeline remains prerequisites, version guard, ensure cache, cached-content scaffolding, direnv, and project scripts. `--shim` and `--project` retain their normal behavior, including override validation and provenance. Deployment and scaffolding writes remain fail-loud. Outside a fab-managed repo, plain sync exits **`3` (`ExitNotManaged`)**; genuine failures exit `1`. See [kit-architecture.md](/distribution/kit-architecture.md) for resolver precedence and the full pipeline.
+
+`fab doctor` keeps its seven-check health contract. When `FAB_KIT_PATH` is non-empty, normal output adds `kit: <absolute-dir> (FAB_KIT_PATH override)` as informational provenance, including for a configured path that reader commands would reject. The line is outside the check list, summary denominator, failure count, and exit-code calculation. `--porcelain` remains errors-only and omits it.
 
 **Scenarios**:
 - Init in a new repo (no `fab/` directory) — `fab/.fab-version` stamped to latest (j0qm); `config.yaml` generated from the registry with the detected identity seed live; `.kit-migration-version` stamped; sync deploys skills from the cache
 - Init in a repo with existing `fab/` but no version pin — `fab/.fab-version` created (j0qm); an existing `config.yaml` is NOT overwritten (`fab config init --project` refuses)
 - Init outside a git repository — exits non-zero immediately with the git-repo error; no network fetch occurs and no `fab/` files are created
+- Init with `FAB_KIT_PATH` set — exits before the git check or any network/cache/project mutation, naming the variable and requiring it to be unset
+- Sync with a valid override — reports the absolute source, performs no cache fetch or version-guard work, and deploys from that source
+- Sync with an invalid override — exits non-zero naming `FAB_KIT_PATH` without using cached content
 - Sync fails during deployment (read-only/full filesystem under `.claude/skills/`) — each failed skill reported on stderr, tally shows `failed N`, `fab sync` exits non-zero (`1`)
 - `fab sync` outside any fab-managed repo (no `fab/project/config.yaml` on any ancestor) — prints the `not in a fab-managed repo` message to stderr and exits `3`, not `1`; holds even when the directory is not inside a git repository (the managed-repo check gates before git-root resolution)
 
@@ -138,7 +145,7 @@ The existing `cp -r` distribution method SHALL continue to work, given the syste
 
 #### `fab upgrade-repo` (Shim Subcommand)
 
-`fab upgrade-repo [version] [--latest]` is a fab-kit subcommand (routed via the `fab` router to `fab-kit`, not dispatched to `fab-go`). It SHALL (ordering per 260612-dn2c, F18 — sync first, stamp after):
+`fab upgrade-repo [version] [--latest]` is a fab-kit subcommand (routed via the `fab` router to `fab-kit`, not dispatched to `fab-go`). A non-empty `FAB_KIT_PATH` is refused before repository discovery, target resolution, cache/network access, sync, config reconciliation, or version stamping. With no override it follows this sequence:
 
 1. Resolve the target version by this precedence — **first match wins** (signature: `Upgrade(systemVersion, targetVersion string, useLatest bool)`):
    - **Explicit `<version>` arg** (e.g., `fab upgrade-repo 0.44.0`) → that version. Wins over everything; `--latest` is ignored when an arg is given (explicit intent beats a discovery flag). Offline.
@@ -157,6 +164,7 @@ The existing `cp -r` distribution method SHALL continue to work, given the syste
 **Failure contract** (enforced): on sync failure the command exits non-zero with `sync failed: … — run 'fab sync' to repair, then re-run 'fab upgrade-repo'`, never prints `Updated: x -> y`, and leaves `config.yaml` on the old version — so a re-run of `fab upgrade-repo` retries the upgrade instead of short-circuiting the broken state on "Already on the latest version".
 
 **Scenarios**:
+- Override active — exits immediately with an unset-first error naming `FAB_KIT_PATH` and `fab upgrade-repo`; cache and project state remain untouched
 - Default no-arg upgrade (binary stamped `2.3.1`) — resolves the target to `2.3.1` **offline** (the binary's own `systemVersion`); `LatestVersion()` / the GitHub API is never called; then downloads-if-uncached, syncs, and stamps. This is the common path after a `brew upgrade fab-kit`
 - `fab upgrade-repo --latest` — resolves via `LatestVersion()` (GitHub `releases/latest`), downloads new version to cache, runs sync (skills deployed from the new cache), then stamps `fab/.fab-version`, displays "Updated: 0.43.0 → 0.44.0"
 - Upgrade to specific version (`fab upgrade-repo 0.42.1`) — resolves to the arg offline (no API call), downloads to cache, syncs, then stamps `fab/.fab-version`
