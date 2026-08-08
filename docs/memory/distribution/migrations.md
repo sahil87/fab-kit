@@ -214,6 +214,17 @@ New projects get this line from the scaffold; the migration surfaces it to proje
 - **Live keys only, sentinel-guarded, idempotent.** A target key must be a live YAML key (commented lines are not targets), and a `model:`/`effort:` under `providers.<name>.profiles.<role>:` is the NEW shape, not a target. When neither file carries a target key the migration skips entirely, so re-running is a complete no-op. Pure YAML editing: no `.status.yaml` change, no binary capability pre-check, and no commit (the project config is committed by the user in their own change; the system config is not in git).
 - **Version bump.** `src/kit/VERSION` is bumped `2.16.19` → `2.17.0` — a **minor** (a config-schema change plus the new `agent.session`/`agent.workers` keys). FROM is the real current released VERSION per the chaining precedent; the slot was re-numbered from `2.16.18-to-2.17.0` when v2.16.19 released mid-implementation, exactly as the `2.11.0-to-2.12.0` slot note prescribes.
 
+### `2.17.2-to-2.18.0` Dispatch-Mode Migration
+
+`src/kit/migrations/2.17.2-to-2.18.0.md` migrates the retired `dispatch.watchable` boolean in both `fab/project/config.yaml` and `~/.fab-kit/config.yaml`:
+
+- Only live keys outside the managed reference fence are candidates.
+- `watchable: true` becomes `mode: pane`; `watchable: false` is removed; an absent key remains absent so the built-in `native` default applies.
+- When both spellings are live, the explicit `mode` value wins and the legacy key is removed.
+- Unrelated values/comments are preserved and writes are atomic and idempotent.
+- The runtime has no read-time alias for `watchable`, so migration is the sole compatibility bridge.
+- `src/kit/VERSION` advances from `2.17.2` to `2.18.0`.
+
 ### Version Drift Detection
 
 - **`fab upgrade-repo`**: after sync, runs `DiscoverMigrations` against the target version's cached `migrations/` dir and the current `fab/.kit-migration-version` (mechanical relevance check, not string inequality). Three terminal cases:

@@ -17,8 +17,8 @@ import (
 // that needs to restart may have lost the multi-thousand-token block prompt to
 // compaction. Everything else is `start`'s — the same flags with the same
 // exclusions, the same mode-selection ladder AND the same pane-shape decision
-// (both re-derived from the CURRENT environment — so restarting an orphaned pane
-// dispatch after a tmux server death correctly soft-falls-back to headless, and a
+// (both re-derived from current config/capabilities/environment — so restarting an orphaned pane
+// dispatch after a tmux server death correctly descends again, and a
 // restart issued from inside a tmux pane splits THAT pane's window even if the
 // original attempt opened a window), the same record-keyed COLUMN PLACEMENT (a
 // relaunched worker stacks under the newest live recorded sibling, or carves a
@@ -34,14 +34,15 @@ func dispatchRestartCmd() *cobra.Command {
 	var f *launchFlags
 	cmd := &cobra.Command{
 		Use:   "restart <change> <stage>",
-		Short: "Relaunch a non-running dispatch from its persisted prompt — same flags and mode ladder as start",
+		Short: "Relaunch a non-running dispatch from its persisted prompt using start's dispatch.mode descent ladder",
 		Long: "Relaunch a stage worker from the prompt `fab dispatch start` persisted at\n" +
 			".fab-dispatch/{id}/{stage}-prompt.md, so the caller does not need the block prompt\n" +
 			"in context. Refuses a genuinely running dispatch (kill it first); overwrites a\n" +
 			"completed/failed/orphaned one. The launch mode is re-derived from the CURRENT\n" +
-			"environment by the same ladder `start` uses — the prior attempt's mode is not\n" +
-			"inherited — so a restart after a tmux server death lands headless.",
-		Example: `  # Recover an orphaned dispatch (mode auto-resolves from the environment)
+			"environment by the same pane → native → headless ladder `start` uses — the prior\n" +
+			"attempt's mode is not inherited. A native result tells the caller to re-resolve,\n" +
+			"because fab dispatch cannot launch the native Agent-tool adapter.",
+		Example: `  # Recover an orphaned dispatch (mode re-resolves from config and environment)
   fab dispatch restart b91h apply
 
   # Force the relaunched worker headless even inside tmux
@@ -51,11 +52,7 @@ func dispatchRestartCmd() *cobra.Command {
   fab dispatch restart b91h review --pane`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			mode, reason, target, err := f.resolveMode(cmd)
-			if err != nil {
-				return err
-			}
-			return runDispatchLaunch(cmd, args[0], args[1], f.timeout, mode, reason, f.server, target, promptFromStateDir)
+			return runDispatchLaunch(cmd, args[0], args[1], f, promptFromStateDir)
 		},
 	}
 	f = addLaunchFlags(cmd)

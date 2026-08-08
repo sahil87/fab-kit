@@ -365,6 +365,9 @@ func TestRender_BHygieneFlagsEqualsDefault(t *testing.T) {
 		if prov.DispatchCommand != "" {
 			src += "        dispatch_command: '" + prov.DispatchCommand + "'\n"
 		}
+		if prov.Native {
+			src += "        native: true\n"
+		}
 		if len(prov.Profiles) == 0 {
 			continue
 		}
@@ -465,32 +468,32 @@ func TestUpgrade_RefusesUnparseableOutput(t *testing.T) {
 	}
 }
 
-// TestRender_FenceAdvertisesDispatchWatchable: the `dispatch.watchable` key (the
-// watchable-pane opt-in) is an advertised C field, so an un-overridden project gets
+// TestRender_FenceAdvertisesDispatchMode: the `dispatch.mode` preference is an
+// advertised C field, so an un-overridden project gets
 // it scaffolded — fully commented — into the managed fence, and a project that HAS
 // set it keeps its live block with no fence duplicate (presence=intent). Runs over
 // the SHIPPED registry: this is the guard that the new row actually reaches every
 // user's config.yaml on the next `fab config upgrade`.
-func TestRender_FenceAdvertisesDispatchWatchable(t *testing.T) {
+func TestRender_FenceAdvertisesDispatchMode(t *testing.T) {
 	fields := fieldsForTest(t)
 
 	// Un-overridden: scaffolded into the fence, commented.
 	out, _ := render("project:\n    name: t\n", fields, "2.15.0")
 	_, fenceBody, _ := sliceFence(t, out)
-	if !strings.Contains(fenceBody, "# dispatch.watchable") {
-		t.Errorf("fence must advertise the un-overridden dispatch.watchable field.\n--- fence ---\n%s", fenceBody)
+	if !strings.Contains(fenceBody, "# dispatch.mode") {
+		t.Errorf("fence must advertise the un-overridden dispatch.mode field.\n--- fence ---\n%s", fenceBody)
 	}
 	if strings.Contains(fenceBody, "\ndispatch:") {
 		t.Error("fence must not carry a LIVE dispatch: parent key (must be commented)")
 	}
 
 	// Overridden: the live block survives verbatim and is NOT re-advertised.
-	out2, _ := render("dispatch:\n    watchable: true\n", fields, "2.15.0")
-	if !strings.Contains(out2, "watchable: true") {
+	out2, _ := render("dispatch:\n    mode: pane\n", fields, "2.15.0")
+	if !strings.Contains(out2, "mode: pane") {
 		t.Errorf("a live dispatch override must be preserved verbatim.\n--- got ---\n%s", out2)
 	}
 	_, fenceBody2, _ := sliceFence(t, out2)
-	if strings.Contains(fenceBody2, "dispatch.watchable") {
+	if strings.Contains(fenceBody2, "dispatch.mode") {
 		t.Errorf("fence must omit the already-overridden dispatch field.\n--- fence ---\n%s", fenceBody2)
 	}
 }

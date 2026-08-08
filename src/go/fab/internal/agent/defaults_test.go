@@ -111,14 +111,21 @@ func TestDefaultsFileProviders(t *testing.T) {
 		}
 	}
 
-	// claude's ABSENT dispatch_command is what selects native Agent-tool dispatch;
-	// codex/gemini carry one, which is what flips their roles to CLI dispatch.
-	if got := cfg.Providers[DefaultProviderName].DispatchCommand; got != "" {
-		t.Errorf("defaults.yaml providers.%s.dispatch_command = %q, want absent — its absence is the native-dispatch signal", DefaultProviderName, got)
+	// Capabilities are explicit data: claude supports native plus both command
+	// forms; codex/gemini support the command forms but not native dispatch.
+	claude := cfg.Providers[DefaultProviderName]
+	if !claude.Native {
+		t.Errorf("defaults.yaml providers.%s.native = false, want true", DefaultProviderName)
+	}
+	if claude.DispatchCommand == "" {
+		t.Errorf("defaults.yaml providers.%s has no dispatch_command", DefaultProviderName)
 	}
 	for _, name := range []string{providerCodex, providerGemini} {
 		if cfg.Providers[name].DispatchCommand == "" {
-			t.Errorf("defaults.yaml providers.%s has no dispatch_command — pointing a role at it must select CLI dispatch", name)
+			t.Errorf("defaults.yaml providers.%s has no dispatch_command", name)
+		}
+		if cfg.Providers[name].Native {
+			t.Errorf("defaults.yaml providers.%s.native = true, want false", name)
 		}
 	}
 
@@ -187,7 +194,7 @@ func TestPackageTablesMatchDefaultsFile(t *testing.T) {
 			continue
 		}
 		// The resolved Profiles map is a defensive copy, so compare by value.
-		if got.SessionCommand != want.SessionCommand || got.DispatchCommand != want.DispatchCommand ||
+		if got.SessionCommand != want.SessionCommand || got.DispatchCommand != want.DispatchCommand || got.Native != want.Native ||
 			got.Model != want.Model || got.Effort != want.Effort ||
 			!reflect.DeepEqual(got.Profiles, want.Profiles) {
 			t.Errorf("ResolveProvider(nil, %q) = %+v, defaults.yaml says %+v", name, got, want)
@@ -200,6 +207,7 @@ func TestPackageTablesMatchDefaultsFile(t *testing.T) {
 		want string
 	}{
 		{"DefaultSessionCommand", DefaultSessionCommand, cfg.Providers[DefaultProviderName].SessionCommand},
+		{"DefaultDispatchCommand", DefaultDispatchCommand, cfg.Providers[DefaultProviderName].DispatchCommand},
 		{"DefaultCodexSessionCommand", DefaultCodexSessionCommand, cfg.Providers[providerCodex].SessionCommand},
 		{"DefaultCodexDispatchCommand", DefaultCodexDispatchCommand, cfg.Providers[providerCodex].DispatchCommand},
 		{"DefaultGeminiSessionCommand", DefaultGeminiSessionCommand, cfg.Providers[providerGemini].SessionCommand},

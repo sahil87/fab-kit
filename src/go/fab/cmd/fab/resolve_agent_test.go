@@ -270,10 +270,10 @@ func TestResolveAgentAliasEmptyModelInheritSignal(t *testing.T) {
 	}
 }
 
-// TestResolveAgentNoDispatchThreeLines: a config whose resolved provider has no
-// dispatch_command emits exactly model=/effort=/provider= (no dispatch= line) —
-// the "absence signals native dispatch" guard.
-func TestResolveAgentNoDispatchThreeLines(t *testing.T) {
+// TestResolveAgentNativeThreeLines: native selection emits exactly
+// model=/effort=/provider=. The provider may also carry command capabilities;
+// mode selection, not command absence, decides whether dispatch= is emitted.
+func TestResolveAgentNativeThreeLines(t *testing.T) {
 	resolveAgentTestRepo(t, `providers:
   claude:
     session_command: claude --dangerously-skip-permissions
@@ -284,7 +284,7 @@ func TestResolveAgentNoDispatchThreeLines(t *testing.T) {
 	}
 	want := wantRoleBytes(t, agent.RoleDoing)
 	if out != want {
-		t.Errorf("output = %q, want the three-line contract (no dispatch= — session_command is NOT a fallback)", out)
+		t.Errorf("output = %q, want the three-line native-selection contract", out)
 	}
 }
 
@@ -522,9 +522,9 @@ func TestResolveAgentOverrideAliasKeepsNonClaudeVerbatim(t *testing.T) {
 	}
 }
 
-// TestResolveAgentOverrideDispatchDisappearsOnNativeSwap: swapping TO a provider
-// with no dispatch_command drops the dispatch= line — the QUERY reports the named
-// provider's dispatch_command (or its absence), which is all this assertion covers.
+// TestResolveAgentOverrideDispatchDisappearsOnNativeSwap: swapping TO a
+// native-capable provider drops the dispatch= line even when that provider also
+// has a dispatch_command. The QUERY reports the selected execution mode.
 // It is NOT an adapter move: `fab dispatch start` takes no override flags and
 // re-resolves the stage from config, so only a config/role override relocates a
 // stage between native Agent-tool dispatch and CLI dispatch.
@@ -542,14 +542,14 @@ func TestResolveAgentOverrideDispatchDisappearsOnNativeSwap(t *testing.T) {
 		t.Fatalf("baseline output = %q, want a dispatch= line", out)
 	}
 
-	// Swapping to claude (no built-in dispatch_command) drops it.
+	// Swapping to native-capable claude drops it.
 	out, err = runResolveAgentCmd(t, "apply", "--provider", "claude", "--model", "claude-opus-5", "--effort", "xhigh")
 	if err != nil {
 		t.Fatalf("resolve-agent apply --provider claude: %v", err)
 	}
 	want := "model=claude-opus-5\neffort=xhigh\nprovider=claude\n"
 	if out != want {
-		t.Errorf("output = %q, want %q (no dispatch= — native Agent-tool dispatch)", out, want)
+		t.Errorf("output = %q, want %q (no dispatch= in native mode)", out, want)
 	}
 }
 
@@ -736,63 +736,51 @@ agent:
 }
 
 // ---------------------------------------------------------------------------
-// dispatch.watchable — the watchable-pane opt-in (tmux presence decides pane vs
-// native for a session_command-only provider).
+// dispatch.mode — capability descent at the resolver seam.
 // ---------------------------------------------------------------------------
 
-// TestDispatchLineFor_Matrix is the full emission matrix over the PURE helper: the
-// provider's two command fields × the opt-in × $TMUX. It pins the precedence (a
-// dispatch_command always wins), the three-way AND the watchable trigger requires,
-// and the unknown-provider short-circuit.
 func TestDispatchLineFor_Matrix(t *testing.T) {
 	const sess = "claude -n {model}"
 	const disp = "codex exec -m {model}"
 
 	tests := []struct {
-		name      string
-		prov      config.ProviderConfig
-		known     bool
-		watchable bool
-		tmux      string
-		want      string
+		name       string
+		prov       config.ProviderConfig
+		preference string
+		tmux       string
+		want       string
+		wantErr    bool
 	}{
-		// Trigger 1 — a dispatch_command wins in every combination.
-		{"dispatch_command, watchable off, no tmux", config.ProviderConfig{SessionCommand: sess, DispatchCommand: disp}, true, false, "", disp},
-		{"dispatch_command, watchable off, in tmux", config.ProviderConfig{SessionCommand: sess, DispatchCommand: disp}, true, false, "/tmp/tmux-1000/default,1,0", disp},
-		{"dispatch_command, watchable on, in tmux", config.ProviderConfig{SessionCommand: sess, DispatchCommand: disp}, true, true, "/tmp/tmux-1000/default,1,0", disp},
-		{"dispatch_command only (no session), watchable on, in tmux", config.ProviderConfig{DispatchCommand: disp}, true, true, "/tmp/tmux-1000/default,1,0", disp},
-
-		// Trigger 2 — session_command-only provider needs ALL of watchable + $TMUX.
-		{"session only, watchable off, no tmux", config.ProviderConfig{SessionCommand: sess}, true, false, "", ""},
-		{"session only, watchable off, in tmux", config.ProviderConfig{SessionCommand: sess}, true, false, "/tmp/tmux-1000/default,1,0", ""},
-		// An EMPTY $TMUX reads as unset — Go cannot distinguish the two and tmux
-		// never exports an empty value (the SelectMode reading).
-		{"session only, watchable on, no tmux", config.ProviderConfig{SessionCommand: sess}, true, true, "", ""},
-		{"session only, watchable on, in tmux ⇒ session_command", config.ProviderConfig{SessionCommand: sess}, true, true, "/tmp/tmux-1000/default,1,0", sess},
-
-		// Neither field: nothing to emit, opt-in or not.
-		{"no commands, watchable on, in tmux", config.ProviderConfig{}, true, true, "/tmp/tmux-1000/default,1,0", ""},
-
-		// An unknown provider short-circuits before either trigger.
-		{"unknown provider, watchable on, in tmux", config.ProviderConfig{SessionCommand: sess}, false, true, "/tmp/tmux-1000/default,1,0", ""},
-		{"unknown provider with dispatch_command", config.ProviderConfig{DispatchCommand: disp}, false, false, "", ""},
+		{"pane direct", config.ProviderConfig{SessionCommand: sess, DispatchCommand: disp, Native: true}, "pane", "/tmp/tmux-1000/default,1,0", sess, false},
+		{"pane descends native outside tmux", config.ProviderConfig{SessionCommand: sess, DispatchCommand: disp, Native: true}, "pane", "", "", false},
+		{"pane descends headless outside tmux", config.ProviderConfig{SessionCommand: sess, DispatchCommand: disp}, "pane", "", disp, false},
+		{"native direct", config.ProviderConfig{DispatchCommand: disp, Native: true}, "native", "", "", false},
+		{"native descends headless", config.ProviderConfig{SessionCommand: sess, DispatchCommand: disp}, "native", "/tmp/tmux-1000/default,1,0", disp, false},
+		{"headless never ascends", config.ProviderConfig{SessionCommand: sess, Native: true}, "headless", "/tmp/tmux-1000/default,1,0", "", true},
+		{"no capabilities", config.ProviderConfig{}, "pane", "", "", true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := dispatchLineFor(tc.prov, tc.known, tc.watchable, tc.tmux); got != tc.want {
+			got, err := dispatchLineFor(tc.prov, tc.preference, tc.tmux)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected no-rung error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("dispatchLineFor: %v", err)
+			}
+			if got != tc.want {
 				t.Errorf("dispatchLineFor = %q, want %q", got, tc.want)
 			}
 		})
 	}
 }
 
-// TestResolveAgentWatchableEmitsSessionCommandInTmux: end-to-end, `dispatch.watchable:
-// true` inside tmux makes the built-in claude provider (session_command only, NO
-// dispatch_command) emit a dispatch= line carrying the PROFILE-SUBSTITUTED
-// session_command — the watchable pane opt-in.
-func TestResolveAgentWatchableEmitsSessionCommandInTmux(t *testing.T) {
+func TestResolveAgentPaneEmitsSessionCommandInTmux(t *testing.T) {
 	resolveAgentTestRepo(t, `dispatch:
-  watchable: true
+  mode: pane
 providers:
   claude:
     session_command: "claude -n {model} --effort {effort}"
@@ -807,16 +795,13 @@ providers:
 	want := "model=" + doingModel + "\neffort=high\nprovider=claude\n" +
 		"dispatch=claude -n " + doingModel + " --effort high\n"
 	if out != want {
-		t.Errorf("output = %q, want %q (watchable + $TMUX ⇒ dispatch= from session_command)", out, want)
+		t.Errorf("output = %q, want %q (pane + $TMUX ⇒ session_command)", out, want)
 	}
 }
 
-// TestResolveAgentWatchableOmitsLineOutsideTmux: with the SAME config but $TMUX
-// unset, the line is omitted — the stage stays on NATIVE Agent-tool dispatch (not
-// headless CLI). tmux presence is what decides pane-vs-native.
-func TestResolveAgentWatchableOmitsLineOutsideTmux(t *testing.T) {
+func TestResolveAgentPaneDescendsNativeOutsideTmux(t *testing.T) {
 	resolveAgentTestRepo(t, `dispatch:
-  watchable: true
+  mode: pane
 providers:
   claude:
     session_command: "claude -n {model} --effort {effort}"
@@ -832,13 +817,8 @@ providers:
 	}
 }
 
-// TestResolveAgentWatchableOffInTmuxOmitsLine: the DEFAULT (opt-in absent) is
-// byte-stable even inside tmux — the whole point of defaulting to false.
-func TestResolveAgentWatchableOffInTmuxOmitsLine(t *testing.T) {
-	resolveAgentTestRepo(t, `providers:
-  claude:
-    session_command: "claude -n {model} --effort {effort}"
-`)
+func TestResolveAgentDefaultNativeIsByteStableInTmux(t *testing.T) {
+	resolveAgentTestRepo(t, "project:\n  name: test\n")
 	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
 
 	out, err := runResolveAgentCmd(t, "apply")
@@ -847,45 +827,26 @@ func TestResolveAgentWatchableOffInTmuxOmitsLine(t *testing.T) {
 	}
 	want := wantRoleBytes(t, agent.RoleDoing)
 	if out != want {
-		t.Errorf("output = %q, want the three-line contract %q (watchable defaults to false)", out, want)
+		t.Errorf("output = %q, want default-native bytes %q", out, want)
 	}
 }
 
-// TestResolveAgentWatchableDispatchCommandPrecedence: a provider that DOES carry a
-// dispatch_command emits that command, not its session_command, even with the
-// opt-in on inside tmux. Watchable only ADDS eligibility; it never rewrites an
-// existing CLI-dispatch opt-in.
-func TestResolveAgentWatchableDispatchCommandPrecedence(t *testing.T) {
-	resolveAgentTestRepo(t, `dispatch:
-  watchable: true
-providers:
-  codex:
-    session_command: "codex -m {model}"
-    dispatch_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
-agent:
-  profiles:
-`+pinnedRoleLine(t, agent.RoleDoing, "codex"))
+func TestResolveAgentDefaultNativeDescendsHeadlessForCodex(t *testing.T) {
+	resolveAgentTestRepo(t, "agent:\n  workers: codex\n")
 	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
 
 	out, err := runResolveAgentCmd(t, "apply")
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	doingModel := wantRoleModel(t, agent.RoleDoing)
-	want := "model=" + doingModel + "\neffort=high\nprovider=codex\n" +
-		"dispatch=codex exec -m " + doingModel + " -c model_reasoning_effort=high\n"
-	if out != want {
-		t.Errorf("output = %q, want the dispatch_command %q (dispatch_command wins over watchable)", out, want)
+	if !strings.Contains(out, "provider=codex\n") || !strings.Contains(out, "dispatch="+agent.DefaultCodexDispatchCommand[:10]) {
+		t.Errorf("output = %q, want codex headless resolution", out)
 	}
 }
 
-// TestResolveAgentWatchableAliasKeepsFullModelIDInDispatch: --alias aliases the
-// model= line while the watchable dispatch= line still embeds the FULL model ID —
-// the same rule the dispatch_command path follows (the flag's behavior is
-// unaffected by the new trigger).
-func TestResolveAgentWatchableAliasKeepsFullModelIDInDispatch(t *testing.T) {
+func TestResolveAgentPaneAliasKeepsFullModelIDInDispatch(t *testing.T) {
 	resolveAgentTestRepo(t, `dispatch:
-  watchable: true
+  mode: pane
 providers:
   claude:
     session_command: "claude -n {model} --effort {effort}"
@@ -904,18 +865,14 @@ providers:
 	}
 }
 
-// TestResolveAgentWatchableFromSystemConfig: dispatch.watchable is scope `both`, so
-// setting it ONCE in ~/.fab-kit/config.yaml applies to a repo whose project config
-// never mentions it — the machine-wide-opt-in requirement. (Cascade pruning would
-// silently drop a project-scoped key here; this is the guard that it is not.)
-func TestResolveAgentWatchableFromSystemConfig(t *testing.T) {
+func TestResolveAgentModeFromSystemConfig(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	sysDir := filepath.Join(home, ".fab-kit")
 	if err := os.MkdirAll(sysDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"), []byte("dispatch:\n  watchable: true\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"), []byte("dispatch:\n  mode: pane\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// resolveAgentTestRepo chdirs but does not touch HOME, so the t.Setenv stands.
@@ -935,28 +892,22 @@ providers:
 	want := "model=" + doingModel + "\neffort=high\nprovider=claude\n" +
 		"dispatch=claude -n " + doingModel + " --effort high\n"
 	if out != want {
-		t.Errorf("output = %q, want %q (dispatch.watchable is scope `both` — honored from the system layer)", out, want)
+		t.Errorf("output = %q, want %q (dispatch.mode is scope both)", out, want)
 	}
 }
 
-// TestResolveAgentWatchableProjectOverridesSystem: the project layer wins over the
-// system layer for a `both`-scoped field — a machine-wide `true` is switchable off
-// per repo.
-func TestResolveAgentWatchableProjectOverridesSystem(t *testing.T) {
+func TestResolveAgentModeProjectOverridesSystem(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	sysDir := filepath.Join(home, ".fab-kit")
 	if err := os.MkdirAll(sysDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"), []byte("dispatch:\n  watchable: true\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"), []byte("dispatch:\n  mode: pane\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	resolveAgentTestRepo(t, `dispatch:
-  watchable: false
-providers:
-  claude:
-    session_command: "claude -n {model} --effort {effort}"
+  mode: native
 `)
 	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
 
@@ -966,6 +917,25 @@ providers:
 	}
 	want := wantRoleBytes(t, agent.RoleDoing)
 	if out != want {
-		t.Errorf("output = %q, want the three-line contract %q (project `false` must beat system `true`)", out, want)
+		t.Errorf("output = %q, want %q (project native beats system pane)", out, want)
+	}
+}
+
+func TestResolveAgentNoCapabilityErrors(t *testing.T) {
+	resolveAgentTestRepo(t, "agent:\n  workers: void\nproviders:\n  void: {}\n")
+	_, err := runResolveAgentCmd(t, "apply")
+	if err == nil || !strings.Contains(err.Error(), `provider "void" has no dispatch capability`) {
+		t.Fatalf("error = %v, want actionable no-capability error", err)
+	}
+
+	resolveAgentTestRepo(t, "agent:\n  workers: missing\n")
+	_, err = runResolveAgentCmd(t, "apply")
+	if err == nil || !strings.Contains(err.Error(), `provider "missing" has no dispatch capability`) {
+		t.Fatalf("unknown depth provider error = %v", err)
+	}
+
+	_, err = runResolveAgentCmd(t, "apply", "--provider", "missing")
+	if err == nil || !strings.Contains(err.Error(), "unknown provider") {
+		t.Fatalf("explicit unknown provider must retain lookup error, got %v", err)
 	}
 }

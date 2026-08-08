@@ -82,14 +82,14 @@ resolver consumes; distinguishing an empty list from an empty map from an empty 
 Go-side implementation detail that carries no cascade meaning and would make `--json` emit
 `null`/`[]`/`{}`/`""` inconsistently for the same "no default" concept. So a **non-null** `default`
 always denotes a real built-in value (today: the `providers` row's **three built-in providers** —
-claude/codex/gemini, `260805-j3cm`, each with its per-role fills — the resolved `agent.profiles` defaults, the two depth knobs' `claude`, `dispatch.watchable`'s
-`false`, `dispatch.column_width`'s `35`, and `dispatch.reap_done`'s `true`); every other row is `null`.
+claude/codex/gemini, each with its capability grammar and per-role fills — the resolved
+`agent.profiles` defaults, the two depth knobs' `claude`, `dispatch.mode`'s `native`,
+`dispatch.column_width`'s `35`, and `dispatch.reap_done`'s `true`); every other row is `null`.
 **The three `dispatch` rows are
-the convention's boundary cases and are deliberately not `null`**: for a **bool** there is no "absent"
-state distinguishable from `false`, and for the width an absent YAML int is indistinguishable from `0`
-(which the accessor therefore reads as unset, alongside every other out-of-`1..99` value), so each
-carries a real built-in value the cascade genuinely bottoms out at — not the typed-empty placeholder
-the convention forbids (the forbidden shapes are the ones that could stand in for "nothing").
+the convention's boundary cases and are deliberately not `null`**: mode is a real string default,
+`native`; for width an absent YAML int is indistinguishable from `0` (which the accessor reads as
+unset, alongside every other out-of-`1..99` value); and reap has a real `true` default. Each carries a
+built-in value the cascade genuinely bottoms out at, not a typed-empty placeholder.
 `dispatch.reap_done` is the sharpest of the three and the one that forced a **struct-level** answer as
 well as a registry one: its built-in default is **`true`**, so the Go zero value means the *opposite* of
 the default, and a plain `bool` would have made an absent key indistinguishable from an explicit
@@ -123,7 +123,7 @@ The existing reference tests assert those blocks verbatim; the restructure prese
 **Several rows under one YAML block share a single segment.** Where two or more override units live
 under the same top-level key, the segment belongs to the *first* of them and documents them all; the
 rest carry an **empty** segment (`project.name` owns the `project:` block for `project.description` and
-`project.linear_workspace`; `dispatch.watchable` owns the `dispatch:` block for
+`project.linear_workspace`; `dispatch.mode` owns the `dispatch:` block for
 `dispatch.column_width` **and** `dispatch.reap_done`). This is not an optimisation but a correctness requirement: the reference and
 the managed fence render these blocks **commented**, with the documented instruction to uncomment a
 whole block, so two separately-uncommentable `# dispatch:` parents would collide into a duplicate YAML
@@ -141,16 +141,16 @@ teammates and CI.
 
 | scope | Meaning | Fields |
 |-------|---------|--------|
-| `both` | Overridable in either the project or the system layer (preference-class). | `agent.session`, `agent.workers`, `agent.profiles`, `providers`, `dispatch.watchable`, `dispatch.column_width`, `dispatch.reap_done` |
+| `both` | Overridable in either the project or the system layer (preference-class). | `agent.session`, `agent.workers`, `agent.profiles`, `providers`, `dispatch.mode`, `dispatch.column_width`, `dispatch.reap_done` |
 | `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `consolidate.detectors`, and (conservative default) `stage_hooks`, `branch_prefix` |
 | `system` | Overridable only in the system layer. | *(none today; the value exists for completeness and [Change 2])* |
 
 Fields the decision-6 taxonomy does not enumerate (`stage_hooks`, `branch_prefix`) default to `project`
 — the conservative choice, since system-visibility is opt-in per the same rationale. `dispatch`
-(`dispatch.watchable`, the watchable-pane opt-in; `dispatch.column_width`, the pane-worker column's
+(`dispatch.mode`, the pane/native/headless preference ceiling; `dispatch.column_width`, the pane-worker column's
 width; `dispatch.reap_done`, whether a finished worker's pane is reclaimed) is `both` by the same
 reasoning that puts `agent`/`providers` there: all three keys express how the
-**operator** prefers to watch stage workers on **this machine** — whether in a pane at all, how
+**operator** prefers to launch and observe stage workers on **this machine** — the adapter ceiling, how
 much of the window that pane takes, and whether a done worker's pane lingers — not what the repo's
 pipeline means, so they must be settable once
 machine-wide. (`fab_version` was
@@ -166,6 +166,18 @@ scope enum and the key→scope taxonomy are single-sourced in the leaf package `
 (consumed cycle-free by both the loader `internal/config` and the registry `internal/configref`, which
 cannot import each other), so the taxonomy has exactly one definition. Re-classifying a field is still a
 one-line data change (in `internal/configscope`).
+
+### Dispatch preference and capability data
+
+`dispatch.mode` accepts exactly `pane`, `native`, or `headless`; absent and invalid values resolve to
+the canonical `native` default, with invalid input producing a `fab: warning:` diagnostic. It is a
+preference ceiling: automatic resolution descends only through `pane → native → headless`. Provider
+fields are independent capabilities—`session_command` for pane, `native: true` for the Agent-tool
+adapter, `dispatch_command` for headless—and their presence never chooses policy. Claude ships all
+three; codex/gemini ship pane/headless grammar without native capability. The
+`2.17.2-to-2.18.0` migration rewrites live `dispatch.watchable: true` to `mode: pane`, removes live
+`watchable: false`, sweeps project and system config, and leaves commented/fence content untouched.
+There is no binary read-time alias; an unmigrated legacy key is inert.
 
 ---
 
@@ -202,7 +214,7 @@ model, at [Change 3]'s `fab config upgrade` time, every field is one of:
   managed fence, so the user can discover and opt in.
 
 `advertise: true` marks the C-eligible fields — the optional override surfaces a project has typically
-*not* set live: `agent.session`, `agent.workers`, `dispatch.watchable`, `dispatch.column_width`,
+*not* set live: `agent.session`, `agent.workers`, `dispatch.mode`, `dispatch.column_width`,
 `dispatch.reap_done`, `checklist.extra_categories`,
 `consolidate.detectors`, `true_impact_exclude`, `stage_hooks`, `branch_prefix`, `test_paths`. `advertise: false` marks the init-seeded identity fields
 (`project.*`, `source_paths`), which are written live at `fab config init --project` time and not
@@ -230,7 +242,7 @@ Two mechanics follow from the demotion:
   knobs live, plus a commented `profiles:` pointer/example — and `agent.workers` / `agent.profiles`
   carry no segment of their own. Two segments emitting a live `agent:` parent would collide into a
   duplicate YAML key and break the reference's round-trip, the same reason `project.name` owns the
-  `project:` block and `dispatch.watchable` owns `dispatch:` (§ Several rows under one YAML block).
+  `project:` block and `dispatch.mode` owns `dispatch:` (§ Several rows under one YAML block).
 - **`renamed_from` on `agent.profiles` is metadata, not a working carry.** It records the
   `agent.tiers` → `agent.profiles` rename for `--json` consumers, but `fab config upgrade`'s rename
   carry is a **top-level-key** operation and deliberately skips a same-top-level rename (§ renamed_from).
@@ -296,8 +308,9 @@ using stdlib `encoding/json` only (no new dependencies). Each element is a per-f
   `default`, `operator`, `doing`, `review`, `hydrate`, `fast`), each a `{provider, model, effort}`
   profile; the first-level `default` key is the *default role*, not a wrapper. Likewise
   `providers.default` is keyed by provider name (three entries — claude/codex/gemini), each carrying
-  only the command fields that exist for that built-in (`session_command` and, for codex/gemini,
-  `dispatch_command`; both `omitempty`) and **no** `model`/`effort` — see § Default semantics.
+  its independent `session_command`, `dispatch_command`, and `native` capabilities (omitted when
+  unavailable) plus per-role fills — see § Default semantics. Claude ships all three capabilities;
+  codex/gemini are non-native.
 - `renamed_from` is omitted when empty (`omitempty`), so it appears on the `agent.profiles` object only.
 - Output is deterministic and byte-stable, like the commented-YAML rendering — the table is ordered and
   the marshalling is stable.
@@ -384,8 +397,8 @@ rewrites ONLY between the markers; everything outside — including the user's o
 is the user's. Every scaffolded block is **fully commented including its parent keys** (a live `agent:`
 over comment-only children is exactly the `agent: null` the old whole-file masher produced), with every
 comment marker at **column 0**: the comment-out helper skips only a line whose `#` is ALREADY at column
-0 (fence-level prose), so a line the segment ships deliberately commented at an INDENT (claude's
-`# dispatch_command:`, the `# codex:` / `# gemini:` blocks) gains the fence prefix like a live line —
+0 (fence-level prose), so a line the segment ships deliberately commented at an INDENT (the
+`# codex:` / `# gemini:` provider examples) gains the fence prefix like a live line —
 which both keeps the fence visually flush and makes "strip the leading `# ` from every line of a block"
 restore the segment byte-exactly. The fence
 **omits fields already overridden** above it. Omission is at **top-level-key granularity**: a live

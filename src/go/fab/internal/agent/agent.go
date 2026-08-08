@@ -5,21 +5,22 @@
 //
 // VOCABULARY. A ROLE is one of six fixed slot names (default, operator, doing,
 // review, hydrate, fast). A PROFILE is a concrete {provider, model, effort} value.
-// A PROVIDER is an invocation grammar plus its per-role fills. TIER 1 / TIER 2 name
+// A PROVIDER carries independent session, headless, and native launch capabilities
+// plus its per-role fills. TIER 1 / TIER 2 name
 // agent DEPTH — the agents a user talks to versus the agents pipeline stages
 // dispatch to — and that axis is what the two advertised knobs (agent.session,
 // agent.workers) select a provider by.
 //
 // The tables here are fab-kit's curated judgment, and they are split across two
 // files by whether a user can override them. The knobs and the provider table
-// (grammars plus every provider's per-role fills) are DATA: they live in defaults.yaml
+// (capability grammars plus every provider's per-role fills) are DATA: they live in defaults.yaml
 // (embedded below), shaped as a config-file fragment, and defaults.yaml is the
 // single place to bump when a new top model lands (the "Fable upgrade path"). The
 // stage→role mapping and the role→depth partition are POLICY: they stay Go maps
 // here and are NOT user-overridable (there is no stage_roles config and no
 // per-stage escape hatch). Users override only which provider each depth uses, via
 // agent.session/agent.workers; what a single role means, via the sparse
-// agent.profiles map; and which command grammars exist, via providers:.
+// agent.profiles map; and which launch capabilities exist, via providers:.
 //
 // THE FILL PRECEDENCE, implemented once here (ResolveRoleWith):
 //
@@ -58,7 +59,7 @@ import (
 )
 
 // defaultsYAML is fab-kit's built-in agent defaults — the depth knobs and the
-// provider table (grammars plus every provider's per-role fills) — compiled into the
+// provider table (capability grammars plus every provider's per-role fills) — compiled into the
 // binary. It is deliberately EMBEDDED rather than read from the kit cache at
 // runtime: kit and binary release atomically, so an on-disk read would gain
 // nothing and add a binary↔kit version-skew failure mode to a resolution path that
@@ -131,6 +132,10 @@ const (
 // the data file exists to make impossible.
 var DefaultSessionCommand = defaultProviders[DefaultProviderName].SessionCommand
 
+// DefaultDispatchCommand is the built-in claude provider's headless command.
+// Its presence describes capability only; dispatch.mode selects whether it runs.
+var DefaultDispatchCommand = defaultProviders[DefaultProviderName].DispatchCommand
+
 // The codex and gemini built-in provider commands (260805-j3cm). These are the
 // invocation templates; the matching per-role fills ship alongside them in
 // defaults.yaml (260806-ywkx), so naming either provider on a depth knob resolves a
@@ -139,10 +144,8 @@ var DefaultSessionCommand = defaultProviders[DefaultProviderName].SessionCommand
 // and are corrected by one config line (providers.<name>.profiles.<role>.model) when
 // a catalog moves — see docs/specs/stage-models.md § Refreshing the non-claude fills.
 //
-// Both providers carry a dispatch_command (unlike claude, which carries none),
-// so pointing a role at one flips that role's stages from native Agent-tool
-// dispatch to CLI dispatch — which is exactly what selecting a non-claude
-// provider means.
+// All three providers carry a dispatch_command. Only claude also declares native
+// capability; dispatch.mode resolves the adapter independently of command presence.
 //
 // These are the canonical names internal/configref interpolates into the rendered
 // reference, so the reference text carries no literal copy (the same
@@ -179,12 +182,12 @@ type Profile struct {
 // defaultProviders is fab-kit's built-in provider table: three providers, parsed
 // from the `providers:` block of defaults.yaml verbatim.
 //
-//   - claude — the default: the default session command, NO dispatch_command
-//     (native Agent-tool dispatch), and the six per-role fills.
+//   - claude — the default: session and dispatch commands, native capability,
+//     and the six per-role fills.
 //   - codex, gemini — session AND dispatch commands plus their own SPARSE per-role
 //     fills (a role absent from the map resolves that provider's `default` entry).
-//     Naming either resolves with ZERO providers: config and flips those stages to
-//     CLI dispatch.
+//     Naming either resolves with zero providers config; under the default native
+//     preference they descend to headless because they declare no native capability.
 //
 // A built-in provider is INERT until a knob, an agent.profiles entry, or a flag
 // names it — adding a row changes no default behavior, which is why the
@@ -508,7 +511,7 @@ func ProviderNames(cfg *config.Config) []string {
 	return names
 }
 
-// ResolveProvider returns the {session_command, dispatch_command, profiles} for a
+// ResolveProvider returns the {session_command, dispatch_command, native, profiles} for a
 // provider name: the project's providers.<name> override PER-FIELD merged over
 // fab-kit's built-in provider table (an override field that is set wins; an omitted
 // field inherits the built-in). The profiles map merges per ROLE and then per FIELD,
@@ -516,8 +519,8 @@ func ProviderNames(cfg *config.Config) []string {
 // (and review's effort) on the built-in values. A provider present in neither the
 // project config nor the built-in table resolves to a zero ProviderConfig with
 // ok=false — the caller decides whether that is an error (a session with no
-// session_command, or a dispatch with no dispatch_command, are the two failure
-// surfaces).
+// session_command, or a dispatch with no reachable capability at or below the
+// selected mode, are the two failure surfaces).
 //
 // The DEPRECATED flat providers.<name>.model/.effort is folded into the OVERRIDE's
 // own profiles.default before that merge, which is exactly the alias it is
@@ -541,6 +544,9 @@ func ResolveProvider(cfg *config.Config, name string) (config.ProviderConfig, bo
 		known = true
 		mergeField(&resolved.SessionCommand, override.SessionCommand)
 		mergeField(&resolved.DispatchCommand, override.DispatchCommand)
+		if override.NativeSet || override.Native {
+			resolved.Native = override.Native
+		}
 		mergeField(&resolved.Model, override.Model)
 		mergeField(&resolved.Effort, override.Effort)
 		resolved.Profiles = mergeProviderProfiles(resolved.Profiles, withFlatFillAlias(override))

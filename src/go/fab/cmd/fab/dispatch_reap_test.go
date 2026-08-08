@@ -32,23 +32,16 @@ func runReapErr(t *testing.T, args ...string) (stdout, stderr string, err error)
 	return out.String(), errb.String(), err
 }
 
-// setDispatchReapDone appends a `dispatch:` block to the repo's project config so a
-// test can exercise the disabled branch. The setup helpers isolate $HOME, so the
+// setDispatchReapDone merges the setting into the repo's project dispatch block so
+// a test can exercise the disabled branch. The setup helpers isolate $HOME, so the
 // system layer contributes nothing and this is the only layer in play.
 func setDispatchReapDone(t *testing.T, repoRoot string, enabled bool) {
 	t.Helper()
-	path := filepath.Join(repoRoot, "fab", "project", "config.yaml")
-	body, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read project config: %v", err)
-	}
 	value := "false"
 	if enabled {
 		value = "true"
 	}
-	if err := os.WriteFile(path, append(body, []byte("dispatch:\n  reap_done: "+value+"\n")...), 0o644); err != nil {
-		t.Fatalf("write project config: %v", err)
-	}
+	appendProjectConfig(t, repoRoot, "dispatch:\n  reap_done: "+value+"\n")
 }
 
 // corruptProjectConfig makes the repo's project config unparseable, so config.Load
