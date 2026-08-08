@@ -1,9 +1,9 @@
 # Config management overhaul — verbs, dispatch modes, field names, source consolidation
 
-> Backlog detail doc — written 2026-08-08 after a `/fab-discuss` session. All open decisions
-> below are **resolved** (user-confirmed in that session). The work is split into four
-> changes, each independently shippable, in dependency order — intended to be picked up by
-> other agents via `/fab-new`.
+> Backlog detail doc — written 2026-08-08 after a `/fab-discuss` session (Change 5 added
+> later the same day from a follow-on discussion). All open decisions below are **resolved**
+> (user-confirmed in that session). The work is split into five changes, each independently
+> shippable, in dependency order — intended to be picked up by other agents via `/fab-new`.
 >
 > **Supersedes change `260807-k0v3-consolidate-config-surface`**: its intake and backlog
 > entry are deleted; its implementation branch (worktree nimble-ravine, apply done through
@@ -13,7 +13,7 @@
 
 ## Goal
 
-Four related cleanups to how fab-kit's configuration is inspected, mutated, and resolved:
+Five related cleanups to how fab-kit's configuration is inspected, mutated, and resolved:
 
 1. **Verb surface** — `fab config` becomes six intent-grouped verbs (`show`/`explain`/`set`/
    `unset`/`init`/`upgrade`), with surgical fence-engine writes replacing hand-editing.
@@ -24,6 +24,9 @@ Four related cleanups to how fab-kit's configuration is inspected, mutated, and 
    `interactive_command`/`headless_command`.
 4. **Source consolidation** — one embedded values file, zero stub copies, a `--check` drift
    mode, and a fence that teaches which file each setting belongs in.
+5. **Per-session selection** — a scope-gated environment override layer
+   (env > project > system > defaults) plus launch-flag sugar, so two parallel sessions in
+   one project can dispatch different worker providers.
 
 ## The source map (current state, for orientation)
 
@@ -273,6 +276,93 @@ binary (`internal/init.go`).
 
 ---
 
+## Change 5 — per-session selection: the env override layer + launch flags
+
+> Motivating use case (follow-on `/fab-discuss`, 2026-08-08): compare the code two worker
+> providers generate (e.g. kimi3 vs codex) by running two parallel worktree+agent sessions
+> in the same project — session A dispatches kimi3 workers, session B codex workers.
+> Provider **definition** (a `providers.kimi3` block — grammar + fills) is static config and
+> already has a home: `~/.fab-kit/config.yaml`, once, machine-wide. Provider **selection**
+> (`agent.workers`) is per-session intent, and no cascade layer holds it today — the
+> invocation override (`fab resolve-agent --provider`) binds the native arm only
+> (`fab dispatch start` re-resolves from config), so for a cross-provider worker the config
+> override is currently the sole executable path. The workaround people will reach for —
+> editing `agent.workers` per worktree, uncommitted — is a trap: `/git-pr`'s `git add -u`
+> sweeps the preference into the shipped commit.
+
+### The env override layer (generic, scope-gated)
+
+- **New top cascade layer** at `internal/config.LoadPath`:
+  **env > project > system > built-in defaults**.
+- **Generic mapping over the registry**: one env var per registry row — dotted key
+  uppercased, dots → underscores, `FAB_` prefix (`agent.workers` → `FAB_AGENT_WORKERS`,
+  `dispatch.mode` → `FAB_DISPATCH_MODE`). Resolution walks the registry **forward**
+  (compute each row's env name, probe the environment) — it never reverse-parses env names,
+  so underscore-vs-dot ambiguity (`dispatch.column_width`) cannot arise.
+- **Values parsed as YAML** (the same scalar/flow parsing Change 1's `set` uses), so a
+  map-valued row can be set whole: `FAB_AGENT_PROFILES='{review: {provider: codex}}'`.
+  The env layer merges per-field like any other layer (maps per-key, lists replace,
+  scalars replace).
+- **Scope-gated**: only `scope ∈ {both, system}` rows are honored. A project-scoped env
+  var (e.g. `FAB_SOURCE_PATHS`) is ignored with a `fab: warning:` — the exact mirror of
+  the system-file pruning rule, preserving repo reproducibility. An unparseable env value
+  likewise warns and is skipped (fail-open — config must never brick, the malformed-
+  system-file precedent).
+- **Why env closes the cross-provider gap structurally**: per-process-tree is per-session
+  by construction. The harness session's shell calls inherit the variable, so
+  `fab resolve-agent` AND `fab dispatch start`'s internal re-resolution read the same
+  environment — the two seams cannot disagree, which is exactly what the invocation-flag
+  override could never guarantee.
+- **Visibility**: `fab config show --origin` gains an `env` origin (naming the variable).
+  Non-negotiable — three layers without provenance was archaeology; four without it would
+  be worse.
+
+### Launch-flag sugar
+
+- `--workers <provider>` on the session-spawning commands — `fab agent`, `fab batch new`,
+  `fab batch switch`, and the operator spawn path — exporting `FAB_AGENT_WORKERS` into the
+  spawned session's process environment. **Pure sugar over the env layer**: no new
+  resolution path, no persisted state; the flag exists so the comparison flow is one
+  argument per session.
+- Docs **advertise the handful** (`FAB_AGENT_WORKERS`, `FAB_AGENT_SESSION`,
+  `FAB_DISPATCH_MODE`) while the mechanism stays generic (every `both`/`system`-scoped
+  registry row).
+
+The comparison flow this enables:
+
+```sh
+# once, machine-wide: define the provider (grammar + per-role fills)
+#   providers.kimi3: {interactive_command: …, headless_command: …, profiles: …}
+# then, two sessions:
+wt create …  # worktree A
+fab agent --workers kimi3
+wt create …  # worktree B
+fab agent --workers codex
+```
+
+Same intake, same pipeline, different Tier-2 workers; nothing written to any config file.
+
+### Rejected alternatives (recorded)
+
+- **Gitignored local config file** (`config.local.yaml`, the git `--worktree`-config
+  precedent) — a fourth file, a fourth layer, new `set`/`unset` plumbing, and new
+  "which file is winning" surface; everything Change 4 works to reduce. Env covers the
+  need without a file.
+- **direnv/.envrc worktree persistence** — composes with the env layer by nature, but
+  deliberately **not** built around or documented as the pattern (user decision).
+- **Per-change stored preference** — writes session preference into committed artifacts.
+- **PR-meta worker-provenance stamp** — discussed, not adopted in this change.
+
+**Obligations**: loader + tests (env layer, scope gating, YAML parse, fail-open);
+`show --origin` env origin + tests; spawn-seam env injection for the flags
+(`fab agent`/`fab batch`/operator) + tests; `_cli-fab.md` + SPEC mirror (new flags + the
+env contract); `docs/specs/config.md` § cascade (three → four layers); memory
+`_shared/configuration.md` § Override Cascade, `runtime/providers-and-profiles.md`.
+**No migration** (net-new, opt-in). Independent of Changes 1–4 in ordering; landing after
+Change 2 makes `dispatch.mode` env-eligible automatically (it's just another `both` row).
+
+---
+
 ## Resolved decisions (all user-confirmed 2026-08-08)
 
 1. **Discard the k0v3 branch** (worktree nimble-ravine) — the code it patched is stale;
@@ -299,6 +389,13 @@ binary (`internal/init.go`).
 10. **`configscope` stays a leaf package** (cycle-forced, tiny, lint-guarded); target embed
     census after Change 4: `defaults.yaml` (values) + configref registry (schema/prose) +
     configscope (scope taxonomy) + `src/kit/scaffold/` (non-config files), zero stub copies.
+11. **Per-session selection = the env override layer** — generic scope-gated `FAB_*` mapping
+    over the registry (forward walk, YAML-parsed values), env > project > system > defaults;
+    project-scoped env vars warn-and-ignore. Rejected: gitignored local config file,
+    direnv-documented pattern, per-change stored preference, dirty per-worktree
+    config.yaml (the `git add -u` trap).
+12. **Launch flags are pure sugar** — `--workers` on the session-spawning commands exports
+    the env var into the spawned session; no new resolution path, no persisted state.
 
 ## Context: why
 
@@ -314,6 +411,10 @@ binary (`internal/init.go`).
 - **The source pain**: five value/schema sources plus a stub copy made "which config comes
   from where" a real question even for the maintainer. After Change 4: values / schema /
   scope, one home each, everything else rendered.
+- **The per-session pain**: the cascade bottoms out at per-checkout granularity, so
+  "these two sessions should dispatch different workers" had no home short of dirtying a
+  tracked file — and the A/B-comparison use case (kimi3 vs codex, two worktrees, same
+  intake) is exactly that shape. Change 5 gives session-scoped intent a first-class layer.
 - **Prior art in this folder**: `config-upgrade.md` (2026-07-08, all three changes shipped)
   is the direct predecessor and established the registry/cascade/fence machinery this plan
   builds on.
