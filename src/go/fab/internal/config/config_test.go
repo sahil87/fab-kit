@@ -1075,13 +1075,13 @@ func TestEnvCascade_TypeIncompatibleFailsOpen(t *testing.T) {
 	}{
 		{
 			name:        "boolean field rejects string",
-			envName:     "FAB_DISPATCH_WATCHABLE",
+			envName:     "FAB_DISPATCH_REAP_DONE",
 			envValue:    "not-a-bool",
-			projectYAML: "dispatch:\n  watchable: true\n",
+			projectYAML: "dispatch:\n  reap_done: false\n",
 			assertLower: func(t *testing.T, cfg *Config) {
 				t.Helper()
-				if !cfg.GetDispatchWatchable() {
-					t.Error("invalid env bool must leave project watchable=true effective")
+				if cfg.GetDispatchReapDone() {
+					t.Error("invalid env bool must leave project reap_done=false effective")
 				}
 			},
 		},
