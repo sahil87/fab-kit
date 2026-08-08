@@ -22,6 +22,8 @@ Distinct from generate mode (which *creates* files from source-code gaps), backf
 
 **Present-truth authoring** (260717-3plm): all authoring paths now follow the FKF present-truth body-style rule (§3.3, amended by this change) and the no-change-ids-in-`description:` clarification (§3.2). Ingest's **merge into an existing file** (Step 3 item 4) rewrites the affected section to **current truth** rather than appending a change-keyed delta — superseded statements are removed, not narrated (no "renamed X→Y in {id}", "was `old.value`"); body provenance is citation-only (trailing `(change-id)` / `*Introduced by*`). Every authored `description:` (ingest create/merge, generate, backfill synthesis) is **free of change-ids** — a routing signal, not a provenance record; provenance citations live in the body. Generate/ingest bodies are written in present tense (no transition narration). Backfill stays body-preserving (it authors only frontmatter, so the change-id-free description rule is the only present-truth rule it applies). No Flow/Tools/Sub-agents change.
 
+**Backfill FKF reference**: body-preserving backfill points to the deployed `$(fab kit-path)/reference/fkf.md` contract; it does not depend on fab-kit's dev-repository `docs/specs/` tree.
+
 ## Flow
 
 ```

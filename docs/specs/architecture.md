@@ -461,7 +461,7 @@ Skills are deployed to each detected agent by `fab sync`, sourcing from the kit 
 | Agent | Deployment | Form |
 |-------|-----------|------|
 | Claude Code (`claude`) | `.claude/skills/{name}/SKILL.md` | Directory-based **copies** |
-| OpenCode (`opencode`) | `.opencode/commands/{name}.md` | Flat-file symlinks |
+| OpenCode (`opencode`) | `.opencode/commands/{name}.md` | Flat-file copies |
 | Codex (`codex`) | `.agents/skills/{name}/SKILL.md` | Directory-based copies |
 | Gemini CLI (`gemini`) | `.gemini/skills/{name}/SKILL.md` | Directory-based copies |
 

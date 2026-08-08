@@ -13,6 +13,8 @@ Processes PR review comments from any reviewer (human or bot). Fully autonomous 
 
 **Prose optimization** (260620-skop): skill content trimmed to remove re-explanation of partial-owned concepts (the `fab change resolve` ID/substring/name forms) and to collapse the triplicated two-login and synchronous-poll restatements to a single statement each (the `copilot-pull-request-reviewer`-on-`reviews` predicate, the REST-not-GraphQL confirmation rule, the MUST-NOT-yield directive, and the n30u/u1m1 memory citation are all preserved), and a `## Contents` TOC added; no behavioral change (Flow / Tools / Sub-agents unchanged).
 
+**`allowed-tools` semantics**: per the current official Claude Code skills contract, `allowed-tools` pre-approves listed tools without restricting other tools. The source frontmatter therefore remains `Bash(git:*), Bash(gh:*), Bash(command:*)`; the body’s Read/Edit operations remain callable under normal permission settings.
+
 ## Arguments
 
 - **`<change>`** *(optional, 260612-w7dp)* — explicit change to target instead of the active one (any non-flag argument). Resolved transiently in Step 0 (`.fab-status.yaml` untouched); an explicit argument that fails to resolve STOPs (caller error), while argless failure proceeds with no change context. `/fab-fff` Step 5 passes the change folder name through (`/git-pr-review {name}` — folder names never collide with git-pr's type tokens, so both dispatches use the same form).

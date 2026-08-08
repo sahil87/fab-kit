@@ -19,6 +19,8 @@ A thin orchestrator (the `/fab-proceed` / `/fab-ff` pattern): declares `helpers:
 - **Intake + thin plan in one main-session pass** — both artifacts describe one fixed existing diff, so the same agent reads the diff once and writes both (no dispatched-apply split that would invite drift). A human-confirmation checkpoint between them is the late deliberation the bypass skipped.
 - **PR Meta retrofit** — Step 5's `/git-pr` injects `## Meta` onto the existing OPEN PR via its Step 3d body-retrofit path (gated on body-lacks-`## Meta`; reuses `fab pr-meta` + `gh pr edit --body-file -`). **No Go change.**
 
+**CLI adapter invariants**: the diff-only review dispatch follows the canonical `done` path — read the result, run `fab dispatch reap <change> <stage>` unconditionally, then perform the verdict transition — and points to `_preamble.md` § CLI-Adapter Dispatch for the no-session-command-fallback and no-STATE-cleanup-after-`done` invariants. The hydrate dispatch inherits the same path through `_pipeline.md` Step 3.
+
 ## Flow
 
 ```

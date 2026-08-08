@@ -10,6 +10,18 @@ helpers: [_generation, _srad, _intake]
 
 ---
 
+## Contents
+
+- Purpose
+- Pre-flight
+- Arguments
+- Context Loading
+- Command Logging
+- Detector Configuration
+- Behavior
+- Memory Home
+- Key Properties
+
 ## Purpose
 
 `/fab-dedupe` finds code that should have been a shared utility and wasn't. It sweeps a scoped area for duplicate and near-duplicate functions, groups them into **clusters**, decomposes each cluster into a shared core plus opt-in variation layers, proposes a canonical home, and — for the clusters you accept — drafts a change intake per cluster group.

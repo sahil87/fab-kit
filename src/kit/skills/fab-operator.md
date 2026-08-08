@@ -589,7 +589,7 @@ The operator works each change through the pipeline. Pre-send validation (§3) a
 
 When `--merge-on-complete` is active, steps 5–8 revert to the previous merge-as-you-go behavior: merge PR on completion, `git fetch origin`, rebase next change onto `origin/{default_branch}` (resolved per Dependency Resolution step 0), report merge.
 
-Autopilot-driven changes display `▶` in the status frame (§4). Queue progress is visible from the list — entries with `▶` that show ✓ (green) are complete, the one showing ● (green) / ◌ (yellow) is current.
+Autopilot-driven changes display `▶` in the status frame (§4). Queue progress is visible from the list — entries with `▶` and health `✅` are complete; the current entry shows health `🟢` while active or `🟡` while waiting.
 
 #### Queue Completion Summary
 

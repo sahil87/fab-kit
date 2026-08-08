@@ -21,6 +21,8 @@ Autonomously commits, pushes, and creates a draft GitHub PR. No prompts, no ques
 
 **OPEN-PR `## Meta` retrofit** (260630-t54n): a sub-step **3d. Retrofit `## Meta` onto an existing OPEN PR** closes the gap that `## Meta` was injected only on PR **create** (Step 3c) — an OPEN PR authored off-pipeline (or created before fab adopted the branch) has a body with no `## Meta`. Step 3d fetches the current body (`gh pr view --json body -q '.body'`), and **only when the body lacks a `## Meta` heading** renders the block via `fab pr-meta {name} --type {type} --issues "{issues}"` (the same self-contained mechanism Step 3c uses) and prepends it to the existing body via `gh pr edit --body-file -` (stdin — avoids multi-line quoting issues). It is gated on **`{has_fab}` AND the PR being already OPEN at Step 1** (a freshly created PR already carries `## Meta` from 3c, so it is not re-retrofitted), runs on both the normal existing-OPEN-PR path and the "already shipped" short-circuit, and is **idempotent** (body-already-has-`## Meta` → no-op; non-zero `fab pr-meta` / empty render → no edit, same graceful degradation as 3c). **No Go change** — `fab pr-meta` / `prmeta.Render` are reused. This is the ship-stage retrofit `/fab-adopt` relies on, but it is general — any OPEN-PR ship benefits.
 
+**`allowed-tools` semantics**: per the current official Claude Code skills contract, `allowed-tools` pre-approves listed tools without restricting other tools. The source frontmatter therefore remains `Bash(git:*), Bash(gh:*)`; file reads required by the body remain callable under normal permission settings.
+
 ## Flow
 
 ```

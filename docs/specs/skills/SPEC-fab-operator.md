@@ -30,6 +30,8 @@ Not a lifecycle enforcer — the operator coordinates across agents and proxies 
 
 ---
 
+**Queue progress rendering**: autopilot entries use `▶`; completion and current state are read from the Health emoji column (`✅` complete, `🟢` active, `🟡` waiting). The banned monochrome geometric glyphs are not used for queue progress.
+
 ## Section Structure
 
 The skill is organized into 9 sections:
