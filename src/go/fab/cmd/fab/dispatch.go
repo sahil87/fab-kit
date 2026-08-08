@@ -10,28 +10,31 @@ import (
 )
 
 // dispatchCmd is the parent of the stage-worker process-manager command family:
-// `fab dispatch <start|restart|status|wait|logs|kill|clean> [args...]`. It is the
-// CLI adapter for cross-harness stage dispatch, in two launch modes — a detached
+// `fab dispatch <start|restart|status|wait|logs|kill|reap|clean> [args...]`. It is
+// the CLI adapter for cross-harness stage dispatch, in two launch modes — a detached
 // headless process or an interactive tmux window — resolved per invocation by
 // dispatch.SelectMode. `restart` is the recovery verb: it relaunches a non-running
 // dispatch from the prompt `start` persisted, sharing `start`'s entire launch path.
 // `wait` is `status`'s blocking sibling: it re-derives the same state on an
 // internal tick so an orchestrator can be woken by a state change instead of
-// polling for one. The family is parallel to, and independent of, `fab pane` /
-// `fab operator` (which stay the operator's interactive path). See
-// docs/specs/harness-adapters.md for the cross-adapter contract.
+// polling for one. `reap` is the hygiene verb: it reclaims a DONE pane worker's
+// tmux pane and is a reported no-op in every other case (distinct from `kill`, the
+// recovery verb, which is valid in any state). The family is parallel to, and
+// independent of, `fab pane` / `fab operator` (which stay the operator's interactive
+// path). See docs/specs/harness-adapters.md for the cross-adapter contract.
 func dispatchCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dispatch",
 		Short: "Process manager for CLI-dispatched pipeline stages (headless or tmux-window worker)",
 		Long: "Process manager for CLI-dispatched stage workers:\n" +
-			"start/restart/status/wait/logs/kill/clean.\n" +
+			"start/restart/status/wait/logs/kill/reap/clean.\n" +
 			"`start` resolves its launch mode per invocation — a detached headless process\n" +
 			"(tmux-independent) or an interactive tmux window — defaulting to auto: a window\n" +
 			"inside tmux, headless outside. `restart` relaunches a non-running dispatch from\n" +
 			"the persisted prompt, re-deriving the mode from the current environment. `status`\n" +
 			"is the one-shot probe; `wait` blocks until the state leaves `running` so a poll\n" +
-			"loop becomes a single wake-up. Tracks the worker under .fab-dispatch/{id}/ and\n" +
+			"loop becomes a single wake-up. `reap` reclaims a done pane worker's pane (never a\n" +
+			"live one, and no state files). Tracks the worker under .fab-dispatch/{id}/ and\n" +
 			"exposes a byte-stable poll surface. The headless launch is POSIX-only (v1).",
 	}
 
@@ -42,6 +45,7 @@ func dispatchCmd() *cobra.Command {
 		dispatchWaitCmd(),
 		dispatchLogsCmd(),
 		dispatchKillCmd(),
+		dispatchReapCmd(),
 		dispatchCleanCmd(),
 	)
 
@@ -51,7 +55,7 @@ func dispatchCmd() *cobra.Command {
 // resolveDispatchDir resolves <change> to its 4-char ID and returns the
 // absolute .fab-dispatch/{id}/ directory (DirFor joins onto the absolute
 // repoRoot) plus the resolved ID. Shared
-// by status/logs/kill (clean has its own multi-dir resolution; start/restart
+// by status/logs/kill/reap (clean has its own multi-dir resolution; start/restart
 // resolve inline in the shared launch path, which needs the repo root too). fabRoot
 // is found via resolve.FabRoot; the repo root is its parent (the same
 // derivation internal/archive uses for the .fab-status.yaml pointer).

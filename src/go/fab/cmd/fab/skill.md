@@ -35,10 +35,11 @@ One line per capability, keyed to its command:
   converts a change reference to canonical output (`--or-none`: no change resolves → prints
   `(none)`, exit 0 — the probe form; real errors still fail); `fab resolve-agent <stage>`
   resolves the per-stage model/effort/dispatch profile.
-- **Dispatch** — `fab dispatch {start,restart,status,wait,logs,kill,clean}` runs a stage as a
+- **Dispatch** — `fab dispatch {start,restart,status,wait,logs,kill,reap,clean}` runs a stage as a
   detached, tmux-independent worker (the cross-harness CLI adapter); `restart` relaunches
-  a non-running stage from its persisted prompt, and `wait` blocks until the stage's state
-  leaves `running` so an orchestrator is woken by a change instead of polling for one.
+  a non-running stage from its persisted prompt, `wait` blocks until the stage's state
+  leaves `running` so an orchestrator is woken by a change instead of polling for one, and
+  `reap` reclaims a done tmux-pane worker's pane (a reported no-op in every other case).
 - **Panes / operator** — `fab pane {map,capture,send,process,window-name}` inspects and
   drives tmux panes; `fab operator` launches the coordination tab.
 - **Config** — `fab config {reference,show,init,upgrade}` reads and reconciles

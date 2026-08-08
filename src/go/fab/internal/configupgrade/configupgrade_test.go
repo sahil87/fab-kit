@@ -514,3 +514,39 @@ func TestRender_FenceAdvertisesDispatchColumnWidth(t *testing.T) {
 		t.Errorf("fence must omit the already-overridden dispatch field.\n--- fence ---\n%s", fenceBody2)
 	}
 }
+
+// TestRender_FenceAdvertisesDispatchReapDone: `dispatch.reap_done` is the third key
+// under the shared `dispatch:` segment, so it reaches the fence the same way
+// `column_width` does — no Segment of its own, one commented parent for all three.
+// The guard checks the properties that shape depends on (the scaffold line is
+// present, and the parent count is STILL exactly one now that a third key shares
+// it), plus the override suppression. Runs over the SHIPPED registry, so it is the
+// guard that the new key reaches every user's config.yaml on the next
+// `fab config upgrade`.
+func TestRender_FenceAdvertisesDispatchReapDone(t *testing.T) {
+	fields := fieldsForTest(t)
+
+	out, _ := render("project:\n    name: t\n", fields, "2.15.0")
+	_, fenceBody, _ := sliceFence(t, out)
+	if !strings.Contains(fenceBody, "# dispatch.reap_done") {
+		t.Errorf("fence must advertise the un-overridden dispatch.reap_done field.\n--- fence ---\n%s", fenceBody)
+	}
+	wantScaffold := "#   reap_done: " + strconv.FormatBool(config.DefaultDispatchReapDone)
+	if !strings.Contains(fenceBody, wantScaffold) {
+		t.Errorf("fence must scaffold %q.\n--- fence ---\n%s", wantScaffold, fenceBody)
+	}
+	if n := strings.Count(fenceBody, "# dispatch:"); n != 1 {
+		t.Errorf("fence carries %d `# dispatch:` parents, want exactly 1 (all three dispatch keys share one block)", n)
+	}
+
+	// Overridden: the whole block is live above the fence, so no dispatch key is
+	// re-advertised (override detection is top-level-key scoped).
+	out2, _ := render("dispatch:\n    reap_done: false\n", fields, "2.15.0")
+	if !strings.Contains(out2, "reap_done: false") {
+		t.Errorf("a live dispatch override must be preserved verbatim.\n--- got ---\n%s", out2)
+	}
+	_, fenceBody2, _ := sliceFence(t, out2)
+	if strings.Contains(fenceBody2, "dispatch.reap_done") {
+		t.Errorf("fence must omit the already-overridden dispatch field.\n--- fence ---\n%s", fenceBody2)
+	}
+}

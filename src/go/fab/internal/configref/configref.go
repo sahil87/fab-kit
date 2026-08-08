@@ -55,13 +55,15 @@
 // therefore always denotes a real built-in value (the three built-in providers'
 // command grammars, claude's six per-role fills, the resolved per-role profiles,
 // the two depth knobs' claude, dispatch.watchable's false, dispatch.column_width's
-// 35) — which is why codex's and gemini's Defaults carry no profiles map at all:
-// fab-kit ships those two grammar-only. The two dispatch rows are the convention's
-// boundary cases: for a BOOL there is no "absent" distinguishable from false, and
-// for the width an absent yaml int is indistinguishable from 0 (which the accessor
-// therefore reads as unset), so each carries its real built-in value rather than
-// the typed-empty placeholder the convention forbids. See docs/specs/config.md
-// § Default semantics.
+// 35, dispatch.reap_done's true) — which is why codex's and gemini's Defaults carry
+// no profiles map at all: fab-kit ships those two grammar-only. The three dispatch
+// rows are the convention's boundary cases: for a BOOL there is no "absent"
+// distinguishable from false, and for the width an absent yaml int is
+// indistinguishable from 0 (which the accessor therefore reads as unset), so each
+// carries its real built-in value rather than the typed-empty placeholder the
+// convention forbids. reap_done is the sharpest of the three — its default is TRUE,
+// so the config struct models it as a *bool to keep an explicit false
+// distinguishable from absent. See docs/specs/config.md § Default semantics.
 //
 // Render() output is BYTE-STABLE for a given binary version: the field table is
 // fixed and ordered, the interpolated role/stage lists come from the
@@ -520,6 +522,20 @@ checklist:
 			// as project.description / project.linear_workspace.
 		},
 		{
+			Key: "dispatch.reap_done",
+			// The third real built-in value under `dispatch:` — and the boundary case
+			// that needed a POINTER on the config struct: the default is TRUE, so the
+			// Go zero value means the opposite of it and an absent key had to stay
+			// distinguishable from an explicit `false`. Sourced from the canonical
+			// config symbol, never a literal copy.
+			Default:     config.DefaultDispatchReapDone,
+			Description: "Done-worker pane reaping. When true, `fab dispatch reap` kills a pane-mode stage worker's tmux pane once its result file is present, reclaiming the column space a finished worker would otherwise hold for the rest of the run. Reap is not kill: it never touches a running, orphaned, or failed dispatch, and it removes no .fab-dispatch/ state. Set false to keep a done worker's scrollback. Scope both — settable once machine-wide. Default true.",
+			Scope:       ScopeBoth,
+			Advertise:   true,
+			// Rendered inline in the dispatch.watchable Segment, same as
+			// dispatch.column_width; this row carries no Segment of its own.
+		},
+		{
 			Key:         "stage_hooks",
 			Default:     nil,
 			Description: "Optional per-stage pre/post shell commands honored by fab status start/finish. Each runs as sh -c from the repo root; a failing pre hook blocks start. Not seeded by the scaffold — add by hand.",
@@ -705,16 +721,18 @@ func agentSegment(roles []roleRow) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// dispatchSegment renders the whole `dispatch:` block — BOTH keys under it, since
-// `dispatch` is one YAML block and two separately-uncommentable `# dispatch:`
+// dispatchSegment renders the whole `dispatch:` block — ALL THREE keys under it,
+// since `dispatch` is one YAML block and two separately-uncommentable `# dispatch:`
 // parents would collide into a duplicate key. dispatch.watchable is the
-// watchable-pane opt-in; dispatch.column_width sizes the worker column. Only the
-// latter has a constant to interpolate (watchable's default is the Go zero value,
-// so there is no literal copy to drift); the width comes from
-// config.DefaultDispatchColumnWidth.
+// watchable-pane opt-in; dispatch.column_width sizes the worker column;
+// dispatch.reap_done reclaims a done worker's pane. Only the latter two have a
+// constant to interpolate (watchable's default is the Go zero value, so there is no
+// literal copy to drift); they come from config.DefaultDispatchColumnWidth and
+// config.DefaultDispatchReapDone.
 //
-// The dispatch.column_width registry row therefore carries no Segment of its own —
-// the project.name / project.description precedent for multiple keys in one block.
+// The dispatch.column_width and dispatch.reap_done registry rows therefore carry no
+// Segment of their own — the project.name / project.description precedent for
+// multiple keys in one block.
 func dispatchSegment() string {
 	return "# dispatch.watchable — opt in to WATCHABLE-PANE dispatch for providers that\n" +
 		"# carry only a session_command (e.g. the built-in claude). When true, TMUX\n" +
@@ -739,9 +757,23 @@ func dispatchSegment() string {
 		"# degenerate widths). A tmux too old for `-l <n>%` (pre-3.1) degrades to an\n" +
 		"# unsized split with a warning rather than failing the dispatch. Scope `both`,\n" +
 		"# so it is settable once machine-wide in ~/.fab-kit/config.yaml.\n" +
+		"#\n" +
+		"# dispatch.reap_done — whether `fab dispatch reap` reclaims a DONE pane-mode\n" +
+		"# worker's tmux pane. A pane worker never exits on completion (it writes\n" +
+		"# {stage}-result.yaml and sits at its prompt), so without reaping every\n" +
+		"# finished stage keeps its slice of the worker column for the rest of the run\n" +
+		"# and the panes you actually watch shrink with each completed stage. The\n" +
+		"# orchestrator calls reap right after it reads a done result. REAP IS NOT KILL:\n" +
+		"# it fires only on `done`, never on a running/orphaned/failed dispatch, is a\n" +
+		"# no-op for headless dispatches (the process already exited), and touches NO\n" +
+		"# .fab-dispatch/ state — the record and result file stay, so a reaped dispatch\n" +
+		"# still reads `done` forever. Set false to keep a done worker's pane and its\n" +
+		"# scrollback. Scope `both`, so it is settable once machine-wide in\n" +
+		"# ~/.fab-kit/config.yaml. Default " + strconv.FormatBool(config.DefaultDispatchReapDone) + ".\n" +
 		"# dispatch:\n" +
 		"#   watchable: false\n" +
-		"#   column_width: " + strconv.Itoa(config.DefaultDispatchColumnWidth)
+		"#   column_width: " + strconv.Itoa(config.DefaultDispatchColumnWidth) + "\n" +
+		"#   reap_done: " + strconv.FormatBool(config.DefaultDispatchReapDone)
 }
 
 // stageHooksSegment renders the stage_hooks block. The valid stage-keys list is

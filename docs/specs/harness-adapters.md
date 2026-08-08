@@ -46,7 +46,7 @@ provider) is **provider-neutral and adapter-independent** — see
 | **3. Interactive pane** (`fab dispatch start --pane`) | a tmux pane running the provider's `session_command` — split into the dispatching agent's own window, or a new window when there is no pane to split | prompt **file** + a one-line **pointer** to it, embedded at spawn | **result file** + pane liveness | `running` / `done` / `orphaned` |
 
 Adapters 2 and 3 are two **modes of the same command family** (`fab dispatch`), sharing its resolution,
-`.fab-dispatch/{id}/` state directory, refuse-if-running concurrency, and the status/kill/clean
+`.fab-dispatch/{id}/` state directory, refuse-if-running concurrency, and the status/kill/reap/clean
 surfaces — plus the `restart` recovery verb, which relaunches either mode from the persisted prompt and
 re-derives its mode from the current environment (see § Recovery is orchestrator policy over these states). `logs` is the one verb that is **not** shared: it reads the headless wrapper's redirected
 stream, so against a pane record it refuses and names the pane-mode equivalent, `fab pane capture
@@ -200,6 +200,20 @@ Mechanics, all fixed by this spec:
 - **No timeout**: `--timeout` is enforced by the headless `sh -c` wrapper (POSIX `timeout`), which pane
   mode never constructs, so `--pane --timeout` is a **usage error** rather than a silently unenforced
   bound.
+- **The done worker's lifecycle ends in an OPTIONAL, orchestrator-invoked reap.** A pane worker never
+  exits on completion — it writes its result file and sits at its prompt, deliberately, so it stays
+  steerable — so across a multi-stage pipeline the carved worker column accumulates finished panes that
+  hold their space indefinitely, shrinking the panes the user actually watches with every completed
+  stage. The adapter therefore permits a **`fab dispatch reap <change> <stage>`** at the one
+  deterministic moment the protocol already has: immediately after the orchestrator reads a `done`
+  result. Reap MUST act only when the record is pane-mode **and** the derived state is `done` **and**
+  the `dispatch.reap_done` policy (default *true*) allows it; every other case MUST be a reported no-op,
+  never an error. It MUST NOT be reachable from any non-`done` state — that separates it from `kill`,
+  the recovery verb (§ Recovery is orchestrator policy over these states) — and it MUST remove **no**
+  `.fab-dispatch/` state (§ Cleanup). Reap is **shape-blind** like every other pane-ID-keyed operation,
+  and it changes **no state**: result presence still wins over pane liveness, so a reaped dispatch
+  reports `done` for good. **Invoking it is the orchestrator's choice, not the adapter's obligation** —
+  the skill-side wiring is `_preamble.md` § CLI-Adapter Dispatch step 3.
 
 ---
 
@@ -347,12 +361,18 @@ orchestrator MAY and MUST NOT do over the existing states:
   an orchestrator MAY judge an individual failure transient from its evidence. `failed (no-result)` is a
   **contract violation** and MUST always escalate to a human: retrying a worker that ignores the result
   obligation cannot fix it.
-- **The pipeline's verbs are read-only-peek, kill, restart, notify, stop — never input injection.** An
-  orchestrator MAY read a worker's evidence (`fab dispatch logs` headless / `fab pane capture` pane) to
-  tell a progressing worker from a parked one, and MUST escalate rather than answer when a worker is
-  waiting on genuine human input. Typing into a worker is the human's and the operator's affordance:
-  a pipeline-side input channel would fork this contract, since the native adapter has no such channel
-  at all.
+- **The pipeline's verbs are read-only-peek, kill, restart, notify, stop, reap — never input
+  injection.** An orchestrator MAY read a worker's evidence (`fab dispatch logs` headless /
+  `fab pane capture` pane) to tell a progressing worker from a parked one, and MUST escalate rather than
+  answer when a worker is waiting on genuine human input. Typing into a worker is the human's and the
+  operator's affordance: a pipeline-side input channel would fork this contract, since the native
+  adapter has no such channel at all.
+- **Reap is hygiene, not recovery, and belongs to the success path.** `reap` (§ 3) appears in the verb
+  set above but takes no part in this policy: it fires **only** on `done` and MUST NOT terminate a
+  `running`, `orphaned`, `failed`, or `failed (no-result)` dispatch, so it can never stand in for the
+  `kill` that classification (b) spends, and it can never reach a worker awaiting human input. Recovery
+  and hygiene are deliberately separate verbs so a policy knob can gate the latter without ever
+  modulating the former.
 - **No supervisor, timer, or background sweep.** The orchestrator's own observation remains the only clock.
   Recovery happens where it already waits — a `wait` that returns a non-`done` state, or one that returns
   `running` at its bound — which is why it needs no protocol surface of its own.
@@ -421,6 +441,11 @@ rejection of throttled sweeps, matching fab's no-magic-background-work posture):
 headless process, cleaning a live pane dispatch removes the state without killing the worker — `kill` is
 the separate verb for that, and it terminates by the mechanism the record's mode implies (the detached
 worker's process group, or the tmux pane).
+
+**`reap` is not a third cleanup moment.** It kills a done pane worker's *pane* and removes **no files**:
+the record, result, prompt, and log all survive it, which is precisely why a reaped dispatch still
+derives `done` (result presence wins over pane liveness). Reap reclaims *screen space*, `clean` reclaims
+*disk state*, and the two above remain the only moments `.fab-dispatch/` is touched.
 
 The native adapter has no persisted state to clean (the sub-agent handle is in-process).
 

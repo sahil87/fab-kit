@@ -1,8 +1,8 @@
 // Package dispatch is the headless, tmux-independent process manager backing
-// the `fab dispatch` command family (start/restart/status/logs/kill/clean). It is
+// the `fab dispatch` command family (start/restart/status/wait/logs/kill/reap/clean). It is
 // the CLI adapter for cross-harness stage dispatch: it launches a stage's resolved
 // spawn command DETACHED, tracks it via a per-change state directory, and
-// exposes a byte-stable poll/logs/kill/clean surface. `restart` relaunches from the
+// exposes a byte-stable poll/logs/kill/reap/clean surface. `restart` relaunches from the
 // persisted {stage}-prompt.md over the same launch path, so it needs no state of
 // its own here (a restart is a fresh attempt under last-attempt-only).
 //

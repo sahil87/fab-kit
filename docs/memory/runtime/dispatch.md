@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`fab dispatch {start,restart,status,wait,logs,kill,clean}` — process manager for CLI-dispatched pipeline stages in two launch modes, resolved per invocation by an explicit-first ladder ending in auto (`$TMUX` ⇒ pane, else headless): headless (detached `sh -c` on `dispatch_command`, five states) and pane (`session_command` in a tmux pane, stacked in a record-keyed column carved at `dispatch.column_width`; three states). `restart` relaunches the persisted prompt; `status`/`wait` observe."
+description: "`fab dispatch {start,restart,status,wait,logs,kill,reap,clean}` — process manager for CLI-dispatched pipeline stages in two launch modes, resolved per invocation by a ladder ending in auto (`$TMUX` ⇒ pane, else headless): headless (detached `sh -c` on `dispatch_command`, five states) and pane (`session_command` in a tmux pane, stacked in a column carved at `dispatch.column_width`; three states). `restart` relaunches the persisted prompt; `status`/`wait` observe; `reap` reclaims a done pane."
 ---
 # fab dispatch
 
@@ -19,15 +19,15 @@ Headless mode is **tmux-independent**: it launches the resolved command (persist
 
 Dispatch is the runtime for **cross-harness stage dispatch** ("a codex orchestrator runs `apply` on claude"): a fundamentally launch-and-poll problem, not a pane-observation one. It *runs* the provider command that `fab resolve-agent` names (a role names a provider; the provider carries the commands — see [_shared/configuration.md](/_shared/configuration.md) § `providers` and [runtime/providers-and-profiles.md](/runtime/providers-and-profiles.md)). `fab dispatch` re-resolves the stage itself, so which mode a dispatch lands in is decided by the ladder below and never by the emitted `dispatch=` line — including a line emitted under the `dispatch.watchable` opt-in, where the emitted `session_command` is exactly what pane mode composes anyway (see [runtime/providers-and-profiles.md](/runtime/providers-and-profiles.md) § Watchable pane dispatch). Headless dispatch stays parallel to and independent of the tmux-bound interactive `fab pane` / `fab operator` family (see [pane-commands.md](/runtime/pane-commands.md) and [operator.md](/runtime/operator.md)); pane dispatch **borrows tmux as a launch surface** but does not join the operator's monitored set, and consumes the `_cli-agents` helper's spawn/deliver/peek procedures as its primitive layer (see [agent-primitives.md](/runtime/agent-primitives.md)).
 
-The **skill wiring** consumes it: the dispatch-seam skills branch on the resolved `dispatch=` line and, when present, drive this command family — `fab dispatch start` (block prompt on stdin, no mode flag by default — the worker's mode auto-resolves, and `--pane`/`--headless` are passed only to force one) → a **blocking `fab dispatch wait <change> <stage> --timeout 300`**, run as a *background* command wherever the harness can re-invoke the agent on exit (foreground blocking is the cross-harness fallback) → the mode's reachable states → read `{stage}-result.yaml` on `done`. The wiring is **push, not poll**: the orchestrator spends turns only when the wait returns, and a `running` return (the bound expired) is its peek-on-suspicion moment, which is why `--timeout 300` is a *peek cadence* rather than a poll interval. It lives in `_preamble.md` § CLI-Adapter Dispatch + § Dispatch-Prompt Obligations, where **pane mode is an option inside the `dispatch=`-present arm, never a third branch** (see [pipeline/execution-skills.md](/pipeline/execution-skills.md) § Status-transition ownership and [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution).
+The **skill wiring** consumes it: the dispatch-seam skills branch on the resolved `dispatch=` line and, when present, drive this command family — `fab dispatch start` (block prompt on stdin, no mode flag by default — the worker's mode auto-resolves, and `--pane`/`--headless` are passed only to force one) → a **blocking `fab dispatch wait <change> <stage> --timeout 300`**, run as a *background* command wherever the harness can re-invoke the agent on exit (foreground blocking is the cross-harness fallback) → the mode's reachable states → read `{stage}-result.yaml` on `done`, then `fab dispatch reap` to reclaim a finished pane worker's pane. The wiring is **push, not poll**: the orchestrator spends turns only when the wait returns, and a `running` return (the bound expired) is its peek-on-suspicion moment, which is why `--timeout 300` is a *peek cadence* rather than a poll interval. It lives in `_preamble.md` § CLI-Adapter Dispatch + § Dispatch-Prompt Obligations, where **pane mode is an option inside the `dispatch=`-present arm, never a third branch** (see [pipeline/execution-skills.md](/pipeline/execution-skills.md) § Status-transition ownership and [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution).
 
-Source: the testable core lives in `internal/dispatch` (state read/write, wrapper composition, both state derivations, the `Wait` control loop in `wait.go`, process signaling, and the tmux pane primitives in `pane_mode.go`); thin cobra wiring lives across `cmd/fab/dispatch.go` (parent) + `dispatch_start.go` / `dispatch_restart.go` / `dispatch_status.go` / `dispatch_wait.go` / `dispatch_logs.go` / `dispatch_kill.go` / `dispatch_clean.go` — mirroring the `internal/pane` + `pane*.go` split precedent. `dispatch_start.go` owns the **shared launch path** (`runDispatchLaunch` + the `promptSource` seam) and the **shared flag surface** (`addLaunchFlags` binding a `launchFlags` struct, plus its `resolveMode` method carrying the `--pane`+`--timeout` guard, the `SelectMode` call, and the `SelectPaneShape` call — the one place `$TMUX` and `$TMUX_PANE` are read) that both `start` and `restart` run; `restart` adds only its cobra command — its own help strings and its `promptFromStateDir` source.
+Source: the testable core lives in `internal/dispatch` (state read/write, wrapper composition, both state derivations, the `Wait` control loop in `wait.go`, the reap guard in `reap.go`, process signaling, and the tmux pane primitives in `pane_mode.go`); thin cobra wiring lives across `cmd/fab/dispatch.go` (parent) + `dispatch_start.go` / `dispatch_restart.go` / `dispatch_status.go` / `dispatch_wait.go` / `dispatch_logs.go` / `dispatch_kill.go` / `dispatch_reap.go` / `dispatch_clean.go` — mirroring the `internal/pane` + `pane*.go` split precedent. `dispatch_start.go` owns the **shared launch path** (`runDispatchLaunch` + the `promptSource` seam) and the **shared flag surface** (`addLaunchFlags` binding a `launchFlags` struct, plus its `resolveMode` method carrying the `--pane`+`--timeout` guard, the `SelectMode` call, and the `SelectPaneShape` call — the one place `$TMUX` and `$TMUX_PANE` are read) that both `start` and `restart` run; `restart` adds only its cobra command — its own help strings and its `promptFromStateDir` source.
 
 ## Requirements
 
 ### Requirement: `fab dispatch` command family
 
-The `fab` binary SHALL expose a top-level command group `fab dispatch` with seven subcommands — `start`, `restart`, `status`, `wait`, `logs`, `kill`, `clean` — always-routed through the `fab` router. Its top-level name MUST NOT collide with the `fab-kit` `LifecycleCommands` allowlist (pinned by `TestNoTopLevelCommandCollidesWithRouterAllowlist`; `dispatch` is not in the allowlist). It is a new fab-go command group registered via `dispatchCmd()` in `cmd/fab/main.go`'s `newRootCmd()`. See [distribution/kit-architecture.md](/distribution/kit-architecture.md) for its place in the fab-go command inventory.
+The `fab` binary SHALL expose a top-level command group `fab dispatch` with eight subcommands — `start`, `restart`, `status`, `wait`, `logs`, `kill`, `reap`, `clean` — always-routed through the `fab` router. Its top-level name MUST NOT collide with the `fab-kit` `LifecycleCommands` allowlist (pinned by `TestNoTopLevelCommandCollidesWithRouterAllowlist`; `dispatch` is not in the allowlist). It is a new fab-go command group registered via `dispatchCmd()` in `cmd/fab/main.go`'s `newRootCmd()`. See [distribution/kit-architecture.md](/distribution/kit-architecture.md) for its place in the fab-go command inventory.
 
 ### Requirement: POSIX-only v1 (the headless launch/signal syscalls)
 
@@ -454,12 +454,64 @@ Both modes are observed identically: a pane dispatch's state comes from the same
 
 **No marker file is written in either mode**: with no result file present, a killed dispatch simply reads `orphaned` on the next `status`.
 
+`kill` is the family's **recovery** verb — valid in **any** state, ungated by config, and the verb the pipeline's Recovery policy spends on a parked worker. It is distinct from `reap` (below), the **hygiene** verb, which fires only on `done`, only for a pane record, and only when `dispatch.reap_done` allows it.
+
 #### Scenario: killing a pane leaves the dispatch orphaned
 
 - **GIVEN** a live pane dispatch with no result file
 - **WHEN** `fab dispatch kill <change> <stage>` runs
 - **THEN** the pane is killed, a killed report is printed, and a subsequent `status` reports `orphaned`
 - **AND** GIVEN the pane is already gone, `kill` exits 0 with an already-dead report
+
+### Requirement: `fab dispatch reap <change> <stage>`
+
+`reap` SHALL reclaim the tmux pane of a **finished pane-mode worker** — the pane-hygiene counterpart to `kill`. A pane worker never exits on completion (it writes `{stage}-result.yaml` and sits at its prompt, deliberately, so it can still be steered), so across a multi-stage pipeline every finished stage keeps its slice of the carved worker column and the panes the user actually watches shrink with each completed stage. The orchestrator calls `reap` at the one deterministic moment that already exists: immediately after it reads a `done` result.
+
+It takes exactly two positional arguments and **no flags** — no `--json`, and no `--server`, because the socket comes from the record, so a `--server`-started dispatch is reaped on the right socket with nothing extra passed.
+
+`reap` SHALL own the **whole guard** and kill the pane only when **all three** conditions hold:
+
+1. the record is **pane-mode** (`IsPane()` — a `pane:`-bearing record), **and**
+2. the **derived state is `done`** (`DerivePaneState`: `{stage}-result.yaml` present — pane liveness is irrelevant to the state), **and**
+3. **`dispatch.reap_done` resolves `true`** (default `true`) through the three-layer config cascade.
+
+Every other case SHALL be a **no-op with a one-line report naming its reason**, exiting 0:
+
+| Case | Behavior |
+|------|----------|
+| record is **headless** | no-op — the detached process already exited; there is nothing visual to reclaim |
+| state is **not `done`** (`running` / `orphaned`, or any headless state) | no-op — reap is NOT kill; it must never terminate a live or failed dispatch. The report points at `fab dispatch kill` |
+| **`dispatch.reap_done: false`** | no-op — the user opted to keep done-worker panes and their scrollback |
+| **pane already gone** (killed by hand, tmux server died) | benign already-gone report — mirroring `kill`'s idempotence, so a re-reap is safe |
+| all three hold | `KillPane(rec.Pane, rec.Server)` — `tmux kill-pane` on the record's own socket, reporting `reaped pane %N for <change>/<stage>` |
+
+**Exit codes**: 0 for the reap and for every no-op above; non-zero **only** for real errors — no dispatch record for the pair, or an unresolvable change — sharing `status`/`wait`'s message surface via the same `loadDispatchRecord` loader. An **unreadable `fab/project/config.yaml` is deliberately not in that set**, because the orchestrator calls reap unconditionally after every `done` and a broken config must not turn pane hygiene into a pipeline failure: the knob is resolved **lazily**, only once the mode and state conditions already hold (a headless or non-`done` no-op reads no config at all), and where it is read an unparseable file **warns on stderr and fails open** to `DefaultDispatchReapDone` — the same value an absent key resolves to.
+
+**Reap kills the pane only; it cleans no state.** The record (`{stage}.yaml`), the result (`{stage}-result.yaml`), the prompt file, and the log all remain. That is exactly why a reaped dispatch still derives `done` forever (result presence wins over pane liveness) and why reap is pane **hygiene**, not state cleanup — the no-automatic-GC posture and its two deterministic cleanup moments are untouched (§ Two cleanup paths). `reap` introduces **no new state string, no record-schema field, and no migration**, and `restart` after a reaped attempt needs no special handling: last-attempt-only overwrite already covers a completed attempt.
+
+Because `KillPane` is pane-ID keyed, reap is **shape-blind**: killing a **split**-shape worker's pane leaves the dispatching agent's pane, its window, and any sibling worker intact, while killing the only pane of a **new-window**-shape worker takes the window with it (plain tmux semantics).
+
+The decision itself is the **pure** `DecideReap(isPane bool, state State, reapDone bool) ReapVerdict` in `internal/dispatch/reap.go` — no I/O, no config read, no tmux probe — so the mode × state × knob matrix is exhaustively table-testable, matching `SelectMode`/`SelectPaneShape`/`DerivePaneState` in the same package. Each skip is a **named verdict constant** (`ReapSkipHeadless` / `ReapSkipNotDone` / `ReapSkipDisabled` alongside `ReapPane`), so the command layer never recomposes a reason from raw booleans. The check order — mode, then state, then policy — is deliberate and only the *reported* reason depends on it: putting state ahead of the knob keeps "reap never terminates a live or failed dispatch" independent of configuration, so no value of `dispatch.reap_done` can reach a non-`done` dispatch. The cobra wiring (`cmd/fab/dispatch_reap.go`) reuses `resolveDispatchDir` / `loadDispatchRecord` / `KillPane`, and reads the knob through `resolve.FabRoot()` + `config.Load` in a small local helper — a second cheap upward walk that leaves `resolveDispatchDir`'s signature and its other call sites untouched. That helper **cannot fail**: it warns and falls back to `DefaultDispatchReapDone`, and the command calls it only when mode and state have already passed, so the config read sits behind the same short-circuit the pure guard applies (the placeholder value passed otherwise is never consulted). Both halves are what keep the exit contract above true: an eager, error-returning read would fail even a headless no-op whenever the project config will not parse.
+
+#### Scenario: a done pane worker's pane is reclaimed and the dispatch stays done
+
+- **GIVEN** a pane dispatch whose `{stage}-result.yaml` is present and `dispatch.reap_done` unset
+- **WHEN** `fab dispatch reap <change> <stage>` runs
+- **THEN** the worker's pane is killed on the record's own socket, the report names the pane, and the exit code is 0
+- **AND** a subsequent `fab dispatch status` still reports `done`, with every `.fab-dispatch/{id}/` file it held before still present
+
+#### Scenario: reap never terminates a live dispatch
+
+- **GIVEN** a pane dispatch that is still `running`
+- **WHEN** `reap` runs
+- **THEN** nothing is killed, the report names the state and points at `fab dispatch kill`, and the exit code is 0
+- **AND** the same holds for a headless record, for `dispatch.reap_done: false`, and for a pane already gone
+
+#### Scenario: reaping a split worker leaves the dispatcher and its siblings intact
+
+- **GIVEN** a dispatcher pane with two stacked worker panes, one of them `done`
+- **WHEN** the `done` worker is reaped
+- **THEN** only that worker's pane disappears; the dispatcher pane and the sibling worker survive
 
 ### Requirement: A pane dispatch's identity is `fab-{id}-{stage}` and carries no operator marker
 
@@ -490,7 +542,7 @@ A user MAY converse with a running pane worker mid-stage. This changes **no** co
 
 ### Requirement: Two cleanup paths, no automatic GC
 
-Cleanup SHALL happen at exactly **two deterministic moments** and never on a timer (throttled/timer sweeps were explicitly rejected — matching fab's no-magic-background-work posture):
+**State** cleanup SHALL happen at exactly **two deterministic moments** and never on a timer (throttled/timer sweeps were explicitly rejected — matching fab's no-magic-background-work posture). `fab dispatch reap` is **not** a third moment: it kills a finished pane worker's tmux pane and removes **no files at all**, so it reclaims visual space without touching `.fab-dispatch/` state (§ `fab dispatch reap`).
 
 1. **Archive-time deletion.** `fab change archive` deletes `.fab-dispatch/{id}/` as part of the archive move — dispatch artifacts are transient comms, not history — so `fab change restore` does **NOT** recreate them. The deletion lives in `internal/archive.Archive()` (best-effort, immediately after the folder move, computing the repo root as `filepath.Dir(fabRoot)`); an absent dir is a no-op and a removal error never undoes the completed move. See [pipeline/change-lifecycle.md](/pipeline/change-lifecycle.md) § archive/restore and [pipeline/execution-skills.md](/pipeline/execution-skills.md) § `/fab-archive`.
 2. **Manual `fab dispatch clean [<change>] [--orphans]`.** `clean <change>` removes that change's dir; `clean` (no arg) removes all `.fab-dispatch/*/` dirs; `clean --orphans` prunes any `.fab-dispatch/{id}/` whose ID does not resolve to a **non-archived** change (via `resolve.ToFolder`, which excludes `archive/`), covering the case where a change was archived upstream and a local `git pull` left the state dir orphaned.
@@ -504,6 +556,26 @@ Cleanup SHALL happen at exactly **two deterministic moments** and never on a tim
 - **THEN** only the orphaned dir is pruned; live dirs are left intact
 
 ## Design Decisions
+
+### A done pane worker's column space is reclaimed by default, with the knob as the opt-out
+
+**Decision**: The default posture for a finished pane worker is **space-reclaimed** — `dispatch.reap_done` defaults to `true`, so the orchestrator's post-`done` `fab dispatch reap` kills the pane. Anyone who wants a done worker's scrollback sets the knob `false` and keeps the pane untouched.
+
+**Why**: The pane-worker column exists to keep the dispatching agent readable, and a pipeline that leaves one dead pane per completed stage erodes exactly that: after three stages the panes the user actually needs to watch have been squeezed by three panes nobody is reading. The evidence a reaped pane holds is not lost — the result file, prompt, log, and record all survive, and they are what an orchestrator and a human actually read after the fact. Reaping at the post-`done` moment also needs no new machinery: it is an orchestrator-invoked call at a point the wiring already reaches, not a timer or a watcher, so it stays inside the no-magic-background-work posture.
+
+**Rejected**: **Zoom / shrink-in-place** (`resize-pane -y 2`) — a two-line stub still holds a slot in the column, so the squeeze returns with enough stages. **`break-pane` parking** to a held window — it preserves scrollback but re-clutters the window list the two-tier hierarchy was built to clean up, trading one clutter surface for another. **Defaulting to `false`** (evidence-preserved) — it makes the common case the broken one and requires every user to opt into hygiene they already expected.
+
+*Introduced by*: 260807-zfl7-dispatch-reap-done-panes
+
+### Reap is a distinct verb from kill, and owns its whole guard in Go
+
+**Decision**: Pane hygiene is a **new verb** (`fab dispatch reap`) rather than a flag on `kill`, and it owns all three guard conditions — pane-mode record, derived state `done`, `dispatch.reap_done` true — so the skill wiring calls it **unconditionally and dumbly** after reading a `done` result.
+
+**Why**: `kill` is a **recovery** verb, valid in any state and already in the pipeline's sanctioned verb set with a documented never-kill-a-worker-awaiting-input rule; reap is **hygiene**, fires only on `done`, and is policy-gated. Folding them would put a config-gated no-op inside a verb whose contract is "terminate this now". Putting the guard in Go is what lets the call site stay dumb: the knob resolves through the three-layer cascade (project > system `~/.fab-kit/config.yaml` > defaults), and a skill reading `fab/project/config.yaml` directly would miss the system layer — precisely where a machine-wide `both`-scope preference lives. One dumb call site also keeps the wiring identical across adapters and modes, since a headless record is a reported no-op inside the command.
+
+**Rejected**: `kill --if-done` (one verb with two contracts, and a config knob silently modulating a recovery command). A skill-side conditional `if pane && done && knob` (three chances to drift from the runtime, and a wrong config read on the layer that matters most). Making reap a *recovery* verb the Recovery policy may spend (it would blur the never-kill-a-live-worker invariant the policy rests on).
+
+*Introduced by*: 260807-zfl7-dispatch-reap-done-panes
 
 ### Worker placement keys on the record's pane ID, and the live `list-panes` intersection is the whole filter
 

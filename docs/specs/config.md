@@ -83,12 +83,20 @@ Go-side implementation detail that carries no cascade meaning and would make `--
 `null`/`[]`/`{}`/`""` inconsistently for the same "no default" concept. So a **non-null** `default`
 always denotes a real built-in value (today: the `providers` row's **three built-in providers** —
 claude/codex/gemini, `260805-j3cm`, with claude's six per-role fills — the resolved `agent.profiles` defaults, the two depth knobs' `claude`, `dispatch.watchable`'s
-`false`, and `dispatch.column_width`'s `35`); every other row is `null`. **The two `dispatch` rows are
+`false`, `dispatch.column_width`'s `35`, and `dispatch.reap_done`'s `true`); every other row is `null`.
+**The three `dispatch` rows are
 the convention's boundary cases and are deliberately not `null`**: for a **bool** there is no "absent"
 state distinguishable from `false`, and for the width an absent YAML int is indistinguishable from `0`
 (which the accessor therefore reads as unset, alongside every other out-of-`1..99` value), so each
 carries a real built-in value the cascade genuinely bottoms out at — not the typed-empty placeholder
 the convention forbids (the forbidden shapes are the ones that could stand in for "nothing").
+`dispatch.reap_done` is the sharpest of the three and the one that forced a **struct-level** answer as
+well as a registry one: its built-in default is **`true`**, so the Go zero value means the *opposite* of
+the default, and a plain `bool` would have made an absent key indistinguishable from an explicit
+`reap_done: false` — silently disabling reaping for every project that never sets the key. It is
+therefore modeled as a **`*bool`** in `internal/config.DispatchConfig` (`nil` = unset = `true`), the one
+place the three siblings' shapes diverge; the registry row still carries the plain `true`, because the
+*default* is a value, not a pointer.
 The same rule governs the **per-role fills** inside the `providers` default: claude's `profiles` map is
 projected (six real built-in values), while codex's and gemini's are **omitted entirely** rather than
 emitted as an empty map — fab-kit ships those two as *grammar only* (non-claude model IDs rot at CLI
@@ -116,7 +124,7 @@ The existing reference tests assert those blocks verbatim; the restructure prese
 under the same top-level key, the segment belongs to the *first* of them and documents them all; the
 rest carry an **empty** segment (`project.name` owns the `project:` block for `project.description` and
 `project.linear_workspace`; `dispatch.watchable` owns the `dispatch:` block for
-`dispatch.column_width`). This is not an optimisation but a correctness requirement: the reference and
+`dispatch.column_width` **and** `dispatch.reap_done`). This is not an optimisation but a correctness requirement: the reference and
 the managed fence render these blocks **commented**, with the documented instruction to uncomment a
 whole block, so two separately-uncommentable `# dispatch:` parents would collide into a duplicate YAML
 key. It also matches the fence generator, whose override detection is top-level-key scoped: a live
@@ -133,16 +141,18 @@ teammates and CI.
 
 | scope | Meaning | Fields |
 |-------|---------|--------|
-| `both` | Overridable in either the project or the system layer (preference-class). | `agent.session`, `agent.workers`, `agent.profiles`, `providers`, `dispatch.watchable`, `dispatch.column_width` |
+| `both` | Overridable in either the project or the system layer (preference-class). | `agent.session`, `agent.workers`, `agent.profiles`, `providers`, `dispatch.watchable`, `dispatch.column_width`, `dispatch.reap_done` |
 | `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `consolidate.detectors`, and (conservative default) `stage_hooks`, `branch_prefix` |
 | `system` | Overridable only in the system layer. | *(none today; the value exists for completeness and [Change 2])* |
 
 Fields the decision-6 taxonomy does not enumerate (`stage_hooks`, `branch_prefix`) default to `project`
 — the conservative choice, since system-visibility is opt-in per the same rationale. `dispatch`
 (`dispatch.watchable`, the watchable-pane opt-in; `dispatch.column_width`, the pane-worker column's
-width) is `both` by the same reasoning that puts `agent`/`providers` there: both keys express how the
-**operator** prefers to watch stage workers on **this machine** — whether in a pane at all, and how
-much of the window that pane takes — not what the repo's pipeline means, so they must be settable once
+width; `dispatch.reap_done`, whether a finished worker's pane is reclaimed) is `both` by the same
+reasoning that puts `agent`/`providers` there: all three keys express how the
+**operator** prefers to watch stage workers on **this machine** — whether in a pane at all, how
+much of the window that pane takes, and whether a done worker's pane lingers — not what the repo's
+pipeline means, so they must be settable once
 machine-wide. (`fab_version` was
 machine-managed and, as of [Change 3 — landed], left `config.yaml` entirely for the plain-text sibling
 `fab/.fab-version`; it is no longer a scoped/registry/config key and carries no scope. The compat-window
@@ -171,7 +181,7 @@ model, at [Change 3]'s `fab config upgrade` time, every field is one of:
 
 `advertise: true` marks the C-eligible fields — the optional override surfaces a project has typically
 *not* set live: `agent.session`, `agent.workers`, `dispatch.watchable`, `dispatch.column_width`,
-`checklist.extra_categories`,
+`dispatch.reap_done`, `checklist.extra_categories`,
 `consolidate.detectors`, `true_impact_exclude`, `stage_hooks`, `branch_prefix`, `test_paths`. `advertise: false` marks the init-seeded identity fields
 (`project.*`, `source_paths`), which are written live at `fab config init --project` time and not
 re-advertised in the fence. (`fab_version` is no longer a config-file field — it left `config.yaml` for

@@ -1165,3 +1165,97 @@ func TestGetDispatchColumnWidth_NilAndEmptyConfig(t *testing.T) {
 		t.Errorf("empty-config GetDispatchColumnWidth() = %d, want %d", got, DefaultDispatchColumnWidth)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// dispatch.reap_done — done-worker pane reaping (scope `both`, default TRUE).
+// ---------------------------------------------------------------------------
+
+// TestLoad_DispatchReapDone: the default-TRUE knob is the one dispatch field whose
+// Go zero value means the OPPOSITE of its default, which is why it is modeled as a
+// *bool. The table pins the property that motivates the pointer: an absent key and
+// an explicit `false` must NOT resolve alike.
+func TestLoad_DispatchReapDone(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"absent dispatch block ⇒ default true", "project:\n  name: t\n", true},
+		{"absent key beside a live sibling ⇒ default true", "dispatch:\n  watchable: true\n", true},
+		{"explicit true parses", "dispatch:\n  reap_done: true\n", true},
+		{"explicit false parses (NOT collapsed into absent)", "dispatch:\n  reap_done: false\n", false},
+		{"explicit false beside the siblings", "dispatch:\n  watchable: true\n  column_width: 20\n  reap_done: false\n", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isolateSystemConfig(t)
+			fabRoot := writeProjectConfig(t, tt.body)
+			cfg, err := Load(fabRoot)
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if got := cfg.GetDispatchReapDone(); got != tt.want {
+				t.Errorf("GetDispatchReapDone() = %v, want %v (config %q)", got, tt.want, tt.body)
+			}
+		})
+	}
+}
+
+// TestCascade_DispatchReapDoneFromSystemLayer: `dispatch` is scope `both`, so the
+// opt-OUT set once in ~/.fab-kit/config.yaml reaches a repo whose project config
+// never mentions it — the whole point of the scope for a preference this personal
+// (a project-scoped key would be PRUNED from the system layer with a warning). The
+// project layer still wins where it sets one, in both directions.
+func TestCascade_DispatchReapDoneFromSystemLayer(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, "dispatch:\n  reap_done: false\n")
+	fabRoot := writeProjectConfig(t, "project:\n  name: t\n")
+
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.GetDispatchReapDone() {
+		t.Error("a system-layer dispatch.reap_done: false must be honored (scope `both`, not pruned)")
+	}
+
+	home2 := isolateSystemConfig(t)
+	writeSystemConfig(t, home2, "dispatch:\n  reap_done: false\n")
+	onRoot := writeProjectConfig(t, "dispatch:\n  reap_done: true\n")
+	cfg2, err := Load(onRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg2.GetDispatchReapDone() {
+		t.Error("a project `true` must beat a system `false`")
+	}
+
+	home3 := isolateSystemConfig(t)
+	writeSystemConfig(t, home3, "dispatch:\n  reap_done: true\n")
+	offRoot := writeProjectConfig(t, "dispatch:\n  reap_done: false\n")
+	cfg3, err := Load(offRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg3.GetDispatchReapDone() {
+		t.Error("a project `false` must beat a system `true`")
+	}
+}
+
+// TestGetDispatchReapDone_NilAndEmptyConfig: the accessor is nil-safe in BOTH senses
+// — a nil *Config and a present Config whose ReapDone pointer is nil — and reports
+// the built-in default for each. This is the case a plain bool would have gotten
+// wrong (it would report false, the opposite of the default).
+func TestGetDispatchReapDone_NilAndEmptyConfig(t *testing.T) {
+	var nilCfg *Config
+	if got := nilCfg.GetDispatchReapDone(); got != DefaultDispatchReapDone {
+		t.Errorf("nil-config GetDispatchReapDone() = %v, want %v", got, DefaultDispatchReapDone)
+	}
+	if got := (&Config{}).GetDispatchReapDone(); got != DefaultDispatchReapDone {
+		t.Errorf("empty-config GetDispatchReapDone() = %v, want %v", got, DefaultDispatchReapDone)
+	}
+	no := false
+	if (&Config{Dispatch: DispatchConfig{ReapDone: &no}}).GetDispatchReapDone() {
+		t.Error("an explicitly-false ReapDone pointer must report false")
+	}
+}

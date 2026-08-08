@@ -190,9 +190,23 @@ type ProjectConfig struct {
 // window from the moment the column is carved. Only the CARVING split is sized;
 // later workers stack inside the column with unsized `-v` splits, and the
 // Left/Right separator is never touched again.
+//
+// ReapDone is the DONE-WORKER REAPING policy read by `fab dispatch reap`: a
+// pane-mode worker never exits on completion (it writes its result file and sits at
+// its prompt), so without reaping every finished stage holds its slice of the carved
+// column for the rest of the run. Default TRUE — space-reclaimed; setting it false
+// preserves the leave-the-pane-alone behavior for anyone who wants a done worker's
+// scrollback.
+//
+// It is a *bool, unlike its two siblings, because its default is TRUE: the Go zero
+// value would then mean the OPPOSITE of the default, making an absent key
+// indistinguishable from an explicit `reap_done: false` and silently disabling
+// reaping for every project that never sets the key. nil = unset = the default; a
+// non-nil pointer is the user's explicit choice either way.
 type DispatchConfig struct {
-	Watchable   bool `yaml:"watchable"`
-	ColumnWidth int  `yaml:"column_width"`
+	Watchable   bool  `yaml:"watchable"`
+	ColumnWidth int   `yaml:"column_width"`
+	ReapDone    *bool `yaml:"reap_done"`
 }
 
 // DefaultDispatchColumnWidth is the built-in dispatch.column_width — the percent of
@@ -200,6 +214,12 @@ type DispatchConfig struct {
 // dispatching agent the rest. It is the canonical symbol both the accessor below
 // and internal/configref's registry row read, so the default exists once.
 const DefaultDispatchColumnWidth = 35
+
+// DefaultDispatchReapDone is the built-in dispatch.reap_done — whether a done
+// pane-mode worker's tmux pane is reclaimed by `fab dispatch reap`. Like
+// DefaultDispatchColumnWidth it is the canonical symbol both the accessor below and
+// internal/configref's registry row read, so the default exists once.
+const DefaultDispatchReapDone = true
 
 // Config holds the parsed project config relevant to the fab binary. It is
 // the single owner of fab/project/config.yaml parsing — every key the fab
@@ -627,6 +647,21 @@ func (c *Config) GetDispatchColumnWidth() int {
 		return w
 	}
 	return DefaultDispatchColumnWidth
+}
+
+// GetDispatchReapDone returns dispatch.reap_done — whether `fab dispatch reap`
+// reclaims a done pane worker's tmux pane — or DefaultDispatchReapDone (true) when
+// unset (nil-safe in both senses: a nil *Config and a nil field both read as unset).
+//
+// The POINTER is what makes this accessor honest, and it is the one place the
+// difference shows: a default-TRUE bool cannot ride the Go zero value the way
+// GetDispatchWatchable's default-false one does, so `reap_done: false` must be
+// storable as a real value rather than collapsing into "absent". See DispatchConfig.
+func (c *Config) GetDispatchReapDone() bool {
+	if c == nil || c.Dispatch.ReapDone == nil {
+		return DefaultDispatchReapDone
+	}
+	return *c.Dispatch.ReapDone
 }
 
 // GetLinearWorkspace returns project.linear_workspace, or "" when unset (nil-safe).

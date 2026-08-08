@@ -665,6 +665,7 @@ func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
 		"agent.workers":         true,
 		"dispatch.watchable":    true, // bool: false IS the built-in default, not "absent"
 		"dispatch.column_width": true, // int: an absent yaml int reads as unset, so 35 is real
+		"dispatch.reap_done":    true, // bool defaulting TRUE — modeled as *bool so absent ≠ false
 	}
 	for _, obj := range arr {
 		key, _ := obj["key"].(string)
@@ -801,6 +802,7 @@ func TestConfigReferenceScopeAssignments(t *testing.T) {
 		"agent.profiles":             configref.ScopeBoth,
 		"dispatch.watchable":         configref.ScopeBoth,
 		"dispatch.column_width":      configref.ScopeBoth,
+		"dispatch.reap_done":         configref.ScopeBoth,
 		"stage_hooks":                configref.ScopeProject,
 		"branch_prefix":              configref.ScopeProject,
 	}
@@ -1180,5 +1182,89 @@ func TestConfigReferenceDispatchColumnWidth(t *testing.T) {
 	}
 	if got := cfg.GetDispatchColumnWidth(); got != config.DefaultDispatchColumnWidth {
 		t.Errorf("the reference's dispatch block must be inert, got column_width %d", got)
+	}
+}
+
+// TestConfigReferenceDispatchReapDone: the `dispatch.reap_done` row (done-worker
+// pane reaping) is present, correctly scoped, advertised, and carries the CANONICAL
+// default rather than a literal copy. Like `dispatch.column_width` it renders inside
+// the shared `dispatch:` segment and therefore carries no Segment of its own — but
+// unlike both siblings its default is TRUE, so the rendered scaffold must not read
+// as a live override and the parsed reference must still resolve to true.
+func TestConfigReferenceDispatchReapDone(t *testing.T) {
+	// Isolate HOME so the cascade cannot merge the developer's real system config
+	// over the reference (the TestConfigReferenceRoundTrips discipline).
+	t.Setenv("HOME", t.TempDir())
+
+	fields, err := configref.Fields()
+	if err != nil {
+		t.Fatalf("Fields returned an error: %v", err)
+	}
+	var row, watchable *configref.Field
+	for i := range fields {
+		switch fields[i].Key {
+		case "dispatch.reap_done":
+			row = &fields[i]
+		case "dispatch.watchable":
+			watchable = &fields[i]
+		}
+	}
+	if row == nil {
+		t.Fatal("registry is missing the dispatch.reap_done row")
+	}
+	// The canonical built-in default, sourced from the config symbol.
+	if row.Default != config.DefaultDispatchReapDone {
+		t.Errorf("dispatch.reap_done Default = %#v, want %v (config.DefaultDispatchReapDone)",
+			row.Default, config.DefaultDispatchReapDone)
+	}
+	// Scope `both` is load-bearing: a project-scoped field would be PRUNED out of
+	// ~/.fab-kit/config.yaml, defeating the machine-wide opt-out.
+	if row.Scope != configref.ScopeBoth {
+		t.Errorf("dispatch.reap_done Scope = %q, want %q (settable machine-wide)", row.Scope, configref.ScopeBoth)
+	}
+	if !row.Advertise {
+		t.Error("dispatch.reap_done must be advertised (it is scaffolded into the managed fence)")
+	}
+	if row.Segment != "" {
+		t.Error("dispatch.reap_done must carry NO Segment of its own — it is rendered inside the shared dispatch.watchable Segment")
+	}
+	if watchable == nil {
+		t.Fatal("registry is missing the dispatch.watchable row (the shared segment's owner)")
+	}
+	// The shared segment is this row's only discoverability surface, so the two
+	// semantics a reader must be able to learn there are what reap DOES and — the
+	// load-bearing half — what it deliberately does NOT do.
+	for _, want := range []string{"reap_done", "done", "headless", ".fab-dispatch/"} {
+		if !strings.Contains(watchable.Segment, want) {
+			t.Errorf("the shared dispatch Segment must mention %q (the reap guard and the no-state-cleanup rule)", want)
+		}
+	}
+
+	out, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+	// Rendered COMMENTED beside its two siblings, under ONE `dispatch:` parent.
+	wantScaffold := "#   reap_done: " + strconv.FormatBool(config.DefaultDispatchReapDone)
+	if !strings.Contains(out, wantScaffold) {
+		t.Errorf("the reference must scaffold %q commented.\n--- got ---\n%s", wantScaffold, out)
+	}
+	if n := strings.Count(out, "# dispatch:"); n != 1 {
+		t.Errorf("the reference renders %d `# dispatch:` parents, want exactly 1 (all three keys share one block)", n)
+	}
+
+	// The commented scaffold must parse as an inert config. For a default-TRUE knob
+	// "inert" means the accessor still reports TRUE — which is exactly the case a
+	// plain bool would have gotten wrong.
+	tmp := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(tmp, []byte(out), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.LoadPath(tmp)
+	if err != nil {
+		t.Fatalf("the rendered reference must parse: %v", err)
+	}
+	if got := cfg.GetDispatchReapDone(); got != config.DefaultDispatchReapDone {
+		t.Errorf("the reference's dispatch block must be inert, got reap_done %v", got)
 	}
 }
