@@ -1,0 +1,57 @@
+id: 9akf
+name: 260808-9akf-skill-prose-policy-amendments
+created: 2026-08-08T08:47:27Z
+created_by: Sahil Ahuja
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 7
+    acceptance_count: 22
+    acceptance_completed: 22
+confidence:
+    certain: 7
+    confident: 1
+    tentative: 0
+    unresolved: 0
+    score: 5.0
+    fuzzy: true
+    dimensions:
+        signal: 82.5
+        reversibility: 91.9
+        competence: 89.4
+        disambiguation: 85.0
+stage_metrics:
+    intake: {started_at: "2026-08-08T08:47:27Z", driver: fab-new, iterations: 1, completed_at: "2026-08-08T09:28:42Z"}
+    apply: {started_at: "2026-08-08T09:54:20Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-08T10:02:01Z"}
+    review: {started_at: "2026-08-08T10:02:01Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-08T10:08:53Z"}
+    hydrate: {started_at: "2026-08-08T10:08:53Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T10:12:21Z"}
+    ship: {started_at: "2026-08-08T10:12:21Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-08T10:15:37Z"}
+    review-pr: {started_at: "2026-08-08T10:15:37Z", driver: git-pr, iterations: 1, completed_at: "2026-08-08T10:23:18Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/551
+change_type_source: explicit
+true_impact:
+    added: 362
+    deleted: 29
+    net: 333
+    excluding:
+        added: 18
+        deleted: 15
+        net: 3
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-08-08T10:15:37Z"
+    computed_at_stage: ship
+summary: Narrowed optimizer prose policies for partial targeting, present-truth narration, protected output literals, sibling duplication, and owner-or-pointer guidance.
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-08T10:23:18Z

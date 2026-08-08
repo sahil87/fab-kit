@@ -18,6 +18,7 @@
 - **Restructuring existing user data without a migration.** Changes to config files, `.status.yaml`, or archive layout MUST ship as a `src/kit/migrations/` file applied by `/fab-setup migrations` — never as a new subcommand or ad-hoc script (context.md § Migrations).
 - **Shipping a skill change without its SPEC mirror.** Every `src/kit/skills/*.md` edit requires the corresponding `docs/specs/skills/SPEC-*.md` update in the same change (Constitution Additional Constraints). See § Sibling & Mirror Sweeps.
 - **Changing a CLI command without updating `_cli-fab.md` + tests.** Any change to the `fab` Go binary's command signatures MUST update `src/kit/skills/_cli-fab.md` and include test updates (Constitution Additional Constraints).
+- **Stating an owned rule AND pointing at its owner.** A skill file may **state a rule it owns**, or **point at the file that owns it** — never both. Restating an owned rule alongside (or instead of) a pointer is the drift mechanism the skill-prose consolidation effort exists to kill: the copy silently diverges when the owner changes (e.g., PR #539's `fab dispatch reap` step updated the `_preamble.md` canon but none of the three downstream restatements). Applies to every `src/kit/skills/*.md` edit.
 
 ## Sibling & Mirror Sweeps
 
@@ -33,6 +34,8 @@ Known classes:
 **How:** before finishing apply, grep the old claim/phrase repo-wide and update every occurrence in the class. Per-file Affected-Memory lists systematically under-cover cross-cutting `_shared/` prose, so don't rely on them to define the class.
 
 > On a CLI/command-signature change, treat **all** of a skill's SPEC mirrors as the sweep class — not just the files carrying the literal changed phrase. Reviewers read "skill change MUST update SPEC-*.md" strictly.
+
+Sweeps catch a diverged copy after the fact; the owner-or-pointer convention prevents that copy from existing at all.
 
 ## Test Strategy
 
