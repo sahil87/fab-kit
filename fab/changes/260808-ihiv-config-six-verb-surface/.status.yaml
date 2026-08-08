@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 15
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-08-08T20:04:28Z", driver: fab-continue, iterations: 12, completed_at: "2026-08-08T20:16:24Z"}
     hydrate: {started_at: "2026-08-08T20:16:24Z", driver: fab-continue, iterations: 1, completed_at: "2026-08-08T20:22:30Z"}
     ship: {started_at: "2026-08-08T20:22:30Z", driver: fab-continue, iterations: 1, completed_at: "2026-08-08T20:26:18Z"}
-    review-pr: {started_at: "2026-08-08T20:26:18Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-08-08T20:26:18Z", driver: git-pr, iterations: 1, completed_at: "2026-08-08T20:36:02Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/555
 true_impact:
@@ -54,4 +54,4 @@ true_impact:
 change_type_source: explicit
 summary: fab config becomes a six-verb surface — keyed show, explain (with an invisible reference alias), scalar-only surgical set/unset through the configupgrade fence engine, and bare init defaulting to project mode
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-08T20:26:18Z
+last_updated: 2026-08-08T20:36:02Z
