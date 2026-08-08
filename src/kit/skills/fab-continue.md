@@ -66,7 +66,7 @@ Dispatch on preflight's derived `stage` and `display_state`. If progress is `pen
 
 **Sub-agent dispatch contract (apply / review / hydrate):**
 
-1. Run `fab resolve-agent <stage> --alias` immediately before dispatch and surface `model=/effort=/provider=/dispatch=`.
+1. Run `fab resolve-agent <stage> --alias` immediately before dispatch and surface `model=/effort=/provider=/dispatch=`. Branch only on `dispatch=` presence: absence means the shared `dispatch.mode` capability ladder resolved native; presence carries the selected pane/headless command but is never executed by this skill.
 2. Run the Dispatch Contract for `<stage>` per `_preamble.md` § CLI-Adapter Dispatch.
 3. Target the named Behavior section of this file in a fresh worker; do not invoke `/fab-continue` recursively.
 4. Carry `_preamble.md` § Dispatch-Prompt Obligations in the worker prompt: standard context, result obligation, block-contract carve-out, and terminal refresh.

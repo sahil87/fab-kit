@@ -215,16 +215,15 @@ checklist:
     - performance
     - ux
 
-# Provider command grammar (top-level). Each provider maps an opaque, user-chosen
-# name to up to two command fields. session_command opens an interactive agent
+# Provider capability grammar (top-level). Each provider maps an opaque, user-chosen
+# name to independent session_command, dispatch_command, and native capabilities.
+# session_command opens an interactive agent
 # SESSION (fab operator / fab batch / fab agent — and `fab dispatch start --pane`,
 # the interactive-pane stage adapter); dispatch_command runs ONE
 # headless STAGE task via `fab dispatch` (which pipes the stage prompt to the
-# command's STDIN). ABSENT dispatch_command → that provider's stages dispatch
-# natively via the Agent tool (there is NO fallback to session_command for a
-# HEADLESS dispatch, in either direction: --pane likewise never falls back to
-# dispatch_command) — unless dispatch.watchable (below) is set and the orchestrator
-# is inside tmux, which makes such a provider pane-eligible instead. fab-kit
+# command's STDIN). native:true records an Agent-tool seam. Capability presence
+# says HOW a rung runs, never WHICH rung to prefer; dispatch.mode below owns policy,
+# descends pane → native → headless, and never substitutes one command for another. fab-kit
 # ships THREE built-in providers — claude (the default), codex, and gemini — each
 # with BOTH its command grammar and its per-ROLE fill map, profiles.<role>.{model,
 # effort}, supplying the {model}/{effort} placeholders when that provider plays that
@@ -234,12 +233,10 @@ checklist:
 # So naming codex or gemini needs no providers: block at all; the blocks below merely
 # restate a built-in default and therefore ship commented, like every other default.
 # Non-claude fills are refreshed at kit-release cadence and pass through unvalidated —
-# pin a newer model with providers.<name>.profiles.<role>.model. claude's
-# dispatch_command ships commented because uncommenting it
-# changes default behavior (set dispatch.watchable below instead when you only want
-# a watchable pane; flips claude native→headless CLI dispatch); codex/gemini's
-# built-in dispatch_commands mean pointing a role at one flips that role's stages
-# to CLI dispatch.
+# pin a newer model with providers.<name>.profiles.<role>.model. Claude ships
+# session, native, and headless capabilities; codex/gemini ship both command fields
+# without native capability. Under the default mode, claude resolves native while
+# codex/gemini descend to headless.
 # (Automated PR reviewer toggles moved to code-review.md § Review Tools — absent = enabled.)
 # Per-provider notes (kept out of the blocks below so uncommenting a whole block
 # stays valid YAML): claude -p and codex exec both read the prompt from stdin.
@@ -254,8 +251,9 @@ checklist:
 # `fab config reference`, not scaffolded into every project's managed fence.
 providers:
   claude:
+    native: true
     session_command: claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}
-    # dispatch_command: claude -p --dangerously-skip-permissions --model {model} --effort {effort}
+    dispatch_command: claude -p --dangerously-skip-permissions --model {model} --effort {effort}
     profiles:                              # the six per-role fills — run `fab config reference` for the live values
       doing: { model: <model-id>, effort: <effort> }   # example: shape only
   # codex:
@@ -294,14 +292,13 @@ agent:
   profiles:
     review: { provider: codex }   # example: shape only
 
-# dispatch.watchable (optional, default false) — the WATCHABLE-PANE opt-in. When
-# true AND the orchestrator sits inside tmux ($TMUX set), a provider carrying only
-# a session_command (the built-in claude) becomes CLI-dispatch-eligible, so
-# `fab resolve-agent` emits a dispatch= line and the stage runs in a tmux pane you
-# can watch and steer. Outside tmux the line is omitted and the stage stays on
-# native Agent-tool dispatch — never headless CLI, which stays gated on a real
-# dispatch_command. A provider's own dispatch_command always wins. Scope `both`, so
-# it is settable once machine-wide in ~/.fab-kit/config.yaml.
+# dispatch.mode (optional, default native) — the preference ceiling: pane, native,
+# or headless. Resolution starts there and descends only through pane → native →
+# headless. Pane requires tmux plus session_command; native requires native:true;
+# headless requires dispatch_command. Missing prerequisites skip rungs, never
+# ascend. `fab resolve-agent` omits dispatch= iff native resolves and emits the
+# selected pane/headless command otherwise. Scope `both`, so it is settable once
+# machine-wide in ~/.fab-kit/config.yaml.
 #
 # dispatch.column_width (optional, default 35) — width, in percent of the window, of
 # the pane-worker column. The first worker CARVES the column out of the dispatching
@@ -318,7 +315,7 @@ agent:
 # removes no .fab-dispatch/ state — so a reaped dispatch still reads `done`. Set
 # false to keep a done worker's pane and its scrollback. Scope `both`.
 dispatch:
-  watchable: false
+  mode: native
   column_width: 35
   reap_done: true
 
@@ -373,7 +370,7 @@ The constitution is the **architectural DNA** of a Fab project. It defines immut
 - Constitution violations found during review are flagged as high-severity issues
 
 **Relationship to `config.yaml`**:
-- `config.yaml` holds **factual project context** (identity, source/test paths, provider session/dispatch commands and per-role fills (`providers:`), the two agent depth knobs plus any `agent.profiles` overrides)
+- `config.yaml` holds **factual project context** (identity, source/test paths, independent provider capabilities — `session_command`, `dispatch_command`, and `native` — plus per-role fills (`providers:`), the two agent depth knobs plus any `agent.profiles` overrides, and the `dispatch.mode` preference ceiling whose automatic selection descends `pane → native → headless`)
 - `constitution.md` holds **principles and constraints** (what MUST/SHOULD/MUST NOT happen)
 - Think: config says *what you use*, constitution says *how you use it*
 

@@ -54,13 +54,16 @@ Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
 │
 │  (each stage dispatch first runs `fab resolve-agent <stage> --alias`, surfaces
 │   the resolved model=/effort=/dispatch= (visibility — 260613-m3d4, dispatch= added
-│   260702-aetz), then BRANCHES on dispatch= (260702-aetz): absent ⇒ native dispatch
+│   260702-aetz), then BRANCHES on dispatch=: absence means the shared dispatch.mode
+│   capability ladder resolved native; presence carries pane/headless grammar and
+│   is never executed by the skill. absent ⇒ native dispatch
 │   via two seams — model → Agent `model` param (empty ⇒ omit/inherit), effort →
 │   imperative instruction in the dispatch prompt (no Agent effort param; empty ⇒
 │   omit; 260613-m3d4); present ⇒ CLI adapter `fab dispatch` (profile rides the
 │   dispatch= command; _preamble.md § CLI-Adapter Dispatch), whose worker mode
-│   AUTO-RESOLVES INSIDE that arm (260805-l9ng: pane inside tmux / $TMUX set,
-│   headless outside) — pass no mode flag by default; --pane forces an interactive
+│   re-resolves the same pane → native → headless descent ladder from the configured
+│   preference, provider capabilities, and current environment — pass no mode flag
+│   by default; --pane forces an interactive
 │   tmux worker (three reachable states running/done/orphaned; requires a reachable
 │   tmux server, so never speculative) and --headless forces a detached one inside
 │   tmux (260805-zxe0) — 260613-l3ja established

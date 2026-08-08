@@ -33,7 +33,7 @@ agent:
   session: claude
   workers: claude
 
-# providers — the built-in invocation grammars plus each provider's per-role
+# providers — the built-in launch capability grammars plus each provider's per-role
 # fills. ALL THREE ship fills, so `agent.workers: codex` is one line and every
 # role still gets a model suited to it. Non-claude fills are refreshed at
 # KIT-RELEASE cadence (see docs/specs/stage-models.md § Refreshing the non-claude
@@ -41,12 +41,14 @@ agent:
 # a single config line (providers.<name>.profiles.<role>.model) — a louder, cheaper
 # failure than the empty-model resolution that shipping nothing produced.
 #
-# claude deliberately carries NO dispatch_command — its absence is what selects
-# native Agent-tool dispatch. codex and gemini carry one, so pointing a role at
-# either flips that role's stages to headless CLI dispatch.
+# Provider fields are pure capability grammar: presence says "here is how", never
+# "select this mode". dispatch.mode owns the preference; automatic resolution
+# descends pane → native → headless against these capabilities.
 providers:
   claude:
+    native: true
     session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
+    dispatch_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
     # The six role fills. `default` doubles as this provider's cross-role
     # fallback: a role absent here resolves the `default` entry, then empty.
     profiles:

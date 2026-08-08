@@ -201,8 +201,7 @@ func TestLoad_FabVersionConfigKeyIgnored(t *testing.T) {
 }
 
 // TestLoad_WithProviders: the top-level providers table round-trips both command
-// fields, and a provider with only a session_command yields an empty
-// DispatchCommand (the native-dispatch signal). The accessor is a pure
+// fields and the native capability independently. The accessor is a pure
 // pass-through; the built-in merge is internal/agent's job.
 func TestLoad_WithProviders(t *testing.T) {
 	isolateSystemConfig(t)
@@ -213,6 +212,7 @@ func TestLoad_WithProviders(t *testing.T) {
 	configYAML := `
 providers:
   claude:
+    native: true
     session_command: 'claude --dangerously-skip-permissions'
   codex:
     session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
@@ -233,7 +233,10 @@ providers:
 		t.Errorf("claude.SessionCommand = %q", claude.SessionCommand)
 	}
 	if claude.DispatchCommand != "" {
-		t.Errorf("claude.DispatchCommand = %q, want empty (native dispatch)", claude.DispatchCommand)
+		t.Errorf("claude.DispatchCommand = %q, want empty (not configured in this fixture)", claude.DispatchCommand)
+	}
+	if !claude.Native {
+		t.Error("claude.Native = false, want true")
 	}
 
 	codex, ok := cfg.GetProvider("codex")
@@ -245,6 +248,9 @@ providers:
 	}
 	if codex.DispatchCommand != "codex exec -m {model} -c model_reasoning_effort={effort}" {
 		t.Errorf("codex.DispatchCommand = %q", codex.DispatchCommand)
+	}
+	if codex.Native {
+		t.Error("codex.Native = true, want false when omitted")
 	}
 
 	// An unconfigured provider reports no entry.
@@ -1000,13 +1006,13 @@ func TestEnvCascade_TypeIncompatibleFailsOpen(t *testing.T) {
 	}{
 		{
 			name:        "boolean field rejects string",
-			envName:     "FAB_DISPATCH_WATCHABLE",
+			envName:     "FAB_DISPATCH_REAP_DONE",
 			envValue:    "not-a-bool",
-			projectYAML: "dispatch:\n  watchable: true\n",
+			projectYAML: "dispatch:\n  reap_done: false\n",
 			assertLower: func(t *testing.T, cfg *Config) {
 				t.Helper()
-				if !cfg.GetDispatchWatchable() {
-					t.Error("invalid env bool must leave project watchable=true effective")
+				if cfg.GetDispatchReapDone() {
+					t.Error("invalid env bool must leave project reap_done=false effective")
 				}
 			},
 		},
@@ -1247,99 +1253,87 @@ func TestScope_SystemFabVersionDoesNotBleedIntoResolvedConfig(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// dispatch.watchable — the watchable-pane opt-in (scope `both`).
+// dispatch.mode — the preferred descent-ladder rung (scope `both`).
 // ---------------------------------------------------------------------------
 
-// TestLoad_DispatchWatchable: the field parses from the project file and the
-// accessor reports it; the DEFAULT (key absent) is false — the byte-stable
-// current behavior every existing config keeps.
-func TestLoad_DispatchWatchable(t *testing.T) {
+// TestLoad_DispatchMode: valid values parse verbatim; absent resolves to native.
+func TestLoad_DispatchMode(t *testing.T) {
 	isolateSystemConfig(t)
-
-	fabRoot := writeProjectConfig(t, "dispatch:\n  watchable: true\n")
-	cfg, err := Load(fabRoot)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
+	for _, mode := range []string{"pane", "native", "headless"} {
+		fabRoot := writeProjectConfig(t, "dispatch:\n  mode: "+mode+"\n")
+		cfg, err := Load(fabRoot)
+		if err != nil {
+			t.Fatalf("Load(%s): %v", mode, err)
+		}
+		if got := cfg.GetDispatchMode(); got != mode {
+			t.Errorf("dispatch.mode %q resolved %q", mode, got)
+		}
 	}
-	if !cfg.GetDispatchWatchable() {
-		t.Error("dispatch.watchable: true must parse as true")
-	}
 
-	// Absent key ⇒ false.
 	bareRoot := writeProjectConfig(t, "project:\n  name: t\n")
 	bare, err := Load(bareRoot)
 	if err != nil {
 		t.Fatalf("Load (bare): %v", err)
 	}
-	if bare.GetDispatchWatchable() {
-		t.Error("an absent dispatch block must default to watchable=false")
-	}
-
-	// An explicit false is indistinguishable from absent — both mean "off".
-	offRoot := writeProjectConfig(t, "dispatch:\n  watchable: false\n")
-	off, err := Load(offRoot)
-	if err != nil {
-		t.Fatalf("Load (explicit false): %v", err)
-	}
-	if off.GetDispatchWatchable() {
-		t.Error("dispatch.watchable: false must parse as false")
+	if got := bare.GetDispatchMode(); got != DefaultDispatchMode {
+		t.Errorf("absent dispatch.mode = %q, want %q", got, DefaultDispatchMode)
 	}
 }
 
-// TestCascade_DispatchWatchableFromSystemLayer: `dispatch` is scope `both`, so a
-// machine-wide opt-in set once in ~/.fab-kit/config.yaml reaches a repo whose
+// TestCascade_DispatchModeFromSystemLayer: `dispatch` is scope `both`, so a
+// machine-wide preference set once in ~/.fab-kit/config.yaml reaches a repo whose
 // project config never mentions it (the requirement the scope exists for — a
 // project-scoped key would be PRUNED from the system layer with a warning).
-func TestCascade_DispatchWatchableFromSystemLayer(t *testing.T) {
+func TestCascade_DispatchModeFromSystemLayer(t *testing.T) {
 	home := isolateSystemConfig(t)
-	writeSystemConfig(t, home, "dispatch:\n  watchable: true\n")
+	writeSystemConfig(t, home, "dispatch:\n  mode: pane\n")
 	fabRoot := writeProjectConfig(t, "project:\n  name: t\n")
 
 	cfg, err := Load(fabRoot)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if !cfg.GetDispatchWatchable() {
-		t.Error("a system-layer dispatch.watchable must be honored (scope `both`, not pruned)")
+	if got := cfg.GetDispatchMode(); got != "pane" {
+		t.Errorf("system-layer dispatch.mode = %q, want pane", got)
 	}
 }
 
-// TestCascade_DispatchWatchableProjectWins: the project layer beats the system
-// layer in both directions — a machine-wide `true` is switchable off per repo, and
-// a project `true` works over a system `false`.
-func TestCascade_DispatchWatchableProjectWins(t *testing.T) {
+// TestCascade_DispatchModeProjectWins: the project layer beats the system layer.
+func TestCascade_DispatchModeProjectWins(t *testing.T) {
 	home := isolateSystemConfig(t)
-	writeSystemConfig(t, home, "dispatch:\n  watchable: true\n")
-	offRoot := writeProjectConfig(t, "dispatch:\n  watchable: false\n")
-	cfg, err := Load(offRoot)
+	writeSystemConfig(t, home, "dispatch:\n  mode: pane\n")
+	root := writeProjectConfig(t, "dispatch:\n  mode: headless\n")
+	cfg, err := Load(root)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.GetDispatchWatchable() {
-		t.Error("a project `false` must beat a system `true`")
-	}
-
-	home2 := isolateSystemConfig(t)
-	writeSystemConfig(t, home2, "dispatch:\n  watchable: false\n")
-	onRoot := writeProjectConfig(t, "dispatch:\n  watchable: true\n")
-	cfg2, err := Load(onRoot)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	if !cfg2.GetDispatchWatchable() {
-		t.Error("a project `true` must beat a system `false`")
+	if got := cfg.GetDispatchMode(); got != "headless" {
+		t.Errorf("project dispatch.mode = %q, want headless over system pane", got)
 	}
 }
 
-// TestGetDispatchWatchable_NilAndEmptyConfig: the accessor is nil-safe and reports
-// false for a zero Config (the "off" default every caller falls back to).
-func TestGetDispatchWatchable_NilAndEmptyConfig(t *testing.T) {
+// TestGetDispatchMode_NilEmptyAndInvalid: the accessor is nil-safe and invalid
+// values warn and fail open to the default.
+func TestGetDispatchMode_NilEmptyAndInvalid(t *testing.T) {
 	var nilCfg *Config
-	if nilCfg.GetDispatchWatchable() {
-		t.Error("nil-config GetDispatchWatchable must report false")
+	if got := nilCfg.GetDispatchMode(); got != DefaultDispatchMode {
+		t.Errorf("nil-config mode = %q, want %q", got, DefaultDispatchMode)
 	}
-	if (&Config{}).GetDispatchWatchable() {
-		t.Error("empty-config GetDispatchWatchable must report false")
+	if got := (&Config{}).GetDispatchMode(); got != DefaultDispatchMode {
+		t.Errorf("empty-config mode = %q, want %q", got, DefaultDispatchMode)
+	}
+
+	old := warnw
+	var warnings bytes.Buffer
+	warnw = &warnings
+	t.Cleanup(func() { warnw = old })
+	cfg := &Config{Dispatch: DispatchConfig{Mode: "sideways"}}
+	if got := cfg.GetDispatchMode(); got != DefaultDispatchMode {
+		t.Errorf("invalid mode = %q, want %q", got, DefaultDispatchMode)
+	}
+	want := "fab: warning: invalid dispatch.mode \"sideways\"; using \"native\"\n"
+	if got := warnings.String(); got != want {
+		t.Errorf("warning = %q, want %q", got, want)
 	}
 }
 
@@ -1360,7 +1354,7 @@ func TestLoad_DispatchColumnWidth(t *testing.T) {
 	}{
 		{"in-range value parses", "dispatch:\n  column_width: 20\n", 20},
 		{"absent key ⇒ default", "project:\n  name: t\n", DefaultDispatchColumnWidth},
-		{"absent width beside a live watchable ⇒ default", "dispatch:\n  watchable: true\n", DefaultDispatchColumnWidth},
+		{"absent width beside a live mode ⇒ default", "dispatch:\n  mode: pane\n", DefaultDispatchColumnWidth},
 		{"explicit 0 reads as unset ⇒ default", "dispatch:\n  column_width: 0\n", DefaultDispatchColumnWidth},
 		{"negative ⇒ default", "dispatch:\n  column_width: -10\n", DefaultDispatchColumnWidth},
 		{"100 leaves the dispatcher nothing ⇒ default", "dispatch:\n  column_width: 100\n", DefaultDispatchColumnWidth},
@@ -1440,10 +1434,10 @@ func TestLoad_DispatchReapDone(t *testing.T) {
 		want bool
 	}{
 		{"absent dispatch block ⇒ default true", "project:\n  name: t\n", true},
-		{"absent key beside a live sibling ⇒ default true", "dispatch:\n  watchable: true\n", true},
+		{"absent key beside a live sibling ⇒ default true", "dispatch:\n  mode: pane\n", true},
 		{"explicit true parses", "dispatch:\n  reap_done: true\n", true},
 		{"explicit false parses (NOT collapsed into absent)", "dispatch:\n  reap_done: false\n", false},
-		{"explicit false beside the siblings", "dispatch:\n  watchable: true\n  column_width: 20\n  reap_done: false\n", false},
+		{"explicit false beside the siblings", "dispatch:\n  mode: pane\n  column_width: 20\n  reap_done: false\n", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -144,16 +144,21 @@ func TestDispatchRestart_RecordAndOutputMatchStart(t *testing.T) {
 	// only the pid/pgid numbers differ, so compare after stripping them.
 	stripIdentity := func(s string) string {
 		open := strings.Index(s, "(")
-		if open < 0 {
+		mode := strings.Index(s, "mode:")
+		// Unexpected shape — no identity parens, or no `mode:` after them.
+		// Leave the string whole so the comparison below fails with both
+		// outputs printed, rather than slicing on a -1 index.
+		if open < 0 || mode < open {
 			return s
 		}
-		return s[:open] + s[strings.Index(s, "auto:"):]
+		return s[:open] + s[mode:]
 	}
 	if stripIdentity(startOut) != stripIdentity(restartOut) {
 		t.Errorf("restart output %q is not shaped like start's %q", restartOut, startOut)
 	}
-	if !strings.Contains(restartOut, string(dispatch.ReasonAutoNoTmux)) {
-		t.Errorf("restart output = %q, want the %q selection source", restartOut, dispatch.ReasonAutoNoTmux)
+	wantReason := "mode: headless (descended: native unavailable)"
+	if !strings.Contains(restartOut, wantReason) {
+		t.Errorf("restart output = %q, want the %q selection source", restartOut, wantReason)
 	}
 
 	// The record shape is identical: same spawn command, same mode, no pane
@@ -272,19 +277,21 @@ func TestDispatchRestart_MissingPromptOverAnOrphanedRecord(t *testing.T) {
 	}
 }
 
-// TestDispatchRestart_NoDispatchCommandErrors: the prologue is `start`'s, so a
-// provider with no dispatch_command fails identically — with the config-key hint.
-func TestDispatchRestart_NoDispatchCommandErrors(t *testing.T) {
-	repoRoot, id := setupDispatchRepo(t, "") // built-in claude: no dispatch_command
+// TestDispatchRestart_NativeSelectionRequiresResolveAgent: the prologue is
+// `start`'s, so native selection fails identically with re-resolution guidance.
+func TestDispatchRestart_NativeSelectionRequiresResolveAgent(t *testing.T) {
+	repoRoot, id := setupDispatchRepo(t, "") // built-in claude: native capability
 	dir := dispatch.DirFor(repoRoot, id)
 	seedOrphanedHeadless(t, dir, "apply", "prompt\n")
 
 	_, err := runRestart(t, "abcd", "apply")
 	if err == nil {
-		t.Fatal("expected an error when the resolved provider has no dispatch_command")
+		t.Fatal("expected native dispatch to be delegated to resolve-agent")
 	}
-	if !strings.Contains(err.Error(), "providers.claude.dispatch_command") {
-		t.Errorf("error = %q, want the config-key hint", err.Error())
+	for _, want := range []string{"native", "fab resolve-agent apply --alias"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want %q", err.Error(), want)
+		}
 	}
 }
 
@@ -333,8 +340,9 @@ func TestDispatchRestart_ModeIsReDerivedNotInherited(t *testing.T) {
 	if !strings.HasPrefix(rec.SpawnCmd, "sh -c 'exit 0'") {
 		t.Errorf("spawn_cmd = %q, want the dispatch_command as prefix", rec.SpawnCmd)
 	}
-	if !strings.Contains(out, string(dispatch.ReasonAutoNoTmux)) {
-		t.Errorf("output = %q, want the %q selection source", out, dispatch.ReasonAutoNoTmux)
+	wantReason := "mode: headless (descended: pane unavailable: no tmux; native unavailable)"
+	if !strings.Contains(out, wantReason) {
+		t.Errorf("output = %q, want the %q selection source", out, wantReason)
 	}
 }
 
@@ -411,8 +419,8 @@ func TestDispatchRestart_PaneAndHeadlessMutuallyExclusive(t *testing.T) {
 	}
 }
 
-// TestDispatchRestart_ExplicitPaneHardErrorsOnUnreachableTmux: the explicit/auto
-// asymmetry is `start`'s. A caller who typed --pane asked for watchability, so an
+// TestDispatchRestart_ExplicitPaneHardErrorsOnUnreachableTmux: the explicit/preferred
+// asymmetry is `start`'s. A caller who typed --pane requested pane mode, so an
 // unreachable server is a hard error with nothing persisted — no silent downgrade.
 func TestDispatchRestart_ExplicitPaneHardErrorsOnUnreachableTmux(t *testing.T) {
 	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "sh -c 'sleep 30' _")
@@ -426,19 +434,19 @@ func TestDispatchRestart_ExplicitPaneHardErrorsOnUnreachableTmux(t *testing.T) {
 	if err == nil {
 		t.Fatal("explicit --pane must hard-error when tmux is unreachable")
 	}
-	if strings.Contains(stderr, dispatch.FallbackNotice) {
-		t.Errorf("explicit --pane must not soft-fall-back, stderr = %q", stderr)
+	if strings.Contains(stderr, "dispatch selection:") {
+		t.Errorf("explicit --pane must not descend, stderr = %q", stderr)
 	}
 	if _, err := dispatch.Load(dir, "apply"); !os.IsNotExist(err) {
 		t.Errorf("no dispatch record should exist after the hard error, got %v", err)
 	}
 }
 
-// TestDispatchRestart_AutoPaneSoftFallsBackToHeadless is the other half of the
+// TestDispatchRestart_PanePreferenceDescendsToHeadless is the other half of the
 // asymmetry, and the case the recovery policy leans on: a stale $TMUX (inherited
 // from the very server whose death orphaned the worker) must degrade to headless
 // with a notice rather than failing an unattended recovery.
-func TestDispatchRestart_AutoPaneSoftFallsBackToHeadless(t *testing.T) {
+func TestDispatchRestart_PanePreferenceDescendsToHeadless(t *testing.T) {
 	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "sh -c 'sleep 30' _")
 	dir := dispatch.DirFor(repoRoot, id)
 	seedOrphanedHeadless(t, dir, "apply", "prompt\n")
@@ -447,22 +455,23 @@ func TestDispatchRestart_AutoPaneSoftFallsBackToHeadless(t *testing.T) {
 
 	out, stderr, err := runRestartCapturingStderr(t, "abcd", "apply")
 	if err != nil {
-		t.Fatalf("auto pane must soft-fall-back on restart, not error: %v", err)
+		t.Fatalf("pane preference must descend on restart, not error: %v", err)
 	}
 	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
 
-	if !strings.Contains(stderr, dispatch.FallbackNotice) {
-		t.Errorf("stderr = %q, want the fallback notice %q", stderr, dispatch.FallbackNotice)
+	if !strings.Contains(stderr, "tmux unreachable") {
+		t.Errorf("stderr = %q, want tmux-unreachable descent notice", stderr)
 	}
-	if !strings.Contains(out, string(dispatch.ReasonAutoUnreachable)) {
-		t.Errorf("output = %q, want the %q selection source", out, dispatch.ReasonAutoUnreachable)
+	wantReason := "mode: headless (descended: pane unavailable: tmux unreachable; native unavailable)"
+	if !strings.Contains(out, wantReason) {
+		t.Errorf("output = %q, want the %q selection source", out, wantReason)
 	}
 	rec, err := dispatch.Load(dir, "apply")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 	if rec.IsPane() || rec.PID <= 0 {
-		t.Errorf("fallback record must be headless-shaped, got %+v", *rec)
+		t.Errorf("descended record must be headless-shaped, got %+v", *rec)
 	}
 }
 

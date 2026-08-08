@@ -128,10 +128,10 @@ Each entry below carries only **stable invocation grammar** and **discovery reci
 - **Model IDs are NOT recorded *here*.** Model catalogs rot in weeks, and this dictionary is read by an agent that may be reasoning about an uninstalled CLI. Instead each entry carries a *discovery recipe*: what to run against the **installed** binary to learn which models it accepts. Never assume a model ID from memory; run the recipe. *(fab-kit does ship per-role model fills in the binary — `providers.<name>.profiles` — but those are DATA refreshed at kit-release cadence and overridden by one config line, not knowledge an agent should carry. The recipe is still how you verify one.)*
 - **Quirks accrete from real encounters only.** An entry records an interactive quirk (first-run trust prompt, submit-key behavior) only once it has actually been hit and confirmed. Speculating about an uninstalled CLI's behavior is worse than silence — it reads as verified.
 
-- **Built-ins:** `claude`, `codex`, and `gemini` use the grammars in `internal/agent`'s embedded `defaults.yaml`; all resolve without a `providers:` block.
+- **Built-ins:** `claude`, `codex`, and `gemini` use the independent `session_command` / `dispatch_command` / `native` capability grammar in `internal/agent`'s embedded `defaults.yaml`; all resolve without a `providers:` block. Claude ships all three capabilities, while codex/gemini are non-native; `dispatch.mode` chooses the starting rung of the descending `pane → native → headless` ladder.
 - **Fill-consuming paths:** depth knobs (`agent.session` / `agent.workers`), `agent.profiles.<role>.provider`, and `fab resolve-agent --provider` consume the built-in per-role fills and resolve a real model for every role.
 - **Provider-addressed sessions:** `fab agent --provider` bypasses both fill sources and stays bare unless `--model`/`--effort` is passed.
-- **Freshness and overrides:** non-Claude fills are release-cadence, unvalidated data. Discover current IDs with each entry's recipe; override with `providers.<name>.profiles.<role>.{model,effort}` (including in `~/.fab-kit/config.yaml`) or invocation flags. A `providers:` block overrides grammar/fills; it does not register built-ins.
+- **Freshness and overrides:** non-Claude fills are release-cadence, unvalidated data. Discover current IDs with each entry's recipe; override with `providers.<name>.profiles.<role>.{model,effort}` (including in `~/.fab-kit/config.yaml`) or invocation flags. A `providers:` block overrides capabilities/fills; it does not register built-ins.
 
 ### claude
 
@@ -139,6 +139,7 @@ Each entry below carries only **stable invocation grammar** and **discovery reci
 |--------|-------|
 | Interactive | `claude` |
 | Headless | `claude -p` — reads the prompt from **stdin** |
+| Native capability | `native: true` — the Claude Agent-tool seam; independent of both command fields |
 | Structured output | `claude -p --output-format stream-json` |
 | Profile flags | `--model <id> --effort <level>` (the CLI accepts full IDs *and* short aliases) |
 | Session naming | `-n <name>` names the session (the built-in `session_command` uses `-n "$(basename "$(pwd)")"`) |
@@ -157,7 +158,7 @@ Each entry below carries only **stable invocation grammar** and **discovery reci
 | MCP server mode | `codex mcp-server` — starts codex AS a stdio MCP server (distinct from `codex mcp`, which *manages* the external MCP servers codex itself connects to); see § Codex MCP Bridge below |
 | Model discovery | Capability-probe the installed binary: `codex --version`, then `codex --help` / `codex exec --help` for the `-m` flag's accepted values. fab ships per-role codex fills (`default`/`doing`/`review`/`fast`) and validates none of them, so the recipe is how you verify one. Pin a discovered ID as `providers.codex.profiles.<role>.model` — the modern spelling — or pass `--model` per invocation. The flat `providers.codex.model` is an **alias for `profiles.default`** and is outranked by the shipped role fills, so it does not reach `doing`/`review`/`fast` |
 
-**Why the session/dispatch split matters here.** `codex` (TUI) and `codex exec` (headless) are different invocations of the same binary, which is exactly why `providers.<name>` carries `session_command` and `dispatch_command` as two unmerged fields — no single template expresses both.
+**Why independent provider capabilities matter here.** `codex` (TUI) and `codex exec` (headless) are different invocations of the same binary, which is exactly why `providers.<name>` carries unmerged `session_command` and `dispatch_command` fields; the separate `native` boolean records an Agent-tool seam when one exists. These fields say how a rung runs, never which dispatch mode to prefer.
 
 ### gemini
 
