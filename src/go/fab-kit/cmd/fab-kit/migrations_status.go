@@ -68,7 +68,13 @@ func runMigrationsStatus(cmd *cobra.Command, asJSON bool) error {
 	}
 	engineData, err := os.ReadFile(filepath.Join(kitDir, "VERSION"))
 	if err != nil {
-		return fmt.Errorf("cannot read engine VERSION at %s: %w. Run 'fab sync' to populate the kit cache", filepath.Join(kitDir, "VERSION"), err)
+		// Under the override the kit dir is not cache-backed, so the usual
+		// "run fab sync" hint would send the user down the wrong path.
+		hint := "Run 'fab sync' to populate the kit cache"
+		if _, set, _ := internal.KitPathOverride(); set {
+			hint = fmt.Sprintf("point %s at a kit directory containing VERSION", internal.KitPathEnv)
+		}
+		return fmt.Errorf("cannot read engine VERSION at %s: %w. %s", filepath.Join(kitDir, "VERSION"), err, hint)
 	}
 	engine := strings.TrimSpace(string(engineData))
 

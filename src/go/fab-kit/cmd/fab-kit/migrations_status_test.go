@@ -65,3 +65,34 @@ func TestMigrationsStatus_InvalidEnvironmentOverrideFailsLoudly(t *testing.T) {
 		t.Errorf("error = %q, want loud %s not-a-directory error", err, internal.KitPathEnv)
 	}
 }
+
+func TestMigrationsStatus_MissingVersionHintFollowsKitSource(t *testing.T) {
+	t.Run("override", func(t *testing.T) {
+		setupMigrationsStatusRepo(t)
+		t.Setenv(internal.KitPathEnv, t.TempDir()) // valid dir, no VERSION
+
+		err := runMigrationsStatus(migrationsStatusCmd(), false)
+		if err == nil {
+			t.Fatal("expected missing VERSION to fail")
+		}
+		if !strings.Contains(err.Error(), internal.KitPathEnv) {
+			t.Errorf("error = %q, want the hint to name %s", err, internal.KitPathEnv)
+		}
+		if strings.Contains(err.Error(), "kit cache") {
+			t.Errorf("error = %q, want no cache hint under the override", err)
+		}
+	})
+
+	t.Run("cache", func(t *testing.T) {
+		setupMigrationsStatusRepo(t)
+		t.Setenv("HOME", t.TempDir()) // empty cache, no VERSION
+
+		err := runMigrationsStatus(migrationsStatusCmd(), false)
+		if err == nil {
+			t.Fatal("expected missing VERSION to fail")
+		}
+		if !strings.Contains(err.Error(), "kit cache") {
+			t.Errorf("error = %q, want the cache hint when no override is set", err)
+		}
+	})
+}
