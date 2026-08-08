@@ -42,8 +42,9 @@ One line per capability, keyed to its command:
   `reap` reclaims a done tmux-pane worker's pane (a reported no-op in every other case).
 - **Panes / operator** — `fab pane {map,capture,send,process,window-name}` inspects and
   drives tmux panes; `fab operator` launches the coordination tab.
-- **Config** — `fab config {reference,show,init,upgrade}` reads and reconciles
-  `config.yaml`; `show --origin` gives per-field provenance.
+- **Config** — `fab config {show,explain,set,unset,init,upgrade}` inspects and
+  surgically updates `config.yaml`; `show <key> --origin` gives provenance and
+  `reference` remains a compatibility alias for `explain`.
 - **Memory** — `fab memory-index [--check [--json]]` regenerates `docs/memory/` indexes and
   per-folder logs deterministically (never hand-edit them).
 - **Batch** — `fab batch {new,switch,archive}` fans changes out across worktree tmux tabs.
@@ -78,7 +79,7 @@ whole pipeline gated on the single intake confidence gate).
 - **stdout is data.** Command output on stdout is meant to be consumed (parsed, piped);
   diagnostics and progress go to stderr. A command that succeeds writes only its data.
 - **`--json`** is available on the machine-readable query surfaces — the `fab status`
-  read-only queries (all but `progress-line`), `fab pane map`, `fab config reference`,
+  read-only queries (all but `progress-line`), `fab pane map`, `fab config explain`,
   `fab dispatch status`, and `fab memory-index --check` — with additive, stable keys.
   `fab preflight` and `fab resolve` emit YAML/plain text and take no JSON flag.
 - **Exit codes** follow the toolkit convention for `fab-go` commands: **`0`** success,

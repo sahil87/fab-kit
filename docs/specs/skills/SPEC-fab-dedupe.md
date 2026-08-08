@@ -141,7 +141,7 @@ None. The sweep runs in the invoking session so the user can steer scope and clu
 
 ## Configuration surface
 
-One registry key, `consolidate.detectors` (`src/go/fab/internal/configref/configref.go`): `Default: nil`, `Scope: project`, `Advertise: true`, rendered into the `fab config upgrade` managed fence and `fab config reference`. Its top-level key `consolidate` is registered in `internal/configscope`'s single-source scope taxonomy, which the registry lint cross-checks. See [config](../config.md).
+One registry key, `consolidate.detectors` (`src/go/fab/internal/configref/configref.go`): `Default: nil`, `Scope: project`, `Advertise: true`, rendered into the `fab config upgrade` managed fence and `fab config explain`. Its top-level key `consolidate` is registered in `internal/configscope`'s single-source scope taxonomy, which the registry lint cross-checks. See [config](../config.md).
 
 ## Difference from /fab-draft
 

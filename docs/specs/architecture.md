@@ -182,7 +182,7 @@ All mutations go through the `fab` CLI (`fab status <event>`, including the pull
 
 ## Configuration (config.yaml)
 
-> **Canonical full reference**: run `fab config reference` to print a fully-commented `config.yaml` documenting every available option (both binary-consumed and skill-consumed keys), generated from the binary's own constants so the shown defaults cannot drift. The excerpt below illustrates the key relationships; the command is the authoritative, always-current reference.
+> **Canonical full reference**: run `fab config explain` to print a fully-commented `config.yaml` documenting every available option (both binary-consumed and skill-consumed keys), generated from the binary's own constants so the shown defaults cannot drift. The excerpt below illustrates the key relationships; the command is the authoritative, always-current reference.
 
 The keys actually consumed by the binaries and skills:
 
@@ -251,17 +251,17 @@ checklist:
 # either) and no -p (it reads the stdin-piped prompt in non-TTY mode; -p would take
 # prompt text appended after stdin), and its fills are that CLI's own stable aliases
 # rather than versioned IDs. This whole block is advertise:false — documented in
-# `fab config reference`, not scaffolded into every project's managed fence.
+# `fab config explain`, not scaffolded into every project's managed fence.
 providers:
   claude:
     session_command: claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}
     # dispatch_command: claude -p --dangerously-skip-permissions --model {model} --effort {effort}
-    profiles:                              # the six per-role fills — run `fab config reference` for the live values
+    profiles:                              # the six per-role fills — run `fab config explain` for the live values
       doing: { model: <model-id>, effort: <effort> }   # example: shape only
   # codex:
   #   session_command: codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
   #   dispatch_command: codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
-  #   profiles:                            # sparse — run `fab config reference` for the live values
+  #   profiles:                            # sparse — run `fab config explain` for the live values
   #     default: { model: <model-id>, effort: <effort> }   # example: shape only
   # gemini:
   #   session_command: gemini --approval-mode=yolo -m {model}
@@ -286,7 +286,7 @@ providers:
 # override. Resolved per stage/role by `fab resolve-agent <stage|role>` at sub-agent
 # dispatch time; see docs/specs/stage-models.md. (`agent.tiers` is the pre-2.17.0
 # spelling — still read, rewritten by the 2.16.19-to-2.17.0 migration.)
-# Run `fab config reference` for the current built-in profiles (rendered live, so it
+# Run `fab config explain` for the current built-in profiles (rendered live, so it
 # cannot go stale). Shape:
 agent:
   session: claude

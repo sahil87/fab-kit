@@ -990,6 +990,75 @@ func TestEnvCascade_MalformedFailsOpenAndEmptyIsUnset(t *testing.T) {
 	}
 }
 
+// TestEnvCascade_BlockStyleCollectionResolves pins the env layer's parity with
+// the file layers: a both-scoped variable carrying a BLOCK-style YAML collection
+// resolves like any other override. The shared value parser is deliberately
+// style-agnostic — `fab config set` refuses collections through its own gates,
+// not by narrowing the parser the env layer shares with it.
+func TestEnvCascade_BlockStyleCollectionResolves(t *testing.T) {
+	isolateSystemConfig(t)
+	warnings := captureWarnings(t)
+	fabRoot := writeProjectConfig(t, "agent:\n  workers: claude\n")
+	t.Setenv("FAB_PROVIDERS", "custom:\n  session_command: tool")
+
+	layers, err := LoadLayers(filepath.Join(fabRoot, "project", "config.yaml"))
+	if err != nil {
+		t.Fatalf("LoadLayers: %v", err)
+	}
+	if got := layers.EnvOrigins["providers"]; got != "FAB_PROVIDERS" {
+		t.Errorf("providers origin = %q, want FAB_PROVIDERS", got)
+	}
+
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if custom, ok := cfg.GetProvider("custom"); !ok || custom.SessionCommand != "tool" {
+		t.Errorf("block-style env collection did not resolve: %+v ok=%v", custom, ok)
+	}
+	if w := warnings(); w != "" {
+		t.Errorf("block-style env collection must not warn, got %q", w)
+	}
+}
+
+// TestEnvCascade_UnusableScalarWarnsAndSkips: a value that reaches the parser but
+// cannot become a config value is skipped with a warning naming the variable —
+// never silently. Whitespace-only text is distinct from a bare empty value (the
+// shell's unset convention, which is silent), and a bare date resolves to the
+// unsupported !!timestamp tag rather than to a string.
+func TestEnvCascade_UnusableScalarWarnsAndSkips(t *testing.T) {
+	for _, tt := range []struct{ name, envValue string }{
+		{"whitespace only", "   "},
+		{"timestamp-tagged scalar", "2026-01-01"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			isolateSystemConfig(t)
+			warnings := captureWarnings(t)
+			fabRoot := writeProjectConfig(t, "agent:\n  workers: claude\n")
+			t.Setenv("FAB_AGENT_WORKERS", tt.envValue)
+
+			layers, err := LoadLayers(filepath.Join(fabRoot, "project", "config.yaml"))
+			if err != nil {
+				t.Fatalf("LoadLayers must fail open: %v", err)
+			}
+			if layers.Env != nil || layers.EnvOrigins != nil {
+				t.Fatalf("unusable value must be skipped, got Env=%#v origins=%#v", layers.Env, layers.EnvOrigins)
+			}
+
+			cfg, err := Load(fabRoot)
+			if err != nil {
+				t.Fatalf("config loading must not error: %v", err)
+			}
+			if got := cfg.GetAgentWorkers(); got != "claude" {
+				t.Errorf("unusable env value must leave project value effective, got %q", got)
+			}
+			if w := warnings(); !strings.Contains(w, "malformed environment override $FAB_AGENT_WORKERS") {
+				t.Errorf("warning must name FAB_AGENT_WORKERS, got %q", w)
+			}
+		})
+	}
+}
+
 func TestEnvCascade_TypeIncompatibleFailsOpen(t *testing.T) {
 	tests := []struct {
 		name        string

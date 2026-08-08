@@ -38,7 +38,7 @@ true_impact_exclude:
 # agent.session / agent.workers — the two knobs, one per agent DEPTH. `session`
 # is what YOU talk to (fab agent, fab operator, fab batch); `workers` is what
 # pipeline STAGES dispatch to. Each names an entry in the `providers:` table,
-# which `fab config reference` prints in full (it is machinery, so the managed
+# which `fab config explain` prints in full (it is machinery, so the managed
 # fence omits it) — fab-kit ships claude, codex and gemini, so `workers: codex`
 # needs no other config. Both default to claude. Scope `both`, so the choice is
 # settable once machine-wide in ~/.fab-kit/config.yaml.
@@ -48,7 +48,7 @@ true_impact_exclude:
 #
 # agent.profiles.<role> is the sparse per-role escape hatch beneath the knobs —
 # {provider, model, effort}, every field optional, no cross-role inheritance.
-# Reach for it only to dial ONE role; see `fab config reference --json` and
+# Reach for it only to dial ONE role; see `fab config explain --json` and
 # docs/specs/config.md. (`agent.tiers` is its pre-2.17.0 spelling — still read,
 # rewritten by the 2.16.19-to-2.17.0 migration.)
 # agent:

@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configscope"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/configvalue"
 )
 
 // homeDir resolves the current user's home directory. It is a package var (not a
@@ -448,13 +449,17 @@ func loadSystemLayer() map[string]any {
 	return m
 }
 
-// ParseYAMLValue parses one config value using the same YAML decoder as config
-// files. It is exported so config-mutating CLI surfaces can share scalar/flow
-// parsing with the environment layer instead of growing a second interpretation
-// of config values.
+// ParseYAMLValue parses one environment override through the shared value
+// parser, including its collection support in either YAML style, then decodes it to the generic
+// shape the layer merge uses. Mutation callers apply a narrower scalar-only
+// contract on top of that parser.
 func ParseYAMLValue(raw string) (any, error) {
+	parsed, err := configvalue.Parse(raw)
+	if err != nil {
+		return nil, err
+	}
 	var value any
-	if err := yaml.Unmarshal([]byte(raw), &value); err != nil {
+	if err := parsed.Node.Decode(&value); err != nil {
 		return nil, err
 	}
 	return value, nil

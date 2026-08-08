@@ -46,7 +46,7 @@ import (
 // inline-YAML shape, and so must be checked against the resolved defaults.
 //
 // Kept deliberately SHORT: the fix for doc drift is usually to stop mirroring
-// (point at `fab config reference`, which renders live) rather than to add another
+// (point at `fab config explain`, which renders live) rather than to add another
 // file here. docs/specs/architecture.md, docs/memory/_shared/configuration.md, and
 // docs/memory/runtime/providers-and-profiles.md were all removed from this list once
 // they were converted to pointers — they now show shape-only YAML and own the role

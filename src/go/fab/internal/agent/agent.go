@@ -254,7 +254,7 @@ var stageRoles = map[string]string{
 // role is known. It is defined as resolution against a NIL config — the built-in
 // answer is exactly "what resolves when the user has configured nothing" — so there
 // is no second built-in table to keep in sync with the resolver. Exposed for the
-// drift-guard tests, `fab config reference`, and the launcher fallbacks.
+// drift-guard tests, `fab config explain`, and the launcher fallbacks.
 func DefaultProfile(role string) (Profile, bool) {
 	p, err := ResolveRole(nil, role)
 	if err != nil {

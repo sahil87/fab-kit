@@ -97,7 +97,7 @@ func TestRender_FenceOmitsOverriddenFields(t *testing.T) {
 // requirement: the advertised agent surface is exactly the two depth knobs, so an
 // un-overridden project's fence carries `agent: session/workers` and NO `providers:`
 // or `agent.profiles` scaffold. Those rows keep their registry entries and their
-// `fab config reference` segments — they are demoted from the per-project fence
+// `fab config explain` segments — they are demoted from the per-project fence
 // only.
 func TestRender_FenceDemotesAgentMachinery(t *testing.T) {
 	fields := fieldsForTest(t)
@@ -566,4 +566,561 @@ func TestRender_FenceAdvertisesDispatchReapDone(t *testing.T) {
 	if strings.Contains(fenceBody2, "dispatch.reap_done") {
 		t.Errorf("fence must omit the already-overridden dispatch field.\n--- fence ---\n%s", fenceBody2)
 	}
+}
+
+// The mutation regressions below are deliberately written before the Set/Unset
+// implementation. They preserve the six silent-success failures discovered on
+// the discarded k0v3 branch as day-one contracts for the fresh writer.
+
+func TestMutationRegression_BlockFormLeafKeepsSiblings(t *testing.T) {
+	path := writeMutationFixture(t, `agent:
+    profiles:
+        review:
+            provider: claude
+            model: old-model
+            effort: xhigh
+`)
+
+	if _, err := Set(path, "agent.profiles.review.model", "new-model", "test"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	got := readMutationFixture(t, path)
+	for _, want := range []string{
+		"provider: claude",
+		"model: new-model",
+		"effort: xhigh",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("setting one block-form leaf dropped sibling/content %q\n--- got ---\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "model: old-model") {
+		t.Errorf("old leaf value survived the replacement\n--- got ---\n%s", got)
+	}
+}
+
+func TestMutationRegression_MaterializationUsesOneRegistryRenderer(t *testing.T) {
+	path := writeMutationFixture(t, "")
+	match, ok, err := configref.ResolveKey("dispatch.column_width")
+	if err != nil || !ok {
+		t.Fatalf("ResolveKey: ok=%v err=%v", ok, err)
+	}
+
+	if _, err := Set(path, "dispatch.column_width", "42", "test"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	got := readMutationFixture(t, path)
+	live := strings.TrimRight(strings.SplitN(got, "# >>> fab reference", 2)[0], "\n")
+	// Derive the expected live bytes from the fence renderer's own output at test
+	// time. If dispatchSegment changes its indentation or structure, a second
+	// literal materializer in Set will drift and this assertion will fail.
+	want := materializationFromRenderedFence(t, match.Owner, "dispatch.column_width", "42")
+	if live != want {
+		t.Fatalf("set materialization did not derive from the fence's registry renderer\n--- got ---\n%s\n--- want ---\n%s", live, want)
+	}
+}
+
+func materializationFromRenderedFence(t *testing.T, owner configref.Field, key, value string) string {
+	t.Helper()
+	fence := renderFence([]configref.Field{owner}, map[string]bool{}, "test")
+	_, fenceBody, _ := sliceFence(t, fence)
+	virtual := strings.Split(fenceBody, "\n")
+	for i, line := range virtual {
+		virtual[i] = strings.TrimPrefix(line, "# ")
+	}
+
+	parts := strings.Split(key, ".")
+	var pathLines []string
+	for _, entry := range scanLiveKeyLines(virtual) {
+		if pathHasPrefix(parts, entry.path) {
+			line := virtual[entry.line][:entry.colon+1]
+			if pathEqual(entry.path, parts) {
+				line += " " + value
+			}
+			pathLines = append(pathLines, line)
+		}
+	}
+	if len(pathLines) != len(parts) {
+		t.Fatalf("rendered fence did not contain materialization path %q\n--- fence ---\n%s", key, fence)
+	}
+	return strings.Join(pathLines, "\n")
+}
+
+func TestMutationRegression_MaterializationKeepsEveryAncestor(t *testing.T) {
+	original, _ := render("", fieldsForTest(t), "test")
+	path := writeMutationFixture(t, original)
+	if _, err := Set(path, "stage_hooks.apply.pre", "./scripts/check.sh", "test"); err != nil {
+		t.Fatalf("Set stage hook: %v", err)
+	}
+
+	got := readMutationFixture(t, path)
+	live := strings.TrimRight(strings.SplitN(got, "# >>> fab reference", 2)[0], "\n")
+	const want = "stage_hooks:\n  apply:\n    pre: ./scripts/check.sh"
+	if live != want {
+		t.Fatalf("set did not materialize the full registry ancestry\n--- got ---\n%s\n--- want ---\n%s", live, want)
+	}
+	cfg, err := config.LoadPath(path)
+	if err != nil {
+		t.Fatalf("LoadPath after Set: %v", err)
+	}
+	if hook := cfg.GetStageHook("apply"); hook.Pre != "./scripts/check.sh" {
+		t.Fatalf("effective apply hook = %+v, want pre command", hook)
+	}
+
+	if _, err := Unset(path, "stage_hooks.apply.pre", "test"); err != nil {
+		t.Fatalf("Unset stage hook: %v", err)
+	}
+	if got := readMutationFixture(t, path); got != original {
+		t.Fatalf("set/unset did not restore the original bytes\n--- got ---\n%s\n--- want ---\n%s", got, original)
+	}
+}
+
+func TestMutationRegression_KeyAxisTyposRefuseWithoutWrite(t *testing.T) {
+	for _, key := range []string{
+		"agent.profile.review.model",
+		"dispatch.colum_width",
+	} {
+		t.Run(key, func(t *testing.T) {
+			const original = "agent:\n    workers: claude\n"
+			path := writeMutationFixture(t, original)
+			if _, err := Set(path, key, "codex", "test"); err == nil {
+				t.Fatalf("Set(%q) succeeded, want unknown-key error", key)
+			}
+			if got := readMutationFixture(t, path); got != original {
+				t.Fatalf("rejected key changed the file\n--- got ---\n%s\n--- want ---\n%s", got, original)
+			}
+		})
+	}
+}
+
+func TestMutationRegression_ScalarOnlySetRefusesWithoutWrite(t *testing.T) {
+	const original = "agent:\n    workers: claude\n"
+	for _, tc := range []struct {
+		name, key, value, want string
+	}{
+		{"structural map key", "agent", "{workers: {bad: kind}}", "scalar leaf"},
+		{"structural dispatch key", "dispatch", "{colum_width: 42}", "scalar leaf"},
+		{"nested map key", "agent.profiles.review", "{model: pinned}", "scalar leaf"},
+		{"sequence leaf", "source_paths", "[src/]", "scalar leaf"},
+		{"mapping value", "agent.workers", "{a: b}", "single-line YAML scalar"},
+		{"sequence value", "agent.workers", "[codex]", "single-line YAML scalar"},
+		{"null value", "agent.workers", "null", "single-line YAML scalar"},
+		{"multiline value", "agent.workers", "[codex,\nnext]", "single-line YAML scalar"},
+		// configvalue.Parse accepts block collections (environment overrides need
+		// them); set refuses them on its own — one-line and multi-line alike.
+		{"block mapping value", "agent.workers", "a: b", "single-line YAML scalar"},
+		{"multiline block mapping value", "agent.workers", "custom:\n  session_command: tool", "single-line YAML scalar"},
+		{"block sequence value", "agent.workers", "- codex\n- next", "single-line YAML scalar"},
+		{"block scalar indicator", "agent.workers", "|", "single-line YAML scalar"},
+		{"escaped multiline scalar", "agent.workers", `"codex\nnext"`, "single-line YAML scalar"},
+		{"comment-bearing value", "agent.workers", "codex # note", "must not contain a YAML comment"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := writeMutationFixture(t, original)
+			_, err := Set(path, tc.key, tc.value, "test")
+			if err == nil || !strings.Contains(err.Error(), tc.want) || !strings.Contains(err.Error(), "edit") {
+				t.Fatalf("Set(%q, %q) error = %v, want %q plus manual-edit guidance", tc.key, tc.value, err, tc.want)
+			}
+			if got := readMutationFixture(t, path); got != original {
+				t.Fatalf("rejected set changed the file\n--- got ---\n%s\n--- want ---\n%s", got, original)
+			}
+		})
+	}
+}
+
+func TestMutationRegression_QuoteHolesRefuseWithoutWrite(t *testing.T) {
+	t.Run("quoted key", func(t *testing.T) {
+		const original = "agent:\n    workers: claude\n"
+		path := writeMutationFixture(t, original)
+		if _, err := Set(path, `"agent".workers`, "codex", "test"); err == nil {
+			t.Fatal("Set accepted a quoted key")
+		}
+		if got := readMutationFixture(t, path); got != original {
+			t.Fatalf("rejected quoted key changed the file\n--- got ---\n%s\n--- want ---\n%s", got, original)
+		}
+	})
+
+	t.Run("unterminated quoted live value is repairable", func(t *testing.T) {
+		const original = `# keep the file note
+agent:
+    workers: "claude # value data, not a comment
+    session: codex # keep the sibling note
+`
+		path := writeMutationFixture(t, original)
+		if _, err := Unset(path, "agent.workers", "test"); err != nil {
+			t.Fatalf("Unset malformed quoted value: %v", err)
+		}
+
+		got := readMutationFixture(t, path)
+		live := strings.TrimRight(strings.SplitN(got, "# >>> fab reference", 2)[0], "\n")
+		const wantLive = `# keep the file note
+agent:
+    session: codex # keep the sibling note`
+		if live != wantLive {
+			t.Fatalf("unset did not remove the unterminated quoted value byte-exactly\n--- got ---\n%s\n--- want ---\n%s", live, wantLive)
+		}
+		if strings.Contains(got, "value data, not a comment") {
+			t.Fatalf("leading-quote scanner promoted malformed value bytes to a comment\n--- got ---\n%s", got)
+		}
+	})
+}
+
+func TestMutationRegression_CommentsSurviveSetUnsetAndRepeatIsFrozen(t *testing.T) {
+	const original = `# user: keep the file-level note
+agent:
+    profiles:
+        review:
+            # user: keep the interior note
+            model: old-model # user: keep the inline note
+            effort: xhigh # user: keep the sibling note
+`
+	path := writeMutationFixture(t, original)
+
+	if _, err := Set(path, "agent.profiles.review.model", "new-model", "test"); err != nil {
+		t.Fatalf("first Set: %v", err)
+	}
+	first := readMutationFixture(t, path)
+	for _, comment := range []string{
+		"# user: keep the file-level note",
+		"# user: keep the interior note",
+		"# user: keep the inline note",
+		"# user: keep the sibling note",
+	} {
+		if !strings.Contains(first, comment) {
+			t.Errorf("Set lost comment %q\n--- got ---\n%s", comment, first)
+		}
+	}
+
+	if _, err := Set(path, "agent.profiles.review.model", "new-model", "test"); err != nil {
+		t.Fatalf("second Set: %v", err)
+	}
+	if second := readMutationFixture(t, path); second != first {
+		t.Fatalf("setting the same value twice is not byte-identical\n--- first ---\n%s\n--- second ---\n%s", first, second)
+	}
+
+	if _, err := Unset(path, "agent.profiles.review.model", "test"); err != nil {
+		t.Fatalf("Unset: %v", err)
+	}
+	unset := readMutationFixture(t, path)
+	for _, comment := range []string{
+		"# user: keep the file-level note",
+		"# user: keep the interior note",
+		"# user: keep the inline note",
+		"# user: keep the sibling note",
+	} {
+		if !strings.Contains(unset, comment) {
+			t.Errorf("Unset lost comment %q\n--- got ---\n%s", comment, unset)
+		}
+	}
+	if !strings.Contains(unset, "effort: xhigh") {
+		t.Fatalf("Unset dropped a sibling leaf\n--- got ---\n%s", unset)
+	}
+}
+
+func TestSystemMutation_ScopeScaffoldAndNoFence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".fab-kit", "config.yaml")
+	if _, err := SetSystem(path, "providers", "{custom: {session_command: tool}}"); err == nil || !strings.Contains(err.Error(), "scalar leaf") {
+		t.Fatalf("SetSystem collection key error = %v, want scalar-leaf refusal", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("rejected collection mutation created a file: %v", err)
+	}
+	if _, err := SetSystem(path, "source_paths", "[src/]"); err == nil {
+		t.Fatal("SetSystem accepted a project-scoped key")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("rejected system mutation created a file: %v", err)
+	}
+
+	if _, err := SetSystem(path, "agent.workers", "codex"); err != nil {
+		t.Fatalf("SetSystem: %v", err)
+	}
+	got := readMutationFixture(t, path)
+	if !strings.HasPrefix(got, SystemScaffoldHeader) {
+		t.Fatalf("missing system scaffold header\n--- got ---\n%s", got)
+	}
+	if !strings.Contains(got, "\n  workers: codex") {
+		t.Fatalf("missing system override\n--- got ---\n%s", got)
+	}
+	if strings.Contains(got, ">>> fab reference") {
+		t.Fatalf("system mutation introduced a project reference fence\n--- got ---\n%s", got)
+	}
+}
+
+func TestSystemMutation_UnsetKnownAbsentIsByteStable(t *testing.T) {
+	const original = "# owned system comments\nagent:\n    workers: codex # keep me\n"
+	path := writeMutationFixture(t, original)
+	if _, err := UnsetSystem(path, "agent.session"); err != nil {
+		t.Fatalf("UnsetSystem absent: %v", err)
+	}
+	if got := readMutationFixture(t, path); got != original {
+		t.Fatalf("absent unset changed bytes\n--- got ---\n%s", got)
+	}
+	if _, err := UnsetSystem(path, "agent.workers"); err != nil {
+		t.Fatalf("UnsetSystem present: %v", err)
+	}
+	got := readMutationFixture(t, path)
+	if !strings.Contains(got, "# keep me") || strings.Contains(got, "workers:") {
+		t.Fatalf("system unset failed comment-preserving removal\n--- got ---\n%s", got)
+	}
+}
+
+func TestMutation_FlowUnsetPrunesEmptyAncestors(t *testing.T) {
+	path := writeMutationFixture(t, "agent: {profiles: {review: {model: pinned}}}\n")
+	if _, err := Unset(path, "agent.profiles.review.model", "test"); err != nil {
+		t.Fatalf("Unset flow leaf: %v", err)
+	}
+	got := readMutationFixture(t, path)
+	live := strings.SplitN(got, "# >>> fab reference", 2)[0]
+	if strings.Contains(live, "review") || strings.Contains(live, "profiles") {
+		t.Fatalf("flow unset left empty override ancestors\n--- got ---\n%s", got)
+	}
+}
+
+func TestMutation_FlowMappingSplicesPreserveRawFormatting(t *testing.T) {
+	const original = "agent: { profiles: { review: { model: old-model, effort: xhigh } }, session: claude } # keep flow style\n"
+	path := writeMutationFixture(t, original)
+
+	if _, err := Set(path, "agent.profiles.review.model", "new-model", "test"); err != nil {
+		t.Fatalf("Set flow leaf: %v", err)
+	}
+	got := readMutationFixture(t, path)
+	wantLive := "agent: { profiles: { review: { model: new-model, effort: xhigh } }, session: claude } # keep flow style"
+	if live := strings.TrimRight(strings.SplitN(got, "# >>> fab reference", 2)[0], "\n"); live != wantLive {
+		t.Fatalf("flow set normalized bytes outside the target value\n--- got ---\n%s\n--- want ---\n%s", live, wantLive)
+	}
+
+	if _, err := Unset(path, "agent.profiles.review.model", "test"); err != nil {
+		t.Fatalf("Unset flow leaf: %v", err)
+	}
+	got = readMutationFixture(t, path)
+	wantLive = "agent: { profiles: { review: { effort: xhigh } }, session: claude } # keep flow style"
+	if live := strings.TrimRight(strings.SplitN(got, "# >>> fab reference", 2)[0], "\n"); live != wantLive {
+		t.Fatalf("flow unset normalized bytes outside the removed pair\n--- got ---\n%s\n--- want ---\n%s", live, wantLive)
+	}
+}
+
+func TestMutation_FlowMappingInsertionIsRaw(t *testing.T) {
+	path := writeMutationFixture(t, "agent: { workers: claude }\n")
+	if _, err := Set(path, "agent.session", "codex", "test"); err != nil {
+		t.Fatalf("Set missing flow leaf: %v", err)
+	}
+	got := readMutationFixture(t, path)
+	wantLive := "agent: { workers: claude, session: codex }"
+	if live := strings.TrimRight(strings.SplitN(got, "# >>> fab reference", 2)[0], "\n"); live != wantLive {
+		t.Fatalf("flow insertion did not preserve the existing raw mapping\n--- got ---\n%s\n--- want ---\n%s", live, wantLive)
+	}
+}
+
+func TestMutation_BlockScalarBodiesAreReplacedAndRemoved(t *testing.T) {
+	for _, indicator := range []string{"|", ">-"} {
+		t.Run(indicator, func(t *testing.T) {
+			original := "agent:\n" +
+				"    workers: " + indicator + " # keep scalar note\n" +
+				"        claude\n" +
+				"        model: this is scalar content, not a key\n" +
+				"    session: claude\n"
+
+			setPath := writeMutationFixture(t, original)
+			if _, err := Set(setPath, "agent.workers", "codex", "test"); err != nil {
+				t.Fatalf("Set block scalar: %v", err)
+			}
+			setLive := strings.SplitN(readMutationFixture(t, setPath), "# >>> fab reference", 2)[0]
+			if !strings.Contains(setLive, "workers: codex # keep scalar note") ||
+				!strings.Contains(setLive, "session: claude") ||
+				strings.Contains(setLive, "this is scalar content") || strings.Contains(setLive, "        claude") {
+				t.Fatalf("set did not replace the complete block-scalar body\n%s", setLive)
+			}
+
+			unsetPath := writeMutationFixture(t, original)
+			if _, err := Unset(unsetPath, "agent.workers", "test"); err != nil {
+				t.Fatalf("Unset block scalar: %v", err)
+			}
+			unsetLive := strings.SplitN(readMutationFixture(t, unsetPath), "# >>> fab reference", 2)[0]
+			if !strings.Contains(unsetLive, "# keep scalar note") ||
+				!strings.Contains(unsetLive, "session: claude") ||
+				strings.Contains(unsetLive, "workers:") ||
+				strings.Contains(unsetLive, "this is scalar content") || strings.Contains(unsetLive, "        claude") {
+				t.Fatalf("unset orphaned or retained block-scalar body bytes\n%s", unsetLive)
+			}
+		})
+	}
+}
+
+func TestMutation_UnsetRepairsWrongKindLiveValue(t *testing.T) {
+	path := writeMutationFixture(t, "dispatch:\n    column_width: not-an-int # preserve repair note\n")
+	if _, err := Unset(path, "dispatch.column_width", "test"); err != nil {
+		t.Fatalf("Unset wrong-kind live value: %v", err)
+	}
+	got := readMutationFixture(t, path)
+	live := strings.SplitN(got, "# >>> fab reference", 2)[0]
+	if strings.Contains(live, "column_width:") || !strings.Contains(live, "# preserve repair note") {
+		t.Fatalf("unset did not repair the wrong-kind override while preserving its note\n--- got ---\n%s", got)
+	}
+	if !strings.Contains(got, "#   column_width: 35") {
+		t.Fatalf("unset did not re-advertise the inherited field in the fence\n--- got ---\n%s", got)
+	}
+}
+
+func TestMutation_UnsetReadvertisesMissingSiblingField(t *testing.T) {
+	path := writeMutationFixture(t, "agent:\n    session: codex\n    workers: claude\n")
+	if _, err := Unset(path, "agent.workers", "test"); err != nil {
+		t.Fatalf("Unset agent.workers: %v", err)
+	}
+
+	got := readMutationFixture(t, path)
+	live := strings.SplitN(got, "# >>> fab reference", 2)[0]
+	if !strings.Contains(live, "session: codex") || strings.Contains(live, "workers:") {
+		t.Fatalf("unset did not keep the live sibling while removing workers\n--- got ---\n%s", got)
+	}
+	if !strings.Contains(got, "#   workers: claude") {
+		t.Fatalf("unset did not re-advertise the inherited sibling field\n--- got ---\n%s", got)
+	}
+	fence := strings.SplitN(got, "# >>> fab reference", 2)[1]
+	if strings.Contains(fence, "#   session:") {
+		t.Fatalf("unset re-advertised the still-live sibling field\n--- got ---\n%s", got)
+	}
+}
+
+func TestMutation_SetAdvertisesOnlyMissingSiblingField(t *testing.T) {
+	path := writeMutationFixture(t, "")
+	if _, err := Set(path, "agent.workers", "codex", "test"); err != nil {
+		t.Fatalf("Set agent.workers: %v", err)
+	}
+
+	got := readMutationFixture(t, path)
+	live := strings.SplitN(got, "# >>> fab reference", 2)[0]
+	if !strings.Contains(live, "workers: codex") || strings.Contains(live, "session:") {
+		t.Fatalf("set did not materialize only workers\n--- got ---\n%s", got)
+	}
+	fence := strings.SplitN(got, "# >>> fab reference", 2)[1]
+	if !strings.Contains(fence, "#   session: claude") {
+		t.Fatalf("set did not keep advertising the inherited sibling field\n--- got ---\n%s", got)
+	}
+	if strings.Contains(fence, "#   workers:") {
+		t.Fatalf("set re-advertised the live sibling field\n--- got ---\n%s", got)
+	}
+}
+
+func TestMutation_OpaqueProviderNamesSetUnset(t *testing.T) {
+	for _, name := range []string{"123", "true", "on", "-local", "测试"} {
+		t.Run(name, func(t *testing.T) {
+			original, _ := render("", fieldsForTest(t), "test")
+			path := writeMutationFixture(t, original)
+			key := "providers." + name + ".session_command"
+			if _, err := Set(path, key, "tool", "test"); err != nil {
+				t.Fatalf("Set(%q): %v", key, err)
+			}
+			got := readMutationFixture(t, path)
+			serializedName := name
+			if name == "123" || name == "true" || name == "on" {
+				serializedName = strconv.Quote(name)
+			}
+			if !strings.Contains(got, serializedName+":") || !strings.Contains(got, "session_command: tool") {
+				t.Fatalf("Set(%q) did not materialize the provider\n--- got ---\n%s", key, got)
+			}
+			cfg, err := config.LoadPath(path)
+			if err != nil {
+				t.Fatalf("LoadPath after Set(%q): %v", key, err)
+			}
+			provider, ok := cfg.GetProvider(name)
+			if !ok || provider.SessionCommand != "tool" {
+				t.Fatalf("Set(%q) was not effective after load: provider=%+v ok=%v", key, provider, ok)
+			}
+
+			if _, err := Unset(path, key, "test"); err != nil {
+				t.Fatalf("Unset(%q): %v", key, err)
+			}
+			if got := readMutationFixture(t, path); got != original {
+				t.Fatalf("Set/Unset(%q) did not restore the original bytes\n--- got ---\n%s\n--- want ---\n%s", key, got, original)
+			}
+		})
+	}
+}
+
+func TestMutation_UnencodableProviderNamesRefuseWithoutWrite(t *testing.T) {
+	for _, key := range []string{
+		"providers.#local.session_command",
+		"providers.local:dev.session_command",
+		"providers. local.session_command",
+		"providers.local .session_command",
+		"providers.local\nname.session_command",
+	} {
+		t.Run(key, func(t *testing.T) {
+			const original = "agent:\n    workers: claude\n"
+			path := writeMutationFixture(t, original)
+			if _, err := Set(path, key, "tool", "test"); err == nil || !strings.Contains(err.Error(), "dotted config-key grammar") {
+				t.Fatalf("Set(%q) error = %v, want dotted-key-grammar refusal", key, err)
+			}
+			if got := readMutationFixture(t, path); got != original {
+				t.Fatalf("rejected provider name changed the file\n--- got ---\n%s\n--- want ---\n%s", got, original)
+			}
+		})
+	}
+}
+
+func TestMutation_UnrelatedUnknownKeyStaysLiveAcrossSetUnset(t *testing.T) {
+	const original = `legacy_mode: true # unrelated user-owned key
+agent:
+    workers: claude
+`
+	path := writeMutationFixture(t, original)
+
+	setResult, err := Set(path, "agent.workers", "codex", "test")
+	if err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	assertUnknownMutationKeyLive(t, path, "codex")
+	for _, line := range setResult.Report {
+		if strings.Contains(line, "parked") {
+			t.Fatalf("Set reported unrelated reconciliation %q", line)
+		}
+	}
+
+	unsetResult, err := Unset(path, "agent.workers", "test")
+	if err != nil {
+		t.Fatalf("Unset: %v", err)
+	}
+	assertUnknownMutationKeyLive(t, path, "")
+	for _, line := range unsetResult.Report {
+		if strings.Contains(line, "parked") {
+			t.Fatalf("Unset reported unrelated reconciliation %q", line)
+		}
+	}
+}
+
+func assertUnknownMutationKeyLive(t *testing.T, path, workers string) {
+	t.Helper()
+	got := readMutationFixture(t, path)
+	live := strings.SplitN(got, "# >>> fab reference", 2)[0]
+	if !strings.Contains(live, "legacy_mode: true # unrelated user-owned key") {
+		t.Fatalf("mutation removed the unrelated unknown live key\n--- got ---\n%s", got)
+	}
+	if strings.Contains(got, "#   legacy_mode: true") || strings.Contains(got, `parked removed field "legacy_mode"`) {
+		t.Fatalf("mutation parked the unrelated unknown live key\n--- got ---\n%s", got)
+	}
+	if workers != "" && !strings.Contains(live, "workers: "+workers) {
+		t.Fatalf("mutation did not set requested key to %q\n--- got ---\n%s", workers, got)
+	}
+	if workers == "" && strings.Contains(live, "workers:") {
+		t.Fatalf("mutation did not unset requested key\n--- got ---\n%s", got)
+	}
+}
+
+func writeMutationFixture(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	return path
+}
+
+func readMutationFixture(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	return string(data)
 }

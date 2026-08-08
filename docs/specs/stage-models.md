@@ -390,7 +390,7 @@ providers:
   # blocks merely restate a built-in default, so they ship commented like every
   # other default. Uncomment only to OVERRIDE a grammar or pin a newer model.
   # (Shape only below; § Three built-in providers above carries the live values,
-  # and `fab config reference` prints what your binary actually ships.)
+  # and `fab config explain` prints what your binary actually ships.)
   # codex:
   #   session_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
   #   dispatch_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
@@ -423,7 +423,7 @@ The **managed fence** in every project's `config.yaml` scaffolds only the advert
 agent side that is exactly the two knobs (plus `dispatch.watchable` / `dispatch.column_width` /
 `dispatch.reap_done`).
 `agent.profiles` and the whole `providers:` table are `advertise: false`: still documented in
-`fab config reference` (YAML + `--json`) and in [`config.md`](config.md), but no longer ~90 commented
+`fab config explain` (YAML + `--json`) and in [`config.md`](config.md), but no longer ~90 commented
 lines in every repo. Users pick a provider per depth; the machinery is there when they need it.
 
 ### Migrating from `agent.tiers`
@@ -842,8 +842,9 @@ command values are wired to the file's keys.
 
 ## Out of scope (deferred)
 
-- **User (`~/.fab-kit`) config layer** — was dropped here; subsequently shipped as the three-layer
-  config cascade (project > system `~/.fab-kit/config.yaml` > defaults, `260708-lpb5`). `agent` and
+- **User (`~/.fab-kit`) config layer** — was dropped here; subsequently shipped as the system rung
+  (`260708-lpb5`) of the current four-layer cascade (environment > project > system
+  `~/.fab-kit/config.yaml` > defaults). `agent` and
   `providers` are both scope `both`, so the depth knobs, a per-role provider fill, and a role override
   are all settable once per machine.
 - **Non-claude default fills** — *no longer deferred*: shipped by `260806-ywkx`. See § Three built-in
