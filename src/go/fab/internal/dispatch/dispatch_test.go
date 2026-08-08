@@ -1,6 +1,8 @@
 package dispatch
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,52 +74,57 @@ func TestDerivePaneState(t *testing.T) {
 	}
 }
 
-// TestSelectMode exhausts the mode-selection ladder: every explicit rung, the
-// precedence pairs between rungs, and the two auto outcomes. The properties worth
-// pinning are that an explicit signal ALWAYS beats auto (so `$TMUX` can never
-// override a flag the caller typed), that only the auto rungs report a non-empty
-// AutoReason (an explicit selection's output line must stay byte-identical to
-// before auto existed), and that an empty `$TMUX` reads as unset.
+// TestSelectMode exhausts the configured descent ladder plus explicit precedence.
 func TestSelectMode(t *testing.T) {
 	tests := []struct {
 		name                   string
 		paneFlag, headlessFlag bool
 		timeoutSet, serverSet  bool
-		tmuxEnv                string
+		preference             string
+		native, session        bool
+		dispatch               bool
+		tmux                   TmuxAvailability
 		wantMode               Mode
 		wantReason             AutoReason
+		wantErr                bool
 	}{
-		// Rung 5 — auto, the new default behavior.
-		{"auto: no tmux ⇒ headless", false, false, false, false, "", ModeHeadless, ReasonAutoNoTmux},
-		{"auto: tmux set ⇒ pane", false, false, false, false, "/tmp/tmux-1000/default,123,0", ModePane, ReasonAutoTmux},
-		{"auto: empty tmux reads as unset", false, false, false, false, "", ModeHeadless, ReasonAutoNoTmux},
+		{"pane preferred and possible", false, false, false, false, "pane", true, true, true, TmuxAvailable, ModePane, "mode: pane (preferred)", false},
+		{"pane to native: no tmux", false, false, false, false, "pane", true, true, true, TmuxAbsent, ModeNative, "mode: native (descended: pane unavailable: no tmux)", false},
+		{"pane to native: unreachable", false, false, false, false, "pane", true, true, true, TmuxUnreachable, ModeNative, "mode: native (descended: pane unavailable: tmux unreachable)", false},
+		{"pane to native: no session", false, false, false, false, "pane", true, false, true, TmuxAvailable, ModeNative, "mode: native (descended: pane unavailable: no session_command)", false},
+		{"pane to headless across two rungs", false, false, false, false, "pane", false, true, true, TmuxAbsent, ModeHeadless, "mode: headless (descended: pane unavailable: no tmux; native unavailable)", false},
+		{"native preferred and possible", false, false, false, false, "native", true, true, true, TmuxAvailable, ModeNative, "mode: native (preferred)", false},
+		{"native to headless", false, false, false, false, "native", false, true, true, TmuxAvailable, ModeHeadless, "mode: headless (descended: native unavailable)", false},
+		{"headless preferred", false, false, false, false, "headless", true, true, true, TmuxAvailable, ModeHeadless, "mode: headless (preferred)", false},
+		{"no rung from pane", false, false, false, false, "pane", false, false, false, TmuxAbsent, "", "", true},
+		{"no rung from native", false, false, false, false, "native", false, true, false, TmuxAvailable, "", "", true},
+		{"headless never ascends", false, false, false, false, "headless", true, true, false, TmuxAvailable, "", "", true},
 
-		// Rungs 1–4 — explicit signals, each beating auto in BOTH tmux states.
-		{"explicit --pane outside tmux", true, false, false, false, "", ModePane, ReasonExplicit},
-		{"explicit --pane inside tmux", true, false, false, false, "/tmp/s,1,0", ModePane, ReasonExplicit},
-		{"explicit --headless inside tmux", false, true, false, false, "/tmp/s,1,0", ModeHeadless, ReasonExplicit},
-		{"explicit --headless outside tmux", false, true, false, false, "", ModeHeadless, ReasonExplicit},
-		{"--timeout implies headless inside tmux", false, false, true, false, "/tmp/s,1,0", ModeHeadless, ReasonExplicit},
-		{"--timeout implies headless outside tmux", false, false, true, false, "", ModeHeadless, ReasonExplicit},
-		{"--server implies pane outside tmux", false, false, false, true, "", ModePane, ReasonExplicit},
-		{"--server implies pane inside tmux", false, false, false, true, "/tmp/s,1,0", ModePane, ReasonExplicit},
-
-		// Precedence between explicit rungs: an earlier rung wins.
-		{"--headless beats --timeout (same outcome)", false, true, true, false, "/tmp/s,1,0", ModeHeadless, ReasonExplicit},
-		{"--headless beats --server", false, true, false, true, "/tmp/s,1,0", ModeHeadless, ReasonExplicit},
-		{"--pane beats --server (same outcome)", true, false, false, true, "", ModePane, ReasonExplicit},
-		{"--timeout beats --server", false, false, true, true, "/tmp/s,1,0", ModeHeadless, ReasonExplicit},
+		{"explicit pane ignores capabilities", true, false, false, false, "headless", false, false, false, TmuxAbsent, ModePane, ReasonExplicit, false},
+		{"explicit headless beats pane preference", false, true, false, false, "pane", true, true, true, TmuxAvailable, ModeHeadless, ReasonExplicit, false},
+		{"timeout beats server", false, false, true, true, "pane", true, true, true, TmuxAvailable, ModeHeadless, ReasonExplicit, false},
+		{"server implies pane", false, false, false, true, "headless", false, false, false, TmuxAbsent, ModePane, ReasonExplicit, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mode, reason := SelectMode(tt.paneFlag, tt.headlessFlag, tt.timeoutSet, tt.serverSet, tt.tmuxEnv)
+			mode, reason, err := SelectMode(tt.paneFlag, tt.headlessFlag, tt.timeoutSet, tt.serverSet,
+				tt.preference, tt.native, tt.session, tt.dispatch, tt.tmux)
+			if tt.wantErr {
+				if !errors.Is(err, ErrNoMode) {
+					t.Fatalf("error = %v, want ErrNoMode", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("SelectMode: %v", err)
+			}
 			if mode != tt.wantMode || reason != tt.wantReason {
-				t.Errorf("SelectMode(pane=%v,headless=%v,timeout=%v,server=%v,TMUX=%q) = (%q,%q), want (%q,%q)",
-					tt.paneFlag, tt.headlessFlag, tt.timeoutSet, tt.serverSet, tt.tmuxEnv,
+				t.Errorf("SelectMode(pane=%v,headless=%v,timeout=%v,server=%v,preference=%q) = (%q,%q), want (%q,%q)",
+					tt.paneFlag, tt.headlessFlag, tt.timeoutSet, tt.serverSet, tt.preference,
 					mode, reason, tt.wantMode, tt.wantReason)
 			}
 			// Any explicit signal must report ReasonExplicit, so the dispatched
-			// output line carries no `auto:` suffix.
+			// output line carries no automatic suffix.
 			explicit := tt.paneFlag || tt.headlessFlag || tt.timeoutSet || tt.serverSet
 			if explicit && reason != ReasonExplicit {
 				t.Errorf("explicit selection reported reason %q, want the empty ReasonExplicit", reason)
@@ -126,6 +133,65 @@ func TestSelectMode(t *testing.T) {
 				t.Error("auto selection must report its source, got ReasonExplicit")
 			}
 		})
+	}
+}
+
+// TestSelectModeAutomaticMatrix exhausts every preference × capability × tmux
+// combination. TestSelectMode above pins the exact reason vocabulary for the
+// representative paths; this matrix guards the global first-possible-rung and
+// never-ascend invariants.
+func TestSelectModeAutomaticMatrix(t *testing.T) {
+	preferences := []Mode{ModePane, ModeNative, ModeHeadless}
+	tmuxStates := []TmuxAvailability{TmuxAbsent, TmuxAvailable, TmuxUnreachable}
+	rank := map[Mode]int{ModePane: 0, ModeNative: 1, ModeHeadless: 2}
+
+	for _, preference := range preferences {
+		for bits := 0; bits < 8; bits++ {
+			native := bits&1 != 0
+			session := bits&2 != 0
+			headless := bits&4 != 0
+			for _, tmux := range tmuxStates {
+				name := fmt.Sprintf("preference=%s/native=%t/session=%t/headless=%t/tmux=%s",
+					preference, native, session, headless, tmux)
+				t.Run(name, func(t *testing.T) {
+					want := Mode("")
+					if preference == ModePane && tmux == TmuxAvailable && session {
+						want = ModePane
+					} else if preference != ModeHeadless && native {
+						want = ModeNative
+					} else if headless {
+						want = ModeHeadless
+					}
+
+					got, reason, err := SelectMode(false, false, false, false,
+						string(preference), native, session, headless, tmux)
+					if want == "" {
+						if !errors.Is(err, ErrNoMode) {
+							t.Fatalf("SelectMode = (%q, %q, %v), want ErrNoMode", got, reason, err)
+						}
+						return
+					}
+					if err != nil {
+						t.Fatalf("SelectMode: %v", err)
+					}
+					if got != want {
+						t.Fatalf("mode = %q, want first available rung %q", got, want)
+					}
+					if rank[got] < rank[preference] {
+						t.Fatalf("mode ascended from %q to %q", preference, got)
+					}
+					if !strings.HasPrefix(string(reason), "mode: "+string(got)+" (") {
+						t.Errorf("reason = %q, want selected rung %q", reason, got)
+					}
+					if got == preference && reason != preferredReason(got) {
+						t.Errorf("direct selection reason = %q, want %q", reason, preferredReason(got))
+					}
+					if got != preference && !strings.Contains(string(reason), "(descended:") {
+						t.Errorf("descent reason = %q, want descended marker", reason)
+					}
+				})
+			}
+		}
 	}
 }
 
@@ -576,51 +642,6 @@ func TestSplitFlagsAreDistinct(t *testing.T) {
 	}
 	if sizeFlag != "-l" {
 		t.Errorf("sizeFlag = %q, want tmux's split size flag -l", sizeFlag)
-	}
-}
-
-// TestSelectModeNeverReportsFallbackReasons pins that both SOFT-FALLBACK reasons
-// are the CALLER's post-validation verdicts, never SelectMode's: the selector is
-// pure — it performs no tmux query and reads no provider config — so it can know
-// neither reachability (shape (a)) nor whether a session_command exists (shape (b)).
-func TestSelectModeNeverReportsFallbackReasons(t *testing.T) {
-	fallbackOnly := []AutoReason{ReasonAutoUnreachable, ReasonAutoNoSessionCommand}
-	for _, tmuxEnv := range []string{"", "/tmp/tmux-1000/default,1,0"} {
-		_, reason := SelectMode(false, false, false, false, tmuxEnv)
-		for _, banned := range fallbackOnly {
-			if reason == banned {
-				t.Errorf("SelectMode(TMUX=%q) reported %q; that verdict belongs to the caller's validation", tmuxEnv, reason)
-			}
-		}
-	}
-}
-
-// TestFallbackReasonsAndNoticesAreDistinct pins that the two soft-fallback shapes
-// are separately explainable: a caller reading stderr or the `dispatched …` line
-// must be able to tell "tmux did not answer" from "the provider has no
-// session_command", since the two need different fixes.
-func TestFallbackReasonsAndNoticesAreDistinct(t *testing.T) {
-	if ReasonAutoUnreachable == ReasonAutoNoSessionCommand {
-		t.Error("the two soft-fallback reasons must differ; the output line is the only explanation of a surprising mode")
-	}
-	if FallbackNotice == FallbackNoticeNoSessionCommand {
-		t.Error("the two soft-fallback notices must differ; each names a different fix")
-	}
-	// Both reasons carry the shared `auto:` prefix the output line appends, and
-	// neither may be the empty ReasonExplicit (which suppresses the suffix).
-	for _, r := range []AutoReason{ReasonAutoUnreachable, ReasonAutoNoSessionCommand} {
-		if r == ReasonExplicit {
-			t.Errorf("fallback reason %q must not be ReasonExplicit; the suffix would be dropped", r)
-		}
-		if !strings.HasPrefix(string(r), "auto: ") {
-			t.Errorf("fallback reason %q must carry the `auto: ` prefix", r)
-		}
-	}
-	// Every notice names the degrade so stderr is self-explanatory.
-	for _, n := range []string{FallbackNotice, FallbackNoticeNoSessionCommand} {
-		if !strings.Contains(n, "falling back to headless") {
-			t.Errorf("notice %q must name the headless degrade", n)
-		}
 	}
 }
 

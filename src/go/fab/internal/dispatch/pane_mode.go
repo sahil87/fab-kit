@@ -1,6 +1,7 @@
 package dispatch
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -27,55 +28,35 @@ import (
 // status) — so there is exactly one tmux argv builder and one stderr-enrichment
 // convention in the binary.
 
-// AutoReason names WHY a dispatch ended up in the mode it did — the selection
-// SOURCE, distinct from the Mode itself. It exists so `fab dispatch start` can
-// explain a surprising mode from its own output (the compliance-visibility
-// principle) and so the auto-vs-explicit asymmetry in the tmux-reachability
-// failure path (soft fallback vs hard error) keys on a named value rather than
-// on re-reading the flags.
+// AutoReason names the chosen automatic rung and any prerequisites that forced a
+// descent. It is distinct from Mode so successful launch output can explain the
+// choice without re-deriving policy.
 type AutoReason string
 
 const (
-	// ReasonExplicit: the caller named the mode (--pane / --headless), or named a
-	// flag that only one mode can honor (--timeout ⇒ headless, --server ⇒ pane).
-	// Auto did NOT fire, so the output line carries no `auto:` suffix and a
-	// tmux-reachability failure stays a hard error.
+	// ReasonExplicit means an explicit flag selected the mode. Explicit output
+	// carries no suffix and missing prerequisites remain hard errors.
 	ReasonExplicit AutoReason = ""
-	// ReasonAutoTmux: no explicit signal and $TMUX was set — pane mode was chosen
-	// because a window would land on the server the caller is attached to.
-	ReasonAutoTmux AutoReason = "auto: tmux"
-	// ReasonAutoNoTmux: no explicit signal and $TMUX was unset — headless, the
-	// pre-auto default, chosen because no pane would be visible to anyone.
-	ReasonAutoNoTmux AutoReason = "auto: no tmux"
-	// ReasonAutoUnreachable: auto selected pane from $TMUX, but the server did not
-	// answer (a stale $TMUX inherited from a killed server), so the dispatch
-	// SOFT-FELL-BACK to headless — fallback shape (a). Set by the caller after the
-	// failed probe, never by SelectMode (which performs no I/O).
-	ReasonAutoUnreachable AutoReason = "auto: tmux unreachable"
-	// ReasonAutoNoSessionCommand: auto selected pane from a REACHABLE $TMUX, but
-	// the resolved provider carries no session_command (a dispatch_command-only
-	// provider — e.g. a headless codex tier), so the dispatch SOFT-FELL-BACK to
-	// headless — fallback shape (b). Set by the caller after the composition
-	// check, never by SelectMode.
-	ReasonAutoNoSessionCommand AutoReason = "auto: no session_command"
 )
 
-// The two stderr notices an auto-selected pane dispatch prints when it
-// soft-falls-back to headless — one per failure shape. Named so each message
-// exists in exactly one place (the command prints it; tests assert it).
+// ErrNoMode means no rung at or below the configured preference is possible.
+var ErrNoMode = errors.New("no dispatch mode is available")
+
+// TmuxAvailability is the caller-observed pane environment. Resolve-agent can
+// distinguish only presence/absence; dispatch start upgrades a failed probe to
+// TmuxUnreachable so output names the real descent cause.
+type TmuxAvailability string
+
 const (
-	// FallbackNotice — shape (a): the tmux server did not answer.
-	FallbackNotice = "pane auto-selection: tmux unreachable, falling back to headless"
-	// FallbackNoticeNoSessionCommand — shape (b): tmux answered, but the resolved
-	// provider has no session_command to open interactively. Falling back is what
-	// keeps a dispatch_command-only provider working inside tmux (its stages were
-	// headless before auto selection existed and must not start failing merely
-	// because the caller sits in a tmux pane).
-	FallbackNoticeNoSessionCommand = "pane auto-selection: provider has no session_command, falling back to headless"
+	TmuxAvailable   TmuxAvailability = "available"
+	TmuxAbsent      TmuxAvailability = "no tmux"
+	TmuxUnreachable TmuxAvailability = "tmux unreachable"
 )
 
-// SelectMode resolves `fab dispatch start`'s launch mode from an
-// EXPLICIT-SIGNAL-FIRST ladder, returning the mode plus the selection source.
+// SelectMode resolves the explicit-signal-first launch ladder. When no explicit
+// signal is present, preference is a ceiling and selection descends only through
+// pane → native → headless. A missing prerequisite skips its rung; no rung yields
+// ErrNoMode.
 //
 // It is a PURE function — no environment reads, no tmux probe, no I/O — so the
 // whole ladder is table-testable, matching DeriveState/DerivePaneState's shape in
@@ -84,7 +65,7 @@ const (
 // Flags().Changed) rather than by value, so an explicit `--timeout 0` or
 // `--server ""` still counts as a signal.
 //
-// The ladder, in order:
+// Explicit signals, in order:
 //
 //  1. paneFlag     → pane      (explicit)
 //  2. headlessFlag → headless  (explicit)
@@ -92,32 +73,62 @@ const (
 //     wrapper, so it can only mean headless)
 //  4. serverSet    → pane      (explicit: --server exists solely to target a
 //     pane's socket, so naming one means pane)
-//  5. otherwise    → auto: tmuxEnv non-empty ⇒ pane, else headless
+//  5. otherwise    → configured preference + capability descent
 //
 // paneFlag and headlessFlag are mutually exclusive at the cobra layer, so rung 1
 // preceding rung 2 is a tie-break that can never be reached in practice.
 //
-// $TMUX is the DEFAULTING signal only — "a pane opened without -L lands on the
-// server the caller is attached to". It never replaces ServerReachable, which
-// stays the VALIDATION step once pane mode is chosen (and which is a real tmux
-// query precisely so an explicit --pane works from a headless orchestrator, where
-// $TMUX is unset). An empty $TMUX reads as unset: Go cannot distinguish the two,
-// and tmux never exports an empty value.
-func SelectMode(paneFlag, headlessFlag, timeoutSet, serverSet bool, tmuxEnv string) (Mode, AutoReason) {
+// tmux is caller-supplied availability: resolve-agent uses $TMUX
+// presence, while dispatch start replaces it with a real reachability result
+// before launching. That keeps environment/probe I/O outside this pure function.
+func SelectMode(paneFlag, headlessFlag, timeoutSet, serverSet bool, preference string,
+	native, sessionCommand, dispatchCommand bool, tmux TmuxAvailability,
+) (Mode, AutoReason, error) {
 	switch {
 	case paneFlag:
-		return ModePane, ReasonExplicit
+		return ModePane, ReasonExplicit, nil
 	case headlessFlag:
-		return ModeHeadless, ReasonExplicit
+		return ModeHeadless, ReasonExplicit, nil
 	case timeoutSet:
-		return ModeHeadless, ReasonExplicit
+		return ModeHeadless, ReasonExplicit, nil
 	case serverSet:
-		return ModePane, ReasonExplicit
-	case tmuxEnv != "":
-		return ModePane, ReasonAutoTmux
-	default:
-		return ModeHeadless, ReasonAutoNoTmux
+		return ModePane, ReasonExplicit, nil
 	}
+
+	var skipped []string
+	if preference == string(ModePane) {
+		switch {
+		case tmux != TmuxAvailable:
+			skipped = append(skipped, "pane unavailable: "+string(tmux))
+		case !sessionCommand:
+			skipped = append(skipped, "pane unavailable: no session_command")
+		default:
+			return ModePane, preferredReason(ModePane), nil
+		}
+	}
+
+	if preference == string(ModePane) || preference == string(ModeNative) {
+		if native {
+			return ModeNative, selectionReason(ModeNative, skipped), nil
+		}
+		skipped = append(skipped, "native unavailable")
+	}
+
+	if dispatchCommand {
+		return ModeHeadless, selectionReason(ModeHeadless, skipped), nil
+	}
+	return "", "", ErrNoMode
+}
+
+func preferredReason(mode Mode) AutoReason {
+	return AutoReason(fmt.Sprintf("mode: %s (preferred)", mode))
+}
+
+func selectionReason(mode Mode, skipped []string) AutoReason {
+	if len(skipped) == 0 {
+		return preferredReason(mode)
+	}
+	return AutoReason(fmt.Sprintf("mode: %s (descended: %s)", mode, strings.Join(skipped, "; ")))
 }
 
 // PaneShape names WHERE a pane-mode worker is opened — the second decision pane
@@ -196,13 +207,10 @@ func SelectPaneShape(paneMode, serverSet bool, tmuxPane string) PaneShape {
 // StderrError rather than a bare exit status. So the probe is a reachability
 // gate, not a launch guarantee — the launch has its own actionable error.
 //
-// What the CALLER does with a non-nil return depends on how pane mode was
-// selected (SelectMode's AutoReason): an EXPLICIT pane selection propagates this
-// error (hard failure, nothing launched or persisted), while an AUTO selection
-// soft-falls-back to headless with FallbackNotice — a stale $TMUX must not break
-// a dispatch that never asked for a pane. (A missing session_command is the
-// second, independent fallback shape, handled by the caller after this probe —
-// see FallbackNoticeNoSessionCommand.)
+// What the caller does with a non-nil return depends on how pane mode was
+// selected: an explicit pane selection propagates this error, while an automatic
+// selection re-runs SelectMode with TmuxUnreachable and descends to native or
+// headless. Either outcome occurs before launch or persistence.
 func ServerReachable(server string) error {
 	_, stderr, err := pane.RunCmd("tmux", pane.WithServer(server, "list-sessions")...)
 	if err == nil {

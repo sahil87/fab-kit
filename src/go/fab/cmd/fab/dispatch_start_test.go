@@ -18,8 +18,8 @@ import (
 // setupDispatchRepo builds a repo with one active change and a config whose
 // `doing` role (apply's role) points at a provider carrying a dispatch_command,
 // then chdirs into it so resolve.FabRoot() resolves. When dispatchCmd is empty,
-// no dispatch_command is configured (the resolved provider — the built-in claude —
-// has none). Returns the repo root and the 4-char change ID.
+// the resolved provider is the native-capable built-in claude. Returns the repo
+// root and the 4-char change ID.
 func setupDispatchRepo(t *testing.T, dispatchCmd string) (repoRoot, id string) {
 	t.Helper()
 	return setupDispatchRepoWithCommands(t, dispatchCmd, "")
@@ -28,16 +28,14 @@ func setupDispatchRepo(t *testing.T, dispatchCmd string) (repoRoot, id string) {
 // setupDispatchRepoWithCommands is setupDispatchRepo with independent control of
 // the resolved provider's TWO command fields, so the pane path (session_command)
 // and the headless path (dispatch_command) can be exercised separately —
-// including the case that proves there is no cross-fallback in either direction
+// including the case that proves there is no cross-substitution in either direction
 // (one field set, the other empty). An empty pair leaves the built-in claude
-// provider resolved (which carries a session_command but no dispatch_command).
+// provider resolved (which carries native and both command capabilities).
 func setupDispatchRepoWithCommands(t *testing.T, dispatchCmd, sessionCmd string) (repoRoot, id string) {
 	t.Helper()
-	// Neutralize $TMUX so mode selection is HERMETIC: `fab dispatch start`'s mode
-	// defaults to auto (pane inside tmux, headless outside), so a test suite run
-	// from inside a tmux pane would otherwise auto-select pane and every headless
-	// assertion below would depend on where the suite happens to run. Tests that
-	// exercise auto selection re-set it themselves (t.Setenv is per-test and
+	// Neutralize $TMUX so pane-preference tests are HERMETIC: a test suite run from
+	// inside a tmux pane would otherwise treat pane as available. Tests that
+	// exercise pane availability re-set it themselves (t.Setenv is per-test and
 	// restores on cleanup).
 	t.Setenv("TMUX", "")
 	// $TMUX_PANE is the second env signal — it picks the pane SHAPE (split the
@@ -66,6 +64,9 @@ func setupDispatchRepoWithCommands(t *testing.T, dispatchCmd, sessionCmd string)
 	projectDir := filepath.Join(repoRoot, "fab", "project")
 	mustMkdir(t, projectDir)
 	body := "project:\n  name: test\n"
+	if sessionCmd != "" {
+		body += "dispatch:\n  mode: pane\n"
+	}
 	if dispatchCmd != "" || sessionCmd != "" {
 		// A cli provider carries the command field(s); the doing role points at it.
 		body += "providers:\n  cli:\n"
@@ -119,7 +120,7 @@ func waitDispatchDone(t *testing.T, dir, stage string) {
 
 // runStartCapturingStderr executes `fab dispatch start` with a prompt piped on
 // stdin, returning stdout, stderr, and the error. Stderr matters for the
-// auto-selection soft-fallback notices.
+// automatic descent notices.
 func runStartCapturingStderr(t *testing.T, prompt string, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
 	cmd := dispatchStartCmd()
@@ -188,20 +189,18 @@ func TestDispatchStart_LaunchesAndPersistsState(t *testing.T) {
 	}
 }
 
-func TestDispatchStart_NoDispatchCommandErrors(t *testing.T) {
-	setupDispatchRepo(t, "") // resolved provider (built-in claude) has no dispatch_command
+func TestDispatchStart_NativeSelectionRequiresResolveAgent(t *testing.T) {
+	setupDispatchRepo(t, "") // built-in claude resolves to native at the default preference
 
 	_, err := runStart(t, "prompt", "abcd", "apply")
 	if err == nil {
-		t.Fatal("expected an error when the resolved provider has no dispatch_command")
+		t.Fatal("expected native dispatch to be delegated to resolve-agent")
 	}
 	msg := err.Error()
-	if !strings.Contains(msg, "doing") || !strings.Contains(msg, "dispatch_command") {
-		t.Errorf("error = %q, want mention of role 'doing' and dispatch_command", msg)
-	}
-	// Must name the config key to set (no fallback to a session command).
-	if !strings.Contains(msg, "providers.claude.dispatch_command") {
-		t.Errorf("error = %q, want the config-key hint", msg)
+	for _, want := range []string{"native", "fab resolve-agent apply --alias"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error = %q, want %q", msg, want)
+		}
 	}
 }
 
@@ -217,7 +216,7 @@ func TestDispatchStart_RefusesWhenRunning(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := runStart(t, "prompt", "abcd", "apply")
+	_, err := runStart(t, "prompt", "abcd", "apply", "--headless")
 	if err == nil {
 		t.Fatal("expected refuse-if-running error")
 	}
@@ -359,7 +358,7 @@ func TestDispatchStart_PaneWithoutTmuxServerErrors(t *testing.T) {
 }
 
 // TestDispatchStart_HeadlessStillRequiresDispatchCommand is the other half of the
-// no-cross-fallback rule: a provider carrying ONLY a session_command must not
+// no-cross-substitution rule: a provider carrying ONLY a session_command must not
 // satisfy a headless start.
 func TestDispatchStart_HeadlessStillRequiresDispatchCommand(t *testing.T) {
 	setupDispatchRepoWithCommands(t, "", "sh -c 'exit 0'")
@@ -598,10 +597,9 @@ func TestDispatchStart_HeadlessFlagOptsOutOfAutoPane(t *testing.T) {
 	}
 }
 
-// TestDispatchStart_AutoSelectsHeadlessOutsideTmux pins the pre-auto default as
-// the auto outcome outside tmux — behaviorally byte-preserving apart from the
-// output line's selection-source suffix.
-func TestDispatchStart_AutoSelectsHeadlessOutsideTmux(t *testing.T) {
+// TestDispatchStart_NativePreferenceDescendsToHeadless pins the default-mode
+// descent when a custom provider has no native capability.
+func TestDispatchStart_NativePreferenceDescendsToHeadless(t *testing.T) {
 	repoRoot, id := setupDispatchRepo(t, "sh -c 'exit 0'") // clears $TMUX
 
 	out, err := runStart(t, "prompt", "abcd", "apply")
@@ -616,18 +614,19 @@ func TestDispatchStart_AutoSelectsHeadlessOutsideTmux(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 	if rec.IsPane() || rec.PID <= 0 {
-		t.Errorf("auto outside tmux must be headless, got %+v", *rec)
+		t.Errorf("native-unavailable descent must be headless, got %+v", *rec)
 	}
-	if !strings.Contains(out, string(dispatch.ReasonAutoNoTmux)) {
-		t.Errorf("output = %q, want the %q selection source", out, dispatch.ReasonAutoNoTmux)
+	wantReason := "mode: headless (descended: native unavailable)"
+	if !strings.Contains(out, wantReason) {
+		t.Errorf("output = %q, want the %q selection source", out, wantReason)
 	}
 }
 
-// TestDispatchStart_AutoPaneSoftFallsBackToHeadless: a STALE $TMUX (inherited from
-// a killed server) must not break a dispatch that never asked for a pane. Auto
-// selects pane, the reachability probe fails, and the dispatch degrades to
-// headless with a one-line stderr notice — where an explicit --pane hard-errors.
-func TestDispatchStart_AutoPaneSoftFallsBackToHeadless(t *testing.T) {
+// TestDispatchStart_PanePreferenceDescendsOnUnreachableTmux: a STALE $TMUX
+// (inherited from a killed server) must not break a pane-preferred dispatch. The
+// reachability probe fails and selection descends to headless with a one-line
+// stderr notice, whereas an explicit --pane hard-errors.
+func TestDispatchStart_PanePreferenceDescendsOnUnreachableTmux(t *testing.T) {
 	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "sh -c 'sleep 30' _")
 	// A private, empty TMUX_TMPDIR guarantees no server answers the default socket,
 	// so the probe fails deterministically regardless of the test host's tmux.
@@ -636,78 +635,80 @@ func TestDispatchStart_AutoPaneSoftFallsBackToHeadless(t *testing.T) {
 
 	out, stderr, err := runStartCapturingStderr(t, "prompt", "abcd", "apply")
 	if err != nil {
-		t.Fatalf("auto pane must soft-fall-back, not error: %v", err)
+		t.Fatalf("pane preference must descend, not error: %v", err)
 	}
 	dir := dispatch.DirFor(repoRoot, id)
 	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
 
-	if !strings.Contains(stderr, dispatch.FallbackNotice) {
-		t.Errorf("stderr = %q, want the fallback notice %q", stderr, dispatch.FallbackNotice)
+	if !strings.Contains(stderr, "tmux unreachable") {
+		t.Errorf("stderr = %q, want the tmux-unreachable descent notice", stderr)
 	}
-	if !strings.Contains(out, string(dispatch.ReasonAutoUnreachable)) {
-		t.Errorf("output = %q, want the %q selection source", out, dispatch.ReasonAutoUnreachable)
+	wantReason := "mode: headless (descended: pane unavailable: tmux unreachable; native unavailable)"
+	if !strings.Contains(out, wantReason) {
+		t.Errorf("output = %q, want the %q selection source", out, wantReason)
 	}
 
-	// The record is headless-SHAPED: the fallback re-composed dispatch_command and
+	// The record is headless-SHAPED: descent re-composed dispatch_command and
 	// launched the wrapper, so no pane identity leaks into the record.
 	rec, err := dispatch.Load(dir, "apply")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 	if rec.IsPane() || rec.Mode() != dispatch.ModeHeadless {
-		t.Errorf("fallback record reads as %q (pane=%q)", rec.Mode(), rec.Pane)
+		t.Errorf("descended record reads as %q (pane=%q)", rec.Mode(), rec.Pane)
 	}
 	if rec.PID <= 0 || rec.PGID <= 0 {
 		t.Errorf("pid/pgid = %d/%d, want positive", rec.PID, rec.PGID)
 	}
 	if rec.Window != "" || rec.Server != "" {
-		t.Errorf("fallback record carries pane identity: window=%q server=%q", rec.Window, rec.Server)
+		t.Errorf("descended record carries pane identity: window=%q server=%q", rec.Window, rec.Server)
 	}
-	// The fallback composed dispatch_command, NOT session_command — the
-	// no-cross-fallback rule survives the mode change.
+	// The descended mode composed dispatch_command, NOT session_command — the
+	// no-cross-substitution rule survives the mode change.
 	if !strings.HasPrefix(rec.SpawnCmd, "sh -c 'exit 0'") {
 		t.Errorf("spawn_cmd = %q, want the dispatch_command as prefix", rec.SpawnCmd)
 	}
 }
 
-// TestDispatchStart_AutoPaneFallsBackWhenProviderHasNoSessionCommand is soft
-// fallback shape (b) with a STALE $TMUX: the pane path cannot proceed for TWO
+// TestDispatchStart_PanePreferenceDescendsWithoutSessionCommand is descent shape
+// (b) with a STALE $TMUX: the pane path cannot proceed for TWO
 // independent reasons at once (unreachable server AND no session_command), and
-// either way an auto-selected pane must degrade rather than error. The probe fires
+// either way a pane preference must descend rather than error. The probe fires
 // first, so the shape-(a) notice is the one printed — what this test pins is that a
 // dispatch_command-only provider does not hard-error on composition before the
-// fallback decision point is even reached.
-func TestDispatchStart_AutoPaneFallsBackWhenProviderHasNoSessionCommand(t *testing.T) {
+// descent decision point is even reached.
+func TestDispatchStart_PanePreferenceDescendsWithoutSessionCommand(t *testing.T) {
 	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "") // no session_command
+	appendProjectConfig(t, repoRoot, "dispatch:\n  mode: pane\n")
 	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, "fabtest-nosess-stale"))
 	t.Setenv("TMUX", "/tmp/tmux-dead/default,9999,0")
 
 	out, stderr, err := runStartCapturingStderr(t, "prompt", "abcd", "apply")
 	if err != nil {
-		t.Fatalf("auto pane with a dispatch_command-only provider must soft-fall-back, not error: %v", err)
+		t.Fatalf("pane preference with a dispatch_command-only provider must descend, not error: %v", err)
 	}
 	dir := dispatch.DirFor(repoRoot, id)
 	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
 
-	if !strings.Contains(stderr, "falling back to headless") {
-		t.Errorf("stderr = %q, want a soft-fallback notice", stderr)
+	if !strings.Contains(stderr, "no session_command") {
+		t.Errorf("stderr = %q, want the missing-session descent notice", stderr)
 	}
-	if !strings.Contains(out, "auto: ") {
-		t.Errorf("output = %q, want an auto-selection source suffix", out)
+	if !strings.Contains(out, "mode: headless (descended:") {
+		t.Errorf("output = %q, want the descent source suffix", out)
 	}
 	rec, err := dispatch.Load(dir, "apply")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 	if rec.IsPane() || rec.PID <= 0 {
-		t.Errorf("fallback record must be headless-shaped, got %+v", *rec)
+		t.Errorf("descended record must be headless-shaped, got %+v", *rec)
 	}
 	if !strings.HasPrefix(rec.SpawnCmd, "sh -c 'exit 0'") {
 		t.Errorf("spawn_cmd = %q, want the dispatch_command as prefix", rec.SpawnCmd)
 	}
 }
 
-// TestDispatchStart_AutoPaneNoSessionCommand_Integration is soft fallback shape (b)
+// TestDispatchStart_PanePreferenceNoSessionCommand_Integration is descent shape (b)
 // in isolation, against a LIVE tmux server: the reachability probe PASSES, so the
 // only reason the pane path cannot proceed is the missing session_command. This is
 // the regression the review found — before pane-command composition was deferred,
@@ -715,19 +716,20 @@ func TestDispatchStart_AutoPaneFallsBackWhenProviderHasNoSessionCommand(t *testi
 // tmux, demanding a session_command it never needed.
 //
 // SAFETY: this test issues UNSCOPED (no `-L`) tmux calls on purpose, because
-// auto-selected pane mode passes no `-L` and must reach the server through tmux's
+// pane-preferred mode passes no `-L` and must reach the server through tmux's
 // own default-socket resolution. It follows the same two-mechanism isolation as
-// TestDispatchStart_AutoPaneMode_Integration and neither mechanism may be removed:
+// TestDispatchStart_PanePreferenceMode_Integration and neither mechanism may be removed:
 // a private TMUX_TMPDIR relocates the default socket, and $TMUX must be EMPTY while
 // the server is created (a set $TMUX makes a client target ITS socket and ignore
 // TMUX_TMPDIR, which would put the session on — and later kill — the real server).
 // Every destructive call, kill-server included, is scoped by a VERIFIED `-S` path.
-func TestDispatchStart_AutoPaneNoSessionCommand_Integration(t *testing.T) {
+func TestDispatchStart_PanePreferenceNoSessionCommand_Integration(t *testing.T) {
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("tmux not available")
 	}
 	// dispatch_command only — the pane path has nothing to open interactively.
 	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "")
+	appendProjectConfig(t, repoRoot, "dispatch:\n  mode: pane\n")
 
 	socketDir := tmuxSocketDir(t, "default")
 	t.Setenv("TMUX_TMPDIR", socketDir)
@@ -761,14 +763,15 @@ func TestDispatchStart_AutoPaneNoSessionCommand_Integration(t *testing.T) {
 
 	// The probe passed, so this is shape (b) specifically — the session_command
 	// notice and reason, not the unreachable-tmux pair.
-	if !strings.Contains(stderr, dispatch.FallbackNoticeNoSessionCommand) {
-		t.Errorf("stderr = %q, want the shape-(b) notice %q", stderr, dispatch.FallbackNoticeNoSessionCommand)
+	if !strings.Contains(stderr, "no session_command") {
+		t.Errorf("stderr = %q, want the no-session descent notice", stderr)
 	}
-	if strings.Contains(stderr, dispatch.FallbackNotice) {
+	if strings.Contains(stderr, "tmux unreachable") {
 		t.Errorf("stderr = %q must not carry the unreachable-tmux notice: tmux WAS reachable", stderr)
 	}
-	if !strings.Contains(out, string(dispatch.ReasonAutoNoSessionCommand)) {
-		t.Errorf("output = %q, want the %q selection source", out, dispatch.ReasonAutoNoSessionCommand)
+	wantReason := "mode: headless (descended: pane unavailable: no session_command; native unavailable)"
+	if !strings.Contains(out, wantReason) {
+		t.Errorf("output = %q, want the %q selection source", out, wantReason)
 	}
 
 	rec, err := dispatch.Load(dir, "apply")
@@ -776,13 +779,13 @@ func TestDispatchStart_AutoPaneNoSessionCommand_Integration(t *testing.T) {
 		t.Fatalf("state not persisted: %v", err)
 	}
 	if rec.IsPane() || rec.Mode() != dispatch.ModeHeadless {
-		t.Errorf("fallback record reads as %q (pane=%q)", rec.Mode(), rec.Pane)
+		t.Errorf("descended record reads as %q (pane=%q)", rec.Mode(), rec.Pane)
 	}
 	if rec.PID <= 0 || rec.PGID <= 0 {
 		t.Errorf("pid/pgid = %d/%d, want positive", rec.PID, rec.PGID)
 	}
 	if rec.Window != "" || rec.Server != "" {
-		t.Errorf("fallback record carries pane identity: window=%q server=%q", rec.Window, rec.Server)
+		t.Errorf("descended record carries pane identity: window=%q server=%q", rec.Window, rec.Server)
 	}
 	if !strings.HasPrefix(rec.SpawnCmd, "sh -c 'exit 0'") {
 		t.Errorf("spawn_cmd = %q, want the dispatch_command as prefix", rec.SpawnCmd)
@@ -791,7 +794,7 @@ func TestDispatchStart_AutoPaneNoSessionCommand_Integration(t *testing.T) {
 	if names, err := exec.Command("tmux", "-S", privateSocket,
 		"list-windows", "-a", "-F", "#W").Output(); err == nil {
 		if strings.Contains(string(names), dispatch.WindowName(id, "apply")) {
-			t.Errorf("a dispatch window %q was opened despite the headless fallback", dispatch.WindowName(id, "apply"))
+			t.Errorf("a dispatch window %q was opened despite descent to headless", dispatch.WindowName(id, "apply"))
 		}
 	}
 }
@@ -802,7 +805,7 @@ func TestDispatchStart_AutoPaneNoSessionCommand_Integration(t *testing.T) {
 // deliberately REACHABLE here (an ephemeral server), so the missing session_command
 // is the sole failure cause and the error cannot be the probe's.
 //
-// It is also the sole home of the no-cross-fallback rule's PANE half (folded in
+// It is also the sole home of the no-cross-substitution rule's PANE half (folded in
 // from the former TestDispatchStart_PaneRequiresSessionCommand, which asserted the
 // same hint against the ambient default socket and so failed on a host with no
 // tmux running): pane mode composes session_command and must never substitute
@@ -836,8 +839,8 @@ func TestDispatchStart_ExplicitPaneWithoutSessionCommandPersistsNothing(t *testi
 	if !strings.Contains(err.Error(), "doing") {
 		t.Errorf("error = %q, want mention of the resolved role", err.Error())
 	}
-	if strings.Contains(stderr, "falling back to headless") {
-		t.Errorf("explicit --pane must not soft-fall-back, stderr = %q", stderr)
+	if strings.Contains(stderr, "dispatch selection:") {
+		t.Errorf("explicit --pane must not print a descent notice, stderr = %q", stderr)
 	}
 	if _, err := dispatch.Load(dispatch.DirFor(repoRoot, id), "apply"); !os.IsNotExist(err) {
 		t.Errorf("no dispatch record should exist after the hard error, got %v", err)
@@ -845,7 +848,7 @@ func TestDispatchStart_ExplicitPaneWithoutSessionCommandPersistsNothing(t *testi
 }
 
 // TestDispatchStart_ExplicitPaneStillHardErrorsOnUnreachableTmux is the other half
-// of the asymmetry: a caller who typed --pane asked for watchability, so a silent
+// of the asymmetry: a caller who typed --pane requested pane mode, so a silent
 // downgrade would defeat the request. Nothing is launched and nothing persisted.
 func TestDispatchStart_ExplicitPaneStillHardErrorsOnUnreachableTmux(t *testing.T) {
 	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "sh -c 'sleep 30' _")
@@ -856,19 +859,19 @@ func TestDispatchStart_ExplicitPaneStillHardErrorsOnUnreachableTmux(t *testing.T
 	if err == nil {
 		t.Fatal("explicit --pane must hard-error when tmux is unreachable")
 	}
-	if strings.Contains(stderr, dispatch.FallbackNotice) {
-		t.Errorf("explicit --pane must not print the soft-fallback notice, stderr = %q", stderr)
+	if strings.Contains(stderr, "dispatch selection:") {
+		t.Errorf("explicit --pane must not print a descent notice, stderr = %q", stderr)
 	}
 	if _, err := dispatch.Load(dispatch.DirFor(repoRoot, id), "apply"); !os.IsNotExist(err) {
 		t.Errorf("no dispatch record should exist after the hard error, got %v", err)
 	}
 }
 
-// TestDispatchStart_AutoPaneMode_Integration drives the real AUTO path against an
-// ephemeral tmux server: with $TMUX set to that server's socket and NO mode flag,
+// TestDispatchStart_PanePreferenceMode_Integration drives pane preference against
+// an ephemeral tmux server: with $TMUX set to that server's socket and NO mode flag,
 // the dispatch opens a window on the current server (no -L passed) and reports the
-// `auto: tmux` selection source. Skipped when tmux is unavailable.
-func TestDispatchStart_AutoPaneMode_Integration(t *testing.T) {
+// `mode: pane (preferred)` selection source. Skipped when tmux is unavailable.
+func TestDispatchStart_PanePreferenceMode_Integration(t *testing.T) {
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("tmux not available")
 	}
@@ -876,7 +879,7 @@ func TestDispatchStart_AutoPaneMode_Integration(t *testing.T) {
 
 	// An ephemeral server on the DEFAULT socket name under a private TMUX_TMPDIR.
 	// The default socket (rather than a `-L` label) is what makes this test
-	// meaningful: auto-selected pane mode passes NO `-L`, so the dispatch must
+	// meaningful: pane-preferred mode passes NO `-L`, so the dispatch must
 	// reach the server through tmux's own default-socket resolution — exactly as a
 	// real dispatch inside a user's tmux session does.
 	//
@@ -929,8 +932,8 @@ func TestDispatchStart_AutoPaneMode_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("auto pane start failed: %v", err)
 	}
-	if !strings.Contains(out, "pane ") || !strings.Contains(out, string(dispatch.ReasonAutoTmux)) {
-		t.Errorf("output = %q, want a pane report carrying the %q source", out, dispatch.ReasonAutoTmux)
+	if !strings.Contains(out, "pane ") || !strings.Contains(out, "mode: pane (preferred)") {
+		t.Errorf("output = %q, want a pane report carrying the preferred-mode source", out)
 	}
 
 	dir := dispatch.DirFor(repoRoot, id)
@@ -939,12 +942,12 @@ func TestDispatchStart_AutoPaneMode_Integration(t *testing.T) {
 		t.Fatalf("state not persisted: %v", err)
 	}
 	if !rec.IsPane() {
-		t.Fatalf("auto inside tmux must be a pane dispatch, got %+v", *rec)
+		t.Fatalf("pane preference inside tmux must be a pane dispatch, got %+v", *rec)
 	}
-	// Auto-selected pane targets the CURRENT server — no --server was given, so
+	// Pane preference targets the CURRENT server — no --server was given, so
 	// none is recorded (status/kill inherit the default-socket resolution).
 	if rec.Server != "" {
-		t.Errorf("server = %q, want empty (auto targets the current server)", rec.Server)
+		t.Errorf("server = %q, want empty (pane preference targets the current server)", rec.Server)
 	}
 	if want := dispatch.WindowName(id, "apply"); rec.Window != want {
 		t.Errorf("window = %q, want %q", rec.Window, want)
@@ -959,11 +962,11 @@ func TestDispatchStart_AutoPaneMode_Integration(t *testing.T) {
 	}
 }
 
-// TestDispatchStart_ServerFlagImpliesPaneUnderAuto: --server exists solely to
+// TestDispatchStart_ServerFlagImpliesPane: --server exists solely to
 // target a pane's socket, so naming one selects pane mode even with $TMUX unset.
 // Reaching the reachability error (rather than a headless launch) is what proves
 // the pane branch was taken.
-func TestDispatchStart_ServerFlagImpliesPaneUnderAuto(t *testing.T) {
+func TestDispatchStart_ServerFlagImpliesPane(t *testing.T) {
 	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "sh -c 'sleep 30' _")
 	server := "fabtest-implies-pane"
 	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server)) // no server on this socket
@@ -975,9 +978,9 @@ func TestDispatchStart_ServerFlagImpliesPaneUnderAuto(t *testing.T) {
 	if !strings.Contains(err.Error(), "tmux") {
 		t.Errorf("error = %q, want the tmux reachability error (proving the pane branch)", err.Error())
 	}
-	// --server is an EXPLICIT pane signal, so the failure is hard, not a fallback.
-	if strings.Contains(stderr, dispatch.FallbackNotice) {
-		t.Errorf("--server is an explicit pane signal; it must not soft-fall-back, stderr = %q", stderr)
+	// --server is an EXPLICIT pane signal, so the failure is hard, not a descent.
+	if strings.Contains(stderr, "dispatch selection:") {
+		t.Errorf("--server is an explicit pane signal; it must not descend, stderr = %q", stderr)
 	}
 	if _, err := dispatch.Load(dispatch.DirFor(repoRoot, id), "apply"); !os.IsNotExist(err) {
 		t.Errorf("no dispatch record should exist, got %v", err)
@@ -1095,8 +1098,8 @@ func TestDispatchStart_SplitPane_Integration(t *testing.T) {
 		t.Errorf("output = %q, want the split report naming the pane title %q", out, title)
 	}
 	// Auto selection still explains itself.
-	if !strings.Contains(out, string(dispatch.ReasonAutoTmux)) {
-		t.Errorf("output = %q, want the %q selection source", out, dispatch.ReasonAutoTmux)
+	if !strings.Contains(out, "mode: pane (preferred)") {
+		t.Errorf("output = %q, want preferred pane selection source", out)
 	}
 
 	rec, err := dispatch.Load(dispatch.DirFor(repoRoot, id), "apply")
@@ -1358,7 +1361,14 @@ func appendProjectConfig(t *testing.T, repoRoot, extra string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustWrite(t, path, string(body)+extra)
+	current := string(body)
+	if strings.HasPrefix(extra, "dispatch:\n") && strings.Contains(current, "dispatch:\n") {
+		merged := "dispatch:\n  mode: pane\n" + strings.TrimPrefix(extra, "dispatch:\n")
+		current = strings.Replace(current, "dispatch:\n  mode: pane\n", merged, 1)
+		mustWrite(t, path, current)
+		return
+	}
+	mustWrite(t, path, current+extra)
 }
 
 // TestDispatchStart_CarvingSplitSizesTheWorkerColumn is the sizing rule: the

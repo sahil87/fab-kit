@@ -28,7 +28,7 @@ Four words, each with exactly one meaning:
 |------|---------|
 | **role** | One of six fixed slot names — `default`, `operator`, `doing`, `review`, `hydrate`, `fast`. A role is *what an agent is for*. |
 | **profile** | A concrete `{provider, model, effort}` value. What a role resolves *to*. |
-| **provider** | A named invocation grammar (`session_command` / `dispatch_command`) plus its per-role fills. |
+| **provider** | A named set of independent launch capabilities (`session_command`, `dispatch_command`, and `native`) plus its per-role fills. Capability presence says how a rung runs; `dispatch.mode` chooses the preference ceiling and descends `pane → native → headless`. |
 | **Tier 1 / Tier 2** | Agent **depth**: Tier 1 is the agents a user talks to (a `fab agent` session, the operator, a `fab batch` worker); Tier 2 is the agents pipeline stages dispatch to. |
 
 "Tier" means depth and *only* depth. A watchable pane worker is still Tier 2 — the defining property
@@ -181,8 +181,8 @@ knob.
 
 ## Providers
 
-The invocation **command grammar** lives in a top-level `providers:` table, not on the roles. Each
-provider is an opaque, user-chosen name mapping to up to two command fields plus a per-role fill map:
+The launch **capability grammar** lives in a top-level `providers:` table, not on the roles. Each
+provider is an opaque, user-chosen name mapping to three independent dispatch capabilities plus a per-role fill map:
 
 - **`session_command`** — opens an interactive agent **session** (`fab operator` / `fab batch` /
   `fab agent`). It is reachable **two ways**: through a role (the role names a provider, and its
@@ -192,18 +192,17 @@ provider is an opaque, user-chosen name mapping to up to two command fields plus
   role need name the provider first. The direct form is a **lookup**, not a new validation surface: an
   unknown name errors listing the available providers, while resolved command strings still pass
   through verbatim. See `_cli-fab.md` § fab agent.
-- **`dispatch_command`** — runs ONE headless **stage task** via `fab dispatch`. **ABSENT
-  `dispatch_command` = native Agent-tool dispatch** (the default, unless the `dispatch.watchable`
-  opt-in applies — § Watchable pane dispatch below). There is **NO fallback** between the
-  two fields — absence of `dispatch_command` never means "use `session_command`" for a *headless*
-  dispatch.
+- **`dispatch_command`** — runs ONE headless **stage task** via `fab dispatch`.
+- **`native`** — boolean capability for the in-harness Agent-tool adapter. Provider names are opaque,
+  so fab never infers native support from a name or model.
 - **`profiles.<role>`** — the provider's **per-role fill**: `{model, effort}` for "when this provider
   plays this role". Keyed by role name; the `default` entry doubles as the provider's **cross-role
   fallback**. Scope `both`, so a machine-wide fill is settable once in `~/.fab-kit/config.yaml`.
 
-The two command fields are deliberately **not merged** into one `command`: session and dispatch are
-different invocations of the same binary (claude interactive `-n` vs headless `-p`; codex TUI vs
-`codex exec`), and no single template expresses both.
+The capabilities are deliberately independent. Session and headless dispatch are different
+invocations of the same binary (claude interactive `-n` vs headless `-p`; codex TUI vs `codex exec`),
+and native is not a command at all. Presence describes **how** a rung runs; it never chooses policy.
+`dispatch.mode` owns preference, and no command field substitutes for another.
 
 **Per-role fills, not one fill per provider.** A single `{model, effort}` per provider would resolve
 the *same* model for every role, so swapping `agent.workers` to another provider would flatten the
@@ -218,7 +217,9 @@ fab-kit ships **three built-in providers** — `claude` (the default), `codex`, 
 ```yaml
 providers:
   claude:
+    native: true
     session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
+    dispatch_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
     profiles:
       default:  { model: claude-fable-5,  effort: high }
       operator: { model: claude-sonnet-5, effort: medium }
@@ -248,7 +249,7 @@ codex's `default` model and effort, and gemini's non-`fast` roles on gemini's `d
 a row of their own. (The merge is per FIELD, so codex's `doing`/`review` rows — effort only — take
 their model from `default` too.)
 
-**All three also ship a full-auto posture.** Codex uses
+**All three also ship a full-auto posture.** Claude uses `--dangerously-skip-permissions`, Codex uses
 `--dangerously-bypass-approvals-and-sandbox`; Gemini uses the non-deprecated
 `--approval-mode=yolo` spelling. Pipeline workers are unattended and have no channel for answering
 approval prompts, so both the interactive session command (used by pane mode) and headless dispatch
@@ -282,9 +283,9 @@ Consequences:
 - **A built-in provider is inert until named.** Adding the rows changes no default behavior (both
   depth knobs ship `claude`), which is why presence=intent — the rule that keeps behavior-changing
   config commented — does not force the table out of Go.
-- **codex/gemini DO carry a `dispatch_command`; claude does not.** So pointing a role at one flips
-  that role's stages from native Agent-tool dispatch to CLI dispatch — exactly what selecting a
-  non-claude provider means.
+- **Claude carries all three capabilities; codex/gemini carry both command fields and are non-native.**
+  Under the default `dispatch.mode: native`, claude resolves native while codex/gemini descend to
+  headless. Adding a command never changes policy by itself.
 - The reference renders the codex/gemini blocks **commented**, like every other non-overridden
   default (a commented block registers no project override).
 
@@ -384,8 +385,9 @@ agent:
 
 providers:
   claude:
+    native: true
     session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
-    # dispatch_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'   # uncomment to flip claude's stages from native Agent-tool dispatch to headless CLI
+    dispatch_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
   # codex and gemini are BUILT-IN providers carrying grammar AND fills — these
   # blocks merely restate a built-in default, so they ship commented like every
   # other default. Uncomment only to OVERRIDE a grammar or pin a newer model.
@@ -401,6 +403,9 @@ providers:
   #   dispatch_command: 'gemini --approval-mode=yolo -m {model}'   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)
   #   profiles:
   #     default: { model: <gemini-model-id> }  # e.g. — no effort: the gemini CLI has no such flag
+
+dispatch:
+  mode: native              # preference ceiling: pane → native → headless
 ```
 
 - Keys under `agent.profiles:` are the six role names: `default`, `operator`, `doing`, `review`,
@@ -420,7 +425,7 @@ providers:
 ### Advertised surface vs. full schema
 
 The **managed fence** in every project's `config.yaml` scaffolds only the advertised fields, and on the
-agent side that is exactly the two knobs (plus `dispatch.watchable` / `dispatch.column_width` /
+agent side that is exactly the two knobs (plus `dispatch.mode` / `dispatch.column_width` /
 `dispatch.reap_done`).
 `agent.profiles` and the whole `providers:` table are `advertise: false`: still documented in
 `fab config explain` (YAML + `--json`) and in [`config.md`](config.md), but no longer ~90 commented
@@ -477,8 +482,8 @@ effort the agent dispatch needs.)
    then model and effort per field from an `agent.profiles.<role>` field, else that provider's
    `profiles.<role>` fill, else its `profiles.default` fill, else empty.
 2a. **Apply invocation-time overrides** (`--provider`/`--model`/`--effort`) — the top rung, riding the
-   same single resolution call. `--provider` swaps the provider and **re-derives `dispatch=` from the
-   NAMED provider's `dispatch_command`** — so the emitted `dispatch=` presence can differ from the
+   same single resolution call. `--provider` swaps the provider and **re-derives `dispatch=` from
+   `dispatch.mode` plus the NAMED provider's capabilities** — so the selected rung and emitted-line presence can differ from the
    stage's unoverridden one, but that is a **query result, not an adapter move**: `fab dispatch`
    re-resolves from config and accepts no overrides, so only a config override actually relocates a
    stage between the native and CLI adapters (§ Skill wiring → User-directed overrides). A swap
@@ -495,43 +500,36 @@ effort the agent dispatch needs.)
    effort against any provider's accepted set; it echoes the resolved strings as-is.
 4. Output: a `model=<id>` line always, then optional `effort=<level>`, `provider=<name>`, and
    `dispatch=<command>` lines. The `effort=`/`provider=` lines are **omitted** when empty. An empty
-   model emits an empty `model=` line (the "inherit" signal). The `dispatch=` line is emitted when the
-   resolved provider carries a `dispatch_command` (mirroring the effort-omit rule) — or, when
-   `dispatch.watchable: true` and the orchestrator sits inside tmux, for a `session_command`-only
-   provider (the **watchable pane opt-in**, § Watchable pane dispatch below); its **absence signals
-   native Agent-tool dispatch**, and a **headless** dispatch has **NO fallback to a session command**.
-   The `dispatch=` command's `{model}`/`{effort}` placeholders are substituted via
+   model emits an empty `model=` line (the "inherit" signal). `dispatch=` is derived by the
+   `dispatch.mode` descent ladder: native omits it; pane emits `session_command`; headless emits
+   `dispatch_command`. Its presence remains the only skill-side branch, and skills never execute its
+   value. The command's `{model}`/`{effort}` placeholders are substituted via
    `internal/spawn`'s template resolution (reused, not reimplemented), using the role's own resolved
    model/effort — and the `{model}` is **always the full model ID**, even under `--alias` (see
    § Harness-adapter boundary).
 5. **Byte-stable** for the same config (like other `fab resolve` queries). Non-zero exit only on a
-   real error: an unreadable/malformed config, an unknown stage/role name, or a supplied `--provider`
-   that resolves to no provider. A stage that resolves to a default is success, not an error.
+   real error: an unreadable/malformed config, an unknown stage/role name, a supplied `--provider`
+   that resolves to no provider, or a configured provider with no reachable dispatch capability.
+   A stage that resolves to a default is success, not an error.
 
-### Watchable pane dispatch — `dispatch.watchable`
+### Dispatch preference — `dispatch.mode`
 
-`dispatch.watchable` is a bool config field (**default `false`**, **scope `both`** — settable once
-machine-wide in `~/.fab-kit/config.yaml`) that adds a **second trigger** for the `dispatch=` line: when
-it is `true` **AND** `$TMUX` is set **AND** the resolved provider carries a `session_command` but **no**
-`dispatch_command`, the line is emitted carrying the profile-substituted **`session_command`**.
+`dispatch.mode` is a `pane | native | headless` preference ceiling (**default `native`**, **scope
+`both`** — settable once machine-wide). Resolution starts at that rung and descends only through
+`pane → native → headless`, selecting the first possible adapter:
 
-- **Tmux presence decides pane vs native.** With `$TMUX` unset the line is omitted and the stage stays
-  on **native Agent-tool dispatch** — never headless CLI. Headless remains gated on a real
-  `dispatch_command`, so the no-cross-fallback rule is intact for the headless adapter.
-- **A provider `dispatch_command` wins.** Watchable only ADDS eligibility for providers that have none;
-  emission for a `dispatch_command`-carrying provider is unchanged.
-- **Why this exists.** Pane mode composes `session_command`, not `dispatch_command` — so pane
-  *eligibility* was gated on a field pane mode never uses. Before the opt-in, the only way to get a
-  watchable claude worker was to uncomment claude's `dispatch_command`, which also flipped every
-  out-of-tmux dispatch to **headless CLI** — a footgun disguised as a default.
-- **No skill-wiring change.** The dispatch seam branches on the line's *presence* and never executes its
-  value; `fab dispatch start` re-resolves internally, and inside tmux its auto ladder selects pane mode
-  and composes the same `session_command`. A `session_command`-only provider dispatches fine under pane
-  mode (shipped 260805-zxe0 / l9ng behavior).
+- **Pane** requires tmux (`$TMUX` at the resolver seam; a real probe at start) and `session_command`.
+- **Native** requires `native: true`.
+- **Headless** requires `dispatch_command`.
+- Missing prerequisites skip rungs; no selection ever ascends. Thus `pane` is the watchable preference,
+  `native` is quiet/in-context, and `headless` is detached-only.
+- Capability presence says how, never whether. Each mode composes only its own field, and adding
+  claude's headless command does not move it off native under the default preference.
+- **No skill-wiring change:** absence iff native, presence for pane/headless; branch on presence and
+  never execute the value. `fab dispatch start` re-resolves internally from current config/environment.
 - **`--alias` is unaffected**: the `dispatch=` line always embeds the full model ID.
-- **Known edge (documented, not solved)**: if tmux dies between the resolve and `fab dispatch start`,
-  start's auto ladder soft-falls-back to headless and then errors on the missing `dispatch_command`.
-  Rare, and self-explaining at the CLI.
+- If start-time re-resolution lands on native (for example tmux died after pane resolution),
+  `fab dispatch` errors before writing state and tells the caller to re-run `fab resolve-agent`.
 
 ---
 
@@ -695,18 +693,16 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   the default's placeholders last makes substitution byte-identical to the former append — so a
   non-Claude worker CLI is configurable without the launcher emitting Claude-only flags; 260702-6tmi,
   templated default 260703-gvxd.)*
-- *Cross-harness stage dispatch (the `dispatch=` adapter):* a provider's optional `dispatch_command` is
-  the seam for handing one stage to a **different CLI harness** (e.g. `codex exec …`) instead of a
-  native Agent-tool sub-agent. When a resolved provider carries it, `fab resolve-agent` emits a
-  `dispatch=<command>` line — its `{model}`/`{effort}` substituted via `internal/spawn`. This adapter is
+- *Cross-harness stage dispatch (the `dispatch=` adapter):* the resolved `dispatch.mode` + capability
+  ladder is the seam for handing one stage to a native Agent-tool, pane, or headless CLI adapter.
+  Pane/headless resolution emits `dispatch=<command>` with `{model}`/`{effort}` substituted via
+  `internal/spawn`; native resolution omits it. This adapter is
   the **inverse aliasing rule** from the Agent-tool `model` param: the `dispatch=` command **ALWAYS
   embeds the FULL model ID, never an alias**, because an external CLI's `--model` flag takes a full ID
   — CLI dispatch never aliases. So under `--alias` the `model=` line is aliased (Agent-tool half) while
   the `dispatch=` line carries the full ID (CLI half). The field is **independent of** a provider's
-  `session_command` (which opens whole sessions) with **no cross-fallback** for a headless dispatch —
-  absence of a resolved provider `dispatch_command` is the native-dispatch signal, unless the
-  `dispatch.watchable` opt-in makes a `session_command`-only provider pane-eligible inside tmux
-  (§ Watchable pane dispatch). *`fab resolve-agent` emits the line; the
+  `session_command` (which opens whole sessions); each ladder rung requires its own capability and
+  command fields never substitute for one another. *`fab resolve-agent` emits the line; the
   dispatch that RUNS it (`fab dispatch`) and the skill dispatch-seam wiring that consumes it both
   shipped.* **The
   native Agent-tool adapter described in this section is one of *three* dispatch adapters catalogued
@@ -718,16 +714,12 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   hooks-enhance-never-own) all three share; the skill
   dispatch-seam wiring against it lives in `_preamble.md` § CLI-Adapter Dispatch + § Dispatch-Prompt
   Obligations (3d).
-  **Resolution is unchanged by the pane mode**: it emits no new resolver line and needs no new provider
-  field — pane mode composes the resolved provider's existing `session_command` (the same field
-  `fab agent` and the operator launcher compose, through the same `internal/spawn` substitution), and mode
-  selection is **per-invocation** (an explicit-first ladder over `--pane`/`--headless`/`--timeout`/`--server`
-  ending in auto — pane inside tmux, headless outside), never a property of a role or provider. This is not
-  a cross-fallback: the no-fallback rule governs what `resolve-agent` emits for *dispatch*, and pane mode
-  reads the provider table itself rather than consuming a `dispatch=` line. Nor does the auto default
-  weaken it: an auto-selected pane whose provider carries no `session_command` **soft-falls-back to
-  headless** (re-composing from `dispatch_command`), so a role resolved to a `dispatch_command`-only
-  provider dispatches identically inside and outside tmux.
+  **Mode resolution is shared**: `resolve-agent` and `fab dispatch start` consume the same pure
+  selector. Explicit flags precede automatic `dispatch.mode` descent; pane composes the resolved
+  provider's `session_command`, native uses the Agent-tool capability, and headless composes
+  `dispatch_command`. A missing capability skips its automatic rung, never substitutes a field, and
+  never ascends. Start performs a real pane probe and re-descends on `tmux unreachable`; landing on
+  native yields re-resolution guidance before state writes.
 - *Claude-flavored data (overridable):* the `claude` provider's shipped fills use Claude model
   IDs/effort — the fills that apply while both depth knobs sit on their `claude` default; `codex` and
   `gemini` ship their own model IDs (§ Three built-in providers). Every provider's fills are

@@ -47,12 +47,8 @@ func TestConfigReferenceRoundTrips(t *testing.T) {
 	if !ok || prov.SessionCommand == "" {
 		t.Error("providers.claude.session_command should be a live key with a value in the reference")
 	}
-	// claude's dispatch_command ships COMMENTED (uncommenting flips claude from
-	// native Agent-tool dispatch to headless CLI dispatch), so the commented
-	// template text must parse as absent — a live dispatch_command here would
-	// mean the opt-in leaked into the shipped default.
-	if prov.DispatchCommand != "" {
-		t.Errorf("providers.claude.dispatch_command must parse as absent (commented template), got %q", prov.DispatchCommand)
+	if prov.DispatchCommand != agent.DefaultDispatchCommand || !prov.Native {
+		t.Errorf("providers.claude capabilities = %+v, want live dispatch command and native=true", prov)
 	}
 	// codex and gemini are Go BUILT-IN providers (260805-j3cm), so their reference
 	// blocks merely RESTATE a built-in default and ship commented like every other
@@ -358,23 +354,20 @@ func TestConfigReferenceDocumentsBothSubstitutionSources(t *testing.T) {
 }
 
 // TestConfigReferenceDocumentsProviders guards that the generated reference
-// documents the providers table with both command fields and the load-bearing
-// no-cross-fallback semantic (absent dispatch_command → native dispatch; NO
-// fallback from dispatch_command to session_command).
+// documents the providers table with both command fields, native capability, and
+// the load-bearing no-substitution semantic.
 func TestConfigReferenceDocumentsProviders(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
 	}
-	for _, token := range []string{"providers:", "session_command", "dispatch_command"} {
+	for _, token := range []string{"providers:", "session_command", "dispatch_command", "native"} {
 		if !strings.Contains(out, token) {
 			t.Errorf("reference must document %q in the providers block", token)
 		}
 	}
-	// The no-cross-fallback semantic must be documented (the "NO" precedes on the
-	// prior comment line; assert on the stable tail phrase).
-	if !strings.Contains(out, "fallback from dispatch_command to session_command") {
-		t.Error("reference must document that dispatch_command has NO fallback to session_command")
+	if !strings.Contains(out, "substitution between command fields") {
+		t.Error("reference must document that command fields do not substitute for one another")
 	}
 }
 
@@ -434,10 +427,8 @@ func TestConfigReferenceDocumentsThreeBuiltInProviders(t *testing.T) {
 		}
 	}
 
-	// claude's dispatch_command ships commented (uncommenting flips native→CLI
-	// dispatch), so it must be present as text but parse as absent from Config.
-	if !strings.Contains(out, "claude -p --dangerously-skip-permissions --model {model} --effort {effort}") {
-		t.Error("providers block must document claude's (commented) dispatch_command")
+	if !strings.Contains(out, agent.DefaultDispatchCommand) || !strings.Contains(out, "native: true") {
+		t.Error("providers block must document claude's headless and native capabilities")
 	}
 
 	// The superseded ho9y framing must not survive: codex/gemini are no longer
@@ -666,9 +657,7 @@ func TestConfigReferenceProvidersDefaultTracksAgentTable(t *testing.T) {
 		t.Errorf("providers default keys = %v, want agent.ProviderNames(nil) = %v", got, want)
 	}
 
-	// Each entry's commands must be ResolveProvider's verbatim, and an absent
-	// command must stay absent (claude ships no dispatch_command — its absence is
-	// the native-dispatch signal, so an empty-string key would misreport it).
+	// Each entry's commands and native capability must be ResolveProvider's verbatim.
 	for _, name := range want {
 		p, ok := agent.ResolveProvider(nil, name)
 		if !ok {
@@ -698,6 +687,9 @@ func TestConfigReferenceProvidersDefaultTracksAgentTable(t *testing.T) {
 			if raw != wantCmd {
 				t.Errorf("provider %q: %s = %v, want ResolveProvider's %q", name, field, raw, wantCmd)
 			}
+		}
+		if gotNative, _ := entry["native"].(bool); gotNative != p.Native {
+			t.Errorf("provider %q: native = %v, want %v", name, gotNative, p.Native)
 		}
 
 		// The per-role fill map must cross over VERBATIM too — every shipped role,
@@ -797,13 +789,8 @@ func TestConfigReferenceJSONIsValidAndByteStable(t *testing.T) {
 // resolver consumes; a typed empty would leak a Go-side implementation detail with
 // no cascade meaning. Conversely, a non-null `default` must denote a real built-in
 // value (the three built-in providers, the six role profiles, and
-// dispatch.watchable's `false` today).
-//
-// dispatch.watchable is the convention's boundary case and is deliberately NOT
-// null: for a BOOL there is no "absent" state distinguishable from false — the
-// cascade genuinely bottoms out at false, so false is a real built-in value, not
-// the typed-empty placeholder the convention forbids. The forbidden shapes are the
-// ones that could stand in for "nothing" (`[]`, `{}`, `""`).
+// dispatch.mode's `native` today). The forbidden shapes are the ones that could
+// stand in for "nothing" (`[]`, `{}`, `""`).
 func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
 	out, err := configref.RenderJSON()
 	if err != nil {
@@ -821,7 +808,7 @@ func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
 		"agent.profiles":        true,
 		"agent.session":         true, // the knob's built-in value IS claude, not "absent"
 		"agent.workers":         true,
-		"dispatch.watchable":    true, // bool: false IS the built-in default, not "absent"
+		"dispatch.mode":         true, // string: native IS the built-in default, not "absent"
 		"dispatch.column_width": true, // int: an absent yaml int reads as unset, so 35 is real
 		"dispatch.reap_done":    true, // bool defaulting TRUE — modeled as *bool so absent ≠ false
 	}
@@ -958,7 +945,7 @@ func TestConfigReferenceScopeAssignments(t *testing.T) {
 		"agent.session":              configref.ScopeBoth,
 		"agent.workers":              configref.ScopeBoth,
 		"agent.profiles":             configref.ScopeBoth,
-		"dispatch.watchable":         configref.ScopeBoth,
+		"dispatch.mode":              configref.ScopeBoth,
 		"dispatch.column_width":      configref.ScopeBoth,
 		"dispatch.reap_done":         configref.ScopeBoth,
 		"stage_hooks":                configref.ScopeProject,
@@ -1184,12 +1171,12 @@ func containsKeyToken(haystack, token string) bool {
 	return re.MatchString(haystack)
 }
 
-// TestConfigReferenceDispatchWatchable: the `dispatch.watchable` row (the
-// watchable-pane opt-in) is present, correctly scoped, advertised, and rendered
+// TestConfigReferenceDispatchMode: the `dispatch.mode` row (the preference
+// ceiling) is present, correctly scoped, advertised, and rendered
 // COMMENTED with the semantics a reader needs to decide whether to set it. The row
 // is the field's only discoverability surface, so the guard covers both the
 // metadata and the rendered prose.
-func TestConfigReferenceDispatchWatchable(t *testing.T) {
+func TestConfigReferenceDispatchMode(t *testing.T) {
 	// Isolate HOME so the cascade cannot merge the developer's real system config
 	// over the reference (the TestConfigReferenceRoundTrips discipline).
 	t.Setenv("HOME", t.TempDir())
@@ -1200,25 +1187,23 @@ func TestConfigReferenceDispatchWatchable(t *testing.T) {
 	}
 	var row *configref.Field
 	for i := range fields {
-		if fields[i].Key == "dispatch.watchable" {
+		if fields[i].Key == "dispatch.mode" {
 			row = &fields[i]
 		}
 	}
 	if row == nil {
-		t.Fatal("registry is missing the dispatch.watchable row")
+		t.Fatal("registry is missing the dispatch.mode row")
 	}
-	// false IS the built-in default for a bool (there is no "absent" distinguishable
-	// from false), so the row carries it typed rather than nil.
-	if row.Default != false {
-		t.Errorf("dispatch.watchable Default = %#v, want false (the real built-in default)", row.Default)
+	if row.Default != config.DefaultDispatchMode {
+		t.Errorf("dispatch.mode Default = %#v, want %q", row.Default, config.DefaultDispatchMode)
 	}
 	// Scope `both` is load-bearing: a project-scoped field would be PRUNED out of
 	// ~/.fab-kit/config.yaml, defeating the machine-wide opt-in.
 	if row.Scope != configref.ScopeBoth {
-		t.Errorf("dispatch.watchable Scope = %q, want %q (settable machine-wide)", row.Scope, configref.ScopeBoth)
+		t.Errorf("dispatch.mode Scope = %q, want %q (settable machine-wide)", row.Scope, configref.ScopeBoth)
 	}
 	if !row.Advertise {
-		t.Error("dispatch.watchable must be advertised (it is scaffolded into the managed fence)")
+		t.Error("dispatch.mode must be advertised (it is scaffolded into the managed fence)")
 	}
 
 	out, err := configref.Render()
@@ -1230,22 +1215,16 @@ func TestConfigReferenceDispatchWatchable(t *testing.T) {
 	if strings.Contains(out, "\ndispatch:") {
 		t.Error("the dispatch block must be rendered COMMENTED (a live block would register as an override)")
 	}
-	if !strings.Contains(out, "#   watchable: false") {
-		t.Errorf("the reference must scaffold `watchable: false` commented.\n--- got ---\n%s", out)
+	if !strings.Contains(out, "#   mode: "+config.DefaultDispatchMode) {
+		t.Errorf("the reference must scaffold `mode: %s` commented.\n--- got ---\n%s", config.DefaultDispatchMode, out)
 	}
-	// The three semantics a reader must be able to learn from the reference alone.
-	for _, want := range []string{"session_command", "$TMUX", "dispatch_command"} {
+	for _, want := range []string{"pane", "native", "headless", "session_command", "dispatch_command", "never ascending"} {
 		if !strings.Contains(row.Segment, want) {
-			t.Errorf("dispatch.watchable Segment must mention %q (the tmux-decides semantics and the dispatch_command precedence)", want)
+			t.Errorf("dispatch.mode Segment must mention %q", want)
 		}
 	}
-	// The reference must NOT promise headless CLI dispatch — the opt-in reaches pane
-	// mode or native dispatch only.
-	if !strings.Contains(row.Segment, "native Agent-tool dispatch") {
-		t.Error("dispatch.watchable Segment must state that outside tmux the stage stays on native Agent-tool dispatch")
-	}
 
-	// The commented scaffold must parse as an inert config: watchable stays false.
+	// The commented scaffold must parse as an inert config: mode stays native.
 	tmp := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(tmp, []byte(out), 0o644); err != nil {
 		t.Fatal(err)
@@ -1254,8 +1233,8 @@ func TestConfigReferenceDispatchWatchable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the rendered reference must parse: %v", err)
 	}
-	if cfg.GetDispatchWatchable() {
-		t.Error("the reference's dispatch block must be inert (watchable=false when parsed)")
+	if got := cfg.GetDispatchMode(); got != config.DefaultDispatchMode {
+		t.Errorf("the reference's dispatch block must be inert, got mode %q", got)
 	}
 }
 
@@ -1275,13 +1254,13 @@ func TestConfigReferenceDispatchColumnWidth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Fields returned an error: %v", err)
 	}
-	var row, watchable *configref.Field
+	var row, mode *configref.Field
 	for i := range fields {
 		switch fields[i].Key {
 		case "dispatch.column_width":
 			row = &fields[i]
-		case "dispatch.watchable":
-			watchable = &fields[i]
+		case "dispatch.mode":
+			mode = &fields[i]
 		}
 	}
 	if row == nil {
@@ -1302,15 +1281,15 @@ func TestConfigReferenceDispatchColumnWidth(t *testing.T) {
 		t.Error("dispatch.column_width must be advertised (it is scaffolded into the managed fence)")
 	}
 	if row.Segment != "" {
-		t.Error("dispatch.column_width must carry NO Segment of its own — it is rendered inside the shared dispatch.watchable Segment")
+		t.Error("dispatch.column_width must carry NO Segment of its own — it is rendered inside the shared dispatch.mode Segment")
 	}
-	if watchable == nil {
-		t.Fatal("registry is missing the dispatch.watchable row (the shared segment's owner)")
+	if mode == nil {
+		t.Fatal("registry is missing the dispatch.mode row (the shared segment's owner)")
 	}
 	// The shared segment must document the width: this row's only discoverability
 	// surface, so the semantics a reader needs to set it live there.
 	for _, want := range []string{"column_width", "-h -l <n>%", "1..99", "pre-3.1"} {
-		if !strings.Contains(watchable.Segment, want) {
+		if !strings.Contains(mode.Segment, want) {
 			t.Errorf("the shared dispatch Segment must mention %q (the sizing semantics and the degrade rule)", want)
 		}
 	}
@@ -1319,7 +1298,7 @@ func TestConfigReferenceDispatchColumnWidth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
 	}
-	// Rendered COMMENTED beside watchable, under ONE `dispatch:` parent.
+	// Rendered COMMENTED beside mode, under ONE `dispatch:` parent.
 	wantScaffold := "#   column_width: " + strconv.Itoa(config.DefaultDispatchColumnWidth)
 	if !strings.Contains(out, wantScaffold) {
 		t.Errorf("the reference must scaffold %q commented.\n--- got ---\n%s", wantScaffold, out)
@@ -1358,13 +1337,13 @@ func TestConfigReferenceDispatchReapDone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Fields returned an error: %v", err)
 	}
-	var row, watchable *configref.Field
+	var row, mode *configref.Field
 	for i := range fields {
 		switch fields[i].Key {
 		case "dispatch.reap_done":
 			row = &fields[i]
-		case "dispatch.watchable":
-			watchable = &fields[i]
+		case "dispatch.mode":
+			mode = &fields[i]
 		}
 	}
 	if row == nil {
@@ -1384,16 +1363,16 @@ func TestConfigReferenceDispatchReapDone(t *testing.T) {
 		t.Error("dispatch.reap_done must be advertised (it is scaffolded into the managed fence)")
 	}
 	if row.Segment != "" {
-		t.Error("dispatch.reap_done must carry NO Segment of its own — it is rendered inside the shared dispatch.watchable Segment")
+		t.Error("dispatch.reap_done must carry NO Segment of its own — it is rendered inside the shared dispatch.mode Segment")
 	}
-	if watchable == nil {
-		t.Fatal("registry is missing the dispatch.watchable row (the shared segment's owner)")
+	if mode == nil {
+		t.Fatal("registry is missing the dispatch.mode row (the shared segment's owner)")
 	}
 	// The shared segment is this row's only discoverability surface, so the two
 	// semantics a reader must be able to learn there are what reap DOES and — the
 	// load-bearing half — what it deliberately does NOT do.
 	for _, want := range []string{"reap_done", "done", "headless", ".fab-dispatch/"} {
-		if !strings.Contains(watchable.Segment, want) {
+		if !strings.Contains(mode.Segment, want) {
 			t.Errorf("the shared dispatch Segment must mention %q (the reap guard and the no-state-cleanup rule)", want)
 		}
 	}

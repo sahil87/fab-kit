@@ -54,14 +54,14 @@
 // would leak an implementation detail with no cascade meaning. A non-nil Default
 // therefore always denotes a real built-in value (the three built-in providers'
 // command grammars AND their per-role fills, the resolved per-role profiles, the
-// two depth knobs' claude, dispatch.watchable's false, dispatch.column_width's 35,
+// two depth knobs' claude, dispatch.mode's native, dispatch.column_width's 35,
 // dispatch.reap_done's true).
 // The convention still governs WITHIN a provider: codex's and gemini's fill maps are
 // SPARSE, so a role fab-kit ships no fill for is simply absent rather than emitted
 // as an empty object. The three dispatch rows are the convention's
-// boundary cases: for a BOOL there is no "absent" distinguishable from false, and
-// for the width an absent yaml int is indistinguishable from 0 (which the accessor
-// therefore reads as unset), so each carries its real built-in value rather than
+// boundary cases: mode carries its real string default, and an absent yaml int is
+// indistinguishable from 0 (which the accessor therefore reads as unset), so each
+// carries its real built-in value rather than
 // the typed-empty placeholder the convention forbids. reap_done is the sharpest of
 // the three — its default is TRUE, so the config struct models it as a *bool to
 // keep an explicit false distinguishable from absent. See docs/specs/config.md
@@ -224,8 +224,8 @@ type providerProfileDefault struct {
 }
 
 // providerDefault is the structured canonical default for ONE built-in provider.
-// Every field is `omitempty` because a built-in may legitimately carry only some
-// (claude ships no dispatch_command — absent = native Agent-tool dispatch). That
+// Every field is `omitempty` because a built-in may legitimately carry only some.
+// Native is capability data rather than a provider-name inference. That
 // matches the registry's empty-default convention: a non-nil Default always denotes
 // a real built-in value, so an absent key means "fab-kit ships none", not "empty" —
 // which is also why a sparse fill map (codex, gemini) omits the roles it does not
@@ -237,6 +237,7 @@ type providerProfileDefault struct {
 type providerDefault struct {
 	SessionCommand  string                            `json:"session_command,omitempty"`
 	DispatchCommand string                            `json:"dispatch_command,omitempty"`
+	Native          bool                              `json:"native,omitempty"`
 	Profiles        map[string]providerProfileDefault `json:"profiles,omitempty"`
 }
 
@@ -269,6 +270,7 @@ func providerDefaults() (map[string]providerDefault, error) {
 		defaults[name] = providerDefault{
 			SessionCommand:  p.SessionCommand,
 			DispatchCommand: p.DispatchCommand,
+			Native:          p.Native,
 			Profiles:        profiles,
 		}
 	}
@@ -509,7 +511,7 @@ checklist:
 			Key:         "providers",
 			Default:     providers,
 			Kind:        configvalue.KindMapping,
-			Description: "Named agent invocation grammars plus their per-role fills. Each provider MAY carry session_command (interactive session) and dispatch_command (headless stage task) — never merged, no fallback between them — plus a profiles map keyed by role supplying the {model}/{effort} placeholders (precedence: invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty). fab-kit ships three built-in providers with per-role fills: claude with all six roles, and codex and gemini with sparse maps whose `default` entry is the cross-role fallback. Non-claude fills are refreshed at kit-release cadence and pass through unvalidated — pin a newer one with providers.<name>.profiles.<role>.model. Provider names are opaque, user-chosen strings.",
+			Description: "Named agent capability grammars: three built-in providers with per-role fills on the kit-release cadence. Each provider MAY carry session_command (pane/session), dispatch_command (headless stage task), and native (native Agent-tool capability); presence describes how and never selects dispatch mode. Command fields are never merged or substituted for one another. profiles supplies {model}/{effort} placeholders with precedence invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty. Provider names are opaque, user-chosen strings.",
 			Scope:       ScopeBoth,
 			// Demoted from the managed fence (260806-j9nh) for the same reason as
 			// agent.profiles: naming a built-in in a knob needs no providers: block at
@@ -519,20 +521,17 @@ checklist:
 			Segment:   providersSegment(providers, roleOrder),
 		},
 		{
-			Key: "dispatch.watchable",
-			// false IS the canonical built-in default (a real value, not "no
-			// default"), so it is carried typed rather than as nil: the cascade
-			// bottoms out at false and the JSON dump must advertise that.
-			Default:     false,
-			Kind:        configvalue.KindBool,
-			Description: "Watchable-pane opt-in. When true AND the orchestrator sits inside tmux, a session_command-only provider (e.g. the built-in claude) becomes CLI-dispatch-eligible, so its stages run in a watchable tmux pane; outside tmux they stay on native Agent-tool dispatch. A provider's own dispatch_command always wins. Scope both — settable once machine-wide. Default false.",
+			Key:         "dispatch.mode",
+			Default:     config.DefaultDispatchMode,
+			Kind:        configvalue.KindString,
+			Description: "Preferred stage-dispatch mode: pane, native, or headless. Resolution starts at the preference and descends pane → native → headless without ascending, choosing the first mode supported by the provider and environment. Scope both — settable once machine-wide. Default native.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
 			Segment:     dispatchSegment(),
 		},
 		{
 			Key: "dispatch.column_width",
-			// Like watchable, a real built-in value rather than "no default": the
+			// Like mode, a real built-in value rather than "no default": the
 			// cascade bottoms out at 35, and an absent yaml int is indistinguishable
 			// from 0, so the accessor treats out-of-range as unset. Sourced from the
 			// canonical config symbol, never a literal copy.
@@ -541,7 +540,7 @@ checklist:
 			Description: "Pane-worker column width, in percent of the window, applied by the column-carving `-h` split that opens a pane-mode stage worker beside its dispatching agent (`split-window -h -l <n>%`). Only that first split is sized — later workers stack inside the column with unsized `-v` splits. Out-of-range values (and an absent key) resolve to the default. Scope both — settable once machine-wide. Default 35.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
-			// Rendered inline in the dispatch.watchable Segment (dispatch is one YAML
+			// Rendered inline in the dispatch.mode Segment (dispatch is one YAML
 			// block, so a second `# dispatch:` block would collide if a reader
 			// uncommented both); this row carries no Segment of its own. Same pattern
 			// as project.description / project.linear_workspace.
@@ -558,7 +557,7 @@ checklist:
 			Description: "Done-worker pane reaping. When true, `fab dispatch reap` kills a pane-mode stage worker's tmux pane once its result file is present, reclaiming the column space a finished worker would otherwise hold for the rest of the run. Reap is not kill: it never touches a running, orphaned, or failed dispatch, and it removes no .fab-dispatch/ state. Set false to keep a done worker's scrollback. Scope both — settable once machine-wide. Default true.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
-			// Rendered inline in the dispatch.watchable Segment, same as
+			// Rendered inline in the dispatch.mode Segment, same as
 			// dispatch.column_width; this row carries no Segment of its own.
 		},
 		{
@@ -608,7 +607,7 @@ const referenceHeader = `# Full reference of all available options: fab config e
 
 // providersSegment renders the providers block. Every command string is
 // interpolated from its canonical agent var (no literal copy):
-// agent.DefaultSessionCommand for claude, and the four
+// agent.DefaultSessionCommand / agent.DefaultDispatchCommand for claude, and the four
 // agent.DefaultCodex*/DefaultGemini* vars for the other two built-ins. The
 // codex/gemini per-role FILLS are interpolated the same way, from the already-derived
 // providerDefaults() view — so the shipped values appear here without a literal copy,
@@ -626,19 +625,19 @@ const referenceHeader = `# Full reference of all available options: fab config e
 // stays above the `providers:` key.
 //
 // This segment carries the registry's only DELIBERATELY-COMMENTED content lines —
-// claude's indented `# dispatch_command:` and the `# codex:` / `# gemini:` blocks.
+// the `# codex:` / `# gemini:` blocks.
 // configupgrade.CommentOutSegment prefixes those like any live line (its column-0
 // rule), so in a rendered fence every marker lands at column 0 and the "strip the
 // leading '# ' from every line of a block" instruction below restores this text
 // byte-exactly — with those lines still commented at their original indent.
 func providersSegment(providers map[string]providerDefault, roleOrder []string) string {
-	return "# providers — named agent invocation grammars plus their per-role fills. This\n" +
+	return "# providers — named independent session, headless, and native launch capabilities plus their per-role fills. This\n" +
 		"# block is MACHINERY: naming a built-in on a depth knob (agent.session /\n" +
 		"# agent.workers, above) needs no `providers:` entry at all, so it is documented\n" +
 		"# here rather than scaffolded into your config. Full schema: docs/specs/config.md.\n" +
 		"#\n" +
-		"# Each provider MAY carry two command fields (they are NOT merged — session and\n" +
-		"# dispatch are different invocations of the same binary):\n" +
+		"# Each provider MAY carry two command fields plus native capability (the command\n" +
+		"# fields are NOT merged — session and dispatch are different invocations):\n" +
 		"#   session_command  — opens an interactive agent SESSION (fab operator /\n" +
 		"#                      fab batch / fab agent). {model}/{effort} placeholders are\n" +
 		"#                      substituted from the resolved role profile, or from the\n" +
@@ -646,11 +645,14 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#                      (which bypasses role resolution); the built-in commands\n" +
 		"#                      below are all templated this way. A command carrying\n" +
 		"#                      NO placeholder instead gets --model/--effort appended.\n" +
-		"#   dispatch_command — runs ONE headless stage task via fab dispatch. ABSENT →\n" +
-		"#                      native Agent-tool dispatch (the default). There is NO\n" +
-		"#                      fallback from dispatch_command to session_command. fab\n" +
+		"#   dispatch_command — runs ONE headless stage task via fab dispatch. There is NO\n" +
+		"#                      substitution between command fields; fab\n" +
 		"#                      dispatch pipes the stage prompt to the command's STDIN.\n" +
-		"# and a per-role fill map that supplies those placeholders:\n" +
+		"#   native            — declares native Agent-tool capability. Provider names are\n" +
+		"#                      opaque, so fab never infers this capability from a name.\n" +
+		"# Presence is capability data (how), never mode policy (whether). dispatch.mode\n" +
+		"# owns the preference and descends pane → native → headless.\n" +
+		"# Each provider also carries a per-role fill map that supplies those placeholders:\n" +
 		"#   profiles.<role>  — {model, effort} for when THIS provider plays THAT role.\n" +
 		"#                      Keyed by the six role names; `default` doubles as this\n" +
 		"#                      provider's cross-role fallback. Precedence: invocation\n" +
@@ -675,17 +677,14 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# defaults `fab resolve-agent <stage>` resolves, and all three providers' maps\n" +
 		"# are projected by `fab config explain --json`; their absence from claude's\n" +
 		"# block below is a rendering choice, not a missing fill.\n" +
-		"# Every block below is shown commented because it merely restates a built-in\n" +
-		"# default — except claude's session_command, shown live as the baseline example.\n" +
-		"# Note codex/gemini DO carry a dispatch_command, so pointing a role at one flips\n" +
-		"# its stages from native Agent-tool dispatch to headless CLI dispatch; claude's\n" +
-		"# dispatch_command is deliberately absent from the built-in (uncommenting the\n" +
-		"# line below flips claude's stages the same way).\n" +
+		"# Every non-claude block below is commented because it merely restates a built-in\n" +
+		"# default; claude's three capabilities are shown live as the baseline example.\n" +
+		"# Claude carries all three capabilities; codex/gemini carry pane + headless and\n" +
+		"# therefore descend from the default native preference to headless.\n" +
 		"#\n" +
 		"# Per-provider notes (kept out of the blocks below so uncommenting a whole block\n" +
 		"# yields valid YAML — strip the leading '# ' from every line of a block):\n" +
-		"#   claude.dispatch_command — claude -p reads the prompt from stdin; uncommenting\n" +
-		"#     runs claude's stages as headless CLI processes instead of native sub-agents.\n" +
+		"#   claude.dispatch_command — claude -p reads the prompt from stdin.\n" +
 		"#   codex — codex exec reads the prompt from stdin; both commands carry\n" +
 		"#     --dangerously-bypass-approvals-and-sandbox. Its -m takes a concrete model\n" +
 		"#     SLUG, so the fills below are pinned IDs: override one to pin a newer model.\n" +
@@ -699,8 +698,9 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# prompts. Override either provider command to restore an approval-gated posture.\n" +
 		"providers:\n" +
 		"  claude:\n" +
+		"    native: " + strconv.FormatBool(providers[agent.DefaultProviderName].Native) + "\n" +
 		"    session_command: '" + agent.DefaultSessionCommand + "'\n" +
-		"    # dispatch_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'\n" +
+		"    dispatch_command: '" + agent.DefaultDispatchCommand + "'\n" +
 		"  # codex:\n" +
 		"  #   session_command: '" + agent.DefaultCodexSessionCommand + "'\n" +
 		"  #   dispatch_command: '" + agent.DefaultCodexDispatchCommand + "'\n" +
@@ -752,7 +752,7 @@ func profilesLines(profiles map[string]providerProfileDefault, roleOrder []strin
 // agentSegment renders the WHOLE `agent:` block — the two advertised depth knobs
 // live, plus a commented agent.profiles pointer/example — since `agent` is one YAML
 // block and two separately-uncommentable `agent:` parents would collide into a
-// duplicate key (the project.name / dispatch.watchable precedent). The
+// duplicate key (the project.name / dispatch.mode precedent). The
 // agent.workers and agent.profiles registry rows therefore carry no Segment of
 // their own.
 //
@@ -803,29 +803,26 @@ func agentSegment(roles []roleRow) string {
 
 // dispatchSegment renders the whole `dispatch:` block — ALL THREE keys under it,
 // since `dispatch` is one YAML block and two separately-uncommentable `# dispatch:`
-// parents would collide into a duplicate key. dispatch.watchable is the
-// watchable-pane opt-in; dispatch.column_width sizes the worker column;
-// dispatch.reap_done reclaims a done worker's pane. Only the latter two have a
-// constant to interpolate (watchable's default is the Go zero value, so there is no
-// literal copy to drift); they come from config.DefaultDispatchColumnWidth and
-// config.DefaultDispatchReapDone.
+// parents would collide into a duplicate key. dispatch.mode is the preferred
+// descent-ladder rung; dispatch.column_width sizes the worker column;
+// dispatch.reap_done reclaims a done worker's pane. All three have canonical
+// constants to interpolate: config.DefaultDispatchMode,
+// config.DefaultDispatchColumnWidth, and config.DefaultDispatchReapDone.
 //
 // The dispatch.column_width and dispatch.reap_done registry rows therefore carry no
 // Segment of their own — the project.name / project.description precedent for
 // multiple keys in one block.
 func dispatchSegment() string {
-	return "# dispatch.watchable — opt in to WATCHABLE-PANE dispatch for providers that\n" +
-		"# carry only a session_command (e.g. the built-in claude). When true, TMUX\n" +
-		"# PRESENCE decides the adapter: inside tmux (`$TMUX` set) `fab resolve-agent`\n" +
-		"# emits a `dispatch=` line for such a provider, so the stage dispatches into a\n" +
-		"# tmux pane you can watch and steer; outside tmux the line is omitted and the\n" +
-		"# stage stays on native Agent-tool dispatch. HEADLESS CLI dispatch is never\n" +
-		"# reached this way — it stays gated on a real dispatch_command.\n" +
-		"# A provider's own dispatch_command always WINS (unchanged); watchable only\n" +
-		"# ADDS eligibility for providers that have none — so it replaces uncommenting\n" +
-		"# claude's dispatch_command, which would also flip every OUT-of-tmux dispatch\n" +
-		"# to headless CLI. Scope `both`, so it is settable once machine-wide in\n" +
-		"# ~/.fab-kit/config.yaml. Default false (byte-stable current behavior).\n" +
+	return "# dispatch.mode — preferred stage-worker adapter: pane, native, or headless.\n" +
+		"# Resolution starts at the preference and DESCENDS pane → native → headless,\n" +
+		"# never ascending, until provider capability + environment make a rung possible:\n" +
+		"# pane needs tmux + session_command; native needs native: true; headless needs\n" +
+		"# dispatch_command. Command fields are pure capability grammar — presence says\n" +
+		"# HOW, never WHETHER. `pane` is the watchable preference (no `auto` value):\n" +
+		"# outside tmux it descends to native or headless. Default native reproduces the\n" +
+		"# shipped behavior (claude native; codex/gemini headless). Scope `both`, so it\n" +
+		"# is settable once machine-wide in ~/.fab-kit/config.yaml. Invalid values warn\n" +
+		"# and fail open to " + config.DefaultDispatchMode + ".\n" +
 		"#\n" +
 		"# dispatch.column_width — width, in PERCENT of the window, of the pane-worker\n" +
 		"# column a pane-mode stage worker is opened into. The first worker CARVES the\n" +
@@ -851,7 +848,7 @@ func dispatchSegment() string {
 		"# scrollback. Scope `both`, so it is settable once machine-wide in\n" +
 		"# ~/.fab-kit/config.yaml. Default " + strconv.FormatBool(config.DefaultDispatchReapDone) + ".\n" +
 		"# dispatch:\n" +
-		"#   watchable: false\n" +
+		"#   mode: " + config.DefaultDispatchMode + "\n" +
 		"#   column_width: " + strconv.Itoa(config.DefaultDispatchColumnWidth) + "\n" +
 		"#   reap_done: " + strconv.FormatBool(config.DefaultDispatchReapDone)
 }

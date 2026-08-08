@@ -77,11 +77,17 @@ type Mode string
 const (
 	// ModeHeadless: the detached `sh -c` wrapper — the tmux-independent path
 	// observed via {stage}.exit + pid liveness (the five-state machine). Selected
-	// by --headless/--timeout, or by auto outside tmux (see SelectMode).
+	// explicitly by --headless/--timeout or automatically by preference descent
+	// (see SelectMode).
 	ModeHeadless Mode = "headless"
+	// ModeNative is the in-process Agent-tool adapter. fab dispatch records never
+	// persist this mode because the CLI cannot launch it; selection still models it
+	// so resolve-agent and dispatch start share one ladder.
+	ModeNative Mode = "native"
 	// ModePane: an interactive worker in a tmux window, observed via
 	// {stage}-result.yaml presence + pane liveness (the three-state subset — see
-	// DerivePaneState). Selected by --pane/--server, or by auto inside tmux.
+	// DerivePaneState). Selected explicitly by --pane/--server or when pane is the
+	// first available rung under the configured preference.
 	ModePane Mode = "pane"
 )
 
