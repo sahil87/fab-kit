@@ -1,0 +1,24 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-08T02:52:52Z"}
+{"args":"Phase 2 (mechanical deletion: narration + duplication) of fab/plans/sahil/skill-prose-consolidation.md — sub-phases 2a (historical/transition narration sweep ~2,700w) and 2b (duplication collapse ~3,300w); dispatch-seam collapse against current canon; protected set preserved verbatim; SPEC mirrors updated","cmd":"fab-new","event":"command","ts":"2026-08-08T02:52:52Z"}
+{"delta":"+4.9","event":"confidence","score":4.9,"trigger":"calc-score","ts":"2026-08-08T02:55:48Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-08T03:04:01Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-08T03:04:30Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-08T03:05:57Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-08T03:35:41Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-08T03:37:27Z"}
+{"event":"review","result":"failed","ts":"2026-08-08T03:50:55Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-08T03:50:55Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-08T03:57:36Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-08T03:59:35Z"}
+{"event":"review","result":"failed","ts":"2026-08-08T04:05:24Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-08T04:05:24Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-08T04:13:45Z"}
+{"event":"review","result":"failed","ts":"2026-08-08T04:24:12Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-08T04:24:12Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-08T04:26:31Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-08T04:33:49Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-08T04:45:35Z"}
+{"event":"review","result":"passed","ts":"2026-08-08T04:45:35Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-08T04:51:46Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-08T04:54:52Z"}
+{"event":"review","result":"passed","ts":"2026-08-08T05:09:14Z"}

@@ -25,12 +25,7 @@ helpers: [_srad]
 
 ## Purpose
 
-Deepen and refine the **intake** artifact (`intake.md`) without advancing. Clarification is an intake-only, human-facing activity: it is where the developer's decisions and disambiguation happen, gated by the single intake confidence gate. There is no post-intake clarify — inside apply, the agent resolves ambiguity inline as graded SRAD assumptions in `plan.md`, not via this skill. Two modes:
-
-- **Suggest mode** (user invocation) — interactive question flow with recommendations
-- **Auto mode** — autonomous resolution, returns machine-readable result (retained for future use; see § Skill Invocation Protocol → Currently Applicable)
-
-Mode determined by `[AUTO-MODE]` prefix (see § Skill Invocation Protocol below). Safe to call multiple times.
+Deepen and refine the **intake** artifact (`intake.md`) without advancing. Clarification is an intake-only activity gated by the single intake confidence gate. Inside apply, the agent resolves ambiguity inline as graded SRAD assumptions in `plan.md`, not via this skill. The skill is safe to call multiple times and has two modes: interactive Suggest Mode by default, and machine-readable Auto Mode when the invocation begins with `[AUTO-MODE]`.
 
 ---
 
@@ -38,7 +33,7 @@ Mode determined by `[AUTO-MODE]` prefix (see § Skill Invocation Protocol below)
 
 - **`<change-name>`** *(optional)* — target a specific change (see `_preamble.md` > Change-name override). `.fab-status.yaml` unchanged.
 
-`/fab-clarify` operates only on `intake.md`; the legacy `spec`/`plan`/`tasks` targets were removed (the spec stage is gone; under-specified requirements at apply become inline SRAD assumptions). Any positional argument is treated as a change name.
+`/fab-clarify` operates only on `intake.md`; under-specified requirements at apply become inline SRAD assumptions. Any positional argument is treated as a change name.
 
 ---
 
@@ -182,7 +177,7 @@ Next: {per state table — current state, since clarify is non-advancing}
 
 ### Step 7: Recompute Confidence
 
-Always run `fab score --stage intake <change>` after resolving assumptions — intake is the sole scoring source, and clarify operates only at intake. This re-persists the authoritative intake confidence. Both Suggest and Auto modes recompute (Auto Mode step 4).
+Always run `fab score --stage intake <change>` after resolving assumptions — intake is the sole scoring source, and clarify operates only at intake. This re-persists the authoritative intake confidence in both Suggest Mode and Auto Mode.
 
 ### Step 8: Do NOT Advance Stage
 
@@ -192,39 +187,27 @@ Only update `confidence` and `last_updated` in `.status.yaml`.
 
 ## Skill Invocation Protocol
 
-When one skill invokes another internally, the calling skill MUST signal the invocation mode explicitly using an instruction prefix. This makes the contract between skills explicit and testable rather than relying on implicit "call context" interpretation. (No live flow currently does this — see Currently Applicable below.)
-
 ### Protocol
 
-1. **Prefix**: `[AUTO-MODE]`
-2. **Placement**: The calling skill includes `[AUTO-MODE]` as the **first line** of the invocation prompt / instruction to the called skill.
-3. **Detection**: The called skill checks for the `[AUTO-MODE]` prefix at the start of its invocation context.
-   - **If present**: Enter autonomous mode (no user interaction, machine-readable result).
-   - **If absent**: Enter default/interactive mode (user-facing, structured questions).
-4. **Transitivity**: When skills chain, each link applies the prefix independently.
+1. **Prefix**: `[AUTO-MODE]`.
+2. **Placement**: The calling skill puts the prefix on the first line of the invocation prompt.
+3. **Detection**: Prefix present enters autonomous mode (no user interaction, machine-readable result); prefix absent enters the default interactive mode.
+4. **Transitivity**: Each link in a skill chain applies and detects the prefix independently.
 
 ### Currently Applicable
 
-No skill currently invokes another with the `[AUTO-MODE]` prefix. The former
-`/fab-fff` → `/fab-clarify` and `/fab-ff` → `/fab-clarify` auto-invocations were
-removed in 1.10.0: clarification is an intake-only, human-facing activity, so no
-clarify step runs inside the automated post-intake bracket (apply → review →
-hydrate → ship → review-pr). The protocol itself remains defined for future use.
-
-User-invoked skills never carry the `[AUTO-MODE]` prefix, so called skills default to interactive mode.
-
-To add new mode signals, define new bracketed prefixes (e.g., `[BATCH-MODE]`) here. Pattern: one prefix per mode, first-line placement, absence means default.
+No skill currently invokes another with this prefix. User-invoked skills do not carry it and therefore use interactive mode.
 
 ---
 
 ## Auto Mode
 
-> **Note**: Bulk confirm (Step 2) is Suggest Mode only. Auto Mode skips it — there is no user to confirm with. Retained for future use only (see § Skill Invocation Protocol → Currently Applicable); operates on `intake.md` only.
+> Bulk confirm is Suggest Mode only. Auto Mode operates on `intake.md` without user interaction.
 
-1. **Read `intake.md`** (same as Suggest Step 1)
-2. **Autonomous gap resolution**: Same intake taxonomy scan. Resolvable from context → resolve + `<!-- clarified: ... -->`. Needs user input → `<!-- blocking: ... -->`. Minor → leave as-is.
-3. **Return result**: `{resolved: N, blocking: N, non_blocking: N}`. If `blocking > 0`, include `blocking_issues: [...]`.
-4. **Non-advancing**: recompute the intake score (`fab score --stage intake <change>`) and update `last_updated`.
+1. Read `intake.md` as in Suggest Step 1.
+2. Run the same intake taxonomy scan. Resolve gaps supported by context and add `<!-- clarified: ... -->`; mark gaps requiring user input `<!-- blocking: ... -->`; leave minor non-blocking gaps unchanged.
+3. Return `{resolved: N, blocking: N, non_blocking: N}`; when `blocking > 0`, also return `blocking_issues: ["description"]`.
+4. Recompute the intake score with `fab score --stage intake <change>`; do not advance the stage.
 
 ---
 

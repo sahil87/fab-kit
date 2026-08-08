@@ -60,7 +60,7 @@ Use `fab preflight` and `fab status` for validation and data retrieval. The skil
   The +50 threshold is hard-coded. The warning is informational only — no gate, no block.
 - Handles all error cases (no active change, missing `.status.yaml`, missing fields)
 - Defaults missing progress fields to `○` (pending), missing plan to "plan not yet generated", and missing confidence to "not yet scored"
-- **Confidence display** — read uniformly from `.status.yaml` (via preflight output) for all stages (the `indicative` flag is retired in 1.10.0 — intake scoring is authoritative, so there is no separate "indicative" label):
+- **Confidence display** — read uniformly from `.status.yaml` (via preflight output) for all stages:
   - **Score > 0.0**: `Confidence: {score} of 5.0 ({N} certain, {N} confident, {N} tentative)` — appends `, {N} unresolved` only when unresolved > 0.
   - **Score = 0.0 with all grade counts 0 (template default, pre-intake)**: `Confidence: not yet scored`
 

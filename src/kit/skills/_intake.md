@@ -113,7 +113,7 @@ Follow the **Intake Generation Procedure** (`_generation.md`). Load context per 
 After generating `intake.md` and verifying the change type, persist and display the confidence score:
 
 1. Call `fab score --stage intake <change>` (normal mode, **not** `--check-gate`)
-2. This writes the score to `.status.yaml` (no `indicative` flag is written — retired in 1.10.0; intake scoring is authoritative)
+2. This writes the score to `.status.yaml`; no `indicative` flag is written because intake scoring is authoritative
 3. Display the result from stdout (score and breakdown)
 
 Output format: `Confidence: {score} / 5.0 ({N} decisions)`

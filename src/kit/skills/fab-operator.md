@@ -89,7 +89,7 @@ This single preflight probe covers every later `wt create` call site; none is in
 1. Read the server-keyed operator state file (`$XDG_STATE_HOME/fab/operator/<server-slug>.yaml`, fallback `~/.local/state/...`; the binary derives the path via `fab operator tick-start` — the operator does not compute it). If missing, it is created with empty `monitored: {}`, `autopilot: null`, and `branch_map: {}`. Old repo-rooted `.fab-operator.yaml` files are not read or migrated
 2. Restore monitored set, autopilot queue, and branch_map from the file (supports `/clear` recovery)
 3. Run `fab pane map --all-sessions` and display the output (all sessions on this server, not just the operator's own)
-4. If any tracked items exist (monitored changes, active autopilot, or watches), start the loop at the cadence the current state warrants (§4 Adaptive cadence): `/loop 90s "operator tick"` if any restored agent is `waiting` (or menu-waiting), else `/loop 3m "operator tick"`
+4. If any tracked items exist, start the single loop per §4 Adaptive cadence
 5. Output: `Operator ready.` (+ `Loop active ({interval}).` if loop started)
 
 ---
@@ -143,13 +143,13 @@ The loop is the operator's heartbeat — a `/loop "operator tick"` that runs as 
 **Adaptive cadence.** The heartbeat interval is **not fixed** — it adapts to whether any monitored agent is `waiting` (blocked on a human):
 
 - **Normal cadence: `3m`** (the default). Used when no monitored agent is `waiting` (or input-waiting).
-- **Tightened cadence: `90s`** (§8, overridable). The moment a tick detects **any** monitored agent in the **`waiting`** Agent-column state (the pane's `@rk_agent_state` is `waiting` — the agent is blocked on a permission prompt / menu / elicitation), the operator tightens the heartbeat to bound worst-case detection/pickup latency. `waiting` is the primary, event-driven trigger — it makes menu/permission-blocked agents visible directly, where the old capture-based §5 menu detection remains a fallback for uninstrumented panes (`—`). When a later tick finds no monitored agent `waiting` (or menu-waiting), it relaxes back to `3m`.
-- **One-loop invariant preserved.** Adapting cadence means **re-establishing the single loop at the new interval** (e.g. restart `/loop 90s "operator tick"`), never running two loops concurrently (`_cli-external.md` § /loop — "one loop at a time"). The operator changes the interval of *the* loop; it does not add a second.
-- **Autopilot composes unchanged.** When an autopilot queue is driving, autopilot's own cadence (default `2m`, `_cli-external.md`) governs the loop; the menu-tightening applies to the monitoring loop's `3m`/`90s` band, not autopilot's `2m`.
+- **Tightened cadence: `90s`** (§8, overridable). The moment a tick detects **any** monitored agent in the **`waiting`** Agent-column state (the pane's `@rk_agent_state` is `waiting` — the agent is blocked on a permission prompt / menu / elicitation), the operator tightens the heartbeat to bound worst-case detection/pickup latency. `waiting` is the primary, event-driven trigger; capture-based §5 menu detection is the fallback for uninstrumented panes (`—`). When a later tick finds no monitored agent `waiting` (or menu-waiting), it relaxes back to `3m`.
+- **One-loop invariant.** Adapting cadence means **re-establishing the single loop at the new interval** (e.g. restart `/loop 90s "operator tick"`), never running two loops concurrently (`_cli-external.md` § /loop — "one loop at a time"). The operator changes the interval of *the* loop; it does not add a second.
+- **Autopilot composition.** When an autopilot queue is driving, autopilot's own cadence (default `2m`, `_cli-external.md`) governs the loop; the menu-tightening applies to the monitoring loop's `3m`/`90s` band, not autopilot's `2m`.
 
 ### Operator State File
 
-Persistent state, read on startup and every tick, written after every state change. The term **operator state file** used throughout this skill refers to this file. It is **server-keyed**, not repo-rooted — one file per tmux server spanning every repo it coordinates (path, XDG fallback, binary-derivation, and the no-migration of old repo-rooted `.fab-operator.yaml` files: see §2 Init step 1 and §9).
+Persistent state, read on startup and every tick, written after every state change. The term **operator state file** used throughout this skill refers to the server-keyed file from §2 Init step 1 — one per tmux server spanning every repo it coordinates.
 
 ```yaml
 tick_count: 47
@@ -233,7 +233,7 @@ On each tick:
 4. **Autopilot dispatch** — if an autopilot queue is active, run the next autopilot action (§6). Autopilot-driven changes are visible in the frame via `▶`.
 5. **Removals** — remove completed changes (reached stop stage or terminal stage) and dead panes from the monitored set.
 6. **Persist** — write updated state to the operator state file
-7. **Loop lifecycle** — if monitored set is empty, no autopilot, and no watches, stop the loop. Otherwise **adapt the cadence** (§4 Adaptive cadence): if any monitored agent is `waiting` (or was detected menu-waiting this tick, step 2) and the loop is not already at the tightened interval, re-establish the single loop at `90s` (§8); if none is `waiting`/menu-waiting and the loop is tightened, relax it back to `3m`. Re-establishing the loop replaces the interval of the one loop — it never starts a second (`_cli-external.md` § /loop). Autopilot's own cadence governs when a queue is driving (§6).
+7. **Loop lifecycle** — stop when no tracked state remains; otherwise apply §4 Adaptive cadence (autopilot uses §6's cadence)
 
 Actions (nudges, removals, autopilot progress) render as an *italic* footnote line below the frame as they happen, `·`-separated, keeping them visually subordinate to the table frame:
 
@@ -370,20 +370,18 @@ Evaluate in order:
 
 ### Non-Blocking Strategic Handling
 
-A Strategic classification (rule 4 above) **MUST NOT block the loop**. The operator handles the prompt out-of-band within the current tick and proceeds to the next monitored change in the **same** tick — one strategic question on one change no longer freezes the queue. Two branches:
+A Strategic classification (rule 4 above) **MUST NOT block the loop**. The operator handles the prompt out-of-band within the current tick and proceeds to the next monitored change in the **same** tick. Two branches:
 
 - **Strategic + defensible recommendation** → **auto-pick-and-notify.** The operator picks its recommended option (LLM judgment over the capture — the same signals rule 4 lists: option text, distinctness, surrounding context, reversibility), sends it (after the **Sending Auto-Answers** re-capture guard below), fires a notification (see **Notification Send**), and keeps ticking. The PR review stage is the reversal point (§1 "The PR review stage is the safety net").
 - **Strategic + no defensible default** → **leave open and notify.** The operator leaves the prompt open for the user, fires a notification, and keeps ticking. The 30m **Idle Auto-Default** (below) remains the backstop for these left-open prompts.
 
-In both branches the operator **continues ticking**. The user answers asynchronously — by responding to the notification's guidance or by typing directly into the agent's pane — and the operator **picks up the resolution on a later tick** via its normal re-capture/re-detection (**Sending Auto-Answers** already re-captures before any send). No new pickup mechanism is added.
+In both branches the operator **continues ticking**. The user answers asynchronously — by responding to the notification's guidance or by typing directly into the agent's pane — and the operator **picks up the resolution on a later tick** via its normal re-capture/re-detection.
 
 ### Notification Send
 
-The notification is a single out-of-band shell send the operator runs when it auto-picks or leaves open a Strategic prompt. The **default channel is `rk notify`** — the fab-owned operator escalation usage lives in `_cli-external.md` § rk (run-kit); the gate and fail-silent discipline are in `_preamble.md` § Run-Kit (rk) Reference; the `rk notify` contract itself is tool-owned (`rk skill`). The operator-specific send — gated on `command -v rk`, with the operator's message/title template — is:
-
-```sh
-command -v rk >/dev/null 2>&1 && rk notify "{change}: {summary} ({repo})" --title "Operator: strategic question"
-```
+The notification is a single out-of-band send when the operator auto-picks or
+leaves open a Strategic prompt. Use the default `rk notify` command and gate in
+`_cli-external.md` § rk (run-kit).
 
 **When `rk` is absent** (operator running where run-kit isn't installed), fall back to the first available **documented alternative**, configurable via the §8 `Notify channel` setting:
 
@@ -402,9 +400,9 @@ Before `tmux send-keys`: run the §3 pre-send gate (`_cli-agents.md` § Pre-Send
 
 This is the watchdog for a **left-open** Strategic prompt — the no-defensible-default branch of **Non-Blocking Strategic Handling** above. (Auto-picked Strategic prompts are already resolved, so the watchdog has nothing to act on for them.) When rule 4 leaves a prompt open as **Strategic**, the operator starts a per-prompt idle timer measured in real time from the moment the left-open log line is written. If the prompt remains idle for 30 minutes, the operator auto-answers the prompt and logs using the distinct `auto-defaulted` format (§5 Logging). The timer runs in the background — it does **not** block the loop; the operator keeps ticking and fires the auto-default on whatever later tick crosses the 30-minute mark.
 
-**Threshold**: 30 minutes, hardcoded. No operator-state-file field, no per-change override, no environment variable exposes this value. The §4 operator state file schema is unchanged.
+**Threshold**: 30 minutes, hardcoded. No operator-state-file field, per-change override, or environment variable exposes this value.
 
-**Idle clock reset**: the idle timer resets on any terminal-state change in the pane — new content appended by the agent, user keystrokes that alter the prompt display, or the prompt's own redraw. The timer is a watchdog on pane-idle-ness, not on escalation-open-ness. Tick cadence already provides sub-minute resolution via §4 Tick Behavior — no new polling infrastructure is required.
+**Idle clock reset**: the idle timer resets on any terminal-state change in the pane — new content appended by the agent, user keystrokes that alter the prompt display, or the prompt's own redraw. The timer is a watchdog on pane-idle-ness, not on escalation-open-ness. §4 Tick Behavior provides sub-minute resolution.
 
 **Answer selection** (in priority order):
 
@@ -449,7 +447,7 @@ Every spawn flow is **repo-targeted**: the operator first establishes **which re
 The spawn sequence is:
 
 1. **Establish target repo** — determine the absolute main-worktree root the work targets. For an already-tracked change, use its `repo` (monitored entry or `branch_map`). For a watch spawn, use the watch's `target_repo` (§7). For a fresh user request, use the repo the user names (default: the repo the operator was launched in).
-2. **Create worktree** — run `wt create --non-interactive --worktree-name <wt> [<branch>]` **with the target repo as the working directory** (so the worktree lands under `$(dirname <target-repo>)/<repo-name>.worktrees/`, not the operator's repo). The operator never relies on its own CWD for spawning. When a `<branch>` is given, **probe-and-route** it per `_cli-external.md` § wt — an existing branch takes `--checkout <branch>` (the bare positional now exits 2 on an existing branch); a missing one takes the positional.
+2. **Create worktree** — run the repo-targeted, probe-and-route procedure in `_cli-external.md` § wt; never rely on the operator's CWD
 3. **Activate the change pointer (existence-guarded)** — in the **just-created worktree's directory**, set that worktree's own `.fab-status.yaml` so the worktree is self-describing after the pipeline completes (a bare `fab`/`/fab-*` later resolves the change without naming it). Run the switch **only when the change folder already exists** — `fab resolve --folder <change>` succeeds iff a non-archived change folder matches:
 
    ```sh
@@ -469,11 +467,9 @@ The spawn sequence is:
 4. **Resolve dependencies** — if the change has a non-empty `depends_on` list, resolve it per repo: same-repo deps cherry-pick into the worktree, cross-repo deps are ordering-only barriers (see Dependency Resolution below)
 5. **Read the target repo's session command** — compose it per `_cli-agents.md` § Spawn Composition, in the **role-addressed** form with the target repo named: `fab agent --print --repo <target-repo>`. The operator-specific rule: **always pass `--repo <target-repo>`** — do NOT use the operator's own `config.yaml`, since each repo may configure a different provider/session command. (The provider-addressed form documented there is for ad-hoc cross-provider sessions, not operator worker spawns, which must carry the target repo's `default`-role profile.)
 6. **Open agent tab** — open the composed command per `_cli-agents.md` § Spawn Composition ("Open it in a pane", incl. the one-prompt/no-`&&`-chaining rule), with the operator's window-marker name: `tmux new-window -n "»<wt>" -c <worktree-path> "<spawn_cmd> '<command>'"` (where `<wt>` is the worktree name from step 2 and `<spawn_cmd>` is the target repo's command from step 5)
-7. **Enroll in monitored set** — unconditionally and silently record pane, **repo** (the target repo from step 1), **session** (the tmux session the new window landed in), stage, branch, depends_on in the state file; add `{ branch, repo }` to `branch_map`. MUST NOT prompt the user about whether to monitor. (Enrollment calls `fab pane window-name ensure-prefix <pane> »` per §4; the `»<wt>` name produced in step 6 already satisfies the primitive's idempotent prefix check, so no duplicate rename occurs.)
+7. **Enroll in monitored set** — unconditionally and silently record pane, repo, session, stage, branch, and dependencies; apply §4 Enrollment (including `branch_map` and window prefix); never ask whether to monitor
 
-Window markers (`»` / `›`) are **unchanged** by the multi-repo model — they key on server-global pane IDs, which are unique across every repo and session on the server.
-
-> **Auto-enroll is mandatory.** Every spawned agent MUST be enrolled in the monitored set immediately as part of the spawn sequence. The operator MUST NOT ask the user whether to monitor a spawned agent — this decision is already made by the act of spawning. If the operator spawned it, it is monitored. No exceptions.
+Window markers (`»` / `›`) key on server-global pane IDs.
 
 ### Dependency Resolution
 
@@ -541,7 +537,7 @@ Dependency resolution is **two-tier**, split by repo. Each entry in `depends_on`
 Dependencies are declared through three conversational paths, all of which coexist:
 
 1. **Explicit**: "cd34 depends on ab12" — operator sets `depends_on: [ab12]` on the monitored entry
-2. **Autopilot queue (implicit)**: user-provided ordering implies `--base` chaining by default — every change after the first gets `depends_on: [<nearest-same-repo-predecessor>]` (definition + cross-repo fallback in § Autopilot → Queue ordering, "User-provided")
+2. **Autopilot queue (implicit)**: resolve ordering per § Autopilot → Queue ordering
 3. **`--base` flag (explicit)**: autopilot `--base <prev-change>` explicitly sets `depends_on: [<prev-change-id>]` for the subsequent change (matches path 2's pick when the previous entry is same-repo; available for ad-hoc overrides)
 
 ### Working a Change
@@ -552,9 +548,9 @@ The operator accepts work in three forms. Each runs the §6 spawn sequence above
 
 | Entry form | Target repo / pre-step | Initial command (sent via the spawn sequence's agent tab) |
 |------------|------------------------|-----------------------------------------------------------|
-| **Existing change** (already has intake or further) | The change's `repo` (monitored entry or `branch_map`) | `/fab-fff <change>` — embed exactly **one** slash command in the spawn (do NOT send a `&&`-joined string like `/fab-switch <change> && /fab-fff`). The embedded command is delivered as a single prompt to the spawned agent, where `&&` is not a shell operator and Claude reads one leading `/command` per prompt — so the `&& …` tail is swallowed into `/fab-switch`'s argument rather than running as a second command. (Two sequential slash commands *are* achievable via separate Enter-terminated sends, but the operator deliberately avoids that here: a slash-command switch is a full agent round-trip for a one-line symlink write, and re-adding a post-spawn send would regress the single-dispatch-at-spawn property. The synchronous `fab change switch` CLI verb in spawn-sequence step 3 does the same write directly — see below.) The change-name override targets the change directly, no `/fab-switch` needed; the worktree's branch already matches (put on it by `wt create … --checkout <change-folder-name>` when it already exists, per the probe-and-route in `_cli-external.md` § wt); `/fab-fff` picks up from the change's current stage. The spawn sequence's existence-guarded step 3 **also activates the pointer** (`fab change switch <change>` in the new worktree) so the finished worktree is self-describing — but it is still the transient `<change>` override on `/fab-fff`, not the pointer, that targets the pipeline (the activation is an ergonomic add-on; the override remains the load-bearing mechanism) |
+| **Existing change** (already has intake or further) | The change's `repo` (monitored entry or `branch_map`) | Embed the single prompt `/fab-fff <change>` per `_cli-agents.md` § Spawn Composition. The transient override targets the pipeline; spawn step 3 also activates the worktree pointer. |
 | **Raw text** (e.g., "fix login after password reset") | The repo the user names; default the operator's launch repo | `/fab-new <shell_escaped_description>` — the raw description safely shell-escaped for inclusion in a single-quoted shell argument (do NOT insert unescaped raw text directly). No operator pointer-switch at spawn — the change folder doesn't exist yet, so §6 step 3's existence guard skips it; `/fab-new` creates and then activates the change inside the spawned agent (activation at fab-new Step 10) |
-| **Backlog ID or Linear issue** (structured) | Pre-step: look up the idea — gated, graceful skip: `command -v idea >/dev/null 2>&1 && idea show <id>` (`idea` is a standalone formula and may be absent; when it is, skip the lookup silently and proceed — `/fab-new` resolves the backlog ID from `fab/backlog.md` itself, so nothing is lost) — or resolve the Linear issue first | `/fab-new <id>` — same as raw text: no operator pointer-switch at spawn (§6 step 3's guard skips the not-yet-existing folder); `/fab-new` owns activation inside the spawned agent |
+| **Backlog ID or Linear issue** (structured) | Pre-step: resolve it; delegate optional `idea` lookup per `_cli-external.md` § Delegation and binary gate | `/fab-new <id>` — no pointer switch before the change exists; `/fab-new` owns activation |
 
 On completion (all three): PR ready, optionally archive. Both raw text and backlog paths use `/fab-new` to generate a proper intake with traceability. `/fab-new` captures the raw input in the intake's Origin section — the user just says "fix [description]" and the operator does the rest.
 
@@ -574,7 +570,7 @@ Queue ordering:
 | Confidence-based | Sort by confidence score descending. Highest-confidence first (independent changes) |
 | Hybrid | User provides constraints (partial order); operator sorts unconstrained by confidence |
 
-**`--merge-on-complete`** — opt-in flag that reverts to the previous merge-as-you-go behavior: merge each PR on completion, then `git fetch origin` and rebase the next change onto `origin/{default_branch}` (the default branch resolved per Dependency Resolution step 0 — never a hardcoded `origin/main`). Implicit `--base` chaining is disabled under this flag — each change rebases onto `origin/{default_branch}` independently instead of stacking on the previous change's branch. Natural language equivalents: "merge as you go", "merge on complete", "merge each when done". Without this flag, the default is stack-then-review: PRs are created but not merged until the user explicitly requests merging, and implicit `--base` chaining is active (per Queue ordering, "User-provided").
+**`--merge-on-complete`** — opt-in merge-as-you-go mode: merge each PR on completion, then `git fetch origin` and rebase the next change onto `origin/{default_branch}` (the default branch resolved per Dependency Resolution step 0 — never a hardcoded `origin/main`). Implicit `--base` chaining is disabled under this flag — each change rebases onto `origin/{default_branch}` independently. Natural language equivalents: "merge as you go", "merge on complete", "merge each when done". Without this flag, the default is stack-then-review: PRs are created but not merged until the user explicitly requests merging, and implicit `--base` chaining is active (per Queue ordering, "User-provided").
 
 The operator works each change through the pipeline. Pre-send validation (§3) applies to any command sent to an existing pane; the initial pipeline command itself is **embedded at spawn** (§6 step 6) — the single dispatch point:
 
@@ -583,11 +579,11 @@ The operator works each change through the pipeline. Pre-send validation (§3) a
 3. **Resolve dependencies + open tab + enroll** — §6 spawn sequence steps 3–7 (existence-guarded pointer activation, same-repo cherry-pick / cross-repo ordering-only barriers per Dependency Resolution). Step 6's `<command>` is the change's pipeline command — `/fab-fff <change>` (or the appropriate command for its current stage) — so the dispatch happens **once, at spawn**; do NOT send the command again after the tab opens
 4. **Monitor** — normal tick detection handles progress
 5. **Record** — on completion, record `{ branch, repo }` in `branch_map`, collect PR URL
-6. **Spawn next** — repeat from item 1 for the next queue entry (with implicit `depends_on: [<nearest-same-repo-predecessor>]` per Queue ordering above; deps resolved per repo — cherry-pick same-repo, barrier cross-repo); its command is likewise embedded at spawn
+6. **Spawn next** — repeat from item 1 using § Queue ordering and § Dependency Resolution; embed its command at spawn
 7. **Report** — `"ab12: PR ready. 1 of 3 complete. Starting cd34."`
 8. **(After all complete) Summary** — list all PR links with per-repo dependency annotations and per-repo merge order suggestion (see Queue Completion Summary below)
 
-When `--merge-on-complete` is active, steps 5–8 revert to the previous merge-as-you-go behavior: merge PR on completion, `git fetch origin`, rebase next change onto `origin/{default_branch}` (resolved per Dependency Resolution step 0), report merge.
+When `--merge-on-complete` is active, steps 5–8 merge the PR on completion, run `git fetch origin`, rebase the next change onto `origin/{default_branch}` (resolved per Dependency Resolution step 0), and report the merge.
 
 Autopilot-driven changes display `▶` in the status frame (§4). Queue progress is visible from the list — entries with `▶` and health `✅` are complete; the current entry shows health `🟢` while active or `🟡` while waiting.
 
@@ -700,7 +696,7 @@ The isolation unit is the **tmux server**. There is exactly **one operator per t
 | Waiting/menu heartbeat | 90s | "tighten to {N}s when an agent is on a menu" |
 | Notify channel | `rk` (run-kit Web Push; auto-fallback when `rk` absent) | "notify via ntfy topic {topic}" / "notify via discord {url}" / "notify via push" |
 
-Session-scoped — resets on `/clear` or session restart. The §4 operator state-file schema is **unchanged** (these are session settings, consistent with the loop-interval / stuck-threshold rows). The **strategic auto-default threshold stays hardcoded at 30m** (§5) — there is deliberately **no** setting for it.
+These settings are session-scoped and reset on `/clear` or session restart; they are not operator-state-file fields. The **strategic auto-default threshold is hardcoded at 30m** (§5) — there is deliberately **no** setting for it.
 
 ---
 
@@ -720,5 +716,5 @@ Session-scoped — resets on `/clear` or session restart. The §4 operator state
 | Requires a `fab/` project? | No — session command comes from the project's `providers.claude.session_command` when `fab/` is resolvable, else `spawn.DefaultSpawnCommand` (the template `claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`). No project `providers`/`agent:` block is read on a `fab/`-less launch |
 | Coordinating-agent model | Operator role — `fab operator` resolves the `operator` role (`agent.ResolveRole`; a Tier-1 role, so the `agent.session` knob picks its provider), reads that provider's `session_command`, injects the profile via `spawn.WithProfile` (**substitutes** into a `{model}`/`{effort}` template — the built-in claude default is templated — or **appends** `--model`/`--effort` to a plain command carrying no placeholder); falls back to the built-in operator profile + built-in claude provider on any failure (incl. no resolvable `fab/` project) |
 | Uses `/loop`? | Yes — adaptive heartbeat: `3m` normally, tightens to `90s` (§8) when any monitored agent is `waiting` (`@rk_agent_state`) or menu-waiting (capture fallback), relaxes back to `3m`; one loop at a time |
-| Uses the operator state file? | Yes — monitored set + autopilot queue + branch map persistence. **Server-keyed**, not repo-rooted: `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml` (fallback `~/.local/state/fab/operator/<server-slug>.yaml`), keyed by the tmux socket path. The binary derives the path; old repo-rooted files are not migrated |
+| Uses the operator state file? | Yes — monitored set + autopilot queue + branch map persistence in the server-keyed path defined by §2 Init step 1 |
 | Multi-repo / multi-session? | Yes — one operator per tmux server spans all its sessions and repos via the `(session, repo, pane)` addressing tuple |

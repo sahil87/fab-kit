@@ -64,7 +64,7 @@ Consumer (fab-new / fab-draft / fab-dedupe / fab-proceed dispatch) reads _intake
 │  ├─ Bash: grep '^change_type:' fab/changes/{name}/.status.yaml
 │  └─ [only if wrong] Bash: fab status set-change-type <change> <type>
 │
-├─ Step 7: Confidence (authoritative — intake is the sole scoring source)
+├─ Step 7: Confidence (authoritative — intake is the sole scoring source; no `indicative` flag is written)
 │  └─ Bash: fab score --stage intake <change>             ◄── bookkeeping
 │
 ├─ Step 8: SRAD-Based Question Selection  *(THE PARAMETERIZED STEP)*

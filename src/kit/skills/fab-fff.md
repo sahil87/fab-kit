@@ -22,14 +22,13 @@ helpers: [_generation, _review, _srad, _pipeline]
 
 ## Purpose
 
-Run the entire automated Fab pipeline — apply → review → hydrate → ship → review-pr — in a single invocation (everything after intake). Gated on the single intake confidence gate (flat 3.0, all types), checked before the bracket; review failures get a bounded auto-rework loop (`{max_cycles}` cycles — the `Max cycles:` knob in `fab/project/code-review.md` § Rework Budget, default 3) and then stop. No `/fab-clarify` runs inside the bracket — clarification is intake-only. Resumable — re-running picks up from the first incomplete stage. The difference from `/fab-ff` is scope only: `/fab-fff` extends through ship and review-pr; `/fab-ff` stops at hydrate. Both have the identical single intake gate.
+Run `_pipeline.md` § Driver Framing, then continue through ship and review-pr.
 
 ---
 
 ## Arguments
 
-- **`<change-name>`** *(optional)* — target a specific change instead of the active one resolved via `.fab-status.yaml`. Resolution per `_preamble.md` (Change-name override).
-- **`--force`** *(optional)* — bypass the intake confidence gate. All other behavior (rework loop, etc.) is unchanged. Output header includes "(force mode -- gate bypassed)".
+See `_pipeline.md` § Driver Framing.
 
 ---
 
@@ -39,14 +38,12 @@ Execute the **shared pipeline bracket** (`_pipeline.md`, loaded via `helpers:`) 
 
 | Parameter | Value |
 |-----------|-------|
-| `{driver}` | `fab-fff` — passed to the `fab status` event commands the bracket shows it on (the fail/recovery commands are deliberately driver-less — see `_pipeline.md`'s Behavior note) and used in re-run guidance |
+| `{driver}` | `fab-fff` |
 | `{terminal}` | `review-pr` — after the bracket's Step 3 (hydrate), continue with Steps 4–5 below |
 
 The bracket defines pre-flight (intake prerequisite + intake gate), context loading, resumability, Steps 1–3 (apply → review → hydrate), the auto-rework loop with its per-cycle choreography, and the exhaustion stop. The two steps below are fff-only.
 
-> **Per-stage model + adapter**: every stage dispatch resolves once with `fab resolve-agent <stage> --alias` and surfaces the resolved profile. The bracket's Steps 1–3 then branch on `dispatch=` presence per `_preamble.md` § CLI-Adapter Dispatch: absent ⇒ native Agent-tool dispatch through the two seams; present ⇒ the CLI adapter. The fff-only Steps 4–5 dispatch full skill behaviors through the native two seams, as specified below.
-
-> **Dispatch exception (ship and review-pr)**: unlike the bracket's `/fab-continue`-behavior subagents, `/git-pr` and `/git-pr-review` manage their own stage transitions internally — their subagent prompts do NOT carry the "do not run `fab status`" instruction.
+Steps 1–3 use `_pipeline.md` § Stage Dispatch Procedure and the current canon at `_preamble.md` § CLI-Adapter Dispatch. The fff-only delta is that Steps 4–5 dispatch full `/git-pr` and `/git-pr-review` behaviors through the native model/effort seams; those skills manage their own stage transitions, so their prompts do not carry the block-contract transition prohibition.
 
 > **`{name}`** — the change's **folder name** from the preflight YAML (`name` field). Steps 4–5 pass `{name}`, never the 4-char `{id}`: git-pr classifies any argument matching one of the 7 PR type words as a `<type>`, and a 4-char id can collide with `feat`, `docs`, or `test` — a folder name (`{YYMMDD}-{XXXX}-{slug}`) never matches a type token.
 
@@ -54,7 +51,7 @@ The bracket defines pre-flight (intake prerequisite + intake gate), context load
 
 *(Skip if `progress.ship` is `done`.)*
 
-Resolve the ship model per the Per-stage model note above (`fab resolve-agent ship --alias`, surface `model=/effort=`, dispatch via both seams), then dispatch `/git-pr` as subagent — the prompt instructs it to invoke `/git-pr {name}` (the **explicit change argument**, using the folder name per the `{name}` note above: git-pr resolves it as a transient override, so the subagent targets this pipeline's change rather than self-resolving the active one, and its branch-matches-change guard verifies the checked-out branch before mutating anything). The subagent commits, pushes, and creates a GitHub PR. Handles `fab status` integration internally (start/finish ship stage). Returns PR URL or error.
+Run `fab resolve-agent ship --alias`, surface `model=/effort=`, and dispatch via both seams; then dispatch `/git-pr` as subagent — the prompt instructs it to invoke `/git-pr {name}` (the **explicit change argument**, using the folder name per the `{name}` note above: git-pr resolves it as a transient override, so the subagent targets this pipeline's change rather than self-resolving the active one, and its branch-matches-change guard verifies the checked-out branch before mutating anything). The subagent commits, pushes, and creates a GitHub PR. Handles `fab status` integration internally (start/finish ship stage). Returns PR URL or error.
 
 **If git-pr fails**: STOP with the error from git-pr. The ship stage remains `active` for user retry.
 
@@ -64,7 +61,7 @@ On success: `progress.ship` becomes `done`, `progress.review-pr` auto-activates.
 
 *(Skip if `progress.review-pr` is `done`.)*
 
-Resolve the review-pr model per the Per-stage model note above (`fab resolve-agent review-pr --alias`, surface `model=/effort=`, dispatch via both seams), then dispatch `/git-pr-review` as subagent — the prompt instructs it to invoke `/git-pr-review {name}` (the **explicit change argument**, same transient-override + branch-guard contract as Step 4). The subagent detects existing reviews, triages comments, applies fixes, and pushes. If no reviews exist, it requests a Copilot review and polls up to 10 minutes — see the timeout outcome below. Handles `fab status` integration internally (start/finish/fail review-pr stage). Returns completion status.
+Run `fab resolve-agent review-pr --alias`, surface `model=/effort=`, and dispatch via both seams; then dispatch `/git-pr-review` as subagent — the prompt instructs it to invoke `/git-pr-review {name}` (the **explicit change argument**, same transient-override + branch-guard contract as Step 4). The subagent detects existing reviews, triages comments, applies fixes, and pushes. If no reviews exist, it requests a Copilot review and polls up to 10 minutes — see the timeout outcome below. Handles `fab status` integration internally (start/finish/fail review-pr stage). Returns completion status.
 
 > **Synchronous-poll directive (bake into the dispatch prompt).** The review-pr dispatch prompt MUST instruct the `/git-pr-review` subagent to **complete the Copilot poll synchronously and not yield mid-poll**: if it requests a Copilot review and enters the 30s × 20 (10-minute) poll, it MUST stay in that poll loop within the single invocation — never yielding, returning, or handing back control while the poll is pending — until a review appears or all 20 attempts are exhausted. The poll **stays inside `/git-pr-review`** (the subagent owns request + poll + triage synchronously); the wait is NOT relocated to this orchestrator. Carry the rationale in the prompt — see `git-pr-review.md` Step 2 Phase 2's synchronous-poll discipline note (it mirrors that note into the dispatch seam).
 
@@ -80,33 +77,18 @@ On success: `progress.review-pr` becomes `done`.
 
 ## Output
 
+Use `_pipeline.md` § Driver Framing with header
+`/fab-fff — intake confidence {score} of 5.0, gate passed.` After Implementation,
+render:
+
 ```
-/fab-fff — intake confidence {score} of 5.0, gate passed.
-
---- Implementation ---
-{apply output (plan generation — incl. ## Requirements — + task execution)}
-
 ## Assumptions (cumulative)
 {table with Artifact column — apply-recorded assumptions from plan.md}
-
---- Review ---
-{review output}
-
---- Hydrate ---
-{hydrate output}
-
---- Ship ---
-{git-pr output}
-
---- Review-PR ---
-{git-pr-review output}
-
-Pipeline complete.
-
-Next: {per state table}
 ```
 
-Resuming shows `(resuming)...` header and `Skipping {stage} — already done.` for completed stages. Bail/failure stops at the relevant stage with `Next:` derived from the state reached per state table in `_preamble.md`. On the Step 5 timeout outcome, the closing line replaces `Pipeline complete.` with the pending message (exact string in the Error Handling Review-PR timeout row).
+After Hydrate, append Ship and Review-PR output sections. On the Step 5 timeout
+outcome, replace `Pipeline complete.` with the exact pending message in Error
+Handling.
 
 ---
 

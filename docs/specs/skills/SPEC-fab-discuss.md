@@ -2,6 +2,8 @@
 
 ## Summary
 
+**Source organization:** Command logging is the bare command plus timing; best-effort semantics are owned by `_preamble`.
+
 Read-only context priming for exploratory discussion. Loads the always-load layer, shows orientation summary, signals readiness. No artifact generation, no stage advancement.
 
 ## Flow

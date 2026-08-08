@@ -212,7 +212,7 @@ fi
 
 Print (ONLY when a follow-up commit was actually made): `  ✓ commit — "docs: refresh memory indexes"`
 
-> **Why here, why gated.** This is the first moment `git log` reports the change's own content commit (`log.md` is a freeze-on-write projection of committed history, so it must capture this change's entry *now*, while the commit is still reachable — pre-squash). The step lives in **ship** not hydrate — hydrate is entirely pre-commit, so no in-hydrate regen can see the change's own commit. The **index** no longer depends on commit timing (it carries no dates — pure content), so its regen half is a reliable no-op here; `log.md` is the sole reason 3a-bis remains. There is no push here; 3b pushes both commits together. When `/git-pr` runs standalone (`{has_fab}` false) this sub-step is a **silent no-op**.
+> **Why here, why gated.** Ship is the first stage where `git log` can project the change's content commit into freeze-on-write `log.md`; hydrate is pre-commit. This sub-step makes no push (3b pushes both commits) and is a silent no-op when `{has_fab}` is false.
 
 #### 3b. Push (if has_unpushed or just committed)
 

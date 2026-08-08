@@ -2,25 +2,30 @@
 
 ## Summary
 
-Refines the intake artifact without advancing. Two modes: Suggest (interactive, user-invoked) and Auto (autonomous — retained for future use; no orchestrator currently invokes it). Scans for gaps, `[NEEDS CLARIFICATION]` markers, and `<!-- assumed: ... -->` markers. Always recomputes the intake confidence. Hosts the `[AUTO-MODE]` Skill Invocation Protocol definition (moved from `_preamble.md` in 260611-zc9m; the preamble keeps a pointer). As of 260612-c5tr the bulk-confirm trigger is evaluated **before** the zero-gaps early exit (a below-gate, Confident-only intake no longer dead-ends at "artifact looks solid"), bulk-confirmed rows are re-graded by recomputed composite (S → 95) rather than labeled Certain by fiat, and both audit-trail writers share one placement/append rule.
+**Source organization:** Clarify owns the concise `[AUTO-MODE]` Skill Invocation Protocol and its machine-readable Auto Mode contract alongside the interactive flow.
+
+Refines the intake artifact without advancing. Suggest Mode scans interactively
+for gaps, `[NEEDS CLARIFICATION]` markers, and `<!-- assumed: ... -->` markers,
+applies bulk confirmation before the zero-gap exit, and re-grades confirmed rows
+by their recomputed composite. A first-line `[AUTO-MODE]` prefix selects
+autonomous intake resolution and a machine-readable result. Both modes recompute
+intake confidence.
 
 **Helpers**: Declares `helpers: [_srad]` in frontmatter per `docs/specs/skills.md § Skill Helpers`.
-
-**Prose optimization** (260620-skop): skill content trimmed to remove re-explanation of partial-owned concepts — the post-intake/missing-intake STOP messages now point to the canonical Error Handling table, the re-grade-by-composite rule is stated once (Step 2's Artifact Update) and referenced from Step 4, the shared audit-trail placement/append rule is stated once and referenced, and the dormant "retained for future use" statement is consolidated to § Skill Invocation Protocol → Currently Applicable; a `## Contents` TOC added to the skill. No behavioral change (Flow / Tools / Sub-agents unchanged).
 
 ## Flow
 
 ```
 User invokes /fab-clarify [change-name]
   — OR —
-[AUTO-MODE] invocation (defined in this skill's § Skill Invocation Protocol; no current orchestrator uses it)
+[AUTO-MODE] invocation (prefix placement, detection, and transitivity are defined in this skill)
 │
 ├─ Read: _preamble.md (always-load layer)
 ├─ Bash: fab preflight [change-name]
 │
 ├─ Target is always intake.md (intake-only, 1.10.0). At apply or later, STOP (point to /fab-continue rework). Legacy `spec`/`plan`/`tasks` targets removed.
 │
-├─── SUGGEST MODE (user invocation) ────────────────────
+├─── SUGGEST MODE (interactive) ────────────────────────
 │  │
 │  ├─ Step 1: Read target artifact
 │  │  └─ Read: fab/changes/{name}/intake.md
@@ -55,13 +60,12 @@ User invokes /fab-clarify [change-name]
 │  └─ Step 7: Recompute Confidence
 │     └─ Bash: fab score --stage intake <change>     ◄── bookkeeping
 │
-├─── AUTO MODE (retained for future use) ───────────────
+├─── AUTO MODE (machine-readable) ──────────────────────
 │  │
-│  ├─ Read intake.md
-│  ├─ Autonomous gap resolution
-│  │  └─ Edit: intake.md
-│  ├─ Returns: {resolved, blocking, non_blocking}
-│  └─ Step 4: Recompute Confidence (non-advancing)
+│  ├─ Read and scan intake.md without user interaction
+│  ├─ Resolve contextual gaps; mark blocking user-input gaps
+│  ├─ Return: {resolved, blocking, non_blocking, blocking_issues?}
+│  └─ Recompute Confidence (non-advancing)
 │     └─ Bash: fab score --stage intake <change>     ◄── bookkeeping
 │
 └─ Does NOT advance stage
@@ -83,4 +87,4 @@ None.
 
 | Step | Command | Trigger |
 |------|---------|---------|
-| Suggest Step 7 / Auto Mode step 4 (always, both modes) | `fab score --stage intake <change>` | After intake.md edits (intake is the sole scoring source) |
+| Suggest Step 7 / Auto Mode step 4 | `fab score --stage intake <change>` | After intake.md edits (intake is the sole scoring source) |

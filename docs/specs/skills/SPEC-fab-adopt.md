@@ -7,6 +7,8 @@
 
 ## Summary
 
+**Source organization:** The skill points to shared dispatch and pipeline procedures, retaining only adopt-specific review, hydrate, ship, and output deltas.
+
 Adopts a **completed-but-off-pipeline** change (scenario B: a feature branch authored without fab, with an **OPEN** or **not-yet-created** PR) into the Fab pipeline. A **MERGED** PR (scenario A — retroactive backfill) is out of scope and STOPs at Step 0. The framing is honest: of the six stages, only **apply** cannot meaningfully re-run on an adopted change (the code already exists), so `/fab-adopt` enters the *real* pipeline late with `apply` marked **skipped** — intake/review/hydrate/ship/review-pr all genuinely run.
 
 A thin orchestrator (the `/fab-proceed` / `/fab-ff` pattern): declares `helpers: [_srad, _generation, _review, _pipeline]` and reuses existing skills/procedures as sub-agents. It introduces only what is genuinely new — the **Intake-from-Diff** and **Plan-from-Diff** procedures in `_generation.md`, and `_review.md`'s **`diff-only`** mode.

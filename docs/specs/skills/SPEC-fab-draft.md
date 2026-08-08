@@ -2,6 +2,8 @@
 
 ## Summary
 
+**Source organization:** The skill delegates activation guidance to `_preamble` and owns one output ending.
+
 Creates a new change intake without activating the change. Since 260613-3xaj (extract-intake-helper) the skill is a **thin call-site** over the shared `_intake` Create-Intake Procedure: its body reads `.claude/skills/_intake/SKILL.md` and executes the **Create-Intake Procedure** (Steps 0–9) with `{questioning-mode} = interactive`, then **stops at intake `ready`** — no activation (no Step 10), no git branch (no Step 11). Used to queue changes for later without switching the active context. After creation, run `/fab-switch {name}` to activate.
 
 Before 260613-3xaj, `fab-draft` was a thin *delta over `/fab-new`* (read `fab-new/SKILL.md`, execute its Steps 0–9, skip 10–11). That form carried a **momentum warning** — "running activation/branch by momentum is the known failure mode of this delta" — precisely because the steps it must NOT run (activate/branch) lived in the same `fab-new.md` body it executed. With Steps 0–9 lifted into `_intake.md`, the warning **evaporates**: `fab-draft` now reads `_intake.md` (Steps 0–9 only), and Steps 10–11 live solely in `fab-new.md`'s tail, which `fab-draft` never reads. There is no longer any body containing the not-to-run steps, so there is no momentum hazard.

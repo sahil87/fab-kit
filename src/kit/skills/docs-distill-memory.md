@@ -22,24 +22,30 @@ description: "Rewrite existing memory files to the FKF present-truth style — s
 
 ## Purpose
 
-Rewrite an existing `docs/memory/` domain's topic files to the **FKF present-truth style** (`$(fab kit-path)/reference/fkf.md` §3.2, §3.3). The FKF present-truth rules govern what memory writers produce *going forward*; a corpus authored before them accumulates transition narration, superseded-state prose, and over-cap / change-id-carrying `description:` frontmatter. This skill cleans that existing corpus — it is the remediation counterpart to the forward-looking writers (hydrate, `/docs-hydrate-memory`, `/docs-reorg-memory`), which already emit current truth.
+Rewrite an existing `docs/memory/` domain's topic files to the **FKF
+present-truth style** (`$(fab kit-path)/reference/fkf.md` §3.2, §3.3). It
+remediates narration, superseded prose, and malformed descriptions while the
+hydrate and reorg writers keep new content conforming.
 
-**One domain per approval/apply unit, propose-then-apply.** The skill runs **read-only analysis** over a domain's topic files — the domain named explicitly, or (with no `<domain>`) each flagged domain in turn as the heuristic **survey** (Behavior Step 0) loops all of them sequentially (Behavior Step 6) — produces a **per-file proposed-rewrite report**, and applies **only on explicit user approval** — the same posture as `/docs-reorg-memory` (its report → confirm-and-apply shape). These files encode load-bearing behavioral contracts, so a human approves **per domain**, seeing per-file diffs. It is **not** an autonomous bulk rewriter. "One domain" is a property of the analysis+apply/approval unit, not the invocation: exactly one domain is read-in-full, reported, approved, and rewritten as a unit — a no-arg invocation iterates that unit over every flagged domain, an explicit `<domain>` runs it once.
+The skill is read-only until explicit approval and processes one domain per
+approval/apply unit; Arguments defines the named and survey entry paths.
 
 > **Distinct from the sibling doc skills.** `/docs-reorg-memory` reorganizes **structure** (splits/merges/moves + link rewrites) — it never rewrites body prose to a style. `/docs-hydrate-memory` backfill mode is **body-preserving** (adds frontmatter only); its ingest/generate modes author *new* content. `/fab-continue` hydrate writes each change's delta as current truth but only touches the sections its change affects. This skill is the only one that rewrites **existing** body prose to the present-truth style across a whole domain.
 
 ### What a rewrite does (FKF §3.2 / §3.3)
 
-The normative source is the shipped FKF extract `$(fab kit-path)/reference/fkf.md` — cite it (deployed skills reach the extract; the dev-repo `docs/specs/fkf.md` is absent in user repos). A rewrite:
+The normative source is `$(fab kit-path)/reference/fkf.md` §3.2–§3.3.
 
-- **Removes transition narration** — no "renamed X→Y in {id}", no "this inverts/supersedes {id}'s claim", no "was `old.value`", no "superseding the historical …".
-- **Removes superseded-state descriptions** — the body carries only what IS. Previous states belong to the per-folder generated `log.md`, git history, and archived change folders.
-- **Strips change-id heading suffixes** — a heading is `## Dispatch States`, never `### Dispatch States (xu0k)` or `## xu0k — dispatch states`; the token is removed (kept as a trailing body citation when provenance matters). Recognition is registry-gated (full `YYMMDD-XXXX-slug` always; bare 4-char id only when registry-plausible).
-- **Dedupes byte-identical duplicate headings/blocks** — the later of a byte-identical duplicated block is removed. **Near-duplicates are flagged for manual review, never auto-merged** — content judgment stays with the human gate.
-- **Rewrites Design-Decisions changelog bullets** — a `- **{change-id} — retired X**`-shaped bullet inside `## Design Decisions` (the shape §3.3 bans there) is rewritten to the four-field entry (durable decision) or removed (pure change history in `log.md`/git). **Never fabricates rationale** — an entry with no derivable `Why`/`Rejected` carries only the fields that exist (Decision + *Introduced by*).
-- **Relocates operational TODOs → `fab/backlog.md`** — follow-up work items (TODOs, "still needs X", next-step checklists) are never memory-body content (§3.3). They are **relocated to the backlog, never deleted**.
-- **Keeps allowed provenance** — trailing `(change-id)` citations and the `*Introduced by*: {change-name}` field on Design Decisions. Per §3.3, a 6-char `(id)` cheaply defends a deliberate, easily-"fixed"-away behavior against future regressions. **Bare 4-char ids count the same as dated ids** — in trailing-citation position they stay; woven into narration they go with the narration.
-- **Fixes `description:` frontmatter** — strips change-ids (§3.2 bans them: no trailing `— xu0k`-style suffix, no `(d9rs)`-style citation) and compresses an over-cap description to the **≤500-character** routing-signal shape, moving displaced routing-irrelevant detail into the body where it is not already present.
+| Class | Detect | Action |
+|-------|--------|--------|
+| 1–2 | Transition narration or superseded-state prose | Remove intent-free history already recorded in `log.md`, git, or archived changes; relocate durable intent per the guard below. |
+| 3 | `description:` over 500 characters or carrying a change ID | Compress to a one-line routing signal, strip change IDs, and preserve useful displaced detail in the body. |
+| 4 | Rationale woven into narration | Relocate it into `## Design Decisions`; never delete it. |
+| 5 | Allowed trailing `(change-id)` or `*Introduced by*` provenance | Preserve it. |
+| 6 | Change ID in a heading | Strip the token, preserving useful provenance as a trailing citation. Full dated IDs always match; bare four-character IDs match only when registry-plausible. |
+| 7 | Byte-identical duplicate heading/block | Remove the later copy. Flag near-duplicates for manual review; never auto-merge them. |
+| 8 | Changelog-shaped bullet inside `## Design Decisions` | Convert durable content to the available four-field decision shape, without inventing rationale; remove only pure recorded history. |
+| 9 | Operational TODO or next-step checklist | Relocate it to `fab/backlog.md`; never delete it. |
 
 ### Rationale-preservation guard (the critical constraint)
 
@@ -61,8 +67,9 @@ When you cannot tell whether a narration line encodes durable intent, treat it a
 ## Arguments
 
 - **`<domain>`** *(optional)* — a single memory domain to distill, named by its `docs/memory/` folder (e.g. `pipeline`, `distribution`, `runtime`, `_shared`). Case-insensitive substring match against domain folder names; an ambiguous or unknown name is handled per Error Handling. The skill rejects a **multi-domain** invocation (to distill several domains, run no-arg — it loops all flagged domains — or run it once per named domain).
-  - **When omitted**, the skill runs **survey mode** (Behavior Step 0): a cheap heuristic scan over all domains that reports per-domain status, builds the flagged-domain worklist, and then **loops every flagged domain sequentially** (Behavior Step 6) in `docs/memory/index.md` domain-table order — running the one-domain flow (full read → per-file report → **per-domain approval** → apply → regen) as the loop body per domain. No-arg no longer aborts and no longer stops after one domain.
-  - **When given explicitly**, the domain is the **override** — the skill skips the survey heuristics, forces a full read of that domain (Behavior Step 1 onward), and runs the one-domain flow **once** (no loop).
+  - **Omitted** → survey once, then run the one-domain flow for each flagged
+    domain in index order.
+  - **Explicit** → skip the survey and run that flow once for the named domain.
 
 **One domain per approval/apply unit, iterated within a single invocation.** "One domain" is a property of the approval/apply unit — one domain is read-in-full, reported, approved, and rewritten as a unit, with the human seeing that domain's per-file diffs — **not** of the invocation. A no-arg invocation iterates that unit over every flagged domain; an explicit `<domain>` runs it once.
 
@@ -130,19 +137,9 @@ Then:
 
 ### Step 1: Read the domain (read-only)
 
-> **Steps 1–5 are the one-domain flow — the *approval/apply unit*.** On an explicit `<domain>` they run once for that domain. On a no-arg invocation they are the **loop body**: Step 6 iterates them over every flagged domain in the survey worklist, one domain per approval unit. Nothing below changes between the two entry paths.
-
-Read the target domain's `index.md` and every topic file (recursing into sub-domains). For each topic file, identify:
-
-1. **Transition narration** — "renamed X→Y in {id}", "supersedes/inverts {id}", "was `old.value`", "superseding the historical …", and similar retrospective prose.
-2. **Superseded-state descriptions** — prose describing behavior that is no longer current (what a thing *used to* do).
-3. **`description:` frontmatter defects** — a value over the **500-character** cap, or one carrying change-ids (a `— xu0k`-style suffix or a `(d9rs)`-style citation) — both banned/capped by §3.2.
-4. **Rationale carried inside narration** — deliberate-behavior / "don't re-break this" content woven into transition prose (candidates for **relocation**, per the guard).
-5. **Allowed provenance already present** — trailing `(change-id)` citations and `*Introduced by*` fields (to be **preserved**).
-6. **Change-id heading suffixes** *(§3.3 — heading text names its topic, never a change)* — a heading carrying a change-id token: `### Dispatch States (xu0k)`, `## Foo — 260718-mxgu`, `## xu0k — dispatch states`. Token recognition is **registry-gated** (the same posture the mxgu change-id checks use): a full `YYMMDD-XXXX-slug` token always matches; a bare 4-char id matches **only** when it is registry-plausible (present under `fab/changes/*` / `archive/**`) — the Step 3 human gate covers residual false positives. Candidate for **stripping the token, keeping the heading text**.
-7. **Literal duplicate headings/blocks** *(§3.3 — a body states current truth once)* — a **byte-identical** duplicated heading pair or block within one file (e.g. the same `## Foo`-headed block appearing twice verbatim). Candidate for **removing the later byte-identical duplicate**. A merely *similar* (non-byte-identical) block is a **near-duplicate** — flagged for the human, never auto-removed.
-8. **Design-Decisions changelog bullets** *(§3.3 — the changelog-bullet shape is banned inside `## Design Decisions`)* — a `- **{change-id} — retired X**`-shaped bullet inside a `## Design Decisions` section. Candidate for **rewrite to the four-field entry** (durable decision) or **removal** (pure change history already in `log.md`/git).
-9. **Embedded operational TODOs** *(§3.3 — follow-up work items are never memory-body content)* — a TODO, "still needs X", or next-step checklist item in a memory body. Candidate for **relocation to `fab/backlog.md`** (never deletion — Step 4).
+Steps 1–5 are the one-domain approval/apply unit described in Arguments. Read
+the target domain's `index.md` and every topic file recursively, then classify
+each file using the Detect/Action table in § What a rewrite does.
 
 Skip `index.md` / `log.md` (generated), `log.seed.md` (a curated read-only seed input — never written by the generator, and excluded from distillation like a ledger), and `_shared/removed-domains.md` (tombstone exemption) — never rewrite them.
 
@@ -214,7 +211,9 @@ Heed any non-fatal shape/length warnings `fab memory-index` prints — a still-o
 
 ### Step 6: All-domains loop (no-arg only)
 
-Runs **only on a no-arg invocation** (an explicit `<domain>` runs Steps 1–5 once for that domain and stops — no loop). After the Step 0 survey builds the flagged-domain worklist, iterate **every flagged domain sequentially in `docs/memory/index.md` domain-table order**, running Steps 1–5 (the one-domain flow) as the loop body for each. The loop runs **in the main session** — the Step 3 approval prompt is interactive and must reach the user, so there is **no per-domain subagent dispatch**.
+For the no-arg entry path in Arguments, iterate the Step 0 worklist in index
+order and run Steps 1–5 in the main session so each Step 3 approval reaches the
+user. Do not dispatch domains to subagents.
 
 Loop semantics:
 
@@ -223,7 +222,7 @@ Loop semantics:
 - **Skip → untouched, loop continues** — a **skipped** domain (Step 3 skip, or a cherry-pick that leaves flagged files) stays untouched and the loop moves to the next domain; it is reported in the terminal summary as skipped/remaining.
 - **Already-distilled domain → report and continue** — a domain whose full read (Step 1) finds nothing reports "no rewrites proposed — {domain} is already distilled" (Step 2) and the loop continues to the next domain (the survey is heuristic, so a worklist domain can turn out clean on the full read).
 - **Exit-2 within one domain → per-domain handling, then continue** — an exit-2 refuse-before-regen event (Step 5) is handled per the existing per-domain posture (report the reorg-remediation pointer, defer that domain's regen); it does **not** silently swallow the remaining domains. Continue the loop (or stop and report) per that domain's error-handling outcome — remaining domains are never dropped without a report.
-- **Terminal state** — when the worklist is exhausted, report either **"all domains distilled"** (every flagged domain processed) or a summary listing the **skipped/remaining** domains (§ Output). The dynamic `Next:` line reports that same surveyed truth (§ Output → Dynamic `Next:` line) — it no longer drives per-domain re-invocation.
+- **Terminal state** — when the worklist is exhausted, report either **"all domains distilled"** (every flagged domain processed) or a summary listing the **skipped/remaining** domains (§ Output). The dynamic `Next:` line reports that same surveyed truth (§ Output → Dynamic `Next:` line).
 
 ---
 
@@ -287,7 +286,7 @@ All domains distilled — {M} domains processed ({F} files rewritten total). No 
 Distillation loop complete — {P} of {M} domains distilled; {S} skipped/remaining: _shared (2 files flagged), runtime (1 file flagged).
 ```
 
-**Dynamic `Next:` line** — the skill's closing line (below) reports the surveyed **skipped/remaining** domains (surveyed truth), or all-distilled when none remain. It **reports state; it no longer drives per-domain re-invocation**:
+**Dynamic `Next:` line** — the skill's closing line reports the surveyed **skipped/remaining** domains, or all-distilled when none remain:
 
 - On a **no-arg** invocation, the line reflects the initial Step 0 survey minus every domain fully distilled this run. A domain the user **skipped** or only **partially cherry-picked** stays listed while it still carries flagged files.
 - On an **explicit-`<domain>`** invocation (no upfront survey ran), run the survey at completion to populate the line.
@@ -328,7 +327,7 @@ Next: skipped/remaining — /docs-distill-memory _shared (2 files flagged), /doc
 | Requires active change? | No |
 | Requires config/constitution? | No |
 | Argument | `[<domain>]` optional — named forces a full read of that one domain (no loop); omitted runs survey mode then the all-domains loop (heuristic scan → per-domain report → loop every flagged domain sequentially in index order, one-domain flow per domain) |
-| Scope per run | One domain per **approval/apply unit**, propose-then-apply (read-only until explicit approval), iterated within a single invocation — a no-arg invocation loops the unit over every flagged domain; an explicit `<domain>` runs it once. Each domain is read-in-full, reported, approved, and rewritten as its own unit (per-domain gate; no bulk approval) |
+| Scope per run | Per § Arguments; read-only until each explicit approval |
 | Modifies memory files? | Yes — rewrites topic-file bodies + `description:` frontmatter to FKF present-truth style (transition narration, superseded state, change-id heading suffixes, byte-identical duplicate blocks, DD changelog bullets), only with explicit confirmation. `_shared/removed-domains.md` is exempt (§3.3 tombstone carve-out) |
 | Writes outside `docs/memory/`? | Yes — one file: `fab/backlog.md` (operational-TODO relocation target, §3.3 class 9 — created with a `# Backlog` header when absent). Never deletes a TODO |
 | Preserves rationale? | Yes — deliberate-behavior/"don't re-break" content is relocated into Design Decisions (`Why`/`Rejected`), never deleted; deletion is confined to narration recorded elsewhere (log.md/git/archive). **Never fabricates rationale** — a DD-bullet rewrite with no derivable Why/Rejected carries only Decision + *Introduced by* |

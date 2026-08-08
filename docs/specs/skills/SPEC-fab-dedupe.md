@@ -17,6 +17,8 @@
 
 ## Summary
 
+**Source organization:** The skill delegates activation guidance to `_preamble` and owns one output ending.
+
 Sweeps a scoped area of the codebase for duplicated and near-duplicated functions, clusters them by **behavioral shape**, decomposes each cluster into a **shared core plus opt-in variation layers**, proposes a canonical home, and drafts one change intake per accepted cluster group. Read-only through the sweep and report; writes only when the user accepts clusters.
 
 The skill is a **thin call-site** over the shared `_intake` Create-Intake Procedure (Steps 0–9, `{questioning-mode} = interactive`), stopping at intake `ready` — no activation, no git branch. Structurally it is `/fab-draft` with a cluster-analysis front end and a fan-out tail (N intakes rather than one).

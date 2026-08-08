@@ -9,9 +9,11 @@
 
 ## Summary
 
+**Source organization:** The source preserves the two-login poll contract and synchronous directive while omitting release archaeology.
+
 Processes PR review comments from any reviewer (human or bot). Fully autonomous — detects reviews, requests an automated Copilot review and polls up to 10 minutes for it to appear when no existing reviews are found, triages comments with disposition intent (fix/defer/skip), applies fixes, commits, pushes, and posts reply comments confirming outcomes.
 
-**Prose optimization** (260620-skop): skill content trimmed to remove re-explanation of partial-owned concepts (the `fab change resolve` ID/substring/name forms) and to collapse the triplicated two-login and synchronous-poll restatements to a single statement each (the `copilot-pull-request-reviewer`-on-`reviews` predicate, the REST-not-GraphQL confirmation rule, the MUST-NOT-yield directive, and the n30u/u1m1 memory citation are all preserved), and a `## Contents` TOC added; no behavioral change (Flow / Tools / Sub-agents unchanged).
+**Prose optimization** (260620-skop): skill content is trimmed to remove re-explanation of partial-owned concepts and release archaeology while retaining one source statement each for the `copilot-pull-request-reviewer`-on-`reviews` predicate, the REST-not-GraphQL confirmation rule, and the MUST-NOT-yield directive. The SPEC keeps the supporting n30u/u1m1 memory citation below; it is not duplicated in the skill source. Flow, tools, and sub-agent behavior are unchanged.
 
 **`allowed-tools` semantics**: per the current official Claude Code skills contract, `allowed-tools` pre-approves listed tools without restricting other tools. The source frontmatter therefore remains `Bash(git:*), Bash(gh:*), Bash(command:*)`; the body’s Read/Edit operations remain callable under normal permission settings.
 

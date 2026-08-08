@@ -154,7 +154,11 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 - `fab/changes/` — empty, ready for change folders (via `fab sync`)
 - `.claude/skills/` — deployed skill copies from the kit cache (via `fab sync`)
 
-**Delegation pattern**: `fab sync` handles all non-interactive structural setup (directories, scaffolding, skill deployment, `.envrc`/`.gitignore` fragments). It performs no hook registration — the `fab hook` command family (and its sync step) was removed in 2.14.0 with the agent-state divestment (`ioku`), so `fab sync` no longer touches `.claude/settings.local.json`; cleanup of any lingering hook entries is done by the `2.13.6-to-2.14.0` migration (for the checkout it runs in) and the `2.15.7-to-2.15.8` migration (which sweeps every worktree, including the main checkout). `/fab-setup` adds the interactive parts (config, constitution). `fab sync` can be run independently (e.g., in CI or after an upgrade) without requiring `/fab-setup`.
+**Delegation pattern**: `fab sync` handles non-interactive structural setup
+(directories, scaffolding, skill deployment, and `.envrc`/`.gitignore`
+fragments). It does not register hooks or write `.claude/settings.local.json`;
+migrations clean legacy hook entries. `/fab-setup` adds interactive config and
+constitution work, while `fab sync` remains independently re-runnable.
 
 **Examples**:
 ```
@@ -335,6 +339,10 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 
 **Purpose**: Fast-forward apply → review → hydrate (everything after intake). Gated on the single intake confidence gate (flat 3.0), with sub-agent review, auto-rework loop (up to `{max_cycles}` cycles — the code-review.md Rework Budget knob, default 3 — with prioritized findings), and stop on exhaustion. Accepts `--force` to bypass the gate. No `/fab-clarify` runs inside the bracket.
 
+**Source ownership**: `_pipeline.md` owns the shared arguments, framing, output
+skeleton, Steps 1–3, and Stage Dispatch Procedure. `fab-ff.md` binds only the
+`fab-ff`/`hydrate` driver delta.
+
 **Context**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/` (loaded once for the apply → hydrate run)
 
 **Flow**: apply (co-generates `plan.md`, executes tasks) → review → hydrate
@@ -363,6 +371,9 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 ## `/fab-fff` (Full Autonomous Pipeline)
 
 **Purpose**: Run the entire automated Fab pipeline — apply → review → hydrate → ship → review-pr — in a single invocation (everything after intake). Gated on the single intake confidence gate (flat 3.0, same as `/fab-ff`). No `/fab-clarify` runs inside the bracket. Autonomously reworks on review failure using sub-agent review with prioritized findings (`{max_cycles}`-cycle retry cap — code-review.md Rework Budget knob, default 3 — escalation after 2 consecutive fix-code failures). Accepts `--force` to bypass the gate.
+
+**Source ownership**: `_pipeline.md` owns shared framing and Steps 1–3;
+`fab-fff.md` owns only the `fab-fff`/`review-pr` binding plus ship and PR review.
 
 **Prerequisite**: Active change with completed `intake.md`.
 

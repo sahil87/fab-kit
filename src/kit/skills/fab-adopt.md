@@ -95,9 +95,9 @@ fab status set-summary {name} "adopted off-pipeline change; apply skipped"
 
 ### Step 3 — Review (dispatched, `mode: diff-only`)
 
-Resolve the review model + adapter: run `fab resolve-agent review --alias`, surface the resolved `model=/effort=/dispatch=`, then **branch on `dispatch=`** — absent ⇒ native dispatch (model via the Agent `model` param; effort via the imperative prompt instruction); present ⇒ CLI dispatch via `fab dispatch` (whose worker mode auto-resolves within that arm — pane inside tmux, headless outside — so no mode flag is passed by default; `--pane`/`--headless` only to force one), whose blocking `fab dispatch wait` carries the § CLI-Adapter Dispatch **recovery policy** (one automatic `fab dispatch restart` on `orphaned`, peek-on-suspicion, then escalate — budget in this skill's context, never a send-keys nudge); on `done`, read the result, run `fab dispatch reap <change> <stage>` unconditionally, then proceed with the verdict transition — per `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution / § CLI-Adapter Dispatch, which also owns the no-session-command-fallback and no-STATE-cleanup-after-`done` invariants.
+Run the Dispatch Contract for `review` per `_preamble.md` § CLI-Adapter Dispatch: resolve once, surface the profile, dispatch `/fab-continue` Review Behavior with the standard prompt obligations, read the result, and retain verdict-transition ownership here.
 
-Dispatch `/fab-continue` Review Behavior as a sub-agent via the adapter the `dispatch=` branch above selected (native ⇒ Agent tool, `general-purpose`; CLI ⇒ `fab dispatch`), passing **`mode: diff-only`** (the `_review.md` parameter — the same single review dispatch with the plan-conformance steps omitted from the prompt). The prompt MUST include the standard subagent context files and the **block-contract carve-out** (no `fab status` **transition** commands `start`/`advance`/`finish`/`reset`/`fail`/`skip`; **DO** end with a terminal `fab status refresh`; return results only, per `_preamble.md` § Dispatch-Prompt Obligations) — this orchestrator owns the verdict transition. The review agent reads `git diff {base}...HEAD` natively, so no file-set prompt hack is needed; preconditions (`plan.md` tasks all `[x]`) are skipped in `diff-only` mode.
+The adopt-specific delta is **`mode: diff-only`** (`_review.md`): omit plan-conformance steps and the all-tasks-checked precondition. The single review worker reads `git diff {base}...HEAD` directly; no file-set prompt is needed.
 
 **Verdict** (owned here):
 - **Pass** (no must-fix, including zero findings — a `diff-only` review with no available external reviewer passes best-effort): `fab status finish {name} review {driver}`.
@@ -105,7 +105,7 @@ Dispatch `/fab-continue` Review Behavior as a sub-agent via the adapter the `dis
 
 ### Step 4 — Hydrate (dispatched, verbatim)
 
-Reuse `_pipeline.md` Step 3 unchanged: resolve the hydrate model + adapter (branch on `dispatch=`), dispatch `/fab-continue` Hydrate Behavior as a sub-agent (same block-contract carve-out — no `fab status` transition commands; terminal `fab status refresh`; return results only). This is the permanent-loss recovery — `docs/memory/` finally reflects what shipped. On success: `fab status finish {name} hydrate {driver}`.
+Reuse `_pipeline.md` Step 3 and its Stage Dispatch Procedure. This is the permanent-loss recovery — `docs/memory/` finally reflects what shipped. On success: `fab status finish {name} hydrate {driver}`.
 
 ### Step 5 — Ship (retrofit Meta onto the existing PR)
 
@@ -113,7 +113,7 @@ Dispatch `/git-pr {name}` (pass the **folder name**, not a bare id). Because the
 
 ### Step 6 — Land in review-pr
 
-After ship, `review-pr` is active. Print `Next: /git-pr-review`. The normal pipeline tail resumes from here.
+After ship, `review-pr` is active; render the closing line from § Output.
 
 **Honest-state summary** the skill prints at the end:
 
@@ -185,7 +185,3 @@ Next: /git-pr-review
 | Modifies `.fab-status.yaml`? | Yes — activates the reconstructed change (Step 1) |
 | Modifies git state? | Indirectly — Step 5's `/git-pr` commits/pushes the reconstructed `fab/` artifacts and retrofits the PR body; `/fab-adopt` makes no commit itself |
 | Go change? | None — state composed from existing `skip`/`reset` transitions; Meta retrofit reuses `fab pr-meta` + `gh pr edit` |
-
----
-
-Next: {derive at runtime per `_preamble.md` § Lookup Procedure — after ship the state is review-pr (active): `/git-pr-review`}

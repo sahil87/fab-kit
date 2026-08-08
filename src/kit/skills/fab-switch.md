@@ -72,8 +72,6 @@ After a successful switch (not `--none`), log the command invocation:
 fab log command "fab-switch"
 ```
 
-This is best-effort — the command always exits 0 (failures surface only as a stderr warning) and resolves the active change via `.fab-status.yaml` (just created by the switch command).
-
 ### Hint Line
 
 After displaying the command's output, append (unless the operation was `--none`):
@@ -97,9 +95,9 @@ Next:        {routing_stage} (via {default_command})
 Tip: run /git-branch to create or switch to the matching branch
 ```
 
-`{display_stage}` is "where you are" (last active/done stage); `{routing_stage}` is "what's next" (first active/ready stage), driven by `{default_command}` (`intake`/`apply`/`review`/`hydrate` → `/fab-continue`, `ship` → `/git-pr`, `review-pr` → `/git-pr-review`), matching `/fab-status` and the `_preamble.md` state table. When all stages are done (or trailing stages skipped), `Next:` shows only `/fab-archive`. `{state}` is any state `display_state` can emit: `active`, `failed`, `ready`, `done`, `skipped`, `pending` (`ready` = freshly switched draft, `failed` = parked review/review-pr failure, `skipped` = skipped trailing stage). Confidence has no qualifier (six-stage pipeline; the `confidence.indicative` suffix was retired in 1.10.0 — intake scoring is authoritative); score `0.0` with no assumptions shows `not yet scored`.
+`{display_stage}` is "where you are" (last active/done stage); `{routing_stage}` is "what's next" (first active/ready stage), driven by `{default_command}` (`intake`/`apply`/`review`/`hydrate` → `/fab-continue`, `ship` → `/git-pr`, `review-pr` → `/git-pr-review`), matching `/fab-status` and the `_preamble.md` state table. When all stages are done (or trailing stages skipped), `Next:` shows only `/fab-archive`. `{state}` is any state `display_state` can emit: `active`, `failed`, `ready`, `done`, `skipped`, `pending` (`ready` = freshly switched draft, `failed` = parked review/review-pr failure, `skipped` = skipped trailing stage). Confidence has no qualifier; score `0.0` with no assumptions shows `not yet scored`.
 
-No-argument flow: the skill reads `fab change list` output (format `name:display_stage:display_state:score` — the `:indicative` 5th field dropped in 1.10.0) and shows confidence alongside stage in the numbered list.
+No-argument flow: the skill reads `fab change list` output (`name:display_stage:display_state:score`) and shows confidence alongside stage in the numbered list.
 
 Tip line omitted for `--none`. Deactivation shows `No active change.`. Already-deactivated shows `No active change (already deactivated).`
 
