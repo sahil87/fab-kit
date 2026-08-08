@@ -102,9 +102,14 @@ Request an automated Copilot review and wait for it to appear.
 
 If the `copilot` entry is `false` (and `--tool copilot` was **not** provided): print `No automated reviewer available. Run /git-pr-review when reviews are added.` and go to Step 6 with outcome **no-reviews** (clean finish).
 
-> **Two distinct logins — do NOT conflate** (getting these backwards is the #1 cause of a poll never seeing a review that has in fact landed): you add the reviewer via `gh pr edit --add-reviewer copilot-pull-request-reviewer`, but the entry that then surfaces under the PR's **requested reviewers** has login `Copilot`; once a review actually lands, the object in the `reviews` array carries `author.login == "copilot-pull-request-reviewer"` (commonly `copilot-pull-request-reviewer[bot]`). (Apparent oddity, recorded as empirical reality: the value you `--add-reviewer` with matches the landed-review author login, while `requested_reviewers` shows `Copilot`.)
->
-> The landed-review poll MUST therefore match `author.login == "copilot-pull-request-reviewer"` (the review-author login on the `reviews` array), **not** `Copilot` (the `requested_reviewers` login) — a predicate keyed on the request-side login never matches a landed review object and would time out even though the review arrived. Confirming the **request** itself succeeded is separate: GraphQL `reviewRequests` **omits bot/app reviewers** like Copilot, so a request confirmation MUST use REST `requested_reviewers` (`gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers`), never GraphQL.
+| Phase | Surface | Login/value | Rule |
+|-------|---------|-------------|------|
+| Request | `gh pr edit --add-reviewer` | `copilot-pull-request-reviewer` | This is the value passed to the CLI |
+| Request confirmation | REST `requested_reviewers` | `Copilot` | The request-side entry surfaces under this distinct login |
+| Landed review | `reviews[].author.login` | `copilot-pull-request-reviewer` (commonly displayed as `copilot-pull-request-reviewer[bot]`) | The request argument empirically matches the landed author, not the request-side display |
+| Poll | `.reviews` author predicate | `author.login == "copilot-pull-request-reviewer"` | MUST match this, never `Copilot`; otherwise a landed review is missed and the poll times out |
+
+**GraphQL trap:** `reviewRequests` omits bot/app reviewers like Copilot. Confirm requests with REST `gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers`, never GraphQL.
 
 > **Synchronous-poll discipline — the subagent MUST NOT yield mid-poll.** When `/git-pr-review` runs as a dispatched subagent (e.g. from `/fab-fff` Step 5), the Copilot poll below MUST run **synchronously to completion within this single invocation**: the subagent MUST NOT yield, return, or hand back control while the poll is pending — it stays in the loop until a review appears or all 20 attempts (30s × 20 / 10-minute window) are exhausted, then proceeds to Step 3 or the timeout exit. This is a permanent, non-negotiable directive (prior efforts stalled mid-poll and left `review-pr` stuck `active`). Copilot reviews land ~4.5–6.5 min after the request — inside the window — so patience-to-completion is correct, never an early return.
 
@@ -224,20 +229,20 @@ Print: `Replied to {N} comment(s): {F} fix, {D} defer, {S} skip`
 
 ### Step 6: Update Review-PR Stage
 
-Step 6 is the exit point for every terminal path after Step 0: Steps 1, 2, and 4 route here with a named outcome. The two direct-STOP exceptions that never reach Step 6 are **Step 1.5** (invalid `--tool`) and **Step 5** (commit failure after `git reset`; push failure keeping the commit with recovery guidance and no replies).
+Step 6 is the exit point for every terminal path after Step 0. Step 1.5 (invalid `--tool`) and Step 5 commit/push failures are the direct-STOP exceptions. When Step 0 resolved a change, use this outcome table:
 
-If a change was resolved in Step 0 (active or explicit), act on the outcome class:
-
-1. **On success** (comments processed and pushed, or no actionable comments): Call `fab status finish <change> review-pr git-pr-review 2>/dev/null || true`.
-2. **On failure** (gh missing, no PR found, processing error): Call `fab status fail <change> review-pr git-pr-review 2>/dev/null || true`.
-3. **On no-reviews** (no reviews found, no inline comments to process, or no automated reviewer available): Call `fab status finish <change> review-pr git-pr-review 2>/dev/null || true` — a successful no-op outcome.
-4. **On timeout** (Copilot review requested but not yet available after 10 minutes): **leave the review-pr stage `active` — no finish, no fail.** The requested review is still pending; finishing here would mark the stage `done` with the review unprocessed, and `start` cannot reactivate a done stage. The earlier re-run message stands (naming the explicit `<change>` when one was passed in Step 0) — the re-run picks up the still-`active` stage.
+| Outcome | Includes | Stage action | Commit status in Step 6.5? |
+|---------|----------|--------------|----------------------------|
+| **success** | Comments processed/pushed; no actionable comments | `fab status finish <change> review-pr git-pr-review 2>/dev/null || true` | Yes |
+| **failure** | `gh` missing; no PR; processing error | `fab status fail <change> review-pr git-pr-review 2>/dev/null || true` | No — never commit half-finished state |
+| **no-reviews** | No reviews; no actionable inline comments; no automated reviewer | `fab status finish <change> review-pr git-pr-review 2>/dev/null || true` (successful no-op) | Yes |
+| **timeout** | Copilot still pending after 10 minutes | Leave `review-pr` `active`: no finish/fail; preserve the explicit-change re-run guidance | No |
 
 All `fab status` calls are best-effort — failures silently ignored to avoid blocking the PR review workflow.
 
 ### Step 6.5: Commit Status Updates
 
-If a change was resolved in Step 0 (active or explicit) **and** Step 6 took its success / no-reviews path (i.e., `fab status finish` ran — not the `fail` or `timeout` path), commit the bookkeeping writes that `fab status finish` produced (`.status.yaml` review-pr active→done, `completed_at`, `last_updated`; appended `review:passed` event in `.history.jsonl`). This mirrors `git-pr.md` Step 4c.
+For a table row marked **Yes**, commit the `fab status finish` bookkeeping (`.status.yaml` review-pr active→done, `completed_at`, `last_updated`; `.history.jsonl` `review:passed`) as follows:
 
 1. Stage the status and history files: `git add fab/changes/{name}/.status.yaml fab/changes/{name}/.history.jsonl`
 2. Check for staged changes: `git diff --cached --quiet`
@@ -246,7 +251,7 @@ If a change was resolved in Step 0 (active or explicit) **and** Step 6 took its 
 
 Print (if committed): `  ✓ status — committed and pushed status updates (.status.yaml, .history.jsonl)`
 
-**Skip this step silently** when no change was resolved in Step 0, or when Step 6 took the `fail` or `timeout` path — neither path ran `finish`, and the fail path MUST NOT commit a half-finished state.
+If Step 0 resolved no change, skip Steps 6 and 6.5 silently.
 
 **Failure handling** (best-effort push): If the commit fails, report the error. If `git push` fails (e.g., a transient network error), report the error but do **not** STOP the skill or mark the stage as failed — a completed review cycle must not be aborted by a transient push failure. The local commit is retained and a later re-run / push reconciles it. (This softens git-pr's fail-fast push specifically for the terminal stage, consistent with git-pr-review's best-effort status-write ethos.)
 

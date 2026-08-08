@@ -54,11 +54,9 @@ Each decision is labelled with an **indicative grade** derived from its composit
 
 ## Critical Rule
 
-**A decision the agent cannot answer — a genuine unknown — MUST be surfaced, never silently assumed.** Such a decision scores low on Reversibility and/or Agent Competence, lands at `composite < 20` (Unresolved), and MUST always be asked — even in `/fab-new` and `/fab-continue`. These count toward the skill's question budget (max ~3). The existence of `/fab-clarify` as an escape valve does NOT justify silently assuming high-blast-radius decisions. `/fab-clarify` is for Tentative assumptions, not for Unresolved ones.
+**Rule:** A genuine unknown MUST be surfaced, never silently assumed, and asked wherever a user is reachable (including `/fab-new` and `/fab-continue`); it counts against any calling-skill question budget (max ~3 where specified). `/fab-clarify` is for Tentative assumptions, not an excuse to hide Unresolved ones. Score the dimensions honestly: a genuine unknown lands below 20, where its ≥2.0 penalty makes blocking emerge from the curve. There is no hard-fail short-circuit or `R<25 ∧ A<25` override; Reversibility acts through its 0.30 weight.
 
-**Blocking is emergent from the scoring curve — there is no hard-fail short-circuit and no `R<25 ∧ A<25` override.** A genuine unknown scored at `composite < 20` penalizes ≥ 2.0, which alone drops a change to the 3.0 gate or below. Reversibility is handled by its 0.30 weight in the composite (an irreversible decision lands in a worse band and is penalized harder), not by a separate rule. Surface genuine unknowns as low-composite Unresolved rows and the penalty curve does the blocking.
-
-**Promptless-dispatch carve-out**: when a planning skill runs as a promptless subagent under `/fab-proceed`'s defer-and-surface contract (`fab-proceed.md` § Create-Intake Dispatch), there is no user to ask. The MUST-ask is satisfied by **deferring and surfacing**, never by silently assuming: each would-be-asked Unresolved decision is recorded as an Unresolved row with Rationale `Deferred — promptless dispatch` and surfaced to the user by the dispatcher. **A deferred decision blocks the gate by itself only when its composite is below 20** (a composite ≥ 20 row still adds penalty and can help fail the gate alongside other weak rows) — there is no special gate for deferred decisions; blocking is emergent from the curve, exactly like any other Unresolved row. The author therefore MUST score a genuine unknown with honestly-low dimensions (low A, usually low R/S) so its composite lands under 20 and the curve blocks the automated bracket until it is resolved via `/fab-clarify`. Everywhere a user is reachable, the MUST-ask applies unchanged.
+**Promptless-dispatch carve-out:** Under `/fab-proceed`'s defer-and-surface contract, record every would-be question as an Unresolved row with Rationale `Deferred — promptless dispatch`, return it to the dispatcher, and surface it to the user. A deferred row blocks by itself only below 20; at 20 or above it still adds penalty and can help fail the gate with other weak rows. There is no special deferred-decision gate. Score genuine unknowns with honestly low dimensions (low A, usually low R/S) so the automated bracket blocks until `/fab-clarify` resolves them.
 
 ## Skill-Specific Autonomy Levels
 
@@ -70,7 +68,11 @@ Each decision is labelled with an **indicative grade** derived from its composit
 | **Escape valve** | `/fab-clarify` | `/fab-clarify` | `/fab-clarify`, `/fab-continue` (after rework cap) | `/fab-clarify`, `/fab-continue` (after rework cap) |
 | **Recomputes confidence?** | Yes (intake, via `fab score --stage intake`) | No (no scoring at apply — intake is authoritative) | No | No |
 
-The remaining three declaring skills are covered by these columns: **fab-draft** follows the fab-new column exactly (it is a thin delta over fab-new Steps 0–9 — same SRAD-driven posture and budget; it only skips activation/branch). **fab-dedupe** also follows the fab-new column (a thin call-site over the same Steps 0–9 with `{questioning-mode} = interactive` — same SRAD-driven posture, interruption budget, and `/fab-clarify` escape valve; it adds a cluster-analysis front end and runs the procedure once per accepted cluster group, which multiplies invocations of that posture rather than changing it). **fab-clarify** is the escape valve itself: suggest-mode questions are SRAD-prioritized (max 5 per invocation), resolved assumptions are re-graded in the artifact's table, and it always recomputes the intake score (`fab score --stage intake`).
+| Remaining skill | Follows | Skill-specific delta |
+|-----------------|---------|----------------------|
+| `fab-draft` | `fab-new` posture and budget | Runs Steps 0–9, then skips activation/branch |
+| `fab-dedupe` | `fab-new` posture, `{questioning-mode} = interactive`, and `/fab-clarify` escape valve | Adds cluster analysis and invokes the posture once per accepted cluster group |
+| `fab-clarify` | Escape valve | SRAD-prioritized suggest questions (max 5/invocation), re-grades resolved rows, then recomputes `fab score --stage intake` |
 
 ## Worked Examples
 

@@ -28,13 +28,14 @@ description: "Set up a new project, manage config/constitution, or apply version
 
 ## Arguments
 
-- **No arguments** — full structural bootstrap
-- **`config [section]`** — create/update `fab/project/config.yaml` interactively; optional `[section]` edits one section directly (valid: `project`, `source_paths`, `checklist`)
-- **`constitution`** — create/amend `fab/project/constitution.md` with semantic versioning
-- **`migrations [file]`** — apply version migrations to sync project files with the installed kit
-- **`validate`** — redirect message: "Validation is built into `/fab-setup config` and `/fab-setup constitution` — each validates after every edit."
-
-Any unrecognized argument triggers: "Unknown subcommand: {arg}. Valid: config, constitution, migrations. Run `/fab-setup` with no arguments for full setup."
+| First argument | Remaining argument | Action |
+|----------------|--------------------|--------|
+| *(none)* | — | Proceed to **Bootstrap Behavior** |
+| `config` | Optional `[section]`: `project`, `source_paths`, `checklist`, `context`, `code-quality`, or `code-review` | Proceed to **Config Behavior** and pass `[section]` |
+| `constitution` | — | Proceed to **Constitution Behavior** |
+| `migrations` | Optional `[file]` | Proceed to **Migrations Behavior** and pass `[file]` |
+| `validate` | — | Output `Validation is built into /fab-setup config and /fab-setup constitution — each validates after every edit.` and STOP |
+| *(anything else)* | — | Output `Unknown subcommand: {arg}. Valid: config, constitution, migrations. Run /fab-setup with no arguments for full setup.` and STOP |
 
 ---
 
@@ -46,17 +47,6 @@ Before doing anything else, verify the kit is accessible:
 2. Check that `$(fab kit-path)/VERSION` file exists and is readable
 
 **If either check fails, STOP immediately.** Output: `Kit not found. Run 'fab sync' or 'fab upgrade-repo' to populate the cache.` Do NOT create any files.
-
-### Argument Classification
-
-| First argument | Action |
-|----------------|--------|
-| *(none)* | Proceed to **Bootstrap Behavior** |
-| `config` | Proceed to **Config Behavior** (pass remaining args as section argument) |
-| `constitution` | Proceed to **Constitution Behavior** |
-| `migrations` | Proceed to **Migrations Behavior** (pass remaining args as file argument) |
-| `validate` | Output redirect message and STOP |
-| *(anything else)* | Output unknown subcommand message and STOP |
 
 ### Command Logging
 
@@ -150,15 +140,25 @@ Create a new `fab/project/config.yaml` interactively or update specific sections
 
 ### Config Create Mode
 
-**Create-mode trigger** (canonical): `fab/project/config.yaml` is missing, is a placeholder generation (contains the example identity value `My Project` — the embedded-stub fallback's default name), OR is missing the required fields `project.name`/`project.description`. `fab init` generates `config.yaml` from the registry via `fab config init --project`, with a minimal embedded-stub fallback when that command is unavailable, before sync's copy-if-absent runs.
+Create mode applies when any condition holds:
 
-> **Generated config inputs.** `fab init` runs mechanical, non-interactive detection at the Go layer and passes it to `fab config init --project`, so the generated file carries **live** identity fields where detection is confident: `project.name` from the repo folder name, `source_paths` from an existing `src/` directory, and `test_paths` from the ecosystem marker table below. `project.description` is absent because there is no reliable mechanical source. Create mode **refines** these seeded values and **adds the description**.
+- `fab/project/config.yaml` is missing.
+- The file is a placeholder generation containing `My Project` (the embedded-stub fallback name).
+- Either required field, `project.name` or `project.description`, is missing.
 
-When that trigger holds:
+Before `fab sync`, `fab init` generates the file through `fab config init --project`, or a minimal embedded stub when that command is unavailable.
 
-1. Read the project's README, package.json, or other root-level files for context
-2. Ask the user: project name, description, source paths (showing the seeded values `fab init` detected as defaults the user can accept or override). Then **confirm/refine `test_paths` non-interactively** (do NOT prompt for it — `fab init` already detected it from on-disk marker files; re-derive only to write the detection note in step 6):
-   - **Detection sub-step**: the on-disk marker files map to an anchored `test_paths` pattern via the table below — the SAME table `fab init` used to seed the file. Multi-marker repos take the **union** of matched pattern sets. The anchoring (suffix/prefix/infix/source-root) is what makes the test/impl classification reliable — never substitute a bare substring like `**/*test*` (it miscounts production code such as `attestation.go` or `latest.go`).
+| Field | Seeded by init | Your job |
+|-------|----------------|----------|
+| `project.name` | Repo folder name | Show as the default; accept or replace from the user's answer |
+| `project.description` | No reliable mechanical seed | Ask the user and add it under `project:` |
+| `source_paths` | Existing `src/` directory | Show as the default; accept or replace from the user's answer |
+| `test_paths` | Conservative marker detection below | Confirm/refine non-interactively; do NOT prompt. Use richer inspection, including JS/TS dependencies, and report the result |
+
+When the trigger holds:
+
+1. Read the project's README, `package.json`, and other relevant root files.
+2. Ask for project name, description, and source paths using seeded values as defaults. For `test_paths`, apply this same marker table used by `fab init`; union all matches and retain anchored suffix/prefix/infix/source-root patterns. Never substitute a bare substring such as `**/*test*`, which miscounts production files like `attestation.go` or `latest.go`.
 
      | Detected marker | Ecosystem | `test_paths` |
      |---|---|---|
@@ -170,11 +170,8 @@ When that trigger holds:
      | `Cargo.toml` | Rust | *(none — Rust tests are inline `#[cfg(test)]`; not glob-addressable)* → leave empty, note why |
      | *(no marker / unrecognized)* | — | leave empty; standing examples remain the reference |
 
-     Record the detected ecosystem + pattern set (or "no convention detected") for the note in step 6. Note the Go-layer detection is intentionally conservative (folder name; `src/`; single-file markers only) — JS/TS package.json-dep detection and any non-obvious call are your job here, so the seeded file may lack a `test_paths` your inspection can now add.
-3. **Refine the registry-generated `config.yaml`**. The file carries detected identity fields live above the managed reference fence (or the same detected seed in a minimal embedded stub when `fab config init --project` is unavailable). Apply the user's refinements in place via **targeted string replacement** (the same comment-preserving edit update-mode uses — NOT a full rewrite; the managed fence and every comment stay intact):
-   - `project.name` → the user's name (the seeded folder-name default is often right — replace only if the user chose differently); **add `project.description`** (the generated file has no description key — insert one under `project:`)
-   - `source_paths` → the user's source paths (replacing the seeded `src/` if different)
-   - `test_paths` → the detected patterns. **For `test_paths`**: if the generated file has a live `test_paths:` key (detection seeded one), replace its value only if your richer inspection found a better set; if `test_paths` sits only inside the commented fence (no marker was detected at init), add a live `test_paths:` above the fence when your inspection now finds a convention, else leave the fence untouched — the field stays inherited/advertised.
+   Record the ecosystem + pattern set, or `no convention detected`, for step 6.
+3. Refine the generated file with **targeted string replacement**, never a full rewrite: apply the table decisions while preserving every comment and the managed reference fence. If richer inspection improves a live `test_paths:`, replace its value; if only the fence advertises it, add a live key above the fence when a convention is found, otherwise leave it inherited.
    ```yaml
    test_paths:
      - "**/*_test.go"
@@ -245,7 +242,7 @@ Create a new project constitution or amend an existing one with semantic version
 
 ### Constitution Pre-flight
 
-1. `fab/project/config.yaml` must exist. If missing (direct invocation): STOP with `fab/project/config.yaml not found. Run /fab-setup first.`
+1. `fab/project/config.yaml` must exist. If missing (direct invocation): STOP with `fab/project/config.yaml not found. Run /fab-setup to create it.`
 2. Read `fab/project/config.yaml` for project context
 3. Check whether `fab/project/constitution.md` exists -> determines mode
 
@@ -311,22 +308,27 @@ Show `Created fab/project/constitution.md (version 1.0.0) with {N} principles.` 
 
 ## Migrations Behavior
 
-Bring project files in sync with the installed kit version. Version reading, parsing, and comparison are owned by `fab migrations-status` — the skill runs it once and branches on its result, then applies each applicable migration file. Each migration is a markdown instruction file — the skill reads it and executes the steps as an LLM agent.
+Bring project files in sync with the installed kit. The binary owns discovery; this skill runs it once, branches on the result, and applies each returned markdown migration as an LLM agent.
 
 When `[file]` is provided, read and apply that specific migration file directly, bypassing version range discovery.
 
 ### Migrations Context Loading
 
-1. Read `fab/project/config.yaml` (Always Load layer — MUST exist; if missing: STOP with `fab/project/config.yaml not found. Run /fab-setup to create it.`). Skip Change Context.
-2. Migration discovery comes from the **single** `fab migrations-status --json` run in Step 1 (the binary owns version read/parse/compare and the scan/validate/sort) — no separate version read or second invocation here
+Read `fab/project/config.yaml`; if missing, STOP with `fab/project/config.yaml not found. Run /fab-setup to create it.` Skip Change Context. Do not read versions or discover ranges separately from Step 1.
 
 ### Migrations Step 1: Discover Migrations
 
-Discovery is binary-owned (per the Migrations Behavior intro and Context Loading) — do nothing by hand. The binary exits non-zero with remediation hints on a missing `fab/.kit-migration-version` or engine `VERSION` file — surface its stderr and stop.
+Run `fab migrations-status --json` exactly once and parse `{local, engine, applicable:[{from,to,file}], gap_skips, overlaps}`. The binary owns version read/parse/compare plus scan/validate/sort; `applicable` is FROM-ascending, gap-skipped, and chained. On non-zero exit, surface its remediation stderr and STOP.
 
-1. Run `fab migrations-status --json` and parse the result. Shape: `{local, engine, applicable:[{from,to,file}], gap_skips, overlaps}` — `local`/`engine` are the parsed project + kit versions; `applicable` is the ordered (FROM-ascending, gap-skipped, chained) list of files to apply; `gap_skips` are human-readable "no migration needed for X -> Y, skipping" lines to surface; `overlaps` are conflicting-filename pairs (non-empty = malformed migrations directory).
-2. **If `overlaps` is non-empty**: STOP and report the conflict (see [Overlapping Ranges](#overlapping-ranges)). Do NOT apply anything.
-3. **If `applicable` is empty** (and no overlap): nothing to do — pick the output by comparing the returned `local`/`engine` fields: equal → [Versions Already Equal](#versions-already-equal); `local` ahead of `engine` → [Local Version Ahead](#local-version-ahead); otherwise → [No Migrations Apply](#no-migrations-apply). (Semver comparison: compare MAJOR, then MINOR, then PATCH as integers — `2.10.0` > `2.9.7`; never compare lexicographically.) `fab upgrade-repo` already stamps `fab/.kit-migration-version` silently in the no-op case, so this subcommand has no version to write.
+| Result | Branch |
+|--------|--------|
+| `overlaps` non-empty | STOP, report [Overlapping Ranges](#overlapping-ranges), and apply nothing |
+| `applicable` non-empty | Surface `gap_skips`, then continue to Step 2 |
+| Empty; `local == engine` | [Versions Already Equal](#versions-already-equal) |
+| Empty; `local > engine` | [Local Version Ahead](#local-version-ahead) |
+| Empty; `local < engine` | [No Migrations Apply](#no-migrations-apply); `fab upgrade-repo` already stamps the no-op case, so write no version here |
+
+For empty lists, compare MAJOR, MINOR, then PATCH as integers: `2.10.0` > `2.9.7`; never compare lexicographically.
 
 ### Migrations Step 2: Apply Migrations (Loop)
 

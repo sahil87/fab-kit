@@ -23,6 +23,8 @@ Sweeps a scoped area of the codebase for duplicated and near-duplicated function
 
 The skill is a **thin call-site** over the shared `_intake` Create-Intake Procedure (Steps 0–9, `{questioning-mode} = interactive`), stopping at intake `ready` — no activation, no git branch. Structurally it is `/fab-draft` with a cluster-analysis front end and a fan-out tail (N intakes rather than one).
 
+**Prose packaging** (260808-s2sz): rationale around pipeline handoff, detector seeding, layered APIs, and divergence ranking is reduced to one-clause rules. The conversational bulk-selection grammar, cluster evidence, SRAD grading, and intake fan-out contract are unchanged.
+
 **It does not refactor.** The consolidation itself runs through the normal pipeline (`/fab-fff` or `/fab-continue`) with review in the loop. This is the central design decision: merging two 70%-overlapping helpers is design work with semantic risk, and bypassing intake/review would discard the SRAD gate, `code-quality.md`, and the reviewer — all of which exist for exactly this class of change.
 
 ## Why an intake, not a bespoke artifact

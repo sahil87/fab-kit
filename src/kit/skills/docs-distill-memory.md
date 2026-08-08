@@ -228,9 +228,10 @@ Loop semantics:
 
 ## Output
 
-**Survey report (no-arg only, Step 0)** — emitted before the all-domains loop begins:
+**Survey report (no-arg only, Step 0)** — emit the flagged or all-clean branch from this combined template; `# … branch` labels organize the template and are never emitted:
 
 ```
+# Flagged branch
 Surveying docs/memory/ — heuristic scan across {N} domains (read-only)...
 
   _shared        2 files flagged
@@ -243,18 +244,15 @@ Survey is heuristic; run /docs-distill-memory <domain> to force a full read of a
 
 Looping 3 flagged domains in index order: _shared → distribution → runtime.
 Distilling _shared (1 of 3) → reading its topic files in full...
-```
 
-If the survey finds nothing anywhere (terminal all-clean case):
-
-```
+# All-clean branch
 Surveying docs/memory/ — heuristic scan across {N} domains (read-only)...
 
 All domains distilled (survey heuristic) — no candidate domains flagged.
 Survey is heuristic; run /docs-distill-memory <domain> to force a full read of a specific domain.
 ```
 
-**Per-domain distillation** (each loop iteration; also the whole output on an explicit `<domain>`):
+**Domain, terminal, and next output** — emit only the applicable lines/branch; `# …` labels are not output, and an explicit `<domain>` starts at the domain block:
 
 ```
 Distilling docs/memory/{domain}/ ({i} of {M}) — reading {N} topic files (read-only)...
@@ -262,45 +260,26 @@ Distilling docs/memory/{domain}/ ({i} of {M}) — reading {N} topic files (read-
 {per-file proposed-rewrite report}
 
 Apply these rewrites? (apply all / cherry-pick / skip)
-```
 
-After each domain's apply:
-
-```
+# Applied outcome
 {domain} distilled — {F} files rewritten, {D} narration lines removed, {H} change-id heading suffixes stripped, {B} byte-identical blocks deduped ({N} near-duplicates flagged), {DD} DD changelog bullets rewritten, {T} TODOs relocated → fab/backlog.md, {R} rationale blocks relocated to Design Decisions, {C} descriptions capped/de-id'd. Indexes regenerated via fab memory-index; no generated file hand-edited.
-```
 
-Per-domain, when no changes are needed: `No rewrites proposed — {domain} is already distilled (present-truth).` — the loop continues to the next domain.
+# No-change / skipped outcomes
+No rewrites proposed — {domain} is already distilled (present-truth).
+Analysis reported; {domain} left intact (no files mutated).
 
-Per-domain, when the user declines/skips: `Analysis reported; {domain} left intact (no files mutated).` — the loop continues to the next domain (the domain stays listed as skipped/remaining in the terminal summary).
-
-Per-domain, if `fab memory-index --check` returned exit 2: report the refuse-before-regen pointer for that domain and stop that domain's regeneration (rewrites already applied stay; regeneration is deferred to the reorg remediation). Remaining domains are handled per the Step 6 exit-2 posture — never silently dropped.
-
-**Terminal summary (no-arg, after the worklist is exhausted)** — one of:
-
-```
+# Terminal summary — one
 All domains distilled — {M} domains processed ({F} files rewritten total). No candidates remain (survey heuristic).
-```
-
-```
 Distillation loop complete — {P} of {M} domains distilled; {S} skipped/remaining: _shared (2 files flagged), runtime (1 file flagged).
-```
 
-**Dynamic `Next:` line** — the skill's closing line reports the surveyed **skipped/remaining** domains, or all-distilled when none remain:
-
-- On a **no-arg** invocation, the line reflects the initial Step 0 survey minus every domain fully distilled this run. A domain the user **skipped** or only **partially cherry-picked** stays listed while it still carries flagged files.
-- On an **explicit-`<domain>`** invocation (no upfront survey ran), run the survey at completion to populate the line.
-- Skipped/remaining domains are listed in `docs/memory/index.md` domain-table order, each with its flagged-file count, as a pointer for a follow-up **targeted** run. Example:
-
-```
+# Dynamic Next — one
 Next: all domains distilled (survey heuristic) — /docs-reorg-memory or /fab-new
-```
-
-or, when the user skipped or partially cherry-picked domains that still carry flagged files:
-
-```
 Next: skipped/remaining — /docs-distill-memory _shared (2 files flagged), /docs-distill-memory runtime (1 file flagged); or /docs-reorg-memory, /fab-new
 ```
+
+No-change and skipped outcomes continue the loop; skipped or partially cherry-picked domains remain in the terminal summary. If `fab memory-index --check` exits 2, report that domain's refuse-before-regen pointer, preserve applied rewrites, and handle remaining domains per Step 6.
+
+The dynamic `Next:` reflects the initial survey minus fully distilled domains. For explicit-`<domain>` mode, survey at completion. List remaining domains in `docs/memory/index.md` order with flagged-file counts for targeted follow-up.
 
 ---
 

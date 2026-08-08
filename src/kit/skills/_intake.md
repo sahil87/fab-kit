@@ -8,34 +8,16 @@ metadata:
 ---
 # Shared Create-Intake Procedure
 
-> This file defines the shared **pre-boundary** intake-creation logic used by four skills:
-> `/fab-new`, `/fab-draft`, `/fab-dedupe` (once per accepted cluster group — a fan-out call site),
-> and `/fab-proceed` (its create-new subagent dispatch — `/fab-proceed`
-> dispatches `_intake` directly, not `/fab-new`). The calling skill
-> (the **consumer**) binds one parameter before executing this procedure — read it from the
-> consumer's own file:
+> This shared pre-boundary procedure receives one consumer-bound parameter:
 >
-> - **`{questioning-mode}`** — how Step 8 resolves ambiguity:
->   - **`interactive`** — used by `/fab-new`, `/fab-draft`, and `/fab-dedupe`. Step 8 asks the user
->     via SRAD (SRAD-driven question selection, no fixed cap, conversational mode when 5+ Unresolved).
->   - **`promptless-defer`** — used by `/fab-proceed`'s dispatch. Step 8 records each would-be-asked
->     Unresolved decision as a deferred Unresolved row instead of asking, per the `_srad.md`
->     promptless-dispatch carve-out (quoted at Step 8).
+> | `{questioning-mode}` | Consumers | Step 8 behavior |
+> |----------------------|-----------|-----------------|
+> | `interactive` | `/fab-new`, `/fab-draft`, `/fab-dedupe` (once per accepted cluster group) | Ask via SRAD; no fixed cap, conversational mode at 5+ Unresolved |
+> | `promptless-defer` | `/fab-proceed` create-new dispatch | Record would-be questions as deferred Unresolved rows per `_srad.md` |
 >
-> This is the **only** behavioral fork in intake creation, and it is legitimately
-> **invocation-level** (who resolves ambiguity: human-now vs. defer-and-surface). It is exactly
-> parallel to the post-boundary autonomy fork (interactive rework menu vs. autonomous auto-rework).
+> This is the only behavioral fork. **Call sites retain** the decision whether to create an intake and every post-procedure action, including `/fab-new` activation/branch Steps 10–11.
 >
-> **What stays at the call site** (do NOT do it here): deciding *whether* to create an intake
-> (`/fab-proceed`'s state-detection + relevance assessment), and what to do *after* (activate +
-> git branch — `/fab-new`'s Steps 10–11 tail). This procedure is purely "given I've decided to
-> create an intake, do it (Steps 0–9)."
->
-> This procedure references `_generation.md` (Step 5) and `_srad.md` (Step 8) in-body; it carries
-> no `helpers:` frontmatter of its own — every consumer already declares both helpers (the
-> consumer-declared model), or, for `/fab-proceed`, dispatches this procedure to a subagent that loads
-> them. Mirror the proven `_pipeline.md` shape: shared body parameterized by one knob, call-site
-> tails stay in the call-site files.
+> Steps 5 and 8 reference `_generation.md` and `_srad.md`; consumers declare/load those helpers. This partial carries no `helpers:` frontmatter.
 
 ## Contents
 
@@ -110,15 +92,9 @@ Follow the **Intake Generation Procedure** (`_generation.md`). Load context per 
 
 ### Step 7: Confidence
 
-After generating `intake.md` and verifying the change type, persist and display the confidence score:
-
-1. Call `fab score --stage intake <change>` (normal mode, **not** `--check-gate`)
-2. This writes the score to `.status.yaml`; no `indicative` flag is written because intake scoring is authoritative
-3. Display the result from stdout (score and breakdown)
-
-Output format: `Confidence: {score} / 5.0 ({N} decisions)`
-
-The score is persisted to `.status.yaml` so that consumers (`/fab-switch`, `/fab-status`, `fab change list`) can display it without recomputation. It is the authoritative confidence — intake is the sole scoring source, and the single intake gate (flat 3.0) reads it.
+1. Run `fab score --stage intake <change>` in normal mode, never `--check-gate`; it persists the authoritative intake score to `.status.yaml` without an `indicative` flag.
+2. Display stdout's score and breakdown; `/fab-switch`, `/fab-status`, `fab change list`, and the flat 3.0 intake gate consume the persisted score without recomputation.
+3. Use the output format `Confidence: {score} / 5.0 ({N} decisions)`.
 
 ### Step 8: SRAD-Based Question Selection *(the parameterized step)*
 
@@ -126,11 +102,7 @@ This is the sole step that varies by `{questioning-mode}`.
 
 - **`{questioning-mode} = interactive`** (used by `/fab-new`, `/fab-draft`, `/fab-dedupe`): Apply SRAD (`_srad.md`). No fixed question cap — SRAD scoring determines count. Zero questions for clear inputs. **Conversational mode**: when 5+ Unresolved, ask one at a time until resolved or user signals done.
 
-- **`{questioning-mode} = promptless-defer`** (used by `/fab-proceed`'s dispatch): there is no user to ask. Apply SRAD, but instead of asking, record each would-be-asked Unresolved decision as a deferred Unresolved row, per the `_srad.md` § Critical Rule **promptless-dispatch carve-out** (verbatim):
-
-  > each would-be-asked Unresolved decision is recorded as an Unresolved row with Rationale `Deferred — promptless dispatch` and surfaced to the user by the dispatcher. A deferred decision blocks the gate **by itself only when its composite is below 20** (a composite ≥ 20 row still adds penalty and can help fail the gate alongside other weak rows) — there is no special gate for deferred decisions; blocking is emergent from the demerit penalty curve, exactly like any other Unresolved row. So a genuine unknown MUST be scored with honestly-low dimensions (low A, usually low R/S) to land it under 20, where its penalty (≥ 2.0) blocks the automated bracket until resolved via `/fab-clarify`.
-
-  Return the deferred Unresolved decisions in the subagent result so the dispatcher (`/fab-proceed`) can surface them. The MUST-ask is satisfied by deferring and surfacing, never by silently assuming.
+- **`{questioning-mode} = promptless-defer`** (used by `/fab-proceed`'s dispatch): apply `_srad.md` § Critical Rule's promptless-dispatch carve-out instead of asking. Return every deferred Unresolved row in the subagent result so `/fab-proceed` can surface it.
 
 ### Step 9: Advance Intake to Ready
 

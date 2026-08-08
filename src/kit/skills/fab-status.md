@@ -37,32 +37,40 @@ Run the preflight script to resolve the change, then render the status display:
 fab preflight [change-name]
 ```
 
-Use `fab preflight` and `fab status` for validation and data retrieval. The skill handles formatting and presentation:
+Use `fab preflight` and `fab status` for validation/data. Read kit VERSION via `fab kit-path`, optional `fab/.kit-migration-version`, `.fab-status.yaml`, and `fab/changes/{name}/.status.yaml`; query the live branch with `git branch --show-current` rather than a static status field.
 
-- Reads kit VERSION (via `fab kit-path`), `fab/.kit-migration-version` (if exists), `.fab-status.yaml`, and `fab/changes/{name}/.status.yaml`
-- Queries live branch via `git branch --show-current` (instead of reading a static `branch:` field from `.status.yaml`)
-- **Version drift check**: if `fab/.kit-migration-version` exists and its value is less than the kit VERSION, display a warning: `Version drift: local {local}, engine {engine} -- run /fab-setup migrations`. If versions match, no warning. If `fab/.kit-migration-version` doesn't exist, no warning (handled by `/fab-setup`)
-- Uses `display_stage` and `display_state` from preflight output for the primary "Stage:" line, showing the stage with a state qualifier (e.g., `Stage: intake (1/6) — done`). The "Next:" line shows the routing stage with the default command (e.g., `Next: apply (via /fab-continue)`). When all stages are done, shows `Next: /fab-archive`
-- Renders the full status block: version header, change name, branch, stage with state qualifier (out of 6 total stages), next action, progress table with symbols (`✓` done, `●` active, `◷` ready, `○` pending, `✗` failed, `⏭` skipped — the skipped glyph matches the Go renderer's `ProgressLine`), plan counts (tasks: `{plan.task_count}`, acceptance: `{plan.acceptance_completed}/{plan.acceptance_count}`), confidence score, optional Impact line (see below), optional refactor-growth warning (see below), version drift warning (if applicable)
-- **Impact line** — when `.status.yaml` `true_impact` block is present, render a single line under the change summary, sourced from the block:
+Render in this order:
 
-  ```
-  Impact: +{net} (raw {added}/-{deleted}, excluding fab/docs +{excl_net} ({excl_added}/-{excl_deleted}))
-  ```
+1. Version header, change name, and live branch
+2. `display_stage` + `display_state` as `Stage: {stage} ({N}/6) — {state}`
+3. Routing stage/default command as `Next: {stage} (via {command})`, or `Next: /fab-archive` when complete
+4. Progress table, then plan task/acceptance counts
+5. Confidence
+6. Optional Impact and refactor-growth lines
+7. Optional version-drift warning
 
-  When `excluding` is absent in the block (project's `true_impact_exclude` is empty), render only the raw figures: `Impact: +{net} ({added}/-{deleted})`. When `true_impact` is absent entirely, omit the line — no "not yet computed" placeholder. The line MUST be prefixed with a warning emoji (⚠️) and rendered **bold** when EITHER `true_impact.net > 100` OR `true_impact.excluding.net > 50` (when `excluding` is present) — mirroring fab-operator's health-emoji convention. ANSI SGR escapes (e.g., `\e[33m`) MUST NOT be used: they do not survive the assistant-message render path (verified empirically in fab-operator §4); emoji + bold are the surviving channels. Both thresholds are hard-coded; they MUST NOT be project-configurable.
-- **Refactor-growth soft warning** — when ALL of the following hold, emit a single line below the impact line: (a) `change_type == refactor`, (b) `true_impact.excluding.net > 50` if `excluding` is present, else `true_impact.net > 50`, (c) `true_impact` block is present (from any stage). Warning text (exact, hard-coded):
+| State | Glyph |
+|-------|-------|
+| done | `✓` |
+| active | `●` |
+| ready | `◷` |
+| pending / missing progress | `○` |
+| failed | `✗` |
+| skipped | `⏭` (matches Go `ProgressLine`) |
 
-  ```
-  Refactor changes typically shrink or stay flat — review whether this growth is intentional.
-  ```
+| Condition | Rendering |
+|-----------|-----------|
+| Migration version exists and is below kit VERSION | `Version drift: local {local}, engine {engine} -- run /fab-setup migrations`; otherwise omit |
+| `true_impact` with `excluding` | `Impact: +{net} (raw {added}/-{deleted}, excluding fab/docs +{excl_net} ({excl_added}/-{excl_deleted}))` |
+| `true_impact` without `excluding` | `Impact: +{net} ({added}/-{deleted})` |
+| No `true_impact` | Omit Impact; no placeholder |
+| `true_impact.net > 100`, or present `excluding.net > 50` | Prefix Impact with ⚠️ and render **bold**; thresholds are hard-coded and not configurable |
+| `change_type == refactor` and effective non-excluded net > 50 | Below Impact, emit exact hard-coded advisory `Refactor changes typically shrink or stay flat — review whether this growth is intentional.`; informational only |
+| Confidence score > 0.0 | `Confidence: {score} of 5.0 ({N} certain, {N} confident, {N} tentative)`, appending `, {N} unresolved` only when nonzero |
+| Score/counts all zero | `Confidence: not yet scored` |
+| Missing plan | `plan not yet generated` |
 
-  The +50 threshold is hard-coded. The warning is informational only — no gate, no block.
-- Handles all error cases (no active change, missing `.status.yaml`, missing fields)
-- Defaults missing progress fields to `○` (pending), missing plan to "plan not yet generated", and missing confidence to "not yet scored"
-- **Confidence display** — read uniformly from `.status.yaml` (via preflight output) for all stages:
-  - **Score > 0.0**: `Confidence: {score} of 5.0 ({N} certain, {N} confident, {N} tentative)` — appends `, {N} unresolved` only when unresolved > 0.
-  - **Score = 0.0 with all grade counts 0 (template default, pre-intake)**: `Confidence: not yet scored`
+Never use ANSI SGR escapes such as `\e[33m`; emoji + bold are the surviving assistant-message channels. Handle no active change, missing `.status.yaml`, and missing fields as errors.
 
 ---
 

@@ -8,16 +8,12 @@ metadata:
 ---
 # Artifact Generation Procedures
 
-> This file defines the shared artifact generation logic used by six skills: `/fab-new`,
-> `/fab-draft`, `/fab-dedupe`, and `/fab-continue` (its intake-`active` regeneration row) follow
-> the **Intake Generation Procedure** — `/fab-draft` and `/fab-dedupe` reach it through
-> `_intake.md` Step 5, and `/fab-dedupe` runs it once per accepted cluster group;
-> `/fab-continue`, `/fab-ff`, and `/fab-fff` follow the
-> **Plan Generation Procedure** (at apply entry) — `/fab-continue` belongs to both consumer
-> groups. The two **-from-Diff** procedures (Intake-from-Diff, Plan-from-Diff) are the
-> adoption variants used by `/fab-adopt` only — they reconstruct both artifacts from a fixed
-> existing branch diff rather than from a forward design. Each skill references these procedures
-> instead of inlining them, ensuring generation behavior is authoritative in one location.
+> | Procedure | Consumers | Entry | Source posture |
+> |-----------|-----------|-------|----------------|
+> | Intake Generation | `/fab-new`, `/fab-draft`, `/fab-dedupe`, `/fab-continue` intake regeneration | `_intake.md` Step 5; dedupe once per accepted cluster | Forward conversation/design |
+> | Plan Generation | `/fab-continue`, `/fab-ff`, `/fab-fff` | Apply entry | Forward intake |
+> | Intake-from-Diff | `/fab-adopt` | Adoption reconstruction | Fixed branch diff + PR body |
+> | Plan-from-Diff | `/fab-adopt` | Same main-session pass as Intake-from-Diff | Fixed existing implementation |
 >
 > **Orchestration** (stage guards, question handling, design decisions, resumability)
 > remains in each skill's own file. This partial covers only the mechanics of producing each artifact.
@@ -50,7 +46,7 @@ metadata:
    - Include concrete examples: code blocks, YAML snippets, specific file paths, exact behavior
    - The "What Changes" section should be the most detailed — use subsections per change area
    - If a design includes specific values (config structure, template content, validation questions), reproduce them in full
-4. Append `## Assumptions` section per the SRAD framework (`_srad.md`, loaded via `helpers:` by all consumers of this procedure). The section is always present in the artifact — `_srad.md`'s omit-when-zero rule applies to the displayed output summary only; when no assumptions were made, keep the section with the footer `0 assumptions.` and no table rows
+4. Append `## Assumptions` exactly per `_srad.md` § Assumptions Summary Block (including its artifact-vs-output zero rule)
 5. Write the completed intake to `fab/changes/{name}/intake.md`
 
 ---
@@ -65,8 +61,14 @@ metadata:
 > `T{NNN}` for tasks, and `A-{NNN}` for acceptance items; in-flight migrations preserve legacy
 > `CHK-NNN` IDs verbatim (handled by the migration, not this procedure).
 
-> **Invocation**: This procedure is invoked from `/fab-continue` Apply Behavior at apply
-> entry, before any task is executed. The canonical artifact flow is `intake.md → plan.md → code`.
+> **Invocation**: Run at apply entry before any task. Canonical flow: `intake.md → plan.md → code`.
+
+**Forward-plan traceability contract** (steps 4–6): every requirement-derived work item uses these two formats; non-requirement acceptance categories are exempt.
+
+| Entry | Required format |
+|-------|-----------------|
+| Task | `- [ ] T{NNN} [{markers}] {description with file paths} <!-- R# -->` |
+| Acceptance | `- [ ] A-{NNN} R#: {declarative outcome}` |
 
 1. Read the template from `$(fab kit-path)/templates/plan.md`
 2. Fill in metadata fields:
@@ -92,17 +94,11 @@ metadata:
      requirement body (domain sections, scenarios, Non-Goals/Design Decisions/Deprecated
      Requirements) into `## Requirements` instead of regenerating from scratch. Annotate the section
      `<!-- migrated from spec.md -->`. Do not move spec.md's `## Assumptions` table.
-4. **Walk the `## Requirements` just generated.** For each requirement, emit two entries — a Task and
-   an Acceptance — paired by the same logical work item:
+4. **Walk the `## Requirements` just generated.** For each requirement, emit a Task and Acceptance paired by the same logical work item under the traceability contract above:
    - The Task entry goes under `## Tasks` and describes *what to implement, in which file*
    - The Acceptance entry goes under `## Acceptance` and describes *what must be true for
      review to pass* (a declarative outcome, not a step)
-   - **Traceability is REQUIRED** (not optional): each `## Tasks` item MUST carry a `<!-- R# -->`
-     trace annotation naming the requirement it implements, and each **requirement-derived**
-     `## Acceptance` item MUST name the requirement it accepts (e.g., `A-001 R2: {outcome}`).
-     Non-requirement-derived categories (Code Quality, `checklist.extra_categories`) are exempt —
-     see step 6. The chain `R# → T# → test → A#` is what lets the autonomous (apply ↔ review)
-     loop localize a failing acceptance item back to its requirement and converge.
+   - The `R# → T# → test → A#` chain lets apply↔review localize a failure to its requirement.
 5. **Tasks subsection** (`## Tasks`):
    - Group by phase. Phases execute sequentially; within a phase, `[P]`-marked tasks may run
      in parallel:
@@ -110,12 +106,10 @@ metadata:
      - **Phase 2: Core Implementation** — primary functionality, ordered by dependency
      - **Phase 3: Integration & Edge Cases** — wiring, error states, validation
      - **Phase 4: Polish** — documentation, cleanup (only if warranted)
-   - Each task follows the format: `- [ ] T{NNN} [{markers}] {description with file paths} <!-- R# -->`
    - IDs are sequential, three-digit: T001, T002, ...
    - Mark parallelizable tasks with `[P]`
    - Include exact file paths in descriptions
    - Each task should be completable in one focused session
-   - Each task MUST carry a `<!-- R# -->` trace annotation naming the requirement it implements
    - Include an `## Execution Order` section after `## Tasks` only for non-obvious
      dependencies between tasks; omit when ordering is self-evident
 6. **Acceptance subsection** (`## Acceptance`):
@@ -134,22 +128,14 @@ metadata:
      - Additional categories from `fab/project/config.yaml` `checklist.extra_categories` (if
        any)
    - **Requirement-derived categories** (Functional Completeness, Behavioral Correctness,
-     Removal Verification, Scenario Coverage, Edge Cases & Error Handling, Security) follow the
-     format: `- [ ] A-{NNN} R#: {declarative outcome}` — naming the requirement it accepts
-     (REQUIRED)
+     Removal Verification, Scenario Coverage, Edge Cases & Error Handling, Security) use the
+     traceability contract above
    - **Non-requirement-derived categories** (Code Quality, `checklist.extra_categories`) carry
      no R# reference: `- [ ] A-{NNN}: {declarative outcome}` (an optional label may precede the
      colon, e.g. `A-007 Pattern consistency: ...`) — these accept project-wide standards, not a
      specific requirement
    - IDs are sequential, three-digit, zero-padded: A-001, A-002, ...
-7. **Assumptions section** (`## Assumptions`): persist every graded SRAD assumption made during
-   steps 3–6 (each under-specified point decided inline) as a row of the template's trailing
-   `## Assumptions` table, per `_srad.md` § Assumptions Summary Block: three grades only
-   (Certain/Confident/Tentative — Unresolved is intake-only), the `Scores` column required on
-   every row, and the footer `{N} assumptions ({Ce} certain, {Co} confident, {T} tentative).`
-   The section is ALWAYS present in the artifact — if zero assumptions were made, keep the
-   section with no table rows and the footer `0 assumptions.` (`_srad.md`'s omit-when-zero rule
-   applies to the displayed output summary only, never to artifacts).
+7. **Assumptions section** (`## Assumptions`): persist every graded decision from steps 3–6 exactly per `_srad.md` § Assumptions Summary Block's plan-artifact rules.
 8. Write the completed plan to `fab/changes/{name}/plan.md`. `fab status refresh` recomputes
    `.status.yaml` `plan.generated`, `plan.task_count`, `plan.acceptance_count`, and
    `plan.acceptance_completed`, self-healed at the next `advance`/`finish`/`preflight`; no

@@ -95,11 +95,19 @@ Next:        {routing_stage} (via {default_command})
 Tip: run /git-branch to create or switch to the matching branch
 ```
 
-`{display_stage}` is "where you are" (last active/done stage); `{routing_stage}` is "what's next" (first active/ready stage), driven by `{default_command}` (`intake`/`apply`/`review`/`hydrate` → `/fab-continue`, `ship` → `/git-pr`, `review-pr` → `/git-pr-review`), matching `/fab-status` and the `_preamble.md` state table. When all stages are done (or trailing stages skipped), `Next:` shows only `/fab-archive`. `{state}` is any state `display_state` can emit: `active`, `failed`, `ready`, `done`, `skipped`, `pending` (`ready` = freshly switched draft, `failed` = parked review/review-pr failure, `skipped` = skipped trailing stage). Confidence has no qualifier; score `0.0` with no assumptions shows `not yet scored`.
+| Field | Meaning |
+|-------|---------|
+| `{display_stage}` | Where you are: last active/done stage |
+| `{routing_stage}` | What is next: first active/ready stage, driven by `{default_command}` |
+| `{default_command}` | intake/apply/review/hydrate → `/fab-continue`; ship → `/git-pr`; review-pr → `/git-pr-review` |
+| `{state}` | `active`, `failed`, `ready`, `done`, `skipped`, or `pending`; ready = fresh draft, failed = parked review/review-pr, skipped = skipped trailing stage |
+| Confidence | No qualifier; `0.0` with no assumptions renders `not yet scored` |
 
-No-argument flow: the skill reads `fab change list` output (`name:display_stage:display_state:score`) and shows confidence alongside stage in the numbered list.
-
-Tip line omitted for `--none`. Deactivation shows `No active change.`. Already-deactivated shows `No active change (already deactivated).`
+| Condition | Output behavior |
+|-----------|-----------------|
+| All stages done or trailing stages skipped | `Next:` shows only `/fab-archive` |
+| No argument | Read `fab change list` (`name:display_stage:display_state:score`) and show confidence beside stage in the numbered list |
+| `--none` | Omit Tip; show `No active change.` or, if already deactivated, `No active change (already deactivated).` |
 
 ---
 

@@ -13,13 +13,6 @@ metadata:
 > rather than inlining review logic, ensuring review behavior is authoritative in one location —
 > the same pattern as `_generation.md` for artifact generation procedures.
 >
-> **The dispatched review block IS the single review agent.** The sequencer dispatches ONE
-> review worker; that worker reads this file at entry and executes the merged checklists inline
-> itself. There is no nested Agent-tool dispatch, no parallel dispatch, and no separate
-> findings-merge step — the one worker runs both checklists and returns one unified findings list.
-> (Where the sequencer performs that dispatch is described in `fab-continue.md` Normal Flow /
-> `_pipeline.md` Step 2, not here.)
->
 > **Orchestration** (stage guards, Verdict pass/fail transitions, rework options, rework loop)
 > remains in each orchestrator's own file. This partial covers only what the review worker does
 > and the shape of its findings.
@@ -35,23 +28,16 @@ metadata:
 
 ## Review Mode
 
-The orchestrator MAY pass a **`mode`** parameter in the review dispatch. It selects whether the
-plan-conformance steps are included:
+Only these two modes are valid:
 
 | `mode` | Prompt carries | Preconditions checked | Used by |
 |--------|----------------|-----------------------|---------|
 | `full` (default — param omitted) | plan-conformance steps + holistic-diff focus areas | yes (see Preconditions) | `/fab-continue`, `/fab-ff`, `/fab-fff` |
 | `diff-only` | holistic-diff focus areas only (plan-conformance steps omitted) | no (skipped — no forward plan to conform to) | `/fab-adopt` |
 
-- **Default is `full`** when the param is omitted, so every existing caller is unaffected — the mode concept is purely additive.
-- There is **no plan-conformance-only mode** — no caller needs it today (parsimony). Do not add one speculatively.
-- `mode` gates two things below: **Preconditions** (checked only in `full`) and the **plan-conformance steps** inside Review Agent Dispatch (included only in `full`; omitted in `diff-only`). The **holistic-diff focus areas**, the **Codex→Claude cascade**, and the **Findings & Verdict** rule are identical for both modes — "any must-fix → fail", and an empty result set (zero findings) passes.
-
 ---
 
 ## Preconditions
-
-> **Gated on `mode` (see Review Mode).** These preconditions are checked **only** in `full` mode — they validate the plan-conformance inputs. In `diff-only` mode they are **skipped** entirely (there is no forward plan for the agent to validate; the agent reads the diff directly, not `plan.md`).
 
 - `plan.md` MUST exist with both `## Tasks` and `## Acceptance` sections populated. If `## Acceptance` is missing, STOP with "plan.md missing Acceptance section."
 - All tasks under `## Tasks` MUST be `[x]`. If not: STOP with "{N} of {total} tasks are incomplete."
@@ -60,10 +46,7 @@ plan-conformance steps are included:
 
 ## Review Agent Dispatch
 
-The review worker (the block the sequencer dispatched) runs the whole review inline: it reads this
-file at entry and executes the merged checklists itself — validating the implementation against the
-plan AND performing a holistic diff review with full repository access. There is no further
-Agent-tool dispatch here; the worker IS the single review agent.
+The dispatched worker IS the single review agent: it reads this file, runs the applicable merged checklists inline with full repository access, and returns one unified findings list. There is no nested/parallel dispatch or findings-merge step. Sequencer dispatch lives in `fab-continue.md` Normal Flow and `_pipeline.md` Step 2.
 
 **Framing** (present in this file, which the worker reads): *"conformance to plan.md is necessary but not sufficient; also judge the diff on its own merits against the repo."* There is **no read-prohibition** and **no phase-ordering** on `plan.md` — the worker MAY read anything in any order (`plan.md` rides in the review diff regardless, so an ordering instruction would be flaky).
 
@@ -72,13 +55,12 @@ Agent-tool dispatch here; the worker IS the single review agent.
 - The diff of all changed files: compute the merge-base against the default branch (`git merge-base HEAD origin/main` or the resolved default), then use `git diff <base>...HEAD`
 - The list of changed file paths: use the same resolved base with `git diff --name-only <base>...HEAD`
 - Full tool access (Read, Edit, Write, Bash, per `_preamble.md` § Standard Subagent Context) — the worker MAY read any file in the repo, and MAY modify `plan.md` (marking acceptance checkmarks in the Plan-Conformance Steps below)
-- **In `full` mode only**: `plan.md` (containing `## Requirements`, `## Tasks`, and `## Acceptance` sections), relevant source files (files touched by the change), target memory file(s) from `docs/memory/`, and the change's **`change_type`** — carried in the dispatch prompt by the sequencer (which reads it from `fab/changes/{name}/.status.yaml`, since `fab preflight` does not emit this field — see `fab-continue.md` Normal Flow / `_pipeline.md` Step 2); the parsimony/deletion-candidate steps key their skip condition on it.
-
-Keep the two checklists lean (checklist-fatigue mitigation): the tasks-all-`[x]` check is covered by Preconditions (in `full` mode) — the worker does not re-verify it as a checklist step — and the mechanical steps below stay compressed; do not pad the merged procedure with restated orchestration.
 
 ### Plan-Conformance Steps (`full` mode only)
 
-Included only in `full` mode (omitted entirely in `diff-only` — there is nothing for them to validate on a reverse-engineered thin plan). The worker validates the implementation against the plan's `## Requirements`, `## Tasks`, and `## Acceptance` (the tasks-all-`[x]` check is a Precondition, not repeated here):
+Inputs are `plan.md` (`## Requirements`, `## Tasks`, `## Acceptance`), touched source, target memory, and `change_type`. The sequencer carries `change_type` from `.status.yaml` because `fab preflight` does not emit it (see `fab-continue.md` Normal Flow / `_pipeline.md` Step 2); parsimony and deletion-candidate skip conditions key on it.
+
+Validate against `plan.md`'s `## Requirements`, `## Tasks`, and `## Acceptance`; the tasks-all-`[x]` check is a Precondition and is not repeated here:
 
 1. **Acceptance items**: Inspect code/tests per item under `plan.md` `## Acceptance`. Mark `[x]` in place if met, `[x] **N/A**: {reason}` if N/A, leave `[ ]` with reason if not met
 2. **Run affected tests**: Scoped to touched modules/files
@@ -125,7 +107,7 @@ Beyond plan conformance, the agent judges the diff on its own merits against the
 4. **Behavioral regressions requiring full-repo context** — issues visible only with full codebase access (not just the changed files)
 5. **Structural issues** — duplication of existing utilities, abstraction violations, or architectural drift visible only in the broader codebase context
 
-### Codex→Claude Cascade (both modes)
+### Codex→Claude Cascade
 
 The holistic-diff review uses a **Codex → Claude cascade**, controlled by the `codex` and `claude` entries in `fab/project/code-review.md` § Review Tools:
 
@@ -141,7 +123,7 @@ The `## Review Tools` section (prose) lists each reviewer tool that is disabled.
 
 ## Findings & Verdict
 
-The single review agent returns **one unified prioritized findings set** with a **three-tier priority scheme**. There is a single source, so there is no cross-source deduplication or merge step — the agent consolidates everything it found (plan-conformance + holistic-diff + parsimony) into one list:
+Return one unified prioritized findings set with a **three-tier priority scheme**, consolidating plan-conformance, holistic-diff, and parsimony findings:
 
 - **Must-fix**: Requirements mismatches (vs. `plan.md` `## Requirements`), failing tests, acceptance violations, interface violations, regressions, or structural issues that must be resolved before ship
 - **Should-fix**: Code quality issues, pattern inconsistencies, missing cross-references — addressed when clear and low-effort
