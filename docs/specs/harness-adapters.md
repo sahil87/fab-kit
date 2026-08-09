@@ -24,6 +24,19 @@
 > fresh-dispatch fallback, and the headless adapter is stated to be deliberately non-resumable while the
 > pane adapter is left unchanged. Same explicit-amendment route as above: the capability is amended
 > into this spec rather than silently redefined inside a skill file.
+>
+> **Amended by `260809-3oz7-pane-readiness-gate-sendkeys-delivery`** — the interactive-pane adapter's
+> **prompt delivery moves off the spawn command**. The pointer is no longer embedded as a positional
+> argument at window creation; it is typed into the pane after spawn by a verified send-keys
+> choreography (`fab dispatch deliver`), behind an agent-driven **readiness gate**
+> (`fab dispatch open` → `fab dispatch ready` → `fab dispatch deliver`). Three consequences are amended
+> in with it: the **no-input-injection rule gains a bounded pre-delivery carve-out**, **pane resume** is
+> recorded as the pane counterpart of tv3g's native continuation (superseding that amendment's statement
+> that it would be a separate follow-up), and **reap timing becomes stage-aware** in the wiring. The
+> earlier rationale that embedding the pointer at spawn "sidesteps the printed-prompt trap entirely" is
+> **superseded**: verified delivery and the decoupling of pane capability from a provider's
+> positional-prompt grammar outweigh the boot race, which the choreography now handles explicitly with a
+> readiness precondition and a retry. Same explicit-amendment route as above.
 
 Fab runs a six-stage pipeline (`intake → apply → review → hydrate → ship → review-pr`). Every
 post-intake stage is executed by **dispatching a worker** in a fresh context that returns a structured
@@ -50,7 +63,7 @@ provider) is **provider-neutral and adapter-independent** — see
 |---------|--------|-----------------|-------------------------|----------------------|
 | **1. Native Agent-tool** | in-harness sub-agent (Claude Code Agent tool) | the dispatched prompt itself | the held sub-agent handle (structural) | all five |
 | **2. Headless CLI** (`fab dispatch start`) | detached `sh -c` wrapper, `setsid` semantics | prompt file on the command's **stdin** | `{stage}.exit` + pid liveness + result file | all five |
-| **3. Interactive pane** (`fab dispatch start --pane`) | a tmux pane running the provider's `interactive_command` — split into the dispatching agent's own window, or a new window when there is no pane to split | prompt **file** + a one-line **pointer** to it, embedded at spawn | **result file** + pane liveness | `running` / `done` / `orphaned` |
+| **3. Interactive pane** (`fab dispatch open`) | a tmux pane running the provider's `interactive_command` — split into the dispatching agent's own window, or a new window when there is no pane to split | prompt **file** + a one-line **pointer** to it, **delivered post-spawn** by the verified send-keys choreography (`fab dispatch deliver`), behind an agent-driven readiness gate | **result file** + pane liveness | `running` / `done` / `orphaned` |
 
 Adapters 2 and 3 are two **modes of the same command family** (`fab dispatch`), sharing its resolution,
 `.fab-dispatch/{id}/` state directory, refuse-if-running concurrency, and the status/kill/reap/clean
@@ -89,12 +102,25 @@ only on fresh dispatches. Scope is **apply inside the rework loop only** — rev
 deliberately never named or continued (reviewer independence), and hydrate and every other stage always
 dispatch fresh. `_preamble.md` § Worker Continuation owns the mechanics.
 
-**The other two adapters carry no continuation.** Adapter 2 (headless CLI) is **deliberately
-non-resumable** — resuming a detached CLI worker would require session-ID persistence and a provider
-`resume_command` grammar, which the contract does not define and no adapter may improvise. Adapter 3
-(interactive pane) is **unchanged here**: a pane worker is steerable by a human but the pipeline never
-sends it keys (§ Steering a pane worker changes no contract), so pipeline-driven pane resume needs its
-own runtime verb and is a separate follow-up change, not an implicit consequence of this amendment.
+**Adapter 3 carries the same capability through a different mechanism; adapter 2 carries none.**
+
+- **Headless CLI (adapter 2) is deliberately non-resumable.** Resuming a detached CLI worker would
+  require session-ID persistence and a provider `resume_command` grammar, which the contract does not
+  define and no adapter may improvise.
+- **Interactive pane (adapter 3) IS resumable** (amendment, `260809-3oz7`). A pane worker never exits on
+  completion — it sits at its prompt — so the worker the native adapter keeps in memory is, here, simply
+  still on screen. Resume is therefore the **same verified delivery step pointed at a different prompt**:
+  the orchestrator writes a continuation prompt under `.fab-dispatch/{id}/` and runs
+  `fab dispatch deliver <change> <stage> --prompt-file <path>`. Every rule tv3g fixed for the native arm
+  carries over unchanged — **apply-only scope** (review workers are never resumed, reviewer independence
+  intact), the **mandatory fresh-dispatch fallback** (a failed delivery re-runs open → gate → deliver, so
+  no protocol guarantee is conditioned on a pane surviving), **profile fixity** (no re-resolution on
+  resume), and obligations 1 and 3 without the context files. The one runtime consequence is **reap
+  timing**: the apply pane must survive to be resumed, so it is reaped when review passes rather than at
+  done-read (§ 3's reap bullet).
+
+The pipeline still never types into a *delivered* worker — resume delivery happens only while the worker
+is `done` and sitting at its prompt, never mid-stage (§ Steering a pane worker changes no contract).
 
 ### 2. Headless CLI adapter — `fab dispatch start` (new in 3c)
 
@@ -118,7 +144,7 @@ POSIX-only in v1.
 > operator enrollment, monitored sets, and the `»`/`›` window markers remain the operator's, never a
 > dispatch's (see § Pane dispatch is not operator enrollment).
 
-### 3. Interactive-pane adapter — `fab dispatch start --pane`
+### 3. Interactive-pane adapter — `fab dispatch open` → `ready` → `deliver`
 
 The **watch-and-steer** path: the worker is an **interactive agent session in a tmux pane** the user
 can read and type into mid-stage. It exists because a detached headless worker is a black box —
@@ -127,6 +153,21 @@ own session is nobody's conversation partner. That asymmetry against the native 
 peek-and-converse richness is the largest capability loss when running a stage cross-provider, and an
 interactive pane is the one interface every agent CLI supports natively, so it recovers both with no
 per-provider integration work.
+
+**This adapter's entry is `fab dispatch open`, not `fab dispatch start`.** Spawning the pane and handing
+the worker its prompt are two separate events with a decision between them, so they are two verbs:
+
+| Verb | Does | Reports |
+|------|------|---------|
+| `fab dispatch open <change> <stage>` | spawns the pane from the composed `interactive_command` **verbatim** and persists the stdin prompt to `{stage}-prompt.md`; delivers **nothing** | `opened <id>/<stage> (…)` |
+| `fab dispatch ready <change> <stage>` | mechanically probes whether the pane accepts typed input | `ready` \| `booting` \| `parked` (+ pane, socket, capture snippet) |
+| `fab dispatch deliver <change> <stage> [--prompt-file <p>]` | types the prompt pointer and verifies it landed | `delivered <id>/<stage> (…)` |
+
+`fab dispatch start` is consequently **headless-only**: it MUST refuse a pane landing (flag or resolved
+preference) with an actionable pointer at `open`, before any state write, rather than silently launching
+headless or opening a promptless pane. `restart` still re-derives its mode; on a pane landing it performs
+the `open` step alone and MUST report that the gate and `deliver` have to follow, because the gate needs
+judgment a binary cannot supply.
 
 Mechanics, all fixed by this spec:
 
@@ -140,7 +181,7 @@ Mechanics, all fixed by this spec:
   label. The shape is a **pure decision** from the dispatching process's own tmux position
   (`$TMUX_PANE`) and whether `--server` was supplied:
   - **Split** (`$TMUX_PANE` set **and** no `--server`) — `tmux split-window {-h -l <n>%|-v} -t <target>
-    -c <dir> "<composed-cmd> <shell-quoted-prompt>"` followed by `tmux select-pane -t <new> -T
+    -c <dir> "<composed-cmd>"` followed by `tmux select-pane -t <new> -T
     fab-{id}-{stage}`. The worker lands **in the dispatching agent's own window**. Placement is a
     **stacked right column**: `-v` (unsized) off the **last live sibling worker pane** in that window
     when one exists (stacking under the newest worker), else `-h -l <n>%` off `$TMUX_PANE` — **carving**
@@ -176,11 +217,10 @@ Mechanics, all fixed by this spec:
     **absent** `.fab-dispatch/` tree is the ordinary first-dispatch case and MUST NOT warn. A tmux
     that rejects `-l <n>%` (pre-3.1) MUST retry the split unsized with a stderr warning. A failed
     title set is likewise **non-fatal** (stderr warning at most): the pane ID is the identity.
-  - **New window** (otherwise) — `tmux new-window -n fab-{id}-{stage} -c <dir> "<composed-cmd>
-    <shell-quoted-prompt>"`, byte-identical to the pre-split behavior. This is the **fallback**, reached
-    when the dispatcher has no pane of its own to split (`$TMUX_PANE` unset — a headless orchestrator
-    passing `--pane`) or when `--server <name>` targets a socket on which the caller's own pane id is
-    meaningless (pane ids are server-global, not global).
+  - **New window** (otherwise) — `tmux new-window -n fab-{id}-{stage} -c <dir> "<composed-cmd>"`. This
+    is the **fallback**, reached when the dispatcher has no pane of its own to split (`$TMUX_PANE` unset
+    — a headless orchestrator running `open`) or when `--server <name>` targets a socket on which the
+    caller's own pane id is meaningless (pane ids are server-global, not global).
 
   This realizes the **two-tier tmux hierarchy**: an operator opens worktree agents as **windows**, and
   each worktree agent's stage workers are **panes beside it** — so a stage worker no longer consumes a
@@ -190,24 +230,56 @@ Mechanics, all fixed by this spec:
 - **Everything downstream is pane-ID keyed and therefore SHAPE-BLIND**: pane liveness, `status`,
   `kill` (killing a split worker's pane leaves the agent's window and any sibling worker intact — plain
   `kill-pane` semantics), `fab pane capture`, and refuse-if-running behave identically in both shapes.
-  Only the `dispatched …` report distinguishes them (`pane %N, split, title fab-…` vs.
+  Only the `opened …` report distinguishes them (`pane %N, split, title fab-…` vs.
   `pane %N, window fab-…`).
-- **Prompt delivery**: the full stage prompt is persisted to `.fab-dispatch/{id}/{stage}-prompt.md` (the
-  same path the headless mode uses) and the worker receives a **one-line pointer** to that path as its
-  single spawn argument, **shell-quoted** per § Spawn Composition's escape rule (the pointer is
-  repo-path-derived, so a `'` in the checkout path must not break out of the argument); the composed
-  command itself is inserted verbatim so its own expansions still apply. A multi-thousand-token prompt
-  cannot ride `send-keys` or argv reliably, and embedding the pointer *at spawn* also sidesteps the
-  printed-prompt trap entirely — there is no pre-existing input buffer to probe.
+- **Prompt delivery is POST-SPAWN and VERIFIED.** The full stage prompt is persisted to
+  `.fab-dispatch/{id}/{stage}-prompt.md` (the same path the headless mode uses) — a
+  multi-thousand-token prompt cannot ride `send-keys` or argv reliably — and the worker is later typed a
+  **one-line pointer** to that path. The composed `interactive_command` reaches tmux **verbatim**: fab
+  appends nothing to it.
+
+  The delivery choreography, run by `fab dispatch deliver`, MUST verify every step that could silently
+  do nothing: confirm readiness → clear the input line → type the pointer → **check it echoed** →
+  Enter → **confirm the screen advanced**. A failed check costs one attempt; there MUST be exactly
+  **one retry**, and a second failure MUST exit non-zero carrying the pane's screen, leaving the record's
+  delivery marker unset so a caller can distinguish "the worker never got its prompt" from "the worker
+  got it and failed at the work". Delivery MUST also clear the previous attempt's result file, so a
+  continuation reads `running` rather than the last cycle's `done` — and MUST restore it when no
+  attempt verifies. A delivery that never landed has superseded nothing, and a record left at
+  `delivered: true` with no result reads `running`, which every recovery verb refuses: the mandatory
+  fresh-dispatch fallback below would need a `kill` step to be executable at all.
+
+  **This supersedes the spawn-time positional pointer** and its rationale that embedding at window
+  creation "sidesteps the printed-prompt trap entirely". Two costs outweighed that: a positional argument
+  is **unverifiable** — a CLI that silently discards it strands a worker at an empty prompt while the
+  dispatch reads `running` — and requiring one made pane capability hostage to an accident of a
+  provider's CLI grammar, so a CLI that parses a bare positional as a subcommand could not have an
+  `interactive_command` at all. The boot race the old rationale avoided is now handled explicitly, by the
+  readiness gate below and the retry above.
+- **The readiness gate stands between `open` and `deliver`, and it is MECHANICAL in the runtime and
+  JUDGMENT in the orchestrator.** `fab dispatch ready` classifies a pane **purely** by typing a sentinel
+  literally (never submitted, always cleared with `C-u`) and reading captures: the sentinel echoed ⇒
+  `ready`; no echo on a blank or still-changing screen ⇒ `booting`; no echo on a stable screen ⇒
+  `parked`. It MUST carry **no table of known dialogs** — dialog text is a version treadmill, and a
+  half-matched pattern pressing Enter into an unknown screen is worse than stalling — and it MUST answer
+  nothing itself. Every non-`ready` report MUST carry the pane, its socket, and a capture snippet,
+  because deciding what a parked screen wants belongs to the orchestrator. All three classifications are
+  a successful observation (the `wait`-timeout precedent); non-zero exit is reserved for real errors.
+  The gate's budget, escalation classes, and login-wall rule are skill-side policy in `_preamble.md`
+  § CLI-Adapter Dispatch, exactly as the recovery policy is.
 - **The pane path has TWO prerequisites — a reachable tmux server and an `interactive_command` on the
-  resolved provider.** Under an explicit `--pane`/`--server`, either missing prerequisite is a hard error
-  with no launch or state write. Under automatic selection, a missing prerequisite skips pane and the
-  fixed ladder continues to native, then headless. Pane command composition is deferred until validation;
+  resolved provider.** `open` selects pane EXPLICITLY, so either missing prerequisite is a hard error
+  with no launch or state write — never a silent descent to headless, which would be the opposite of what
+  that verb's caller asked for. Under `restart`'s automatic selection, a missing prerequisite skips pane
+  and the fixed ladder continues to native, then headless. Pane command composition is deferred until validation;
   a failed real tmux probe re-runs selection with `pane unavailable: tmux unreachable`. Headless performs
   no tmux probe. Command fields never substitute for one another: each rung composes only its own grammar.
 - **Mode selection = explicit overrides, then a preference ceiling**, resolved per invocation inside
   `fab dispatch start`/`restart` through the same pure selector used by `fab resolve-agent`. In order,
-  `--pane` ⇒ pane; `--headless` ⇒ headless; `--timeout` ⇒ headless; `--server` ⇒ pane. With no signal,
+  `--pane` ⇒ pane; `--headless` ⇒ headless; `--timeout` ⇒ headless; `--server` ⇒ pane. (`start` no longer
+  accepts the two pane signals and refuses a pane landing outright; `open` needs none of them, being the
+  pane verb itself. The ladder is therefore `restart`'s, and `start`'s means of detecting a landing it
+  must hand off.) With no signal,
   start at `dispatch.mode` (default `native`) and descend only through `pane → native → headless`:
   pane needs tmux + `interactive_command`, native needs `native: true`, headless needs `headless_command`.
   Automatic selection never ascends. A native result is not launchable by `fab dispatch`; it errors
@@ -230,15 +302,18 @@ Mechanics, all fixed by this spec:
   - `mode: headless (descended: pane unavailable: tmux unreachable; native unavailable)`
   - `mode: headless (descended: pane unavailable: no interactive_command; native unavailable)`
 - **No timeout**: `--timeout` is enforced by the headless `sh -c` wrapper (POSIX `timeout`), which pane
-  mode never constructs, so `--pane --timeout` is a **usage error** rather than a silently unenforced
-  bound.
+  mode never constructs, so no pane entry accepts one — `open` does not register the flag at all, and on
+  `restart` the pair remains a usage error rather than a silently unenforced bound.
 - **The done worker's lifecycle ends in an OPTIONAL, orchestrator-invoked reap.** A pane worker never
   exits on completion — it writes its result file and sits at its prompt, deliberately, so it stays
   steerable — so across a multi-stage pipeline the carved worker column accumulates finished panes that
   hold their space indefinitely, shrinking the panes the user actually watches with every completed
-  stage. The adapter therefore permits a **`fab dispatch reap <change> <stage>`** at the one
-  deterministic moment the protocol already has: immediately after the orchestrator reads a `done`
-  result. Reap MUST act only when the record is pane-mode **and** the derived state is `done` **and**
+  stage. The adapter therefore permits a **`fab dispatch reap <change> <stage>`** at a deterministic
+  moment the protocol already has. That moment is **stage-aware**: for every stage except **apply** it is
+  immediately after the orchestrator reads a `done` result, while the **apply** pane MUST survive its own
+  `done` — it is the resume target across rework cycles — and is reaped when **review passes**, or when
+  the pipeline stops or escalates past apply for good. Reap MUST act only when the record is pane-mode
+  **and** the derived state is `done` **and**
   the `dispatch.reap_done` policy (default *true*) allows it; every other case MUST be a reported no-op,
   never an error. It MUST NOT be reachable from any non-`done` state — that separates it from `kill`,
   the recovery verb (§ Recovery is orchestrator policy over these states) — and it MUST remove **no**
@@ -397,12 +472,23 @@ orchestrator MAY and MUST NOT do over the existing states:
   an orchestrator MAY judge an individual failure transient from its evidence. `failed (no-result)` is a
   **contract violation** and MUST always escalate to a human: retrying a worker that ignores the result
   obligation cannot fix it.
-- **The pipeline's verbs are read-only-peek, kill, restart, notify, stop, reap — never input
-  injection.** An orchestrator MAY read a worker's evidence (`fab dispatch logs` headless /
+- **The pipeline's verbs against a WORKER are read-only-peek, kill, restart, notify, stop, reap — never
+  input injection.** An orchestrator MAY read a worker's evidence (`fab dispatch logs` headless /
   `fab pane capture` pane) to tell a progressing worker from a parked one, and MUST escalate rather than
   answer when a worker is waiting on genuine human input. Typing into a worker is the human's and the
   operator's affordance: a pipeline-side input channel would fork this contract, since the native
   adapter has no such channel at all.
+
+  **Bounded carve-out — the pre-delivery pane** (amendment, `260809-3oz7`). Between `fab dispatch open`
+  and a **successful** `fab dispatch deliver`, the pane is **not yet a dispatched worker**: it holds no
+  stage context, so there is nothing a keystroke could corrupt and the rule has no subject. In that
+  window the orchestrator MAY send keys to the pane — the readiness gate's judgment rounds, answering a
+  trust dialog, a survey, or a first-run picker — and `fab dispatch ready` / `fab dispatch deliver` are
+  the sanctioned mechanical senders. **From successful delivery onward the rule above applies unchanged**:
+  a wall that appears mid-stage MUST escalate, never be answered. The gate's round budget and its
+  never-answer classes (credential and login walls) are skill-side policy in `_preamble.md`
+  § CLI-Adapter Dispatch, and a **resume** delivery is not an exception to the rule — it targets a
+  `done` worker sitting at its prompt, never a running one.
 - **Reap is hygiene, not recovery, and belongs to the success path.** `reap` (§ 3) appears in the verb
   set above but takes no part in this policy: it fires **only** on `done` and MUST NOT terminate a
   `running`, `orphaned`, `failed`, or `failed (no-result)` dispatch, so it can never stand in for the
@@ -427,7 +513,8 @@ The pane mode's reason for existing is that a human MAY converse with the worker
   epilogue, and still runs **no `fab status` transition command** — the orchestrator owns every
   transition, exactly as for the other two adapters.
 - Steering is human input into a worker's context, no different in kind from answering a native
-  sub-agent's question mid-run.
+  sub-agent's question mid-run. It is distinct from the **pre-delivery** keystrokes the readiness gate
+  may send (§ Recovery → *Bounded carve-out*), which reach a pane that is not yet a worker.
 - A worker steered *away* from producing a result needs no new failure state: it simply never reaches
   `done`, and surfaces through the never-`done` escalation an orchestrator already owns.
 
@@ -522,10 +609,10 @@ ladder select the adapter. What selects it is therefore the **config** a dispatc
 `dispatch.mode`, a depth knob (`agent.workers`/`agent.session`) or
 `agent.profiles.<role>.provider`, plus the `providers:` capability table — not command presence or an
 invocation flag. An invocation-time `fab resolve-agent <stage> --provider <name>` override
-(`260805-j3cm`) binds the **native adapter only**: `fab dispatch start` accepts no override flags and
-re-resolves the stage from config itself, so an overridden profile never reaches either `fab dispatch` mode
-(the headless mode would compose — or fail on the absence of — the *unoverridden* provider's
-`headless_command`, and `--pane` the unoverridden provider's `interactive_command`). Dispatch sites still
+(`260805-j3cm`) binds the **native adapter only**: `fab dispatch start`/`open` accept no override flags
+and re-resolve the stage from config themselves, so an overridden profile never reaches either
+`fab dispatch` mode (the headless mode would compose — or fail on the absence of — the *unoverridden*
+provider's `headless_command`, and `open` the unoverridden provider's `interactive_command`). Dispatch sites still
 re-read the resolved `dispatch=` line after an override — the branch rule is unchanged (it has always keyed
 on `dispatch=` presence) — but a `dispatch=` line that appears *only* because of an override is **not
 actionable**, and the two remedies are **not interchangeable**: dispatching that stage natively with the

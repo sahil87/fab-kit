@@ -1045,11 +1045,15 @@ func TestResolveProvider(t *testing.T) {
 //
 // An empty `session` likewise ASSERTS the absence of an interactive_command. agy and kimi
 // are DISPATCH-ONLY built-ins: an interactive_command makes a provider eligible for
-// pane-mode dispatch, which appends the worker's pointer prompt as a POSITIONAL
-// argument, and neither CLI can receive a prompt that way (kimi parses a bare
-// positional as a subcommand and exits non-zero; agy drops it silently and
-// trust-prompts a fresh workspace). With none, auto-mode dispatch soft-falls back to
-// headless instead of parking a pane worker at an empty prompt.
+// pane-mode dispatch, and what is unprobed for these two is their interactive
+// FIRST-RUN behavior and input echo — not their prompt grammar, since fab appends
+// nothing to the command and types a pane worker's pointer in afterwards. agy gates
+// a fresh workspace behind a trust prompt even under --dangerously-skip-permissions
+// (and worktree-per-change makes every dispatch a fresh workspace), which parks a
+// worker before the readiness gate can deliver to it; kimi's first run has not been
+// checked against the delivery choreography at all. Backlog [agik] owns the probe
+// and the roster flip. With none, mode resolution descends to headless instead of
+// parking a pane worker.
 func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 	cases := []struct {
 		name string
@@ -1087,7 +1091,7 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 		}
 		if prov.InteractiveCommand != c.session {
 			if c.session == "" {
-				t.Errorf("%s.InteractiveCommand = %q, want absent — %s cannot receive a pane worker's pointer prompt as a positional argument, so shipping one would select pane dispatch and park the stage", c.name, prov.InteractiveCommand, c.name)
+				t.Errorf("%s.InteractiveCommand = %q, want absent — %s's interactive first run is unprobed against the pane-delivery choreography, so shipping one would select pane dispatch and park the stage (backlog [agik])", c.name, prov.InteractiveCommand, c.name)
 			} else {
 				t.Errorf("%s.InteractiveCommand = %q, want %q", c.name, prov.InteractiveCommand, c.session)
 			}

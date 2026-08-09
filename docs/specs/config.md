@@ -323,8 +323,8 @@ using stdlib `encoding/json` only (no new dependencies). Each element is a per-f
   its independent `interactive_command`, `headless_command`, and `native` capabilities (omitted when
   unavailable, so each block shows exactly what it ships): claude all three, codex both commands
   without native, and `agy`/`kimi` a `headless_command` alone — they are **dispatch-only** built-ins (`260808-rpsr`), since an `interactive_command` also confers
-  pane-mode eligibility and pane dispatch delivers the stage prompt as a positional argument neither
-  CLI can accept. Every entry carries **no** `model`/`effort` — see § Default semantics.
+  pane-mode eligibility and neither CLI's interactive first-run has been probed against the pane
+  readiness gate (backlog `[agik]`). Every entry carries **no** `model`/`effort` — see § Default semantics.
 - `renamed_from` is omitted when empty (`omitempty`), so it appears on the `agent.profiles` object only.
 - Output is deterministic and byte-stable, like the commented-YAML rendering — the table is ordered and
   the marshalling is stable.

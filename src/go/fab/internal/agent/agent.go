@@ -151,12 +151,14 @@ var DefaultHeadlessCommand = defaultProviders[DefaultProviderName].HeadlessComma
 // capability; dispatch.mode resolves the adapter independently of command presence.
 //
 // Only codex carries a non-claude INTERACTIVE command. agy and kimi deliberately
-// ship none: an interactive_command is the pane capability, and pane-mode dispatch
-// hands the worker its pointer prompt as a positional argument to that command,
-// which neither CLI can receive (kimi reads a bare positional as a subcommand and
-// exits non-zero; agy drops it silently and trust-prompts a fresh workspace).
-// Without one they have no pane capability, so mode resolution lands their
-// stages on headless. See defaults.yaml's providers-block note.
+// ship none, so they have no pane capability and mode resolution lands their
+// stages on headless. The field itself is pure launch grammar — fab appends
+// nothing to it and delivers a pane worker's prompt afterwards through the
+// verified send-keys choreography — so what remains to be probed per provider is
+// FIRST-RUN behavior and input echo: agy trust-prompts a fresh workspace even
+// under --dangerously-skip-permissions, and kimi's interactive first run is
+// simply unprobed against that choreography. Backlog [agik] owns the probe and
+// the roster flip. See defaults.yaml's providers-block note.
 //
 // These are the canonical names internal/configref interpolates into the rendered
 // reference, so the reference text carries no literal copy (the same

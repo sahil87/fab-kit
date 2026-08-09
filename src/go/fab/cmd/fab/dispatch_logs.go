@@ -39,7 +39,7 @@ func runDispatchLogs(cmd *cobra.Command, changeArg, stage string, tail int) erro
 	}
 
 	if rec, lerr := dispatch.Load(dir, stage); lerr == nil && rec.IsPane() {
-		return fmt.Errorf("%s/%s is a --pane dispatch and keeps no log file (an interactive worker's output is tmux scrollback); read it with `%s`",
+		return fmt.Errorf("%s/%s is a pane dispatch and keeps no log file (an interactive worker's output is tmux scrollback); read it with `%s`",
 			changeArg, stage, paneCaptureHint(rec.Server, rec.Pane))
 	}
 

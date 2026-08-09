@@ -565,12 +565,14 @@ func TestAgentProviderBuiltinCodexNoConfig(t *testing.T) {
 // gets (TestAgentProviderNoInteractiveCommandErrors), reached here from the SHIPPED
 // table rather than project config.
 //
-// agy and kimi ship no interactive_command on purpose (260808-rpsr): a pane-mode worker
-// receives its pointer prompt as a POSITIONAL argument to that command, and neither
-// CLI can take a prompt that way — kimi parses a bare positional as a subcommand and
-// exits non-zero, agy drops it silently and trust-prompts a fresh workspace. The
-// error is the documented path to an interactive session: add
-// providers.<name>.interactive_command yourself, accepting the pane caveat.
+// agy and kimi ship no interactive_command on purpose (260808-rpsr) — not because of
+// prompt grammar (fab appends nothing to the command and types a pane worker's
+// pointer in afterwards) but because their interactive FIRST-RUN behavior and input
+// echo are unprobed against the delivery choreography: agy trust-prompts a fresh
+// workspace even under --dangerously-skip-permissions, and kimi has not been checked
+// at all. Backlog [agik] owns the probe. The error is the documented path to an
+// interactive session: add providers.<name>.interactive_command yourself, accepting
+// the unprobed-provider caveat.
 func TestAgentProviderDispatchOnlyBuiltInsError(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 

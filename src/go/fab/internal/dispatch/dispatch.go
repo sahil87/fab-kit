@@ -139,6 +139,21 @@ type Dispatch struct {
 	// for the default socket. Persisted so status/kill reach the same server the
 	// start reached, without the caller re-supplying --server.
 	Server string `yaml:"server,omitempty"`
+	// Delivered records that a pane worker has been handed its prompt by
+	// `fab dispatch deliver`. `open` spawns the pane WITHOUT a prompt, so the two
+	// steps are separate events and the record has to carry which one has
+	// happened.
+	//
+	// It is BOOKKEEPING, not a state: the five-state machine and the pane
+	// three-state derivation (DerivePaneState) never consult it. It exists so
+	// `deliver` can tell an undelivered pane from a mid-stage worker (the
+	// no-input-injection guard) and so `status --json` can report which half of
+	// the open/deliver pair a pane dispatch is in.
+	//
+	// `omitempty` makes ABSENCE mean "not delivered", which is both the correct
+	// reading for a record written by `open` and what keeps every headless
+	// record's bytes unchanged.
+	Delivered bool `yaml:"delivered,omitempty"`
 }
 
 // IsPane reports whether this record describes an interactive pane dispatch. The
@@ -432,41 +447,28 @@ func DerivePaneState(resultPresent, paneAlive bool) State {
 	return StateOrphaned
 }
 
-// PointerPrompt composes the one-line prompt a pane worker receives at spawn.
+// PointerPrompt composes the one-line prompt a pane worker is handed by
+// `fab dispatch deliver`.
 //
 // The FULL stage prompt is never delivered through tmux: a multi-thousand-token
-// prompt cannot ride send-keys or argv reliably, so `start` persists it to
+// prompt cannot ride send-keys or argv reliably, so `open` persists it to
 // {stage}-prompt.md (the same path and writer the headless path uses) and the
-// worker gets a pointer to that path instead. Embedding the pointer at window
-// creation — as the interactive command's single quoted prompt argument, per
-// `_cli-agents.md` § Spawn Composition — also sidesteps the printed-prompt trap
-// entirely: there is no pre-existing input buffer to probe when the window is
-// created with its prompt already attached.
+// worker is later typed a pointer to that path instead.
 //
-// promptPath should be REPO-RELATIVE: the window's cwd is the repo root, and a
+// The pointer is DELIVERED POST-SPAWN, not embedded in the launch command. A
+// spawn-time positional argument is fire-and-forget and unverifiable — a
+// provider CLI that silently drops it leaves a worker sitting at an empty prompt
+// while the dispatch reads `running` — and requiring one made pane capability
+// hostage to whether a provider's CLI happens to accept a positional prompt.
+// Typing it through the gate's send-keys choreography makes delivery a VERIFIED
+// step (echo-checked, submit-confirmed, retried once) and leaves
+// interactive_command as pure launch grammar. See docs/specs/harness-adapters.md
+// § 3.
+//
+// promptPath should be REPO-RELATIVE: the pane's cwd is the repo root, and a
 // relative path keeps the pointer readable and portable across worktrees.
 func PointerPrompt(promptPath string) string {
 	return "Read " + promptPath + " and execute it."
-}
-
-// WindowCommand composes the tmux new-window shell-command argument for a pane
-// dispatch: the resolved session command followed by the pointer prompt as its
-// single QUOTED argument (the `_cli-agents.md` § Spawn Composition form).
-//
-// The pointer is shell-quoted rather than wrapped in bare single quotes, because
-// the prompt path is derived from the repository path and a repo checked out
-// under a directory containing a single quote (`/home/me/sahil's-repo/...`) would
-// otherwise terminate the quoted argument early — breaking the new-window command
-// and letting the remainder of the path be interpreted by the window's shell.
-// § Spawn Composition states the rule directly ("shell-escape any user-supplied
-// text before embedding it"); this is the one place pane mode embeds such text.
-//
-// resolvedCmd is inserted VERBATIM, per the resolver's pass-through philosophy:
-// it is the provider's own interactive_command and carries deliberate shell
-// expansions (e.g. `$(basename "$(pwd)")` in the built-in claude default) that
-// must expand inside the new window.
-func WindowCommand(resolvedCmd, pointer string) string {
-	return resolvedCmd + " " + shellQuote(pointer)
 }
 
 // Tail returns the last n lines of data (Go-side, no external `tail`). n <= 0

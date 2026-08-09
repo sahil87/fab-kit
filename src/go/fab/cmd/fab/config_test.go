@@ -448,8 +448,8 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 
 	// agy and kimi are DISPATCH-ONLY: each block's first key is headless_command,
 	// with no interactive_command line above it. A reader who uncomments the block must
-	// not be handed a pane-eligible provider — pane dispatch appends the pointer
-	// prompt as a positional argument, which neither CLI can receive.
+	// not be handed a pane-eligible provider — neither CLI's interactive first run has
+	// been probed against the pane-delivery choreography (backlog [agik]).
 	for _, name := range []string{"agy", "kimi"} {
 		if !strings.Contains(out, "  # "+name+":\n  #   headless_command: ") {
 			t.Errorf("the %s block must open directly on headless_command (dispatch-only built-in)", name)

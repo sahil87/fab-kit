@@ -100,8 +100,11 @@ func runPaneCapture(cmd *cobra.Command, args []string) error {
 // capturePaneArgs returns the tmux capture-pane argument list for the given pane and line count.
 // It uses -S -N to capture the last N lines from the pane's scrollback buffer.
 // When server is non-empty, the argv is prepended with `-L <server>`.
+//
+// The builder itself lives in internal/pane, shared with the dispatch readiness
+// probe and delivery choreography; this is the cobra-layer name its tests use.
 func capturePaneArgs(server, paneID string, lines int) []string {
-	return pane.WithServer(server, "capture-pane", "-t", paneID, "-p", "-S", fmt.Sprintf("-%d", lines))
+	return pane.CaptureArgs(server, paneID, lines)
 }
 
 // capturePaneContent runs tmux capture-pane and returns the captured text
@@ -109,11 +112,7 @@ func capturePaneArgs(server, paneID string, lines int) []string {
 // failure the error names the pane and carries tmux's stderr diagnostic.
 // When server is non-empty, the tmux invocation is scoped via `-L <server>`.
 func capturePaneContent(server, paneID string, lines int) (string, error) {
-	out, stderr, err := pane.RunCmd("tmux", capturePaneArgs(server, paneID, lines)...)
-	if err != nil {
-		return "", pane.StderrError(fmt.Errorf("pane %s: %w", paneID, err), stderr)
-	}
-	return out, nil
+	return pane.Capture(server, paneID, lines)
 }
 
 // printCaptureHeader prints the human-readable header block.

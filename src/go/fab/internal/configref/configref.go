@@ -704,12 +704,13 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# Claude carries all three capabilities; codex carries pane + headless and\n" +
 		"# therefore descends from the default native preference to headless. agy and kimi\n" +
 		"# ship NO interactive_command — they are DISPATCH-ONLY built-ins with no pane\n" +
-		"# capability: pane dispatch hands the worker its pointer prompt as a positional\n" +
-		"# argument, and neither CLI can receive a prompt that way (see their notes\n" +
-		"# below) — so mode resolution lands their stages on headless. Add\n" +
-		"# providers.<name>.interactive_command yourself if you want `fab agent --provider agy`\n" +
-		"# to open an interactive session, accepting that pane-dispatched stages will not\n" +
-		"# receive their prompt.\n" +
+		"# capability, so mode resolution lands their stages on headless.\n" +
+		"# interactive_command is pure LAUNCH GRAMMAR: fab appends nothing to it, and a\n" +
+		"# pane worker's stage prompt is delivered afterwards by `fab dispatch deliver`,\n" +
+		"# which types a pointer through tmux and verifies it landed. What still has to be\n" +
+		"# probed per provider is FIRST-RUN behavior and input echo (see their notes\n" +
+		"# below). Add providers.<name>.interactive_command yourself to opt that provider\n" +
+		"# into interactive sessions and pane dispatch ahead of that probe.\n" +
 		"#\n" +
 		"# Per-provider notes (kept out of the blocks below so uncommenting a whole block\n" +
 		"# yields valid YAML — strip the leading '# ' from every line of a block):\n" +
@@ -723,18 +724,18 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#     a shell — POSIX expands $(cat) before fab dispatch's stdin redirect applies,\n" +
 		"#     making the inner sh's stdin the prompt. --print-timeout is raised well above\n" +
 		"#     its 5m default because stage workers run far longer. No interactive_command:\n" +
-		"#     agy silently DROPS a positional prompt (its TUI starts empty) and gates a\n" +
-		"#     fresh workspace behind an interactive trust prompt even under\n" +
-		"#     --dangerously-skip-permissions, so a pane worker would never see its prompt.\n" +
+		"#     agy gates a FRESH WORKSPACE behind an interactive trust prompt even under\n" +
+		"#     --dangerously-skip-permissions, and worktree-per-change makes every dispatch\n" +
+		"#     a fresh workspace, so a pane worker parks before it can be delivered to.\n" +
 		"#   kimi — the kimi-code CLI, and the one built-in shipping NO fills: its -m takes\n" +
 		"#     a USER-CONFIG model alias rather than a catalog ID, so a pinned value would\n" +
 		"#     break non-managed installs. The empty model drops `-m` and kimi falls back to\n" +
 		"#     your own default_model; pin one with providers.kimi.profiles.<role>.model if\n" +
 		"#     you want per-role differentiation. Same nested-shell stdin idiom as agy, and\n" +
 		"#     no approval flag on dispatch: `kimi -p` already auto-approves tools and\n" +
-		"#     REJECTS --yolo/--auto. No interactive_command either: kimi parses a bare\n" +
-		"#     positional as a SUBCOMMAND and exits non-zero, and has no\n" +
-		"#     interactive-initial-prompt flag at all.\n" +
+		"#     REJECTS --yolo/--auto. No interactive_command either — its interactive\n" +
+		"#     first-run and input echo have not been probed against the pane-delivery\n" +
+		"#     choreography.\n" +
 		"# The bypass flags are deliberate: unattended stage workers cannot answer approval\n" +
 		"# prompts. Override the corresponding provider command to restore an\n" +
 		"# approval-gated posture.\n" +

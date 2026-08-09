@@ -218,7 +218,7 @@ checklist:
 # Provider capability grammar (top-level). Each provider maps an opaque, user-chosen
 # name to independent interactive_command, headless_command, and native capabilities.
 # interactive_command opens an interactive agent
-# SESSION (fab operator / fab batch / fab agent — and `fab dispatch start --pane`,
+# SESSION (fab operator / fab batch / fab agent — and `fab dispatch open`,
 # the interactive-pane stage adapter); headless_command runs ONE
 # headless STAGE task via `fab dispatch` (which pipes the stage prompt to the
 # command's STDIN). native:true records an Agent-tool seam. Capability presence
@@ -237,8 +237,8 @@ checklist:
 # pin a newer model with providers.<name>.profiles.<role>.model. Claude ships
 # session, native, and headless capabilities; codex ships both command fields
 # without native capability; agy and kimi ship headless capability ONLY (no
-# interactive_command — pane dispatch delivers the prompt pointer as a positional
-# argument neither CLI accepts). Under the default mode, claude resolves native
+# interactive_command — their interactive first-run behavior is unprobed against the
+# pane readiness gate; backlog [agik]). Under the default mode, claude resolves native
 # while the non-claude built-ins descend to headless.
 # (Automated PR reviewer toggles moved to code-review.md § Review Tools — absent = enabled.)
 # Per-provider notes (kept out of the blocks below so uncommenting a whole block
@@ -248,14 +248,15 @@ checklist:
 # workers cannot answer approval prompts; override a provider command to restore
 # approvals. kimi's dispatch form carries no approval flag at all: kimi -p already
 # auto-approves tools and errors when combined with --yolo.
-# Only claude and codex ship an interactive_command — agy and kimi are DISPATCH-ONLY. A
-# interactive_command also confers PANE-mode eligibility, and pane dispatch appends the
-# stage prompt file's pointer as a POSITIONAL argument that neither CLI can accept
-# (kimi reads it as an unknown subcommand and exits; agy drops it silently and
-# trust-prompts a fresh workspace), so shipping one would park every tmux-dispatched
-# stage. With none, automatic resolution skips the pane rung and descends to headless
-# and explicit --pane hard-errors. Add providers.<name>.interactive_command yourself for
-# an interactive session, accepting that pane-dispatched stages lose their prompt.
+# Only claude and codex ship an interactive_command — agy and kimi are DISPATCH-ONLY. An
+# interactive_command also confers PANE-mode eligibility, and it is pure launch grammar:
+# fab appends nothing to it, and a pane worker's prompt is typed in afterwards by
+# `fab dispatch deliver`. What is unprobed for agy and kimi is FIRST-RUN behavior — agy
+# trust-prompts a fresh workspace even under --dangerously-skip-permissions, and
+# worktree-per-change makes every dispatch one — so with none, automatic resolution
+# skips the pane rung and descends to headless and an explicit `fab dispatch open`
+# hard-errors. Add providers.<name>.interactive_command yourself to opt in ahead of
+# backlog [agik]'s probe.
 # Codex's -m takes a concrete model SLUG, so its shipped fills are pinned IDs.
 # agy carries no {effort} — its model IDs embed the reasoning level as a suffix, so
 # its fills carry none either. agy and kimi both take the prompt as the -p ARGUMENT

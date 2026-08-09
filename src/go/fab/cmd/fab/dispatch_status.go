@@ -32,16 +32,21 @@ func dispatchStatusCmd() *cobra.Command {
 // byte-identical to the pre-pane-mode shape apart from the added `mode` key —
 // this surface's documented contract is additive evolution with no
 // schema_version.
+// Delivered is pane-only and a POINTER so `false` is reportable: a pane dispatch
+// is opened and delivered to in two steps, and "opened but not yet delivered" is
+// exactly the case a consumer needs to see. A plain bool with omitempty would
+// erase it. It is bookkeeping, never a state — `state` is derived without it.
 type dispatchStatusJSON struct {
-	Change string `json:"change"`
-	Stage  string `json:"stage"`
-	State  string `json:"state"`
-	Mode   string `json:"mode"`
-	PID    int    `json:"pid,omitempty"`
-	PGID   int    `json:"pgid,omitempty"`
-	Pane   string `json:"pane,omitempty"`
-	Window string `json:"window,omitempty"`
-	Exit   *int   `json:"exit,omitempty"`
+	Change    string `json:"change"`
+	Stage     string `json:"stage"`
+	State     string `json:"state"`
+	Mode      string `json:"mode"`
+	PID       int    `json:"pid,omitempty"`
+	PGID      int    `json:"pgid,omitempty"`
+	Pane      string `json:"pane,omitempty"`
+	Window    string `json:"window,omitempty"`
+	Delivered *bool  `json:"delivered,omitempty"`
+	Exit      *int   `json:"exit,omitempty"`
 }
 
 func runDispatchStatus(cmd *cobra.Command, changeArg, stage string, jsonFlag bool) error {
@@ -69,7 +74,7 @@ func loadDispatchRecord(dir, changeArg, stage string) (*dispatch.Dispatch, error
 	rec, err := dispatch.Load(dir, stage)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("no dispatch for %s/%s (run `fab dispatch start` first)", changeArg, stage)
+			return nil, fmt.Errorf("no dispatch for %s/%s (run `fab dispatch start` for a headless worker, or `fab dispatch open` for a pane worker, first)", changeArg, stage)
 		}
 		return nil, err
 	}
@@ -102,6 +107,8 @@ func observeDispatch(dir, id, stage string, rec *dispatch.Dispatch) (dispatchSta
 		)
 		out.Pane = rec.Pane
 		out.Window = rec.Window
+		delivered := rec.Delivered
+		out.Delivered = &delivered
 	} else {
 		exitPresent, exitCode, err := dispatch.ReadExit(dir, stage)
 		if err != nil {

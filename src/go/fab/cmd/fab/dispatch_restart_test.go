@@ -509,12 +509,24 @@ func TestDispatchRestart_PaneMode_Integration(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = tmux("kill-server") })
 
-	out, err := runRestart(t, "abcd", "apply", "--pane", "--server", server)
+	stdout, stderr, err := runRestartCapturingStderr(t, "abcd", "apply", "--pane", "--server", server)
 	if err != nil {
 		t.Fatalf("pane restart failed: %v", err)
 	}
-	if !strings.Contains(out, "dispatched abcd/apply") || !strings.Contains(out, "pane ") {
-		t.Errorf("output = %q, want a dispatched line naming the pane", out)
+	// A pane landing is only HALF a relaunch — the pane exists, the prompt has not
+	// been handed over — so the report says `opened`, and the missing half is named
+	// on stderr. `restart`'s caller asked for a full relaunch, so it is told; the
+	// `open` verb's caller is not, because its own name already says so.
+	if !strings.Contains(stdout, "opened abcd/apply") || !strings.Contains(stdout, "pane ") {
+		t.Errorf("stdout = %q, want an opened line naming the pane", stdout)
+	}
+	if strings.Contains(stdout, "dispatched") {
+		t.Errorf("stdout = %q, must not claim the stage was dispatched before delivery", stdout)
+	}
+	for _, want := range []string{"fab dispatch ready", "fab dispatch deliver"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr = %q, want the hand-back note naming %q", stderr, want)
+		}
 	}
 
 	rec, err := dispatch.Load(dir, "apply")
@@ -524,8 +536,12 @@ func TestDispatchRestart_PaneMode_Integration(t *testing.T) {
 	if !rec.IsPane() || rec.Pane == "%999" {
 		t.Fatalf("record should name the NEW pane, got %+v", *rec)
 	}
+	if rec.Delivered {
+		t.Error("a restarted pane must record as NOT delivered — the gate and deliver still have to run")
+	}
 
-	// The persisted prompt was reused untouched, and only the pointer rode tmux.
+	// The persisted prompt was reused untouched, and NOTHING rode tmux: the pane
+	// holds neither the prompt body nor a pointer until `deliver` types one.
 	promptData, err := os.ReadFile(dispatch.PromptPath(dir, "apply"))
 	if err != nil {
 		t.Fatalf("read prompt: %v", err)
@@ -537,11 +553,8 @@ func TestDispatchRestart_PaneMode_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("capture pane: %v", err)
 	}
-	if !strings.Contains(captured, ".fab-dispatch/"+id+"/apply-prompt.md") {
-		t.Errorf("pane received %q, want the pointer naming the prompt file", captured)
-	}
-	if strings.Contains(captured, "line two") {
-		t.Errorf("pane received prompt BODY content (%q); only the pointer may be delivered", captured)
+	if strings.Contains(captured, ".fab-dispatch/") || strings.Contains(captured, "line two") {
+		t.Errorf("pane received %q, want nothing — a restarted pane is delivered to separately", captured)
 	}
 }
 
@@ -609,10 +622,10 @@ func TestDispatchRestart_StacksInTheWorkerColumn_Integration(t *testing.T) {
 
 	tmuxScoped, dispatcherPane := startPrivateTmuxWithPane(t)
 
-	// The live sibling: a genuine `start` for the OTHER `doing`-role stage, which
+	// The live sibling: a genuine `open` for the OTHER `doing`-role stage, which
 	// carves the column. (Only the doing role points at the fixture's `cli` provider,
 	// so a stage outside it would launch the real claude CLI.)
-	if _, err := runStart(t, "apply prompt", "abcd", "apply"); err != nil {
+	if _, err := runOpen(t, "apply prompt", "abcd", "apply"); err != nil {
 		t.Fatalf("sibling dispatch failed: %v", err)
 	}
 	sibling, err := dispatch.Load(dir, "apply")
@@ -679,8 +692,8 @@ func TestDispatchRestart_PaneRefuseHonorsTheResultFile(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = tmux("kill-server") })
 
-	if _, err := runStart(t, "first prompt", "abcd", "apply", "--pane", "--server", server); err != nil {
-		t.Fatalf("seed pane start failed: %v", err)
+	if _, err := runOpen(t, "first prompt", "abcd", "apply", "--server", server); err != nil {
+		t.Fatalf("seed pane open failed: %v", err)
 	}
 	first, err := dispatch.Load(dir, "apply")
 	if err != nil {

@@ -10,36 +10,53 @@ import (
 )
 
 // dispatchCmd is the parent of the stage-worker process-manager command family:
-// `fab dispatch <start|restart|status|wait|logs|kill|reap|clean> [args...]`. It is
-// the CLI adapter for cross-harness stage dispatch, in two launch modes — a detached
-// headless process or an interactive tmux window — resolved per invocation by
-// dispatch.SelectMode. `restart` is the recovery verb: it relaunches a non-running
-// dispatch from the prompt `start` persisted, sharing `start`'s entire launch path.
-// `wait` is `status`'s blocking sibling: it re-derives the same state on an
+// `fab dispatch <start|open|ready|deliver|restart|status|wait|logs|kill|reap|clean>
+// [args...]`. It is the CLI adapter for cross-harness stage dispatch, in two launch
+// modes — a detached headless process or an interactive tmux pane.
+//
+// The two modes have SEPARATE ENTRY VERBS, because they hand a worker its prompt
+// in fundamentally different ways. `start` launches headless, piping the prompt on
+// stdin: one step, no ambiguity. Pane mode takes three — `open` (spawn the pane,
+// deliver nothing), `ready` (a mechanical echo probe the orchestrator loops over,
+// answering any first-run wall itself), `deliver` (type the prompt pointer and
+// verify it landed) — because a freshly spawned agent TUI may be booting or parked
+// behind a trust dialog, and answering one is judgment the binary cannot do.
+//
+// `restart` is the recovery verb: it relaunches a non-running dispatch from the
+// persisted prompt over `start`'s launch path, re-deriving the mode from the
+// current environment; a pane landing performs the `open` step and hands the gate
+// back. `wait` is `status`'s blocking sibling: it re-derives the same state on an
 // internal tick so an orchestrator can be woken by a state change instead of
 // polling for one. `reap` is the hygiene verb: it reclaims a DONE pane worker's
-// tmux pane and is a reported no-op in every other case (distinct from `kill`, the
+// tmux pane and is a reported no-op for every other dispatch (distinct from `kill`, the
 // recovery verb, which is valid in any state). The family is parallel to, and
 // independent of, `fab pane` / `fab operator` (which stay the operator's interactive
 // path). See docs/specs/harness-adapters.md for the cross-adapter contract.
 func dispatchCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dispatch",
-		Short: "Process manager for CLI-dispatched pipeline stages (headless or tmux-window worker)",
+		Short: "Process manager for CLI-dispatched pipeline stages (headless or tmux-pane worker)",
 		Long: "Process manager for CLI-dispatched stage workers:\n" +
-			"start/restart/status/wait/logs/kill/reap/clean.\n" +
-			"`start` resolves its launch mode per invocation — a detached headless process\n" +
-			"(tmux-independent) or an interactive tmux window — defaulting to auto: a window\n" +
-			"inside tmux, headless outside. `restart` relaunches a non-running dispatch from\n" +
-			"the persisted prompt, re-deriving the mode from the current environment. `status`\n" +
-			"is the one-shot probe; `wait` blocks until the state leaves `running` so a poll\n" +
-			"loop becomes a single wake-up. `reap` reclaims a done pane worker's pane (never a\n" +
-			"live one, and no state files). Tracks the worker under .fab-dispatch/{id}/ and\n" +
-			"exposes a byte-stable poll surface. The headless launch is POSIX-only (v1).",
+			"start/open/ready/deliver/restart/status/wait/logs/kill/reap/clean.\n\n" +
+			"The two launch modes have separate entries. `start` launches a detached\n" +
+			"HEADLESS worker with the prompt on stdin. PANE mode takes three steps —\n" +
+			"`open` spawns the pane without a prompt, `ready` probes whether it can accept\n" +
+			"typed input (ready / booting / parked, with a capture snippet), and `deliver`\n" +
+			"types the prompt pointer and verifies it landed. The gate exists because a\n" +
+			"fresh agent TUI may be booting or parked behind a first-run wall.\n\n" +
+			"`restart` relaunches a non-running dispatch from the persisted prompt,\n" +
+			"re-deriving the mode from the current environment. `status` is the one-shot\n" +
+			"probe; `wait` blocks until the state leaves `running` so a poll loop becomes a\n" +
+			"single wake-up. `reap` reclaims a done pane worker's pane (never a live one,\n" +
+			"and no state files). Tracks the worker under .fab-dispatch/{id}/ and exposes a\n" +
+			"byte-stable poll surface. The headless launch is POSIX-only (v1).",
 	}
 
 	cmd.AddCommand(
 		dispatchStartCmd(),
+		dispatchOpenCmd(),
+		dispatchReadyCmd(),
+		dispatchDeliverCmd(),
 		dispatchRestartCmd(),
 		dispatchStatusCmd(),
 		dispatchWaitCmd(),

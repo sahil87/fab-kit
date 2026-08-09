@@ -73,7 +73,7 @@ Where `<change>` is the change ID or name from preflight. Pass no `--description
 
 The command handles everything mechanically:
 - **Move**: `fab/changes/{name}/` → `fab/changes/archive/yyyy/mm/{name}/` (date-bucketed)
-- **Dispatch state**: Delete `.fab-dispatch/{id}/` (the change's dispatch state dir, shared by both `fab dispatch` modes — headless and `--pane`) — dispatch artifacts are transient comms, not history, so they are removed on archive (one of the two `fab dispatch` cleanup paths) and **not recreated on restore**. Best-effort: an absent dir is a no-op.
+- **Dispatch state**: Delete `.fab-dispatch/{id}/` (the change's dispatch state dir, shared by both `fab dispatch` modes — headless and pane) — dispatch artifacts are transient comms, not history, so they are removed on archive (one of the two `fab dispatch` cleanup paths) and **not recreated on restore**. Best-effort: an absent dir is a no-op.
 - **Index**: Create/update `fab/changes/archive/index.md` with entry + backfill
 - **Backlog**: Mark the originating backlog item done (`- [ ]` → `- [x]`) by exact change-ID match, in place
 - **Pointer**: Remove `.fab-status.yaml` symlink if this was the active change
@@ -134,7 +134,7 @@ Next: {per state table — initialized}
 
 ## Restore Mode
 
-Restore an archived change back to the active changes folder — the inverse of the archive operation. Delegates entirely to `fab change restore`. Preserves all artifacts and status as-is — no status reset, no artifact regeneration. The `.fab-dispatch/{id}/` state deleted at archive time is **not recreated** (dispatch artifacts are transient comms, not history) — re-dispatch a stage via `fab dispatch start` if needed. Arguments and mode detection are defined once in **§ Arguments** above (`<change-name>` is resolved by `fab change restore` via case-insensitive substring matching against `fab/changes/archive/`).
+Restore an archived change back to the active changes folder — the inverse of the archive operation. Delegates entirely to `fab change restore`. Preserves all artifacts and status as-is — no status reset, no artifact regeneration. The `.fab-dispatch/{id}/` state deleted at archive time is **not recreated** (dispatch artifacts are transient comms, not history) — re-dispatch a stage via `fab dispatch` (see `_cli-fab.md` § fab dispatch for the per-mode entry verb) if needed. Arguments and mode detection are defined once in **§ Arguments** above (`<change-name>` is resolved by `fab change restore` via case-insensitive substring matching against `fab/changes/archive/`).
 
 ### Pre-flight (mode-specific — opposite of archive mode)
 

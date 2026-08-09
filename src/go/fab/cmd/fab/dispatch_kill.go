@@ -11,7 +11,7 @@ import (
 func dispatchKillCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "kill <change> <stage>",
-		Short: "Kill the dispatch — the process group (headless) or the tmux pane (--pane dispatch); idempotent",
+		Short: "Kill the dispatch — the process group (headless) or the tmux pane (pane dispatch); idempotent",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runDispatchKill(cmd, args[0], args[1])
