@@ -143,7 +143,7 @@ Create a new `fab/project/config.yaml` interactively or update specific sections
 Create mode applies when any condition holds:
 
 - `fab/project/config.yaml` is missing.
-- The file is a placeholder generation containing `My Project` (the embedded-stub fallback name).
+- The file is a placeholder generation containing `My Project` (the placeholder name older fab-kit embedded stubs wrote — that stub path is retired, but files it generated persist).
 - Either required field, `project.name` or `project.description`, is missing.
 
 Before `fab sync`, `fab init` generates the file through `fab config init --project`; when the installed fab-go predates that subcommand, `fab init` fails with an error telling the user to upgrade fab-go.

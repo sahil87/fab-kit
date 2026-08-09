@@ -39,8 +39,9 @@ User invokes /fab-setup [subcommand]
 │  │   `fab config init --project`, PASSING a mechanically-detected
 │  │   identity seed (repo-folder name, src/ dir, marker-table
 │  │   test_paths) as --name/--source-path/--test-path flags so the
-│  │   file's A-class fields are already LIVE; or a minimal embedded
-│  │   stub carrying the same seed if the installed fab-go predates it;
+│  │   file's A-class fields are already LIVE; when the installed
+│  │   fab-go predates the subcommand, fab init fails closed telling
+│  │   the user to upgrade fab-go — no stub is written;
 │  │   fab_version lives in fab/.fab-version)
 │  │  ├─ Read: README, package.json (project context)
 │  │  ├─ Read: the registry-generated fab/project/config.yaml (identity
