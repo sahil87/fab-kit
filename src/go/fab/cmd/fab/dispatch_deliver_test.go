@@ -205,6 +205,52 @@ func TestDispatchDeliver_MissingPromptFileErrorsBeforeTyping(t *testing.T) {
 	}
 }
 
+// TestDeliveryPointerPath_PromptFileIsRepoRelative pins the anchoring of a
+// caller-supplied --prompt-file. The flag is documented and exampled as
+// repo-relative (`.fab-dispatch/{id}/apply-continuation.md`), but a raw os.Stat
+// reads it against the CALLER's cwd — and `fab` runs from anywhere inside the
+// repo, because resolve.FabRoot walks upward. Delivered from a subdirectory, that
+// mismatch failed the existence check on a file that was right there, so a
+// rework-cycle continuation was unreachable outside the repo root.
+//
+// It is exercised below the command layer because the guards above it need a live
+// tmux pane; the anchoring is what is under test, not the choreography.
+func TestDeliveryPointerPath_PromptFileIsRepoRelative(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
+	dir := dispatch.DirFor(repoRoot, id)
+	rel := filepath.Join(dispatch.DirName, id, "apply-continuation.md")
+	mustWrite(t, filepath.Join(repoRoot, rel), "rework: fix the thing\n")
+
+	// The cwd the raw Stat got wrong. setupDispatchRepo's cleanup restores it.
+	sub := filepath.Join(repoRoot, "src", "go")
+	mustMkdir(t, sub)
+	if err := os.Chdir(sub); err != nil {
+		t.Fatal(err)
+	}
+
+	want := filepath.ToSlash(rel)
+	for _, tc := range []struct{ name, arg string }{
+		{"repo-relative", rel},
+		{"absolute", filepath.Join(repoRoot, rel)},
+	} {
+		got, err := deliveryPointerPath(dir, "apply", tc.arg)
+		if err != nil {
+			t.Fatalf("%s --prompt-file must resolve from a subdirectory: %v", tc.name, err)
+		}
+		// Both spellings name one file, so both must type the same short pointer —
+		// the pane's cwd is the repo root, which is what makes it readable there.
+		if got != want {
+			t.Errorf("%s: pointer = %q, want the repo-relative %q", tc.name, got, want)
+		}
+	}
+
+	// The anchoring must not invent a file: a relative path with nothing behind it
+	// still fails the existence check, which is the silent-failure guard itself.
+	if _, err := deliveryPointerPath(dir, "apply", "does/not/exist.md"); err == nil {
+		t.Error("an anchored --prompt-file that is absent must still be refused")
+	}
+}
+
 // TestDispatchDeliver_PartialStashIsRestored covers the failure the stash exists
 // for turning on the stash itself: the result file has already been removed when
 // the NEXT signal fails to stash, so a stash that dropped what it had got through

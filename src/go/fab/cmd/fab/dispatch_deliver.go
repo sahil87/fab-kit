@@ -203,7 +203,7 @@ func refuseMidStageDelivery(dir, changeArg, stage string, rec *dispatch.Dispatch
 func deliveryPointerPath(dir, stage, promptFile string) (string, error) {
 	path := dispatch.PromptPath(dir, stage)
 	if promptFile != "" {
-		path = promptFile
+		path = repoAnchored(dir, promptFile)
 	}
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
@@ -212,6 +212,26 @@ func deliveryPointerPath(dir, stage, promptFile string) (string, error) {
 		return "", err
 	}
 	return repoRelative(path), nil
+}
+
+// repoAnchored resolves a caller-supplied --prompt-file the way the flag is
+// documented and exampled — REPO-RELATIVE, like the pointer that gets typed.
+// Left raw, os.Stat below would read it against the CALLER's cwd instead, and
+// `fab` runs from anywhere inside the repo (resolve.FabRoot walks upward), so a
+// continuation delivered from a subdirectory would fail the existence check on a
+// file that is right there.
+//
+// The anchor is derived from the dispatch dir rather than a second
+// resolve.FabRoot() walk: dir is always `<repo root>/.fab-dispatch/<id>` (see
+// dispatch.DirFor), so the root is exactly two levels up and cannot fail to
+// resolve — whereas a FabRoot error would fall back to the cwd-relative reading
+// this function exists to remove. An absolute path is already unambiguous and
+// passes through untouched.
+func repoAnchored(dir, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(filepath.Dir(filepath.Dir(dir)), path)
 }
 
 // repoRelative renders path relative to the repository root when it can, so the
