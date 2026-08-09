@@ -538,5 +538,6 @@ own re-resolution will see. Nothing else moves: pane composes the resolved provi
 `interactive_command` (the same field `fab agent` and the operator launcher compose) through the same
 `internal/spawn` substitution. Mode selection is **per invocation**: explicit flags first, otherwise the
 configured descending ladder (§ 3's *Mode selection*), never a property inferred from command presence.
-A provider whose interactive grammar genuinely diverges from its `interactive_command` would be the
-trigger to add a dedicated field later — a data-only config addition, not a protocol change.
+A provider whose **pane-dispatch** grammar genuinely diverges from the interactive command it shares
+with `fab agent` and the operator launcher would be the trigger to add a dedicated pane field
+(distinct from `interactive_command`) later — a data-only config addition, not a protocol change.

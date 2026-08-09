@@ -7,9 +7,13 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 )
 
-// DefaultSpawnCommand is the fallback interactive command when config.yaml resolves
-// no providers.claude.interactive_command. Re-exported from internal/agent (the
-// provider table's owner) so raw-consumer sites keep a single spelling. Like the
+// DefaultSpawnCommand is the fallback interactive command Command returns when
+// the default role's provider resolves no interactive_command (or config.yaml
+// cannot be read/parsed) — the fallback keys on the RESOLVED provider, which the
+// agent.session knob selects, not on the claude entry specifically. Its value is
+// the built-in claude provider's interactive command, re-exported from
+// internal/agent (the provider table's owner) so raw-consumer sites keep a
+// single spelling. Like the
 // underlying value it is a {model}/{effort} TEMPLATE — callers resolve it
 // through WithProfile (template mode), which yields the same byte-identical
 // command the former plain form produced via append mode.
