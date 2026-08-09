@@ -1,6 +1,6 @@
 ---
 name: _review
-description: "Review behavior — a single review sub-agent whose prompt carries both checklists: the plan-conformance steps (requirements/tasks/acceptance validation) and the holistic-diff focus areas (Codex→Claude cascade with full repo access). A `mode` parameter (full | diff-only) selects whether the plan-conformance steps are included (full) or omitted (diff-only, used by fab-adopt)."
+description: "Review behavior — a single review sub-agent whose prompt carries both checklists: the plan-conformance steps (requirements/tasks/acceptance validation) and the holistic-diff focus areas, which the worker judges itself with full repo access. A `mode` parameter (full | diff-only) selects whether the plan-conformance steps are included (full) or omitted (diff-only, used by fab-adopt)."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -107,18 +107,6 @@ Beyond plan conformance, the agent judges the diff on its own merits against the
 4. **Behavioral regressions requiring full-repo context** — issues visible only with full codebase access (not just the changed files)
 5. **Structural issues** — duplication of existing utilities, abstraction violations, or architectural drift visible only in the broader codebase context
 
-### Codex→Claude Cascade
-
-The holistic-diff review uses a **Codex → Claude cascade**, controlled by the `codex` and `claude` entries in `fab/project/code-review.md` § Review Tools:
-
-The `## Review Tools` section (prose) lists each reviewer tool that is disabled. An **absent section — or an absent entry** — means the tool is **enabled**; a tool is disabled only when the section lists it as `false` (e.g. `- codex: false`). So an all-enabled setup needs nothing in this section. The `copilot` entry in the same section is read by `/git-pr-review` only, not this cascade.
-
-1. **Check config**: Read the `codex` entry from `code-review.md` § Review Tools — if listed as `false`, skip Codex
-2. **Attempt Codex**: `command -v codex` — if found and enabled, run Codex as the reviewer
-3. **Check config**: Read the `claude` entry from `code-review.md` § Review Tools — if listed as `false`, skip Claude
-4. **If Codex unavailable/disabled or fails**, attempt Claude: `command -v claude` — if found and enabled, run Claude as the reviewer
-5. If all enabled tools are unavailable or fail, contribute an empty findings set from the cascade (graceful no-op — not an error condition). The review continues normally.
-
 ---
 
 ## Findings & Verdict
@@ -136,7 +124,7 @@ Each finding includes: severity tier, description, and file:line reference where
 - If **any must-fix** finding exists → review **fails**
 - **No must-fix findings (including zero findings) → review passes.** should-fix and nice-to-have findings are reported but never block.
 
-Zero findings passes — so an empty `diff-only` result (e.g. all reviewer tools disabled via `code-review.md` § Review Tools, or unavailable) **passes** best-effort (adoption must not hard-block when no external reviewer is available).
+Zero findings passes — so an empty `diff-only` result (the worker judged the diff and found nothing worth reporting) **passes** best-effort (adoption must not hard-block on a clean holistic read).
 
 The findings set is returned to the orchestrator for verdict and rework decisions.
 

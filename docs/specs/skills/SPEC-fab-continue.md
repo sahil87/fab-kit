@@ -113,8 +113,7 @@ User invokes /fab-continue [change-name] [stage]
 │  │        ## Acceptance), source + memory;         │
 │  │        full repo access                         │
 │  │  Plan-conformance steps (full mode) +           │
-│  │   holistic-diff focus areas +                   │
-│  │   Codex→Claude cascade (graceful no-op)         │
+│  │   holistic-diff focus areas                     │
 │  │  Bash: run tests                                │
 │  │  Edit: plan.md ## Acceptance (mark [x])         │
 │  │  Returns: ONE unified must-fix/                 │
@@ -198,7 +197,7 @@ User invokes /fab-continue [change-name] [stage]
 
 | Agent | Stage | Purpose |
 |-------|-------|---------|
-| Single review sub-agent (`_review.md`) | review | Runs the whole review inline: `plan.md` validation (`## Requirements` + `## Tasks` + `## Acceptance`) with test execution (full mode) + holistic full-repo diff review via Codex→Claude cascade; returns one unified findings set |
+| Single review sub-agent (`_review.md`) | review | Runs the whole review inline: `plan.md` validation (`## Requirements` + `## Tasks` + `## Acceptance`) with test execution (full mode) + a holistic full-repo diff review it performs itself; returns one unified findings set |
 
 > Review Behavior reads `.claude/skills/_review/SKILL.md` (if not already loaded) and executes its **Shared Review Dispatch** end-to-end (Review Mode → Preconditions → Review Agent Dispatch → Findings & Verdict) — `_review.md` is the single source of truth for the single review sub-agent's dispatch and findings shape. `fab-continue.md` retains the Verdict section (pass/fail state transitions, rework options).
 
