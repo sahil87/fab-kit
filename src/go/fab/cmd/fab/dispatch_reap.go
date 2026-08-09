@@ -13,7 +13,7 @@ import (
 func dispatchReapCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "reap <change> <stage>",
-		Short: "Reclaim a DONE pane worker's tmux pane; a reported no-op in every other case",
+		Short: "Reclaim a DONE pane worker's tmux pane; a reported no-op for every other dispatch",
 		Long: "Reclaim the tmux pane of a pane-mode stage worker that has finished.\n\n" +
 			"A pane worker never exits on completion — it writes {stage}-result.yaml and sits\n" +
 			"at its prompt — so across a pipeline the carved worker column fills with dead\n" +

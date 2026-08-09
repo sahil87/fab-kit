@@ -49,14 +49,20 @@ agent:
 # "select this mode". dispatch.mode owns the preference; automatic resolution
 # descends pane → native → headless against these capabilities.
 #
+# interactive_command is LAUNCH GRAMMAR ONLY — how to open an interactive session.
+# Nothing is appended to it: a pane worker's stage prompt is delivered AFTERWARDS by
+# fab itself (`fab dispatch deliver` types a pointer through tmux and verifies it
+# landed), so pane capability no longer depends on whether a CLI accepts a positional
+# initial prompt.
+#
 # agy and kimi deliberately carry NO interactive_command — no pane capability, so the
-# descent ladder lands their stages on headless. Pane dispatch appends the pointer
-# prompt as a positional argument to interactive_command, and neither CLI can receive
-# a prompt that way (kimi parses a bare positional as a SUBCOMMAND and exits
-# non-zero; agy silently drops it and starts at an empty prompt, then gates a
-# fresh workspace behind an interactive trust prompt). A user who adds
-# providers.<name>.interactive_command in their own config opts into pane workers
-# that never see their pointer prompt.
+# descent ladder lands their stages on headless. What still has to be probed per
+# provider is FIRST-RUN behavior and input echo, not prompt grammar: agy gates a
+# fresh workspace behind an interactive trust prompt even under
+# --dangerously-skip-permissions, and worktree-per-change makes every dispatch a
+# fresh workspace. Backlog [agik] owns that probe and the roster flip; a user who
+# adds providers.<name>.interactive_command in their own config opts into pane
+# workers for that provider ahead of it.
 providers:
   claude:
     native: true
@@ -94,9 +100,11 @@ providers:
     # POSIX expands $(cat) BEFORE applying the < redirect, so the headless command
     # nests a shell: the inner sh's stdin IS the redirected prompt file.
     # --print-timeout raised from its 5m default — stage workers run far longer.
-    # NO interactive_command: see the providers-block note above — a pane worker never
-    # receives the pointer prompt (agy drops the positional and trust-prompts a
-    # fresh workspace), so shipping one would orphan every tmux-dispatched stage.
+    # NO interactive_command: see the providers-block note above — the open blocker
+    # is agy's per-workspace TRUST PROMPT (it fires on a fresh workspace even under
+    # --dangerously-skip-permissions, and worktree-per-change makes every dispatch
+    # one), which parks a worker before the readiness gate can deliver to it.
+    # Backlog [agik] owns the probe and the roster flip.
     headless_command: 'sh -c ''agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'''
     # Sparse and model-only (the effort rides the ID's suffix). `default` is the
     # cross-role fallback, so doing/review/hydrate/operator all take the pro-high
@@ -114,7 +122,8 @@ providers:
     # default_model. -p is already non-interactive and auto-approves tools; it
     # REJECTS --yolo/--auto ("Cannot combine --prompt with --yolo"), so the
     # dispatch form carries no approval flag. Same nested-shell stdin idiom as agy.
-    # NO interactive_command either: kimi reads a bare positional as a SUBCOMMAND and
-    # exits non-zero, and has no interactive-initial-prompt flag at all, so a pane
-    # worker could never be handed the pointer prompt.
+    # NO interactive_command either — not for a prompt-grammar reason (delivery is
+    # fab's, typed post-spawn), but because kimi's interactive first-run and input
+    # echo have not been probed against the delivery choreography. Backlog [agik]
+    # owns that probe and the roster flip.
     headless_command: 'sh -c ''kimi -m {model} -p "$(cat)"'''

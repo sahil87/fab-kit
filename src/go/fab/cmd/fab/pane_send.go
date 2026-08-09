@@ -93,12 +93,15 @@ func idleGate(paneID string, agentState *string) error {
 
 // sendTextArgs builds the tmux argv for literal-text send-keys.
 // When server is non-empty, the argv is prepended with `-L <server>`.
+//
+// Both builders live in internal/pane, shared with the dispatch delivery
+// choreography; these are the cobra-layer names this file's tests use.
 func sendTextArgs(server, paneID, text string) []string {
-	return pane.WithServer(server, "send-keys", "-t", paneID, "-l", text)
+	return pane.SendLiteralArgs(server, paneID, text)
 }
 
 // sendEnterArgs builds the tmux argv for the trailing Enter send-keys.
 // When server is non-empty, the argv is prepended with `-L <server>`.
 func sendEnterArgs(server, paneID string) []string {
-	return pane.WithServer(server, "send-keys", "-t", paneID, "Enter")
+	return pane.SendKeyArgs(server, paneID, pane.KeyEnter)
 }

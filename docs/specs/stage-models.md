@@ -187,7 +187,10 @@ The launch **capability grammar** lives in a top-level `providers:` table, not o
 provider is an opaque, user-chosen name mapping to three independent dispatch capabilities plus a per-role fill map:
 
 - **`interactive_command`** — opens an interactive agent **session** (`fab operator` / `fab batch` /
-  `fab agent`). It is reachable **two ways**: through a role (the role names a provider, and its
+  `fab agent`, and the pane-dispatch adapter's worker). It is **pure launch grammar**: fab appends
+  nothing to it, and a pane worker's stage prompt is delivered afterwards by `fab dispatch deliver`
+  (see [`harness-adapters.md`](harness-adapters.md) § 3), so a provider's eligibility for pane dispatch
+  does not depend on whether its CLI accepts a positional initial prompt. It is reachable **two ways**: through a role (the role names a provider, and its
   `{model, effort}` are substituted) or **directly**, via
   `fab agent --provider <name> [--model <id>] [--effort <level>]`, which bypasses role resolution
   entirely — a provider-addressed spawn for the "give me a codex session right here" case, where no
@@ -257,18 +260,16 @@ without a row of their own. (The merge is per FIELD, so codex's `doing`/`review`
 take their model from `default` too.)
 
 **Two of the four are dispatch-only.** Only `claude` and `codex` ship an `interactive_command`; `agy` and
-`kimi` ship dispatch grammar alone, and the absence is load-bearing rather than an omission. A
-`interactive_command` is what makes a provider eligible for **pane-mode dispatch**, which composes that
-command and appends a one-line pointer to the stage prompt file as a **positional argument** — and
-neither CLI can receive a prompt that way. kimi parses a bare positional as a **subcommand** and exits
-non-zero, and has no interactive-initial-prompt flag at all; agy **silently discards** it (the TUI
-opens at an empty prompt) and additionally gates a fresh workspace behind an interactive trust prompt
-even under `--dangerously-skip-permissions`. Shipping one would therefore make a pane-preferring dispatch
-inside tmux select pane and park every stage. With none, automatic resolution skips the pane rung
-and descends to headless (`descended: pane unavailable: no interactive_command`), and an explicit
-`--pane` hard-errors actionably. A user who
-wants an interactive `agy`/`kimi` session adds `providers.<name>.interactive_command` in their own config,
-accepting that pane-dispatched stages will then not receive their prompt.
+`kimi` ship dispatch grammar alone, and the absence is load-bearing rather than an omission. An
+`interactive_command` is what makes a provider eligible for **pane-mode dispatch**, and the open question
+per provider is **first-run behavior**, not prompt grammar: agy gates a fresh workspace behind an
+interactive **trust prompt** even under `--dangerously-skip-permissions`, and worktree-per-change makes
+every dispatch a fresh workspace, so a pane worker parks before the readiness gate can deliver to it;
+kimi's interactive first-run and input echo have not been probed against the delivery choreography at
+all. With no `interactive_command`, automatic resolution skips the pane rung and descends to headless
+(`descended: pane unavailable: no interactive_command`), and an explicit `fab dispatch open`
+hard-errors actionably. A user who wants an interactive `agy`/`kimi` session — or pane workers for one —
+adds `providers.<name>.interactive_command` in their own config, ahead of that probe.
 
 **Full-auto posture, per FORM.** Claude uses `--dangerously-skip-permissions` on both its forms,
 codex `--dangerously-bypass-approvals-and-sandbox` on both its forms, and agy
@@ -553,7 +554,7 @@ effort the agent dispatch needs.)
 `both`** — settable once machine-wide). Resolution starts at that rung and descends only through
 `pane → native → headless`, selecting the first possible adapter:
 
-- **Pane** requires tmux (`$TMUX` at the resolver seam; a real probe at start) and `interactive_command`.
+- **Pane** requires tmux (`$TMUX` at the resolver seam; a real probe at `fab dispatch open`) and `interactive_command`.
 - **Native** requires `native: true`.
 - **Headless** requires `headless_command`.
 - Missing prerequisites skip rungs; no selection ever ascends. Thus `pane` is the watchable preference,
@@ -742,19 +743,21 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   shipped.* **The
   native Agent-tool adapter described in this section is one of *three* dispatch adapters catalogued
   in [`harness-adapters.md`](harness-adapters.md)** — the two `fab dispatch` modes are the others:
-  **headless CLI** (3c) and **interactive pane** (`fab dispatch start --pane`, 260805-zxe0, a worker in a
-  tmux pane the user can watch and steer — split into the dispatching agent's own window, or a new window
-  when there is no pane to split). That spec fixes the cross-adapter dispatch protocol
+  **headless CLI** (3c) and **interactive pane** (`fab dispatch open` → `ready` → `deliver`,
+  260805-zxe0, a worker in a tmux pane the user can watch and steer — split into the dispatching agent's
+  own window, or a new window when there is no pane to split). That spec fixes the cross-adapter dispatch protocol
   (dispatch-prompt obligations, the five-state machine plus each adapter's reachable subset,
   hooks-enhance-never-own) all three share; the skill
   dispatch-seam wiring against it lives in `_preamble.md` § CLI-Adapter Dispatch + § Dispatch-Prompt
   Obligations (3d).
-  **Mode resolution is shared**: `resolve-agent` and `fab dispatch start` consume the same pure
-  selector. Explicit flags precede automatic `dispatch.mode` descent; pane composes the resolved
+  **Mode resolution is shared**: `resolve-agent` and the `fab dispatch` launch verbs consume the same
+  pure selector. Explicit flags precede automatic `dispatch.mode` descent; pane composes the resolved
   provider's `interactive_command`, native uses the Agent-tool capability, and headless composes
   `headless_command`. A missing capability skips its automatic rung, never substitutes a field, and
-  never ascends. Start performs a real pane probe and re-descends on `tmux unreachable`; landing on
-  native yields re-resolution guidance before state writes.
+  never ascends. The pane path performs a real tmux probe; under `restart`'s automatic selection a
+  failed probe re-descends on `tmux unreachable`, while `open` — where pane is explicit — hard-errors.
+  Landing on native yields re-resolution guidance before state writes, and `start` hands a pane landing
+  to `open` the same way.
 - *Claude-flavored data (overridable):* the `claude` provider's shipped fills use Claude model
   IDs/effort — the fills that apply while both depth knobs sit on their `claude` default; `codex` and
   `agy` ship their own model IDs (§ Built-in providers). Every provider's fills are

@@ -96,7 +96,10 @@ func TestDispatchLogs_PaneModeNamesPaneCapture(t *testing.T) {
 				t.Fatal("expected the pane-mode no-log report")
 			}
 			msg := err.Error()
-			for _, want := range []string{"--pane", tc.wantCmd} {
+			// "pane dispatch", not "--pane": the flag is gone from the launch
+			// verbs, and quoting one the caller never typed would send them
+			// looking for it.
+			for _, want := range []string{"pane dispatch", tc.wantCmd} {
 				if !strings.Contains(msg, want) {
 					t.Errorf("error = %q, want it to mention %q", msg, want)
 				}

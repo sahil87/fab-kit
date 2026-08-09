@@ -288,13 +288,18 @@ func TestDispatchStatus_GoldenOutput(t *testing.T) {
   "exit": 0
 }
 `},
+		// `delivered` is pane-only and reported even when FALSE: a pane is opened
+		// and delivered to in two steps, so "opened but holding no prompt yet" is a
+		// case a consumer must be able to see. It is bookkeeping — `state` above is
+		// derived without it — and it is absent from the headless object entirely.
 		{"pane json", []string{"abcd", "review", "--json"}, `{
   "change": "abcd",
   "stage": "review",
   "state": "done",
   "mode": "pane",
   "pane": "%99",
-  "window": "fab-abcd-review"
+  "window": "fab-abcd-review",
+  "delivered": false
 }
 `},
 	}

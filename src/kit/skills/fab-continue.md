@@ -179,7 +179,7 @@ The review worker reads `.claude/skills/_review/SKILL.md` (if not already loaded
 
 > Verdict transitions are the **sequencer's** (manual `/fab-continue`, Path A), not the dispatched block's. In Paths B/C/D the orchestrator's Auto-Rework Loop (`_pipeline.md`) takes the equivalent actions autonomously.
 
-**Pass**: Run `fab status finish <change> review fab-continue` (auto-activates hydrate). Update acceptance progress via `fab status set-acceptance <change> acceptance_completed <N>`. Output report + `Next: {per state table}`.
+**Pass**: Run `fab status finish <change> review fab-continue` (auto-activates hydrate). Update acceptance progress via `fab status set-acceptance <change> acceptance_completed <N>`. This is also the moment `_preamble.md` § CLI-Adapter Dispatch step 3 defers the apply pane's reap to — take that action there if it applies. Output report + `Next: {per state table}`.
 
 **Fail** (manual rework — Path A, the `/fab-continue` sequencer): Run `fab status fail <change> review` then `fab status reset <change> apply fab-continue`. Update acceptance progress via `fab status set-acceptance <change> acceptance_completed <N>`. Present the returned findings with priority annotations, then offer rework options:
 

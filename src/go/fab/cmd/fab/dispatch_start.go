@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,39 +17,96 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// launchFlags holds the four mode/launch flags `start` and `restart` share, bound
-// by addLaunchFlags. It exists so the two subcommands cannot drift on their flag
-// SURFACE the way runDispatchLaunch stops them drifting on the launch path: the
-// registrations, the --pane/--timeout guard, and the mode ladder all live once.
+// paneRole names what a launch subcommand does with PANE mode. It is the one
+// axis on which `start`, `open`, and `restart` genuinely differ now that pane
+// mode's entry moved to its own verb, so it is modelled as a single enum on the
+// shared flag struct rather than a scatter of per-subcommand booleans.
+type paneRole int
+
+const (
+	// paneRejected — `fab dispatch start`. Pane mode's entry is `fab dispatch
+	// open`, because a pane worker is now spawned and delivered to in two
+	// separate steps with an agent-driven readiness gate between them, and Go
+	// cannot run that gate. `start` therefore launches only the headless arm; a
+	// pane flag, or a configuration that resolves to pane, is an actionable
+	// error pointing at `open`.
+	paneRejected paneRole = iota
+	// paneForced — `fab dispatch open`. Pane is the verb's entire purpose, so it
+	// is selected explicitly and a missing prerequisite is a hard error rather
+	// than a descent (an `open` that quietly became a headless launch would be
+	// the opposite of what its caller asked for).
+	paneForced
+	// paneDerived — `fab dispatch restart`. Mode is re-derived from the current
+	// environment as before; a headless landing relaunches fully, while a pane
+	// landing performs the spawn-only `open` step and hands the gate back to the
+	// orchestrator.
+	paneDerived
+)
+
+// launchFlags holds the mode/launch flags the launch subcommands share, bound by
+// addLaunchFlags. It exists so they cannot drift on their flag SURFACE the way
+// runDispatchLaunch stops them drifting on the launch path: the registrations,
+// the guards, and the mode ladder all live once.
 //
-// Only the flag surface is shared — each subcommand keeps its own Use/Short/Long/
-// Example strings, since the prompt-source difference (stdin vs. the persisted
-// file) is exactly what their help text has to explain.
+// Only the flag surface and the launch path are shared — each subcommand keeps
+// its own Use/Short/Long/Example strings, since the prompt-source difference
+// (stdin vs. the persisted file) and the pane role are exactly what their help
+// text has to explain.
 type launchFlags struct {
 	timeout      int
 	paneMode     bool
 	headlessMode bool
 	server       string
+	role         paneRole
 }
 
-// addLaunchFlags registers the shared launch flags on cmd and returns the struct
-// they bind into. It also installs the cobra flag group for --pane/--headless:
-// that fires during ValidateFlagGroups — BEFORE any RunE work — so the conflict is
-// a genuine usage error (exit 2) that structurally cannot leave partial state
-// behind, matching resolve.go / pane_capture.go / panemap.go.
-func addLaunchFlags(cmd *cobra.Command) *launchFlags {
-	f := &launchFlags{}
+// addLaunchFlags registers the launch flags this subcommand's pane role calls for
+// and returns the struct they bind into.
+//
+// The registered surface differs by role, but every flag a caller could
+// reasonably still type stays REGISTERED so it can be answered with guidance
+// rather than a bare `unknown flag`:
+//
+//	paneRejected (start)   --timeout / --headless, plus HIDDEN --pane / --server
+//	                       that error with the `fab dispatch open` route
+//	paneForced   (open)    --server only — pane is implicit, and the headless-only
+//	                       flags have nothing to mean
+//	paneDerived  (restart) all four, with the cobra flag group for --pane/--headless
+//
+// That group fires during ValidateFlagGroups — BEFORE any RunE work — so the
+// conflict is a genuine usage error (exit 2) that structurally cannot leave
+// partial state behind, matching resolve.go / pane_capture.go / panemap.go.
+func addLaunchFlags(cmd *cobra.Command, role paneRole) *launchFlags {
+	f := &launchFlags{role: role}
+	if role == paneForced {
+		cmd.Flags().StringVarP(&f.server, "server", "L", "", "Target tmux socket label (passed as 'tmux -L <name>'). Defaults to $TMUX / tmux default socket")
+		return f
+	}
+
 	cmd.Flags().IntVar(&f.timeout, "timeout", 0, "Enforce a POSIX `timeout <secs>` inside the launch wrapper (0 = none); implies --headless")
-	cmd.Flags().BoolVar(&f.paneMode, "pane", false, "Force an interactive tmux worker — a pane split into your own window, or a new window when you are not in one (requires a reachable tmux server)")
 	cmd.Flags().BoolVar(&f.headlessMode, "headless", false, "Force a detached headless worker, overriding dispatch.mode for this launch")
+	cmd.Flags().BoolVar(&f.paneMode, "pane", false, "Force an interactive tmux worker — a pane split into your own window, or a new window when you are not in one (requires a reachable tmux server)")
 	cmd.Flags().StringVarP(&f.server, "server", "L", "", "Target tmux socket label (passed as 'tmux -L <name>'); implies pane mode. Defaults to $TMUX / tmux default socket; ignored in headless mode")
+
+	if role == paneRejected {
+		// Kept registered but hidden: a caller reaching for the old spelling gets
+		// the route to the new verb instead of `unknown flag`, while the help
+		// output advertises only what `start` can actually do.
+		_ = cmd.Flags().MarkHidden("pane")
+		_ = cmd.Flags().MarkHidden("server")
+		return f
+	}
 	cmd.MarkFlagsMutuallyExclusive("pane", "headless")
 	return f
 }
 
-// resolveMode enforces the --pane/--timeout usage error and then resolves the
-// launch mode from the explicit-first ladder. Called at the top of both
-// subcommands' RunE.
+// resolveMode enforces this subcommand's pane-role guards and then resolves the
+// launch mode. Called at the top of every launch subcommand's RunE.
+//
+// For paneRejected, a supplied --pane/--server is answered with the `open` route
+// before anything else happens. For paneForced, pane is selected explicitly with
+// no ladder consultation at all — the verb IS the selection. Otherwise the
+// explicit-first ladder runs exactly as before.
 //
 // --timeout is implemented as POSIX `timeout N` INSIDE the headless `sh -c`
 // wrapper, which pane mode never constructs. Silently ignoring it under --pane
@@ -66,13 +124,26 @@ func addLaunchFlags(cmd *cobra.Command) *launchFlags {
 // It resolves the pane PLACEMENT in the same breath (see paneTarget). Both env
 // reads — $TMUX and $TMUX_PANE — live HERE, in the cobra layer, so
 // internal/dispatch stays pure and table-testable: the SelectMode precedent.
-// Resolving both here is also what gives `restart` the split behavior for free —
-// it shares this method, so the two subcommands cannot drift on either decision.
+// Resolving both here is also what gives `restart` and `open` the split behavior
+// for free — they share this method, so the subcommands cannot drift on either
+// decision.
 func (f *launchFlags) resolveMode(cmd *cobra.Command, cfg *config.Config, prov config.ProviderConfig) (dispatch.Mode, dispatch.AutoReason, paneTarget, error) {
+	serverSet := cmd.Flags().Changed("server")
+
+	if f.role == paneRejected {
+		for _, flag := range []string{"pane", "server"} {
+			if cmd.Flags().Changed(flag) {
+				return "", "", paneTarget{}, paneFlagRetiredError(flag)
+			}
+		}
+	}
+	if f.role == paneForced {
+		return dispatch.ModePane, dispatch.ReasonExplicit, f.paneTargetFor(dispatch.ModePane, serverSet), nil
+	}
+
 	if f.paneMode && cmd.Flags().Changed("timeout") {
 		return "", "", paneTarget{}, fmt.Errorf("--pane and --timeout are mutually exclusive: --timeout is enforced by the headless launch wrapper (POSIX `timeout`), which pane mode does not use")
 	}
-	serverSet := cmd.Flags().Changed("server")
 	tmux := dispatch.TmuxAbsent
 	if os.Getenv("TMUX") != "" {
 		tmux = dispatch.TmuxAvailable
@@ -83,11 +154,34 @@ func (f *launchFlags) resolveMode(cmd *cobra.Command, cfg *config.Config, prov c
 	if err != nil {
 		return "", "", paneTarget{}, err
 	}
+	return mode, reason, f.paneTargetFor(mode, serverSet), nil
+}
+
+// paneTargetFor resolves the pane placement inputs that come from the
+// environment. Shared by both resolveMode exits so the two cannot drift.
+func (f *launchFlags) paneTargetFor(mode dispatch.Mode, serverSet bool) paneTarget {
 	dispatcherPane := os.Getenv("TMUX_PANE")
-	return mode, reason, paneTarget{
+	return paneTarget{
 		shape:          dispatch.SelectPaneShape(mode == dispatch.ModePane, serverSet, dispatcherPane),
 		dispatcherPane: dispatcherPane,
-	}, nil
+	}
+}
+
+// paneFlagRetiredError answers a pane flag typed at `fab dispatch start` with the
+// route to the verb that now owns pane mode, rather than letting cobra emit a
+// bare `unknown flag`. A pane worker is spawned and delivered to in two steps
+// with an agent-driven readiness gate between them, so a single-shot `start
+// --pane` has nothing to map onto.
+func paneFlagRetiredError(flag string) error {
+	return fmt.Errorf("`fab dispatch start` launches only the headless arm, so --%s is not accepted here; pane mode's entry is `fab dispatch open <change> <stage>`, followed by `fab dispatch ready` and `fab dispatch deliver`", flag)
+}
+
+// paneDispatchError is the pane counterpart of nativeDispatchError: `start`'s
+// automatic resolution landed on a rung this subcommand cannot launch, so it
+// stops before any state write and names the verb that can.
+func paneDispatchError(stage, provider string) error {
+	return fmt.Errorf("stage %q resolves to pane mode for provider %q, but `fab dispatch start` launches only the headless arm; run `fab dispatch open <change> %s` (then `fab dispatch ready` and `fab dispatch deliver`) to open a pane worker, or pass --headless to force this launch headless",
+		stage, provider, stage)
 }
 
 // paneTarget carries the pane-placement inputs to launchPane: WHICH shape the
@@ -117,7 +211,14 @@ func dispatchStartCmd() *cobra.Command {
 	var f *launchFlags
 	cmd := &cobra.Command{
 		Use:   "start <change> <stage>",
-		Short: "Launch a stage worker using dispatch.mode's pane → native → headless descent ladder; force with --pane / --headless",
+		Short: "Launch a HEADLESS stage worker (pane mode's entry is `fab dispatch open`)",
+		Long: "Launch a detached headless stage worker from the prompt on stdin.\n\n" +
+			"`start` composes only the resolved provider's headless_command. Pane mode has\n" +
+			"its own entry — `fab dispatch open`, followed by `fab dispatch ready` and\n" +
+			"`fab dispatch deliver` — because a pane worker is spawned and delivered to in\n" +
+			"two steps with an agent-driven readiness gate between them. A configuration\n" +
+			"that resolves to pane therefore stops here with that route instead of\n" +
+			"launching.",
 		Example: `  # Resolve automatically from dispatch.mode and provider capability
   fab dispatch start b91h apply < prompt.md
 
@@ -125,19 +226,13 @@ func dispatchStartCmd() *cobra.Command {
   fab dispatch start b91h apply --headless < prompt.md
 
   # Enforce a 30-minute POSIX timeout (implies headless)
-  fab dispatch start --timeout 1800 b91h apply < prompt.md
-
-  # Force the stage into a tmux pane you can watch and steer (splits your window)
-  fab dispatch start b91h review --pane < prompt.md
-
-  # Target a specific tmux socket (implies pane; works from outside tmux)
-  fab dispatch start b91h review --server work < prompt.md`,
+  fab dispatch start --timeout 1800 b91h apply < prompt.md`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runDispatchLaunch(cmd, args[0], args[1], f, promptFromStdin)
 		},
 	}
-	f = addLaunchFlags(cmd)
+	f = addLaunchFlags(cmd, paneRejected)
 	return cmd
 }
 
@@ -228,7 +323,15 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 	prov, _ := agent.ResolveProvider(cfg, profile.Provider)
 	mode, reason, target, err := flags.resolveMode(cmd, cfg, prov)
 	if err != nil {
-		return noDispatchCapabilityError(profile.Provider, cfg.GetDispatchMode(), err)
+		// Only a genuinely empty ladder gets the capability framing. resolveMode's
+		// other refusals — a retired pane flag, the --pane/--timeout conflict — are
+		// already actionable on their own, and wrapping them in "configure
+		// providers.X.…" would point the caller at a config key that has nothing to
+		// do with what they typed.
+		if errors.Is(err, dispatch.ErrNoMode) {
+			return noDispatchCapabilityError(profile.Provider, cfg.GetDispatchMode(), err)
+		}
+		return err
 	}
 	if strings.Contains(string(reason), "(descended:") {
 		fmt.Fprintf(cmd.ErrOrStderr(), "dispatch selection: %s\n", reason)
@@ -268,6 +371,17 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 				return nativeDispatchError(stage, profile.Provider)
 			}
 		}
+	}
+
+	// A pane landing `start` cannot launch, refused AFTER the descent has had its
+	// chance. Ordering is load-bearing: a stale $TMUX makes the ladder pick pane,
+	// and descending to headless on the failed probe is exactly what keeps an
+	// unattended `start` working there. Only a pane rung that survives validation
+	// is a genuine "you wanted a watchable worker" landing, and that one gets the
+	// route to the verb that opens one. `restart` and `open` accept it instead and
+	// land on the spawn-only path.
+	if mode == dispatch.ModePane && flags.role == paneRejected {
+		return paneDispatchError(stage, profile.Provider)
 	}
 
 	// The mode is final now, so exactly one mode-specific command is composed.
@@ -332,7 +446,7 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 
 	var report string
 	if mode == dispatch.ModePane {
-		report, err = launchPane(cmd, rec, resolvedCmd, repoRoot, promptPath, id, stage, flags.server, target)
+		report, err = launchPane(cmd, rec, resolvedCmd, repoRoot, id, stage, flags.server, target)
 	} else {
 		report, err = launchHeadless(rec, resolvedCmd, repoRoot, dir, stage, promptPath, flags.timeout)
 	}
@@ -351,8 +465,29 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 	if reason != dispatch.ReasonExplicit {
 		report += ", " + string(reason)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "dispatched %s/%s (%s)\n", id, stage, report)
+	// The verb is derived from the MODE, not the subcommand: a headless launch
+	// hands the worker its prompt on stdin and is therefore dispatched, while a
+	// pane launch only opens the pane — delivery is a separate, verified step —
+	// so calling it "dispatched" would assert something that has not happened yet.
+	fmt.Fprintf(cmd.OutOrStdout(), "%s %s/%s (%s)\n", launchVerb(mode), id, stage, report)
+
+	// `restart`'s caller asked for a full relaunch and got half of one, so the
+	// missing half is named. `open`'s caller asked for exactly a spawn, so it is
+	// not told what its own verb already says.
+	if mode == dispatch.ModePane && flags.role == paneDerived {
+		fmt.Fprintf(cmd.ErrOrStderr(),
+			"note: the pane holds no prompt yet — run `fab dispatch ready %s %s`, clear any wall it reports, then `fab dispatch deliver %s %s`\n",
+			changeArg, stage, changeArg, stage)
+	}
 	return nil
+}
+
+// launchVerb names what a launch of this mode actually accomplished.
+func launchVerb(mode dispatch.Mode) string {
+	if mode == dispatch.ModePane {
+		return "opened"
+	}
+	return "dispatched"
 }
 
 // paneFallback describes why the pane path cannot proceed. The caller propagates
@@ -434,14 +569,15 @@ func missingCommandError(stage, providerName, field string) error {
 }
 
 // launchPane opens the interactive worker in a tmux pane and records the pane
-// identity on rec. The worker receives a ONE-LINE POINTER to the persisted prompt
-// file as the interactive command's single quoted argument (the `_cli-agents`
-// § Spawn Composition form) — the multi-thousand-token prompt itself never rides
-// tmux, and embedding at spawn sidesteps the printed-prompt trap entirely.
+// identity on rec. It delivers NO PROMPT: the composed interactive_command is
+// passed to tmux verbatim, as pure launch grammar.
 //
-// The pointer path is repo-relative because the new pane's cwd IS the repo root.
-// dispatch.WindowCommand shell-quotes the pointer, so a repo path containing a
-// single quote cannot break out of the embedded argument.
+// Prompt delivery is a separate, VERIFIED step (`fab dispatch deliver`, behind
+// the readiness gate). Appending the pointer as a spawn argument — the previous
+// behavior — was fire-and-forget: a provider CLI that silently drops a positional
+// prompt left the worker at an empty prompt while the dispatch read `running`,
+// and requiring one tied pane capability to whether a provider's CLI happens to
+// accept a positional prompt at all. See docs/specs/harness-adapters.md § 3.
 //
 // WHERE the pane opens is dispatch.SelectPaneShape's decision, resolved in the
 // cobra RunE and delivered as target (see paneTarget):
@@ -459,15 +595,11 @@ func missingCommandError(stage, providerName, field string) error {
 //
 // Both shapes record the SAME identity string in rec.Window and both are keyed by
 // pane ID afterwards, so status/kill/capture need no shape awareness.
-func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoot, promptPath, id, stage, server string, target paneTarget) (string, error) {
-	relPrompt, err := filepath.Rel(repoRoot, promptPath)
-	if err != nil {
-		relPrompt = promptPath
-	}
+func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoot, id, stage, server string, target paneTarget) (string, error) {
 	title := dispatch.WindowName(id, stage)
-	windowCmd := dispatch.WindowCommand(resolvedCmd, dispatch.PointerPrompt(relPrompt))
 
 	var paneID, report string
+	var err error
 	if target.shape == dispatch.ShapeSplit {
 		// Placement degrades before it fails: a failing sibling probe — an
 		// unreadable dispatch record as much as a failing tmux list-panes — still
@@ -482,7 +614,7 @@ func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoo
 				probeErr, place.Describe())
 		}
 		var warnings []error
-		paneID, warnings, err = dispatch.OpenSplitPane(server, place, title, repoRoot, windowCmd)
+		paneID, warnings, err = dispatch.OpenSplitPane(server, place, title, repoRoot, resolvedCmd)
 		// Cosmetic-only failures (a size tmux would not take, a title it would not
 		// set): the worker is running and its pane ID — the real identity — is
 		// already recorded, so these warn rather than aborting.
@@ -494,7 +626,7 @@ func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoo
 		}
 		report = fmt.Sprintf("pane %s, split, title %s", paneID, title)
 	} else {
-		paneID, err = dispatch.OpenWindow(server, title, repoRoot, windowCmd)
+		paneID, err = dispatch.OpenWindow(server, title, repoRoot, resolvedCmd)
 		if err != nil {
 			return "", err
 		}

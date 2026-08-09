@@ -144,12 +144,13 @@ func TestDefaultsFileProviders(t *testing.T) {
 
 	// The mirror image: only claude and codex ship an interactive_command. agy and kimi
 	// are DISPATCH-ONLY built-ins, and the absence is load-bearing rather than an
-	// omission — an interactive_command makes a provider eligible for pane-mode dispatch,
-	// which hands the worker its pointer prompt as a POSITIONAL argument, and neither
-	// CLI can receive a prompt that way (kimi reads a bare positional as a subcommand
-	// and exits non-zero; agy drops it silently and trust-prompts a fresh workspace).
-	// Asserting the absence is what stops a well-meaning interactive_command from landing
-	// and parking every tmux-dispatched stage at an empty prompt.
+	// omission — an interactive_command makes a provider eligible for pane-mode
+	// dispatch, and neither CLI's interactive FIRST RUN has been probed against the
+	// pane-delivery choreography (agy trust-prompts a fresh workspace even under
+	// --dangerously-skip-permissions, and worktree-per-change makes every dispatch one;
+	// kimi is simply unprobed). Backlog [agik] owns the probe and the roster flip.
+	// Asserting the absence is what stops a well-meaning interactive_command from
+	// landing and parking every tmux-dispatched stage at a first-run wall.
 	for _, name := range []string{DefaultProviderName, providerCodex} {
 		if cfg.Providers[name].InteractiveCommand == "" {
 			t.Errorf("defaults.yaml providers.%s has no interactive_command", name)
@@ -157,7 +158,7 @@ func TestDefaultsFileProviders(t *testing.T) {
 	}
 	for _, name := range []string{providerAgy, providerKimi} {
 		if got := cfg.Providers[name].InteractiveCommand; got != "" {
-			t.Errorf("defaults.yaml providers.%s.interactive_command = %q, want absent — %s cannot receive a pane worker's pointer prompt as a positional argument, so shipping one would select pane dispatch and park the stage", name, got, name)
+			t.Errorf("defaults.yaml providers.%s.interactive_command = %q, want absent — %s's interactive first run is unprobed against the pane-delivery choreography, so shipping one would select pane dispatch and park the stage (backlog [agik])", name, got, name)
 		}
 	}
 

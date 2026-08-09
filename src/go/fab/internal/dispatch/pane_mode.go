@@ -9,8 +9,8 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 )
 
-// This file holds the tmux side of PANE-MODE dispatch (`fab dispatch start
-// --pane`): server reachability, worker-pane creation (split or new window),
+// This file holds the tmux side of PANE-MODE dispatch (`fab dispatch open`):
+// server reachability, worker-pane creation (split or new window),
 // worker-COLUMN placement (which pane a new worker splits, in which direction, and
 // how wide the column is carved), pane liveness, and pane kill.
 //

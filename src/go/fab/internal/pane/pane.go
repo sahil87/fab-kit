@@ -156,6 +156,82 @@ func validatePaneResult(paneID, out string, stderr []byte, err error) error {
 	return nil
 }
 
+// Named tmux keys used by fab's senders. They are constants rather than inline
+// literals because they are tmux GRAMMAR, not text: `send-keys Enter` submits a
+// line while `send-keys -l Enter` types the five characters "Enter", and
+// `C-u` clears the current input line.
+const (
+	KeyEnter = "Enter"
+	KeyClear = "C-u"
+)
+
+// CaptureArgs returns the tmux capture-pane argv for the given pane and line
+// count, using `-S -N` to take the last N lines of the pane's scrollback. When
+// server is non-empty the argv is prefixed with `-L <server>`.
+//
+// The argv builder and its runner (Capture) live HERE rather than in the cobra
+// layer because three consumers need them: `fab pane capture`, the dispatch
+// readiness probe, and the dispatch delivery choreography. One builder means the
+// three cannot drift on the capture range or the socket prefix.
+func CaptureArgs(server, paneID string, lines int) []string {
+	return WithServer(server, "capture-pane", "-t", paneID, "-p", "-S", fmt.Sprintf("-%d", lines))
+}
+
+// Capture runs tmux capture-pane and returns the captured text RAW — never
+// trimmed, so a caller rendering it verbatim stays byte-identical to tmux's own
+// output. On failure the error names the pane and carries tmux's stderr
+// diagnostic via StderrError.
+//
+// Argument order matches CaptureArgs (and WithServer): server first, then the
+// pane. Builder and runner are same-typed pairs that compile silently when
+// transposed, so the two halves deliberately share one order.
+func Capture(server, paneID string, lines int) (string, error) {
+	out, stderr, err := RunCmd("tmux", CaptureArgs(server, paneID, lines)...)
+	if err != nil {
+		return "", StderrError(fmt.Errorf("pane %s: %w", paneID, err), stderr)
+	}
+	return out, nil
+}
+
+// SendLiteralArgs returns the tmux argv for a LITERAL send-keys (`-l`), which
+// stops tmux interpreting key names like "Enter", "Space", or "C-c" appearing
+// inside the text itself. When server is non-empty the argv is prefixed with
+// `-L <server>`.
+func SendLiteralArgs(server, paneID, text string) []string {
+	return WithServer(server, "send-keys", "-t", paneID, "-l", text)
+}
+
+// SendKeyArgs returns the tmux argv for a NAMED key send-keys (no `-l`), e.g.
+// "Enter" or "C-u". Literal text and named keys are deliberately separate
+// builders: the `-l` flag is exactly what distinguishes them, and a single
+// builder with a boolean would put that distinction at every call site.
+func SendKeyArgs(server, paneID, key string) []string {
+	return WithServer(server, "send-keys", "-t", paneID, key)
+}
+
+// SendLiteral sends text to a pane as literal characters, submitting nothing.
+// Server-first, matching SendLiteralArgs (see Capture on why the pairs share
+// one order).
+func SendLiteral(server, paneID, text string) error {
+	return runSend(SendLiteralArgs(server, paneID, text), paneID, text)
+}
+
+// SendKey sends a single named key (e.g. "Enter", "C-u") to a pane.
+// Server-first, matching SendKeyArgs.
+func SendKey(server, paneID, key string) error {
+	return runSend(SendKeyArgs(server, paneID, key), paneID, key)
+}
+
+// runSend executes a send-keys argv, surfacing tmux's own stderr rather than a
+// bare exit status. `what` names the text or key that was sent and only shapes
+// the diagnostic.
+func runSend(args []string, paneID, what string) error {
+	if _, stderr, err := RunCmd("tmux", args...); err != nil {
+		return StderrError(fmt.Errorf("tmux send-keys %q to %s: %w", what, paneID, err), stderr)
+	}
+	return nil
+}
+
 // ReadWindowName returns the current window name for a tmux pane via
 // `tmux display-message -p -t <pane> '#W'`. Returns the trimmed name, the
 // tmux stderr bytes (useful for exit-code mapping — callers can distinguish

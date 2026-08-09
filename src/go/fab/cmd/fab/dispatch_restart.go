@@ -12,10 +12,15 @@ import (
 // already persisted — the pipeline's bounded recovery verb for a worker that died
 // or was killed (post-retry provider exhaustion, OOM, a closed tmux window).
 //
-// It is `start` with ONE difference: the prompt comes from
-// .fab-dispatch/{id}/{stage}-prompt.md instead of stdin, because the orchestrator
-// that needs to restart may have lost the multi-thousand-token block prompt to
-// compaction. Everything else is `start`'s — the same flags with the same
+// It relaunches through `start`'s shared path with TWO differences. First, the
+// prompt comes from .fab-dispatch/{id}/{stage}-prompt.md instead of stdin,
+// because the orchestrator that needs to restart may have lost the
+// multi-thousand-token block prompt to compaction. Second, `restart` still
+// accepts a PANE landing where `start` no longer does — but a pane landing
+// performs only the spawn-only `open` step and reports on stderr that the
+// readiness gate and `fab dispatch deliver` must follow, because Go cannot run
+// the agent judgment the gate needs. A headless landing relaunches fully, as
+// before. Everything else is `start`'s — the same flags with the same
 // exclusions, the same mode-selection ladder AND the same pane-shape decision
 // (both re-derived from current config/capabilities/environment — so restarting an orphaned pane
 // dispatch after a tmux server death correctly descends again, and a
@@ -35,13 +40,17 @@ func dispatchRestartCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "restart <change> <stage>",
 		Short: "Relaunch a non-running dispatch from its persisted prompt using start's dispatch.mode descent ladder",
-		Long: "Relaunch a stage worker from the prompt `fab dispatch start` persisted at\n" +
+		Long: "Relaunch a stage worker from the prompt the entry verb (`fab dispatch start`\n" +
+			"headless, `fab dispatch open` pane) persisted at\n" +
 			".fab-dispatch/{id}/{stage}-prompt.md, so the caller does not need the block prompt\n" +
 			"in context. Refuses a genuinely running dispatch (kill it first); overwrites a\n" +
 			"completed/failed/orphaned one. The launch mode is re-derived from the CURRENT\n" +
-			"environment by the same pane → native → headless ladder `start` uses — the prior\n" +
-			"attempt's mode is not inherited. A native result tells the caller to re-resolve,\n" +
-			"because fab dispatch cannot launch the native Agent-tool adapter.",
+			"environment by the pane → native → headless ladder — the prior attempt's mode is\n" +
+			"not inherited. A native result tells the caller to re-resolve, because fab\n" +
+			"dispatch cannot launch the native Agent-tool adapter.\n\n" +
+			"A PANE landing performs the `open` step alone — the pane is spawned with no\n" +
+			"prompt delivered — and hands the readiness gate back: run `fab dispatch ready`\n" +
+			"and then `fab dispatch deliver`, which need judgment Go cannot supply.",
 		Example: `  # Recover an orphaned dispatch (mode re-resolves from config and environment)
   fab dispatch restart b91h apply
 
@@ -55,7 +64,7 @@ func dispatchRestartCmd() *cobra.Command {
 			return runDispatchLaunch(cmd, args[0], args[1], f, promptFromStateDir)
 		},
 	}
-	f = addLaunchFlags(cmd)
+	f = addLaunchFlags(cmd, paneDerived)
 	return cmd
 }
 
@@ -73,7 +82,7 @@ func promptFromStateDir(_ *cobra.Command, dir, stage string) ([]byte, bool, erro
 	prompt, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, false, fmt.Errorf("no persisted prompt at %s — nothing to relaunch; run `fab dispatch start` with the prompt on stdin", path)
+			return nil, false, fmt.Errorf("no persisted prompt at %s — nothing to relaunch; run `fab dispatch start` (headless) or `fab dispatch open` (pane) with the prompt on stdin", path)
 		}
 		return nil, false, fmt.Errorf("read persisted prompt: %w", err)
 	}

@@ -12,9 +12,9 @@
 
 **Prose packaging (260808-s2sz):** the source presents Per-Stage Model Resolution as native-seam and override tables, CLI-Adapter Dispatch as a two-branch table plus four-step procedure/state/recovery/peek tables and four pane bullets, and Confidence Scoring as a one-row gate table plus invocation list. This is a structural rewrite only; the contracts summarized below are unchanged.
 
-Shared context preamble loaded by every Fab skill. It owns path/context/helper conventions, per-stage profile resolution (read through the four-tier config cascade: environment > system > project > built-in defaults), and the canonical cross-adapter dispatch procedure. `fab resolve-agent <stage> --alias` emits ordered `model=` plus optional `effort=`/`provider=`/`dispatch=` lines. `dispatch=` is derived from the `dispatch.mode` preference ceiling and independent provider capabilities (`interactive_command`, `native`, `headless_command`) through the descending `pane → native → headless` ladder; it is absent iff native resolves and otherwise carries the substituted pane/headless command. Dispatch sites surface the lines, branch only on `dispatch=` presence, and never execute its value. The CLI arm uses `fab dispatch`, its five-state observation/recovery contract, pane hygiene, and universal result/context/terminal-refresh prompt obligations; the native arm uses the Agent model and effort seams. Explicit pane/headless overrides remain hard, automatic selection never ascends, and native re-resolution at `fab dispatch start` stops actionably before state writes. The preamble also owns **native-arm worker continuation** (§ Worker Continuation — the `apply-{id}` name, SendMessage resume, mandatory fresh-dispatch fallback, profile fixity, and apply-only scope), the one-restart recovery budget, wait/peek/escalation policy, SRAD confidence gate, logging conventions, and next-step routing.
+Shared context preamble loaded by every Fab skill. It owns path/context/helper conventions, per-stage profile resolution (read through the four-tier config cascade: environment > system > project > built-in defaults), and the canonical cross-adapter dispatch procedure. `fab resolve-agent <stage> --alias` emits ordered `model=` plus optional `effort=`/`provider=`/`dispatch=` lines. `dispatch=` is derived from the `dispatch.mode` preference ceiling and independent provider capabilities (`interactive_command`, `native`, `headless_command`) through the descending `pane → native → headless` ladder; it is absent iff native resolves and otherwise carries the substituted pane/headless command. Dispatch sites surface the lines, branch only on `dispatch=` presence, and never execute its value. The CLI arm uses `fab dispatch`, its five-state observation/recovery contract, pane hygiene, and universal result/context/terminal-refresh prompt obligations; the native arm uses the Agent model and effort seams. Explicit pane/headless overrides remain hard, automatic selection never ascends, and native re-resolution at `fab dispatch start` stops actionably before state writes. The preamble also owns **worker continuation on both resumable arms** (§ Worker Continuation — native's `apply-{id}` name + SendMessage resume, and the pane arm's `deliver --prompt-file` into the still-live apply pane; both share the mandatory fresh-dispatch fallback, profile fixity, and apply-only scope), the **pane readiness gate** (§ The pane readiness gate — open → gate → deliver, the 2-round judgment budget, immediate login-wall escalation, and the no-descent-on-exhaustion rule), the launch-entry discriminator (attempt `start`; its free pane refusal names `open`), the stage-aware reap timing that keeps the apply pane resumable — deferred to review-pass for apply and gated there on the pane arm, since a missing record makes reap error rather than no-op — the one-restart recovery budget, wait/peek/escalation policy, SRAD confidence gate, logging conventions, and next-step routing.
 
-**Worker Continuation (260808-tv3g):** `_preamble.md` § Subagent Dispatch owns the mechanics that let an auto-rework-capable orchestrator reuse its apply worker across rework cycles on the **native arm only**; `_pipeline.md` carries the pointer plus the Step-1 naming and item-3 resume-first wiring (owner-or-pointer convention). The five mechanics: **naming** — the native apply dispatch passes `name: "apply-{id}"` (4-char change ID); **continuation** — a later cycle sends the triaged findings + chosen rework action to that name via SendMessage, and instructs the worker to RE-READ from disk every artifact the orchestrator edited at that item — always plan.md — because its in-context copy predates those edits, re-stating the block contract (results only, no `fab status` transition command, terminal `fab status refresh`) but deliberately NOT re-carrying the standard subagent context files, which the worker already holds; **fallback** — an unreachable handle (session resumed/restarted, no named-agent/SendMessage capability, send error, or worker never named because the stage went through the CLI adapter) falls back to today's fresh dispatch verbatim, including the full Dispatch-Prompt Obligations, and re-establishes the name for later cycles — continuation is an optimization, never a correctness dependency (Constitution III); **profile fixity** — a resumed worker keeps its first-dispatch model/effort and `fab resolve-agent apply --alias` is not re-run on the resume path, only on fresh (initial or fallback) dispatches; **scope guard** — apply only, inside the auto-rework loop, and review workers are never named or continued (the fresh-reviewer rule is reviewer-independence design), with hydrate and every other stage unaffected and the whole `dispatch=`-present CLI branch out of scope (headless non-resumable by decision, pane resume a separate change).
+**Worker Continuation (260808-tv3g, extended to the pane arm by 260809-3oz7):** `_preamble.md` § Subagent Dispatch owns the mechanics that let an auto-rework-capable orchestrator reuse its apply worker across rework cycles; `_pipeline.md` carries the pointer plus the Step-1 naming and item-3 resume-first wiring (owner-or-pointer convention). The five mechanics: **naming** — the native apply dispatch passes `name: "apply-{id}"` (4-char change ID); **continuation** — a later cycle sends the triaged findings + chosen rework action to that name via SendMessage, and instructs the worker to RE-READ from disk every artifact the orchestrator edited at that item — always plan.md — because its in-context copy predates those edits, re-stating the block contract (results only, no `fab status` transition command, terminal `fab status refresh`) but deliberately NOT re-carrying the standard subagent context files, which the worker already holds; **fallback** — an unreachable handle (session resumed/restarted, no named-agent/SendMessage capability, send error, or worker never named because the stage went through the CLI adapter) falls back to today's fresh dispatch verbatim, including the full Dispatch-Prompt Obligations, and re-establishes the name for later cycles — continuation is an optimization, never a correctness dependency (Constitution III); **profile fixity** — a resumed worker keeps its first-dispatch model/effort and `fab resolve-agent apply --alias` is not re-run on the resume path, only on fresh (initial or fallback) dispatches; **scope guard** — apply only, inside the auto-rework loop, and review workers are never named or continued (the fresh-reviewer rule is reviewer-independence design), with hydrate and every other stage unaffected. Within the CLI branch, **headless stays non-resumable by decision**, while the **pane arm resumes through its own mechanism** (§ Pane-arm continuation, 260809-3oz7): a pane worker never exits on completion, so the worker the native arm holds in memory is here still on screen, and continuation is the same verified delivery step pointed at a continuation prompt — write `.fab-dispatch/{id}/apply-continuation.md` with the native arm's content rules (obligations 1 and 3, no context files), then `fab dispatch deliver <change> apply --prompt-file …`, whose VERIFIED delivery clears the previous cycle's result so `wait` observes the new one (a delivery that never verifies leaves it in place, which is what keeps the fallback below executable without a `kill`). Reachability is established BY ATTEMPTING the delivery (no probe), and every failure — pane reaped or killed, non-pane record, choreography retry exhausted, or `deliver` refusing a mid-stage worker — falls back to a fresh open → gate → deliver with the full obligations. Profile fixity holds identically. This is what the **stage-aware reap timing** exists for: the apply pane is NOT reaped at done-read, only once review passes or the run stops past apply.
 
 This is an internal partial (`user-invocable: false`) — it is never invoked directly. Skills reference it via the opening instruction: "Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding."
 
@@ -145,7 +145,7 @@ Skill reads _preamble.md
 │           tool's model param is a Claude-alias enum), so a
 │           cross-provider --provider override's SOLE
 │           executable path is the config override.
-│  ├─ Worker Continuation — NATIVE ARM ONLY (260808-tv3g)
+│  ├─ Worker Continuation — NATIVE + PANE ARMS (260808-tv3g, 260809-3oz7)
 │  │  naming: the native apply dispatch passes
 │  │    name: "apply-{id}" (4-char change id) from the
 │  │    auto-rework-capable orchestrators (fab-ff / fab-fff,
@@ -175,9 +175,19 @@ Skill reads _preamble.md
 │  │  scope guard: apply ONLY, inside the auto-rework loop.
 │  │    Review workers are never named and never continued
 │  │    (reviewer-independence); hydrate + all other stages
-│  │    unaffected; the whole dispatch=-present CLI branch is
-│  │    out of scope (headless non-resumable BY DECISION,
-│  │    pane resume = a separate follow-up change)
+│  │    unaffected; headless is non-resumable BY DECISION
+│  │  PANE-ARM continuation (260809-3oz7): the pane worker is
+│  │    still on screen (it never exits), so resume = the same
+│  │    verified delivery pointed at a continuation prompt —
+│  │    write .fab-dispatch/{id}/apply-continuation.md with the
+│  │    native arm's content rules, then fab dispatch deliver
+│  │    <change> apply --prompt-file <path>, which clears the
+│  │    prior cycle's result so wait observes the new one.
+│  │    Reachability = ATTEMPTING the delivery; any failure
+│  │    (pane reaped/killed, non-pane record, retry exhausted,
+│  │    mid-stage refusal) ⇒ fresh open → gate → deliver.
+│  │    Profile fixity identical. Enabled by the stage-aware
+│  │    reap timing below
 │  │
 │  ├─ CLI-Adapter Dispatch (260702-aetz / 3d — canonical)
 │  │  Branch on dispatch= at the resolve-agent call:
@@ -190,21 +200,47 @@ Skill reads _preamble.md
 │  │             failed (no-result)/orphaned; profile rides the
 │  │             dispatch= command so Agent-tool seams don't apply;
 │  │             NO fallback to a session command for a HEADLESS
-│  │             dispatch; done ⇒ read the result THEN run
-│  │             fab dispatch reap (260807-zfl7) — unconditional
-│  │             and dumb, the whole guard being Go-side; no STATE
+│  │             dispatch; done ⇒ read the result THEN reap at the
+│  │             stage-aware moment (260809-3oz7) — the whole
+│  │             pane/done/knob guard being Go-side; no STATE
 │  │             cleanup after done). Sites reference
 │  │             this, don't restate the machine.
+│  │  Step 1 LAUNCH ENTRY (260809-3oz7): dispatch= is UNLABELLED —
+│  │    it carries a substituted command and names no rung — so the
+│  │    site does not infer the mode: it ATTEMPTS fab dispatch start
+│  │    and lets the answer discriminate. The probe is free because
+│  │    a pane landing is refused before stdin is read, before the
+│  │    refuse-if-running check, and before any state write, and the
+│  │    refusal names fab dispatch open. Launched ⇒ headless arm;
+│  │    refused ⇒ pane arm (⇒ § The pane readiness gate, and the
+│  │    only arm the deferred apply reap fires on). Shortcut: the
+│  │    ladder never ascends, so dispatch.mode ≠ pane can never land
+│  │    on pane — under the default native this branch is headless.
 │  │  reap (260807-zfl7) is wired into the step-3 done bullet: a
 │  │    pane worker never exits on completion, so without it every
-│  │    finished stage keeps its slice of the carved column. The
-│  │    skill makes NO mode check and NO config check — reap acts
-│  │    only when the record is pane-mode AND the state is done AND
+│  │    finished stage keeps its slice of the carved column.
+│  │    WHEN is STAGE-AWARE (260809-3oz7): every stage but apply is
+│  │    reaped at done-read, while the APPLY pane survives its own
+│  │    done — it is the pane-arm resume target — and is reaped once
+│  │    review PASSES, or when the run stops past apply for good.
+│  │    At DONE-READ the call needs no mode or config check: the
+│  │    site is inside the dispatch= branch that just wrote that
+│  │    stage's record. The DEFERRED apply reap is GATED ON THE ARM
+│  │    (260809-3oz7) — fire it only when step 1 landed on pane
+│  │    (equivalently, apply.yaml exists and carries a pane:).
+│  │    A MISSING record is one of reap's REAL ERRORS, not a no-op,
+│  │    so an ungated call on the shipped native default — where
+│  │    apply writes no .fab-dispatch/ record at all — would exit
+│  │    non-zero and the Failure rule would halt the pipeline right
+│  │    after every passing review. Within the pane arm the call is
+│  │    unconditional and dumb as ever — reap acts only when the
+│  │    record is pane-mode AND the state is done AND
 │  │    dispatch.reap_done (bool, default TRUE, scope both) is
 │  │    true, and the knob is read through the four-tier cascade (environment > system > project > built-in defaults)
 │  │    a skill reading fab/project/config.yaml would get wrong.
 │  │    Every no-op reports its reason and exits 0 (headless = the
-│  │    process already exited); only a missing record errors.
+│  │    process already exited); only a missing record or an
+│  │    unresolvable change errors.
 │  │    Step 4's "no cleanup after done" is NARROWED, not deleted:
 │  │    reap is PANE HYGIENE and removes no files, so the record +
 │  │    result survive (which is why a reaped dispatch reads done
@@ -217,12 +253,39 @@ Skill reads _preamble.md
 │  │    WHETHER. dispatch= is absent iff native resolves and present
 │  │    with the substituted pane/headless command otherwise. Sites
 │  │    still branch only on presence and never execute the value.
+│  │  The PANE READINESS GATE (260809-3oz7) is step 1's pane arm:
+│  │    fab dispatch open (spawn, deliver nothing) → loop
+│  │    fab dispatch ready → fab dispatch deliver → then the
+│  │    ordinary wait. ready is MECHANICAL (sentinel echo +
+│  │    screen-stability; no dialog patterns, no Enter, always
+│  │    C-u-cleared) and reports ready | booting | parked with the
+│  │    pane, socket, and a capture snippet; all three exit 0.
+│  │    booting ⇒ wait + re-probe, NOT consuming a round, capped at
+│  │    5 consecutive booting reports before the pane counts as
+│  │    parked. parked ⇒ a JUDGMENT ROUND: the orchestrator reads
+│  │    the snippet and MAY answer the wall with raw tmux send-keys
+│  │    — sanctioned ONLY between open and a successful deliver,
+│  │    where the pane is not yet a WORKER and holds no stage
+│  │    context to corrupt. MAX 2 rounds, then escalate; LOGIN and
+│  │    CREDENTIAL walls escalate IMMEDIATELY and are never
+│  │    answered. Exhaustion escalates (capture evidence + gated
+│  │    rk notify + the existing failure path, pane left alive) and
+│  │    NEVER descends to headless — descent is a pre-launch
+│  │    capability decision. From successful delivery onward the
+│  │    no-input-injection rule applies unchanged. The gate
+│  │    AMORTIZES: walls are mostly workspace-scoped, so the first
+│  │    pass in a checkout clears them for every later worker
 │  │  Pane mode = an OPTION INSIDE the dispatch=-present arm,
-│  │    never a third branch (260805-zxe0). Pass NO mode flag by
-│  │    default; start/restart re-resolve config + capabilities +
-│  │    current environment through the same ladder. --pane and
-│  │    --headless are mutually exclusive one-shot overrides whose
-│  │    missing prerequisites hard-error. Automatic missing rungs
+│  │    never a third branch (260805-zxe0). Its ENTRY is its own
+│  │    verb: open → gate → deliver, not start (260809-3oz7).
+│  │    Pass NO mode flag by default; start/restart re-resolve
+│  │    config + capabilities + current environment through the
+│  │    same ladder. On restart --pane and --headless are mutually
+│  │    exclusive one-shot overrides whose missing prerequisites
+│  │    hard-error; start REFUSES a pane landing (flag or resolved)
+│  │    and names open, after the descent has had its chance so a
+│  │    stale $TMUX still degrades to headless; open takes no mode
+│  │    flag at all, pane being explicit there. Automatic missing rungs
 │  │    descend with `mode: <rung> (preferred)` or
 │  │    `mode: <rung> (descended: <reason>[; <reason>])`; reasons
 │  │    are pane unavailable: no tmux / tmux unreachable /
