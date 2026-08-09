@@ -453,7 +453,7 @@ It takes exactly two positional arguments and **no flags** — no `--json`, and 
 
 1. the record is **pane-mode** (`IsPane()` — a `pane:`-bearing record), **and**
 2. the **derived state is `done`** (`DerivePaneState`: `{stage}-result.yaml` present — pane liveness is irrelevant to the state), **and**
-3. **`dispatch.reap_done` resolves `true`** (default `true`) through the four-layer config cascade.
+3. **`dispatch.reap_done` resolves `true`** (default `true`) through the four-tier config cascade.
 
 Every other case SHALL be a **no-op with a one-line report naming its reason**, exiting 0:
 
@@ -551,7 +551,7 @@ A user MAY converse with a running pane worker mid-stage. This changes **no** co
 
 **Decision**: Pane hygiene is a **new verb** (`fab dispatch reap`) rather than a flag on `kill`, and it owns all three guard conditions — pane-mode record, derived state `done`, `dispatch.reap_done` true — so the skill wiring calls it **unconditionally and dumbly** after reading a `done` result.
 
-**Why**: `kill` is a **recovery** verb, valid in any state and already in the pipeline's sanctioned verb set with a documented never-kill-a-worker-awaiting-input rule; reap is **hygiene**, fires only on `done`, and is policy-gated. Folding them would put a config-gated no-op inside a verb whose contract is "terminate this now". Putting the guard in Go is what lets the call site stay dumb: the knob resolves through the four-layer cascade (environment > project > system `~/.fab-kit/config.yaml` > defaults), and a skill reading `fab/project/config.yaml` directly would miss both process-local and machine-wide `both`-scope preferences. One dumb call site also keeps the wiring identical across adapters and modes, since a headless record is a reported no-op inside the command.
+**Why**: `kill` is a **recovery** verb, valid in any state and already in the pipeline's sanctioned verb set with a documented never-kill-a-worker-awaiting-input rule; reap is **hygiene**, fires only on `done`, and is policy-gated. Folding them would put a config-gated no-op inside a verb whose contract is "terminate this now". Putting the guard in Go is what lets the call site stay dumb: the knob resolves through the four-tier cascade (environment > system `~/.fab-kit/config.yaml` > project > defaults), and a skill reading `fab/project/config.yaml` directly would miss both process-local and machine-wide `both`-scope preferences. One dumb call site also keeps the wiring identical across adapters and modes, since a headless record is a reported no-op inside the command.
 
 **Rejected**: `kill --if-done` (one verb with two contracts, and a config knob silently modulating a recovery command). A skill-side conditional `if pane && done && knob` (three chances to drift from the runtime, and a wrong config read on the layer that matters most). Making reap a *recovery* verb the Recovery policy may spend (it would blur the never-kill-a-live-worker invariant the policy rests on).
 

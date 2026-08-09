@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -159,40 +158,47 @@ func renderReference(asJSON bool, key ...string) (string, error) {
 	return configref.Render()
 }
 
-// configShowCmd implements `fab config show [--origin]` — a pure query (no file
-// writes) in the same family as `fab config explain`. It resolves the effective
-// (post-cascade) config for the current repo and prints it. Without a flag it
-// prints the merged effective config as YAML. With --origin it prints, per
+// configShowCmd implements `fab config show [key] [--origin]` — a pure query (no
+// file writes) in the same family as `fab config explain`. It resolves the
+// effective (post-cascade) config for the current repo and prints it. Without a
+// flag it prints the merged effective config as YAML. With --origin it prints, per
 // registry field, the effective value alongside its provenance (the git config
-// --show-origin precedent): environment variable, `project` file path, `system`
-// file path, or `default`
-// — with per-key drill-down for map-valued fields (agent.profiles, providers), since
-// maps merge per-key. --origin surfaces a typo'd override: the field the user
-// meant to set shows `default` when their file was expected to win.
+// --show-origin precedent): environment variable, `system` file path, `project`
+// file path, or `default` — with per-key drill-down for map-valued fields
+// (agent.profiles, providers), since maps merge per-key. --origin surfaces a
+// typo'd override: the field the user meant to set shows `default` when their file
+// was expected to win. KEYED --origin goes further and lists the key's whole
+// stack, so a shadowed override is visible rather than having to be inferred.
 func configShowCmd() *cobra.Command {
 	var withOrigin bool
 	cmd := &cobra.Command{
 		Use:   "show [key]",
 		Short: "Print the effective (post-cascade) config, optionally with per-field provenance",
 		Long: "Resolves the effective fab config across the cascade — " +
-			"environment > project (fab/project/config.yaml) > system " +
-			"(~/.fab-kit/config.yaml) > built-in " +
-			"defaults — and prints it. Without a flag, prints the merged config of the " +
-			"environment and two FILES as YAML; built-in defaults are NOT " +
-			"materialized here — they apply at point-of-use and are only surfaced " +
-			"explicitly by --origin. With --origin, prints each field's effective value " +
-			"and its provenance (environment variable / project path / system path / default), composing the " +
-			"built-in defaults into the listing and drilling down per-key for map-valued " +
-			"fields (agent.profiles, providers). --origin surfaces a typo'd override, which " +
-			"shows origin `default` when a file was expected to win. Pure query — writes " +
-			"no file.",
+			"environment > system (~/.fab-kit/config.yaml) > project " +
+			"(fab/project/config.yaml) > built-in " +
+			"defaults — and prints it. Each leaf takes the value of the highest tier " +
+			"that defines it NON-EMPTY: a null, empty string, empty list, or empty map " +
+			"falls through to the tier below instead of shadowing it. Without a flag, " +
+			"prints the merged config of the environment and two FILES as YAML; " +
+			"built-in defaults are NOT materialized here — they apply at point-of-use " +
+			"and are only surfaced explicitly by --origin. With --origin, prints each " +
+			"field's effective value and its provenance (environment variable / system " +
+			"path / project path / default), composing the built-in defaults into the " +
+			"listing and drilling down per-key for map-valued fields (agent.profiles, " +
+			"providers). With a KEY and --origin, prints the key's full stack instead — " +
+			"one line per tier that defines it, the winner marked (effective) and the " +
+			"rest (shadowed). Pure query — writes no file.",
 		Example: `  # Print the effective (post-cascade) config
   fab config show
 
-  # Annotate each field with its provenance (environment / project / system / default)
+  # Annotate each field with its provenance (environment / system / project / default)
   fab config show --origin
 
-  # Inspect one effective value and its origin
+  # Inspect one effective value
+  fab config show agent.workers
+
+  # List every tier that defines one key, winner first
   fab config show agent.workers --origin`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -205,15 +211,23 @@ func configShowCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// Bare `show` prints the file+environment merge and never consults the
+			// defaults tier, so it does not pay for the projection either.
+			var defaults map[string]any
+			if withOrigin || len(args) == 1 {
+				if defaults, err = readModelDefaults(layers); err != nil {
+					return err
+				}
+			}
 			if len(args) == 1 {
-				out, err := renderShowKey(layers, args[0], withOrigin)
+				out, err := renderShowKey(layers, defaults, args[0], withOrigin)
 				if err != nil {
 					return err
 				}
 				fmt.Fprint(cmd.OutOrStdout(), out)
 				return nil
 			}
-			out, err := renderShow(layers, withOrigin)
+			out, err := renderShow(layers, defaults, withOrigin)
 			if err != nil {
 				return err
 			}
@@ -221,62 +235,53 @@ func configShowCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&withOrigin, "origin", false, "Annotate each field with its provenance (environment variable / project path / system path / default)")
+	cmd.Flags().BoolVar(&withOrigin, "origin", false, "Annotate each field with its provenance; with a key, list every tier that defines it")
 	return cmd
 }
 
-// renderShowKey composes built-in < system < project < environment for exactly one known
-// dotted key. Scalars/lists print as the raw value; mappings print their YAML
-// subtree. With --origin, scalar/list output gets one suffix while mappings use
-// the existing honest per-leaf origin projection.
-func renderShowKey(layers *config.Layers, key string, withOrigin bool) (string, error) {
+// readModelDefaults projects the registry's built-in defaults into the bottom
+// tier of the read model, composed against the LIVE config so the derived
+// agent.profiles rows report the provider a depth knob actually selects (they are
+// resolved from the knob + the provider's fills, not stored anywhere). It takes
+// the ALREADY-LOADED layers rather than re-running the cascade: a second load
+// would re-read the system file and re-emit every fail-open `fab: warning:`. A
+// merged tree that will not unmarshal leaves the projection knob-blind rather
+// than failing the query.
+func readModelDefaults(layers *config.Layers) (map[string]any, error) {
+	cfg, err := config.FromMap(layers.Effective)
+	if err != nil {
+		return configref.DefaultsMap()
+	}
+	return configref.DefaultsMapFor(cfg)
+}
+
+// renderShowKey resolves exactly one known dotted key across the read model —
+// default < project < system < env, per-leaf with empty-skip — and prints it.
+// Scalars/lists print as the raw value; mappings print their YAML subtree. With
+// --origin the key's FULL STACK is listed instead: one line per tier that defines
+// it, highest precedence first, the winner marked (effective) and the rest
+// (shadowed). A map-valued key drills down per leaf, each leaf listing its own
+// defining tiers.
+func renderShowKey(layers *config.Layers, defaults map[string]any, key string, withOrigin bool) (string, error) {
 	if _, ok, err := configref.ResolveKey(key); err != nil {
 		return "", err
 	} else if !ok {
 		return "", fmt.Errorf("unknown config key %q", key)
 	}
-	fields, err := configref.Fields()
-	if err != nil {
-		return "", err
-	}
 	parts := strings.Split(key, ".")
 	top := parts[0]
-	defValue := defaultSubtree(fields, top)
-	defSub := originValue{value: defValue, set: defValue != nil}
-	sysSub := subtreeAt(layers.System, top)
-	projSub := subtreeAt(layers.Project, top)
-	envSub := subtreeAt(layers.Env, top)
-	effective := defSub.value
-	for _, layer := range []originValue{sysSub, projSub, envSub} {
-		if layer.set {
-			effective = mergeGeneric(effective, layer.value)
-		}
+
+	if withOrigin {
+		lines := keyedOriginLines(key, cascadeTiers(defaults, layers, top), layers.EnvOrigins)
+		return renderOriginLines(lines), nil
 	}
-	value, present := valueAtPath(effective, parts[1:])
+
+	effective := config.MergeLayers(subtreeLayer(defaults, top), subtreeLayer(layers.Project, top),
+		subtreeLayer(layers.System, top), subtreeLayer(layers.Env, top))
+	value, present := valueAtPath(effective[top], parts[1:])
 	if !present {
 		value = nil
 	}
-
-	if withOrigin {
-		lines := flattenOrigin(top, defSub, sysSub, projSub, envSub, layers.EnvOrigins, layers.SystemPath, layers.ProjectPath)
-		var selected []originLine
-		for _, line := range lines {
-			if line.key == key || strings.HasPrefix(line.key, key+".") {
-				selected = append(selected, line)
-			}
-		}
-		if len(selected) == 1 && selected[0].key == key {
-			return renderCompactValue(value) + "  # " + selected[0].origin + "\n", nil
-		}
-		if len(selected) == 0 {
-			if origin, ok := originAtPath(top, parts[1:], defSub, sysSub, projSub, envSub, layers.EnvOrigins, layers.SystemPath, layers.ProjectPath); ok {
-				return renderCompactValue(value) + "  # " + origin + "\n", nil
-			}
-			return renderCompactValue(value) + "  # default\n", nil
-		}
-		return renderOriginLines(selected), nil
-	}
-
 	if _, isMap := asGenericMap(value); isMap {
 		data, err := yaml.Marshal(value)
 		if err != nil {
@@ -285,6 +290,16 @@ func renderShowKey(layers *config.Layers, key string, withOrigin bool) (string, 
 		return string(data), nil
 	}
 	return renderCompactValue(value) + "\n", nil
+}
+
+// subtreeLayer isolates one top-level key of a layer map so the four tiers can be
+// merged through the shared MergeLayers rule without carrying every other key.
+func subtreeLayer(m map[string]any, top string) map[string]any {
+	v, ok := m[top]
+	if !ok {
+		return nil
+	}
+	return map[string]any{top: v}
 }
 
 func valueAtPath(value any, parts []string) (any, bool) {
@@ -345,7 +360,7 @@ func flowStyle(node *yaml.Node) {
 
 // renderShow renders the effective config, plain (merged YAML) or with per-field
 // provenance. It is factored out of the cobra RunE so it is unit-testable.
-func renderShow(layers *config.Layers, withOrigin bool) (string, error) {
+func renderShow(layers *config.Layers, defaults map[string]any, withOrigin bool) (string, error) {
 	if !withOrigin {
 		if len(layers.Effective) == 0 {
 			return "# (no effective config — no project or system config.yaml found)\n", nil
@@ -356,25 +371,20 @@ func renderShow(layers *config.Layers, withOrigin bool) (string, error) {
 		}
 		return string(data), nil
 	}
-	return renderShowOrigin(layers)
+	return renderShowOrigin(layers, defaults)
 }
 
 // renderShowOrigin walks the field registry and prints each field's effective
-// leaf values with provenance. For every registry field it composes the field's
-// subtree from four sources — built-in default (from the registry) < system
-// layer < project layer < environment — then flattens to leaves, printing `dotted.key = value
-// # origin` where origin is the HIGHEST layer that set the leaf.
-func renderShowOrigin(layers *config.Layers) (string, error) {
+// leaf values with provenance — one line per leaf, the WINNER only. For every
+// registry field it resolves the field's subtree across the four tiers
+// (environment > system > project > built-in defaults) and flattens to leaves,
+// printing `dotted.key = value  # origin` where origin is the highest tier that
+// DEFINES the leaf. The keyed form (renderShowKey) lists the whole stack instead.
+func renderShowOrigin(layers *config.Layers, defaults map[string]any) (string, error) {
 	fields, err := configref.Fields()
 	if err != nil {
 		return "", err
 	}
-	// Origin labels. The system path may be "" (HOME unresolvable); it never
-	// contributes a set leaf in that case, so the label is only ever printed for a
-	// genuine system-layer leaf.
-	projectOrigin := layers.ProjectPath
-	systemOrigin := layers.SystemPath
-
 	var lines []originLine
 	seenKeyTop := map[string]bool{} // avoid re-walking a top-level key documented by multiple registry rows (project.name/description/…)
 	for _, f := range fields {
@@ -385,14 +395,7 @@ func renderShowOrigin(layers *config.Layers) (string, error) {
 			continue
 		}
 		seenKeyTop[top] = true
-
-		defValue := defaultSubtree(fields, top)
-		defSub := originValue{value: defValue, set: defValue != nil}
-		projSub := subtreeAt(layers.Project, top)
-		sysSub := subtreeAt(layers.System, top)
-		envSub := subtreeAt(layers.Env, top)
-
-		lines = append(lines, flattenOrigin(top, defSub, sysSub, projSub, envSub, layers.EnvOrigins, systemOrigin, projectOrigin)...)
+		lines = append(lines, flattenOrigin(top, cascadeTiers(defaults, layers, top), layers.EnvOrigins)...)
 	}
 
 	if len(lines) == 0 {
@@ -422,214 +425,265 @@ func topLevelKey(key string) string {
 	return key
 }
 
-// defaultSubtree returns the built-in default value for a top-level key as a
-// generic value (map or scalar), built from EVERY registry row whose dotted key
-// starts with that top-level key (e.g. `providers`; `agent.session`,
-// `agent.workers` and `agent.profiles` all nest under `agent`). Each row's
-// Field.Default is nested under its remaining path segments and the resulting
-// subtrees are merged, so a top-level key carrying several default-bearing rows
-// contributes all of them — not just the first. Registry defaults are typed
-// structs/maps; a JSON round-trip normalizes them into the same map[string]any
-// shape the layer maps use, so merge/flatten treats all four sources uniformly.
-// Returns nil when no row carries a built-in default for the key (the common
-// case — most fields are nil).
-func defaultSubtree(fields []configref.Field, top string) any {
-	var out any
-	for _, f := range fields {
-		if f.Default == nil {
-			continue
-		}
-		// A default lives on the row whose dotted key's FIRST segment is `top`.
-		// `agent.profiles` contributes the `profiles` sub-map under `agent`.
-		segs := strings.Split(f.Key, ".")
-		if segs[0] != top {
-			continue
-		}
-		normalized := normalizeToGeneric(f.Default)
-		// Nest the default under the remaining path segments (agent.profiles → the
-		// value sits at agent → profiles).
-		for i := len(segs) - 1; i >= 1; i-- {
-			normalized = map[string]any{segs[i]: normalized}
-		}
-		out = mergeGeneric(out, normalized)
-	}
-	return out
-}
+// Tier kinds, highest precedence first. They are the words the keyed --origin
+// stack listing prints; the winner-only listing prints the tier's LABEL instead
+// (the git config --show-origin precedent).
+const (
+	tierEnv     = "env"
+	tierSystem  = "system"
+	tierProject = "project"
+	tierDefault = "default"
+)
 
-// mergeGeneric merges two default subtrees, with `over` winning on conflict.
-// Maps merge per-key recursively; anything else replaces wholesale. Registry
-// rows under one top-level key nest at disjoint paths, so in practice this only
-// unions sibling sub-keys (session + workers + profiles under `agent`).
-func mergeGeneric(base, over any) any {
-	bm, bok := asGenericMap(base)
-	om, ook := asGenericMap(over)
-	if !bok || !ook {
-		return over
-	}
-	out := make(map[string]any, len(bm)+len(om))
-	for k, v := range bm {
-		out[k] = v
-	}
-	for k, v := range om {
-		out[k] = mergeGeneric(out[k], v)
-	}
-	return out
-}
-
-// normalizeToGeneric round-trips a typed value (registry default struct/map)
-// into the generic map[string]any/[]any/scalar shape used by the layer maps, so
-// all four provenance sources merge and flatten uniformly. It marshals via JSON,
-// NOT YAML: the registry default structs (providerDefault, roleProfileDefault)
-// carry `json:` tags whose names match the real config keys (session_command,
-// provider, model, effort), whereas they carry no `yaml:` tags — a YAML marshal
-// would emit lowercased Go field names (sessioncommand) that would not line up
-// with the layer maps' snake_case keys, producing phantom leaves. Config values
-// are strings/lists/maps, so JSON's numeric widening is not a concern here.
-func normalizeToGeneric(v any) any {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return v
-	}
-	var out any
-	if err := json.Unmarshal(data, &out); err != nil {
-		return v
-	}
-	return out
-}
-
-// originValue keeps layer presence separate from its value. YAML null decodes to
-// nil, so using nil itself as the absence sentinel loses explicit null overrides.
-type originValue struct {
+// cascadeTier is one tier of the config read model at one node of the tree: the
+// value that tier supplies there, plus how to name it. A tier DEFINES the node
+// when its value is non-empty (config.IsEmptyValue) — the same test the merge
+// applies, so provenance can never disagree with resolution.
+type cascadeTier struct {
+	kind  string
+	label string // file path; empty for env (named per leaf) and for default
 	value any
-	set   bool
 }
 
-// subtreeAt returns m[top] together with whether the key is present. The two
-// signals deliberately remain distinct so an explicit YAML null stays set.
-func subtreeAt(m map[string]any, top string) originValue {
-	if m == nil {
-		return originValue{}
+func (t cascadeTier) defines() bool { return !config.IsEmptyValue(t.value) }
+
+// origin is the winner-only label: the exact environment variable, the project or
+// system file path, or `default`.
+func (t cascadeTier) origin(key string, envOrigins map[string]string) string {
+	switch t.kind {
+	case tierEnv:
+		if variable := envOrigin(key, envOrigins); variable != "" {
+			return variable
+		}
+		return tierEnv // no recorded variable: the tier word is the only honest label
+	case tierDefault:
+		return tierDefault
+	default:
+		return t.label
 	}
-	v, ok := m[top]
-	return originValue{value: v, set: ok}
 }
 
-// flattenOrigin flattens the merged subtree at prefix into originLines, resolving
-// each leaf's origin as the highest layer that set it: env > project > system >
-// default. def/sys/proj/env carry the four source values at this node plus an
-// explicit presence bit. Map nodes recurse per-key (the honest granularity where
-// maps merge per-key); null, a scalar, or a list is a single leaf.
-//
-// Precedence is honored BEFORE the map/leaf decision, mirroring deepMerge: the
-// highest-precedence PRESENT layer decides the node's shape. When that layer is a
-// non-map (a scalar/list), it REPLACES the whole subtree — the node is a single
-// leaf at that layer's origin, and every lower layer is shadowed (its keys must
-// NOT leak in as phantom children). Only when the winning layer is a map do we
-// drill per-key; there a lower layer contributes only if it survived to the merge,
-// i.e. every higher-precedence present layer at this node was ALSO a map (a higher
-// non-map would have wiped it before the lower map could merge in), matching
-// deepMerge applied layer-by-layer.
-func flattenOrigin(prefix string, def, sys, proj, env originValue, envOrigins map[string]string, systemOrigin, projectOrigin string) []originLine {
-	winner, origin := highestOriginValue(prefix, def, sys, proj, env, envOrigins, systemOrigin, projectOrigin)
-	if !winner.set {
-		// No layer sets this node at all — nothing to emit.
+// stackOrigin is the keyed full-stack label: the tier word plus its label, so a
+// listing of several tiers reads as a stack rather than as two bare file paths. A
+// tier whose label IS its own word (`default`, and an environment leaf with no
+// recorded variable) prints that word once rather than twice.
+func (t cascadeTier) stackOrigin(key string, envOrigins map[string]string) string {
+	origin := t.origin(key, envOrigins)
+	if origin == t.kind {
+		return t.kind
+	}
+	return t.kind + " " + origin
+}
+
+// cascadeTiers returns the four tiers for one top-level key, highest precedence
+// first: environment > system > project > built-in defaults. The system path may
+// be "" (HOME unresolvable); it never defines a leaf in that case, so the label is
+// only ever printed for a genuine system-layer leaf.
+func cascadeTiers(defaults map[string]any, layers *config.Layers, top string) []cascadeTier {
+	return []cascadeTier{
+		{kind: tierEnv, value: pruneEmpty(layers.Env[top])},
+		{kind: tierSystem, label: layers.SystemPath, value: pruneEmpty(layers.System[top])},
+		{kind: tierProject, label: layers.ProjectPath, value: pruneEmpty(layers.Project[top])},
+		{kind: tierDefault, value: pruneEmpty(defaults[top])},
+	}
+}
+
+// pruneEmptyKey is the throwaway wrapper key pruneEmpty merges under; the merge
+// rule is defined over layer MAPS, and one synthetic key is what borrows it for a
+// single value without a second implementation.
+const pruneEmptyKey = "v"
+
+// pruneEmpty drops a tier value's empty leaves RECURSIVELY, exactly as the merge
+// does, returning nil when nothing survives. Without it a tier's `defines()` test
+// would be shallow while the merge is deep, so a map whose every leaf is empty
+// (`agent: {workers: null}`) would be reported as the defining tier for a value it
+// cannot actually supply — provenance contradicting resolution.
+func pruneEmpty(v any) any {
+	if config.IsEmptyValue(v) {
 		return nil
 	}
-	if _, isMap := asGenericMap(winner.value); !isMap {
-		return []originLine{{key: prefix, value: renderScalar(winner.value), origin: origin}}
+	if _, isMap := asGenericMap(v); !isMap {
+		return v // lists and scalars are leaves: non-empty is all there is to test
 	}
+	return config.MergeLayers(map[string]any{pruneEmptyKey: v})[pruneEmptyKey]
+}
 
-	// The winning layer is a map ⇒ drill per-key. A layer joins the drill-down only
-	// if it is a map AND no higher-precedence present layer shadowed it with a
-	// non-map. Walk high→low: once a present layer is a non-map, every lower layer
-	// is shadowed (dropped); a present map lets lower layers keep merging.
-	defMap, sysMap, projMap, envMap := mergeableOriginMaps(def, sys, proj, env)
-
-	keys := unionKeys(defMap, sysMap, projMap, envMap)
-	sort.Strings(keys)
-	var out []originLine
-	for _, k := range keys {
-		child := prefix + "." + k
-		out = append(out, flattenOrigin(child,
-			mapGet(defMap, k), mapGet(sysMap, k), mapGet(projMap, k), mapGet(envMap, k),
-			envOrigins, systemOrigin, projectOrigin)...)
+// definingTiers keeps only the tiers that define the node, order preserved. The
+// first is the winner; the rest are shadowed.
+func definingTiers(tiers []cascadeTier) []cascadeTier {
+	var out []cascadeTier
+	for _, t := range tiers {
+		if t.defines() {
+			out = append(out, t)
+		}
 	}
 	return out
 }
 
-// originAtPath walks the same per-layer shapes as flattenOrigin but retains
-// empty mappings, which have provenance even though they produce no flattened
-// leaf. A non-map encountered before the requested node is a replacing ancestor
-// and therefore supplies the descendant's winning origin.
-func originAtPath(prefix string, parts []string, def, sys, proj, env originValue, envOrigins map[string]string, systemOrigin, projectOrigin string) (string, bool) {
-	winner, origin := highestOriginValue(prefix, def, sys, proj, env, envOrigins, systemOrigin, projectOrigin)
-	if !winner.set {
-		return "", false
+// mergeableTiers returns the tiers that survive to the merge AT THIS NODE, in
+// precedence order. Walking high→low: a tier that defines nothing neither wins nor
+// shadows (empty-skip), and the first tier that defines a NON-map replaces the
+// whole subtree — every lower tier is shadowed and must not leak in as phantom
+// children.
+func mergeableTiers(tiers []cascadeTier) []cascadeTier {
+	var out []cascadeTier
+	for _, t := range tiers {
+		if !t.defines() {
+			continue
+		}
+		m, isMap := asGenericMap(t.value)
+		if !isMap {
+			break
+		}
+		out = append(out, cascadeTier{kind: t.kind, label: t.label, value: m})
 	}
-	if len(parts) == 0 {
-		return origin, true
+	return out
+}
+
+// childTiers descends every tier one key deeper. A tier that does not carry the
+// key contributes nil, which is empty and therefore defines nothing.
+func childTiers(tiers []cascadeTier, key string) []cascadeTier {
+	out := make([]cascadeTier, 0, len(tiers))
+	for _, t := range tiers {
+		m, _ := asGenericMap(t.value)
+		out = append(out, cascadeTier{kind: t.kind, label: t.label, value: m[key]})
 	}
+	return out
+}
+
+// childKeys is the sorted union of the keys the mergeable tiers carry.
+func childKeys(tiers []cascadeTier) []string {
+	maps := make([]map[string]any, 0, len(tiers))
+	for _, t := range tiers {
+		m, _ := asGenericMap(t.value)
+		maps = append(maps, m)
+	}
+	keys := unionKeys(maps...)
+	sort.Strings(keys)
+	return keys
+}
+
+// flattenOrigin flattens the node at prefix into WINNER-ONLY originLines: each
+// leaf's value and the highest tier that defines it. Map nodes recurse per-key
+// (the honest granularity where maps merge per-key); a scalar or list is a single
+// leaf. A node no tier defines emits nothing.
+func flattenOrigin(prefix string, tiers []cascadeTier, envOrigins map[string]string) []originLine {
+	defining := definingTiers(tiers)
+	if len(defining) == 0 {
+		return nil
+	}
+	winner := defining[0]
 	if _, isMap := asGenericMap(winner.value); !isMap {
-		return origin, true
+		return []originLine{{key: prefix, value: renderScalar(winner.value), origin: winner.origin(prefix, envOrigins)}}
 	}
-
-	defMap, sysMap, projMap, envMap := mergeableOriginMaps(def, sys, proj, env)
-	child := parts[0]
-	return originAtPath(prefix+"."+child, parts[1:],
-		mapGet(defMap, child), mapGet(sysMap, child), mapGet(projMap, child), mapGet(envMap, child),
-		envOrigins, systemOrigin, projectOrigin)
+	mergeable := mergeableTiers(tiers)
+	var out []originLine
+	for _, k := range childKeys(mergeable) {
+		out = append(out, flattenOrigin(prefix+"."+k, childTiers(mergeable, k), envOrigins)...)
+	}
+	return out
 }
 
-func highestOriginValue(prefix string, def, sys, proj, env originValue, envOrigins map[string]string, systemOrigin, projectOrigin string) (originValue, string) {
+// pathDescent is the outcome of walking a dotted key down the tier stack — the
+// one descent both provenance surfaces share (the keyed --origin listing and the
+// set/unset shadow notices ask the same question of the same stack).
+type pathDescent struct {
+	// tiers is the stack AT the requested node, valid only when found is true and
+	// ancestor is nil.
+	tiers []cascadeTier
+	// ancestor is the tier whose NON-MAP value replaces the requested node's whole
+	// subtree (`FAB_PROVIDERS=oops` over a project providers block), with
+	// ancestorKey its dotted path — the granularity its env origin is recorded at.
+	ancestor    *cascadeTier
+	ancestorKey string
+	// found is false when some node along the path is defined by no tier at all,
+	// so nothing beneath it can be defined either.
+	found bool
+}
+
+// descendPath walks key's dotted path down the tier stack, one level per segment.
+// tiers must be the stack for key's TOP-LEVEL segment (cascadeTiers).
+func descendPath(tiers []cascadeTier, key string) pathDescent {
+	parts := strings.Split(key, ".")
+	prefix := parts[0]
+	for _, part := range parts[1:] {
+		defining := definingTiers(tiers)
+		if len(defining) == 0 {
+			return pathDescent{}
+		}
+		if _, isMap := asGenericMap(defining[0].value); !isMap {
+			ancestor := defining[0]
+			return pathDescent{ancestor: &ancestor, ancestorKey: prefix, found: true}
+		}
+		tiers = childTiers(mergeableTiers(tiers), part)
+		prefix += "." + part
+	}
+	return pathDescent{tiers: tiers, found: true}
+}
+
+// keyedOriginLines is the FULL-STACK listing for one dotted key: one line per tier
+// that defines it, highest precedence first, the winner marked (effective) and the
+// rest (shadowed). It descends the path through the tier stack first, so an
+// ancestor replaced by a higher tier reports that replacing tier rather than
+// inventing a descendant. A map-valued key drills down per leaf, each leaf listing
+// its own stack.
+func keyedOriginLines(key string, tiers []cascadeTier, envOrigins map[string]string) []originLine {
+	undefined := []originLine{{key: key, value: "null", origin: "(no tier defines this key)"}}
+	descent := descendPath(tiers, key)
 	switch {
-	case env.set:
-		return env, envOrigin(prefix, envOrigins)
-	case proj.set:
-		return proj, projectOrigin
-	case sys.set:
-		return sys, systemOrigin
-	case def.set:
-		return def, "default"
-	default:
-		return originValue{}, ""
+	case !descent.found:
+		return undefined
+	case descent.ancestor != nil:
+		// The requested descendant resolves to null; the replacing ancestor's tier
+		// is the provenance to report.
+		return []originLine{{key: key, value: "null",
+			origin: descent.ancestor.stackOrigin(descent.ancestorKey, envOrigins) + "  (effective)"}}
 	}
+	lines := stackLines(key, descent.tiers, envOrigins)
+	if len(lines) == 0 {
+		return undefined
+	}
+	return lines
 }
 
-func mergeableOriginMaps(def, sys, proj, env originValue) (defMap, sysMap, projMap, envMap map[string]any) {
-	envMap, envIsMap := asGenericMap(env.value)
-	projMap, projIsMap := asGenericMap(proj.value)
-	sysMap, sysIsMap := asGenericMap(sys.value)
-	defMap, defIsMap := asGenericMap(def.value)
-
-	shadowed := false
-	if !env.set || !envIsMap {
-		envMap = nil
+// stackLines emits the per-tier listing for a node: one line per defining tier at
+// a leaf, or the per-leaf drill-down when the winning tier is a map.
+func stackLines(prefix string, tiers []cascadeTier, envOrigins map[string]string) []originLine {
+	defining := definingTiers(tiers)
+	if len(defining) == 0 {
+		return nil
 	}
-	if env.set && !envIsMap {
-		shadowed = true
+	if _, isMap := asGenericMap(defining[0].value); !isMap {
+		out := make([]originLine, 0, len(defining))
+		for i, t := range defining {
+			marker := "  (shadowed)"
+			if i == 0 {
+				marker = "  (effective)"
+			}
+			out = append(out, originLine{
+				key: prefix,
+				// The keyed listing renders a list/map leaf in compact FLOW style
+				// ([a, b]) — one stack line per tier stays readable only if the value
+				// is one token-ish run, which the winner-only listing does not need.
+				value:  renderCompactValue(t.value),
+				origin: t.stackOrigin(prefix, envOrigins) + marker,
+			})
+		}
+		return out
 	}
-	if shadowed || !proj.set || !projIsMap {
-		projMap = nil
+	mergeable := mergeableTiers(tiers)
+	var out []originLine
+	for _, k := range childKeys(mergeable) {
+		out = append(out, stackLines(prefix+"."+k, childTiers(mergeable, k), envOrigins)...)
 	}
-	if !shadowed && proj.set && !projIsMap {
-		shadowed = true
-	}
-	if shadowed || !sys.set || !sysIsMap {
-		sysMap = nil
-	}
-	if !shadowed && sys.set && !sysIsMap {
-		shadowed = true
-	}
-	if shadowed || !def.set || !defIsMap {
-		defMap = nil
-	}
-	return defMap, sysMap, projMap, envMap
+	return out
 }
 
-// envOrigin returns the variable that supplied an environment leaf. Origins are
-// stored at registry-row granularity, so leaves beneath a map-valued row use the
-// longest matching dotted-key prefix (agent.profiles.review.provider →
-// $FAB_AGENT_PROFILES).
+// envOrigin returns the `$VARIABLE` that supplied an environment leaf, or "" when
+// no variable is recorded for it (unreachable in practice — the overlay and the
+// origin map are written together). Origins are stored at registry-row
+// granularity, so leaves beneath a map-valued row use the longest matching
+// dotted-key prefix (agent.profiles.review.provider → $FAB_AGENT_PROFILES).
 func envOrigin(key string, origins map[string]string) string {
 	bestKey, bestVar := "", ""
 	for registryKey, variable := range origins {
@@ -640,7 +694,7 @@ func envOrigin(key string, origins map[string]string) string {
 		}
 	}
 	if bestVar == "" {
-		return "env"
+		return ""
 	}
 	return "$" + bestVar
 }
@@ -664,14 +718,6 @@ func asGenericMap(v any) (map[string]any, bool) {
 	default:
 		return nil, false
 	}
-}
-
-func mapGet(m map[string]any, k string) originValue {
-	if m == nil {
-		return originValue{}
-	}
-	v, ok := m[k]
-	return originValue{value: v, set: ok}
 }
 
 func unionKeys(maps ...map[string]any) []string {
@@ -712,38 +758,156 @@ func configSetCmd() *cobra.Command {
 		Long: "Accepts only known scalar leaf keys and single-line, comment-free YAML scalar values " +
 			"(string, bool, int, or float), then surgically writes only that path through the " +
 			"comment-preserving config engine. Collection-valued keys and values require a manual " +
-			"config-file edit. Use --system for ~/.fab-kit/config.yaml; project-scoped keys are refused there.",
+			"config-file edit. An EMPTY value is refused: an empty leaf falls through to the next " +
+			"tier and can never be effective — `fab config unset` is the verb for removing an " +
+			"override. When a higher-precedence tier already defines the key, the write succeeds " +
+			"(exit 0) with a warning naming the tier that wins. Use --system for " +
+			"~/.fab-kit/config.yaml; project-scoped keys are refused there.",
 		Example: `  fab config set agent.workers codex
   fab config set dispatch.column_width 42
   fab config set agent.session gemini --system`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			key, rawValue := args[0], args[1]
+			if isEmptySetValue(rawValue) {
+				return fmt.Errorf("refusing to set %q to an empty value: an empty leaf (null, \"\", [], {}) "+
+					"falls through to the next config tier and can never be effective — "+
+					"run `fab config unset %s` to remove the override instead", key, key)
+			}
 			path, err := configMutationPath(system)
 			if err != nil {
 				return err
 			}
 			var result configupgrade.Result
 			if system {
-				result, err = configupgrade.SetSystem(path, args[0], args[1])
+				result, err = configupgrade.SetSystem(path, key, rawValue)
 			} else {
-				result, err = configupgrade.Set(path, args[0], args[1], version)
+				result, err = configupgrade.Set(path, key, rawValue, version)
 			}
 			if err != nil {
 				return err
 			}
 			if result.Changed {
-				fmt.Fprintf(cmd.OutOrStdout(), "Set %s in %s\n", args[0], path)
+				fmt.Fprintf(cmd.OutOrStdout(), "Set %s in %s\n", key, path)
 			} else {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s already has that value in %s\n", args[0], path)
+				fmt.Fprintf(cmd.OutOrStdout(), "%s already has that value in %s\n", key, path)
 			}
 			for _, line := range result.Report {
 				fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", line)
 			}
+			warnIfShadowed(cmd, key, mutationTier(system))
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&system, "system", false, "Write ~/.fab-kit/config.yaml instead of the project config")
 	return cmd
+}
+
+// isEmptySetValue reports whether a `set` value is EMPTY under the read model's
+// one emptiness rule. The test is on the PARSED value, not on the argv string: a
+// quoted-empty YAML form (an empty double- or single-quoted scalar) and an explicit
+// null reach the file as a leaf empty-skip can never honor, like a blank one — a raw
+// string test would accept them and write an inert override. A value that does not
+// parse is NOT judged here; the writer's own parse error is the better message.
+func isEmptySetValue(raw string) bool {
+	if strings.TrimSpace(raw) == "" {
+		return true // not every blank argv string reaches the parser as a value
+	}
+	value, err := config.ParseYAMLValue(raw)
+	if err != nil {
+		return false
+	}
+	return config.IsEmptyValue(value)
+}
+
+// mutationTier names the cascade tier a mutation targets.
+func mutationTier(system bool) string {
+	if system {
+		return tierSystem
+	}
+	return tierProject
+}
+
+// warnIfShadowed prints a `fab: warning:` on stderr when a tier ABOVE the write
+// target already defines the key, so a write that cannot take effect says so
+// instead of succeeding silently. The write itself is valid, so the exit code
+// stays 0. Fail-open: an unresolvable read model simply prints nothing.
+func warnIfShadowed(cmd *cobra.Command, key, target string) {
+	winner, envOrigins, ok := effectiveTierFor(key)
+	if !ok || tierRank(winner.kind) >= tierRank(target) {
+		return
+	}
+	fmt.Fprintf(cmd.ErrOrStderr(), "fab: warning: %s is shadowed by %s — the written value is not in effect\n",
+		key, winner.stackOrigin(key, envOrigins))
+}
+
+// liveTierNotice reports where a key IS live when an unset found nothing to
+// remove in its own target, with the command that would remove it. It returns ""
+// when nothing above the built-in default defines the key, or when the target
+// tier is the one that does (which unset already handled).
+func liveTierNotice(key, target string) string {
+	winner, envOrigins, ok := effectiveTierFor(key)
+	if !ok || winner.kind == tierDefault || winner.kind == target {
+		return ""
+	}
+	origin := winner.stackOrigin(key, envOrigins)
+	if winner.kind == tierEnv {
+		return fmt.Sprintf("  live in %s — an environment variable, which unset cannot remove; unset it in your shell", origin)
+	}
+	remedy := "fab config unset " + key
+	if winner.kind == tierSystem {
+		remedy += " --system"
+	}
+	return fmt.Sprintf("  live in %s — use: %s", origin, remedy)
+}
+
+// tierRank orders the tiers by precedence, highest first (env 0 … default 3), so
+// "is some tier higher than the one I wrote?" is a comparison.
+func tierRank(kind string) int {
+	switch kind {
+	case tierEnv:
+		return 0
+	case tierSystem:
+		return 1
+	case tierProject:
+		return 2
+	default:
+		return 3
+	}
+}
+
+// effectiveTierFor resolves which tier supplies a dotted key's effective value,
+// descending the path exactly as the merge does (a replacing ancestor supplies its
+// descendants) through the same shared descent the keyed --origin listing uses.
+// Fail-open in every direction — an unresolvable repo, an unreadable layer, or a
+// key no tier defines all report ok=false, because these notices must never fail a
+// mutation that already succeeded.
+func effectiveTierFor(key string) (cascadeTier, map[string]string, bool) {
+	fabRoot, err := resolve.FabRoot()
+	if err != nil {
+		return cascadeTier{}, nil, false
+	}
+	projectPath := filepath.Join(fabRoot, "project", "config.yaml")
+	layers, err := config.LoadLayers(projectPath)
+	if err != nil {
+		return cascadeTier{}, nil, false
+	}
+	defaults, err := readModelDefaults(layers)
+	if err != nil {
+		return cascadeTier{}, nil, false
+	}
+	descent := descendPath(cascadeTiers(defaults, layers, topLevelKey(key)), key)
+	switch {
+	case !descent.found:
+		return cascadeTier{}, nil, false
+	case descent.ancestor != nil:
+		return *descent.ancestor, layers.EnvOrigins, true // a replacing ancestor supplies the value
+	}
+	defining := definingTiers(descent.tiers)
+	if len(defining) == 0 {
+		return cascadeTier{}, nil, false
+	}
+	return defining[0], layers.EnvOrigins, true
 }
 
 func configUnsetCmd() *cobra.Command {
@@ -752,30 +916,33 @@ func configUnsetCmd() *cobra.Command {
 		Use:   "unset <key>",
 		Short: "Remove one override and restore inheritance",
 		Long: "Removes one known live override through the comment-preserving config engine, " +
-			"restoring the system or built-in value. An absent key is an exit-zero no-op. " +
-			"Use --system to target ~/.fab-kit/config.yaml.",
+			"restoring the value the tier below supplies. An absent key is an exit-zero " +
+			"no-op whose notice names the tier where the key IS live — another file, or the " +
+			"environment variable unset cannot remove. Use --system to target " +
+			"~/.fab-kit/config.yaml.",
 		Example: `  fab config unset agent.workers
   fab config unset agent.session --system`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			key := args[0]
 			path, err := configMutationPath(system)
 			if err != nil {
 				return err
 			}
 			var result configupgrade.Result
 			if system {
-				result, err = configupgrade.UnsetSystem(path, args[0])
+				result, err = configupgrade.UnsetSystem(path, key)
 			} else {
-				result, err = configupgrade.Unset(path, args[0], version)
+				result, err = configupgrade.Unset(path, key, version)
 			}
 			if err != nil {
 				return err
 			}
 			if result.Changed {
-				fmt.Fprintf(cmd.OutOrStdout(), "Unset %s in %s\n", args[0], path)
+				fmt.Fprintf(cmd.OutOrStdout(), "Unset %s in %s\n", key, path)
 			} else {
 				if len(result.Report) == 0 {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s is not set; nothing to unset\n", args[0])
+					fmt.Fprintf(cmd.OutOrStdout(), "%s is not set; nothing to unset\n", key)
 				}
 			}
 			for _, line := range result.Report {
@@ -783,6 +950,11 @@ func configUnsetCmd() *cobra.Command {
 					fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", line)
 				} else {
 					fmt.Fprintln(cmd.OutOrStdout(), line)
+				}
+			}
+			if !result.Changed {
+				if notice := liveTierNotice(key, mutationTier(system)); notice != "" {
+					fmt.Fprintln(cmd.OutOrStdout(), notice)
 				}
 			}
 			return nil

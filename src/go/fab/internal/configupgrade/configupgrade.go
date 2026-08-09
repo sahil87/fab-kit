@@ -47,7 +47,6 @@
 package configupgrade
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -858,15 +857,24 @@ const parkedVersionPlaceholder = "an earlier release"
 // can match; every other field has no built-in default, so a live value there is
 // always a genuine override and is never flagged.
 //
-// The comparison parses the live preamble into a generic map, normalizes each
-// registry Default through the same JSON round-trip the origin listing uses (the
-// default structs carry json: tags matching the config keys), and deep-compares the
-// live subtree against it. A parse failure yields no findings (advisory — never
-// fatal). Reports are stable-ordered by registry order.
+// The comparison parses the live preamble into a generic map and deep-compares each
+// live subtree against the registry's own materialized projection
+// (configref.DefaultsMap, already normalized to the generic shape). Both sides are
+// therefore decoded values, which genericEqual compares tolerantly. A parse failure
+// yields no findings (advisory — never fatal). Reports are stable-ordered by
+// registry order.
 func bHygieneReport(preamble string, fields []configref.Field) []string {
 	var live map[string]any
 	if err := yaml.Unmarshal([]byte(preamble), &live); err != nil || live == nil {
 		return nil // can't parse (or nothing live) → no advisory (never fatal)
+	}
+	// The built-in side is the registry's own projection — the same materialized
+	// defaults tier the read model merges (configref.DefaultsMap), so there is no
+	// second nesting/merging implementation to drift. A projection failure yields no
+	// advisory, matching the parse-failure path above (B-hygiene is never fatal).
+	defaults, err := configref.DefaultsMap()
+	if err != nil {
+		return nil
 	}
 	seen := map[string]bool{}
 	var report []string
@@ -883,66 +891,15 @@ func bHygieneReport(preamble string, fields []configref.Field) []string {
 			continue // not a live key → nothing to compare
 		}
 		seen[top] = true
-		def := defaultSubtreeFor(fields, top)
+		def := defaults[top]
 		if def == nil {
 			continue
 		}
-		if genericEqual(normalizeToGeneric(liveVal), def) {
+		if genericEqual(liveVal, def) {
 			report = append(report, fmt.Sprintf("field %q equals the current default — you can remove it to inherit (kept as-is: presence=intent)", top))
 		}
 	}
 	return report
-}
-
-// defaultSubtreeFor builds the built-in default subtree for a top-level key from the
-// registry, nesting EVERY matching row's Default under its remaining dotted segments
-// (agent.session/agent.workers/agent.profiles → {session, workers, profiles} under
-// `agent`) and merging the results — a top-level key with several default-bearing
-// rows contributes all of them, so the presence=intent comparison sees the whole
-// built-in subtree. Mirrors cmd/fab's defaultSubtree; kept here so the engine has no
-// dependency on cmd/fab. Returns nil when no row carries a default for the key.
-func defaultSubtreeFor(fields []configref.Field, top string) any {
-	var out any
-	for _, f := range fields {
-		if f.Default == nil {
-			continue
-		}
-		segs := strings.Split(f.Key, ".")
-		if segs[0] != top {
-			continue
-		}
-		normalized := normalizeToGeneric(f.Default)
-		for i := len(segs) - 1; i >= 1; i-- {
-			normalized = map[string]any{segs[i]: normalized}
-		}
-		out = mergeGeneric(out, normalized)
-	}
-	return out
-}
-
-// mergeGeneric merges two default subtrees, with `over` winning on conflict: maps
-// merge per-key recursively, anything else replaces wholesale. Mirrors cmd/fab's
-// helper of the same name.
-func mergeGeneric(base, over any) any {
-	if base == nil {
-		return over
-	}
-	if over == nil {
-		return base
-	}
-	bm, bok := asGenericMap(base)
-	om, ook := asGenericMap(over)
-	if !bok || !ook {
-		return over
-	}
-	out := make(map[string]any, len(bm)+len(om))
-	for k, v := range bm {
-		out[k] = v
-	}
-	for k, v := range om {
-		out[k] = mergeGeneric(out[k], v)
-	}
-	return out
 }
 
 // genericEqual deep-compares two decoded-YAML/JSON generic values (maps, slices,
@@ -980,25 +937,6 @@ func genericEqual(a, b any) bool {
 		return true
 	}
 	return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b)
-}
-
-// normalizeToGeneric round-trips a typed value (a registry Default struct/map) into
-// the generic map[string]any/[]any/scalar shape decoded YAML uses, so the two sides
-// of a B-hygiene comparison are the same shape. It marshals via JSON, NOT YAML: the
-// registry default structs (providerDefault, roleProfileDefault) carry json: tags
-// whose names match the real config keys (session_command, provider, model, effort)
-// and no yaml: tags — a YAML marshal would emit lowercased Go field names that would
-// not line up. Mirrors cmd/fab's normalizeToGeneric.
-func normalizeToGeneric(v any) any {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return v
-	}
-	var out any
-	if err := json.Unmarshal(data, &out); err != nil {
-		return v
-	}
-	return out
 }
 
 // asGenericMap coerces a decoded YAML/JSON value to map[string]any when it is a

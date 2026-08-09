@@ -298,7 +298,7 @@ agent:
 # headless requires dispatch_command. Missing prerequisites skip rungs, never
 # ascend. `fab resolve-agent` omits dispatch= iff native resolves and emits the
 # selected pane/headless command otherwise. Scope `both`, so it is settable once
-# machine-wide in ~/.fab-kit/config.yaml.
+# machine-wide in ~/.fab-kit/config.yaml, where it outranks the project file.
 #
 # dispatch.column_width (optional, default 35) — width, in percent of the window, of
 # the pane-worker column. The first worker CARVES the column out of the dispatching

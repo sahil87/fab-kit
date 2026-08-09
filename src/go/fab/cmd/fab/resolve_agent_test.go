@@ -610,13 +610,13 @@ func TestResolveAgentOverrideUnknownProviderErrors(t *testing.T) {
 // nothing is inherited across providers in the first place).
 //
 // The sharp edge is worth pinning rather than merely documenting: the project
-// author sees only `{provider: gemini}` in their own file, yet gets the machine-wide
-// layer's codex model ID on a gemini invocation. The escape is the documented one —
-// do not pin a role's model in one scope and swap its provider in another; set the
-// model in the SAME scope as the switch, or leave it to the provider's fills. This
-// test lives in cmd/fab because that is the layer that can compose both scopes
-// end-to-end (TestMain already isolates HOME for the package; this test points it at
-// its own tree so it can WRITE a system config).
+// author sees only `{model: …, effort: …}` in their own file, yet the role runs on
+// the machine-wide layer's gemini. The escape is the documented one — do not pin a
+// role's model in one scope and swap its provider in another; set the model in the
+// SAME scope as the switch, or leave it to the provider's fills. This test lives in
+// cmd/fab because that is the layer that can compose both scopes end-to-end
+// (TestMain already isolates HOME for the package; this test points it at its own
+// tree so it can WRITE a system config).
 func TestResolveCrossScopeRoleProfileMerge(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -624,31 +624,31 @@ func TestResolveCrossScopeRoleProfileMerge(t *testing.T) {
 	if err := os.MkdirAll(sysDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// System scope: a fully-pinned codex doing role plus codex's own fills.
+	// System scope: switch the doing role to gemini, supplying only the provider.
 	systemConfig := `providers:
-  codex:
-    profiles:
-      default: { model: gpt-5.3-codex, effort: high }
-agent:
-  profiles:
-    doing: { provider: codex, model: gpt-5.3-codex, effort: high }
-`
-	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"), []byte(systemConfig), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Project scope: switch the SAME role to gemini, supplying only the provider.
-	// resolveAgentTestRepo chdirs into the new repo; it does not touch HOME, so the
-	// t.Setenv above stands.
-	resolveAgentTestRepo(t, `project:
-  name: test
-providers:
   gemini:
     profiles:
       default: { model: gemini-2.5-pro }
 agent:
   profiles:
     doing: { provider: gemini }
+`
+	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"), []byte(systemConfig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Project scope: pin the SAME role's model/effort (a codex pin, left behind by
+	// an earlier choice) plus codex's own fills. resolveAgentTestRepo chdirs into
+	// the new repo; it does not touch HOME, so the t.Setenv above stands.
+	resolveAgentTestRepo(t, `project:
+  name: test
+providers:
+  codex:
+    profiles:
+      default: { model: gpt-5.3-codex, effort: high }
+agent:
+  profiles:
+    doing: { model: gpt-5.3-codex, effort: high }
 `)
 
 	out, err := runResolveAgentCmd(t, "apply")
@@ -656,8 +656,8 @@ agent:
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
 
-	// The merged role profile carries the system scope's explicit model/effort and
-	// the project scope's provider, and an explicit role-level pin outranks the
+	// The merged role profile carries the system scope's provider and the project
+	// scope's explicit model/effort, and an explicit role-level pin outranks the
 	// resolved provider's fills — so gemini is invoked with the codex model ID
 	// rather than with providers.gemini.profiles.default.model.
 	want := "model=gpt-5.3-codex\neffort=high\nprovider=gemini\ndispatch=gemini --approval-mode=yolo -m gpt-5.3-codex\n"
@@ -669,13 +669,13 @@ agent:
 }
 
 // TestResolveCrossScopeLegacyAliasPrecedence pins the ONE cross-scope case where the
-// documented `project > system` precedence inverts: the deprecated `agent.tiers`
+// documented `system > project` precedence inverts: the deprecated `agent.tiers`
 // alias resolves AFTER the scope cascade, so for a role written in the NEW spelling
 // in one scope and the LEGACY spelling in the other, the SPELLING decides rather
 // than the scope. internal/config.LoadPath merges the two layers per key, leaving
 // `profiles` and `tiers` as two separate maps; GetAgentProfile then prefers
 // `profiles` wherever it carries the role — including when that entry came from the
-// system layer and the project layer's is the legacy spelling.
+// project layer and the system layer's is the legacy spelling.
 //
 // It is pinned rather than fixed: making the alias cascade-aware would mean
 // threading per-scope, per-key provenance through LoadPath for a spelling that
@@ -692,48 +692,46 @@ func TestResolveCrossScopeLegacyAliasPrecedence(t *testing.T) {
 	if err := os.MkdirAll(sysDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// System scope: the NEW spelling for the doing role.
-	systemConfig := "agent:\n  profiles:\n    doing: { model: system-new-spelling }\n"
+	// System scope: the LEGACY spelling for the doing role.
+	systemConfig := "agent:\n  tiers:\n    doing: { model: system-legacy-spelling }\n"
 	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"), []byte(systemConfig), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	// Project scope: the SAME role in the LEGACY spelling. Normally the project
-	// layer wins; here the spelling does.
-	resolveAgentTestRepo(t, `project:
-  name: test
-agent:
-  tiers:
-    doing: { model: project-legacy-spelling }
-`)
-
-	out, err := runResolveAgentCmd(t, "apply")
-	if err != nil {
-		t.Fatalf("resolve-agent apply: %v", err)
-	}
-	want := "model=system-new-spelling\neffort=" + wantRoleEffort(t, agent.RoleDoing) + "\nprovider=claude\n"
-	if out != want {
-		t.Errorf("output = %q, want %q\n(the agent.tiers alias resolves AFTER the cascade, so a system-layer "+
-			"agent.profiles.<role> beats a project-layer agent.tiers.<role> — run the 2.16.19-to-2.17.0 "+
-			"migration, which sweeps both scopes, or move the project role to agent.profiles)", out, want)
-	}
-
-	// Control: with the project scope on the NEW spelling too, the normal
-	// project > system precedence holds — the inversion is the alias's, not the
-	// cascade's.
+	// Project scope: the SAME role in the NEW spelling. Normally the system layer
+	// wins; here the spelling does.
 	resolveAgentTestRepo(t, `project:
   name: test
 agent:
   profiles:
     doing: { model: project-new-spelling }
 `)
+
+	out, err := runResolveAgentCmd(t, "apply")
+	if err != nil {
+		t.Fatalf("resolve-agent apply: %v", err)
+	}
+	want := "model=project-new-spelling\neffort=" + wantRoleEffort(t, agent.RoleDoing) + "\nprovider=claude\n"
+	if out != want {
+		t.Errorf("output = %q, want %q\n(the agent.tiers alias resolves AFTER the cascade, so a project-layer "+
+			"agent.profiles.<role> beats a system-layer agent.tiers.<role> — run the 2.16.19-to-2.17.0 "+
+			"migration, which sweeps both scopes, or move the system role to agent.profiles)", out, want)
+	}
+
+	// Control: with the system scope on the NEW spelling too, the normal
+	// system > project precedence holds — the inversion is the alias's, not the
+	// cascade's.
+	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"),
+		[]byte("agent:\n  profiles:\n    doing: { model: system-new-spelling }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	out, err = runResolveAgentCmd(t, "apply")
 	if err != nil {
 		t.Fatalf("resolve-agent apply (control): %v", err)
 	}
-	want = "model=project-new-spelling\neffort=" + wantRoleEffort(t, agent.RoleDoing) + "\nprovider=claude\n"
+	want = "model=system-new-spelling\neffort=" + wantRoleEffort(t, agent.RoleDoing) + "\nprovider=claude\n"
 	if out != want {
-		t.Errorf("control output = %q, want %q (same spelling in both scopes ⇒ project wins)", out, want)
+		t.Errorf("control output = %q, want %q (same spelling in both scopes ⇒ system wins)", out, want)
 	}
 }
 
@@ -898,7 +896,10 @@ providers:
 	}
 }
 
-func TestResolveAgentModeProjectOverridesSystem(t *testing.T) {
+// TestResolveAgentModeSystemOverridesProject: the system layer wins over the
+// project layer for a `both`-scoped field — the machine-wide pane preference
+// holds even in a repo whose committed config asks for native.
+func TestResolveAgentModeSystemOverridesProject(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	sysDir := filepath.Join(home, ".fab-kit")
@@ -910,6 +911,9 @@ func TestResolveAgentModeProjectOverridesSystem(t *testing.T) {
 	}
 	resolveAgentTestRepo(t, `dispatch:
   mode: native
+providers:
+  claude:
+    session_command: "claude -n {model} --effort {effort}"
 `)
 	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
 
@@ -917,9 +921,11 @@ func TestResolveAgentModeProjectOverridesSystem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	want := wantRoleBytes(t, agent.RoleDoing)
+	doingModel := wantRoleModel(t, agent.RoleDoing)
+	want := "model=" + doingModel + "\neffort=high\nprovider=claude\n" +
+		"dispatch=claude -n " + doingModel + " --effort high\n"
 	if out != want {
-		t.Errorf("output = %q, want %q (project native beats system pane)", out, want)
+		t.Errorf("output = %q, want %q (system pane beats project native)", out, want)
 	}
 }
 

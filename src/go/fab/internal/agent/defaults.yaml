@@ -1,5 +1,5 @@
-# fab-kit's built-in agent defaults — the defaults layer under the config
-# cascade (project > system > this file). Embedded into the binary via
+# fab-kit's built-in agent defaults — the bottom tier of the config cascade
+# (env > system > project > this file). Embedded into the binary via
 # go:embed (internal/agent); never read from the kit cache at runtime, so a
 # binary can never disagree with the defaults it shipped with.
 #

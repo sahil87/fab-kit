@@ -1,12 +1,14 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/configref"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configscope"
 )
 
@@ -57,7 +59,7 @@ func runConfig(t *testing.T, args ...string) (string, error) {
 }
 
 // TestConfigShow_PrintsEffectiveConfig: `fab config show` prints the merged
-// effective config (project over system) as YAML and exits 0.
+// effective config (system over project) as YAML and exits 0.
 func TestConfigShow_PrintsEffectiveConfig(t *testing.T) {
 	_, home := setupConfigRepo(t, `
 providers:
@@ -93,6 +95,9 @@ func TestConfigShow_RejectsExtraArgs(t *testing.T) {
 	}
 }
 
+// TestConfigShow_KeyedValueOriginAndUnknown: a keyed show prints the raw effective
+// value, and keyed --origin lists the key's FULL STACK — one line per tier that
+// defines it, the winner marked. Unknown keys still fail naming the key.
 func TestConfigShow_KeyedValueOriginAndUnknown(t *testing.T) {
 	repo, _ := setupConfigRepo(t, "agent:\n    workers: codex\n")
 	out, err := runConfig(t, "show", "agent.workers")
@@ -106,9 +111,11 @@ func TestConfigShow_KeyedValueOriginAndUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("keyed show --origin: %v", err)
 	}
-	wantOrigin := filepath.Join(repo, "fab", "project", "config.yaml")
-	if out != "codex  # "+wantOrigin+"\n" {
-		t.Fatalf("keyed origin output = %q", out)
+	projectPath := filepath.Join(repo, "fab", "project", "config.yaml")
+	want := "agent.workers = codex   # project " + projectPath + "  (effective)\n" +
+		"agent.workers = claude  # default  (shadowed)\n"
+	if out != want {
+		t.Fatalf("keyed origin output = %q,\nwant %q", out, want)
 	}
 	for _, key := range []string{"agent.workerz", "providers.#local.session_command"} {
 		if _, err := runConfig(t, "show", key); err == nil || !strings.Contains(err.Error(), key) {
@@ -117,13 +124,43 @@ func TestConfigShow_KeyedValueOriginAndUnknown(t *testing.T) {
 	}
 }
 
+// TestConfigShowKey_FullStackListsEveryDefiningTier: the visibility fix — with
+// the same key set at three tiers, the keyed listing shows all three in
+// precedence order so a shadowed override is visible instead of inferred.
+func TestConfigShowKey_FullStackListsEveryDefiningTier(t *testing.T) {
+	repo, home := setupConfigRepo(t, "agent:\n    workers: project-worker\n")
+	writeSystemConfig(t, home, "agent:\n    workers: system-worker\n")
+	t.Setenv("FAB_AGENT_WORKERS", "env-worker")
+
+	out, err := runConfig(t, "show", "agent.workers", "--origin")
+	if err != nil {
+		t.Fatalf("keyed show --origin: %v", err)
+	}
+	wantLines := []string{
+		"agent.workers = env-worker      # env $FAB_AGENT_WORKERS  (effective)",
+		"agent.workers = system-worker   # system " + filepath.Join(home, ".fab-kit", "config.yaml") + "  (shadowed)",
+		"agent.workers = project-worker  # project " + filepath.Join(repo, "fab", "project", "config.yaml") + "  (shadowed)",
+		"agent.workers = claude          # default  (shadowed)",
+	}
+	if got := strings.Split(strings.TrimRight(out, "\n"), "\n"); len(got) != len(wantLines) {
+		t.Fatalf("full-stack listing = %d lines, want %d:\n%s", len(got), len(wantLines), out)
+	}
+	for i, line := range wantLines {
+		if got := strings.Split(strings.TrimRight(out, "\n"), "\n")[i]; got != line {
+			t.Errorf("line %d = %q, want %q", i, got, line)
+		}
+	}
+}
+
+// TestConfigShow_KeyedListOriginIsCompact: a list leaf renders in compact flow
+// style in the stack listing (one readable line per tier).
 func TestConfigShow_KeyedListOriginIsCompact(t *testing.T) {
 	repo, _ := setupConfigRepo(t, "source_paths:\n    - src/\n    - scripts/\n")
 	out, err := runConfig(t, "show", "source_paths", "--origin")
 	if err != nil {
 		t.Fatalf("keyed list show --origin: %v", err)
 	}
-	want := "[src/, scripts/]  # " + filepath.Join(repo, "fab", "project", "config.yaml") + "\n"
+	want := "source_paths = [src/, scripts/]  # project " + filepath.Join(repo, "fab", "project", "config.yaml") + "  (effective)\n"
 	if out != want {
 		t.Fatalf("keyed list origin output = %q, want compact flow value %q", out, want)
 	}
@@ -277,6 +314,8 @@ func TestConfigSetUnset_ValidationAndSystemScope(t *testing.T) {
 		{[]string{"set", "agent.workers", "codex # note"}, "must not contain a YAML comment"},
 		{[]string{"set", "source_paths", "[src/]"}, "scalar leaf"},
 		{[]string{"set", "source_paths", "[src/]", "--system"}, "project scope"},
+		{[]string{"set", "agent.workers", ""}, "fab config unset agent.workers"},
+		{[]string{"set", "agent.workers", "   "}, "empty value"},
 	} {
 		if _, err := runConfig(t, tc.args...); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%v: want error containing %q, got %v", tc.args, tc.want, err)
@@ -293,6 +332,290 @@ func TestConfigSetUnset_ValidationAndSystemScope(t *testing.T) {
 	if _, err := runConfig(t, "unset", "agent.workers", "--system"); err != nil {
 		t.Fatalf("system unset: %v", err)
 	}
+}
+
+// TestConfigSet_EmptyValueRefusedWithoutWriting: the refusal is a guard, not a
+// post-write complaint — the file is untouched and the message names `unset`. It
+// tests the PARSED value, not the argv string, so the QUOTED-empty YAML forms and
+// an explicit null are refused too: each writes a leaf empty-skip can never honor.
+func TestConfigSet_EmptyValueRefusedWithoutWriting(t *testing.T) {
+	for _, rawValue := range []string{"", "   ", `""`, "''", "null", "~"} {
+		t.Run("value "+rawValue, func(t *testing.T) {
+			repo, _ := setupConfigRepo(t, "agent:\n    workers: claude\n")
+			path := filepath.Join(repo, "fab", "project", "config.yaml")
+			before, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			out, err := runConfig(t, "set", "agent.workers", rawValue)
+			if err == nil {
+				t.Fatalf("an empty value must be refused, got output %q", out)
+			}
+			if !strings.Contains(err.Error(), "fab config unset agent.workers") {
+				t.Errorf("the refusal must name the intended verb: %v", err)
+			}
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(before) != string(after) {
+				t.Errorf("a refused set must not touch the file\n--- before ---\n%s\n--- after ---\n%s", before, after)
+			}
+		})
+	}
+}
+
+// TestConfigLoaderWarningsAreNotDuplicated: every `fab config` invocation resolves
+// the read model ONCE. The surfaces used to load it twice (LoadLayers, then a
+// second LoadPath behind the defaults projection), which printed each fail-open
+// loader warning twice — a scope-pruned system key looked like two distinct
+// problems. Bare `show` skips the defaults projection entirely.
+func TestConfigLoaderWarningsAreNotDuplicated(t *testing.T) {
+	const warning = "ignoring project-scoped field"
+	for _, args := range [][]string{
+		{"show"},
+		{"show", "--origin"},
+		{"show", "agent.workers", "--origin"},
+		{"set", "agent.workers", "codex"},
+		{"unset", "agent.session"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			_, home := setupConfigRepo(t, "")
+			// A project-scoped key in the system file is pruned with a warning on
+			// every load of the cascade — the cheapest observable load counter.
+			writeSystemConfig(t, home, "test_paths:\n  - '**/*_test.go'\n")
+
+			var err error
+			stderr := captureStderr(t, func() { _, err = runConfig(t, args...) })
+			if err != nil {
+				t.Fatalf("config %v: %v", args, err)
+			}
+			if got := strings.Count(stderr, warning); got != 1 {
+				t.Errorf("loader warning printed %d times, want exactly 1 (one read-model load per invocation):\n%s", got, stderr)
+			}
+		})
+	}
+}
+
+// captureStderr redirects os.Stderr — where internal/config writes its fail-open
+// loader warnings — for the duration of fn, and returns what was written there.
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prev := os.Stderr
+	os.Stderr = w
+	defer func() { os.Stderr = prev }()
+	fn()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+// TestConfigSet_ShadowWarning: a write a higher tier shadows still succeeds
+// (exit 0) but says so, naming the tier that wins. Writing --system while only the
+// PROJECT file defines the key is not shadowed — the system tier outranks it.
+func TestConfigSet_ShadowWarning(t *testing.T) {
+	t.Run("project write shadowed by system", func(t *testing.T) {
+		_, home := setupConfigRepo(t, "")
+		systemPath := filepath.Join(home, ".fab-kit", "config.yaml")
+		writeSystemConfig(t, home, "agent:\n  workers: system-worker\n")
+
+		out, err := runConfig(t, "set", "agent.workers", "codex")
+		if err != nil {
+			t.Fatalf("config set: %v", err)
+		}
+		if !strings.Contains(out, "Set agent.workers") {
+			t.Errorf("the write itself must succeed: %q", out)
+		}
+		want := "fab: warning: agent.workers is shadowed by system " + systemPath
+		if !strings.Contains(out, want) {
+			t.Errorf("missing shadow warning %q in:\n%s", want, out)
+		}
+	})
+
+	t.Run("project write shadowed by environment", func(t *testing.T) {
+		setupConfigRepo(t, "")
+		t.Setenv("FAB_AGENT_WORKERS", "env-worker")
+
+		out, err := runConfig(t, "set", "agent.workers", "codex")
+		if err != nil {
+			t.Fatalf("config set: %v", err)
+		}
+		if !strings.Contains(out, "fab: warning: agent.workers is shadowed by env $FAB_AGENT_WORKERS") {
+			t.Errorf("missing environment shadow warning:\n%s", out)
+		}
+	})
+
+	t.Run("system write over a project value is not shadowed", func(t *testing.T) {
+		setupConfigRepo(t, "agent:\n    workers: project-worker\n")
+
+		out, err := runConfig(t, "set", "agent.workers", "codex", "--system")
+		if err != nil {
+			t.Fatalf("config set --system: %v", err)
+		}
+		if strings.Contains(out, "shadowed") {
+			t.Errorf("the system tier outranks the project file — no warning expected:\n%s", out)
+		}
+	})
+
+	t.Run("fail-open when the read model cannot be resolved", func(t *testing.T) {
+		// A project file that does not parse makes LoadLayers fail. A --system write
+		// does not touch it, so the write must still succeed — the notice is
+		// best-effort and never fails a completed mutation.
+		setupConfigRepo(t, "this: is: not: valid: yaml: [[[\n")
+
+		out, err := runConfig(t, "set", "agent.workers", "codex", "--system")
+		if err != nil {
+			t.Fatalf("an unresolvable read model must not fail the write: %v", err)
+		}
+		if strings.Contains(out, "shadowed") {
+			t.Errorf("no tier could be resolved, so no shadow warning is possible:\n%s", out)
+		}
+	})
+}
+
+// TestConfigShowOrigin_DrillDownIsKnobAware: the composed agent.profiles rows are
+// derived from the depth knob and the provider's fills, so they must report the
+// provider the knob actually selects — not the nil-config `claude` the registry
+// default carries.
+func TestConfigShowOrigin_DrillDownIsKnobAware(t *testing.T) {
+	setupConfigRepo(t, "agent:\n    workers: codex\n")
+
+	out, err := runConfig(t, "show", "--origin")
+	if err != nil {
+		t.Fatalf("config show --origin: %v", err)
+	}
+	for _, want := range []string{
+		"agent.profiles.doing.provider = codex",     // Tier-2 role: governed by agent.workers
+		"agent.profiles.operator.provider = claude", // Tier-1 role: agent.session is unset
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing knob-aware drill-down row %q:\n%s", want, out)
+		}
+	}
+}
+
+// TestConfigShowOrigin_AllEmptyMapDoesNotClaimTheNode: a tier whose subtree is
+// entirely empty leaves defines NOTHING — the merge drops such a map wholesale, so
+// provenance must too. With the emptiness test applied shallowly the system tier's
+// `{claude: {session_command: null}}` looked like a defining map, hid the tier
+// below it, and the listing reported a key no tier defines while the merge was
+// resolving the project's value.
+func TestConfigShowOrigin_AllEmptyMapDoesNotClaimTheNode(t *testing.T) {
+	repo, home := setupConfigRepo(t, "providers: replaced-wholesale\n")
+	writeSystemConfig(t, home, "providers:\n    claude:\n        session_command: null\n")
+
+	out, err := runConfig(t, "show", "providers", "--origin")
+	if err != nil {
+		t.Fatalf("keyed show --origin: %v", err)
+	}
+	projectPath := filepath.Join(repo, "fab", "project", "config.yaml")
+	first := strings.SplitN(out, "\n", 2)[0]
+	if !strings.HasPrefix(first, "providers = replaced-wholesale ") ||
+		!strings.HasSuffix(first, "# project "+projectPath+"  (effective)") {
+		t.Errorf("first line = %q, want the project scalar as the effective tier", first)
+	}
+	if strings.Contains(out, "no tier defines this key") {
+		t.Errorf("the project tier defines this key — the all-empty system map must not hide it:\n%s", out)
+	}
+}
+
+// TestConfigShowOrigin_DefaultTierIsTheBuiltIn: the composed agent.profiles rows
+// are resolved against the live config for the DEPTH KNOB (knob-awareness), which
+// must not drag the user's own agent.profiles entry into the defaults tier. The
+// stack listing is the visible symptom: a pinned model must appear on the project
+// line only, with the built-in it shadows on the `default` line.
+func TestConfigShowOrigin_DefaultTierIsTheBuiltIn(t *testing.T) {
+	repo, _ := setupConfigRepo(t, "agent:\n    profiles:\n        review:\n            model: my-pinned-model\n")
+
+	// Derive the expected built-in rather than restating a model string (a model
+	// bump must not have to touch this test).
+	builtin, err := configref.DefaultsMapFor(nil)
+	if err != nil {
+		t.Fatalf("DefaultsMapFor(nil): %v", err)
+	}
+	wantDefault := builtin["agent"].(map[string]any)["profiles"].(map[string]any)["review"].(map[string]any)["model"]
+
+	out, err := runConfig(t, "show", "agent.profiles.review.model", "--origin")
+	if err != nil {
+		t.Fatalf("keyed show --origin: %v", err)
+	}
+	projectPath := filepath.Join(repo, "fab", "project", "config.yaml")
+	got := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	want := []struct{ value, origin string }{
+		{"my-pinned-model", "# project " + projectPath + "  (effective)"},
+		{wantDefault.(string), "# default  (shadowed)"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("stack listing = %d lines, want %d:\n%s", len(got), len(want), out)
+	}
+	for i, w := range want {
+		// The column padding between the value and the `#` varies with the values,
+		// so each line is matched by its two halves.
+		if !strings.HasPrefix(got[i], "agent.profiles.review.model = "+w.value+" ") || !strings.HasSuffix(got[i], w.origin) {
+			t.Errorf("line %d = %q, want value %q with origin %q", i, got[i], w.value, w.origin)
+		}
+	}
+}
+
+// TestConfigUnset_NoopNamesTheLiveTier: unsetting a key the target file does not
+// carry stays an exit-zero no-op, and the notice says where the key IS live plus
+// the command that would remove it.
+func TestConfigUnset_NoopNamesTheLiveTier(t *testing.T) {
+	t.Run("live in the system file", func(t *testing.T) {
+		_, home := setupConfigRepo(t, "")
+		systemPath := filepath.Join(home, ".fab-kit", "config.yaml")
+		writeSystemConfig(t, home, "agent:\n  workers: system-worker\n")
+
+		out, err := runConfig(t, "unset", "agent.workers")
+		if err != nil {
+			t.Fatalf("config unset: %v", err)
+		}
+		if !strings.Contains(out, "nothing to unset") {
+			t.Errorf("the no-op notice must survive: %q", out)
+		}
+		if !strings.Contains(out, "live in system "+systemPath) ||
+			!strings.Contains(out, "use: fab config unset agent.workers --system") {
+			t.Errorf("missing live-tier notice:\n%s", out)
+		}
+	})
+
+	t.Run("live in the environment", func(t *testing.T) {
+		setupConfigRepo(t, "")
+		t.Setenv("FAB_AGENT_WORKERS", "env-worker")
+
+		out, err := runConfig(t, "unset", "agent.workers")
+		if err != nil {
+			t.Fatalf("config unset: %v", err)
+		}
+		if !strings.Contains(out, "live in env $FAB_AGENT_WORKERS") ||
+			!strings.Contains(out, "unset cannot remove") {
+			t.Errorf("missing environment live-tier notice:\n%s", out)
+		}
+	})
+
+	t.Run("only the built-in default supplies it", func(t *testing.T) {
+		setupConfigRepo(t, "")
+
+		out, err := runConfig(t, "unset", "agent.workers")
+		if err != nil {
+			t.Fatalf("config unset: %v", err)
+		}
+		if strings.Contains(out, "live in") {
+			t.Errorf("a default-only key needs no live-tier notice:\n%s", out)
+		}
+	})
 }
 
 func TestConfigSetUnset_ExactArgs(t *testing.T) {
@@ -390,7 +713,7 @@ agent:
 }
 
 // TestConfigShowOrigin_HigherLayerScalarReplacesSubtree: when a higher-precedence
-// layer replaces a map with a scalar, --origin must honor deepMerge precedence and
+// layer replaces a map with a scalar, --origin must honor config.MergeLayers precedence and
 // render the node as a single leaf at that layer's origin — NOT recurse into the
 // lower layers' map keys. Here the project sets `providers: oops` (a scalar) while
 // the built-in default provides a `providers` MAP; the effective value is the
@@ -492,7 +815,10 @@ func TestConfigShowOrigin_EnvironmentMapUsesRowVariable(t *testing.T) {
 	}
 }
 
-func TestConfigShowOrigin_EnvironmentNullRemainsPresent(t *testing.T) {
+// TestConfigShowOrigin_EnvironmentNullFallsThrough: an explicit environment null
+// is EMPTY, so it neither wins nor blocks — the project value stays effective and
+// the environment contributes no origin.
+func TestConfigShowOrigin_EnvironmentNullFallsThrough(t *testing.T) {
 	setupConfigRepo(t, "agent:\n  workers: project-worker\n")
 	t.Setenv("FAB_AGENT_WORKERS", "null")
 
@@ -500,8 +826,8 @@ func TestConfigShowOrigin_EnvironmentNullRemainsPresent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config show: %v", err)
 	}
-	if !strings.Contains(plain, "workers: null") {
-		t.Fatalf("plain show must preserve the explicit null override:\n%s", plain)
+	if !strings.Contains(plain, "workers: project-worker") {
+		t.Fatalf("an empty env override must fall through to the project value:\n%s", plain)
 	}
 
 	origin, err := runConfig(t, "show", "--origin")
@@ -510,8 +836,8 @@ func TestConfigShowOrigin_EnvironmentNullRemainsPresent(t *testing.T) {
 	}
 	for _, line := range strings.Split(origin, "\n") {
 		if strings.Contains(line, "agent.workers =") {
-			if !strings.Contains(line, "agent.workers = null") || !strings.Contains(line, "# $FAB_AGENT_WORKERS") {
-				t.Fatalf("explicit null must retain its env value and origin, got %q", line)
+			if !strings.Contains(line, "agent.workers = project-worker") || strings.Contains(line, "$FAB_AGENT_WORKERS") {
+				t.Fatalf("an empty env override must not shadow or claim provenance, got %q", line)
 			}
 			return
 		}
@@ -519,50 +845,55 @@ func TestConfigShowOrigin_EnvironmentNullRemainsPresent(t *testing.T) {
 	t.Fatalf("origin output missing agent.workers:\n%s", origin)
 }
 
-func TestConfigShowKey_EnvironmentNullWins(t *testing.T) {
-	setupConfigRepo(t, "agent:\n  workers: project-worker\n")
-	t.Setenv("FAB_AGENT_WORKERS", "null")
+// TestConfigShowKey_EmptyValuesFallThrough: the read model's empty-skip rule, on
+// the keyed surface — a null environment value and an empty project list both
+// fall through instead of resolving as the effective value.
+func TestConfigShowKey_EmptyValuesFallThrough(t *testing.T) {
+	t.Run("environment null", func(t *testing.T) {
+		setupConfigRepo(t, "agent:\n  workers: project-worker\n")
+		t.Setenv("FAB_AGENT_WORKERS", "null")
 
-	plain, err := runConfig(t, "show", "agent.workers")
-	if err != nil {
-		t.Fatalf("config show agent.workers: %v", err)
-	}
-	if plain != "null\n" {
-		t.Fatalf("keyed show ignored the explicit environment null: %q", plain)
-	}
+		plain, err := runConfig(t, "show", "agent.workers")
+		if err != nil {
+			t.Fatalf("config show agent.workers: %v", err)
+		}
+		if plain != "project-worker\n" {
+			t.Fatalf("keyed show = %q, want the project value (the env null falls through)", plain)
+		}
 
-	origin, err := runConfig(t, "show", "agent.workers", "--origin")
-	if err != nil {
-		t.Fatalf("config show agent.workers --origin: %v", err)
-	}
-	if origin != "null  # $FAB_AGENT_WORKERS\n" {
-		t.Fatalf("keyed show lost explicit-null provenance: %q", origin)
-	}
-}
+		origin, err := runConfig(t, "show", "agent.workers", "--origin")
+		if err != nil {
+			t.Fatalf("config show agent.workers --origin: %v", err)
+		}
+		if strings.Contains(origin, "FAB_AGENT_WORKERS") {
+			t.Fatalf("an empty env value must define no tier in the stack listing: %q", origin)
+		}
+		if !strings.Contains(origin, "agent.workers = project-worker") || !strings.Contains(origin, "(effective)") {
+			t.Fatalf("keyed stack lost the effective project value: %q", origin)
+		}
+	})
 
-func TestConfigShowKey_UsesNearestReplacedAncestorOrigin(t *testing.T) {
-	setupConfigRepo(t, "providers:\n  codex:\n    session_command: project-command\n")
-	t.Setenv("FAB_PROVIDERS", "null")
+	t.Run("empty project sequence", func(t *testing.T) {
+		setupConfigRepo(t, "source_paths: []\n")
 
-	plain, err := runConfig(t, "show", "providers.codex.session_command")
-	if err != nil {
-		t.Fatalf("config show descendant: %v", err)
-	}
-	if plain != "null\n" {
-		t.Fatalf("ancestor replacement did not null the descendant: %q", plain)
-	}
+		plain, err := runConfig(t, "show", "source_paths")
+		if err != nil {
+			t.Fatalf("config show source_paths: %v", err)
+		}
+		if plain != "null\n" {
+			t.Fatalf("empty sequence = %q, want null (it defines nothing, and no lower tier does either)", plain)
+		}
 
-	origin, err := runConfig(t, "show", "providers.codex.session_command", "--origin")
-	if err != nil {
-		t.Fatalf("config show descendant --origin: %v", err)
-	}
-	if origin != "null  # $FAB_PROVIDERS\n" {
-		t.Fatalf("descendant lost the nearest replaced ancestor's provenance: %q", origin)
-	}
-}
+		origin, err := runConfig(t, "show", "source_paths", "--origin")
+		if err != nil {
+			t.Fatalf("config show source_paths --origin: %v", err)
+		}
+		if !strings.Contains(origin, "no tier defines this key") {
+			t.Fatalf("empty sequence should report that no tier defines the key: %q", origin)
+		}
+	})
 
-func TestConfigShowKey_EmptyCollectionKeepsWinningOrigin(t *testing.T) {
-	t.Run("environment mapping", func(t *testing.T) {
+	t.Run("empty environment mapping", func(t *testing.T) {
 		setupConfigRepo(t, "")
 		t.Setenv("FAB_PROVIDERS", "{custom: {}}")
 
@@ -570,31 +901,34 @@ func TestConfigShowKey_EmptyCollectionKeepsWinningOrigin(t *testing.T) {
 		if err != nil {
 			t.Fatalf("config show empty mapping: %v", err)
 		}
-		if plain != "{}\n" {
-			t.Fatalf("empty mapping output = %q", plain)
-		}
-
-		origin, err := runConfig(t, "show", "providers.custom", "--origin")
-		if err != nil {
-			t.Fatalf("config show empty mapping --origin: %v", err)
-		}
-		if origin != "{}  # $FAB_PROVIDERS\n" {
-			t.Fatalf("empty mapping lost its effective value or environment origin: %q", origin)
+		if plain != "null\n" {
+			t.Fatalf("empty mapping output = %q, want null (an all-empty mapping defines nothing)", plain)
 		}
 	})
+}
 
-	t.Run("project sequence", func(t *testing.T) {
-		repo, _ := setupConfigRepo(t, "source_paths: []\n")
+// TestConfigShowKey_UsesNearestReplacedAncestorOrigin: a higher tier replacing a
+// map ancestor with a scalar nulls the descendant, and the keyed listing reports
+// the REPLACING tier — the provenance a user needs to understand the null.
+func TestConfigShowKey_UsesNearestReplacedAncestorOrigin(t *testing.T) {
+	repo, _ := setupConfigRepo(t, "providers: oops\n")
 
-		origin, err := runConfig(t, "show", "source_paths", "--origin")
-		if err != nil {
-			t.Fatalf("config show empty sequence --origin: %v", err)
-		}
-		want := "[]  # " + filepath.Join(repo, "fab", "project", "config.yaml") + "\n"
-		if origin != want {
-			t.Fatalf("empty sequence lost its compact value or project origin: got %q, want %q", origin, want)
-		}
-	})
+	plain, err := runConfig(t, "show", "providers.claude.session_command")
+	if err != nil {
+		t.Fatalf("config show descendant: %v", err)
+	}
+	if plain != "null\n" {
+		t.Fatalf("ancestor replacement did not null the descendant: %q", plain)
+	}
+
+	origin, err := runConfig(t, "show", "providers.claude.session_command", "--origin")
+	if err != nil {
+		t.Fatalf("config show descendant --origin: %v", err)
+	}
+	want := "providers.claude.session_command = null  # project " + filepath.Join(repo, "fab", "project", "config.yaml") + "  (effective)\n"
+	if origin != want {
+		t.Fatalf("descendant lost the nearest replaced ancestor's provenance: got %q, want %q", origin, want)
+	}
 }
 
 // TestConfigInitSystem_WritesScaffoldAndRefusesOverwrite: `fab config init

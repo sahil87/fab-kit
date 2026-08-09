@@ -19,11 +19,22 @@ import (
 // env var, and this indirection also lets a test stub it if needed.
 var homeDir = os.UserHomeDir
 
-// warnw is where the loader writes fail-open scope/parse warnings. os.Stderr in
-// production; tests redirect it to capture the `fab: warning:` lines. Warnings
-// never affect the return value or exit code (fail-open — a broken personal
-// system file must not brick every repo on the machine).
-var warnw io.Writer = os.Stderr
+// warnw is where the loader writes fail-open scope/parse warnings. nil means
+// os.Stderr, resolved at CALL time (warnf) rather than captured at init, so a
+// test in another package can capture the warnings by swapping os.Stderr itself;
+// tests in this package assign warnw directly. Warnings never affect the return
+// value or exit code (fail-open — a broken personal system file must not brick
+// every repo on the machine).
+var warnw io.Writer
+
+// warnf writes one fail-open `fab: warning:` line to the loader's warning stream.
+func warnf(format string, args ...any) {
+	w := warnw
+	if w == nil {
+		w = os.Stderr
+	}
+	fmt.Fprintf(w, format, args...)
+}
 
 // systemConfigPath returns ~/.fab-kit/config.yaml, the system (user-global) config
 // layer. Co-located with the fab-kit version cache (decision 5; XDG rejected).
@@ -224,7 +235,11 @@ type ProjectConfig struct {
 // value would then mean the OPPOSITE of the default, making an absent key
 // indistinguishable from an explicit `reap_done: false` and silently disabling
 // reaping for every project that never sets the key. nil = unset = the default; a
-// non-nil pointer is the user's explicit choice either way.
+// non-nil pointer is the user's explicit choice either way. The empty-skip merge
+// does not remove that need: `false` is a real value and survives the merge, but
+// the loader's merged tree carries no built-in-defaults tier (those stay at the
+// point-of-use seams, see LoadPath), so an unset key still reaches Unmarshal as
+// absent and the pointer is what keeps absent distinguishable from false.
 type DispatchConfig struct {
 	Mode        string `yaml:"mode"`
 	ColumnWidth int    `yaml:"column_width"`
@@ -311,15 +326,25 @@ func readDotFabVersion(fabRoot string) string {
 }
 
 // LoadPath reads a config.yaml at an explicit path and returns the EFFECTIVE
-// config after resolving the four-layer cascade at this single seam:
+// config after resolving the four-tier cascade at this single seam:
 //
-//	env  >  project (the path given)  >  system (~/.fab-kit/config.yaml)  >  built-in defaults
+//	env  >  system (~/.fab-kit/config.yaml)  >  project (the path given)  >  built-in defaults
 //
-// The env overlay and two FILES merge here at the YAML map level (per-field deep
-// merge: maps merge per-key recursively, lists replace, scalars replace, env
-// wins); the built-in-defaults layer stays where it lives today — the
-// point-of-use fallbacks (internal/agent's role/provider resolution, the nil-safe
-// accessors) — which composes to four-layer semantics with zero per-caller change.
+// The SYSTEM layer outranks the project file. Scope enforcement is what makes
+// that safe: only preference-class fields (scope system/both) are honored in the
+// system file at all, so a semantics-class key (source_paths, test_paths, …) can
+// never be affected by the order — the repo stays reproducible while a personal
+// machine-wide preference beats a repo's committed suggestion.
+//
+// The env overlay and two FILES merge here at the YAML map level through
+// MergeLayers (maps merge per-key recursively, lists and scalars replace, and an
+// EMPTY leaf — null, "", [], {} — falls through instead of shadowing); the
+// built-in-defaults tier stays where it lives today — the point-of-use fallbacks
+// (internal/agent's role/provider resolution, the nil-safe accessors) — which
+// composes to four-tier semantics with zero per-caller change. The registry-backed
+// projection of that tier (configref.DefaultsMap) is consumed by the read-model
+// surfaces in cmd/fab, which can import configref; this package cannot
+// (configref → agent → config would close a cycle).
 //
 // Fail-open contract (config must never brick):
 //   - Absent system file ⇒ byte-identical to the pre-cascade single-file behavior
@@ -343,11 +368,23 @@ func LoadPath(path string) (*Config, error) {
 	systemMap := loadSystemLayer()
 	envMap, _ := loadEnvLayer()
 
-	// Merge project OVER system, then env OVER both. A nil project map (file
-	// absent) still lets the system layer through; a nil env map preserves the
-	// pre-env file merge byte-for-byte.
-	merged := deepMerge(deepMerge(systemMap, projectMap), envMap)
+	// Merge lowest tier first: project, then system OVER it, then env OVER both.
+	// A nil project map (file absent) still lets the system layer through; a nil
+	// env map leaves the file merge untouched.
+	merged := MergeLayers(projectMap, systemMap, envMap)
 
+	// Absent system layer + absent project file, or a project file that decoded
+	// to nothing, both leave `merged` empty and yield the zero Config — the
+	// byte-identical empty-config result the old missing-file path returned.
+	return FromMap(merged)
+}
+
+// FromMap unmarshals an already-merged layer tree into a Config. It is the tail
+// of LoadPath, exported so a caller holding the layers ALREADY (LoadLayers, for
+// the provenance surfaces) can reach the typed config without re-running the
+// cascade — a second load would re-read the system file and re-emit every
+// fail-open `fab: warning:`. An empty (or nil) tree yields the zero Config.
+func FromMap(merged map[string]any) (*Config, error) {
 	var cfg Config
 	if len(merged) > 0 {
 		data, err := yaml.Marshal(merged)
@@ -365,10 +402,6 @@ func LoadPath(path string) (*Config, error) {
 	if cfg.StageHooks == nil {
 		cfg.StageHooks = make(map[string]StageHook)
 	}
-
-	// Absent system layer + absent project file, or a project file that decoded
-	// to nothing, both leave `merged` empty and yield the zero Config — the
-	// byte-identical empty-config result the old missing-file path returned.
 	return &cfg, nil
 }
 
@@ -395,8 +428,11 @@ type Layers struct {
 	// supplied it (without the display-only '$' prefix).
 	Env        map[string]any
 	EnvOrigins map[string]string
-	// Effective is deepMerge(deepMerge(System, Project), Env) — the merged tree
-	// LoadPath unmarshals.
+	// Effective is MergeLayers(Project, System, Env) — the merged tree LoadPath
+	// unmarshals. The built-in defaults tier is deliberately NOT composed in here:
+	// bare `fab config show` prints the file+env merge, and the defaults tier is
+	// projected from the registry by the caller (cmd/fab) for the surfaces that
+	// need it.
 	Effective map[string]any
 }
 
@@ -420,7 +456,7 @@ func LoadLayers(projectPath string) (*Layers, error) {
 		System:      systemMap,
 		Env:         envMap,
 		EnvOrigins:  envOrigins,
-		Effective:   deepMerge(deepMerge(systemMap, projectMap), envMap),
+		Effective:   MergeLayers(projectMap, systemMap, envMap),
 	}, nil
 }
 
@@ -457,7 +493,7 @@ func loadSystemLayer() map[string]any {
 	m, exists, err := readYAMLMap(path)
 	if err != nil {
 		// Unreadable or malformed system file — fail-open: warn and skip.
-		fmt.Fprintf(warnw, "fab: warning: ignoring malformed system config %s (%v)\n", path, err)
+		warnf("fab: warning: ignoring malformed system config %s (%v)\n", path, err)
 		return nil
 	}
 	if !exists || m == nil {
@@ -489,9 +525,13 @@ func ParseYAMLValue(raw string) (any, error) {
 // would otherwise be ambiguous with the dots replaced by underscores.
 //
 // Only system/both-scoped rows are eligible. Project-scoped variables warn and
-// are ignored to preserve repository reproducibility. Empty values behave as
-// unset; malformed or Config-incompatible YAML warns and is skipped. Every path
-// is fail-open — an environment preference must never brick config loading.
+// are ignored to preserve repository reproducibility. EMPTY values behave as
+// unset — both a set-but-blank variable and one whose YAML parses to an empty
+// value (`null`, `""`, `[]`, `{}`, per IsEmptyValue), so the environment tier
+// obeys the same empty-skip rule as every other tier and contributes neither an
+// overlay leaf nor a provenance entry. Malformed or Config-incompatible YAML
+// warns and is skipped. Every path is fail-open — an environment preference must
+// never brick config loading.
 func loadEnvLayer() (map[string]any, map[string]string) {
 	var overlay map[string]any
 	var origins map[string]string
@@ -507,26 +547,29 @@ func loadEnvLayer() (map[string]any, map[string]string) {
 			continue // parity/lint tests make this unreachable; stay fail-open
 		}
 		if scope == configscope.ScopeProject {
-			fmt.Fprintf(warnw, "fab: warning: ignoring project-scoped environment override $%s for %q (project-scoped fields belong in fab/project/config.yaml)\n", envName, key)
+			warnf("fab: warning: ignoring project-scoped environment override $%s for %q (project-scoped fields belong in fab/project/config.yaml)\n", envName, key)
 			continue
 		}
 
 		value, err := ParseYAMLValue(raw)
 		if err != nil {
-			fmt.Fprintf(warnw, "fab: warning: ignoring malformed environment override $%s for %q (%v)\n", envName, key, err)
+			warnf("fab: warning: ignoring malformed environment override $%s for %q (%v)\n", envName, key, err)
 			continue
+		}
+		if IsEmptyValue(value) {
+			continue // an empty value is unset at every tier, environment included
 		}
 		fragment := make(map[string]any)
 		setDotted(fragment, key, value)
 		if err := validateConfigFragment(fragment); err != nil {
-			fmt.Fprintf(warnw, "fab: warning: ignoring malformed environment override $%s for %q (%v)\n", envName, key, err)
+			warnf("fab: warning: ignoring malformed environment override $%s for %q (%v)\n", envName, key, err)
 			continue
 		}
 		if overlay == nil {
 			overlay = make(map[string]any)
 			origins = make(map[string]string)
 		}
-		overlay = deepMerge(overlay, fragment)
+		overlay = mergeOver(overlay, fragment)
 		origins[key] = envName
 	}
 	return overlay, origins
@@ -593,30 +636,88 @@ func pruneProjectScoped(m map[string]any, path string) {
 		}
 		if scope == configscope.ScopeProject {
 			delete(m, key)
-			fmt.Fprintf(warnw, "fab: warning: ignoring project-scoped field %q in %s (project-scoped fields belong in fab/project/config.yaml)\n", key, path)
+			warnf("fab: warning: ignoring project-scoped field %q in %s (project-scoped fields belong in fab/project/config.yaml)\n", key, path)
 		}
 	}
 }
 
-// deepMerge returns the per-field deep merge of two decoded YAML maps with
-// `over` winning: MAPS merge per-key recursively, LISTS replace (never
-// concatenate), SCALARS replace. It does not mutate `base` or `over` at the top
-// level (it builds a fresh result), so callers may reuse the inputs. A nil `over`
-// yields a shallow copy of `base`; a nil `base` yields a shallow copy of `over`.
-func deepMerge(base, over map[string]any) map[string]any {
+// IsEmptyValue reports whether a decoded YAML value is EMPTY for the purposes of
+// the cascade: `null`, the empty string, an empty list, or an empty mapping. An
+// empty leaf neither wins nor blocks — it falls through to the next tier down —
+// which is what removes explicit-null/presence semantics from the read side.
+//
+// `false` and `0` are REAL values and are never empty: a bool or int override
+// must survive the merge (a project `dispatch: {reap_done: false}` resolves
+// false, not the built-in true).
+//
+// It is exported because the provenance surfaces (`fab config show --origin`,
+// the set/unset notices in cmd/fab) resolve "which tier DEFINES this leaf" with
+// exactly this predicate — the merge rule and the origin rule are one definition.
+func IsEmptyValue(v any) bool {
+	switch t := v.(type) {
+	case nil:
+		return true
+	case string:
+		return t == ""
+	case []any:
+		return len(t) == 0
+	case map[string]any:
+		return len(t) == 0
+	case map[any]any:
+		return len(t) == 0
+	default:
+		return false
+	}
+}
+
+// MergeLayers merges decoded config layers per leaf, LOWEST precedence first —
+// MergeLayers(project, system, env) resolves env over system over project. The
+// rule, applied identically at every tier:
+//
+//   - MAPS merge per-key recursively; LISTS and SCALARS are leaves and replace
+//     wholesale (a map-vs-non-map mismatch replaces too).
+//   - An EMPTY leaf (see IsEmptyValue) is SKIPPED: it neither wins nor blocks, so
+//     the next tier down supplies the value.
+//
+// The inputs are never mutated (a fresh result is built), so callers may reuse
+// them. With no layers — or only empty ones — the result is an empty (non-nil)
+// map, which the callers treat as "no effective config".
+func MergeLayers(layers ...map[string]any) map[string]any {
+	out := make(map[string]any)
+	for _, layer := range layers {
+		out = mergeOver(out, layer)
+	}
+	return out
+}
+
+// mergeOver returns base with over's NON-EMPTY leaves merged in, over winning.
+// It is MergeLayers' pairwise step; base is already empty-filtered by
+// construction (MergeLayers seeds it from an empty map), so only `over` needs the
+// emptiness test.
+func mergeOver(base, over map[string]any) map[string]any {
 	out := make(map[string]any, len(base)+len(over))
 	for k, v := range base {
 		out[k] = v
 	}
 	for k, ov := range over {
-		if bv, ok := out[k]; ok {
-			if bm, bok := asStringMap(bv); bok {
-				if om, ook := asStringMap(ov); ook {
-					// Both sides are maps — merge per-key recursively.
-					out[k] = deepMerge(bm, om)
-					continue
-				}
+		if IsEmptyValue(ov) {
+			continue // empty leaf falls through to whatever base already holds
+		}
+		if om, ook := asStringMap(ov); ook {
+			// Drop over's own empty leaves first: a mapping whose every leaf is
+			// empty (`agent: {session: null}`) defines nothing and must fall
+			// through wholesale rather than replacing the tier below with {}.
+			filtered := mergeOver(nil, om)
+			if len(filtered) == 0 {
+				continue
 			}
+			if bm, bok := asStringMap(out[k]); bok {
+				// Both sides are maps — merge per-key recursively.
+				out[k] = mergeOver(bm, filtered)
+				continue
+			}
+			out[k] = filtered
+			continue
 		}
 		// Lists replace, scalars replace, and a map-vs-non-map mismatch replaces:
 		// the `over` value wins wholesale.
@@ -718,8 +819,8 @@ func (c *Config) ProviderNames() []string {
 // decides, not the scope: LoadPath merges the system (~/.fab-kit/config.yaml) and
 // project layers per key first, leaving `profiles` and `tiers` as two separate maps,
 // and this accessor then prefers `profiles` wherever it carries the role. So a
-// SYSTEM-layer agent.profiles.<role> beats a PROJECT-layer agent.tiers.<role>,
-// inverting the documented project > system precedence. It only bites a
+// PROJECT-layer agent.profiles.<role> beats a SYSTEM-layer agent.tiers.<role>,
+// inverting the documented system > project precedence. It only bites a
 // hand-half-migrated pair of scopes; running the 2.16.19-to-2.17.0 migration (which
 // sweeps BOTH files) removes the legacy spelling from both and restores the normal
 // precedence, as does moving the role to `profiles` in the losing scope. Making the

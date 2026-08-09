@@ -199,7 +199,8 @@ provider is an opaque, user-chosen name mapping to three independent dispatch ca
   so fab never infers native support from a name or model.
 - **`profiles.<role>`** — the provider's **per-role fill**: `{model, effort}` for "when this provider
   plays this role". Keyed by role name; the `default` entry doubles as the provider's **cross-role
-  fallback**. Scope `both`, so a machine-wide fill is settable once in `~/.fab-kit/config.yaml`.
+  fallback**. Scope `both`, so a machine-wide fill is settable once in `~/.fab-kit/config.yaml`, where
+  it outranks the project file.
 
 The capabilities are deliberately independent. Session and headless dispatch are different
 invocations of the same binary (claude interactive `-n` vs headless `-p`; codex TUI vs `codex exec`),
@@ -302,7 +303,7 @@ That is safe because of the failure shape on each side:
 
 - **A stale ID fails loudly and cheaply.** The provider CLI rejects it immediately, and the fix is one
   config line: `providers.<name>.profiles.<role>.model`. Because `providers` is scope `both`, that
-  line is settable once machine-wide in `~/.fab-kit/config.yaml`.
+  line is settable once machine-wide in `~/.fab-kit/config.yaml`, where it outranks the project file.
 - **Shipping nothing failed silently.** An empty model resolved the CLI's own default identically for
   every role, with no error at all — worse than a loud stale ID, because it defeats role
   differentiation exactly where a user first exercises the knob.
@@ -448,8 +449,8 @@ provider choice) or write the model on `providers.<name>.profiles.default` (if t
 choice).
 
 One pre-migration wrinkle: the legacy alias resolves **after** the scope cascade, so while a config is
-half-migrated the *spelling* can outrank the scope — a system-scope `agent.profiles.<role>` beats a
-project-scope `agent.tiers.<role>` for that role, inverting the usual `project > system` precedence
+half-migrated the *spelling* can outrank the scope — a project-scope `agent.profiles.<role>` beats a
+system-scope `agent.tiers.<role>` for that role, inverting the usual `system > project` precedence
 (pinned by `TestResolveCrossScopeLegacyAliasPrecedence`). The migration sweeps both scopes, so the
 window closes as soon as it runs; the retired-cutoff note above is about the *ownership* computation,
 not this alias.
@@ -837,8 +838,8 @@ command values are wired to the file's keys.
 ## Out of scope (deferred)
 
 - **User (`~/.fab-kit`) config layer** — was dropped here; subsequently shipped as the system rung
-  (`260708-lpb5`) of the current four-layer cascade (environment > project > system
-  `~/.fab-kit/config.yaml` > defaults). `agent` and
+  (`260708-lpb5`) of the current four-tier cascade (environment > system
+  `~/.fab-kit/config.yaml` > project > defaults). `agent` and
   `providers` are both scope `both`, so the depth knobs, a per-role provider fill, and a role override
   are all settable once per machine.
 - **Non-claude default fills** — *no longer deferred*: shipped by `260806-ywkx`. See § Three built-in
