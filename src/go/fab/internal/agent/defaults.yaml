@@ -49,19 +49,19 @@ agent:
 # "select this mode". dispatch.mode owns the preference; automatic resolution
 # descends pane → native → headless against these capabilities.
 #
-# agy and kimi deliberately carry NO session_command — no pane capability, so the
+# agy and kimi deliberately carry NO interactive_command — no pane capability, so the
 # descent ladder lands their stages on headless. Pane dispatch appends the pointer
-# prompt as a positional argument to session_command, and neither CLI can receive
+# prompt as a positional argument to interactive_command, and neither CLI can receive
 # a prompt that way (kimi parses a bare positional as a SUBCOMMAND and exits
 # non-zero; agy silently drops it and starts at an empty prompt, then gates a
 # fresh workspace behind an interactive trust prompt). A user who adds
-# providers.<name>.session_command in their own config opts into pane workers
+# providers.<name>.interactive_command in their own config opts into pane workers
 # that never see their pointer prompt.
 providers:
   claude:
     native: true
-    session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
-    dispatch_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
+    interactive_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
+    headless_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
     # The six role fills. `default` doubles as this provider's cross-role
     # fallback: a role absent here resolves the `default` entry, then empty.
     profiles:
@@ -76,8 +76,8 @@ providers:
     # which is where `fab dispatch` pipes it. Both forms bypass approvals and the
     # sandbox: stage workers are unattended and cannot answer approval prompts,
     # matching claude's shipped `--dangerously-skip-permissions` posture.
-    session_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
-    dispatch_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
+    interactive_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
+    headless_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
     # Sparse: a role absent here resolves the `default` entry, so hydrate and
     # operator get the frontier model at `high` without a row of their own. The
     # codex CLI takes a concrete model SLUG (no alias mechanism), so these are
@@ -91,13 +91,13 @@ providers:
     # Antigravity CLI. Model IDs embed the reasoning effort (e.g. gemini-3.1-pro-high),
     # so there is NO {effort} placeholder — a separate --effort flag exists but would
     # fight the suffix. agy -p takes the prompt as an ARGUMENT and ignores stdin, and
-    # POSIX expands $(cat) BEFORE applying the < redirect, so the dispatch command
+    # POSIX expands $(cat) BEFORE applying the < redirect, so the headless command
     # nests a shell: the inner sh's stdin IS the redirected prompt file.
     # --print-timeout raised from its 5m default — stage workers run far longer.
-    # NO session_command: see the providers-block note above — a pane worker never
+    # NO interactive_command: see the providers-block note above — a pane worker never
     # receives the pointer prompt (agy drops the positional and trust-prompts a
     # fresh workspace), so shipping one would orphan every tmux-dispatched stage.
-    dispatch_command: 'sh -c ''agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'''
+    headless_command: 'sh -c ''agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'''
     # Sparse and model-only (the effort rides the ID's suffix). `default` is the
     # cross-role fallback, so doing/review/hydrate/operator all take the pro-high
     # model without a row of their own; `fast` takes the cheaper flash tier. These
@@ -114,7 +114,7 @@ providers:
     # default_model. -p is already non-interactive and auto-approves tools; it
     # REJECTS --yolo/--auto ("Cannot combine --prompt with --yolo"), so the
     # dispatch form carries no approval flag. Same nested-shell stdin idiom as agy.
-    # NO session_command either: kimi reads a bare positional as a SUBCOMMAND and
+    # NO interactive_command either: kimi reads a bare positional as a SUBCOMMAND and
     # exits non-zero, and has no interactive-initial-prompt flag at all, so a pane
     # worker could never be handed the pointer prompt.
-    dispatch_command: 'sh -c ''kimi -m {model} -p "$(cat)"'''
+    headless_command: 'sh -c ''kimi -m {model} -p "$(cat)"'''

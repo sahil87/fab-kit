@@ -774,7 +774,7 @@ func anchorLine(prefix string) string {
 //     column 0. These are already comments at the fence's own level and are left
 //     as-is.
 //   - CONTENT level — YAML the segment deliberately ships commented INSIDE a live
-//     block (claude's `    # dispatch_command: …`, the `  # codex:` / `  # agy:` /
+//     block (claude's `    # headless_command: …`, the `  # codex:` / `  # agy:` /
 //     `  # kimi:` blocks), where the `#` is INDENTED because it belongs to the
 //     YAML structure, not to the fence.
 //
@@ -783,7 +783,7 @@ func anchorLine(prefix string) string {
 // see in a generated config reference. Prefixing them instead puts every fence
 // line's marker at column 0 and makes the reverse operation exact: stripping the
 // leading `# ` from every line of a block restores the segment BYTE-EXACTLY, with
-// claude's dispatch_command and the non-claude provider blocks still commented at
+// claude's headless_command and the non-claude provider blocks still commented at
 // their original indent — which is precisely what `configref.providersSegment`'s prose
 // instructs the reader to do.
 //

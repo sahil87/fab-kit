@@ -38,7 +38,7 @@ import (
 // line is omitted when it has no provider. An empty model emits an empty `model=`
 // line, signaling "inherit the session/orchestrator model". The dispatch line is
 // derived from dispatch.mode, provider capabilities, and $TMUX: native omits it,
-// pane emits session_command, and headless emits dispatch_command. A provider with
+// pane emits interactive_command, and headless emits headless_command. A provider with
 // no reachable rung errors actionably. Command fields never substitute for one
 // another. Other non-zero exits cover malformed/unreadable config and unknown
 // stage/role names.
@@ -174,7 +174,7 @@ func dispatchLineFor(prov config.ProviderConfig, preference, tmuxEnv string) (st
 		tmux = dispatch.TmuxAvailable
 	}
 	mode, _, err := dispatch.SelectMode(false, false, false, false, preference,
-		prov.Native, prov.SessionCommand != "", prov.DispatchCommand != "", tmux)
+		prov.Native, prov.InteractiveCommand != "", prov.HeadlessCommand != "", tmux)
 	if err != nil {
 		return "", err
 	}
@@ -182,9 +182,9 @@ func dispatchLineFor(prov config.ProviderConfig, preference, tmuxEnv string) (st
 	case dispatch.ModeNative:
 		return "", nil
 	case dispatch.ModePane:
-		return prov.SessionCommand, nil
+		return prov.InteractiveCommand, nil
 	case dispatch.ModeHeadless:
-		return prov.DispatchCommand, nil
+		return prov.HeadlessCommand, nil
 	default:
 		return "", fmt.Errorf("unexpected dispatch mode %q", mode)
 	}
@@ -193,17 +193,17 @@ func dispatchLineFor(prov config.ProviderConfig, preference, tmuxEnv string) (st
 // noDispatchCapabilityError reports that no rung at or below the configured
 // dispatch.mode preference is reachable for this provider. Selection descends
 // pane → native → headless and never ascends, so the remedies name only the
-// rungs the preference can actually reach — suggesting session_command under a
+// rungs the preference can actually reach — suggesting interactive_command under a
 // `headless` preference would point at a capability the ladder would skip.
 func noDispatchCapabilityError(provider, preference string, cause error) error {
 	var remedies []string
 	if preference == string(dispatch.ModePane) {
-		remedies = append(remedies, fmt.Sprintf("providers.%s.session_command for pane", provider))
+		remedies = append(remedies, fmt.Sprintf("providers.%s.interactive_command for pane", provider))
 	}
 	if preference == string(dispatch.ModePane) || preference == string(dispatch.ModeNative) {
 		remedies = append(remedies, fmt.Sprintf("providers.%s.native for native", provider))
 	}
-	remedies = append(remedies, fmt.Sprintf("providers.%s.dispatch_command for headless", provider))
+	remedies = append(remedies, fmt.Sprintf("providers.%s.headless_command for headless", provider))
 	return fmt.Errorf("provider %q has no dispatch capability at or below dispatch.mode %q; configure %s: %w",
 		provider, preference, joinRemedies(remedies), cause)
 }
@@ -228,7 +228,7 @@ func joinRemedies(remedies []string) string {
 // is the ALREADY-substituted command (placeholders resolved via internal/spawn) —
 // the caller passes "" to omit the line (native Agent-tool dispatch). Extracted so
 // the omit-when-empty branches are unit-testable without needing a config whose
-// RESOLVED effort/provider/dispatch_command is empty.
+// RESOLVED effort/provider/headless_command is empty.
 func formatAgentProfile(p agent.Profile, dispatchLine string) string {
 	out := fmt.Sprintf("model=%s\n", p.Model)
 	if p.Effort != "" {

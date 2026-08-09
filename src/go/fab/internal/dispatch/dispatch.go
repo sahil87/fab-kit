@@ -462,7 +462,7 @@ func PointerPrompt(promptPath string) string {
 // text before embedding it"); this is the one place pane mode embeds such text.
 //
 // resolvedCmd is inserted VERBATIM, per the resolver's pass-through philosophy:
-// it is the provider's own session_command and carries deliberate shell
+// it is the provider's own interactive_command and carries deliberate shell
 // expansions (e.g. `$(basename "$(pwd)")` in the built-in claude default) that
 // must expand inside the new window.
 func WindowCommand(resolvedCmd, pointer string) string {

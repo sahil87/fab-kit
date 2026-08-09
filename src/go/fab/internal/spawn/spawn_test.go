@@ -6,13 +6,13 @@ import (
 	"testing"
 )
 
-func TestCommand_WithSessionCommand(t *testing.T) {
+func TestCommand_WithInteractiveCommand(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	// The `default` role's provider (claude by default) supplies the session command.
 	os.WriteFile(configPath, []byte(`providers:
   claude:
-    session_command: "custom-claude --model opus"
+    interactive_command: "custom-claude --model opus"
 `), 0o644)
 
 	got := Command(configPath)
@@ -28,7 +28,7 @@ func TestCommand_CustomDefaultProvider(t *testing.T) {
 	configPath := filepath.Join(dir, "config.yaml")
 	os.WriteFile(configPath, []byte(`providers:
   codex:
-    session_command: "codex --tui"
+    interactive_command: "codex --tui"
 agent:
   profiles:
     default: { provider: codex }
@@ -40,12 +40,12 @@ agent:
 	}
 }
 
-func TestCommand_EmptySessionCommand(t *testing.T) {
+func TestCommand_EmptyInteractiveCommand(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	os.WriteFile(configPath, []byte(`providers:
   claude:
-    session_command: ""
+    interactive_command: ""
 `), 0o644)
 
 	got := Command(configPath)
@@ -207,7 +207,7 @@ func TestWithProfile_Template(t *testing.T) {
 		},
 		// Nested-shell dispatch grammar (260808-rpsr). agy and kimi take the
 		// prompt as the ARGUMENT to -p and ignore stdin, so their built-in
-		// dispatch_commands wrap the CLI in `sh -c '… -p "$(cat)"'`. Both the
+		// headless_commands wrap the CLI in `sh -c '… -p "$(cat)"'`. Both the
 		// substituted and the token-drop paths must leave that quoted tail intact —
 		// it is what makes the piped prompt reach the worker at all.
 		{

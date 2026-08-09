@@ -46,10 +46,10 @@ func TestConfigReferenceRoundTrips(t *testing.T) {
 	// The live baseline keys populate their Config fields (sanity that the
 	// live/commented split landed as intended — not just that it parsed).
 	prov, ok := cfg.GetProvider("claude")
-	if !ok || prov.SessionCommand == "" {
-		t.Error("providers.claude.session_command should be a live key with a value in the reference")
+	if !ok || prov.InteractiveCommand == "" {
+		t.Error("providers.claude.interactive_command should be a live key with a value in the reference")
 	}
-	if prov.DispatchCommand != agent.DefaultDispatchCommand || !prov.Native {
+	if prov.HeadlessCommand != agent.DefaultHeadlessCommand || !prov.Native {
 		t.Errorf("providers.claude capabilities = %+v, want live dispatch command and native=true", prov)
 	}
 	// codex, agy and kimi are Go BUILT-IN providers (260805-j3cm), so their reference
@@ -118,6 +118,13 @@ func TestConfigReferenceCoversBinaryKeys(t *testing.T) {
 	// yamlKeySegments skips it and it never appears in `segments` — no exemption is
 	// needed here (the positive "not documented" assertion lives in
 	// TestConfigReferenceOmitsRelocatedFabVersion).
+	//
+	// The deprecated pre-2.19.0 spellings session_command/dispatch_command are NOT
+	// exempted either (260809-n1he): they are read-time aliases the write surface
+	// rejects, but the providers segment NAMES them in its deprecation note, so
+	// they earn coverage the same way `agent.tiers` does from the agent segment.
+	// Documenting a deprecated spelling is what makes it discoverable to a user
+	// reading an unmigrated config — the walker stays exemption-free.
 	for seg := range segments {
 		if !containsKeyToken(out, seg) {
 			t.Errorf("binary-consumed config key %q (from Config yaml tags) is not documented in `fab config explain`", seg)
@@ -331,7 +338,7 @@ func TestConfigReferenceMentionsCommandPlaceholders(t *testing.T) {
 }
 
 // TestConfigReferenceDocumentsBothSubstitutionSources is the nvad contract: the
-// session_command comment must name BOTH sources of the {model}/{effort}
+// interactive_command comment must name BOTH sources of the {model}/{effort}
 // substitution — the resolved role profile (role path) and the --model/--effort
 // flags on `fab agent --provider <name>`, which bypasses role resolution. This
 // literal renders into every project's config.yaml reference fence, so a
@@ -341,20 +348,21 @@ func TestConfigReferenceDocumentsBothSubstitutionSources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
 	}
-	// The rendered comment is hard-wrapped with "# " prefixes, so assert on
-	// within-line phrases rather than a spanning sentence.
+	// The rendered comment is hard-wrapped with "# " prefixes, so assert against
+	// the unwrapped form — the contract is the sentence, not where it breaks.
+	flat := unwrapComment(out)
 	for _, phrase := range []string{
 		"substituted from the resolved role profile, or from the",
 		"--model/--effort flags on `fab agent --provider <name>`",
 		"(which bypasses role resolution)",
 	} {
-		if !strings.Contains(out, phrase) {
-			t.Errorf("session_command comment must document %q (both substitution sources)", phrase)
+		if !strings.Contains(flat, phrase) {
+			t.Errorf("interactive_command comment must document %q (both substitution sources)", phrase)
 		}
 	}
 	// The superseded single-source claim must not survive anywhere in the reference.
 	if strings.Contains(out, "substituted from the resolved tier profile (the built-in") {
-		t.Error("session_command comment still carries the single-source substitution claim")
+		t.Error("interactive_command comment still carries the single-source substitution claim")
 	}
 }
 
@@ -366,7 +374,7 @@ func TestConfigReferenceDocumentsProviders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
 	}
-	for _, token := range []string{"providers:", "session_command", "dispatch_command", "native"} {
+	for _, token := range []string{"providers:", "interactive_command", "headless_command", "native"} {
 		if !strings.Contains(out, token) {
 			t.Errorf("reference must document %q in the providers block", token)
 		}
@@ -396,17 +404,17 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 	}
 
 	// Every command field a non-claude built-in ships is documented. codex carries
-	// both; agy and kimi are DISPATCH-ONLY (their session_command absence is asserted
+	// both; agy and kimi are DISPATCH-ONLY (their interactive_command absence is asserted
 	// below). The expectations are DERIVED from the agent command vars (never literal
 	// copies), so a grammar change touches only internal/agent. They are compared in
 	// their YAML-SCALAR form — the nested-shell dispatch commands contain single
 	// quotes, which the renderer must double, so asserting the raw string would
 	// demand exactly the invalid YAML the escaping exists to prevent.
 	for _, cmd := range []string{
-		agent.DefaultCodexSessionCommand,
-		agent.DefaultCodexDispatchCommand,
-		agent.DefaultAgyDispatchCommand,
-		agent.DefaultKimiDispatchCommand,
+		agent.DefaultCodexInteractiveCommand,
+		agent.DefaultCodexHeadlessCommand,
+		agent.DefaultAgyHeadlessCommand,
+		agent.DefaultKimiHeadlessCommand,
 	} {
 		quoted := configref.YAMLSingleQuoted(cmd)
 		if !strings.Contains(out, quoted) {
@@ -438,26 +446,26 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 		}
 	}
 
-	// agy and kimi are DISPATCH-ONLY: each block's first key is dispatch_command,
-	// with no session_command line above it. A reader who uncomments the block must
+	// agy and kimi are DISPATCH-ONLY: each block's first key is headless_command,
+	// with no interactive_command line above it. A reader who uncomments the block must
 	// not be handed a pane-eligible provider — pane dispatch appends the pointer
 	// prompt as a positional argument, which neither CLI can receive.
 	for _, name := range []string{"agy", "kimi"} {
-		if !strings.Contains(out, "  # "+name+":\n  #   dispatch_command: ") {
-			t.Errorf("the %s block must open directly on dispatch_command (dispatch-only built-in)", name)
+		if !strings.Contains(out, "  # "+name+":\n  #   headless_command: ") {
+			t.Errorf("the %s block must open directly on headless_command (dispatch-only built-in)", name)
 		}
-		if strings.Contains(out, "  # "+name+":\n  #   session_command: ") {
-			t.Errorf("the %s block must render no session_command — shipping one would make auto dispatch select pane mode and park the stage", name)
+		if strings.Contains(out, "  # "+name+":\n  #   interactive_command: ") {
+			t.Errorf("the %s block must render no interactive_command — shipping one would make auto dispatch select pane mode and park the stage", name)
 		}
 	}
 	// The prose must say WHY, not merely omit the field.
-	for _, phrase := range []string{"ship NO session_command", "DISPATCH-ONLY"} {
+	for _, phrase := range []string{"ship NO interactive_command", "DISPATCH-ONLY"} {
 		if !strings.Contains(out, phrase) {
 			t.Errorf("providers block must explain the dispatch-only posture with %q", phrase)
 		}
 	}
 
-	if !strings.Contains(out, agent.DefaultDispatchCommand) || !strings.Contains(out, "native: true") {
+	if !strings.Contains(out, agent.DefaultHeadlessCommand) || !strings.Contains(out, "native: true") {
 		t.Error("providers block must document claude's headless and native capabilities")
 	}
 
@@ -543,9 +551,9 @@ func TestConfigReferenceUncommentedProviderBlocksParse(t *testing.T) {
 
 		want, _ := agent.ResolveProvider(nil, name)
 		got := parsed.Providers[name]
-		if got.SessionCommand != want.SessionCommand || got.DispatchCommand != want.DispatchCommand {
+		if got.InteractiveCommand != want.InteractiveCommand || got.HeadlessCommand != want.HeadlessCommand {
 			t.Errorf("uncommented %s block = {%q, %q}, want the built-in {%q, %q}",
-				name, got.SessionCommand, got.DispatchCommand, want.SessionCommand, want.DispatchCommand)
+				name, got.InteractiveCommand, got.HeadlessCommand, want.InteractiveCommand, want.HeadlessCommand)
 		}
 	}
 }
@@ -612,7 +620,7 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 		"cross-role fallback",
 		"flag > agent.profiles.<role> field > profiles.<role> >",
 	} {
-		if !strings.Contains(out, phrase) {
+		if !strings.Contains(unwrapComment(out), phrase) {
 			t.Errorf("providers block must document %q (the per-role fill map and its precedence)", phrase)
 		}
 	}
@@ -800,8 +808,8 @@ func TestConfigReferenceProvidersDefaultTracksAgentTable(t *testing.T) {
 			continue
 		}
 		for field, wantCmd := range map[string]string{
-			"session_command":  p.SessionCommand,
-			"dispatch_command": p.DispatchCommand,
+			"interactive_command": p.InteractiveCommand,
+			"headless_command":    p.HeadlessCommand,
 		} {
 			raw, present := entry[field]
 			if wantCmd == "" {
@@ -851,7 +859,7 @@ func TestConfigReferenceProvidersDefaultTracksAgentTable(t *testing.T) {
 
 // TestConfigReferenceRetiresLegacyKeys guards that the removed keys no longer
 // appear in the reference: review_tools (retired to code-review.md § Review Tools)
-// and agent.spawn_command (relocated to providers.claude.session_command).
+// and agent.spawn_command (relocated to providers.claude.interactive_command).
 func TestConfigReferenceRetiresLegacyKeys(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
@@ -1041,10 +1049,15 @@ func TestConfigReferenceRegistryLint(t *testing.T) {
 }
 
 // wantRenamedFrom is the registry's complete rename ledger. agent.tiers →
-// agent.profiles (260806-j9nh) is the only historical rename; every other row
-// must leave RenamedFrom empty so `renamed_from` stays omitted from --json.
+// agent.profiles (260806-j9nh) was the first; providers' nested command fields
+// (session_command/dispatch_command → interactive_command/headless_command,
+// 2.19.0) carry the metadata informationally — the mechanical carry is
+// top-level only, so their on-disk rewrite ships as the 2.18.1-to-2.19.0
+// migration. Every other row must leave RenamedFrom empty so `renamed_from`
+// stays omitted from --json.
 var wantRenamedFrom = map[string]string{
 	"agent.profiles": "agent.tiers",
+	"providers":      "providers.<name>.session_command, providers.<name>.dispatch_command",
 }
 
 // TestConfigReferenceScopeAssignments pins the decision-6 scope taxonomy: the
@@ -1296,6 +1309,21 @@ func yamlKeySegments(t reflect.Type) map[string]struct{} {
 // keyTokenBoundary matches a word boundary for a config key token (letters,
 // digits, underscore). Used so `test_paths` matches `test_paths:` but a search
 // for `paths` would not spuriously match `test_paths`.
+// unwrapComment flattens a rendered comment block into one whitespace-normalized
+// line: each line's leading `#` marker is stripped and the remainders are joined
+// with single spaces. Reference prose is hard-wrapped, so a SEMANTIC pin ("this
+// sentence is documented") asserted against the raw render breaks whenever a
+// segment is re-wrapped — and a re-wrap is not a contract change. Assert
+// wrap-sensitive facts (indentation, column alignment) on the raw output.
+func unwrapComment(rendered string) string {
+	lines := strings.Split(rendered, "\n")
+	stripped := make([]string, 0, len(lines))
+	for _, line := range lines {
+		stripped = append(stripped, strings.TrimPrefix(strings.TrimSpace(line), "#"))
+	}
+	return strings.Join(strings.Fields(strings.Join(stripped, " ")), " ")
+}
+
 func containsKeyToken(haystack, token string) bool {
 	re := regexp.MustCompile(`(^|[^A-Za-z0-9_])` + regexp.QuoteMeta(token) + `([^A-Za-z0-9_]|$)`)
 	return re.MatchString(haystack)
@@ -1348,7 +1376,7 @@ func TestConfigReferenceDispatchMode(t *testing.T) {
 	if !strings.Contains(out, "#   mode: "+config.DefaultDispatchMode) {
 		t.Errorf("the reference must scaffold `mode: %s` commented.\n--- got ---\n%s", config.DefaultDispatchMode, out)
 	}
-	for _, want := range []string{"pane", "native", "headless", "session_command", "dispatch_command", "never ascending"} {
+	for _, want := range []string{"pane", "native", "headless", "interactive_command", "headless_command", "never ascending"} {
 		if !strings.Contains(row.Segment, want) {
 			t.Errorf("dispatch.mode Segment must mention %q", want)
 		}

@@ -145,7 +145,7 @@ func TestRender_FenceFullyComments(t *testing.T) {
 // TestCommentOutSegment_MarkersAtColumnZero: EVERY non-blank line of a commented
 // segment carries its comment marker at column 0 — the alignment defect. A
 // deliberately-commented CONTENT line (an indented `#`, e.g. claude's
-// `    # dispatch_command:` or the `  # codex:` block) must gain the fence-level
+// `    # headless_command:` or the `  # codex:` block) must gain the fence-level
 // `# ` prefix like any live line; only a line whose `#` is ALREADY at column 0 is
 // fence-level prose and is left as-is.
 func TestCommentOutSegment_MarkersAtColumnZero(t *testing.T) {
@@ -172,7 +172,7 @@ func TestCommentOutSegment_MarkersAtColumnZero(t *testing.T) {
 // non-blank line of every commented segment starts with `#` at column 0 — the
 // property the fence's visual alignment rests on. The guard that a new registry row
 // carrying deliberately-commented content (the providers block's
-// dispatch_command / non-claude provider lines) cannot reintroduce a ragged fence.
+// headless_command / non-claude provider lines) cannot reintroduce a ragged fence.
 func TestCommentOutSegment_ShippedRegistryAlignment(t *testing.T) {
 	for _, f := range fieldsForTest(t) {
 		if f.Segment == "" {
@@ -192,7 +192,7 @@ func TestCommentOutSegment_ShippedRegistryAlignment(t *testing.T) {
 // TestCommentOutSegment_BlockStripRestoresSegment: the reverse operation
 // `configref.providersSegment`'s prose promises — "strip the leading '# ' from every
 // line of a block" — restores the segment's YAML block BYTE-EXACTLY, so a user who
-// uncomments a whole block gets valid YAML with claude's dispatch_command and the
+// uncomments a whole block gets valid YAML with claude's headless_command and the
 // non-claude provider blocks still commented at their original indent. Verified over the
 // shipped registry; the fence-level prose lines (already column-0) are unchanged by
 // the commenting and so are not part of the strip.
@@ -363,11 +363,11 @@ func TestRender_BHygieneFlagsEqualsDefault(t *testing.T) {
 		// commands (`sh -c '… -p "$(cat)"'`) contain single quotes, and naive
 		// wrapping would close the scalar early and make this fixture unparseable.
 		// The rule has one owner — configref, the renderer this fixture mirrors.
-		if prov.SessionCommand != "" {
-			src += "        session_command: " + configref.YAMLSingleQuoted(prov.SessionCommand) + "\n"
+		if prov.InteractiveCommand != "" {
+			src += "        interactive_command: " + configref.YAMLSingleQuoted(prov.InteractiveCommand) + "\n"
 		}
-		if prov.DispatchCommand != "" {
-			src += "        dispatch_command: " + configref.YAMLSingleQuoted(prov.DispatchCommand) + "\n"
+		if prov.HeadlessCommand != "" {
+			src += "        headless_command: " + configref.YAMLSingleQuoted(prov.HeadlessCommand) + "\n"
 		}
 		if prov.Native {
 			src += "        native: true\n"
@@ -408,7 +408,7 @@ func TestRender_BHygieneFlagsEqualsDefault(t *testing.T) {
 // flagged (no false positive).
 func TestRender_BHygieneSilentOnRealOverride(t *testing.T) {
 	fields := fieldsForTest(t)
-	src := "providers:\n    claude:\n        session_command: 'my-custom-agent --flag'\n"
+	src := "providers:\n    claude:\n        interactive_command: 'my-custom-agent --flag'\n"
 	_, report := render(src, fields, "2.15.0")
 	if strings.Contains(strings.Join(report, "\n"), "equals the current default") {
 		t.Errorf("a real override must not be flagged as equals-default, got %v", report)
@@ -716,7 +716,7 @@ func TestMutationRegression_ScalarOnlySetRefusesWithoutWrite(t *testing.T) {
 		// configvalue.Parse accepts block collections (environment overrides need
 		// them); set refuses them on its own — one-line and multi-line alike.
 		{"block mapping value", "agent.workers", "a: b", "single-line YAML scalar"},
-		{"multiline block mapping value", "agent.workers", "custom:\n  session_command: tool", "single-line YAML scalar"},
+		{"multiline block mapping value", "agent.workers", "custom:\n  interactive_command: tool", "single-line YAML scalar"},
 		{"block sequence value", "agent.workers", "- codex\n- next", "single-line YAML scalar"},
 		{"block scalar indicator", "agent.workers", "|", "single-line YAML scalar"},
 		{"escaped multiline scalar", "agent.workers", `"codex\nnext"`, "single-line YAML scalar"},
@@ -826,7 +826,7 @@ agent:
 
 func TestSystemMutation_ScopeScaffoldAndNoFence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".fab-kit", "config.yaml")
-	if _, err := SetSystem(path, "providers", "{custom: {session_command: tool}}"); err == nil || !strings.Contains(err.Error(), "scalar leaf") {
+	if _, err := SetSystem(path, "providers", "{custom: {interactive_command: tool}}"); err == nil || !strings.Contains(err.Error(), "scalar leaf") {
 		t.Fatalf("SetSystem collection key error = %v, want scalar-leaf refusal", err)
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -1014,7 +1014,7 @@ func TestMutation_OpaqueProviderNamesSetUnset(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			original, _ := render("", fieldsForTest(t), "test")
 			path := writeMutationFixture(t, original)
-			key := "providers." + name + ".session_command"
+			key := "providers." + name + ".interactive_command"
 			if _, err := Set(path, key, "tool", "test"); err != nil {
 				t.Fatalf("Set(%q): %v", key, err)
 			}
@@ -1023,7 +1023,7 @@ func TestMutation_OpaqueProviderNamesSetUnset(t *testing.T) {
 			if name == "123" || name == "true" || name == "on" {
 				serializedName = strconv.Quote(name)
 			}
-			if !strings.Contains(got, serializedName+":") || !strings.Contains(got, "session_command: tool") {
+			if !strings.Contains(got, serializedName+":") || !strings.Contains(got, "interactive_command: tool") {
 				t.Fatalf("Set(%q) did not materialize the provider\n--- got ---\n%s", key, got)
 			}
 			cfg, err := config.LoadPath(path)
@@ -1031,7 +1031,7 @@ func TestMutation_OpaqueProviderNamesSetUnset(t *testing.T) {
 				t.Fatalf("LoadPath after Set(%q): %v", key, err)
 			}
 			provider, ok := cfg.GetProvider(name)
-			if !ok || provider.SessionCommand != "tool" {
+			if !ok || provider.InteractiveCommand != "tool" {
 				t.Fatalf("Set(%q) was not effective after load: provider=%+v ok=%v", key, provider, ok)
 			}
 
@@ -1047,11 +1047,11 @@ func TestMutation_OpaqueProviderNamesSetUnset(t *testing.T) {
 
 func TestMutation_UnencodableProviderNamesRefuseWithoutWrite(t *testing.T) {
 	for _, key := range []string{
-		"providers.#local.session_command",
-		"providers.local:dev.session_command",
-		"providers. local.session_command",
-		"providers.local .session_command",
-		"providers.local\nname.session_command",
+		"providers.#local.interactive_command",
+		"providers.local:dev.interactive_command",
+		"providers. local.interactive_command",
+		"providers.local .interactive_command",
+		"providers.local\nname.interactive_command",
 	} {
 		t.Run(key, func(t *testing.T) {
 			const original = "agent:\n    workers: claude\n"

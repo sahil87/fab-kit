@@ -28,7 +28,7 @@ Four words, each with exactly one meaning:
 |------|---------|
 | **role** | One of six fixed slot names — `default`, `operator`, `doing`, `review`, `hydrate`, `fast`. A role is *what an agent is for*. |
 | **profile** | A concrete `{provider, model, effort}` value. What a role resolves *to*. |
-| **provider** | A named set of independent launch capabilities (`session_command`, `dispatch_command`, and `native`) plus its per-role fills. Capability presence says how a rung runs; `dispatch.mode` chooses the preference ceiling and descends `pane → native → headless`. |
+| **provider** | A named set of independent launch capabilities (`interactive_command`, `headless_command`, and `native`) plus its per-role fills. Capability presence says how a rung runs; `dispatch.mode` chooses the preference ceiling and descends `pane → native → headless`. |
 | **Tier 1 / Tier 2** | Agent **depth**: Tier 1 is the agents a user talks to (a `fab agent` session, the operator, a `fab batch` worker); Tier 2 is the agents pipeline stages dispatch to. |
 
 "Tier" means depth and *only* depth. A watchable pane worker is still Tier 2 — the defining property
@@ -186,7 +186,7 @@ knob.
 The launch **capability grammar** lives in a top-level `providers:` table, not on the roles. Each
 provider is an opaque, user-chosen name mapping to three independent dispatch capabilities plus a per-role fill map:
 
-- **`session_command`** — opens an interactive agent **session** (`fab operator` / `fab batch` /
+- **`interactive_command`** — opens an interactive agent **session** (`fab operator` / `fab batch` /
   `fab agent`). It is reachable **two ways**: through a role (the role names a provider, and its
   `{model, effort}` are substituted) or **directly**, via
   `fab agent --provider <name> [--model <id>] [--effort <level>]`, which bypasses role resolution
@@ -194,7 +194,7 @@ provider is an opaque, user-chosen name mapping to three independent dispatch ca
   role need name the provider first. The direct form is a **lookup**, not a new validation surface: an
   unknown name errors listing the available providers, while resolved command strings still pass
   through verbatim. See `_cli-fab.md` § fab agent.
-- **`dispatch_command`** — runs ONE headless **stage task** via `fab dispatch`.
+- **`headless_command`** — runs ONE headless **stage task** via `fab dispatch`.
 - **`native`** — boolean capability for the in-harness Agent-tool adapter. Provider names are opaque,
   so fab never infers native support from a name or model.
 - **`profiles.<role>`** — the provider's **per-role fill**: `{model, effort}` for "when this provider
@@ -221,8 +221,8 @@ fab-kit ships **four built-in providers** — `claude` (the default), `codex`, `
 providers:
   claude:
     native: true
-    session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
-    dispatch_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
+    interactive_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
+    headless_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
     profiles:
       default:  { model: claude-fable-5,  effort: high }
       operator: { model: claude-sonnet-5, effort: medium }
@@ -231,22 +231,22 @@ providers:
       hydrate:  { model: claude-opus-5,   effort: high }
       fast:     { model: claude-sonnet-5, effort: medium }
   codex:
-    session_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
-    dispatch_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
+    interactive_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
+    headless_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
     profiles:                                 # sparse — an absent role takes `default`
       default: { model: gpt-5.6-sol,  effort: high }
       doing:   { effort: xhigh }
       review:  { effort: xhigh }
       fast:    { model: gpt-5.6-luna, effort: low }
   agy:
-    # NO session_command: dispatch-only (see below).
-    dispatch_command: 'sh -c ''agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'''
+    # NO interactive_command: dispatch-only (see below).
+    headless_command: 'sh -c ''agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'''
     profiles:                                 # model-only: the reasoning level rides the ID suffix
       default: { model: gemini-3.1-pro-high }
       fast:    { model: gemini-3.6-flash-low }
   kimi:
-    # NO session_command: dispatch-only (see below).
-    dispatch_command: 'sh -c ''kimi -m {model} -p "$(cat)"'''
+    # NO interactive_command: dispatch-only (see below).
+    headless_command: 'sh -c ''kimi -m {model} -p "$(cat)"'''
     # NO profiles: kimi's -m takes a user-config model alias, not a catalog ID.
 ```
 
@@ -256,27 +256,27 @@ land on codex's `default` model and effort, and agy's non-`fast` roles on agy's 
 without a row of their own. (The merge is per FIELD, so codex's `doing`/`review` rows — effort only —
 take their model from `default` too.)
 
-**Two of the four are dispatch-only.** Only `claude` and `codex` ship a `session_command`; `agy` and
+**Two of the four are dispatch-only.** Only `claude` and `codex` ship an `interactive_command`; `agy` and
 `kimi` ship dispatch grammar alone, and the absence is load-bearing rather than an omission. A
-`session_command` is what makes a provider eligible for **pane-mode dispatch**, which composes that
+`interactive_command` is what makes a provider eligible for **pane-mode dispatch**, which composes that
 command and appends a one-line pointer to the stage prompt file as a **positional argument** — and
 neither CLI can receive a prompt that way. kimi parses a bare positional as a **subcommand** and exits
 non-zero, and has no interactive-initial-prompt flag at all; agy **silently discards** it (the TUI
 opens at an empty prompt) and additionally gates a fresh workspace behind an interactive trust prompt
 even under `--dangerously-skip-permissions`. Shipping one would therefore make a pane-preferring dispatch
 inside tmux select pane and park every stage. With none, automatic resolution skips the pane rung
-and descends to headless (`descended: pane unavailable: no session_command`), and an explicit
+and descends to headless (`descended: pane unavailable: no interactive_command`), and an explicit
 `--pane` hard-errors actionably. A user who
-wants an interactive `agy`/`kimi` session adds `providers.<name>.session_command` in their own config,
+wants an interactive `agy`/`kimi` session adds `providers.<name>.interactive_command` in their own config,
 accepting that pane-dispatched stages will then not receive their prompt.
 
 **Full-auto posture, per FORM.** Claude uses `--dangerously-skip-permissions` on both its forms,
 codex `--dangerously-bypass-approvals-and-sandbox` on both its forms, and agy
-`--dangerously-skip-permissions` on its dispatch command. kimi's carries no approval
+`--dangerously-skip-permissions` on its headless command. kimi's carries no approval
 flag at all: `kimi -p` is already non-interactive and auto-approves tool calls, and *errors* when
 combined with `--yolo` (`Cannot combine --prompt with --yolo`). Pipeline workers are
 unattended and have no channel for answering approval prompts. Users who require approval-gated
-workers override the corresponding `providers.<name>.session_command` or `.dispatch_command`.
+workers override the corresponding `providers.<name>.interactive_command` or `.headless_command`.
 
 Three per-provider shapes are load-bearing:
 
@@ -291,7 +291,7 @@ Three per-provider shapes are load-bearing:
   configured `default_model`. A user who wants role differentiation pins
   `providers.kimi.profiles.<role>.model` themselves. This is the one built-in for which an EMPTY
   resolution is correct rather than a gap.
-- **agy's and kimi's `dispatch_command`s nest a shell.** Both CLIs take the prompt as the ARGUMENT to
+- **agy's and kimi's `headless_command`s nest a shell.** Both CLIs take the prompt as the ARGUMENT to
   `-p` and ignore stdin, while `fab dispatch` delivers the prompt on stdin. POSIX expands `$(cat)`
   *before* the redirect applies, so only the nested form — `sh -c '<cli> … -p "$(cat)"'` — puts the
   redirected prompt on the inner shell's stdin. The placeholder is always INTERIOR to that quoted
@@ -312,13 +312,13 @@ Consequences:
   depth knobs ship `claude`), which is why presence=intent — the rule that keeps behavior-changing
   config commented — does not force the table out of Go.
 - **Claude carries all three capabilities; codex carries both command fields and is non-native;
-  agy/kimi carry a `dispatch_command` only.** Under the default `dispatch.mode: native`, claude
+  agy/kimi carry a `headless_command` only.** Under the default `dispatch.mode: native`, claude
   resolves native while the non-claude built-ins descend to headless. Adding a command never
   changes policy by itself.
 - The reference renders the non-claude blocks **commented**, like every other non-overridden
   default (a commented block registers no project override). Their command strings render as YAML
   single-quoted scalars with interior quotes doubled, so uncommenting a nested-shell
-  `dispatch_command` yields valid YAML.
+  `headless_command` yields valid YAML.
 
 ### Refreshing the non-claude fills
 
@@ -417,8 +417,8 @@ agent:
 providers:
   claude:
     native: true
-    session_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
-    dispatch_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
+    interactive_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
+    headless_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
   # codex, agy and kimi are BUILT-IN providers carrying grammar (and, for the
   # first two, fills) — these blocks merely restate a built-in default, so they
   # ship commented like every other default. Uncomment only to OVERRIDE a grammar
@@ -426,16 +426,16 @@ providers:
   # (Shape only below; § Built-in providers above carries the live values,
   # and `fab config explain` prints what your binary actually ships.)
   # codex:
-  #   session_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
-  #   dispatch_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
+  #   interactive_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
+  #   headless_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
   #   profiles:
   #     default: { model: <codex-model-id>, effort: high }   # e.g. — pin a newer model here
-  # agy:                                                              # dispatch-only: no session_command
-  #   dispatch_command: 'sh -c ''agy … --model {model} -p "$(cat)"'''   # no {effort} flag; nested shell so $(cat) reads the piped prompt
+  # agy:                                                              # dispatch-only: no interactive_command
+  #   headless_command: 'sh -c ''agy … --model {model} -p "$(cat)"'''   # no {effort} flag; nested shell so $(cat) reads the piped prompt
   #   profiles:
   #     default: { model: <agy-model-id> }  # e.g. — no effort: the reasoning level rides the ID suffix
-  # kimi:                                                             # dispatch-only: no session_command
-  #   dispatch_command: 'sh -c ''kimi -m {model} -p "$(cat)"'''   # no --yolo: kimi -p rejects it and already auto-approves
+  # kimi:                                                             # dispatch-only: no interactive_command
+  #   headless_command: 'sh -c ''kimi -m {model} -p "$(cat)"'''   # no --yolo: kimi -p rejects it and already auto-approves
   #   profiles:
   #     default: { model: <your-kimi-alias> }  # e.g. — fab ships no kimi fill at all
 
@@ -453,7 +453,7 @@ dispatch:
 - An **empty model** signals "inherit the session/orchestrator model" once resolution bottoms out.
 - The `{model}`/`{effort}` placeholders in a provider command are substituted at resolve time via the
   same `internal/spawn` template machinery. *This spec covers the config schema and the `dispatch=`
-  resolution output; the dispatch that RUNS a `dispatch_command` (`fab dispatch`) and the skill
+  resolution output; the dispatch that RUNS a `headless_command` (`fab dispatch`) and the skill
   dispatch-seam wiring share the cross-adapter contract fixed by
   [`harness-adapters.md`](harness-adapters.md).*
 
@@ -536,8 +536,8 @@ effort the agent dispatch needs.)
 4. Output: a `model=<id>` line always, then optional `effort=<level>`, `provider=<name>`, and
    `dispatch=<command>` lines. The `effort=`/`provider=` lines are **omitted** when empty. An empty
    model emits an empty `model=` line (the "inherit" signal). `dispatch=` is derived by the
-   `dispatch.mode` descent ladder: native omits it; pane emits `session_command`; headless emits
-   `dispatch_command`. Its presence remains the only skill-side branch, and skills never execute its
+   `dispatch.mode` descent ladder: native omits it; pane emits `interactive_command`; headless emits
+   `headless_command`. Its presence remains the only skill-side branch, and skills never execute its
    value. The command's `{model}`/`{effort}` placeholders are substituted via
    `internal/spawn`'s template resolution (reused, not reimplemented), using the role's own resolved
    model/effort — and the `{model}` is **always the full model ID**, even under `--alias` (see
@@ -553,9 +553,9 @@ effort the agent dispatch needs.)
 `both`** — settable once machine-wide). Resolution starts at that rung and descends only through
 `pane → native → headless`, selecting the first possible adapter:
 
-- **Pane** requires tmux (`$TMUX` at the resolver seam; a real probe at start) and `session_command`.
+- **Pane** requires tmux (`$TMUX` at the resolver seam; a real probe at start) and `interactive_command`.
 - **Native** requires `native: true`.
-- **Headless** requires `dispatch_command`.
+- **Headless** requires `headless_command`.
 - Missing prerequisites skip rungs; no selection ever ascends. Thus `pane` is the watchable preference,
   `native` is quiet/in-context, and `headless` is detached-only.
 - Capability presence says how, never whether. Each mode composes only its own field, and adding
@@ -718,7 +718,7 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   existing dispatch: no more, no less. *(The operator launcher path is the deliberate exception — it
   resolves the **operator**-role profile WITHOUT `--alias`, because `spawn.WithProfile` composes a
   `claude` CLI invocation, which accepts full IDs. `WithProfile` is grammar-forgiving: it
-  **substitutes** the resolved values into a `{model}`/`{effort}` **template** `session_command` —
+  **substitutes** the resolved values into a `{model}`/`{effort}` **template** `interactive_command` —
   including the built-in claude default, which is templated, and a codex command — all-or-nothing (any
   placeholder disables the append entirely); an empty value drops the placeholder's token and a
   preceding `-`-flag — and,
@@ -736,7 +736,7 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   embeds the FULL model ID, never an alias**, because an external CLI's `--model` flag takes a full ID
   — CLI dispatch never aliases. So under `--alias` the `model=` line is aliased (Agent-tool half) while
   the `dispatch=` line carries the full ID (CLI half). The field is **independent of** a provider's
-  `session_command` (which opens whole sessions); each ladder rung requires its own capability and
+  `interactive_command` (which opens whole sessions); each ladder rung requires its own capability and
   command fields never substitute for one another. *`fab resolve-agent` emits the line; the
   dispatch that RUNS it (`fab dispatch`) and the skill dispatch-seam wiring that consumes it both
   shipped.* **The
@@ -751,8 +751,8 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   Obligations (3d).
   **Mode resolution is shared**: `resolve-agent` and `fab dispatch start` consume the same pure
   selector. Explicit flags precede automatic `dispatch.mode` descent; pane composes the resolved
-  provider's `session_command`, native uses the Agent-tool capability, and headless composes
-  `dispatch_command`. A missing capability skips its automatic rung, never substitutes a field, and
+  provider's `interactive_command`, native uses the Agent-tool capability, and headless composes
+  `headless_command`. A missing capability skips its automatic rung, never substitutes a field, and
   never ascends. Start performs a real pane probe and re-descends on `tmux unreachable`; landing on
   native yields re-resolution guidance before state writes.
 - *Claude-flavored data (overridable):* the `claude` provider's shipped fills use Claude model

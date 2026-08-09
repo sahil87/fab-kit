@@ -60,7 +60,7 @@ lists replace, scalars replace).
 ### Defaults are sourced from canonical Go symbols — no second copy
 
 Every default that has a canonical Go symbol is referenced from it, not copied: the claude session
-command from `agent.DefaultSessionCommand`, the per-role profiles via `agent.DefaultProfile` over
+command from `agent.DefaultInteractiveCommand`, the per-role profiles via `agent.DefaultProfile` over
 `agent.RoleNames()`, the stage names via `agent.StageNames()`. The registry construction fails loud
 (returns an error rather than emitting a degraded reference) if a role reported by `RoleNames()` does not
 resolve through `DefaultProfile`, or a row has an empty description or
@@ -183,8 +183,8 @@ one-line data change (in `internal/configscope`).
 `dispatch.mode` accepts exactly `pane`, `native`, or `headless`; absent and invalid values resolve to
 the canonical `native` default, with invalid input producing a `fab: warning:` diagnostic. It is a
 preference ceiling: automatic resolution descends only through `pane → native → headless`. Provider
-fields are independent capabilities—`session_command` for pane, `native: true` for the Agent-tool
-adapter, `dispatch_command` for headless—and their presence never chooses policy. Claude ships all
+fields are independent capabilities—`interactive_command` for pane, `native: true` for the Agent-tool
+adapter, `headless_command` for headless—and their presence never chooses policy. Claude ships all
 three; codex ships pane/headless grammar without native capability; agy and kimi ship headless
 grammar only. The
 `2.17.3-to-2.18.0` migration rewrites live `dispatch.watchable: true` to `mode: pane`, removes live
@@ -269,7 +269,7 @@ Two mechanics follow from the demotion:
 `renamed_from` names a field's previous key path so [Change 3]'s `fab config upgrade` can carry a
 user's value forward across a rename mechanically, instead of each rename needing a hand-written
 migration. Historical renames predating the field (e.g. `agent.spawn_command` →
-`providers.claude.session_command`, change tykw) were already handled by shipped migrations and are
+`providers.claude.interactive_command`, change tykw) were already handled by shipped migrations and are
 **not** backfilled. The `--json` dump omits the field when empty.
 
 **One row carries it today**: `agent.profiles`, recording the 260806-j9nh rename from `agent.tiers`.
@@ -320,9 +320,9 @@ using stdlib `encoding/json` only (no new dependencies). Each element is a per-f
   `default`, `operator`, `doing`, `review`, `hydrate`, `fast`), each a `{provider, model, effort}`
   profile; the first-level `default` key is the *default role*, not a wrapper. Likewise
   `providers.default` is keyed by provider name (four entries — claude/codex/agy/kimi), each carrying
-  its independent `session_command`, `dispatch_command`, and `native` capabilities (omitted when
+  its independent `interactive_command`, `headless_command`, and `native` capabilities (omitted when
   unavailable, so each block shows exactly what it ships): claude all three, codex both commands
-  without native, and `agy`/`kimi` a `dispatch_command` alone — they are **dispatch-only** built-ins (`260808-rpsr`), since a `session_command` also confers
+  without native, and `agy`/`kimi` a `headless_command` alone — they are **dispatch-only** built-ins (`260808-rpsr`), since an `interactive_command` also confers
   pane-mode eligibility and pane dispatch delivers the stage prompt as a positional argument neither
   CLI can accept. Every entry carries **no** `model`/`effort` — see § Default semantics.
 - `renamed_from` is omitted when empty (`omitempty`), so it appears on the `agent.profiles` object only.

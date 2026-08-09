@@ -335,10 +335,10 @@ func TestDispatchRestart_ModeIsReDerivedNotInherited(t *testing.T) {
 	if rec.Window != "" || rec.Server != "" {
 		t.Errorf("the prior pane identity leaked into the new record: %+v", *rec)
 	}
-	// The headless re-derivation composed dispatch_command, not the prior
-	// attempt's session_command — no cross-fallback, no inherited command.
+	// The headless re-derivation composed headless_command, not the prior
+	// attempt's interactive_command — no cross-fallback, no inherited command.
 	if !strings.HasPrefix(rec.SpawnCmd, "sh -c 'exit 0'") {
-		t.Errorf("spawn_cmd = %q, want the dispatch_command as prefix", rec.SpawnCmd)
+		t.Errorf("spawn_cmd = %q, want the headless_command as prefix", rec.SpawnCmd)
 	}
 	wantReason := "mode: headless (descended: pane unavailable: no tmux; native unavailable)"
 	if !strings.Contains(out, wantReason) {

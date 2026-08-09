@@ -119,7 +119,7 @@ func configReferenceCmd() *cobra.Command {
 			"row(s). `reference` remains a compatibility alias. Pure query — writes no file.",
 		Example: `  fab config explain
   fab config explain agent.workers
-  fab config explain providers.codex.session_command --json`,
+  fab config explain providers.codex.interactive_command --json`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key := ""
@@ -1107,7 +1107,7 @@ func runConfigInitSystem(cmd *cobra.Command) error {
 // (scope system/both — today the agent: block and providers). The Segments are the
 // same rendered YAML blocks `fab config explain` uses, so the scaffold cannot
 // drift from the schema. A live (uncommented) Segment (e.g. providers' live
-// claude session_command line) is comment-normalized so the whole scaffold ships
+// claude interactive_command line) is comment-normalized so the whole scaffold ships
 // inert — nothing takes effect until the user uncomments it.
 func renderSystemScaffold() (string, error) {
 	fields, err := configref.Fields()

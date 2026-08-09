@@ -12,9 +12,9 @@ description: "`fab dispatch {start,restart,status,wait,logs,kill,reap,clean}` ma
 
 | Mode | Requirement | Worker | Command composed | Completion observed via |
 |------|-------------|--------|------------------|-------------------------|
-| **pane** | reachable tmux + `session_command` | interactive tmux pane | provider `session_command` | result file + pane liveness |
+| **pane** | reachable tmux + `interactive_command` | interactive tmux pane | provider `interactive_command` | result file + pane liveness |
 | **native** | `native: true` | native Agent-tool subagent | none in this command family | dispatching harness |
-| **headless** | `dispatch_command` | detached `sh -c` process | provider `dispatch_command` | exit file + pid liveness + result file |
+| **headless** | `headless_command` | detached `sh -c` process | provider `headless_command` | exit file + pid liveness + result file |
 
 Headless mode is tmux-independent; pane mode restores watch-and-steer through the interactive CLI surface. `start` and `restart` launch these two non-native adapters, but automatic selection evaluates the full catalog: it starts at `dispatch.mode` and descends pane → native → headless. If native is the first possible rung, the command errors before writing prompt or dispatch state and directs the caller back to native dispatch. `restart` relaunches a non-running attempt from the persisted prompt and re-runs the ladder against current capabilities and environment. `status` and `wait` remain one-shot and blocking views of the same derived state.
 
@@ -84,7 +84,7 @@ Output names the launched identity and pane shape. Automatic success also report
 - **GIVEN** no mode flag, `dispatch.mode: pane`, unreachable tmux, and a native-capable provider
 - **WHEN** `fab dispatch start <change> <stage>` runs
 - **THEN** selection descends to native and the command exits before writes with native-dispatch guidance
-- **AND** if native is unavailable but `dispatch_command` exists, it descends again and launches headless
+- **AND** if native is unavailable but `headless_command` exists, it descends again and launches headless
 
 #### Scenario: an explicit signal always beats auto
 
@@ -108,18 +108,18 @@ A `--headless` boolean flag SHALL exist as the explicit opt-out from auto pane s
 
 #### Scenario: detached launch persists tracked state
 
-- **GIVEN** a change/stage whose resolved role's provider carries a `dispatch_command`
+- **GIVEN** a change/stage whose resolved role's provider carries a `headless_command`
 - **WHEN** `fab dispatch start <change> <stage>` runs with a prompt on stdin
 - **THEN** the prompt is persisted, the command is launched detached in a new session/process group, and `{stage}.yaml` records the pid/pgid/spawn_cmd/started_at
 - **AND** with `--timeout N`, the resolved command is wrapped in POSIX `timeout N` inside the same `sh -c` wrapper
 
-**`--pane` tail — an interactive tmux pane.** With `--pane`, `start` SHALL compose the resolved provider's **`session_command`** (the same string `fab agent` composes) and open it in a tmux **pane** whose cwd is the repo root, persisting the pane's **pane ID**, the `fab-{id}-{stage}` identity string, and the tmux socket label in `{stage}.yaml`. (WHERE that pane opens — split into the dispatching agent's own window, or a new window — is a second decision; see § A pane worker splits the dispatching agent's window.) The composed command is passed as the creating verb's shell-command argument, so shell expansions it carries (e.g. `$(basename "$(pwd)")` in the built-in claude `session_command`) expand at invocation inside the new pane — the `_cli-agents.md` § Spawn Composition contract. The **pane ID**, not the identity string, is the recorded identity: it is server-global, stable for the pane's lifetime, and exempt from tmux's target-grammar prefix/glob resolution, so liveness probes and kills are exact where a name-based target could resolve to a window the user renamed into place. `-P -F '#{pane_id}'` on the creating verb prints it, avoiding a follow-up lookup that could race a fast-exiting worker.
+**`--pane` tail — an interactive tmux pane.** With `--pane`, `start` SHALL compose the resolved provider's **`interactive_command`** (the same string `fab agent` composes) and open it in a tmux **pane** whose cwd is the repo root, persisting the pane's **pane ID**, the `fab-{id}-{stage}` identity string, and the tmux socket label in `{stage}.yaml`. (WHERE that pane opens — split into the dispatching agent's own window, or a new window — is a second decision; see § A pane worker splits the dispatching agent's window.) The composed command is passed as the creating verb's shell-command argument, so shell expansions it carries (e.g. `$(basename "$(pwd)")` in the built-in claude `interactive_command`) expand at invocation inside the new pane — the `_cli-agents.md` § Spawn Composition contract. The **pane ID**, not the identity string, is the recorded identity: it is server-global, stable for the pane's lifetime, and exempt from tmux's target-grammar prefix/glob resolution, so liveness probes and kills are exact where a name-based target could resolve to a window the user renamed into place. `-P -F '#{pane_id}'` on the creating verb prints it, avoiding a follow-up lookup that could race a fast-exiting worker.
 
 `--server <name>` / `-L <name>` targets a tmux socket (`tmux -L <name>`), mirroring the `fab pane` family's persistent flag, and is persisted so `status`/`kill` reach the same server without re-supplying it. It **implies pane mode** under auto (naming a socket while meaning headless is incoherent) and is **ignored in headless mode** (headless touches no tmux).
 
 #### Scenario: pane launch persists pane identity
 
-- **GIVEN** a change/stage whose resolved role's provider carries a `session_command`, and a reachable tmux server
+- **GIVEN** a change/stage whose resolved role's provider carries an `interactive_command`, and a reachable tmux server
 - **WHEN** `fab dispatch start <change> <stage> --pane` runs with a prompt on stdin
 - **THEN** a tmux pane runs the composed interactive command, `{stage}.yaml` records `pane`/`window`/(`server`)/`spawn_cmd`/`started_at`, and no `{stage}.exit` wrapper is involved
 
@@ -204,7 +204,7 @@ One consequence is deliberate: when the **dispatcher is itself a pane worker** (
 
 In **both** modes the full stage prompt arrives on **stdin** and is persisted to `{stage}-prompt.md`. Headless mode pipes that file into the dispatched command's stdin; pane mode SHALL instead hand the worker a **one-line pointer** naming the repo-relative prompt path, embedded at spawn as the interactive command's single prompt argument. The prompt **content** is composed identically for every adapter — nothing about the block prompt is written differently for `--pane`; only the hand-over differs. No `send-keys` delivery and no printed-prompt probe is required for the initial delivery.
 
-**The pointer SHALL be shell-quoted; the resolved command SHALL stay verbatim.** The two halves of the pane command are quoted differently on purpose. The pointer names a *repo-derived* path, so a checkout under a directory containing a single quote (`/home/me/sahil's-repo/…`) would terminate a naively-single-quoted argument early — breaking the `new-window`/`split-window` command and handing the path's remainder to the new pane's shell. It therefore rides through the package's `shellQuote` (the `'\''` idiom the headless wrapper's paths already use), composed in one place by `dispatch.WindowCommand` for **both** pane shapes, honoring `_cli-agents.md` § Spawn Composition's "shell-escape any user-supplied text before embedding it". The resolved `session_command` is inserted **verbatim** — its shell expansions are deliberate and must expand inside the new pane (per the pass-through philosophy: the command's own quoting is the resolver's/user's concern).
+**The pointer SHALL be shell-quoted; the resolved command SHALL stay verbatim.** The two halves of the pane command are quoted differently on purpose. The pointer names a *repo-derived* path, so a checkout under a directory containing a single quote (`/home/me/sahil's-repo/…`) would terminate a naively-single-quoted argument early — breaking the `new-window`/`split-window` command and handing the path's remainder to the new pane's shell. It therefore rides through the package's `shellQuote` (the `'\''` idiom the headless wrapper's paths already use), composed in one place by `dispatch.WindowCommand` for **both** pane shapes, honoring `_cli-agents.md` § Spawn Composition's "shell-escape any user-supplied text before embedding it". The resolved `interactive_command` is inserted **verbatim** — its shell expansions are deliberate and must expand inside the new pane (per the pass-through philosophy: the command's own quoting is the resolver's/user's concern).
 
 #### Scenario: a multi-thousand-token prompt reaches an interactive worker
 
@@ -220,9 +220,9 @@ In **both** modes the full stage prompt arrives on **stdin** and is persisted to
 
 ### Requirement: Pane prerequisites hard-error when forced and trigger re-descent when automatic
 
-Pane requires a reachable tmux server and `session_command`. An explicit `--pane` or `--server` request hard-errors on either missing prerequisite, launches nothing, and writes no state. Automatic selection instead records the failed pane reason and continues down the same ladder: `pane unavailable: no tmux`, `pane unavailable: tmux unreachable`, or `pane unavailable: no session_command`. The no-`session_command` shape is a **shipped** configuration, not a hypothetical one: the built-in `agy` and `kimi` providers are dispatch-only by design, because neither CLI can receive the pointer prompt a pane worker is handed (see [providers-and-profiles.md](/runtime/providers-and-profiles.md) § Dispatch-only built-ins).
+Pane requires a reachable tmux server and `interactive_command`. An explicit `--pane` or `--server` request hard-errors on either missing prerequisite, launches nothing, and writes no state. Automatic selection instead records the failed pane reason and continues down the same ladder: `pane unavailable: no tmux`, `pane unavailable: tmux unreachable`, or `pane unavailable: no interactive_command`. The no-`interactive_command` shape is a **shipped** configuration, not a hypothetical one: the built-in `agy` and `kimi` providers are dispatch-only by design, because neither CLI can receive the pointer prompt a pane worker is handed (see [providers-and-profiles.md](/runtime/providers-and-profiles.md) § Dispatch-only built-ins).
 
-The first possible lower rung wins. A native-capable provider therefore redirects to native before any write; a non-native provider with `dispatch_command` launches headless. If neither lower rung is available, start/restart return the shared no-reachable-capability error. Command composition occurs only after final selection, so each rung reads only its own capability field.
+The first possible lower rung wins. A native-capable provider therefore redirects to native before any write; a non-native provider with `headless_command` launches headless. If neither lower rung is available, start/restart return the shared no-reachable-capability error. Command composition occurs only after final selection, so each rung reads only its own capability field.
 
 Reachability is established by `tmux [-L <server>] list-sessions` via `ServerReachable`, not inferred solely from `$TMUX`. Headless and native selections perform no tmux launch work.
 
@@ -250,15 +250,15 @@ Supplying both flags SHALL be a usage error (non-zero exit) naming the exclusion
 
 ### Requirement: Each selected rung consumes only its own capability
 
-Pane composes only `session_command`; native uses only `native: true`; headless composes only `dispatch_command`. Automatic descent skips unavailable rungs rather than substituting fields. Forced pane/headless errors name the required provider key. Automatic selection with no reachable rung returns one actionable error and writes nothing.
+Pane composes only `interactive_command`; native uses only `native: true`; headless composes only `headless_command`. Automatic descent skips unavailable rungs rather than substituting fields. Forced pane/headless errors name the required provider key. Automatic selection with no reachable rung returns one actionable error and writes nothing.
 
 #### Scenario: a session-command-only provider dispatches under pane mode and errors without it
 
-- **GIVEN** a role whose provider carries a `session_command` but no `dispatch_command`
+- **GIVEN** a role whose provider carries an `interactive_command` but no `headless_command`
 - **WHEN** `fab dispatch start <change> <stage> --pane` runs with a reachable tmux server
-- **THEN** the dispatch succeeds using the composed `session_command`
-- **AND** GIVEN the same role, explicit `--headless` errors with the `dispatch_command` key hint
-- **AND** GIVEN a provider with no `session_command`, explicit `--pane` errors while automatic selection continues to the next lower capability
+- **THEN** the dispatch succeeds using the composed `interactive_command`
+- **AND** GIVEN the same role, explicit `--headless` errors with the `headless_command` key hint
+- **AND** GIVEN a provider with no `interactive_command`, explicit `--pane` errors while automatic selection continues to the next lower capability
 
 ### Requirement: Refuse-if-running + last-attempt-only concurrency
 
@@ -656,7 +656,7 @@ A user MAY converse with a running pane worker mid-stage. This changes **no** co
 *Introduced by*: 260702-6sgj-fab-dispatch-command
 
 ### Pane and Headless Share One Process-Manager Family
-**Decision**: Interactive pane dispatch and detached headless dispatch share `fab dispatch`, state layout, concurrency, observation, and cleanup. Pane composes `session_command`; headless composes `dispatch_command`; `dispatch.mode` controls automatic preference and flags force a single invocation.
+**Decision**: Interactive pane dispatch and detached headless dispatch share `fab dispatch`, state layout, concurrency, observation, and cleanup. Pane composes `interactive_command`; headless composes `headless_command`; `dispatch.mode` controls automatic preference and flags force a single invocation.
 **Why**: Both non-native adapters owe the same result artifact and lifecycle state. Sharing the command family avoids duplicate machinery while keeping adapter capability grammar independent.
 **Rejected**: A parallel pane-dispatch family, a duplicate `pane_command`, or provider-command presence as mode policy.
 *Introduced by*: 260805-zxe0-interactive-pane-stage-dispatch; *Updated by*: 260808-yilt-dispatch-mode-descent-ladder
@@ -682,7 +682,7 @@ A user MAY converse with a running pane worker mid-stage. This changes **no** co
 ### Real-tmux dispatch tests isolate by a verified private socket, never by `-L` alone
 **Decision**: Every `cmd/fab` test that starts a real tmux server runs against a **private socket** under a per-test `TMUX_TMPDIR`, and each such test hard-**fails up front** unless `$TMUX` is empty. A test that must issue **unscoped** `tmux new-session` / `kill-server` (the auto-inside-tmux integration tests, which prove auto passes no `-L`) additionally **verifies the server actually bound the private socket** before registering its cleanup, and scopes every later call — `kill-server` included — with an explicit `-S <verified-socket>`.
 **Why**: fab's own tmux tests run on whatever server the developer is attached to. A **set** `$TMUX` makes tmux ignore `TMUX_TMPDIR` and target the attached server, so an unscoped `kill-server` cleanup would kill a live development or run-kit server — real data loss from a test cleanup. The refuse-if-`$TMUX`-set assertion plus socket verification turns that from an implicit dependency on helper ordering into a checked precondition: no destructive call is registered until the private socket is proven, and the verified path (not a name or a label) is what every destructive call targets. The same discipline is why the pane tests that *can* be scoped use `-L` with a private, empty `TMUX_TMPDIR` — an unreachable-server assertion then rests on the socket genuinely having no server rather than on the host happening to run none.
-**Rejected**: Relying on `-L <label>` alone (a label under the shared default `TMUX_TMPDIR` can collide with a real server). Relying on a helper's incidental `TMUX=""` for safety (an ordering change silently re-arms the hazard). Skipping the tmux tests when a server is present (the auto-inside-tmux path would go unasserted on exactly the hosts it ships for — all pane integration tests must RUN, not skip into a false pass). Giving the environment-dependent `session_command` test its own ephemeral server (a second `kill-server` cleanup for coverage the tmux-isolated sibling already asserts — the assertions were folded in there instead).
+**Rejected**: Relying on `-L <label>` alone (a label under the shared default `TMUX_TMPDIR` can collide with a real server). Relying on a helper's incidental `TMUX=""` for safety (an ordering change silently re-arms the hazard). Skipping the tmux tests when a server is present (the auto-inside-tmux path would go unasserted on exactly the hosts it ships for — all pane integration tests must RUN, not skip into a false pass). Giving the environment-dependent `interactive_command` test its own ephemeral server (a second `kill-server` cleanup for coverage the tmux-isolated sibling already asserts — the assertions were folded in there instead).
 *Introduced by*: 260805-l9ng-auto-pane-dispatch-in-tmux
 
 ### Pane completion keys on the result file, with liveness only separating running from orphaned
@@ -693,7 +693,7 @@ A user MAY converse with a running pane worker mid-stage. This changes **no** co
 
 ### Prompt file plus a one-line pointer, embedded at spawn
 **Decision**: The full stage prompt is persisted to `{stage}-prompt.md` — the path the headless path already writes — and the pane worker receives a one-line pointer to it, embedded as the interactive command's single **shell-quoted** prompt argument at window creation (composed by `dispatch.WindowCommand`, which reuses the package's `shellQuote`; the resolved command itself stays verbatim). Prompt *content* is composed identically for every adapter.
-**Why**: A multi-thousand-token stage prompt cannot ride `send-keys` or argv reliably, and embedding the pointer at spawn sidesteps the printed-prompt trap entirely — there is no pre-existing buffer to probe when the window is created with its prompt already attached. The file doubles as a debugging artifact and rides the existing cleanup paths, so `.fab-dispatch/` gains no new file type and no GC change. Quoting the pointer (rather than wrapping it in bare `'…'`) is what keeps the asymmetry honest: the pointer is repo-path-derived text fab composes, so it gets escaped per § Spawn Composition, while the `session_command` is the user's own string whose expansions must survive — one composer holds both rules so neither drifts.
+**Why**: A multi-thousand-token stage prompt cannot ride `send-keys` or argv reliably, and embedding the pointer at spawn sidesteps the printed-prompt trap entirely — there is no pre-existing buffer to probe when the window is created with its prompt already attached. The file doubles as a debugging artifact and rides the existing cleanup paths, so `.fab-dispatch/` gains no new file type and no GC change. Quoting the pointer (rather than wrapping it in bare `'…'`) is what keeps the asymmetry honest: the pointer is repo-path-derived text fab composes, so it gets escaped per § Spawn Composition, while the `interactive_command` is the user's own string whose expansions must survive — one composer holds both rules so neither drifts.
 **Rejected**: Sending the whole prompt via `fab pane send` after spawn (the printed-prompt trap plus send-keys length limits). Passing the prompt on the interactive command's stdin (an interactive TUI reads stdin as keystrokes, not as a prompt). Composing a shorter prompt for pane mode (would fork the dispatch-prompt obligations that bind all three adapters).
 *Introduced by*: 260805-zxe0-interactive-pane-stage-dispatch
 

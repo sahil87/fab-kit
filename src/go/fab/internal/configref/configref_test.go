@@ -37,7 +37,7 @@ func TestResolveKey(t *testing.T) {
 	}{
 		{key: "agent.workers", wantOK: true, wantField: "agent.workers", wantOwner: "agent.session", wantKind: configvalue.KindString},
 		{key: "agent.profiles.review.model", wantOK: true, wantField: "agent.profiles", wantOwner: "agent.session", wantKind: configvalue.KindString},
-		{key: "providers.codex.dispatch_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
+		{key: "providers.codex.headless_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
 		{key: "providers.codex.profiles.review.effort", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
 		{key: "stage_hooks.apply.pre", wantOK: true, wantField: "stage_hooks", wantOwner: "stage_hooks", wantKind: configvalue.KindString},
 		{key: "source_paths", wantOK: true, wantField: "source_paths", wantOwner: "source_paths", wantKind: configvalue.KindSequence},
@@ -55,16 +55,16 @@ func TestResolveKey(t *testing.T) {
 		{key: "providers.codex.profiles.unknown.model"},
 		{key: "stage_hooks.unknown.pre"},
 		{key: `"agent".workers`},
-		{key: "providers.123.session_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
-		{key: "providers.true.session_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
-		{key: "providers.on.session_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
-		{key: "providers.-local.session_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
-		{key: "providers.测试.session_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
-		{key: "providers.#local.session_command", wantErr: true},
-		{key: "providers.local:dev.session_command", wantErr: true},
-		{key: "providers. local.session_command", wantErr: true},
-		{key: "providers.local\nname.session_command", wantErr: true},
-		{key: "providers.claude.v2.session_command"},
+		{key: "providers.123.interactive_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
+		{key: "providers.true.interactive_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
+		{key: "providers.on.interactive_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
+		{key: "providers.-local.interactive_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
+		{key: "providers.测试.interactive_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
+		{key: "providers.#local.interactive_command", wantErr: true},
+		{key: "providers.local:dev.interactive_command", wantErr: true},
+		{key: "providers. local.interactive_command", wantErr: true},
+		{key: "providers.local\nname.interactive_command", wantErr: true},
+		{key: "providers.claude.v2.interactive_command"},
 	}
 
 	for _, tt := range tests {
@@ -94,7 +94,7 @@ func TestResolveKey(t *testing.T) {
 
 func TestKeyedRenderAcceptsOpaqueProviderNames(t *testing.T) {
 	for _, name := range []string{"123", "true", "on", "-local", "测试"} {
-		key := "providers." + name + ".session_command"
+		key := "providers." + name + ".interactive_command"
 		if _, err := RenderKey(key); err != nil {
 			t.Errorf("RenderKey(%q): %v", key, err)
 		}

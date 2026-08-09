@@ -7,20 +7,25 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 )
 
-// DefaultSpawnCommand is the fallback session command when config.yaml resolves
-// no providers.claude.session_command. Re-exported from internal/agent (the
-// provider table's owner) so raw-consumer sites keep a single spelling. Like the
+// DefaultSpawnCommand is the fallback interactive command Command returns when
+// the default role's provider resolves no interactive_command (or config.yaml
+// cannot be read/parsed) — the fallback keys on the RESOLVED provider, which the
+// agent.session knob selects, not on the claude entry specifically. Its value is
+// the built-in claude provider's interactive command, re-exported from
+// internal/agent (the provider table's owner) so raw-consumer sites keep a
+// single spelling. Like the
 // underlying value it is a {model}/{effort} TEMPLATE — callers resolve it
 // through WithProfile (template mode), which yields the same byte-identical
 // command the former plain form produced via append mode.
 //
 // A var, not a const, because the string it re-exports is now parsed from
 // internal/agent's embedded defaults.yaml rather than written as a Go literal.
-var DefaultSpawnCommand = agent.DefaultSessionCommand
+var DefaultSpawnCommand = agent.DefaultInteractiveCommand
 
-// Command reads the default provider's session command from the given config.yaml
-// path via the shared internal/config loader (the single config.yaml parser).
-// Returns providers.<default-role.provider>.session_command resolved over
+// Command reads the default provider's interactive command from the given
+// config.yaml path via the shared internal/config loader (the single config.yaml
+// parser).
+// Returns providers.<default-role.provider>.interactive_command resolved over
 // fab-kit's built-in provider table, or DefaultSpawnCommand if it resolves empty
 // or the file cannot be read/parsed. The path-based signature is kept because
 // `fab agent --repo <path>` builds the path from an arbitrary repo root.
@@ -30,16 +35,16 @@ func Command(configPath string) string {
 		return DefaultSpawnCommand
 	}
 
-	// The session command lives on the default role's provider (which the
+	// The interactive command lives on the default role's provider (which the
 	// agent.session knob selects). Resolve the role to find which provider, then
-	// that provider's session command.
+	// that provider's interactive command.
 	profile, err := agent.ResolveRole(cfg, agent.RoleDefault)
 	if err != nil {
 		return DefaultSpawnCommand
 	}
 	if prov, ok := agent.ResolveProvider(cfg, profile.Provider); ok {
-		if prov.SessionCommand != "" {
-			return prov.SessionCommand
+		if prov.InteractiveCommand != "" {
+			return prov.InteractiveCommand
 		}
 	}
 	return DefaultSpawnCommand

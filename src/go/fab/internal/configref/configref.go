@@ -27,7 +27,7 @@
 // config.DefaultDispatchColumnWidth. The dynamic segments (providers, agent, stage_hooks)
 // interpolate those same symbols when the row is built, so the reference text
 // carries no literal copy of any value. The providers SEGMENT still names the
-// four built-ins one by one (via agent.DefaultSessionCommand and the
+// four built-ins one by one (via agent.DefaultInteractiveCommand and the
 // agent.DefaultCodex*/DefaultAgy*/DefaultKimi* vars) because its per-provider
 // commentary is bespoke prose, not a derivable projection — only the values are
 // interpolated.
@@ -237,10 +237,10 @@ type providerProfileDefault struct {
 // projected: no built-in carries it, and it exists only as a read-time alias for
 // profiles.default until the 2.16.19-to-2.17.0 migration rewrites a user's config.
 type providerDefault struct {
-	SessionCommand  string                            `json:"session_command,omitempty"`
-	DispatchCommand string                            `json:"dispatch_command,omitempty"`
-	Native          bool                              `json:"native,omitempty"`
-	Profiles        map[string]providerProfileDefault `json:"profiles,omitempty"`
+	InteractiveCommand string                            `json:"interactive_command,omitempty"`
+	HeadlessCommand    string                            `json:"headless_command,omitempty"`
+	Native             bool                              `json:"native,omitempty"`
+	Profiles           map[string]providerProfileDefault `json:"profiles,omitempty"`
 }
 
 // providerDefaults is the structured canonical default for the providers row:
@@ -270,10 +270,10 @@ func providerDefaults() (map[string]providerDefault, error) {
 			}
 		}
 		defaults[name] = providerDefault{
-			SessionCommand:  p.SessionCommand,
-			DispatchCommand: p.DispatchCommand,
-			Native:          p.Native,
-			Profiles:        profiles,
+			InteractiveCommand: p.InteractiveCommand,
+			HeadlessCommand:    p.HeadlessCommand,
+			Native:             p.Native,
+			Profiles:           profiles,
 		}
 	}
 	return defaults, nil
@@ -332,7 +332,7 @@ func roleProfileDefaults(rows []roleRow) map[string]roleProfileDefault {
 //     invalid Scope.
 //
 // Defaults are sourced from canonical Go symbols where they exist
-// (agent.DefaultSessionCommand, agent.DefaultProfile). No literal here duplicates a
+// (agent.DefaultInteractiveCommand, agent.DefaultProfile). No literal here duplicates a
 // Go symbol; source_paths/test_paths carry a nil Default because their binary
 // default is empty (their shown values are rendering examples only).
 func Fields() ([]Field, error) {
@@ -513,14 +513,22 @@ checklist:
 			Key:         "providers",
 			Default:     providers,
 			Kind:        configvalue.KindMapping,
-			Description: "Named agent capability grammars: four built-in providers with per-role fills on the kit-release cadence. Each provider MAY carry session_command (pane/session), dispatch_command (headless stage task), and native (native Agent-tool capability); presence describes how and never selects dispatch mode. Command fields are never merged or substituted for one another. profiles supplies {model}/{effort} placeholders with precedence invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty. Fill roster: claude ships all six role fills, codex and agy sparse maps whose `default` entry is the cross-role fallback, and kimi NO fills at all (its -m takes a user-config model alias, so the empty model drops the flag and the CLI's own default_model applies). Provider names are opaque, user-chosen strings.",
+			Description: "Named agent capability grammars: four built-in providers with per-role fills on the kit-release cadence. Each provider MAY carry interactive_command (pane/session), headless_command (headless stage task), and native (native Agent-tool capability); presence describes how and never selects dispatch mode. Command fields are never merged or substituted for one another. profiles supplies {model}/{effort} placeholders with precedence invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty. Fill roster: claude ships all six role fills, codex and agy sparse maps whose `default` entry is the cross-role fallback, and kimi NO fills at all (its -m takes a user-config model alias, so the empty model drops the flag and the CLI's own default_model applies). Provider names are opaque, user-chosen strings.",
 			Scope:       ScopeBoth,
 			// Demoted from the managed fence (260806-j9nh) for the same reason as
 			// agent.profiles: naming a built-in in a knob needs no providers: block at
 			// all, so ~60 commented lines of grammar per repo bought nothing. Still
 			// rendered here and in `fab config init --system`.
 			Advertise: false,
-			Segment:   providersSegment(providers, roleOrder),
+			// The command fields were renamed INSIDE this nested table in 2.19.0
+			// (session_command → interactive_command, dispatch_command →
+			// headless_command). The top-level renamed_from mechanical carry
+			// cannot fire on nested keys, so this metadata is informational for
+			// --json consumers; the on-disk rewrite is the 2.18.1-to-2.19.0
+			// migration's job, and the read-time alias keeps old spellings
+			// resolving meanwhile.
+			RenamedFrom: "providers.<name>.session_command, providers.<name>.dispatch_command",
+			Segment:     providersSegment(providers, roleOrder),
 		},
 		{
 			Key:         "dispatch.mode",
@@ -609,7 +617,7 @@ const referenceHeader = `# Full reference of all available options: fab config e
 
 // providersSegment renders the providers block. Every command string is
 // interpolated from its canonical agent var (no literal copy):
-// agent.DefaultSessionCommand / agent.DefaultDispatchCommand for claude, and the
+// agent.DefaultInteractiveCommand / agent.DefaultHeadlessCommand for claude, and the
 // agent.DefaultCodex*/DefaultAgy*/DefaultKimi* vars for the other three built-ins
 // (codex carries both commands; agy and kimi are dispatch-only).
 // The per-role FILLS are interpolated the same way, from the already-derived
@@ -635,40 +643,47 @@ const referenceHeader = `# Full reference of all available options: fab config e
 // leading '# ' from every line of a block" instruction below restores this text
 // byte-exactly — with those lines still commented at their original indent.
 func providersSegment(providers map[string]providerDefault, roleOrder []string) string {
-	return "# providers — named independent session, headless, and native launch capabilities plus their per-role fills. This\n" +
+	return "# providers — named independent interactive, headless, and native launch capabilities plus their per-role fills. This\n" +
 		"# block is MACHINERY: naming a built-in on a depth knob (agent.session /\n" +
 		"# agent.workers, above) needs no `providers:` entry at all, so it is documented\n" +
 		"# here rather than scaffolded into your config. Full schema: docs/specs/config.md.\n" +
 		"#\n" +
 		"# Each provider MAY carry two command fields plus native capability (the command\n" +
-		"# fields are NOT merged — session and dispatch are different invocations):\n" +
-		"#   session_command  — opens an interactive agent SESSION (fab operator /\n" +
-		"#                      fab batch / fab agent). {model}/{effort} placeholders are\n" +
-		"#                      substituted from the resolved role profile, or from the\n" +
-		"#                      --model/--effort flags on `fab agent --provider <name>`\n" +
-		"#                      (which bypasses role resolution); the built-in commands\n" +
-		"#                      below are all templated this way. A command carrying\n" +
-		"#                      NO placeholder instead gets --model/--effort appended.\n" +
-		"#   dispatch_command — runs ONE headless stage task via fab dispatch. There is NO\n" +
-		"#                      substitution between command fields; fab\n" +
-		"#                      dispatch pipes the stage prompt to the command's STDIN.\n" +
-		"#   native            — declares native Agent-tool capability. Provider names are\n" +
-		"#                      opaque, so fab never infers this capability from a name.\n" +
+		"# fields are NOT merged — interactive and headless are different invocations):\n" +
+		"#   interactive_command — opens an interactive agent SESSION (fab operator /\n" +
+		"#                         fab batch / fab agent). {model}/{effort} placeholders\n" +
+		"#                         are substituted from the resolved role profile, or\n" +
+		"#                         from the --model/--effort flags on `fab agent\n" +
+		"#                         --provider <name>` (which bypasses role resolution);\n" +
+		"#                         the built-in commands below are all templated this\n" +
+		"#                         way. A command carrying NO placeholder instead gets\n" +
+		"#                         --model/--effort appended.\n" +
+		"#   headless_command    — runs ONE headless stage task via fab dispatch. There\n" +
+		"#                         is NO substitution between command fields; fab\n" +
+		"#                         dispatch pipes the stage prompt to the command's\n" +
+		"#                         STDIN.\n" +
+		"#   native              — declares native Agent-tool capability. Provider names\n" +
+		"#                         are opaque, so fab never infers this capability from a\n" +
+		"#                         name.\n" +
 		"# Presence is capability data (how), never mode policy (whether). dispatch.mode\n" +
 		"# owns the preference and descends pane → native → headless.\n" +
+		"# (`session_command` / `dispatch_command` are the pre-2.19.0 spellings of those\n" +
+		"# two command fields — still read as PER-FIELD aliases, so a half-migrated\n" +
+		"# config resolves; the 2.18.1-to-2.19.0 migration rewrites them on disk, and\n" +
+		"# `fab config set/unset` accepts the new spellings only.)\n" +
 		"# Each provider also carries a per-role fill map that supplies those placeholders:\n" +
-		"#   profiles.<role>  — {model, effort} for when THIS provider plays THAT role.\n" +
-		"#                      Keyed by the six role names; `default` doubles as this\n" +
-		"#                      provider's cross-role fallback. Precedence: invocation\n" +
-		"#                      flag > agent.profiles.<role> field > profiles.<role> >\n" +
-		"#                      profiles.default > empty (empty drops the placeholder's\n" +
-		"#                      token, so the CLI's own default applies). Scope `both`,\n" +
-		"#                      so a machine-wide fill is settable once in\n" +
-		"#                      ~/.fab-kit/config.yaml, where it outranks the project\n" +
-		"#                      file. (The pre-2.17.0 flat\n" +
-		"#                      providers.<name>.model / .effort is still read as an alias\n" +
-		"#                      for profiles.default; the 2.16.19-to-2.17.0 migration\n" +
-		"#                      rewrites it.)\n" +
+		"#   profiles.<role>     — {model, effort} for when THIS provider plays THAT\n" +
+		"#                         role. Keyed by the six role names; `default` doubles\n" +
+		"#                         as this provider's cross-role fallback. Precedence:\n" +
+		"#                         invocation flag > agent.profiles.<role> field >\n" +
+		"#                         profiles.<role> > profiles.default > empty (empty\n" +
+		"#                         drops the placeholder's token, so the CLI's own\n" +
+		"#                         default applies). Scope `both`, so a machine-wide fill\n" +
+		"#                         is settable once in ~/.fab-kit/config.yaml, where it\n" +
+		"#                         outranks the project file. (The pre-2.17.0 flat\n" +
+		"#                         providers.<name>.model / .effort is still read as an\n" +
+		"#                         alias for profiles.default; the 2.16.19-to-2.17.0\n" +
+		"#                         migration rewrites it.)\n" +
 		"# Provider names are opaque, user-chosen strings — fab NEVER infers a provider\n" +
 		"# from a model string, and values pass through verbatim with no validation.\n" +
 		"#\n" +
@@ -688,26 +703,26 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# default; claude's three capabilities are shown live as the baseline example.\n" +
 		"# Claude carries all three capabilities; codex carries pane + headless and\n" +
 		"# therefore descends from the default native preference to headless. agy and kimi\n" +
-		"# ship NO session_command — they are DISPATCH-ONLY built-ins with no pane\n" +
+		"# ship NO interactive_command — they are DISPATCH-ONLY built-ins with no pane\n" +
 		"# capability: pane dispatch hands the worker its pointer prompt as a positional\n" +
 		"# argument, and neither CLI can receive a prompt that way (see their notes\n" +
 		"# below) — so mode resolution lands their stages on headless. Add\n" +
-		"# providers.<name>.session_command yourself if you want `fab agent --provider agy`\n" +
+		"# providers.<name>.interactive_command yourself if you want `fab agent --provider agy`\n" +
 		"# to open an interactive session, accepting that pane-dispatched stages will not\n" +
 		"# receive their prompt.\n" +
 		"#\n" +
 		"# Per-provider notes (kept out of the blocks below so uncommenting a whole block\n" +
 		"# yields valid YAML — strip the leading '# ' from every line of a block):\n" +
-		"#   claude.dispatch_command — claude -p reads the prompt from stdin.\n" +
+		"#   claude.headless_command — claude -p reads the prompt from stdin.\n" +
 		"#   codex — codex exec reads the prompt from stdin; both commands carry\n" +
 		"#     --dangerously-bypass-approvals-and-sandbox. Its -m takes a concrete model\n" +
 		"#     SLUG, so the fills below are pinned IDs: override one to pin a newer model.\n" +
 		"#   agy — the Antigravity CLI. There is no {effort}: its model IDs EMBED the\n" +
 		"#     reasoning level (gemini-3.1-pro-high), so its fills are model-only. `agy -p`\n" +
-		"#     takes the prompt as an ARGUMENT and ignores stdin, so dispatch_command nests\n" +
+		"#     takes the prompt as an ARGUMENT and ignores stdin, so headless_command nests\n" +
 		"#     a shell — POSIX expands $(cat) before fab dispatch's stdin redirect applies,\n" +
 		"#     making the inner sh's stdin the prompt. --print-timeout is raised well above\n" +
-		"#     its 5m default because stage workers run far longer. No session_command:\n" +
+		"#     its 5m default because stage workers run far longer. No interactive_command:\n" +
 		"#     agy silently DROPS a positional prompt (its TUI starts empty) and gates a\n" +
 		"#     fresh workspace behind an interactive trust prompt even under\n" +
 		"#     --dangerously-skip-permissions, so a pane worker would never see its prompt.\n" +
@@ -717,7 +732,7 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#     your own default_model; pin one with providers.kimi.profiles.<role>.model if\n" +
 		"#     you want per-role differentiation. Same nested-shell stdin idiom as agy, and\n" +
 		"#     no approval flag on dispatch: `kimi -p` already auto-approves tools and\n" +
-		"#     REJECTS --yolo/--auto. No session_command either: kimi parses a bare\n" +
+		"#     REJECTS --yolo/--auto. No interactive_command either: kimi parses a bare\n" +
 		"#     positional as a SUBCOMMAND and exits non-zero, and has no\n" +
 		"#     interactive-initial-prompt flag at all.\n" +
 		"# The bypass flags are deliberate: unattended stage workers cannot answer approval\n" +
@@ -726,21 +741,21 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"providers:\n" +
 		"  claude:\n" +
 		"    native: " + strconv.FormatBool(providers[agent.DefaultProviderName].Native) + "\n" +
-		"    session_command: " + YAMLSingleQuoted(agent.DefaultSessionCommand) + "\n" +
-		"    dispatch_command: " + YAMLSingleQuoted(agent.DefaultDispatchCommand) + "\n" +
+		"    interactive_command: " + YAMLSingleQuoted(agent.DefaultInteractiveCommand) + "\n" +
+		"    headless_command: " + YAMLSingleQuoted(agent.DefaultHeadlessCommand) + "\n" +
 		"  # codex:\n" +
-		"  #   session_command: " + YAMLSingleQuoted(agent.DefaultCodexSessionCommand) + "\n" +
-		"  #   dispatch_command: " + YAMLSingleQuoted(agent.DefaultCodexDispatchCommand) + "\n" +
+		"  #   interactive_command: " + YAMLSingleQuoted(agent.DefaultCodexInteractiveCommand) + "\n" +
+		"  #   headless_command: " + YAMLSingleQuoted(agent.DefaultCodexHeadlessCommand) + "\n" +
 		profilesLines(providers["codex"].Profiles, roleOrder) +
 		"  # agy:\n" +
-		"  #   dispatch_command: " + YAMLSingleQuoted(agent.DefaultAgyDispatchCommand) + "   # dispatch only; no {effort} flag; nested shell so $(cat) reads the piped prompt\n" +
+		"  #   headless_command: " + YAMLSingleQuoted(agent.DefaultAgyHeadlessCommand) + "   # dispatch only; no {effort} flag; nested shell so $(cat) reads the piped prompt\n" +
 		profilesLines(providers["agy"].Profiles, roleOrder) +
 		// kimi ships no fills, so profilesLines renders nothing for it — the trim
 		// therefore has to span the whole kimi block, not just its (empty) fill
 		// lines, or the segment would end with a stray newline.
 		strings.TrimRight(
 			"  # kimi:\n"+
-				"  #   dispatch_command: "+YAMLSingleQuoted(agent.DefaultKimiDispatchCommand)+"   # dispatch only; no fills shipped, so the empty {model} drops -m\n"+
+				"  #   headless_command: "+YAMLSingleQuoted(agent.DefaultKimiHeadlessCommand)+"   # dispatch only; no fills shipped, so the empty {model} drops -m\n"+
 				profilesLines(providers["kimi"].Profiles, roleOrder), "\n")
 }
 
@@ -866,11 +881,11 @@ func dispatchSegment() string {
 	return "# dispatch.mode — preferred stage-worker adapter: pane, native, or headless.\n" +
 		"# Resolution starts at the preference and DESCENDS pane → native → headless,\n" +
 		"# never ascending, until provider capability + environment make a rung possible:\n" +
-		"# pane needs tmux + session_command; native needs native: true; headless needs\n" +
-		"# dispatch_command. Command fields are pure capability grammar — presence says\n" +
+		"# pane needs tmux + interactive_command; native needs native: true; headless needs\n" +
+		"# headless_command. Command fields are pure capability grammar — presence says\n" +
 		"# HOW, never WHETHER. `pane` is the watchable preference (no `auto` value):\n" +
 		"# outside tmux it descends to native or headless. Default native reproduces the\n" +
-		"# shipped behavior (claude native; codex/gemini headless). Scope `both`, so it\n" +
+		"# shipped behavior (claude native; codex/agy/kimi headless). Scope `both`, so it\n" +
 		"# is settable once machine-wide in ~/.fab-kit/config.yaml, where it outranks\n" +
 		"# the project file. Invalid values warn and fail open to " + config.DefaultDispatchMode + ".\n" +
 		"#\n" +
@@ -1005,7 +1020,7 @@ func ResolveKey(key string) (KeyMatch, bool, error) {
 		return dynamicMatch(fields, "providers", configvalue.KindMapping)
 
 	case len(parts) == 3 && parts[0] == "providers" &&
-		contains([]string{"session_command", "dispatch_command"}, parts[2]):
+		contains([]string{"interactive_command", "headless_command"}, parts[2]):
 		return dynamicMatch(fields, "providers", configvalue.KindString)
 
 	case len(parts) == 3 && parts[0] == "providers" && parts[2] == "profiles":

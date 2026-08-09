@@ -216,10 +216,10 @@ checklist:
     - ux
 
 # Provider capability grammar (top-level). Each provider maps an opaque, user-chosen
-# name to independent session_command, dispatch_command, and native capabilities.
-# session_command opens an interactive agent
+# name to independent interactive_command, headless_command, and native capabilities.
+# interactive_command opens an interactive agent
 # SESSION (fab operator / fab batch / fab agent — and `fab dispatch start --pane`,
-# the interactive-pane stage adapter); dispatch_command runs ONE
+# the interactive-pane stage adapter); headless_command runs ONE
 # headless STAGE task via `fab dispatch` (which pipes the stage prompt to the
 # command's STDIN). native:true records an Agent-tool seam. Capability presence
 # says HOW a rung runs, never WHICH rung to prefer; dispatch.mode below owns policy,
@@ -237,7 +237,7 @@ checklist:
 # pin a newer model with providers.<name>.profiles.<role>.model. Claude ships
 # session, native, and headless capabilities; codex ships both command fields
 # without native capability; agy and kimi ship headless capability ONLY (no
-# session_command — pane dispatch delivers the prompt pointer as a positional
+# interactive_command — pane dispatch delivers the prompt pointer as a positional
 # argument neither CLI accepts). Under the default mode, claude resolves native
 # while the non-claude built-ins descend to headless.
 # (Automated PR reviewer toggles moved to code-review.md § Review Tools — absent = enabled.)
@@ -248,18 +248,18 @@ checklist:
 # workers cannot answer approval prompts; override a provider command to restore
 # approvals. kimi's dispatch form carries no approval flag at all: kimi -p already
 # auto-approves tools and errors when combined with --yolo.
-# Only claude and codex ship a session_command — agy and kimi are DISPATCH-ONLY. A
-# session_command also confers PANE-mode eligibility, and pane dispatch appends the
+# Only claude and codex ship an interactive_command — agy and kimi are DISPATCH-ONLY. A
+# interactive_command also confers PANE-mode eligibility, and pane dispatch appends the
 # stage prompt file's pointer as a POSITIONAL argument that neither CLI can accept
 # (kimi reads it as an unknown subcommand and exits; agy drops it silently and
 # trust-prompts a fresh workspace), so shipping one would park every tmux-dispatched
 # stage. With none, automatic resolution skips the pane rung and descends to headless
-# and explicit --pane hard-errors. Add providers.<name>.session_command yourself for
+# and explicit --pane hard-errors. Add providers.<name>.interactive_command yourself for
 # an interactive session, accepting that pane-dispatched stages lose their prompt.
 # Codex's -m takes a concrete model SLUG, so its shipped fills are pinned IDs.
 # agy carries no {effort} — its model IDs embed the reasoning level as a suffix, so
 # its fills carry none either. agy and kimi both take the prompt as the -p ARGUMENT
-# and ignore stdin, so their dispatch_commands nest a shell (sh -c '… -p "$(cat)"'):
+# and ignore stdin, so their headless_commands nest a shell (sh -c '… -p "$(cat)"'):
 # POSIX expands $(cat) before fab dispatch's stdin redirect applies. kimi ships NO
 # fills — its -m takes a user-config model alias, so the empty model drops the flag
 # and its own default_model applies. This whole block is advertise:false — documented in
@@ -267,21 +267,21 @@ checklist:
 providers:
   claude:
     native: true
-    session_command: claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}
-    dispatch_command: claude -p --dangerously-skip-permissions --model {model} --effort {effort}
+    interactive_command: claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}
+    headless_command: claude -p --dangerously-skip-permissions --model {model} --effort {effort}
     profiles:                              # the six per-role fills — run `fab config explain` for the live values
       doing: { model: <model-id>, effort: <effort> }   # example: shape only
   # codex:
-  #   session_command: codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
-  #   dispatch_command: codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
+  #   interactive_command: codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
+  #   headless_command: codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
   #   profiles:                            # sparse — run `fab config explain` for the live values
   #     default: { model: <model-id>, effort: <effort> }   # example: shape only
-  # agy:                                   # dispatch-only: no session_command (see below)
-  #   dispatch_command: sh -c 'agy … --model {model} -p "$(cat)"'   # no {effort} flag; nested shell so $(cat) reads the piped prompt
+  # agy:                                   # dispatch-only: no interactive_command (see below)
+  #   headless_command: sh -c 'agy … --model {model} -p "$(cat)"'   # no {effort} flag; nested shell so $(cat) reads the piped prompt
   #   profiles:                            # model-only: the reasoning level rides the ID suffix
   #     default: { model: <model-id> }     # example: shape only
-  # kimi:                                  # dispatch-only: no session_command (see below)
-  #   dispatch_command: sh -c 'kimi -m {model} -p "$(cat)"'   # no --yolo: kimi -p rejects it and already auto-approves
+  # kimi:                                  # dispatch-only: no interactive_command (see below)
+  #   headless_command: sh -c 'kimi -m {model} -p "$(cat)"'   # no --yolo: kimi -p rejects it and already auto-approves
   #                                        # no profiles: fab ships no kimi fill (its -m takes a user-config alias)
 
 # agent.session / agent.workers are the TWO ADVERTISED KNOBS, selecting a provider
@@ -311,8 +311,8 @@ agent:
 
 # dispatch.mode (optional, default native) — the preference ceiling: pane, native,
 # or headless. Resolution starts there and descends only through pane → native →
-# headless. Pane requires tmux plus session_command; native requires native:true;
-# headless requires dispatch_command. Missing prerequisites skip rungs, never
+# headless. Pane requires tmux plus interactive_command; native requires native:true;
+# headless requires headless_command. Missing prerequisites skip rungs, never
 # ascend. `fab resolve-agent` omits dispatch= iff native resolves and emits the
 # selected pane/headless command otherwise. Scope `both`, so it is settable once
 # machine-wide in ~/.fab-kit/config.yaml, where it outranks the project file.
@@ -387,7 +387,7 @@ The constitution is the **architectural DNA** of a Fab project. It defines immut
 - Constitution violations found during review are flagged as high-severity issues
 
 **Relationship to `config.yaml`**:
-- `config.yaml` holds **factual project context** (identity, source/test paths, independent provider capabilities — `session_command`, `dispatch_command`, and `native` — plus per-role fills (`providers:`), the two agent depth knobs plus any `agent.profiles` overrides, and the `dispatch.mode` preference ceiling whose automatic selection descends `pane → native → headless`)
+- `config.yaml` holds **factual project context** (identity, source/test paths, independent provider capabilities — `interactive_command`, `headless_command`, and `native` — plus per-role fills (`providers:`), the two agent depth knobs plus any `agent.profiles` overrides, and the `dispatch.mode` preference ceiling whose automatic selection descends `pane → native → headless`)
 - `constitution.md` holds **principles and constraints** (what MUST/SHOULD/MUST NOT happen)
 - Think: config says *what you use*, constitution says *how you use it*
 

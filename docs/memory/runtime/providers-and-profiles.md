@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "The providers & agent-roles model — `agent.session`/`agent.workers` depth knobs, per-session `FAB_AGENT_SESSION`/`FAB_AGENT_WORKERS` overrides and `--workers` launch sugar; the `providers:` table as pure capability grammar (`session_command`, `native`, `dispatch_command`) with per-role fills; six fixed roles, fill precedence, stage→role mapping, `fab resolve-agent`, `fab agent`, the `dispatch.mode` preference descent, and consumers."
+description: "The providers & agent-roles model — `agent.session`/`agent.workers` depth knobs, per-session `FAB_AGENT_SESSION`/`FAB_AGENT_WORKERS` overrides and `--workers` launch sugar; the `providers:` table as pure capability grammar (`interactive_command`, `native`, `headless_command`) with per-role fills; six fixed roles, fill precedence, stage→role mapping, `fab resolve-agent`, `fab agent`, the `dispatch.mode` preference descent, and consumers."
 ---
 # Providers & Agent Profiles
 
@@ -16,7 +16,7 @@ Agent config splits **provider mechanics** (how to invoke an agent) from **role 
 |------|---------|
 | **role** | one of six fixed slot names — `default`, `operator`, `doing`, `review`, `hydrate`, `fast` |
 | **profile** | a concrete `{provider, model, effort}` value a role resolves to |
-| **provider** | independent pane (`session_command`), native (`native`), and headless (`dispatch_command`) capabilities plus per-role fills |
+| **provider** | independent pane (`interactive_command`), native (`native`), and headless (`headless_command`) capabilities plus per-role fills |
 | **Tier 1 / Tier 2** | agent **depth** — the agents a user talks to vs. the agents pipeline stages dispatch to |
 
 Tier 1/Tier 2 name depth and nothing else. A pane worker is still Tier 2: the defining property is "owes a result artifact and owns no transitions" ([dispatch.md](/runtime/dispatch.md)), not "never spoken to".
@@ -97,17 +97,17 @@ These config variables are unrelated to the fab-kit binary's `FAB_AGENTS` skills
 
 `fab/project/config.yaml` SHALL support a top-level `providers:` map keyed by **opaque, user-chosen provider names**. Each provider MAY independently carry:
 
-- **`session_command`** — opens an interactive agent session and makes the provider pane-capable when tmux is available.
+- **`interactive_command`** — opens an interactive agent session and makes the provider pane-capable when tmux is available.
 - **`native`** — declares native Agent-tool capability. Provider names are opaque, so fab never infers it.
-- **`dispatch_command`** — runs one headless stage task via `fab dispatch`; the prompt is supplied on stdin.
+- **`headless_command`** — runs one headless stage task via `fab dispatch`; the prompt is supplied on stdin.
 
 Each provider MAY additionally carry **`profiles`** — a map keyed by role name, each value `{model, effort}`: *"when this provider plays this role, use this model/effort."* It supplies the command's `{model}`/`{effort}` placeholders (§ Fill precedence). A provider's **`profiles.default` doubles as its cross-role fallback** — a role absent from the map resolves the `default` entry, then empty. The map merges per **role** and then per **field** over the built-in table, exactly as the command fields do, and `providers` is `scope: both`, so a fill is settable once per machine.
 
 Capability fields are never merged or substituted for one another. Their presence says **how** a provider can run, never **which** mode is selected. `dispatch.mode` supplies that preference and the shared selector descends pane → native → headless, starting at the configured rung and never ascending.
 
-**fab-kit ships FOUR built-in providers — `claude`, `codex`, `agy`, and `kimi`** (`defaultProviders` in `internal/agent`, parsed from the embedded `defaults.yaml` — § The built-in defaults are an embedded `defaults.yaml`; each command string is additionally exposed as a package var, `DefaultSessionCommand` / `DefaultCodex*` / `DefaultAgyDispatchCommand` / `DefaultKimiDispatchCommand`, that `internal/configref` interpolates, so no literal is duplicated):
+**fab-kit ships FOUR built-in providers — `claude`, `codex`, `agy`, and `kimi`** (`defaultProviders` in `internal/agent`, parsed from the embedded `defaults.yaml` — § The built-in defaults are an embedded `defaults.yaml`; each command string is additionally exposed as a package var, `DefaultInteractiveCommand` / `DefaultCodex*` / `DefaultAgyHeadlessCommand` / `DefaultKimiHeadlessCommand`, that `internal/configref` interpolates, so no literal is duplicated):
 
-| Built-in | `session_command` | `native` | `dispatch_command` | `profiles` |
+| Built-in | `interactive_command` | `native` | `headless_command` | `profiles` |
 |----------|-------------------|----------|--------------------|------------|
 | `claude` | templated default | `true` | `claude -p --dangerously-skip-permissions --model {model} --effort {effort}` | all six roles |
 | `codex` | `codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}` | absent | `codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}` | sparse — `default`, `doing`, `review`, `fast` |
@@ -141,20 +141,20 @@ The non-claude built-ins run **full-auto**, because a stage worker is unattended
 
 **Prompt delivery differs per CLI, and the grammar absorbs the difference.** `fab dispatch` always pipes the stage prompt to the command's **stdin**. codex reads stdin directly via its `exec` subcommand, as does claude's headless command through `-p`. agy and kimi do not — their `-p` takes the prompt as an **argument** and ignores stdin — so both dispatch commands nest a shell: `sh -c '<cli> … -p "$(cat)"'`. The nesting is load-bearing, not stylistic (§ Design Decisions → "Nested-Shell `$(cat)` Idiom"). agy's command additionally raises `--print-timeout` to `120m`, since that CLI's 5-minute default would kill a long stage worker.
 
-**Dispatch-only built-ins.** agy and kimi deliberately carry **no `session_command`**, which is the mirror image of claude carrying no `dispatch_command`. A provider with a `session_command` becomes eligible for **pane-mode dispatch**, which composes that command and appends a one-line pointer to the stage prompt file as a **positional argument** — and neither CLI can receive a prompt that way: kimi parses a bare positional as a **subcommand** and exits non-zero, while agy **silently drops** it (its TUI opens at an empty prompt) and additionally gates a fresh workspace behind an interactive trust prompt even under `--dangerously-skip-permissions`. With no `session_command`, automatic selection skips the pane rung and descends to headless (`descended: pane unavailable: no session_command` — [dispatch.md](/runtime/dispatch.md)) and an explicit `--pane` hard-errors with the `providers.<name>.session_command` hint. A user who wants an interactive agy or kimi session adds one in their own config, accepting that pane-dispatched stages then open a worker that never receives its prompt.
+**Dispatch-only built-ins.** agy and kimi deliberately carry **no `interactive_command`**, which is the mirror image of claude carrying no `headless_command`. A provider with an `interactive_command` becomes eligible for **pane-mode dispatch**, which composes that command and appends a one-line pointer to the stage prompt file as a **positional argument** — and neither CLI can receive a prompt that way: kimi parses a bare positional as a **subcommand** and exits non-zero, while agy **silently drops** it (its TUI opens at an empty prompt) and additionally gates a fresh workspace behind an interactive trust prompt even under `--dangerously-skip-permissions`. With no `interactive_command`, automatic selection skips the pane rung and descends to headless (`descended: pane unavailable: no interactive_command` — [dispatch.md](/runtime/dispatch.md)) and an explicit `--pane` hard-errors with the `providers.<name>.interactive_command` hint. A user who wants an interactive agy or kimi session adds one in their own config, accepting that pane-dispatched stages then open a worker that never receives its prompt.
 
-`fab config explain` presents all four as **commented reference-style built-in defaults** — with only `claude.session_command` shown live as the baseline example; see [configuration.md](/_shared/configuration.md) § `providers` for the rendered presentation and its parse-side guarantees, and § The machinery is documented, not scaffolded for why the managed fence omits the block.
+`fab config explain` presents all four as **commented reference-style built-in defaults** — with only `claude.interactive_command` shown live as the baseline example; see [configuration.md](/_shared/configuration.md) § `providers` for the rendered presentation and its parse-side guarantees, and § The machinery is documented, not scaffolded for why the managed fence omits the block.
 
 **Provider names are opaque — fab NEVER infers a provider from a model string.** Two entries fronting the same vendor under different names are different providers, each with its own fills.
 
 #### Scenario: the preference selects among independent capabilities
 
 - **GIVEN** built-in claude and `dispatch.mode: pane`
-- **WHEN** tmux and its `session_command` are available
-- **THEN** `fab resolve-agent` emits `dispatch=` with the session command
+- **WHEN** tmux and its `interactive_command` are available
+- **THEN** `fab resolve-agent` emits `dispatch=` with the interactive command
 - **WHEN** tmux is unavailable
 - **THEN** the selector descends to claude's `native: true` and omits `dispatch=`
-- **AND** `dispatch.mode: headless` starts at headless and emits claude's substituted `dispatch_command`, even though native capability also exists
+- **AND** `dispatch.mode: headless` starts at headless and emits claude's substituted `headless_command`, even though native capability also exists
 
 #### Scenario: `kimi` resolves an empty model and drops the flag pair
 
@@ -166,8 +166,8 @@ The non-claude built-ins run **full-auto**, because a stage worker is unattended
 
 - **GIVEN** `agent.workers: agy` (or `kimi`) and a reachable tmux server
 - **WHEN** `fab dispatch start` runs in auto mode
-- **THEN** automatic selection skips the pane rung and lands on headless, reporting `mode: headless (descended: pane unavailable: no session_command)` — no pane worker is spawned and nothing orphans
-- **AND** an explicit `--pane` instead exits non-zero naming `providers.agy.session_command`, persisting no dispatch record
+- **THEN** automatic selection skips the pane rung and lands on headless, reporting `mode: headless (descended: pane unavailable: no interactive_command)` — no pane worker is spawned and nothing orphans
+- **AND** an explicit `--pane` instead exits non-zero naming `providers.agy.interactive_command`, persisting no dispatch record
 
 #### Scenario: naming a built-in provider with no `providers:` block
 
@@ -201,7 +201,7 @@ The role names are the six fixed slots — `default`, `operator`, `doing`, `revi
 
 ### Requirement: The built-in defaults are an embedded `defaults.yaml`
 
-Both built-in tables — the depth knobs and the four-provider table with every provider's per-role fills — are **data**, and live in `src/go/fab/internal/agent/defaults.yaml`, shaped exactly as a **user config-file fragment**: the same `agent:` / `providers:` keys a project writes to override them. The file is compiled into the binary via `//go:embed` and unmarshalled **once at package initialization** into `config.Config` — the same struct `config.LoadPath` fills from a user's `config.yaml` — so the built-in shape and the config schema cannot diverge. A malformed file **panics at init** (compiled-in bytes make a parse failure a defective build artifact, not a runtime condition), and nothing is read from the kit cache at runtime, so resolution cannot break on a missing or corrupt cache. `defaults_test.go` is the file's safety net against a YAML typo: it asserts the parse, exhaustive role/provider coverage with non-empty fields, the per-provider command-field presence/absence (including that agy and kimi carry **no** `session_command`), that every **fill-carrying** provider has a non-empty `profiles.default.model` while kimi's empty fill map is asserted as deliberate rather than skipped, that agy's fills set no `effort`, that no built-in uses the deprecated flat fill spelling, and that the file defines no keys outside the `agent:`/`providers:` surface.
+Both built-in tables — the depth knobs and the four-provider table with every provider's per-role fills — are **data**, and live in `src/go/fab/internal/agent/defaults.yaml`, shaped exactly as a **user config-file fragment**: the same `agent:` / `providers:` keys a project writes to override them. The file is compiled into the binary via `//go:embed` and unmarshalled **once at package initialization** into `config.Config` — the same struct `config.LoadPath` fills from a user's `config.yaml` — so the built-in shape and the config schema cannot diverge. A malformed file **panics at init** (compiled-in bytes make a parse failure a defective build artifact, not a runtime condition), and nothing is read from the kit cache at runtime, so resolution cannot break on a missing or corrupt cache. `defaults_test.go` is the file's safety net against a YAML typo: it asserts the parse, exhaustive role/provider coverage with non-empty fields, the per-provider command-field presence/absence (including that agy and kimi carry **no** `interactive_command`), that every **fill-carrying** provider has a non-empty `profiles.default.model` while kimi's empty fill map is asserted as deliberate rather than skipped, that agy's fills set no `effort`, that no built-in uses the deprecated flat fill spelling, and that the file defines no keys outside the `agent:`/`providers:` surface.
 
 **The YAML/Go split is the overridable/fixed boundary.** What lives in `defaults.yaml` is user-overridable by writing the same key in `fab/project/config.yaml` (or `~/.fab-kit/config.yaml`); what stays in Go is fab-owned policy — `stageRoles` (the fixed stage→role mapping) and `roleDepth` (the role→depth partition). The config-fragment shape is also what makes `defaults.yaml` the **physical source of the cascade's defaults tier** (see [_shared/configuration.md](/_shared/configuration.md) § Override Cascade): consumers still reach those defaults at the existing point-of-use seams rather than through `LoadPath`'s merge, while the read-model surfaces merge them as a real tier 0 through the registry projection `configref.DefaultsMap` — so folding the file into the loader's own merge would be a merge-order change, not a parser change.
 
@@ -264,7 +264,7 @@ The stage→role mapping is **fab-owned and NOT user-overridable** (`stageRoles`
 - `model=<id>` (always; empty = the inherit signal),
 - `effort=<level>` (omitted when empty),
 - `provider=<name>` (omitted when empty),
-- `dispatch=<command>` — absent exactly when the shared mode selector lands on native; present with the substituted `session_command` for pane or `dispatch_command` for headless. Selection starts at `dispatch.mode`, descends pane → native → headless without ascending, and fails only when no reachable capability exists. The command always embeds the full model ID even under `--alias`.
+- `dispatch=<command>` — absent exactly when the shared mode selector lands on native; present with the substituted `interactive_command` for pane or `headless_command` for headless. Selection starts at `dispatch.mode`, descends pane → native → headless without ascending, and fails only when no reachable capability exists. The command always embeds the full model ID even under `--alias`.
 
 `--alias` maps the `model=` line to the Claude-Code Agent-tool short alias (`opus`/`sonnet`/`haiku`/`fable`) — the Agent tool's `model` param is a hard enum that rejects full IDs; the `dispatch=` line is unaffected (full ID).
 
@@ -279,7 +279,7 @@ The stage→role mapping is **fab-owned and NOT user-overridable** (`stageRoles`
 
 #### Scenario: `--alias` aliases `model=` while `dispatch=` keeps the full ID
 
-- **GIVEN** a role resolving to a provider with a `dispatch_command`
+- **GIVEN** a role resolving to a provider with a `headless_command`
 - **WHEN** `fab resolve-agent <stage> --alias` runs
 - **THEN** `model=` carries the short alias while `dispatch=` embeds the full model ID
 - **AND** under `--provider codex --model <codex-model-id> --alias` the non-Claude model passes through **verbatim** on `model=` (no prefix matched) while `dispatch=` embeds the same full ID
@@ -298,9 +298,9 @@ The stage→role mapping is **fab-owned and NOT user-overridable** (`stageRoles`
 
 `dispatch.mode` is `pane`, `native`, or `headless`, defaults to `native`, and has scope `both`. The project layer overrides the machine-wide system preference. It is a **ceiling**: selection starts at that rung and moves only downward through pane → native → headless.
 
-- Pane is possible when tmux is available and the provider has `session_command`.
+- Pane is possible when tmux is available and the provider has `interactive_command`.
 - Native is possible when the provider declares `native: true`.
-- Headless is possible when the provider has `dispatch_command`.
+- Headless is possible when the provider has `headless_command`.
 - The first possible rung wins. Selection fails only when no rung at or below the preference is possible.
 - Invalid values warn and fall back to `native`. The retired boolean has no read-time alias.
 - `fab resolve-agent` and `fab dispatch start|restart` use the same pure selector; start/restart supply the real tmux reachability result before writing any state.
@@ -327,8 +327,8 @@ The stage→role mapping is **fab-owned and NOT user-overridable** (`stageRoles`
 
 `fab agent` SHALL compose an interactive session command in one of **two mutually exclusive addressing modes** and **exec it in the current shell**:
 
-- **Role-addressed** (the `[role]` positional) — resolve a role profile through the full chain (`default` when the role is omitted; any of the six role names accepted) and compose `providers.<profile.provider>.session_command` with the role's `{model}`/`{effort}`. Since `default` and `operator` are session roles, this is the path `agent.session` governs: `fab agent` starts the default-role agent right here, `fab agent operator` starts the coordinator profile.
-- **Provider-addressed** (`--provider <name>`) — **bypass role resolution entirely**: look up `providers.<name>` directly via `agent.ResolveProvider` (project config per-field-merged over the built-in table, exactly as the role path's provider lookup does) and compose its `session_command` with the `--model`/`--effort` values. This is the "give me a codex session right here" form — no role need name the provider first.
+- **Role-addressed** (the `[role]` positional) — resolve a role profile through the full chain (`default` when the role is omitted; any of the six role names accepted) and compose `providers.<profile.provider>.interactive_command` with the role's `{model}`/`{effort}`. Since `default` and `operator` are session roles, this is the path `agent.session` governs: `fab agent` starts the default-role agent right here, `fab agent operator` starts the coordinator profile.
+- **Provider-addressed** (`--provider <name>`) — **bypass role resolution entirely**: look up `providers.<name>` directly via `agent.ResolveProvider` (project config per-field-merged over the built-in table, exactly as the role path's provider lookup does) and compose its `interactive_command` with the `--model`/`--effort` values. This is the "give me a codex session right here" form — no role need name the provider first.
 
 Both modes compose through the same `spawn.WithProfile` (template substitution or Claude-style flag append — see [configuration.md](/_shared/configuration.md) § `providers`) and share `--print`/`--repo`:
 
@@ -344,13 +344,13 @@ Provider-mode rules:
 - **`--provider` and the `[role]` positional are mutually exclusive** — supplying both is a usage error naming the exclusion (a hand-written `RunE` check, since cobra's `MarkFlagsMutuallyExclusive` relates only flags and the role is a positional).
 - Both guards, and the mode selection itself, key on cobra's `Flag.Changed` — whether the flag was **supplied** — not on its value being non-empty, so `fab agent doing --provider=` and `fab agent --model= --print` still error rather than falling through to the role path.
 - **An unknown provider name** is a non-zero-exit **lookup** failure listing the available names (`agent.ProviderNames`: fab-kit's built-in table ∪ the project's `providers:` keys via `config.ProviderNames`, sorted). Listing resolvable *names* is not validation of a command's *content* — resolved strings still pass through verbatim.
-- A provider that resolves but carries no `session_command` yields the `configure providers.<name>.session_command` hint error on either path.
+- A provider that resolves but carries no `interactive_command` yields the `configure providers.<name>.interactive_command` hint error on either path.
 
 The procedural knowledge for *using* a composed command — opening it in a tmux window, delivering a prompt, peeking, awaiting — plus the per-provider invocation grammar and model-discovery recipes live in the `_cli-agents` helper: see [agent-primitives.md](/runtime/agent-primitives.md).
 
 #### Scenario: provider-addressed spawn with no model supplied
 
-- **GIVEN** `providers.codex.session_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'`
+- **GIVEN** `providers.codex.interactive_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'`
 - **WHEN** `fab agent --provider codex --print` runs
 - **THEN** stdout is `codex --dangerously-bypass-approvals-and-sandbox` — both placeholder tokens and their preceding flags are dropped while the provider-level bypass flag remains — so the CLI's own default model applies
 - **AND** `fab agent --provider codex --model <codex-model-id> --effort high --print` prints `codex --dangerously-bypass-approvals-and-sandbox -m <codex-model-id> -c model_reasoning_effort=high`
@@ -365,18 +365,21 @@ The procedural knowledge for *using* a composed command — opening it in a tmux
 
 The registry (`internal/configref`) advertises `agent.session` and `agent.workers` (`advertise: true`) and marks `agent.profiles` and `providers` `advertise: false`. So the `fab config upgrade` **managed fence** in each project scaffolds a ~20-line `agent:` block — the two knobs, the role→depth partition compacted to one line per depth, and a commented `profiles:` example — and no `providers:` block at all, while `fab config explain` (and `fab config explain --json`, and `fab config init --system`) still document both in full. The rendered partition lines derive from the exported `agent.IsSessionRole`, so the fence never re-encodes which roles sit at which depth. Because `agent` is one YAML block, the whole block is rendered by a **single** segment (owned by the `agent.session` row) — two segments emitting a live `agent:` parent would collide into a duplicate key. See [configuration.md](/_shared/configuration.md) § Schema Discovery.
 
-### Requirement: The pre-2.17.0 spellings stay readable
+### Requirement: Deprecated spellings stay readable
 
-Two deprecated spellings SHALL keep resolving so a config that has not yet run the `2.16.19-to-2.17.0` migration is never silently ignored:
+Deprecated spellings SHALL keep resolving so a config that has not yet run the corresponding migration is never silently ignored:
 
-- **`agent.tiers.<role>`** — read per role as the fallback when `agent.profiles` has no entry for that role (`config.GetAgentProfile`), so a half-migrated config resolves every role. The registry row for `agent.profiles` carries `renamed_from: agent.tiers`.
+- **`agent.tiers.<role>`** — read per role as the fallback when `agent.profiles` has no entry for that role (`config.GetAgentProfile`), so a half-migrated config resolves every role. The registry row for `agent.profiles` carries `renamed_from: agent.tiers`; the `2.16.19-to-2.17.0` migration rewrites the disk.
 - **`providers.<name>.model` / `.effort`** — the flat per-provider fill, a true **alias** for `profiles.default`: `ResolveProvider` folds an override's flat fields into **that override's own** `profiles.default`, per field, before merging fab-kit's built-in table (`withFlatFillAlias`). So a user's flat pin outranks the shipped `profiles.default` it means to replace, while the user's own `profiles.default` still wins over their flat spelling — and a built-in **role** fill still outranks the folded value, exactly as it would outrank a hand-written `profiles.default`. Because the fold happens per field, a flat `model` on codex reaches every role whose shipped row sets no model of its own.
+- **`providers.<name>.session_command` / `.dispatch_command`** — the pre-2.19 spellings of the renamed command fields, read as **per-field fallbacks**: a non-empty `interactive_command`/`headless_command` wins, independently per field (`ResolveProvider`), so a half-migrated config resolves both fields. The alias is silent (no deprecation warning): the struct keeps both yaml tags, so decode retains whichever spelling a layer carries, and `ResolveProvider` applies the per-field preference after the cascade merges — so every cascade layer, env `FAB_PROVIDERS` values included, resolves either spelling. The `providers` registry row carries an informational `renamed_from` (the top-level mechanical carry cannot fire on nested keys); the `2.18.1-to-2.19.0` migration rewrites both scopes on disk, and the `fab config set/unset/explain/show` dotted-key matcher accepts the new spellings only — the alias is a read affordance, not a write surface.
 
 The read-time aliases are what make the rename safe on their own: `configupgrade`'s `renamed_from` carry is a **top-level-key** operation and deliberately skips a rename *inside* the `agent:` block, so without the aliases `fab config upgrade` (auto-run by `fab upgrade-repo`) would leave a live `agent:` block that had silently stopped being read. The migration `2.16.19-to-2.17.0` performs the on-disk rewrite in **both scopes** (project `fab/project/config.yaml` and system `~/.fab-kit/config.yaml`) and warns on the two shapes it cannot mechanically preserve: an `agent.tiers.default` carrying model/effort (whose cross-role re-basing has no successor) and a flat provider fill, whose **reach** differs across the 2.17.0 boundary in opposite directions per provider — a gain of one role on claude (exhaustive six-role map, where a flat fill is inert pre-2.17.0 and fills the `default` role after), a loss on any sparse-map non-claude provider (those maps shipped no fills pre-2.17.0, so a flat fill that reached every role stops wherever fab-kit ships a role fill). The rewrite itself is resolution-neutral where both scopes are swept together; the one shape where it is not is the mixed-layer inversion below, which the migration names in its verification steps. See [distribution/migrations.md](/distribution/migrations.md).
 
 **Cross-scope precedence inverts during the pre-migration window.** The alias resolves *after* the scope cascade: `LoadPath` merges the system and project layers per key first, leaving `profiles` and `tiers` as two separate maps, and `GetAgentProfile` then prefers `profiles` wherever it carries the role. So for a role written in the **new** spelling in one scope and the **legacy** spelling in the other, the spelling decides rather than the scope — a project-layer `agent.profiles.<role>` beats a system-layer `agent.tiers.<role>`, inverting the documented system > project precedence. It bites only a hand-half-migrated pair of scopes, and running the migration (which sweeps both files) restores normal precedence. Pinned by `TestResolveCrossScopeLegacyAliasPrecedence` in `cmd/fab` — the layer that can compose both scopes — and stated at `GetAgentProfile`'s doc comment.
 
 **The provider-side flat fill has the same twin.** `withFlatFillAlias` also runs *after* the scope cascade, so a project-layer `providers.<name>.profiles.default` beats a system-layer flat `providers.<name>.model` per field — the spelling decides rather than the scope, the same inversion one layer over. Retiring both twins needs a layer-aware fold (aliasing before `config.MergeLayers`, or handing the resolver per-layer inputs); until then the shape is documented in the `2.16.19-to-2.17.0` migration's verification steps as the mixed-layer exception.
+
+**The renamed command fields inherit the same shape.** `MergeLayers` merges the raw YAML trees per key and the command-field fallback runs after, so during the migration window a system-scope `interactive_command` outranks a project-scope `session_command` for the same provider — the spelling decides rather than the scope, consistent with new-spelling-wins-per-field. Deliberate: sweeping both scopes with the `2.18.1-to-2.19.0` migration restores normal precedence.
 
 #### Scenario: a legacy `agent.tiers:` block still resolves
 
@@ -399,11 +402,17 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 **Rejected**: Agent-side `default`-role inheritance plus a cross-provider field cutoff (preserves the footgun and its documentation debt, including a cascade-blind ownership computation); erroring when a role resolves an empty model (an empty model is the established inherit-the-session-model / CLI-default signal); validating provider/model compatibility (breaks provider neutrality).
 *Introduced by*: 260806-j9nh-agent-profiles-session-workers
 
-### Read-Time Aliases Back the Rename, Not Just the Migration
-**Decision**: `agent.tiers` and the flat `providers.<p>.model`/`.effort` stay readable as deprecated aliases in `internal/config`, positioned below their modern counterparts in the chain; the migration performs the on-disk rewrite in both scopes.
-**Why**: The registry's `renamed_from` carry-forward is a **top-level-key** operation in `configupgrade` — it deliberately skips same-top-level renames like `agent.tiers` → `agent.profiles` — so `renamed_from` alone is metadata, not a working carry. Without a read-time alias, `fab config upgrade` (auto-run by `fab upgrade-repo`) would leave a live `agent:` block that silently stopped being read until the user ran `/fab-setup migrations`.
-**Rejected**: Teaching `configupgrade` nested rename carry (a splice-engine change far beyond the scope, and the migration already does it correctly); relying on the migration alone (a silent behavior-change window for every user between upgrade and migration run).
-*Introduced by*: 260806-j9nh-agent-profiles-session-workers
+### Read-Time Aliases Back a Rename, Not Just the Migration
+**Decision**: Every renamed provider/agent key stays readable as a deprecated alias in the resolver, positioned below its modern counterpart in the chain, while the migration performs the on-disk rewrite in both scopes. Three families carry it: `agent.tiers` (per role), the flat `providers.<p>.model`/`.effort` (per field, folded into `profiles.default`), and `providers.<p>.session_command`/`.dispatch_command` (per field, against `interactive_command`/`headless_command`). All three are silent — no deprecation warning — and all three are **read** affordances: the `fab config` write surface accepts the modern spelling only.
+**Why**: The registry's `renamed_from` carry-forward is a **top-level-key** operation in `configupgrade`, so it deliberately skips a rename sitting *inside* the `agent:` block or inside a `providers.<name>:` block — `renamed_from` alone is metadata, not a working carry. Without a read-time alias, `fab config upgrade` (auto-run by `fab upgrade-repo`) would leave a live block that silently stopped being read until the user ran `/fab-setup migrations`. Per-field/per-role preference rather than whole-block preference is what makes a **half-migrated** config resolve completely instead of resolving half of it and dropping the rest.
+**Rejected**: Teaching `configupgrade` nested rename carry (a splice-engine change far beyond the scope, and the migration already does it correctly); relying on the migration alone (a silent behavior-change window for every user between upgrade and migration run); whole-block preference (one modern key would shadow every sibling still in the old spelling).
+*Introduced by*: 260806-j9nh-agent-profiles-session-workers; 260809-n1he-rename-provider-command-fields
+
+### Command Fields Name Interaction Mode, Not Depth
+**Decision**: See the authoritative record in [_shared/configuration.md](/_shared/configuration.md) § Design Decisions → "Provider Command Fields Name Their Interaction Mode, Not the Agent's Depth". In brief: `interactive_command`/`headless_command` split by how the agent is run, not by the depth of the agent running it — a Tier-2 pane worker runs the interactive command — and the `fab config` dotted-key write surface accepts those spellings exclusively.
+**Why**: Depth-flavored names advertise an invariant the pane rung breaks, and `dispatch_command` collides with both the `fab dispatch` verbs and the `dispatch.*` block.
+**Rejected**: Depth-aligned names; a hard break with no alias; old spellings on the write surface.
+*Introduced by*: 260809-n1he-rename-provider-command-fields
 
 ### Providers Extracted; Roles; `fab agent` Retires `fab spawn-command`
 **Decision**: See the authoritative record in [_shared/configuration.md](/_shared/configuration.md) § Design Decisions → "Providers Extracted; Roles; `review_tools` → `code-review.md`". In brief: a top-level `providers:` table carries independent session/native/headless capabilities plus fills; roles resolve `{provider, model, effort}`; dispatch preference stays separate; review policy moved to `code-review.md`; `fab agent` owns session launch; and `resolve-agent` exposes `dispatch=` plus `provider=`.
@@ -442,9 +451,9 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 *Introduced by*: 260805-j3cm-builtin-provider-templates-and-fill; *Updated by*: 260806-ywkx-ship-codex-gemini-fills, 260808-rpsr-remove-gemini-add-agy-kimi
 
 ### Non-Claude Built-in Commands Run Full-Auto
-**Decision**: Both codex command forms carry `--dangerously-bypass-approvals-and-sandbox` and agy's dispatch command carries `--dangerously-skip-permissions`; kimi's carries no approval flag at all, because `kimi -p` is already non-interactive, auto-approves tool calls, and *rejects* `--yolo`/`--auto`. Project and system provider-command overrides remain the approval-gated escape hatch.
+**Decision**: Both codex command forms carry `--dangerously-bypass-approvals-and-sandbox` and agy's headless command carries `--dangerously-skip-permissions`; kimi's carries no approval flag at all, because `kimi -p` is already non-interactive, auto-approves tool calls, and *rejects* `--yolo`/`--auto`. Project and system provider-command overrides remain the approval-gated escape hatch.
 **Why**: Headless and pane stage workers are unattended and have no approval-answering channel; ship and review-pr also require network and repository operations. Explicit bypass grammar gives the non-claude built-ins the same autonomous execution policy as claude's shipped `--dangerously-skip-permissions` command — expressed in each CLI's own vocabulary, including "no flag" where the CLI's headless mode already implies it.
-**Rejected**: Codex `--full-auto` (retains a workspace-write sandbox that blocks required network operations); bypassing only `dispatch_command` (leaves pane workers gated); adding an approval flag to kimi's dispatch form for symmetry (the CLI errors on it); approval-gated built-ins or per-project fixes (break the complete one-knob provider swap).
+**Rejected**: Codex `--full-auto` (retains a workspace-write sandbox that blocks required network operations); bypassing only `headless_command` (leaves pane workers gated); adding an approval flag to kimi's dispatch form for symmetry (the CLI errors on it); approval-gated built-ins or per-project fixes (break the complete one-knob provider swap).
 *Introduced by*: 260808-clxw-codex-gemini-bypass-flags; *Updated by*: 260808-rpsr-remove-gemini-add-agy-kimi
 
 ### Codex's Fills Are Catalog Slugs; agy's Embed Effort in the ID; kimi Ships None
@@ -454,16 +463,16 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 *Introduced by*: 260806-ywkx-ship-codex-gemini-fills; *Updated by*: 260808-rpsr-remove-gemini-add-agy-kimi
 
 ### The Nested-Shell `"$(cat)"` Idiom Delivers stdin to an Argument-Taking CLI
-**Decision**: agy's and kimi's `dispatch_command`s wrap the CLI in `sh -c '… -p "$(cat)"'` rather than invoking it directly.
+**Decision**: agy's and kimi's `headless_command`s wrap the CLI in `sh -c '… -p "$(cat)"'` rather than invoking it directly.
 **Why**: `fab dispatch` delivers the stage prompt on **stdin**, but both CLIs take the prompt as an *argument* to `-p` and never read stdin. POSIX expands `$(cat)` **before** the `< file` redirect applies, so the un-nested form reads the *outer* stdin and the worker starts with an empty prompt; nesting a shell makes the inner `sh`'s stdin the redirected prompt file. Verified end-to-end in dispatch shape (`cmd < prompt > log 2>&1`) against both CLIs. Absorbing the difference in the provider's grammar keeps the dispatch machinery provider-neutral — no per-CLI prompt-delivery branch in Go.
 **Rejected**: Passing `-p` with no argument (both CLIs error: `flag needs an argument: -p`); teaching `fab dispatch` a per-provider prompt-delivery mode (provider mechanics belong in the provider's command string).
 *Introduced by*: 260808-rpsr-remove-gemini-add-agy-kimi
 
-### agy and kimi Are Dispatch-Only — No `session_command`
-**Decision**: The agy and kimi built-ins carry a `dispatch_command` and deliberately no `session_command`, the mirror image of claude carrying no `dispatch_command`.
-**Why**: A `session_command` is what makes a provider **pane-eligible**, and pane dispatch hands the worker a one-line pointer to the prompt file as a **positional argument** — which neither CLI can act on. kimi parses a bare positional as a subcommand and exits non-zero; agy silently discards it, opening its TUI at an empty prompt, and additionally gates a fresh workspace behind an interactive trust prompt even under `--dangerously-skip-permissions`. Shipping a `session_command` would therefore make a pane-preferring dispatch inside tmux select a mode that cannot work and orphan every stage. Withholding it makes automatic resolution skip the pane rung and descend to headless (`descended: pane unavailable: no session_command`) and makes an explicit `--pane` fail loudly with the config-key hint.
-**Rejected**: Shipping the interactive grammar anyway and documenting the hazard (the failure is silent and per-stage, exactly what the fallback exists to prevent); adding a per-provider "pane-ineligible" config flag (the absent `session_command` already encodes it, and the no-cross-fallback rule already reads it correctly).
-**Known consequence**: `fab agent --provider agy` and `fab operator` on these providers need a `session_command` the user adds themselves — which re-enables pane eligibility, so those stages must then be dispatched `--headless` or pointed at another provider.
+### agy and kimi Are Dispatch-Only — No `interactive_command`
+**Decision**: The agy and kimi built-ins carry a `headless_command` and deliberately no `interactive_command`, the mirror image of claude carrying no `headless_command`.
+**Why**: An `interactive_command` is what makes a provider **pane-eligible**, and pane dispatch hands the worker a one-line pointer to the prompt file as a **positional argument** — which neither CLI can act on. kimi parses a bare positional as a subcommand and exits non-zero; agy silently discards it, opening its TUI at an empty prompt, and additionally gates a fresh workspace behind an interactive trust prompt even under `--dangerously-skip-permissions`. Shipping an `interactive_command` would therefore make a pane-preferring dispatch inside tmux select a mode that cannot work and orphan every stage. Withholding it makes automatic resolution skip the pane rung and descend to headless (`descended: pane unavailable: no interactive_command`) and makes an explicit `--pane` fail loudly with the config-key hint.
+**Rejected**: Shipping the interactive grammar anyway and documenting the hazard (the failure is silent and per-stage, exactly what the fallback exists to prevent); adding a per-provider "pane-ineligible" config flag (the absent `interactive_command` already encodes it, and the no-cross-fallback rule already reads it correctly).
+**Known consequence**: `fab agent --provider agy` and `fab operator` on these providers need an `interactive_command` the user adds themselves — which re-enables pane eligibility, so those stages must then be dispatched `--headless` or pointed at another provider.
 *Introduced by*: 260808-rpsr-remove-gemini-add-agy-kimi
 
 ### A Built-in Roster Change Ships No Migration
@@ -492,7 +501,7 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 *Introduced by*: 260806-2j2i-embed-agent-defaults-layer0
 
 ### The Built-in Command Identifiers Are Package Vars Sourced from the Embedded File
-**Decision**: `DefaultSessionCommand` and the non-claude `DefaultCodex*`/`DefaultAgyDispatchCommand`/`DefaultKimiDispatchCommand` identifiers are package `var`s reading the parsed provider entries, not `const` literals; `spawn.DefaultSpawnCommand`, their only compile-time-constant consumer, is a `var` re-export of the same value. The identifiers are kept rather than replaced by `ResolveProvider(nil, name)` calls.
+**Decision**: `DefaultInteractiveCommand` and the non-claude `DefaultCodex*`/`DefaultAgyHeadlessCommand`/`DefaultKimiHeadlessCommand` identifiers are package `var`s reading the parsed provider entries, not `const` literals; `spawn.DefaultSpawnCommand`, their only compile-time-constant consumer, is a `var` re-export of the same value. The identifiers are kept rather than replaced by `ResolveProvider(nil, name)` calls.
 **Why**: `defaults.yaml` owns these strings — keeping them as Go literals would put every command text in two places and reintroduce by hand exactly the drift the data file removes by construction. Keeping the *names* leaves `internal/configref`, `internal/configupgrade`, and every test call site untouched.
 **Rejected**: Keeping the constants canonical and having `defaults.yaml` restate them (drift-by-test, the thing being removed); a test asserting const↔YAML equality (the same drift, one indirection later); deleting the identifiers and rewriting every consumer (inflates a behavior-neutral diff).
 *Introduced by*: 260806-2j2i-embed-agent-defaults-layer0
@@ -515,8 +524,8 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 The provider/role resolution feeds three runtime consumers:
 
 - **The dispatch seam** (`/fab-ff`, `/fab-fff`, `/fab-proceed`, `/fab-adopt`, and `/fab-continue`'s one-stage sequencer) calls `fab resolve-agent <stage> --alias` before each post-intake stage's sub-agent and **branches on the resolved `dispatch=` line**: absent ⇒ native Agent-tool dispatch (model via the Agent `model` param, effort via a prompt instruction); present ⇒ the CLI adapter `fab dispatch` (the profile rides the `dispatch=` command). Every stage it resolves is a Tier-2 role, so `agent.workers` is the knob it consults. See [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution and [pipeline/execution-skills.md](/pipeline/execution-skills.md) § Status-transition ownership.
-- **The operator launcher** (`fab operator`) resolves the **operator** role in-process and composes its session command from that role's provider `session_command` + profile. See [operator.md](/runtime/operator.md).
-- **Batch worker spawns** (`fab batch new`/`switch` and the operator's repo-targeted worker spawns) compose from the **default**-role provider `session_command` + profile — so workers spawn WITH a profile. See [operator.md](/runtime/operator.md) and [distribution/kit-architecture.md](/distribution/kit-architecture.md).
+- **The operator launcher** (`fab operator`) resolves the **operator** role in-process and composes its session command from that role's provider `interactive_command` + profile. See [operator.md](/runtime/operator.md).
+- **Batch worker spawns** (`fab batch new`/`switch` and the operator's repo-targeted worker spawns) compose from the **default**-role provider `interactive_command` + profile — so workers spawn WITH a profile. See [operator.md](/runtime/operator.md) and [distribution/kit-architecture.md](/distribution/kit-architecture.md).
 
 The latter two are Tier-1 roles, so `agent.session` is what governs them — and it binds at **launch**: a running session keeps the provider it started on.
 
