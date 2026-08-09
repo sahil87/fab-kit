@@ -270,9 +270,8 @@ func TestAgentPrintUnknownRoleErrors(t *testing.T) {
 
 // TestAgentPrintNoSessionCommandErrors: a resolved provider with no
 // session_command errors with a config-key hint. The fixture uses a project-only
-// provider (`myagent`) — every BUILT-IN provider now carries a session_command
-// (claude, codex, gemini — 260805-j3cm), so only a user-defined dispatch-only
-// provider can reach this error.
+// provider (`myagent`); the built-in agy/kimi half of the same rule is
+// TestAgentProviderDispatchOnlyBuiltInsError.
 func TestAgentPrintNoSessionCommandErrors(t *testing.T) {
 	agentTestRepo(t, `providers:
   myagent:
@@ -338,15 +337,15 @@ func TestAgentPrintProviderEmptyProfileDropsTokens(t *testing.T) {
 // command passes through unchanged (the append-mode counterpart of the test above).
 func TestAgentPrintProviderEmptyProfileAppendsNothing(t *testing.T) {
 	agentTestRepo(t, `providers:
-  gemini:
-    session_command: "gemini"
+  myagent:
+    session_command: "myagent"
 `)
-	out, err := runAgentPrint(t, "--provider", "gemini")
+	out, err := runAgentPrint(t, "--provider", "myagent")
 	if err != nil {
-		t.Fatalf("agent --provider gemini --print: %v", err)
+		t.Fatalf("agent --provider myagent --print: %v", err)
 	}
-	if out != "gemini\n" {
-		t.Errorf("output = %q, want %q (no --model/--effort appended)", out, "gemini\n")
+	if out != "myagent\n" {
+		t.Errorf("output = %q, want %q (no --model/--effort appended)", out, "myagent\n")
 	}
 }
 
@@ -525,8 +524,9 @@ func TestAgentUnknownProviderNamesAvailable(t *testing.T) {
 
 // TestAgentProviderNoSessionCommandErrors: a provider that resolves but carries no
 // session_command errors with the config-key hint (the provider-path counterpart of
-// TestAgentPrintNoSessionCommandErrors). Uses a project-only dispatch-only provider
-// for the same reason: all three built-ins now ship a session_command.
+// TestAgentPrintNoSessionCommandErrors). Uses a project-defined dispatch-only
+// provider; the built-in agy/kimi half of the same rule is
+// TestAgentProviderDispatchOnlyBuiltInsError.
 func TestAgentProviderNoSessionCommandErrors(t *testing.T) {
 	agentTestRepo(t, `providers:
   myagent:
@@ -557,13 +557,31 @@ func TestAgentProviderBuiltinCodexNoConfig(t *testing.T) {
 	if out != "codex --dangerously-bypass-approvals-and-sandbox\n" {
 		t.Errorf("output = %q, want the model-free built-in codex grammar with its bypass flag", out)
 	}
+}
 
-	out, err = runAgentPrint(t, "--provider", "gemini", "--model", "gemini-2.5-pro")
-	if err != nil {
-		t.Fatalf("agent --provider gemini --print: %v", err)
-	}
-	if out != "gemini --approval-mode=yolo -m gemini-2.5-pro\n" {
-		t.Errorf("output = %q, want the built-in gemini grammar with the model substituted", out)
+// TestAgentProviderDispatchOnlyBuiltInsError: `fab agent` opens an interactive
+// SESSION, so the two dispatch-only built-ins cannot serve it and say so with the
+// config-key hint — the same actionable error a user-defined dispatch-only provider
+// gets (TestAgentProviderNoSessionCommandErrors), reached here from the SHIPPED
+// table rather than project config.
+//
+// agy and kimi ship no session_command on purpose (260808-rpsr): a pane-mode worker
+// receives its pointer prompt as a POSITIONAL argument to that command, and neither
+// CLI can take a prompt that way — kimi parses a bare positional as a subcommand and
+// exits non-zero, agy drops it silently and trust-prompts a fresh workspace. The
+// error is the documented path to an interactive session: add
+// providers.<name>.session_command yourself, accepting the pane caveat.
+func TestAgentProviderDispatchOnlyBuiltInsError(t *testing.T) {
+	agentTestRepo(t, "project:\n  name: test\n")
+
+	for _, name := range []string{"agy", "kimi"} {
+		_, err := runAgentPrint(t, "--provider", name)
+		if err == nil {
+			t.Fatalf("fab agent --provider %s must error — it is a dispatch-only built-in", name)
+		}
+		if !strings.Contains(err.Error(), "providers."+name+".session_command") {
+			t.Errorf("%s error = %q, want the session_command config-key hint", name, err.Error())
+		}
 	}
 }
 

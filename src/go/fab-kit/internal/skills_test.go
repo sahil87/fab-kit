@@ -34,6 +34,79 @@ func TestAgentAvailable_FABAgentsOverride(t *testing.T) {
 	}
 }
 
+// TestAgentAvailable_AnyCandidate: the generic `.agents/skills` target names the
+// several CLIs that read that directory, and ONE of them being declared is enough.
+// Without any-match semantics a kimi-only or agy-only workspace would silently get
+// no skills deployed at all.
+func TestAgentAvailable_AnyCandidate(t *testing.T) {
+	generic := []string{"codex", "agy", "kimi"}
+
+	for _, only := range generic {
+		t.Setenv("FAB_AGENTS", only)
+		if !agentAvailable(generic...) {
+			t.Errorf("with FAB_AGENTS=%q, the generic target must deploy — any candidate suffices", only)
+		}
+	}
+
+	t.Setenv("FAB_AGENTS", "claude opencode")
+	if agentAvailable(generic...) {
+		t.Error("with no generic-directory CLI declared, the generic target must be skipped")
+	}
+}
+
+// TestMissingCLIs: the skip message adapts to the candidate count. Only the generic
+// `.agents/skills` target is gated on more than one CLI, so the plural "none of"
+// phrasing would read as a wart on the single-candidate targets — but it must still
+// name EVERY candidate when there are several, since that list is what tells a user
+// with none installed what would enable the target.
+func TestMissingCLIs(t *testing.T) {
+	if got, want := missingCLIs([]string{"claude"}), "claude not found in PATH"; got != want {
+		t.Errorf("missingCLIs(single) = %q, want %q — a one-candidate target reads oddly as \"none of\"", got, want)
+	}
+
+	got := missingCLIs([]string{"codex", "agy", "kimi"})
+	if want := "none of codex, agy, kimi found in PATH"; got != want {
+		t.Errorf("missingCLIs(generic) = %q, want %q", got, want)
+	}
+	for _, cli := range []string{"codex", "agy", "kimi"} {
+		if !strings.Contains(got, cli) {
+			t.Errorf("the generic target's skip message %q must name candidate %q", got, cli)
+		}
+	}
+}
+
+// TestDeploySkills_GenericDirForNonCodexCLI is the change's headline distribution
+// behavior (260808-rpsr): agy and kimi read the GENERIC `.agents/skills` directory
+// natively, so they deploy there and get NO per-brand directory of their own. The
+// per-brand `.gemini/skills` target that used to exist is what made every synced
+// skill appear twice to that CLI, which is the warning class this asserts is gone.
+func TestDeploySkills_GenericDirForNonCodexCLI(t *testing.T) {
+	for _, cli := range []string{"agy", "kimi"} {
+		t.Run(cli, func(t *testing.T) {
+			kitDir := t.TempDir()
+			os.MkdirAll(filepath.Join(kitDir, "skills"), 0755)
+			os.WriteFile(filepath.Join(kitDir, "skills", "fab-new.md"), []byte("# New\n"), 0644)
+
+			repoRoot := t.TempDir()
+			t.Setenv("FAB_AGENTS", cli)
+			if err := deploySkills(repoRoot, kitDir); err != nil {
+				t.Fatalf("deploySkills: %v", err)
+			}
+
+			if _, err := os.Stat(filepath.Join(repoRoot, ".agents", "skills", "fab-new", "SKILL.md")); err != nil {
+				t.Errorf("%s must deploy to the generic .agents/skills directory: %v", cli, err)
+			}
+			// No per-brand directory for any of the generic-dir CLIs — one target
+			// per skill set is what makes duplicate discovery impossible.
+			for _, brandDir := range []string{".gemini", ".agy", ".kimi", ".codex"} {
+				if _, err := os.Stat(filepath.Join(repoRoot, brandDir)); !os.IsNotExist(err) {
+					t.Errorf("%s must not be created — %s reads .agents/skills natively", brandDir, cli)
+				}
+			}
+		})
+	}
+}
+
 func TestCleanStaleSkills_Directory(t *testing.T) {
 	baseDir := t.TempDir()
 	repoRoot := filepath.Dir(baseDir)

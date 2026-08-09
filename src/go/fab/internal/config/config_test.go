@@ -253,9 +253,11 @@ providers:
 		t.Error("codex.Native = true, want false when omitted")
 	}
 
-	// An unconfigured provider reports no entry.
-	if _, ok := cfg.GetProvider("gemini"); ok {
-		t.Error("expected no entry for the unconfigured 'gemini' provider")
+	// An unconfigured provider reports no entry — including a BUILT-IN name, since
+	// this layer parses the file and knows nothing of the built-in table (merging
+	// that in is internal/agent.ResolveProvider's job).
+	if _, ok := cfg.GetProvider("agy"); ok {
+		t.Error("expected no entry for the unconfigured 'agy' provider")
 	}
 }
 
@@ -274,8 +276,8 @@ providers:
   codex:
     model: gpt-5.3-codex
     effort: high
-  gemini:
-    model: gemini-2.5-pro
+  agy:
+    model: gemini-3.1-pro-low
 `
 	os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(configYAML), 0o644)
 
@@ -295,13 +297,14 @@ providers:
 		t.Errorf("codex commands = {%q, %q}, want empty here (the built-in merge is internal/agent's job)", codex.SessionCommand, codex.DispatchCommand)
 	}
 
-	// Effort may be omitted independently (gemini has no reasoning-effort knob).
-	gemini, ok := cfg.GetProvider("gemini")
+	// Effort may be omitted independently (agy's model IDs embed the reasoning
+	// level, so its fills carry no effort of their own).
+	agy, ok := cfg.GetProvider("agy")
 	if !ok {
-		t.Fatal("expected a 'gemini' provider entry")
+		t.Fatal("expected an 'agy' provider entry")
 	}
-	if gemini.Model != "gemini-2.5-pro" || gemini.Effort != "" {
-		t.Errorf("gemini fill = {%q, %q}, want {gemini-2.5-pro, \"\"}", gemini.Model, gemini.Effort)
+	if agy.Model != "gemini-3.1-pro-low" || agy.Effort != "" {
+		t.Errorf("agy fill = {%q, %q}, want {gemini-3.1-pro-low, \"\"}", agy.Model, agy.Effort)
 	}
 }
 
@@ -413,7 +416,7 @@ func TestLoad_AgentDepthKnobs(t *testing.T) {
 	configYAML := `
 agent:
   session: claude
-  workers: gemini
+  workers: agy
 `
 	os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(configYAML), 0o644)
 
@@ -424,8 +427,8 @@ agent:
 	if got := cfg.GetAgentSession(); got != "claude" {
 		t.Errorf("agent.session = %q, want claude", got)
 	}
-	if got := cfg.GetAgentWorkers(); got != "gemini" {
-		t.Errorf("agent.workers = %q, want gemini", got)
+	if got := cfg.GetAgentWorkers(); got != "agy" {
+		t.Errorf("agent.workers = %q, want agy", got)
 	}
 }
 
@@ -483,7 +486,7 @@ providers:
     profiles:
       default: { model: codex-default, effort: medium }
       review: { model: codex-review, effort: high }
-  gemini:
+  kimi:
     model: flat-model
     effort: flat-effort
 `
@@ -508,12 +511,12 @@ providers:
 	// The deprecated flat fill still parses into its own fields at load time; the
 	// ALIAS semantics are applied downstream, where internal/agent.ResolveProvider
 	// folds it into this override's profiles.default per field.
-	gemini, ok := cfg.GetProvider("gemini")
+	kimi, ok := cfg.GetProvider("kimi")
 	if !ok {
-		t.Fatal("expected a gemini provider entry")
+		t.Fatal("expected a kimi provider entry")
 	}
-	if gemini.Model != "flat-model" || gemini.Effort != "flat-effort" {
-		t.Errorf("gemini flat fill = {%s %s}, want {flat-model flat-effort}", gemini.Model, gemini.Effort)
+	if kimi.Model != "flat-model" || kimi.Effort != "flat-effort" {
+		t.Errorf("kimi flat fill = {%s %s}, want {flat-model flat-effort}", kimi.Model, kimi.Effort)
 	}
 }
 
@@ -989,7 +992,7 @@ func TestEnvCascade_PrecedenceAndMapMerge(t *testing.T) {
 	home := isolateSystemConfig(t)
 	writeSystemConfig(t, home, `
 agent:
-  workers: gemini
+  workers: agy
   profiles:
     review: { model: system-review, effort: low }
     hydrate: { effort: medium }
@@ -1217,7 +1220,7 @@ func TestEnvCascade_TypeIncompatibleFailsOpen(t *testing.T) {
 func TestEnvCascade_NoVariablesPreservesFileMerge(t *testing.T) {
 	home := isolateSystemConfig(t)
 	warnings := captureWarnings(t)
-	writeSystemConfig(t, home, "agent:\n  workers: gemini\n")
+	writeSystemConfig(t, home, "agent:\n  workers: agy\n")
 	fabRoot := writeProjectConfig(t, "agent:\n  session: codex\n")
 
 	layers, err := LoadLayers(filepath.Join(fabRoot, "project", "config.yaml"))
@@ -1228,7 +1231,7 @@ func TestEnvCascade_NoVariablesPreservesFileMerge(t *testing.T) {
 		t.Errorf("no variables set must yield nil env layer/provenance, got Env=%#v origins=%#v", layers.Env, layers.EnvOrigins)
 	}
 	agentMap, _ := layers.Effective["agent"].(map[string]any)
-	if agentMap["session"] != "codex" || agentMap["workers"] != "gemini" {
+	if agentMap["session"] != "codex" || agentMap["workers"] != "agy" {
 		t.Errorf("no-env file merge changed: %#v", layers.Effective)
 	}
 	if w := warnings(); w != "" {

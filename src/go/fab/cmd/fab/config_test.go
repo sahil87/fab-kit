@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configref"
@@ -50,7 +52,7 @@ func TestConfigReferenceRoundTrips(t *testing.T) {
 	if prov.DispatchCommand != agent.DefaultDispatchCommand || !prov.Native {
 		t.Errorf("providers.claude capabilities = %+v, want live dispatch command and native=true", prov)
 	}
-	// codex and gemini are Go BUILT-IN providers (260805-j3cm), so their reference
+	// codex, agy and kimi are Go BUILT-IN providers (260805-j3cm), so their reference
 	// blocks merely RESTATE a built-in default and ship commented like every other
 	// non-overridden default. They must parse as absent from Config: a commented
 	// block registers no project override (presence=intent for behavior — a
@@ -59,8 +61,11 @@ func TestConfigReferenceRoundTrips(t *testing.T) {
 	if _, ok := cfg.GetProvider("codex"); ok {
 		t.Error("providers.codex must be commented-out in the reference (parsed as live)")
 	}
-	if _, ok := cfg.GetProvider("gemini"); ok {
-		t.Error("providers.gemini must be commented-out in the reference (parsed as live)")
+	if _, ok := cfg.GetProvider("agy"); ok {
+		t.Error("providers.agy must be commented-out in the reference (parsed as live)")
+	}
+	if _, ok := cfg.GetProvider("kimi"); ok {
+		t.Error("providers.kimi must be commented-out in the reference (parsed as live)")
 	}
 	if len(cfg.TestPaths) == 0 {
 		t.Error("test_paths should be a live key with a value in the reference")
@@ -371,40 +376,46 @@ func TestConfigReferenceDocumentsProviders(t *testing.T) {
 	}
 }
 
-// TestConfigReferenceDocumentsThreeBuiltInProviders is the j3cm contract (which
+// TestConfigReferenceDocumentsBuiltInProviders is the j3cm contract (which
 // supersedes ho9y's starter-template contract): the providers block documents
-// fab-kit's THREE BUILT-IN providers — claude (the default), codex, and gemini —
-// with every command string sourced from its canonical agent constant. Gemini
-// carries no {effort} placeholder (the gemini CLI has no reasoning-effort flag).
-func TestConfigReferenceDocumentsThreeBuiltInProviders(t *testing.T) {
+// fab-kit's FOUR BUILT-IN providers — claude (the default), codex, agy and kimi —
+// with every command string sourced from its canonical agent constant. agy carries
+// no {effort} placeholder (its model IDs embed the reasoning level), and kimi
+// deliberately ships no fills at all.
+func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
 	}
 
-	// All three provider names appear as text in the providers block.
-	for _, provider := range []string{"claude:", "codex:", "gemini:"} {
+	// All four provider names appear as text in the providers block.
+	for _, provider := range []string{"claude:", "codex:", "agy:", "kimi:"} {
 		if !strings.Contains(out, provider) {
 			t.Errorf("providers block must document the %q provider", provider)
 		}
 	}
 
-	// Both command fields are documented for the non-claude built-ins. The
-	// expectations are DERIVED from the agent command vars (never literal copies), so
-	// a grammar change touches only internal/agent.
+	// Every command field a non-claude built-in ships is documented. codex carries
+	// both; agy and kimi are DISPATCH-ONLY (their session_command absence is asserted
+	// below). The expectations are DERIVED from the agent command vars (never literal
+	// copies), so a grammar change touches only internal/agent. They are compared in
+	// their YAML-SCALAR form — the nested-shell dispatch commands contain single
+	// quotes, which the renderer must double, so asserting the raw string would
+	// demand exactly the invalid YAML the escaping exists to prevent.
 	for _, cmd := range []string{
 		agent.DefaultCodexSessionCommand,
 		agent.DefaultCodexDispatchCommand,
-		agent.DefaultGeminiSessionCommand,
-		agent.DefaultGeminiDispatchCommand,
+		agent.DefaultAgyDispatchCommand,
+		agent.DefaultKimiDispatchCommand,
 	} {
-		if !strings.Contains(out, cmd) {
-			t.Errorf("providers block must document the built-in command %q", cmd)
+		quoted := configref.YAMLSingleQuoted(cmd)
+		if !strings.Contains(out, quoted) {
+			t.Errorf("providers block must document the built-in command %q (as the YAML scalar %s)", cmd, quoted)
 		}
 	}
 	for _, want := range []string{
 		"--dangerously-bypass-approvals-and-sandbox",
-		"--approval-mode=yolo",
+		"--dangerously-skip-permissions",
 		"unattended stage workers cannot answer approval",
 	} {
 		if !strings.Contains(out, want) {
@@ -412,18 +423,37 @@ func TestConfigReferenceDocumentsThreeBuiltInProviders(t *testing.T) {
 		}
 	}
 
-	// Gemini carries NO {effort} placeholder (the gemini CLI has no
-	// reasoning-effort flag) and NO -p on its command (fab dispatch pipes the
-	// prompt to stdin, which gemini reads in non-TTY mode; -p takes prompt text
-	// appended after stdin). Guard that no gemini command string smuggles these in.
-	for _, badGemini := range []string{
-		"gemini -m {model} -c model_reasoning_effort",
-		"gemini -m {model} --effort",
-		"gemini -m {model} {effort}",
-		"gemini -m {model} -p",
+	// agy carries NO {effort} placeholder — its model IDs embed the reasoning level
+	// as an ID suffix, so a separate effort flag would fight the suffix. kimi's
+	// dispatch form carries NO approval flag (kimi -p already auto-approves and
+	// errors on --yolo/--auto). Guard that no rendered command smuggles these in.
+	for _, bad := range []string{
+		"agy --dangerously-skip-permissions --model {model} --effort",
+		"agy --dangerously-skip-permissions --model {model} -c model_reasoning_effort",
+		"kimi --yolo -m {model} -p",
+		"kimi --auto",
 	} {
-		if strings.Contains(out, badGemini) {
-			t.Errorf("gemini command must not contain %q (no {effort} flag; no -p for stdin dispatch)", badGemini)
+		if strings.Contains(out, bad) {
+			t.Errorf("rendered provider commands must not contain %q", bad)
+		}
+	}
+
+	// agy and kimi are DISPATCH-ONLY: each block's first key is dispatch_command,
+	// with no session_command line above it. A reader who uncomments the block must
+	// not be handed a pane-eligible provider — pane dispatch appends the pointer
+	// prompt as a positional argument, which neither CLI can receive.
+	for _, name := range []string{"agy", "kimi"} {
+		if !strings.Contains(out, "  # "+name+":\n  #   dispatch_command: ") {
+			t.Errorf("the %s block must open directly on dispatch_command (dispatch-only built-in)", name)
+		}
+		if strings.Contains(out, "  # "+name+":\n  #   session_command: ") {
+			t.Errorf("the %s block must render no session_command — shipping one would make auto dispatch select pane mode and park the stage", name)
+		}
+	}
+	// The prose must say WHY, not merely omit the field.
+	for _, phrase := range []string{"ship NO session_command", "DISPATCH-ONLY"} {
+		if !strings.Contains(out, phrase) {
+			t.Errorf("providers block must explain the dispatch-only posture with %q", phrase)
 		}
 	}
 
@@ -431,7 +461,7 @@ func TestConfigReferenceDocumentsThreeBuiltInProviders(t *testing.T) {
 		t.Error("providers block must document claude's headless and native capabilities")
 	}
 
-	// The superseded ho9y framing must not survive: codex/gemini are no longer
+	// The superseded ho9y framing must not survive: the non-claude built-ins are no longer
 	// "template text only" awaiting an uncomment, and the Go table is no longer
 	// claude-only. These literals render into every project's config fence, so a
 	// stale claim there is a user-facing documentation inaccuracy.
@@ -446,16 +476,20 @@ func TestConfigReferenceDocumentsThreeBuiltInProviders(t *testing.T) {
 		}
 	}
 
-	// The three built-ins are named as built-in, and the refresh policy that
+	// The built-ins are named as built-in, and the refresh policy that
 	// replaced the grammar-only rule (260806-ywkx) is stated: the non-claude fills
 	// ARE shipped, refreshed at kit-release cadence, and overridable in one line.
 	for _, phrase := range []string{
-		"THREE built-in providers",
+		"FOUR built-in providers",
 		"KIT-RELEASE cadence",
 		"providers.<name>.profiles.<role>.model",
-		// Only codex/gemini render a `profiles:` map, so the prose must say why
-		// claude's is absent — otherwise the reader concludes claude ships none.
+		// Only the non-claude providers render a `profiles:` map, so the prose must
+		// say why claude's is absent — otherwise the reader concludes claude ships
+		// none.
 		"rendering choice, not a missing fill",
+		// kimi's empty fill map is a deliberate design point, not an omission, so
+		// the reference has to say so where a reader would otherwise see a gap.
+		"kimi deliberately ships NO fills",
 	} {
 		if !strings.Contains(out, phrase) {
 			t.Errorf("providers block must state %q (the non-claude fills ship, and are refreshed at kit cadence)", phrase)
@@ -474,12 +508,100 @@ func TestConfigReferenceDocumentsThreeBuiltInProviders(t *testing.T) {
 	}
 }
 
+// TestConfigReferenceUncommentedProviderBlocksParse is the promise the providers
+// segment makes in its own prose — "strip the leading '# ' from every line of a
+// block" — held to account for EVERY commented built-in block.
+//
+// It is not a theoretical guard. The agy and kimi dispatch commands nest a shell
+// (`sh -c '… -p "$(cat)"'`), so they carry single quotes inside a YAML
+// single-quoted scalar; without doubling them the scalar closes early and a user
+// who follows the documented instruction gets a parse error instead of a working
+// override.
+func TestConfigReferenceUncommentedProviderBlocksParse(t *testing.T) {
+	out, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+
+	for _, name := range agent.ProviderNames(nil) {
+		if name == agent.DefaultProviderName {
+			continue // claude's block ships live, not commented
+		}
+		block := uncommentProviderBlock(t, out, name)
+		if block == "" {
+			t.Errorf("no `# %s:` block found in the rendered reference", name)
+			continue
+		}
+
+		var parsed struct {
+			Providers map[string]config.ProviderConfig `yaml:"providers"`
+		}
+		if err := yaml.Unmarshal([]byte("providers:\n"+block), &parsed); err != nil {
+			t.Errorf("uncommenting the %s block yields invalid YAML: %v\n%s", name, err, block)
+			continue
+		}
+
+		want, _ := agent.ResolveProvider(nil, name)
+		got := parsed.Providers[name]
+		if got.SessionCommand != want.SessionCommand || got.DispatchCommand != want.DispatchCommand {
+			t.Errorf("uncommented %s block = {%q, %q}, want the built-in {%q, %q}",
+				name, got.SessionCommand, got.DispatchCommand, want.SessionCommand, want.DispatchCommand)
+		}
+	}
+}
+
+// uncommentProviderBlock extracts the `# <name>:` block from the rendered
+// reference and strips the leading `# ` from each of its lines — exactly the
+// operation the segment's prose tells a reader to perform. Returns "" when the
+// block is absent.
+func uncommentProviderBlock(t *testing.T, rendered, name string) string {
+	t.Helper()
+	// The comment marker is INDENTED in these blocks (`  # codex:`) because it
+	// belongs to the YAML structure, not to a fence — so the strip removes the
+	// `# ` where it sits, leaving the indentation that carries the nesting.
+	strip := func(line string) (string, bool) {
+		i := strings.Index(line, "# ")
+		if i < 0 || strings.TrimSpace(line[:i]) != "" {
+			return line, false
+		}
+		return line[:i] + line[i+2:], true
+	}
+
+	var block strings.Builder
+	inBlock := false
+	for _, line := range strings.Split(rendered, "\n") {
+		stripped, wasComment := strip(line)
+		if !wasComment {
+			if inBlock {
+				break // a live line ends the commented block
+			}
+			continue
+		}
+		if strings.TrimSpace(stripped) == name+":" {
+			inBlock = true
+			block.WriteString(stripped + "\n")
+			continue
+		}
+		if !inBlock {
+			continue
+		}
+		// The block ends at the first line that is not one of its indented
+		// children (the next provider key, or the end of the segment).
+		if !strings.HasPrefix(stripped, "    ") {
+			break
+		}
+		block.WriteString(stripped + "\n")
+	}
+	return block.String()
+}
+
 // TestConfigReferenceDocumentsProviderFill is the fill contract, reshaped by
 // 260806-j9nh and completed by 260806-ywkx: the providers block documents the
 // PER-ROLE `profiles` fill map and the fill precedence, and the registry row's
 // Default exposes EVERY built-in's fills — claude's six roles (moved off the agent
-// side by j9nh) plus codex's and gemini's sparse maps (shipped by ywkx). What the
-// projection still refuses is the DEPRECATED flat pair, on every provider.
+// side by j9nh) plus codex's and agy's sparse maps (shipped by ywkx). kimi ships no
+// fills at all, so it must project none. What the projection still refuses is the
+// DEPRECATED flat pair, on every provider.
 func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
@@ -500,15 +622,15 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 		t.Error("providers block still advertises the retired flat providers.<name>.model/.effort fill")
 	}
 
-	// The RENDERED reference must carry the shipped codex/gemini fills, not just
+	// The RENDERED reference must carry the shipped codex/agy fills, not just
 	// the JSON projection below: those commented lines ARE the user-facing half of
 	// R7, and without this assertion they can be dropped from providersSegment with
 	// the whole suite staying green. Expectations are DERIVED from ResolveProvider,
 	// shaped by the same omitempty rule the renderer applies — so codex's
-	// effort-only rows and gemini's model-only rows are both pinned, a fill bump in
+	// effort-only rows and agy's model-only rows are both pinned, a fill bump in
 	// defaults.yaml moves both sides together, and no model ID is written as a
 	// literal here.
-	for _, name := range []string{"codex", "gemini"} {
+	for _, name := range []string{"codex", "agy"} {
 		prov, ok := agent.ResolveProvider(nil, name)
 		if !ok {
 			t.Errorf("built-in provider %q does not resolve", name)
@@ -536,7 +658,7 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 		}
 	}
 
-	// The JSON registry row must advertise all three built-ins and no fill values.
+	// The JSON registry row must advertise all four built-ins and no fill values.
 	jsonOut, err := configref.RenderJSON()
 	if err != nil {
 		t.Fatalf("RenderJSON returned an error: %v", err)
@@ -561,7 +683,7 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 	if !ok {
 		t.Fatalf("providers row default = %v, want an object of built-in providers", row["default"])
 	}
-	for _, name := range []string{"claude", "codex", "gemini"} {
+	for _, name := range []string{"claude", "codex", "agy", "kimi"} {
 		entry, ok := defaults[name].(map[string]any)
 		if !ok {
 			t.Errorf("providers default must advertise the built-in %q, got %v", name, defaults[name])
@@ -575,6 +697,14 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 			t.Errorf("built-in %q must carry no flat effort fill in the registry default", name)
 		}
 		profiles, hasProfiles := entry["profiles"].(map[string]any)
+		if name == "kimi" {
+			// kimi ships NO fills, so it must project none — an empty `profiles`
+			// object would advertise a fill surface it deliberately does not have.
+			if hasProfiles {
+				t.Errorf("built-in kimi must project no per-role profiles (it ships none), got %v", profiles)
+			}
+			continue
+		}
 		if !hasProfiles {
 			t.Errorf("built-in %q must carry its per-role profiles in the registry default, got %v", name, entry)
 			continue
@@ -602,7 +732,7 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 		}
 	}
 	desc, _ := row["description"].(string)
-	for _, phrase := range []string{"per-role fills", "three built-in providers with per-role fills", "kit-release cadence"} {
+	for _, phrase := range []string{"per-role fills", "four built-in providers", "kit-release cadence"} {
 		if !strings.Contains(desc, phrase) {
 			t.Errorf("providers row description must mention %q, got %q", phrase, desc)
 		}
@@ -696,7 +826,7 @@ func TestConfigReferenceProvidersDefaultTracksAgentTable(t *testing.T) {
 		// model AND effort. Comparing the whole object is what makes a dropped role,
 		// a rewritten value, or an asserted-but-unshipped field fail here; the
 		// command assertions above would pass regardless. `want` is built with the
-		// same omitempty rule the JSON shape uses, so gemini's model-only rows assert
+		// same omitempty rule the JSON shape uses, so agy's model-only rows assert
 		// no empty effort, and a provider carrying no fills asserts no `profiles` key.
 		var wantProfiles map[string]any
 		if len(p.Profiles) > 0 {
@@ -788,7 +918,7 @@ func TestConfigReferenceJSONIsValidAndByteStable(t *testing.T) {
 // `""`). This is the single "cascade falls back to absent" signal Change 2's
 // resolver consumes; a typed empty would leak a Go-side implementation detail with
 // no cascade meaning. Conversely, a non-null `default` must denote a real built-in
-// value (the three built-in providers, the six role profiles, and
+// value (the four built-in providers, the six role profiles, and
 // dispatch.mode's `native` today). The forbidden shapes are the ones that could
 // stand in for "nothing" (`[]`, `{}`, `""`).
 func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {

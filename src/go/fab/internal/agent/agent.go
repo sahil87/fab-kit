@@ -102,16 +102,17 @@ const (
 	RoleFast     = "fast"     // ship, the /fab-proceed prefix steps — speed on near-mechanical work
 )
 
-// Built-in provider names — the three keys defaults.yaml defines under
+// Built-in provider names — the four keys defaults.yaml defines under
 // `providers:`. DefaultProviderName is the provider a role resolves to when
 // neither an agent.profiles override nor the role's depth knob names one; the
-// other two are named here so the lookups below (and the validation test) carry no
-// bare string.
+// other three are named here so the lookups below (and the validation test) carry
+// no bare string.
 const (
 	DefaultProviderName = "claude"
 
-	providerCodex  = "codex"
-	providerGemini = "gemini"
+	providerCodex = "codex"
+	providerAgy   = "agy"
+	providerKimi  = "kimi"
 )
 
 // DefaultSessionCommand is the built-in claude provider's session command — the
@@ -125,7 +126,7 @@ const (
 // byte-identical to what WithProfile's append mode produced for the former plain
 // form — zero behavior change, so the templated form is purely an explicitness
 // upgrade (the substitution point is now visible in the command itself, matching
-// the codex/gemini starter templates).
+// the other built-in templates).
 //
 // It is a var rather than a const because defaults.yaml owns the string: a const
 // here would mean the same command text lived in two places, which is the drift
@@ -136,16 +137,26 @@ var DefaultSessionCommand = defaultProviders[DefaultProviderName].SessionCommand
 // Its presence describes capability only; dispatch.mode selects whether it runs.
 var DefaultDispatchCommand = defaultProviders[DefaultProviderName].DispatchCommand
 
-// The codex and gemini built-in provider commands (260805-j3cm). These are the
+// The non-claude built-in provider commands (260805-j3cm). These are the
 // invocation templates; the matching per-role fills ship alongside them in
-// defaults.yaml (260806-ywkx), so naming either provider on a depth knob resolves a
-// real model for every role rather than an empty one. Grammar changes at
+// defaults.yaml (260806-ywkx) for codex and agy, so naming either on a depth knob
+// resolves a real model for every role rather than an empty one. Grammar changes at
 // binary-release cadence; the non-claude FILLS are refreshed at kit-release cadence
 // and are corrected by one config line (providers.<name>.profiles.<role>.model) when
 // a catalog moves — see docs/specs/stage-models.md § Refreshing the non-claude fills.
+// kimi is the deliberate no-fills built-in (its -m takes a user-config alias, not a
+// catalog ID), so it resolves an empty model and the -m pair drops out.
 //
-// All three providers carry a dispatch_command. Only claude also declares native
+// All four providers carry a dispatch_command. Only claude also declares native
 // capability; dispatch.mode resolves the adapter independently of command presence.
+//
+// Only codex carries a non-claude SESSION command. agy and kimi deliberately ship
+// none: a session_command is the pane capability, and pane-mode dispatch hands
+// the worker its pointer prompt as a positional argument to that command, which
+// neither CLI can receive (kimi reads a bare positional as a subcommand and
+// exits non-zero; agy drops it silently and trust-prompts a fresh workspace).
+// Without one they have no pane capability, so mode resolution lands their
+// stages on headless. See defaults.yaml's providers-block note.
 //
 // These are the canonical names internal/configref interpolates into the rendered
 // reference, so the reference text carries no literal copy (the same
@@ -158,15 +169,19 @@ var (
 	// SUBCOMMAND (not a flag) and reads the prompt from stdin, which is where
 	// `fab dispatch` pipes it.
 	DefaultCodexDispatchCommand = defaultProviders[providerCodex].DispatchCommand
-	// DefaultGeminiSessionCommand opens an interactive gemini session. It carries
-	// NO {effort} placeholder — the gemini CLI has no reasoning-effort flag, so a
-	// resolved effort has nowhere to go and is simply not injected.
-	DefaultGeminiSessionCommand = defaultProviders[providerGemini].SessionCommand
-	// DefaultGeminiDispatchCommand runs one headless gemini task. Deliberately has
-	// no `-p`: gemini's -p takes prompt TEXT (appended after stdin), whereas
-	// `fab dispatch` pipes the prompt to stdin, which gemini reads as the prompt in
-	// non-TTY mode. Like the session command, it carries no {effort}.
-	DefaultGeminiDispatchCommand = defaultProviders[providerGemini].DispatchCommand
+	// DefaultAgyDispatchCommand runs one headless agy task. `agy -p` takes the
+	// prompt as an ARGUMENT and ignores stdin, so the command NESTS a shell:
+	// POSIX expands `$(cat)` before applying `fab dispatch`'s stdin redirect, so
+	// the inner sh's stdin is the prompt. It carries NO {effort} placeholder —
+	// agy's model IDs embed the reasoning level (gemini-3.1-pro-high), so a
+	// separate effort flag would fight the suffix. agy ships no session command
+	// (see the note above), so this is its only invocation grammar.
+	DefaultAgyDispatchCommand = defaultProviders[providerAgy].DispatchCommand
+	// DefaultKimiDispatchCommand runs one headless kimi task. Same nested-shell
+	// stdin idiom as agy, and deliberately NO approval flag: `kimi -p` already
+	// auto-approves tools and errors on `--yolo`/`--auto`. kimi likewise ships no
+	// session command, so this is its only invocation grammar.
+	DefaultKimiDispatchCommand = defaultProviders[providerKimi].DispatchCommand
 )
 
 // Profile is a concrete {provider, model, effort} triple. An empty Provider names
@@ -179,15 +194,23 @@ type Profile struct {
 	Effort   string
 }
 
-// defaultProviders is fab-kit's built-in provider table: three providers, parsed
+// defaultProviders is fab-kit's built-in provider table: four providers, parsed
 // from the `providers:` block of defaults.yaml verbatim.
 //
 //   - claude — the default: session and dispatch commands, native capability,
 //     and the six per-role fills.
-//   - codex, gemini — session AND dispatch commands plus their own SPARSE per-role
-//     fills (a role absent from the map resolves that provider's `default` entry).
-//     Naming either resolves with zero providers config; under the default native
-//     preference they descend to headless because they declare no native capability.
+//   - codex — session AND dispatch commands plus its own SPARSE per-role fills (a
+//     role absent from the map resolves that provider's `default` entry). Naming it
+//     resolves with zero providers config; it declares no native capability, so
+//     mode resolution runs its stages on the CLI adapters.
+//   - agy — a dispatch command ONLY (no session command, so no pane capability),
+//     plus its own SPARSE per-role fills under the same
+//     absent-role-falls-back-to-`default` rule. Naming it resolves with zero
+//     providers config; its stages land on headless.
+//   - kimi — a dispatch command ONLY (no session command), and deliberately NO
+//     fills: its -m takes a user-config model alias rather than a catalog ID, so the
+//     empty model drops the -m pair and the CLI's own default_model applies. Its
+//     stages likewise land on headless.
 //
 // A built-in provider is INERT until a knob, an agent.profiles entry, or a flag
 // names it — adding a row changes no default behavior, which is why the
@@ -527,8 +550,8 @@ func ProviderNames(cfg *config.Config) []string {
 // documented to be — so a config that has not yet run the 2.16.19-to-2.17.0
 // migration keeps outranking the built-in fill it is trying to replace. Reading it
 // as a rung BELOW profiles.default instead (its former shape) was indistinguishable
-// while no non-claude built-in carried a profiles.default; now that all three do, a
-// rung would silently shadow the user's own pin with fab-kit's shipped one. The
+// while no non-claude built-in carried a profiles.default; now that codex and agy
+// do, a rung would silently shadow the user's own pin with fab-kit's shipped one. The
 // user's own profiles.default still wins over their flat fill — the modern spelling
 // beats its alias.
 //

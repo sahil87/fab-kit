@@ -176,7 +176,7 @@ type RoleProfile struct {
 // `operator`), Workers the Tier-2 roles (the agents pipeline stages dispatch to —
 // `doing`, `review`, `hydrate`, `fast`). Both default to `claude`. The role→depth
 // partition is fab-owned and NOT user-overridable (internal/agent), as is the
-// stage→role mapping; users say "claude for what I talk to, gemini for the
+// stage→role mapping; users say "claude for what I talk to, codex for the
 // workers" and stop there.
 //
 // Profiles is the sparse per-role escape hatch beneath them: a map of role name

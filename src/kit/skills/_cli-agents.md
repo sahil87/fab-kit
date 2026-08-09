@@ -1,6 +1,6 @@
 ---
 name: _cli-agents
-description: "Agent-CLI interaction reference — the generic spawn / pre-send-validation / peek / await procedures for driving another agent CLI in a tmux pane (extracted from fab-operator), plus a three-provider operational dictionary (claude, codex, gemini) carrying stable invocation grammar and model-discovery recipes rather than volatile model catalogs. Opt-in via `helpers:`; not part of the always-load layer."
+description: "Agent-CLI interaction reference — the generic spawn / pre-send-validation / peek / await procedures for driving another agent CLI in a tmux pane (extracted from fab-operator), plus a four-provider operational dictionary (claude, codex, agy, kimi) carrying stable invocation grammar and model-discovery recipes rather than volatile model catalogs. Opt-in via `helpers:`; not part of the always-load layer."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -23,7 +23,8 @@ metadata:
   - Dictionary Discipline
   - claude
   - codex
-  - gemini
+  - agy
+  - kimi
   - Codex MCP Bridge (recipe)
 
 ---
@@ -57,7 +58,9 @@ fab agent --provider codex --print                                  # bare invoc
 fab agent --provider codex --model <id> --effort <level> --print     # explicit profile
 ```
 
-**Which form to use.** Use the **role** form when the spawn should inherit fab's role/budget policy (a pipeline-shaped worker, the operator's own coordinator) — including which provider the `agent.session` knob points Tier-1 agents at. Use the **provider** form when the question is mechanical — "give me a codex session right here" — with no role to speak of. `--provider` is mutually exclusive with the `[role]` positional, and `--model`/`--effort` are only valid alongside `--provider` (see `_cli-fab.md` § fab agent — note `fab resolve-agent` deliberately allows them bare, being a pure query). **No `providers:` block is needed for either form**: `claude`, `codex`, and `gemini` are built-in providers.
+> **Not every provider has a session form.** Composition needs a `session_command`, and only `claude` and `codex` ship one among the built-ins — `agy` and `kimi` are **dispatch-only** (see their dictionary entries for why, and for the config block that adds one). Either form errors actionably against a provider with none, naming the `providers.<name>.session_command` key to set.
+
+**Which form to use.** Use the **role** form when the spawn should inherit fab's role/budget policy (a pipeline-shaped worker, the operator's own coordinator) — including which provider the `agent.session` knob points Tier-1 agents at. Use the **provider** form when the question is mechanical — "give me a codex session right here" — with no role to speak of. `--provider` is mutually exclusive with the `[role]` positional, and `--model`/`--effort` are only valid alongside `--provider` (see `_cli-fab.md` § fab agent — note `fab resolve-agent` deliberately allows them bare, being a pure query). **No `providers:` block is needed for either form**: `claude`, `codex`, `agy`, and `kimi` are built-in providers.
 
 **Empty model/effort is a feature.** Omitting `--model`/`--effort` on the provider form leaves the value empty, and the composition rule drops the placeholder's token *and* a preceding `-`-flag while retaining fixed flags — so `fab agent --provider codex --print` against `codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}` yields `codex --dangerously-bypass-approvals-and-sandbox`. The installed CLI's own default model applies while the built-in's deliberate full-auto posture remains. This is how you spawn a provider whose current model IDs you do not know.
 
@@ -128,8 +131,8 @@ Each entry below carries only **stable invocation grammar** and **discovery reci
 - **Model IDs are NOT recorded *here*.** Model catalogs rot in weeks, and this dictionary is read by an agent that may be reasoning about an uninstalled CLI. Instead each entry carries a *discovery recipe*: what to run against the **installed** binary to learn which models it accepts. Never assume a model ID from memory; run the recipe. *(fab-kit does ship per-role model fills in the binary — `providers.<name>.profiles` — but those are DATA refreshed at kit-release cadence and overridden by one config line, not knowledge an agent should carry. The recipe is still how you verify one.)*
 - **Quirks accrete from real encounters only.** An entry records an interactive quirk (first-run trust prompt, submit-key behavior) only once it has actually been hit and confirmed. Speculating about an uninstalled CLI's behavior is worse than silence — it reads as verified.
 
-- **Built-ins:** `claude`, `codex`, and `gemini` use the independent `session_command` / `dispatch_command` / `native` capability grammar in `internal/agent`'s embedded `defaults.yaml`; all resolve without a `providers:` block. Claude ships all three capabilities, while codex/gemini are non-native; `dispatch.mode` chooses the starting rung of the descending `pane → native → headless` ladder.
-- **Fill-consuming paths:** depth knobs (`agent.session` / `agent.workers`), `agent.profiles.<role>.provider`, and `fab resolve-agent --provider` consume the built-in per-role fills and resolve a real model for every role.
+- **Built-ins:** `claude`, `codex`, `agy`, and `kimi` use the independent `session_command` / `dispatch_command` / `native` capability grammar in `internal/agent`'s embedded `defaults.yaml`; all resolve without a `providers:` block. Claude ships all three capabilities; codex is non-native (pane + headless); agy and kimi are headless-only (no `session_command`, so no pane capability). `dispatch.mode` chooses the starting rung of the descending `pane → native → headless` ladder.
+- **Fill-consuming paths:** depth knobs (`agent.session` / `agent.workers`), `agent.profiles.<role>.provider`, and `fab resolve-agent --provider` consume the built-in per-role fills and resolve a real model for every role — except on `kimi`, which ships none deliberately and resolves an empty model so the CLI's own `default_model` applies.
 - **Provider-addressed sessions:** `fab agent --provider` bypasses both fill sources and stays bare unless `--model`/`--effort` is passed.
 - **Freshness and overrides:** non-Claude fills are release-cadence, unvalidated data. Discover current IDs with each entry's recipe; override with `providers.<name>.profiles.<role>.{model,effort}` (including in `~/.fab-kit/config.yaml`) or invocation flags. A `providers:` block overrides capabilities/fills; it does not register built-ins.
 
@@ -160,17 +163,62 @@ Each entry below carries only **stable invocation grammar** and **discovery reci
 
 **Why independent provider capabilities matter here.** `codex` (TUI) and `codex exec` (headless) are different invocations of the same binary, which is exactly why `providers.<name>` carries unmerged `session_command` and `dispatch_command` fields; the separate `native` boolean records an Agent-tool seam when one exists. These fields say how a rung runs, never which dispatch mode to prefer.
 
-### gemini
+### agy
+
+The Antigravity CLI. Verified against v1.1.11.
 
 | Aspect | Value |
 |--------|-------|
-| Interactive | `gemini` |
-| Headless | `gemini` with the prompt on **stdin** — in a non-TTY context it reads stdin as the prompt |
-| `-p` caveat | `gemini -p` takes prompt **TEXT** (appended after stdin), so it is **not** the headless flag you want when piping — the built-in `gemini` `dispatch_command` deliberately omits `-p` |
-| Profile flags | `-m <id>` for the model. **No effort flag** — the gemini CLI has no reasoning-effort knob, so the built-in grammar omits `{effort}` entirely |
-| Model discovery | `gemini --help` on the installed binary for the `-m` flag's accepted values. fab ships per-role gemini fills (`default`/`fast`) as the CLI's own stable aliases `pro`/`flash`, and validates neither, so the recipe is how you verify one. Pin a discovered ID as `providers.gemini.profiles.<role>.model` — the modern spelling — or pass `--model` per invocation. The flat `providers.gemini.model` is an **alias for `profiles.default`** and is outranked by the shipped `fast` role fill |
+| Interactive | `agy` — **fab ships no `session_command` for agy** (see § Dispatch-only, below) |
+| Headless | `agy -p "<prompt>"` — `-p` takes the prompt as an **ARGUMENT** and **ignores stdin** |
+| stdin delivery | Requires a **nested shell**: `sh -c 'agy … -p "$(cat)"'`. POSIX expands `$(cat)` *before* the outer `< prompt.md` redirect applies, so the un-nested form reads the *outer* stdin and the worker gets an empty prompt. The inner `sh`'s stdin is the redirected file — which is why the built-in `dispatch_command` nests |
+| Timeout | `--print-timeout <dur>` — the 5m default kills long stage workers, so the built-in `dispatch_command` raises it to `120m` |
+| Profile flags | `--model <id>`. **No effort flag is used** — agy's model IDs *embed* the reasoning level as a suffix (`gemini-3.1-pro-high`), so a separate `--effort` would fight the suffix; the built-in grammar omits `{effort}` entirely |
+| Approvals | `--dangerously-skip-permissions` on both forms — unattended stage workers cannot answer approval prompts |
+| Model discovery | `agy models` on the installed binary lists the accepted `--model` values (effort-suffixed families plus cross-vendor entries). fab ships per-role agy fills (`default`/`fast`) and validates neither, so the recipe is how you verify one. Pin a discovered ID as `providers.agy.profiles.<role>.model` — the modern spelling — or pass `--model` per invocation. The flat `providers.agy.model` is an **alias for `profiles.default`** and is outranked by the shipped `fast` role fill |
 
-**Template consequence.** Because the gemini grammar carries no `{effort}` placeholder, the substitution is all-or-nothing per placeholder present: a resolved effort simply has nowhere to go and is not injected. That is the intended behavior — provider grammar is the provider's, and fab never appends a flag the CLI does not have.
+**Template consequence.** Because the agy grammar carries no `{effort}` placeholder, the substitution is all-or-nothing per placeholder present: a resolved effort simply has nowhere to go and is not injected. That is the intended behavior — provider grammar is the provider's, and fab never appends a flag the CLI does not have.
+
+**Dispatch-only.** The agy built-in ships a `dispatch_command` and **no `session_command`** — the absence is deliberate. A provider carrying a `session_command` becomes eligible for **pane-mode dispatch**, which composes that command and appends a one-line pointer to the stage prompt file as a **positional argument** (§ Spawn Composition). agy **silently discards** that positional: the TUI opens at an empty prompt with nothing to read, and a fresh workspace is additionally gated behind an interactive **trust prompt** even under `--dangerously-skip-permissions`. A shipped `session_command` would therefore make a pane-preferring dispatch inside tmux select pane and park every stage. With none, automatic resolution skips the pane rung and descends to headless (`descended: pane unavailable: no session_command`) and an explicit `--pane` hard-errors actionably.
+
+To open an interactive agy session anyway — `fab agent --provider agy`, `fab operator` — add one in your own config:
+
+```yaml
+providers:
+  agy:
+    session_command: 'agy --dangerously-skip-permissions --model {model}'
+```
+
+**Caveat**: doing so re-enables pane-mode eligibility, so stages dispatched inside tmux will open a pane worker that never receives its prompt. Pair it with `--headless` on those dispatches, or point stage roles at a different provider.
+
+**Skill discovery.** agy reads `<workspace>/.agents/skills/<skill>/SKILL.md` natively — which is why `fab sync` deploys **one** skill set to `.agents/skills/` and no `.agy/skills/` directory. One target per skill set is what makes duplicate-skill conflicts impossible.
+
+### kimi
+
+The kimi-code CLI (Moonshot's Kimi K3 agent). Verified against v0.34.0.
+
+| Aspect | Value |
+|--------|-------|
+| Interactive | `kimi` (`--yolo` for full-auto) — **fab ships no `session_command` for kimi** (see § Dispatch-only, below) |
+| Headless | `kimi -p "<prompt>"` — like agy, `-p` takes the prompt as an **ARGUMENT** and ignores stdin, so stdin delivery uses the same nested-shell `"$(cat)"` idiom |
+| Approvals | `-p` is **already** non-interactive and auto-approves tool calls. It **REJECTS** `--yolo`/`--auto` (`Cannot combine --prompt with --yolo`), so the built-in `dispatch_command` carries no approval flag at all; `--yolo` is only meaningful on an interactive invocation |
+| Profile flags | `-m <alias>` — note this is a **user-config model alias**, not a vendor catalog ID |
+| Fills | **fab ships NONE**, deliberately: the `-m` alias set differs per install (managed installs expose `kimi-code`/`k3`; custom providers differ), so a pinned value would break non-managed setups. The empty `{model}` drops `-m` entirely and kimi falls back to the user's configured `default_model` |
+| Model discovery | Read the installed CLI's own model configuration (its config file / `kimi --help`) for the aliases *that install* accepts — there is no portable catalog to quote. Pin one per role with `providers.kimi.profiles.<role>.model` if you want role differentiation; otherwise every role inherits `default_model` |
+
+**Dispatch-only.** Like agy, the kimi built-in ships a `dispatch_command` and **no `session_command`**, and for the same reason — pane-mode dispatch would hand the worker its prompt-file pointer as a **positional argument**. kimi fails that louder than agy does: it parses a bare positional as a **SUBCOMMAND** and exits non-zero (`unknown command '…'`), and it has **no interactive-initial-prompt flag at all** (`-p` is non-interactive; upstream issue #2240 tracks the gap). So there is no grammar that could deliver a pane worker's prompt, and shipping a `session_command` would only make pane selection reach a mode that cannot work. Without one, automatic resolution descends to headless (`descended: pane unavailable: no session_command`) and explicit `--pane` hard-errors.
+
+An interactive kimi session likewise needs a `session_command` you add yourself:
+
+```yaml
+providers:
+  kimi:
+    session_command: 'kimi --yolo -m {model}'
+```
+
+**Caveat**: the same pane caveat as agy applies — and more sharply, since a kimi pane worker handed a pointer *exits immediately* rather than idling.
+
+**Skill discovery.** kimi reads the generic workspace `.agents/skills/` directory alongside its brand group, merged by priority — which is why `fab sync` deploys **one** skill set to `.agents/skills/` and no `.kimi/skills/` directory. One target per skill set is what makes duplicate-skill conflicts impossible.
 
 ### Codex MCP Bridge (recipe)
 

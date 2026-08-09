@@ -172,7 +172,7 @@ func TestCommentOutSegment_MarkersAtColumnZero(t *testing.T) {
 // non-blank line of every commented segment starts with `#` at column 0 — the
 // property the fence's visual alignment rests on. The guard that a new registry row
 // carrying deliberately-commented content (the providers block's
-// dispatch_command/codex/gemini lines) cannot reintroduce a ragged fence.
+// dispatch_command / non-claude provider lines) cannot reintroduce a ragged fence.
 func TestCommentOutSegment_ShippedRegistryAlignment(t *testing.T) {
 	for _, f := range fieldsForTest(t) {
 		if f.Segment == "" {
@@ -193,7 +193,7 @@ func TestCommentOutSegment_ShippedRegistryAlignment(t *testing.T) {
 // `configref.providersSegment`'s prose promises — "strip the leading '# ' from every
 // line of a block" — restores the segment's YAML block BYTE-EXACTLY, so a user who
 // uncomments a whole block gets valid YAML with claude's dispatch_command and the
-// codex/gemini blocks still commented at their original indent. Verified over the
+// non-claude provider blocks still commented at their original indent. Verified over the
 // shipped registry; the fence-level prose lines (already column-0) are unchanged by
 // the commenting and so are not part of the strip.
 func TestCommentOutSegment_BlockStripRestoresSegment(t *testing.T) {
@@ -345,12 +345,12 @@ func TestRender_InteriorColumn0CommentInLiveBlock(t *testing.T) {
 
 // TestRender_BHygieneFlagsEqualsDefault (SF-d): a live field whose value equals the
 // built-in default is flagged in the advisory report — but never removed
-// (presence=intent). Uses providers, whose default is fab-kit's THREE built-in
-// providers (claude's session command; codex/gemini's command pairs) — so the live
-// fixture must restate all three to be an equals-default case.
+// (presence=intent). Uses providers, whose default is fab-kit's FOUR built-in
+// providers (claude's session command; the non-claude command pairs) — so the live
+// fixture must restate all four to be an equals-default case.
 func TestRender_BHygieneFlagsEqualsDefault(t *testing.T) {
 	fields := fieldsForTest(t)
-	// All three built-ins ship per-role fills (260806-ywkx), so an equals-default
+	// Most built-ins ship per-role fills (260806-ywkx), so an equals-default
 	// fixture must restate every one. They are DERIVED from agent.ResolveProvider
 	// rather than typed out, so a model bump does not turn this into a false
 	// negative that silently stops exercising the equals-default path — and a fill
@@ -359,11 +359,15 @@ func TestRender_BHygieneFlagsEqualsDefault(t *testing.T) {
 	for _, name := range agent.ProviderNames(nil) {
 		prov, _ := agent.ResolveProvider(nil, name)
 		src += "    " + name + ":\n"
+		// Single-quoted with interior quotes DOUBLED: the nested-shell dispatch
+		// commands (`sh -c '… -p "$(cat)"'`) contain single quotes, and naive
+		// wrapping would close the scalar early and make this fixture unparseable.
+		// The rule has one owner — configref, the renderer this fixture mirrors.
 		if prov.SessionCommand != "" {
-			src += "        session_command: '" + prov.SessionCommand + "'\n"
+			src += "        session_command: " + configref.YAMLSingleQuoted(prov.SessionCommand) + "\n"
 		}
 		if prov.DispatchCommand != "" {
-			src += "        dispatch_command: '" + prov.DispatchCommand + "'\n"
+			src += "        dispatch_command: " + configref.YAMLSingleQuoted(prov.DispatchCommand) + "\n"
 		}
 		if prov.Native {
 			src += "        native: true\n"

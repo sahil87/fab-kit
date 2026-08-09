@@ -847,6 +847,45 @@ func TestDispatchStart_ExplicitPaneWithoutSessionCommandPersistsNothing(t *testi
 	}
 }
 
+// TestModeCommand_DispatchOnlyBuiltInsAreHeadlessOnly ties the two shape-(b) tests
+// above to the BUILT-IN providers that actually rely on them. Those tests use a
+// synthetic `cli` provider with an empty session_command; this one asserts that
+// agy and kimi — resolved from the shipped defaults with no providers: config at
+// all — genuinely present that shape at the seam `dispatch start` branches on.
+//
+// The two CLIs cannot receive a pane worker's pointer prompt (kimi parses a bare
+// positional as a subcommand and exits non-zero; agy drops it silently and
+// trust-prompts a fresh workspace), so shipping a session_command would make auto
+// mode inside tmux SELECT pane and park every stage. Shipping none is what routes
+// them to the documented soft fallback (`auto: no session_command`) while an
+// explicit --pane still hard-errors actionably.
+//
+// modeCommand is the composition seam both modes go through, so exercising it
+// needs no tmux server — validatePane raises the identical missingCommandError.
+func TestModeCommand_DispatchOnlyBuiltInsAreHeadlessOnly(t *testing.T) {
+	for _, name := range []string{"agy", "kimi"} {
+		prov, ok := agent.ResolveProvider(nil, name)
+		if !ok {
+			t.Fatalf("built-in %s provider must resolve with no config", name)
+		}
+
+		// Headless composes fine — the mode these providers exist for.
+		if _, err := modeCommand(dispatch.ModeHeadless, prov, "apply", name); err != nil {
+			t.Errorf("headless dispatch for the %s built-in must compose: %v", name, err)
+		}
+
+		// Pane cannot, and says so actionably: an empty session_command is exactly
+		// the condition validatePane turns into the auto soft-fallback.
+		_, err := modeCommand(dispatch.ModePane, prov, "apply", name)
+		if err == nil {
+			t.Fatalf("pane dispatch for the %s built-in must error — it ships no session_command", name)
+		}
+		if !strings.Contains(err.Error(), "providers."+name+".session_command") {
+			t.Errorf("%s pane error = %q, want the session_command config-key hint", name, err.Error())
+		}
+	}
+}
+
 // TestDispatchStart_ExplicitPaneStillHardErrorsOnUnreachableTmux is the other half
 // of the asymmetry: a caller who typed --pane requested pane mode, so a silent
 // downgrade would defeat the request. Nothing is launched and nothing persisted.

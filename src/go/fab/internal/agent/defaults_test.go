@@ -68,15 +68,23 @@ func TestDefaultsFileIsWellFormed(t *testing.T) {
 	}
 }
 
-// TestDefaultsFileProviders: the providers block covers exactly the three
-// built-ins, with the command fields each one is defined by. ALL THREE carry
-// per-role fills (260806-ywkx — a knob pointed at codex/gemini must resolve a real
+// TestDefaultsFileProviders: the providers block covers exactly the four
+// built-ins, with the command fields each one is defined by. claude, codex and agy
+// carry per-role fills (260806-ywkx — a knob pointed at one must resolve a real
 // model per role, not an empty one), every fill key names a known role, and no
 // built-in uses the DEPRECATED flat fill.
+//
+// kimi is the deliberate exception (260808-rpsr) and is asserted as such rather
+// than merely exempted: its -m takes a USER-CONFIG model alias, not a catalog ID,
+// so shipping any fill would break non-managed installs. Empty is the correct
+// built-in there, and the empty-{model} token-drop is what makes it work.
+//
+// agy and kimi are the same kind of deliberate exception on the SESSION command:
+// they ship none, so both absences are asserted rather than exempted.
 func TestDefaultsFileProviders(t *testing.T) {
 	cfg := parseDefaultsFile(t)
 
-	wantProviders := []string{DefaultProviderName, providerCodex, providerGemini}
+	wantProviders := []string{DefaultProviderName, providerCodex, providerAgy, providerKimi}
 	assertSameKeys(t, "providers", providerKeys(cfg.Providers), wantProviders)
 
 	for _, name := range wantProviders {
@@ -84,16 +92,14 @@ func TestDefaultsFileProviders(t *testing.T) {
 		if !ok {
 			continue // already reported by assertSameKeys
 		}
-		if prov.SessionCommand == "" {
-			t.Errorf("defaults.yaml providers.%s has no session_command", name)
-		}
 		if prov.Model != "" || prov.Effort != "" {
 			t.Errorf("defaults.yaml providers.%s uses the DEPRECATED flat fill (%q/%q) — built-in fills belong under profiles.<role>", name, prov.Model, prov.Effort)
 		}
 		// A provider's `default` entry is its cross-role fallback, so a sparse map
-		// is only well-defined when that entry exists and names a model.
-		if prov.Profiles[RoleDefault].Model == "" {
-			t.Errorf("defaults.yaml providers.%s has no profiles.default.model — every built-in must resolve a model for every role, and `default` is the cross-role fallback", name)
+		// is only well-defined when that entry exists and names a model. kimi ships
+		// no map at all, which is asserted separately below.
+		if name != providerKimi && prov.Profiles[RoleDefault].Model == "" {
+			t.Errorf("defaults.yaml providers.%s has no profiles.default.model — a filled built-in must resolve a model for every role, and `default` is the cross-role fallback", name)
 		}
 		for role := range prov.Profiles {
 			if !IsRoleName(role) {
@@ -102,17 +108,24 @@ func TestDefaultsFileProviders(t *testing.T) {
 		}
 	}
 
-	// gemini's fills carry NO effort: the gemini CLI has no reasoning-effort flag
-	// (the same reason its command grammars carry no {effort} placeholder), so a
-	// resolved effort would have nowhere to go.
-	for role, fill := range cfg.Providers[providerGemini].Profiles {
+	// kimi ships NO fills — the deliberate no-fills built-in. Asserting the absence
+	// (rather than skipping kimi) is what keeps a well-meaning pinned `k3` row from
+	// landing unreviewed and breaking every custom-provider install.
+	if got := cfg.Providers[providerKimi].Profiles; len(got) != 0 {
+		t.Errorf("defaults.yaml providers.kimi.profiles = %v, want none — kimi's -m takes a USER-CONFIG model alias, so any pinned fill breaks non-managed installs", got)
+	}
+
+	// agy's fills carry NO effort: its model IDs EMBED the reasoning level
+	// (gemini-3.1-pro-high), which is the same reason its command grammars carry no
+	// {effort} placeholder — a separate effort flag would fight the suffix.
+	for role, fill := range cfg.Providers[providerAgy].Profiles {
 		if fill.Effort != "" {
-			t.Errorf("defaults.yaml providers.gemini.profiles.%s sets effort=%q — the gemini CLI has no reasoning-effort flag", role, fill.Effort)
+			t.Errorf("defaults.yaml providers.agy.profiles.%s sets effort=%q — agy's model IDs embed the reasoning level instead", role, fill.Effort)
 		}
 	}
 
 	// Capabilities are explicit data: claude supports native plus both command
-	// forms; codex/gemini support the command forms but not native dispatch.
+	// forms; codex/agy/kimi support command forms but not native dispatch.
 	claude := cfg.Providers[DefaultProviderName]
 	if !claude.Native {
 		t.Errorf("defaults.yaml providers.%s.native = false, want true", DefaultProviderName)
@@ -120,7 +133,7 @@ func TestDefaultsFileProviders(t *testing.T) {
 	if claude.DispatchCommand == "" {
 		t.Errorf("defaults.yaml providers.%s has no dispatch_command", DefaultProviderName)
 	}
-	for _, name := range []string{providerCodex, providerGemini} {
+	for _, name := range []string{providerCodex, providerAgy, providerKimi} {
 		if cfg.Providers[name].DispatchCommand == "" {
 			t.Errorf("defaults.yaml providers.%s has no dispatch_command", name)
 		}
@@ -129,8 +142,27 @@ func TestDefaultsFileProviders(t *testing.T) {
 		}
 	}
 
-	// gemini's no-{effort} / no-`-p` grammar is asserted once, over these same
-	// embedded bytes, by TestResolveProvider_BuiltInCodexAndGemini.
+	// The mirror image: only claude and codex ship a session_command. agy and kimi
+	// are DISPATCH-ONLY built-ins, and the absence is load-bearing rather than an
+	// omission — a session_command makes a provider eligible for pane-mode dispatch,
+	// which hands the worker its pointer prompt as a POSITIONAL argument, and neither
+	// CLI can receive a prompt that way (kimi reads a bare positional as a subcommand
+	// and exits non-zero; agy drops it silently and trust-prompts a fresh workspace).
+	// Asserting the absence is what stops a well-meaning session_command from landing
+	// and parking every tmux-dispatched stage at an empty prompt.
+	for _, name := range []string{DefaultProviderName, providerCodex} {
+		if cfg.Providers[name].SessionCommand == "" {
+			t.Errorf("defaults.yaml providers.%s has no session_command", name)
+		}
+	}
+	for _, name := range []string{providerAgy, providerKimi} {
+		if got := cfg.Providers[name].SessionCommand; got != "" {
+			t.Errorf("defaults.yaml providers.%s.session_command = %q, want absent — %s cannot receive a pane worker's pointer prompt as a positional argument, so shipping one would select pane dispatch and park the stage", name, got, name)
+		}
+	}
+
+	// agy's and kimi's no-{effort} / nested-shell grammar is asserted once, over
+	// these same embedded bytes, by TestResolveProvider_NonClaudeBuiltIns.
 }
 
 // TestDefaultsFileDefinesOnlyItsSurface: defaults.yaml is layer 0 of the config
@@ -210,8 +242,10 @@ func TestPackageTablesMatchDefaultsFile(t *testing.T) {
 		{"DefaultDispatchCommand", DefaultDispatchCommand, cfg.Providers[DefaultProviderName].DispatchCommand},
 		{"DefaultCodexSessionCommand", DefaultCodexSessionCommand, cfg.Providers[providerCodex].SessionCommand},
 		{"DefaultCodexDispatchCommand", DefaultCodexDispatchCommand, cfg.Providers[providerCodex].DispatchCommand},
-		{"DefaultGeminiSessionCommand", DefaultGeminiSessionCommand, cfg.Providers[providerGemini].SessionCommand},
-		{"DefaultGeminiDispatchCommand", DefaultGeminiDispatchCommand, cfg.Providers[providerGemini].DispatchCommand},
+		// agy and kimi are dispatch-only, so they export no session-command var —
+		// their session_command ABSENCE is asserted in TestDefaultsFileProviders.
+		{"DefaultAgyDispatchCommand", DefaultAgyDispatchCommand, cfg.Providers[providerAgy].DispatchCommand},
+		{"DefaultKimiDispatchCommand", DefaultKimiDispatchCommand, cfg.Providers[providerKimi].DispatchCommand},
 	}
 	for _, c := range commands {
 		if c.got != c.want {

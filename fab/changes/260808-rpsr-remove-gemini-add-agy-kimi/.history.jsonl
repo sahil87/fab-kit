@@ -1,0 +1,23 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-08T22:48:27Z"}
+{"args":"Remove gemini provider support entirely (no compat migration) and add two new built-in providers: antigravity (agy CLI) and kimi (kimi-code CLI), including sync-target changes so .agents/skills deploys when any of codex/agy/kimi is on PATH and the .gemini/skills sync target is removed","cmd":"fab-new","event":"command","ts":"2026-08-08T22:48:27Z"}
+{"delta":"+4.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-08-08T22:52:07Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-08T22:54:37Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-08T22:54:48Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-08T22:55:39Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-08T23:20:02Z"}
+{"event":"review","result":"failed","ts":"2026-08-08T23:32:46Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-08T23:32:46Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-08T23:35:11Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-08T23:40:50Z"}
+{"event":"review","result":"failed","ts":"2026-08-09T00:02:01Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-09T00:02:01Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-09T00:04:29Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-09T00:17:58Z"}
+{"event":"review","result":"failed","ts":"2026-08-09T00:24:22Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-09T00:24:22Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-09T00:27:21Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-09T00:35:26Z"}
+{"event":"review","result":"passed","ts":"2026-08-09T00:35:26Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-09T00:46:03Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-09T00:48:48Z"}
+{"event":"review","result":"passed","ts":"2026-08-09T00:57:56Z"}

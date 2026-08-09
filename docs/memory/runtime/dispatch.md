@@ -220,7 +220,7 @@ In **both** modes the full stage prompt arrives on **stdin** and is persisted to
 
 ### Requirement: Pane prerequisites hard-error when forced and trigger re-descent when automatic
 
-Pane requires a reachable tmux server and `session_command`. An explicit `--pane` or `--server` request hard-errors on either missing prerequisite, launches nothing, and writes no state. Automatic selection instead records the failed pane reason and continues down the same ladder: `pane unavailable: no tmux`, `pane unavailable: tmux unreachable`, or `pane unavailable: no session_command`.
+Pane requires a reachable tmux server and `session_command`. An explicit `--pane` or `--server` request hard-errors on either missing prerequisite, launches nothing, and writes no state. Automatic selection instead records the failed pane reason and continues down the same ladder: `pane unavailable: no tmux`, `pane unavailable: tmux unreachable`, or `pane unavailable: no session_command`. The no-`session_command` shape is a **shipped** configuration, not a hypothetical one: the built-in `agy` and `kimi` providers are dispatch-only by design, because neither CLI can receive the pointer prompt a pane worker is handed (see [providers-and-profiles.md](/runtime/providers-and-profiles.md) § Dispatch-only built-ins).
 
 The first possible lower rung wins. A native-capable provider therefore redirects to native before any write; a non-native provider with `dispatch_command` launches headless. If neither lower rung is available, start/restart return the shared no-reachable-capability error. Command composition occurs only after final selection, so each rung reads only its own capability field.
 

@@ -1,0 +1,57 @@
+id: rpsr
+name: 260808-rpsr-remove-gemini-add-agy-kimi
+created: 2026-08-08T22:48:27Z
+created_by: Sahil Ahuja
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 22
+    acceptance_count: 26
+    acceptance_completed: 26
+confidence:
+    certain: 7
+    confident: 5
+    tentative: 0
+    unresolved: 0
+    score: 4.1
+    fuzzy: true
+    dimensions:
+        signal: 72.5
+        reversibility: 84.2
+        competence: 80.4
+        disambiguation: 77.5
+stage_metrics:
+    intake: {started_at: "2026-08-08T22:48:27Z", driver: fab-new, iterations: 1, completed_at: "2026-08-08T22:54:48Z"}
+    apply: {started_at: "2026-08-09T00:24:22Z", driver: fab-fff, iterations: 4, completed_at: "2026-08-09T00:27:21Z"}
+    review: {started_at: "2026-08-09T00:27:21Z", driver: fab-fff, iterations: 4, completed_at: "2026-08-09T00:35:26Z"}
+    hydrate: {started_at: "2026-08-09T00:35:26Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-09T00:46:03Z"}
+    ship: {started_at: "2026-08-09T00:46:03Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-09T00:48:48Z"}
+    review-pr: {started_at: "2026-08-09T00:48:48Z", driver: git-pr, iterations: 1, completed_at: "2026-08-09T00:57:56Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/559
+change_type_source: explicit
+true_impact:
+    added: 1830
+    deleted: 508
+    net: 1322
+    excluding:
+        added: 973
+        deleted: 325
+        net: 648
+    tests:
+        added: 650
+        deleted: 185
+        net: 465
+    computed_at: "2026-08-09T00:48:48Z"
+    computed_at_stage: ship
+summary: Provider roster becomes claude/codex/agy/kimi — gemini removed outright (no migration), agy and kimi ship dispatch-only grammar, and skills deploy to one generic .agents/skills target gated on any of codex/agy/kimi
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-09T00:57:56Z

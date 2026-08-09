@@ -9,13 +9,14 @@ import (
 	"strings"
 )
 
-// agentConfig describes how to deploy skills to a specific AI agent.
+// agentConfig describes how to deploy skills to a specific AI agent — or, for the
+// generic `.agents/skills` directory, to the set of CLIs that read it.
 type agentConfig struct {
-	Label   string // display name
-	CLI     string // command to check on PATH
-	BaseDir string // target directory relative to repo root
-	Format  string // "directory" or "flat"
-	Mode    string // "copy" or "symlink"
+	Label   string   // display name
+	CLIs    []string // candidate commands; the target deploys when ANY is on PATH
+	BaseDir string   // target directory relative to repo root
+	Format  string   // "directory" or "flat"
+	Mode    string   // "copy" or "symlink"
 }
 
 // deploySkills deploys skill files to agent-specific directories.
@@ -29,19 +30,22 @@ func deploySkills(repoRoot, kitDir string) error {
 		return nil
 	}
 
-	// Define agent configurations
+	// Define agent configurations. `.agents/skills` is the GENERIC workspace
+	// directory: codex, agy and kimi all discover skills there natively, so it
+	// deploys once when any of them is installed. Deploying a per-brand copy for
+	// those CLIs as well is what produced duplicate-skill conflict warnings, so one
+	// target per skill set is the invariant to keep.
 	agents := []agentConfig{
-		{Label: "Claude Code", CLI: "claude", BaseDir: filepath.Join(repoRoot, ".claude", "skills"), Format: "directory", Mode: "copy"},
-		{Label: "OpenCode", CLI: "opencode", BaseDir: filepath.Join(repoRoot, ".opencode", "commands"), Format: "flat", Mode: "copy"},
-		{Label: "Codex", CLI: "codex", BaseDir: filepath.Join(repoRoot, ".agents", "skills"), Format: "directory", Mode: "copy"},
-		{Label: "Gemini", CLI: "gemini", BaseDir: filepath.Join(repoRoot, ".gemini", "skills"), Format: "directory", Mode: "copy"},
+		{Label: "Claude Code", CLIs: []string{"claude"}, BaseDir: filepath.Join(repoRoot, ".claude", "skills"), Format: "directory", Mode: "copy"},
+		{Label: "OpenCode", CLIs: []string{"opencode"}, BaseDir: filepath.Join(repoRoot, ".opencode", "commands"), Format: "flat", Mode: "copy"},
+		{Label: "Agents dir", CLIs: []string{"codex", "agy", "kimi"}, BaseDir: filepath.Join(repoRoot, ".agents", "skills"), Format: "directory", Mode: "copy"},
 	}
 
 	agentsFound := 0
 	var errs []error
 	for _, agent := range agents {
-		if !agentAvailable(agent.CLI) {
-			fmt.Printf("Skipping %s: %s not found in PATH\n", agent.Label, agent.CLI)
+		if !agentAvailable(agent.CLIs...) {
+			fmt.Printf("Skipping %s: %s\n", agent.Label, missingCLIs(agent.CLIs))
 			continue
 		}
 
@@ -78,19 +82,42 @@ func listSkills(skillsDir string) []string {
 	return skills
 }
 
-// agentAvailable checks if an agent CLI is available.
-// Respects FAB_AGENTS env var override.
-func agentAvailable(cli string) bool {
+// agentAvailable reports whether ANY of the candidate CLIs is available. A target
+// with a single candidate is the common case; the generic `.agents/skills` target
+// passes the several CLIs that read that directory, and one of them being present
+// is enough to deploy it.
+// Respects FAB_AGENTS env var override, which likewise matches any candidate.
+func agentAvailable(clis ...string) bool {
 	if fabAgents, ok := os.LookupEnv("FAB_AGENTS"); ok {
-		for _, a := range strings.Fields(fabAgents) {
-			if a == cli {
-				return true
+		declared := strings.Fields(fabAgents)
+		for _, cli := range clis {
+			for _, a := range declared {
+				if a == cli {
+					return true
+				}
 			}
 		}
 		return false
 	}
-	_, err := exec.LookPath(cli)
-	return err == nil
+	for _, cli := range clis {
+		if _, err := exec.LookPath(cli); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// missingCLIs renders the "why this target was skipped" clause, matching the
+// phrasing to the number of candidates. Only the generic `.agents/skills` target
+// is gated on more than one CLI, so "none of claude found in PATH" would be a
+// grammatical wart on every single-candidate target — and the plural form still
+// has to name every candidate, since that list IS the actionable part (a user
+// with none installed learns what would enable the target).
+func missingCLIs(clis []string) string {
+	if len(clis) == 1 {
+		return clis[0] + " not found in PATH"
+	}
+	return "none of " + strings.Join(clis, ", ") + " found in PATH"
 }
 
 // syncAgentSkills deploys skills to an agent's directory.

@@ -205,6 +205,40 @@ func TestWithProfile_Template(t *testing.T) {
 			effort: "",
 			want:   "codex",
 		},
+		// Nested-shell dispatch grammar (260808-rpsr). agy and kimi take the
+		// prompt as the ARGUMENT to -p and ignore stdin, so their built-in
+		// dispatch_commands wrap the CLI in `sh -c '… -p "$(cat)"'`. Both the
+		// substituted and the token-drop paths must leave that quoted tail intact —
+		// it is what makes the piped prompt reach the worker at all.
+		{
+			name:   "nested-shell template substitutes without disturbing the quoted tail",
+			spawn:  `sh -c 'agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'`,
+			model:  "gemini-3.1-pro-high",
+			effort: "high",
+			want:   `sh -c 'agy --dangerously-skip-permissions --print-timeout 120m --model gemini-3.1-pro-high -p "$(cat)"'`,
+		},
+		{
+			// kimi ships no fills, so this is its SHIPPED resolution, not an edge
+			// case: the `-m {model}` pair drops as a pair and the interior quoted
+			// segment survives, leaving a command kimi runs against the user's own
+			// configured default_model.
+			name:   "empty model drops the -m pair inside a nested shell, quoting intact",
+			spawn:  `sh -c 'kimi -m {model} -p "$(cat)"'`,
+			model:  "",
+			effort: "",
+			want:   `sh -c 'kimi -p "$(cat)"'`,
+		},
+		{
+			// The drop must not reach back past the inner command into the outer
+			// `sh -c` — eating that `-c` would destroy the invocation entirely.
+			// Guarded here because `-m`'s preceding token IS the fused `'kimi`,
+			// which does not begin with `-`, so the walk stops where it should.
+			name:   "empty model drop does not reach the outer sh -c",
+			spawn:  `sh -c 'kimi -m {model} --resume -p "$(cat)"'`,
+			model:  "",
+			effort: "",
+			want:   `sh -c 'kimi --resume -p "$(cat)"'`,
+		},
 		// Multiple occurrences of one placeholder — all substituted.
 		{
 			name:   "multiple {model} occurrences all substituted",
