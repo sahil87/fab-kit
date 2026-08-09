@@ -41,8 +41,10 @@ is "owes a result artifact and owns no transitions", not "never spoken to".
 The pipeline already dispatches most post-intake stages as **sub-agents** (see `_preamble.md`
 § Subagent Dispatch). The move to sub-agents was driven by context isolation — a six-stage autonomous
 pipeline cannot fit in one context window, so each stage runs in a fresh context and returns a
-structured result. That same dispatch seam is the natural injection point for a per-stage model: the
-orchestrator sets the sub-agent's model **at dispatch time**.
+structured result (the one exception, a *continued* native apply worker across rework cycles, is
+[`harness-adapters.md`](harness-adapters.md) § 1's amendment and changes nothing here — the profile is
+still injected at the stage's first dispatch). That same dispatch seam is the natural injection point
+for a per-stage model: the orchestrator sets the sub-agent's model **at dispatch time**.
 
 This makes per-stage model selection fundamentally a property of **dispatched sub-agent runs**. Since
 260613-fgxx collapsed the post-intake dual execution mode, **every** post-intake stage dispatches a

@@ -12,7 +12,9 @@
 
 **Prose packaging (260808-s2sz):** the source presents Per-Stage Model Resolution as native-seam and override tables, CLI-Adapter Dispatch as a two-branch table plus four-step procedure/state/recovery/peek tables and four pane bullets, and Confidence Scoring as a one-row gate table plus invocation list. This is a structural rewrite only; the contracts summarized below are unchanged.
 
-Shared context preamble loaded by every Fab skill. It owns path/context/helper conventions, per-stage profile resolution (read through the four-layer config cascade: environment > project > system > built-in defaults), and the canonical cross-adapter dispatch procedure. `fab resolve-agent <stage> --alias` emits ordered `model=` plus optional `effort=`/`provider=`/`dispatch=` lines. `dispatch=` is derived from the `dispatch.mode` preference ceiling and independent provider capabilities (`session_command`, `native`, `dispatch_command`) through the descending `pane → native → headless` ladder; it is absent iff native resolves and otherwise carries the substituted pane/headless command. Dispatch sites surface the lines, branch only on `dispatch=` presence, and never execute its value. The CLI arm uses `fab dispatch`, its five-state observation/recovery contract, pane hygiene, and universal result/context/terminal-refresh prompt obligations; the native arm uses the Agent model and effort seams. Explicit pane/headless overrides remain hard, automatic selection never ascends, and native re-resolution at `fab dispatch start` stops actionably before state writes. The preamble also owns the one-restart recovery budget, wait/peek/escalation policy, SRAD confidence gate, logging conventions, and next-step routing.
+Shared context preamble loaded by every Fab skill. It owns path/context/helper conventions, per-stage profile resolution (read through the four-layer config cascade: environment > project > system > built-in defaults), and the canonical cross-adapter dispatch procedure. `fab resolve-agent <stage> --alias` emits ordered `model=` plus optional `effort=`/`provider=`/`dispatch=` lines. `dispatch=` is derived from the `dispatch.mode` preference ceiling and independent provider capabilities (`session_command`, `native`, `dispatch_command`) through the descending `pane → native → headless` ladder; it is absent iff native resolves and otherwise carries the substituted pane/headless command. Dispatch sites surface the lines, branch only on `dispatch=` presence, and never execute its value. The CLI arm uses `fab dispatch`, its five-state observation/recovery contract, pane hygiene, and universal result/context/terminal-refresh prompt obligations; the native arm uses the Agent model and effort seams. Explicit pane/headless overrides remain hard, automatic selection never ascends, and native re-resolution at `fab dispatch start` stops actionably before state writes. The preamble also owns **native-arm worker continuation** (§ Worker Continuation — the `apply-{id}` name, SendMessage resume, mandatory fresh-dispatch fallback, profile fixity, and apply-only scope), the one-restart recovery budget, wait/peek/escalation policy, SRAD confidence gate, logging conventions, and next-step routing.
+
+**Worker Continuation (260808-tv3g):** `_preamble.md` § Subagent Dispatch owns the mechanics that let an auto-rework-capable orchestrator reuse its apply worker across rework cycles on the **native arm only**; `_pipeline.md` carries the pointer plus the Step-1 naming and item-3 resume-first wiring (owner-or-pointer convention). The five mechanics: **naming** — the native apply dispatch passes `name: "apply-{id}"` (4-char change ID); **continuation** — a later cycle sends the triaged findings + chosen rework action to that name via SendMessage, and instructs the worker to RE-READ from disk every artifact the orchestrator edited at that item — always plan.md — because its in-context copy predates those edits, re-stating the block contract (results only, no `fab status` transition command, terminal `fab status refresh`) but deliberately NOT re-carrying the standard subagent context files, which the worker already holds; **fallback** — an unreachable handle (session resumed/restarted, no named-agent/SendMessage capability, send error, or worker never named because the stage went through the CLI adapter) falls back to today's fresh dispatch verbatim, including the full Dispatch-Prompt Obligations, and re-establishes the name for later cycles — continuation is an optimization, never a correctness dependency (Constitution III); **profile fixity** — a resumed worker keeps its first-dispatch model/effort and `fab resolve-agent apply --alias` is not re-run on the resume path, only on fresh (initial or fallback) dispatches; **scope guard** — apply only, inside the auto-rework loop, and review workers are never named or continued (the fresh-reviewer rule is reviewer-independence design), with hydrate and every other stage unaffected and the whole `dispatch=`-present CLI branch out of scope (headless non-resumable by decision, pane resume a separate change).
 
 This is an internal partial (`user-invocable: false`) — it is never invoked directly. Skills reference it via the opening instruction: "Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding."
 
@@ -105,7 +107,10 @@ Skill reads _preamble.md
 │  │  Read: config.yaml, constitution.md,
 │  │        context.md*, code-quality.md*,
 │  │        code-review.md*
-│  │  (applied at every nesting level)
+│  │  (applied at every nesting level, on every DISPATCH
+│  │   prompt; a continuation message to an already-running
+│  │   named worker does NOT re-carry them — Worker
+│  │   Continuation below)
 │  └─ Per-Stage Model Resolution (260613-l3ja, m3d4)
 │     Bash: fab resolve-agent <stage> --alias before each
 │           pipeline-stage sub-agent dispatch; SURFACE the
@@ -140,6 +145,40 @@ Skill reads _preamble.md
 │           tool's model param is a Claude-alias enum), so a
 │           cross-provider --provider override's SOLE
 │           executable path is the config override.
+│  ├─ Worker Continuation — NATIVE ARM ONLY (260808-tv3g)
+│  │  naming: the native apply dispatch passes
+│  │    name: "apply-{id}" (4-char change id) from the
+│  │    auto-rework-capable orchestrators (fab-ff / fab-fff,
+│  │    fab-adopt as partial consumer of that loop);
+│  │  continuation: a later rework cycle SendMessages the
+│  │    triaged findings + chosen rework action to that name
+│  │    instead of spawning fresh; the prompt instructs the
+│  │    worker to RE-READ from disk every artifact the
+│  │    orchestrator edited at that item — always plan.md —
+│  │    because its in-context copy predates those edits;
+│  │    the prompt also RE-STATES the
+│  │    block contract (results only, no fab status TRANSITION
+│  │    command, terminal fab status refresh) and deliberately
+│  │    does NOT re-carry the standard subagent context files
+│  │    (the worker holds them — that is the point);
+│  │  fallback (LOAD-BEARING): handle gone (session resumed/
+│  │    restarted) / no named-agent+SendMessage capability /
+│  │    send errors / never named (CLI adapter) ⇒ ordinary
+│  │    fresh dispatch with the full Dispatch-Prompt
+│  │    Obligations, which RE-ESTABLISHES the name. An
+│  │    optimization, never a correctness dependency —
+│  │    worst case is today's behavior (Constitution III);
+│  │  profile fixity: a resumed worker keeps its first-dispatch
+│  │    model/effort; fab resolve-agent apply --alias is NOT
+│  │    re-run on the resume path (resolution + surfacing
+│  │    happen only on fresh dispatches, initial or fallback);
+│  │  scope guard: apply ONLY, inside the auto-rework loop.
+│  │    Review workers are never named and never continued
+│  │    (reviewer-independence); hydrate + all other stages
+│  │    unaffected; the whole dispatch=-present CLI branch is
+│  │    out of scope (headless non-resumable BY DECISION,
+│  │    pane resume = a separate follow-up change)
+│  │
 │  ├─ CLI-Adapter Dispatch (260702-aetz / 3d — canonical)
 │  │  Branch on dispatch= at the resolve-agent call:
 │  │   absent  ⇒ native Agent-tool dispatch (two seams above)
@@ -266,10 +305,13 @@ Skill reads _preamble.md
 │       at .fab-dispatch/{id}/{stage}-result.yaml / native
 │       structural return; status vs verdict split; on the pane
 │       mode it is the SOLE completion signal);
-│     standard subagent context files;
+│     standard subagent context files (binds every DISPATCH; a
+│       continuation message to an already-running named worker
+│       carries obligations 1 and 3 only — Worker Continuation);
 │     terminal `fab status refresh` epilogue;
 │     delivery mechanism varies (prompt / stdin / prompt file +
-│       pointer) but prompt CONTENT is composed identically;
+│       pointer) but DISPATCH prompt CONTENT is composed
+│       identically;
 │     block-contract carve-out (no fab status TRANSITION
 │       commands; REQUIRE terminal fab status refresh —
 │       orchestrator still owns transitions, incl. on the pane
