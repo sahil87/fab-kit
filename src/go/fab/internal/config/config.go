@@ -251,21 +251,39 @@ type DispatchConfig struct {
 	ReapDone    *bool  `yaml:"reap_done"`
 }
 
-// DefaultDispatchMode is the built-in dispatch.mode preference. It is the
-// canonical symbol both GetDispatchMode and internal/configref consume.
-const DefaultDispatchMode = "native"
+// The three built-in dispatch defaults. They are VARS carrying NO literal values
+// because they no longer own a value: the single value source for all three is the
+// `dispatch:` block of internal/agent's embedded defaults.yaml, and internal/agent's
+// init() assigns the parsed values into these vars (260809-wll4). The push runs
+// agent → config because agent imports config — config cannot read the values back
+// without an import cycle — so agent owning the value is the only direction the
+// import graph allows. They are vars precisely so agent can own the value; keeping
+// the exported names means every consumer (the accessors below, internal/configref,
+// cmd/fab) reads the same symbol as before.
+//
+// A binary that never links internal/agent sees the Go zero values here. That
+// hazard is guarded, not accepted: agent_link_test.go blank-imports agent into
+// this package's test binary so the accessor tests read the injected values, and
+// internal/agent's TestConfigDispatchDefaultsMatchDefaultsFile fails loudly if the
+// init push ever breaks.
+var (
+	// DefaultDispatchMode is the built-in dispatch.mode preference. It is the
+	// canonical symbol both GetDispatchMode and internal/configref consume.
+	DefaultDispatchMode string
 
-// DefaultDispatchColumnWidth is the built-in dispatch.column_width — the percent of
-// the window a pane-mode worker column takes when it is carved, leaving the
-// dispatching agent the rest. It is the canonical symbol both the accessor below
-// and internal/configref's registry row read, so the default exists once.
-const DefaultDispatchColumnWidth = 35
+	// DefaultDispatchColumnWidth is the built-in dispatch.column_width — the
+	// percent of the window a pane-mode worker column takes when it is carved,
+	// leaving the dispatching agent the rest. It is the canonical symbol both the
+	// accessor below and internal/configref's registry row read, so the default
+	// exists once.
+	DefaultDispatchColumnWidth int
 
-// DefaultDispatchReapDone is the built-in dispatch.reap_done — whether a done
-// pane-mode worker's tmux pane is reclaimed by `fab dispatch reap`. Like
-// DefaultDispatchColumnWidth it is the canonical symbol both the accessor below and
-// internal/configref's registry row read, so the default exists once.
-const DefaultDispatchReapDone = true
+	// DefaultDispatchReapDone is the built-in dispatch.reap_done — whether a done
+	// pane-mode worker's tmux pane is reclaimed by `fab dispatch reap`. Like
+	// DefaultDispatchColumnWidth it is the canonical symbol both the accessor
+	// below and internal/configref's registry row read, so the default exists once.
+	DefaultDispatchReapDone bool
+)
 
 // Config holds the parsed project config relevant to the fab binary. It is
 // the single owner of fab/project/config.yaml parsing — every key the fab

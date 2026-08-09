@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-09T13:59:21Z"}
+{"args":"Config-overhaul Change 5 (source consolidation) per fab/plans/sahil/config-overhaul.md and backlog [x3cf] item 5: dispatch constants -\u003e defaults.yaml, retire the fab-kit stub config.yaml, add config upgrade --check drift mode, add fence scope annotations, fix the show --origin knob-blind bug; plus the folded items -- config init --print/--force flags, and a config-file prose diet (short per-field fence lines pointing at fab config explain).","cmd":"fab-new","event":"command","ts":"2026-08-09T13:59:21Z"}
+{"delta":"+4.2","event":"confidence","score":4.2,"trigger":"calc-score","ts":"2026-08-09T14:01:13Z"}
+{"delta":"-0.2","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-08-09T14:01:35Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-09T14:03:45Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-09T14:03:55Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-09T14:57:49Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-09T15:03:45Z"}
+{"event":"review","result":"passed","ts":"2026-08-09T15:03:45Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-09T15:10:31Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-09T15:14:39Z"}
+{"event":"review","result":"passed","ts":"2026-08-09T15:37:59Z"}

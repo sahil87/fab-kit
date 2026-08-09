@@ -106,6 +106,9 @@ func TestFreeze_CarriesRenameOnce(t *testing.T) {
 			Scope:       configref.ScopeProject,
 			Advertise:   true,
 			Segment:     "# branch_prefix\n# branch_prefix: \"\"",
+			ShortSegment: "# branch_prefix — worktree branch prefix. [project]\n" +
+				"# Full prose: fab config explain branch_prefix\n" +
+				"# branch_prefix: \"\"",
 		},
 	}
 	src := "old_key: keep-this-value\n"
@@ -146,6 +149,9 @@ func TestRender_RenameSkippedWhenTargetLive(t *testing.T) {
 			Scope:       configref.ScopeProject,
 			Advertise:   true,
 			Segment:     "# branch_prefix\n# branch_prefix: \"\"",
+			ShortSegment: "# branch_prefix — worktree branch prefix. [project]\n" +
+				"# Full prose: fab config explain branch_prefix\n" +
+				"# branch_prefix: \"\"",
 		},
 	}
 	// Both old_key AND new_key are live — the target is already set.

@@ -587,7 +587,8 @@ func TestDispatchOpen_UnreadableRecordWarnsAndStillLaunches(t *testing.T) {
 // TestDispatchOpen_CarvingSplitSizesTheWorkerColumn is the sizing rule: the
 // column-CARVING split runs `-l <n>%`, so the dispatching agent — the pane the user
 // is actually watching — keeps the rest of the window instead of being halved. The
-// width comes from `dispatch.column_width` (default 35), and the STACKING split that
+// width comes from `dispatch.column_width` (built-in default
+// config.DefaultDispatchColumnWidth), and the STACKING split that
 // follows leaves the left/right separator untouched: the column invariant.
 func TestDispatchOpen_CarvingSplitSizesTheWorkerColumn(t *testing.T) {
 	for _, tc := range []struct {

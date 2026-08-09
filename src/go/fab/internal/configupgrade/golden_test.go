@@ -25,13 +25,22 @@ import (
 // over: one non-advertised identity field (project.name — an A field, never fenced)
 // and two advertised C fields with short, stable segments. Small on purpose so the
 // pinned documents stay readable and do not churn on real-registry prose edits.
+// The ShortSegments model the shipped file-bound shape (260809-wll4 R6/R7: short
+// description + [scope] tag + `fab config explain <key>` pointer), so the goldens
+// pin that shape byte-for-byte.
 func goldenFields() []configref.Field {
 	return []configref.Field{
 		{Key: "project.name", Description: "name", Scope: configref.ScopeProject, Advertise: false, InitSeed: true},
 		{Key: "branch_prefix", Description: "prefix", Scope: configref.ScopeProject, Advertise: true,
-			Segment: "# branch_prefix — worktree branch prefix.\n# branch_prefix: \"\""},
+			Segment: "# branch_prefix — worktree branch prefix.\n# branch_prefix: \"\"",
+			ShortSegment: "# branch_prefix — worktree branch prefix. [project]\n" +
+				"# Full prose: fab config explain branch_prefix\n" +
+				"# branch_prefix: \"\""},
 		{Key: "test_paths", Description: "tests", Scope: configref.ScopeProject, Advertise: true,
-			Segment: "# test_paths — test globs.\ntest_paths:\n  - \"**/*_test.go\""},
+			Segment: "# test_paths — test globs.\ntest_paths:\n  - \"**/*_test.go\"",
+			ShortSegment: "# test_paths — test globs. [project]\n" +
+				"# Full prose: fab config explain test_paths\n" +
+				"test_paths:\n  - \"**/*_test.go\""},
 	}
 }
 
@@ -43,16 +52,18 @@ func endAnchor() string           { return anchorLine(endPrefix) }
 
 // fenceBlock is the fixed fence body the synthetic field set renders (BEGIN anchor
 // through END anchor, inclusive), for a given kit version. Assembled from the same
-// constants + segments the engine walks, so a golden document is `preamble + sep +
-// fenceBlock + parked`.
+// constants + short segments the engine walks, so a golden document is
+// `preamble + sep + fenceBlock + parked`.
 func fenceBlock(v string) string {
 	return beginAnchor(v) + "\n" +
 		fenceHeaderComment + "\n" +
 		"#\n" +
-		"# branch_prefix — worktree branch prefix.\n" +
+		"# branch_prefix — worktree branch prefix. [project]\n" +
+		"# Full prose: fab config explain branch_prefix\n" +
 		"# branch_prefix: \"\"\n" +
 		"#\n" +
-		"# test_paths — test globs.\n" +
+		"# test_paths — test globs. [project]\n" +
+		"# Full prose: fab config explain test_paths\n" +
 		"# test_paths:\n" +
 		"#   - \"**/*_test.go\"\n" +
 		endAnchor()
@@ -93,7 +104,8 @@ func TestGolden_LiveOverrideOmittedFromFence_FullDocument(t *testing.T) {
 		beginAnchor("2.15.0") + "\n" +
 		fenceHeaderComment + "\n" +
 		"#\n" +
-		"# test_paths — test globs.\n" +
+		"# test_paths — test globs. [project]\n" +
+		"# Full prose: fab config explain test_paths\n" +
 		"# test_paths:\n" +
 		"#   - \"**/*_test.go\"\n" +
 		endAnchor() + "\n"
@@ -134,7 +146,8 @@ func TestGolden_BelowFenceContentHoisted_FullDocument(t *testing.T) {
 		beginAnchor("2.15.0") + "\n" +
 		fenceHeaderComment + "\n" +
 		"#\n" +
-		"# test_paths — test globs.\n" +
+		"# test_paths — test globs. [project]\n" +
+		"# Full prose: fab config explain test_paths\n" +
 		"# test_paths:\n" +
 		"#   - \"**/*_test.go\"\n" +
 		endAnchor() + "\n"

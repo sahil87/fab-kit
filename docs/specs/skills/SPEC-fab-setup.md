@@ -17,7 +17,7 @@ Bootstraps a new project or manages config/constitution/migrations. Creates `fab
 
 **test_paths detection** (260626-5qf5): Config Create-Mode reads on-disk marker files (`go.mod`, `pyproject.toml`/`pytest.ini`, jest/vitest deps, `pom.xml`/`build.gradle`, `*.csproj`) and derives an anchored `test_paths` pattern. As of 260708-j0qm the **same marker table is applied first by `fab init` at the Go layer** (it seeds the generated `config.yaml`'s `test_paths` live), and Config Create-Mode confirms/refines it in place (adding richer calls the Go layer skips — JS/TS package.json-dep detection, ambiguous stacks) rather than deriving it from scratch. It never prompts; Config Output surfaces the detected ecosystem+patterns (or "no test convention detected → left empty" for Rust/unrecognized stacks). The `2.7.1-to-2.8.0` migration backfills the same detection + comment refresh for existing repos.
 
-**Config generation from the registry** (260708-j0qm): the scaffold `config.yaml` was deleted; `fab init` generates the initial `config.yaml` by shelling out to the pinned fab-go's `fab config init --project`, **passing a mechanically-detected identity seed** — `project.name` from the repo folder name, `source_paths` from an existing `src/`, `test_paths` from the ecosystem marker table — as `--name`/`--source-path`/`--test-path` flags, so the generated file carries those A-class fields **live** above the managed reference fence (no `agent:` key pinned; `project.description` is not mechanically detectable and is absent). A minimal embedded stub fallback (carrying the same detected seed) is written when the installed fab-go predates the subcommand. `fab_version` left `config.yaml` for the plain-text sibling `fab/.fab-version` (stamped by `fab init`/`fab upgrade-repo`). Config Create-Mode then **refines** the seeded values to the user's choices and **adds the description**, in place via targeted string replacement (not a template substitution), and never touches the pinned version.
+**Config generation from the registry** (260708-j0qm): the scaffold `config.yaml` was deleted; `fab init` generates the initial `config.yaml` by shelling out to the pinned fab-go's `fab config init --project`, **passing a mechanically-detected identity seed** — `project.name` from the repo folder name, `source_paths` from an existing `src/`, `test_paths` from the ecosystem marker table — as `--name`/`--source-path`/`--test-path` flags, so the generated file carries those A-class fields **live** above the managed reference fence (no `agent:` key pinned; `project.description` is not mechanically detectable and is absent). When the installed fab-go predates the subcommand, `fab init` fails closed with an error instructing the user to upgrade fab-go — the embedded stub fallback is retired (260809-wll4). `fab_version` left `config.yaml` for the plain-text sibling `fab/.fab-version` (stamped by `fab init`/`fab upgrade-repo`). Config Create-Mode then **refines** the seeded values to the user's choices and **adds the description**, in place via targeted string replacement (not a template substitution), and never touches the pinned version.
 
 ## Flow
 
@@ -39,8 +39,9 @@ User invokes /fab-setup [subcommand]
 │  │   `fab config init --project`, PASSING a mechanically-detected
 │  │   identity seed (repo-folder name, src/ dir, marker-table
 │  │   test_paths) as --name/--source-path/--test-path flags so the
-│  │   file's A-class fields are already LIVE; or a minimal embedded
-│  │   stub carrying the same seed if the installed fab-go predates it;
+│  │   file's A-class fields are already LIVE; when the installed
+│  │   fab-go predates the subcommand, fab init fails closed telling
+│  │   the user to upgrade fab-go — no stub is written;
 │  │   fab_version lives in fab/.fab-version)
 │  │  ├─ Read: README, package.json (project context)
 │  │  ├─ Read: the registry-generated fab/project/config.yaml (identity

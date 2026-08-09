@@ -59,40 +59,51 @@ func TestStampFabVersion_DoesNotWriteConfig(t *testing.T) {
 	}
 }
 
-// TestGenerateProjectConfig_StubFallback: when the pinned fab-go writes no
-// config.yaml (a predates-subcommand stub binary), generateProjectConfig falls
-// open to the embedded stub so a fresh repo always has a config.yaml — carrying
-// the detected identity seed (the repo folder name).
-func TestGenerateProjectConfig_StubFallback(t *testing.T) {
+// TestGenerateProjectConfig_FailsWhenFabGoCannotGenerate: when the pinned fab-go
+// writes no config.yaml (a predates-subcommand binary), generateProjectConfig
+// returns an error naming the upgrade remedy and leaves NO config.yaml behind —
+// init must fail loudly rather than silently writing a stub.
+func TestGenerateProjectConfig_FailsWhenFabGoCannotGenerate(t *testing.T) {
 	repoRoot := filepath.Join(t.TempDir(), "my-cool-repo")
 	if err := os.MkdirAll(repoRoot, 0755); err != nil {
 		t.Fatal(err)
 	}
-	// A stub fab-go that exits 0 but writes nothing (mimics a predates-subcommand
-	// binary that ignores the unknown `config init --project`).
-	binDir := t.TempDir()
-	fabGoBin := filepath.Join(binDir, "fab-go")
-	if err := os.WriteFile(fabGoBin, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
-		t.Fatal(err)
-	}
 	configPath := filepath.Join(repoRoot, "fab", "project", "config.yaml")
 
-	if err := generateProjectConfig(fabGoBin, repoRoot, configPath); err != nil {
-		t.Fatalf("generateProjectConfig: %v", err)
+	// A fake fab-go that exits 0 but writes nothing (mimics a predates-subcommand
+	// binary that ignores the unknown `config init --project`).
+	binDir := t.TempDir()
+	silentBin := filepath.Join(binDir, "fab-go")
+	if err := os.WriteFile(silentBin, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatal(err)
 	}
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		t.Fatalf("stub fallback did not write a config.yaml: %v", err)
+
+	err := generateProjectConfig(silentBin, repoRoot, configPath)
+	if err == nil {
+		t.Fatal("expected an error when fab-go writes no config.yaml")
 	}
-	// The stub carries the A-class identity fields so preflight passes.
-	for _, want := range []string{"project:", "name:", "source_paths:"} {
-		if !strings.Contains(string(data), want) {
-			t.Errorf("stub config missing %q:\n%s", want, string(data))
-		}
+	if !strings.Contains(err.Error(), "upgrade fab-go") {
+		t.Errorf("error must name the upgrade-fab-go remedy, got: %v", err)
 	}
-	// The detected repo folder name is seeded into the stub (not the placeholder).
-	if !strings.Contains(string(data), `name: "my-cool-repo"`) {
-		t.Errorf("stub must carry the detected repo name, got:\n%s", string(data))
+	if _, statErr := os.Stat(configPath); !os.IsNotExist(statErr) {
+		t.Error("no config.yaml may be created on the failure path")
+	}
+
+	// A fake fab-go that exits non-zero with output — the trimmed output is
+	// carried into the error for diagnosis.
+	failingBin := filepath.Join(binDir, "fab-go-fail")
+	if err := os.WriteFile(failingBin, []byte("#!/bin/sh\necho 'unknown command' >&2\nexit 1\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	err = generateProjectConfig(failingBin, repoRoot, configPath)
+	if err == nil {
+		t.Fatal("expected an error when fab-go exits non-zero")
+	}
+	if !strings.Contains(err.Error(), "unknown command") {
+		t.Errorf("error must include the shell-out output, got: %v", err)
+	}
+	if _, statErr := os.Stat(configPath); !os.IsNotExist(statErr) {
+		t.Error("no config.yaml may be created on the failure path")
 	}
 }
 
@@ -359,10 +370,10 @@ func TestInit_ThreadsVersionsIntoSync(t *testing.T) {
 	if strings.TrimSpace(string(dotVer)) != latest {
 		t.Errorf("fab/.fab-version = %q, want %s", strings.TrimSpace(string(dotVer)), latest)
 	}
-	// config.yaml exists (the stub fab-go writes nothing, so the embedded stub
-	// fallback fires — a fresh repo must always have a config.yaml).
+	// config.yaml exists — the cached fake fab-go honors `config init --project`
+	// and writes it (see populateRemoteCache).
 	if _, err := os.Stat(filepath.Join(dir, "fab", "project", "config.yaml")); err != nil {
-		t.Errorf("Init must leave a config.yaml (stub fallback): %v", err)
+		t.Errorf("Init must leave a config.yaml: %v", err)
 	}
 }
 
