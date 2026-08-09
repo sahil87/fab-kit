@@ -2,6 +2,7 @@ package configref
 
 import (
 	"encoding/json"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -152,5 +153,46 @@ func TestRegistryRowsDeclareValueKinds(t *testing.T) {
 		if !configvalue.Valid(field.Kind) {
 			t.Errorf("field %q has invalid kind %q", field.Key, field.Kind)
 		}
+	}
+}
+
+// TestShortSegmentsCarryScopeAnnotationsAndRealExplainKeys is the 260809-wll4
+// R6/R7 registry contract for the file-bound short form: every ShortSegment
+// carries its row's [project|system|both] scope tag, exactly one
+// `fab config explain <key>` pointer whose key is a REAL registry key (a pointer
+// at an unresolvable key would strand the reader), and — for preference-class
+// (scope both) rows — the `fab config set --system` machine-wide pointer. The
+// lint pins tag/pointer presence at construction; this guard pins the pointer
+// TARGETS (ResolveKey calls Fields, so the lint itself cannot).
+func TestShortSegmentsCarryScopeAnnotationsAndRealExplainKeys(t *testing.T) {
+	fields, err := Fields()
+	if err != nil {
+		t.Fatalf("Fields: %v", err)
+	}
+	explainRe := regexp.MustCompile(`fab config explain (\S+)`)
+	short := 0
+	for _, f := range fields {
+		if f.ShortSegment == "" {
+			continue
+		}
+		short++
+		if tag := "[" + string(f.Scope) + "]"; !strings.Contains(f.ShortSegment, tag) {
+			t.Errorf("field %q ShortSegment is missing its scope tag %q", f.Key, tag)
+		}
+		matches := explainRe.FindAllStringSubmatch(f.ShortSegment, -1)
+		if len(matches) != 1 {
+			t.Errorf("field %q ShortSegment carries %d explain pointers, want exactly 1", f.Key, len(matches))
+		}
+		for _, m := range matches {
+			if _, ok, err := ResolveKey(m[1]); err != nil || !ok {
+				t.Errorf("field %q ShortSegment points at %q, which does not resolve to a registry key (ok=%v err=%v)", f.Key, m[1], ok, err)
+			}
+		}
+		if f.Scope == configscope.ScopeBoth && !strings.Contains(f.ShortSegment, "fab config set --system ") {
+			t.Errorf("field %q is scope both — its ShortSegment must point at `fab config set --system <key> <value>`", f.Key)
+		}
+	}
+	if short == 0 {
+		t.Fatal("no ShortSegments — the file-bound renderers would render nothing")
 	}
 }

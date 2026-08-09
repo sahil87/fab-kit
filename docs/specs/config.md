@@ -14,7 +14,11 @@
 >
 > The canonical schema is the Go field table in `src/go/fab/internal/configref/`; this doc is its
 > human-readable rationale. Defaults that have a Go symbol are sourced from that symbol, never
-> restated here or in the table.
+> restated here or in the table. The values behind those symbols are single-sourced in
+> `src/go/fab/internal/agent/defaults.yaml` (embedded into the binary via `go:embed`). The embedded
+> census is exactly: `defaults.yaml` (values) + `internal/configref` (schema/prose) +
+> `internal/configscope` (scope taxonomy) + `src/kit/scaffold/` (non-config files) — no stub copy of
+> the config exists anywhere.
 
 `fab/project/config.yaml` is the single project-config file the `fab` binary and the markdown skills
 read. This spec fixes how its schema is modeled: not as prose, but as an ordered **per-field metadata
@@ -61,7 +65,18 @@ lists replace, scalars replace).
 
 Every default that has a canonical Go symbol is referenced from it, not copied: the claude session
 command from `agent.DefaultInteractiveCommand`, the per-role profiles via `agent.DefaultProfile` over
-`agent.RoleNames()`, the stage names via `agent.StageNames()`. The registry construction fails loud
+`agent.RoleNames()`, the stage names via `agent.StageNames()`. Those symbols are projections of one
+values file, not independent constants: the built-in tier's values — the two depth knobs' `claude`,
+the three `dispatch` defaults (`mode: native`, `column_width: 35`, `reap_done: true`), and the four
+providers' capability grammars and role fills — live in `src/go/fab/internal/agent/defaults.yaml`,
+embedded into the binary via `go:embed` and parsed once. The three dispatch values reach
+`internal/config` through its exported `DefaultDispatchMode` / `DefaultDispatchColumnWidth` /
+`DefaultDispatchReapDone`, which are **package-level vars carrying no literal of their own**, assigned
+by `internal/agent`'s `init()` from the parsed `defaults.yaml`. The push direction is cycle-forced:
+agent imports config, so config can never read the values back from agent — assigning into config at
+init is the only direction the import graph allows. The nil-safe accessors
+(`GetDispatchMode`/`GetDispatchColumnWidth`/`GetDispatchReapDone`) and every other consumer read the
+same exported symbols as before. The registry construction fails loud
 (returns an error rather than emitting a degraded reference) if a role reported by `RoleNames()` does not
 resolve through `DefaultProfile`, or a row has an empty description or
 an invalid scope — the same fail-loud discipline the pre-metadata-table renderer applied to its invariants.
@@ -128,6 +143,27 @@ second copy of the schema to drift — a field's documentation is authored once,
 map-valued fields (`providers`, the `agent:` block, `stage_hooks`) build their segment by interpolating the
 same Go symbols their `default` reads, so the rendered prose carries no literal copy of any value.
 The existing reference tests assert those blocks verbatim; the restructure preserves them byte-for-byte.
+
+**Each row also carries the SHORT form of its segment (`ShortSegment`)** — the file-bound advert the
+managed fence and the `--system` scaffold render, as distinct from the long `Segment`, which remains
+the `fab config explain` surface, unchanged in depth. A short segment is a diet header over the same
+YAML block: one to four short description lines with the row's scope tag (`[project]`/`[system]`/
+`[both]`, from the `configscope` taxonomy) appended to the last, then two pointer lines — scope-`both`
+adverts carry `# Settable machine-wide: fab config set --system <key> <value>` (one line per settable
+key of the block), and every advert carries `# Full prose: fab config explain <key>` — followed by the
+field's YAML lines, interpolating the same canonical symbols the `default` reads. The registry lint
+pins the scope tag and both pointers against the row's metadata, so the annotations are sourced from
+the row rather than re-typed. Shape (from the full-document golden tests, over a small synthetic field
+set):
+
+```
+# branch_prefix — worktree branch prefix. [project]
+# Full prose: fab config explain branch_prefix
+# branch_prefix: ""
+```
+
+Generated files carry the diet form so a project's `config.yaml` stays scannable; the essays stay in
+`fab config explain`.
 
 **Several rows under one YAML block share a single segment.** Where two or more override units live
 under the same top-level key, the segment belongs to the *first* of them and documents them all; the
@@ -245,8 +281,8 @@ demoted on exactly that basis: the advertised agent surface is the two depth kno
 `agent.workers`), and scaffolding the six role profiles plus the built-in provider grammars cost ~90 commented
 lines of every project's `config.yaml` for a surface almost nobody overrides (naming a built-in provider
 on a knob needs no `providers:` entry at all). Both rows keep their registry entries, their `--json`
-defaults, and their rendered segments, so they remain in `fab config explain` and in
-`fab config init --system` — the two surfaces whose job *is* completeness.
+defaults, and their rendered segments, so they remain in `fab config explain` — the surface whose job
+*is* completeness — and in `fab config init --system` as the diet short-segment form.
 
 Two mechanics follow from the demotion:
 
@@ -357,7 +393,8 @@ agent, operator, batch, spawn, prmeta — sees effective config with zero per-ca
 1. **environment** — YAML-valued variables derived from registry keys
 2. **system** — `~/.fab-kit/config.yaml` (co-located with the version cache; XDG path rejected — decision 5)
 3. **project** — `fab/project/config.yaml`
-4. **built-in defaults** — the Go tables in the `fab` binary (this spec's table), applied at the
+4. **built-in defaults** — the values in `internal/agent`'s embedded `defaults.yaml` (read through
+   the Go symbols this spec's table references), applied at the
    existing point-of-use seams (`internal/agent`'s role/provider resolution, the nil-safe accessors)
    and projected as a materialized read-model tier by `configref.DefaultsMap` (below)
 
@@ -496,12 +533,16 @@ environment walk cannot drift from the reference schema.
   built-in default keeps the bare notice. The shared YAML value parser retains collections in either flow
   or block style for the environment overlay only; ENV list/map support does not widen the mutation
   contract.
-- `fab config init [--system]` — bare init generates the project file; `--project` remains a
+- `fab config init [--system] [--print] [--force]` — bare init generates the project file; `--project` remains a
   compatible explicit spelling. `--system` writes a `~/.fab-kit/config.yaml` scaffold containing ONLY
-  `scope: system`/`both` fields, all commented — generated from this same table so it can't drift.
-  Both modes refuse to overwrite an existing file (no `--force`), and the two explicit flags are
-  mutually exclusive.
-- `fab config upgrade` remains the whole-project-file reconciliation verb described below.
+  `scope: system`/`both` fields, all commented (the SHORT per-field adverts, not the essays) — generated from this same table so it can't drift.
+  Both modes refuse to overwrite an existing file unless `--force` is given (`--force` explicitly
+  overwrites the target; refusal stays the default), and the two mode flags are
+  mutually exclusive. `--print` renders the exact would-be file to stdout with **zero writes**: it
+  composes with both modes, is never blocked by an existing file, and `--print --force` is a pure
+  preview of what an overwrite would write.
+- `fab config upgrade` remains the whole-project-file reconciliation verb described below, now with a
+  `--check` drift probe (§ The managed fence).
 
 There is no reserved `validate` verb. Unknown-key refusal and system-scope enforcement happen at
 the mutation seam where they are actionable.
@@ -522,7 +563,9 @@ and auto-dropping would silently change behavior when the default later moves.
 
 `fab config upgrade` (the whole-file reconciler in the shared comment-aware writing engine) regenerates a
 byte-stable, idempotent **managed fence** of commented C-fields (`advertise: true`, not currently
-overridden), delimited by byte-exact `>>>`/`<<<` splice anchors carrying a kit-version stamp
+overridden), rendered from each field's SHORT segment (`ShortSegment` — the 1–4-line
+scope-tagged description header plus the machine-wide and `fab config explain` pointers, §
+Section-level prose), never the long essay, delimited by byte-exact `>>>`/`<<<` splice anchors carrying a kit-version stamp
 (`# >>> fab reference (kit X.Y.Z) >>> …` / `# <<< end fab reference <<< …`, dash-padded). Upgrade
 rewrites ONLY between the markers; everything outside — including the user's own comments on A-fields —
 is the user's. Every scaffolded block is **fully commented including its parent keys** (a live `agent:`
@@ -552,8 +595,12 @@ owns whole-file reconciliation while `set`/`unset` use its surgical path splice 
 renderer. This retires the comment-clobbering
 `setFabVersion` bug class at the root. `fab upgrade-repo` **auto-runs** the upgrader after sync
 (decision 4, fail-open: a fab-go predating the subcommand prints a reminder and the upgrade continues).
-The kit-version stamp in the BEGIN line makes staleness visible and enables a *later* `--check` drift
-mode (not in this change).
+The kit-version stamp in the BEGIN line makes staleness visible and feeds the **`--check` drift
+probe**: `fab config upgrade --check` shares Upgrade's entire compute path (`configupgrade.Check`
+calls the same `computeUpgrade`) but writes NOTHING — it prints what a run would change and exits
+non-zero when the file has drifted (a stale fence kit-version stamp, unparked removed keys, a missing
+fence, or a missing file, which a real run would create), 0 when the file is clean. The shared compute
+path means the probe can never disagree with an applying run about what would change.
 
 ### `fab_version` → `fab/.fab-version` [Change 3 — landed] (decision 1)
 
@@ -587,9 +634,12 @@ from the registry: the **A-class identity fields** (`InitSeed` rows — `project
 `project.description`, `source_paths`, `test_paths`) written live above the managed fence, then the fence
 of commented C fields. No `agent:` key is pinned at init (presence=intent — an init-pinned knob or role profile
 would be an accidental override). `fab init` (the fab-kit binary) shells out to the pinned fab-go's
-`fab config init --project`; when that fab-go predates the subcommand, it falls open to a minimal
-**embedded stub** `config.yaml` (a fresh repo must never fail preflight for lack of a config.yaml — not a
-printed instruction). The registry carries the init/seed metadata (`InitSeed`) marking which fields are
+`fab config init --project`; when that fab-go cannot generate the project config (e.g. it predates the
+subcommand), `fab init` **fails with a clear error** naming the remedy — upgrade fab-go (e.g. `brew
+upgrade fab-kit`) and re-run `fab init`. The fab-kit binary's former embedded stub `config.yaml`
+fallback is **retired**: the binary ships zero stub copies of the config, keeping the embed census at
+`defaults.yaml` (values) + `internal/configref` (schema/prose) + `internal/configscope` (scope
+taxonomy) + `src/kit/scaffold/` (non-config files). The registry carries the init/seed metadata (`InitSeed`) marking which fields are
 written live at init; fab-kit's mechanical detection — the repo folder name, an existing `src/`, and the
 ecosystem marker-table `test_paths` — becomes generator input, passed as `--name`/`--source-path`/
 `--test-path` flags so those A-class fields land live (`project.description` is not mechanically

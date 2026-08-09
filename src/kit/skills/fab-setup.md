@@ -146,7 +146,7 @@ Create mode applies when any condition holds:
 - The file is a placeholder generation containing `My Project` (the embedded-stub fallback name).
 - Either required field, `project.name` or `project.description`, is missing.
 
-Before `fab sync`, `fab init` generates the file through `fab config init --project`, or a minimal embedded stub when that command is unavailable.
+Before `fab sync`, `fab init` generates the file through `fab config init --project`; when the installed fab-go predates that subcommand, `fab init` fails with an error telling the user to upgrade fab-go.
 
 | Field | Seeded by init | Your job |
 |-------|----------------|----------|

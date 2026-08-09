@@ -34,14 +34,22 @@ func stubRunSync(t *testing.T, fn func(systemVersion, kitVersion string, shimOnl
 }
 
 // populateRemoteCache creates a resolvable cached version under home so
-// EnsureCached never hits the network.
+// EnsureCached never hits the network. The fake fab-go honors
+// `config init --project` (writing fab/project/config.yaml in the cwd, which is
+// the repo root when Init shells out) and exits 0 for anything else.
 func populateRemoteCache(t *testing.T, home, version string) {
 	t.Helper()
 	dir := filepath.Join(home, ".fab-kit", "versions", version)
 	if err := os.MkdirAll(filepath.Join(dir, "kit"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "fab-go"), []byte("#!/bin/sh\n"), 0755); err != nil {
+	fakeFabGo := "#!/bin/sh\n" +
+		"if [ \"$1 $2 $3\" = \"config init --project\" ]; then\n" +
+		"  mkdir -p fab/project\n" +
+		"  printf 'project:\\n  name: from-fab-go\\n' > fab/project/config.yaml\n" +
+		"fi\n" +
+		"exit 0\n"
+	if err := os.WriteFile(filepath.Join(dir, "fab-go"), []byte(fakeFabGo), 0755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "kit", "VERSION"), []byte(version+"\n"), 0644); err != nil {

@@ -33,6 +33,21 @@ agent:
   session: claude
   workers: claude
 
+# dispatch — the built-in stage-dispatch defaults, and the SINGLE VALUE SOURCE
+# for all three: internal/agent's init() pushes these parsed values into
+# internal/config's DefaultDispatchMode / DefaultDispatchColumnWidth /
+# DefaultDispatchReapDone vars, which carry no literal of their own (the push
+# runs agent → config because agent imports config; the reverse would cycle).
+# No Go file holds a copy — TestDefaultsFileDispatchBlockIsPinned pins these
+# values and TestConfigDispatchDefaultsMatchDefaultsFile guards the push, so a
+# drift or a broken wiring names itself in the failure output. reap_done is
+# parsed as a *bool (see config.DispatchConfig): an absent key must stay
+# distinguishable from an explicit false, which a plain bool cannot do.
+dispatch:
+  mode: native
+  column_width: 35
+  reap_done: true
+
 # providers — the built-in launch capability grammars plus each provider's per-role
 # fills. claude, codex and agy ship fills, so `agent.workers: codex` is one line
 # and every role still gets a model suited to it. Non-claude fills are refreshed at

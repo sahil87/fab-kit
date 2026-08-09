@@ -22,7 +22,8 @@
 // Upgrade rewrites ONLY the region between (and including) the two anchor lines;
 // everything outside is the user's. A legacy file with no fence gets one appended
 // at the bottom. The kit-version stamp in the BEGIN line makes staleness visible
-// (it enables a later --check drift mode — NOT in this change). Every scaffolded
+// (it feeds the Check drift probe behind `fab config upgrade --check`). Every
+// scaffolded
 // block is fully commented INCLUDING parent keys (a live `agent:` key over
 // comment-only children is exactly what the old masher collapsed to `agent: null`).
 // The fence omits fields already overridden as live keys above it.
@@ -93,10 +94,11 @@ const fenceHeaderComment = `# Overridable fields you have NOT overridden, with c
 # fence are overwritten. To override a field: move it ABOVE the fence and
 # uncomment it.`
 
-// Result reports what an Upgrade run did, for the command's advisory output.
+// Result reports what an Upgrade run did (or what a Check run computed), for
+// the command's advisory output.
 type Result struct {
-	// Changed is true when the on-disk file was rewritten (false = already
-	// byte-identical, a no-op).
+	// Changed is true when the on-disk file was rewritten (Upgrade) or WOULD be
+	// rewritten by a real run (Check) — false = already byte-identical, a no-op.
 	Changed bool
 	// Report holds advisory lines for the user (B-hygiene notes, parked-key
 	// notices, rename carries). Never fatal — informational only.
@@ -110,17 +112,54 @@ type Result struct {
 // byte-stable/idempotent. A missing file is treated as empty (a fresh fence-only
 // file is written).
 func Upgrade(path, kitVersion string) (Result, error) {
-	fields, err := configref.Fields()
+	rendered, changed, report, err := computeUpgrade(path, kitVersion)
 	if err != nil {
 		return Result{}, err
+	}
+	if !changed {
+		return Result{Changed: false, Report: report}, nil
+	}
+	if err := atomicfile.WriteFile(path, []byte(rendered), 0o644); err != nil {
+		return Result{}, fmt.Errorf("configupgrade: writing %s: %w", path, err)
+	}
+	return Result{Changed: true, Report: report}, nil
+}
+
+// Check computes exactly what Upgrade would do to the config.yaml at path and
+// reports the verdict WITHOUT writing: Result.Changed is true when a real run
+// would rewrite the file (a stale fence kit-version stamp, unparked unknown
+// keys, a missing fence, or any rendered-content delta — including a missing
+// file, which a real run would create), false when the file is already clean. It
+// shares Upgrade's entire compute path (computeUpgrade), so the drift probe can
+// never disagree with an applying run about what would change. This is the
+// engine behind `fab config upgrade --check`.
+func Check(path, kitVersion string) (Result, error) {
+	_, changed, report, err := computeUpgrade(path, kitVersion)
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{Changed: changed, Report: report}, nil
+}
+
+// computeUpgrade runs the whole reconciliation computation — registry load, file
+// read, render, and the refuse-unparseable validation — without any write. It is
+// the single compute path Upgrade and Check share (Upgrade writes the rendered
+// bytes when changed, Check only reports the verdict), so the two can never
+// disagree about whether a run would change the file. changed is true when the
+// file is missing (a run would create it) or the rendered bytes differ from the
+// original.
+func computeUpgrade(path, kitVersion string) (rendered string, changed bool, report []string, err error) {
+	fields, err := configref.Fields()
+	if err != nil {
+		return "", false, nil, err
 	}
 
 	original, existed, err := readFile(path)
 	if err != nil {
-		return Result{}, err
+		return "", false, nil, err
 	}
 
-	rendered, report := render(original, fields, kitVersion)
+	rendered, report = render(original, fields, kitVersion)
 
 	// Refuse to write YAML that does not parse (SF-c defense-in-depth). The
 	// comment-aware splice manipulates raw lines, so a pathological input (e.g. an
@@ -130,16 +169,10 @@ func Upgrade(path, kitVersion string) (Result, error) {
 	// than overwrite the user's file with something unparseable. The original file
 	// is left untouched.
 	if err := validateYAML(rendered); err != nil {
-		return Result{}, fmt.Errorf("configupgrade: refusing to write %s — the reconciled output does not parse as YAML (%w); the file was left unchanged", path, err)
+		return "", false, nil, fmt.Errorf("configupgrade: refusing to write %s — the reconciled output does not parse as YAML (%w); the file was left unchanged", path, err)
 	}
 
-	if existed && rendered == original {
-		return Result{Changed: false, Report: report}, nil
-	}
-	if err := atomicfile.WriteFile(path, []byte(rendered), 0o644); err != nil {
-		return Result{}, fmt.Errorf("configupgrade: writing %s: %w", path, err)
-	}
-	return Result{Changed: true, Report: report}, nil
+	return rendered, !existed || rendered != original, report, nil
 }
 
 // validateYAML reports whether s parses as a YAML document (into a generic map),
@@ -407,12 +440,12 @@ func mutationFenceSegment(fields []configref.Field, ownerIndex int, livePaths []
 		}
 	}
 	if len(live) == 0 {
-		return fields[ownerIndex].Segment
+		return fields[ownerIndex].ShortSegment
 	}
 	if len(live) == advertised {
 		return ""
 	}
-	return segmentWithoutLiveRows(fields[ownerIndex].Segment, live)
+	return segmentWithoutLiveRows(fields[ownerIndex].ShortSegment, live)
 }
 
 func segmentWithoutLiveRows(segment string, livePaths [][]string) string {
@@ -717,15 +750,17 @@ func commentPrecedesBlockContinuation(lines []string, idx int) bool {
 }
 
 // renderFence builds the managed fence: the BEGIN anchor (stamped with kitVersion),
-// the fixed header comment, the fully-commented Segment of each advertise:true field
-// NOT already live above the fence, then the END anchor. Fields are emitted in
-// registry order for byte-stability.
+// the fixed header comment, the fully-commented ShortSegment of each advertise:true
+// field NOT already live above the fence, then the END anchor. The fence renders
+// the file-bound SHORT form (260809-wll4 R6/R7: short description + scope tag +
+// explain pointer), never the long explain prose. Fields are emitted in registry
+// order for byte-stability.
 func renderFence(fields []configref.Field, liveKeys map[string]bool, kitVersion string) string {
 	return renderFenceWithSegments(fields, kitVersion, func(_ int, f configref.Field) string {
 		if liveKeys[topLevel(f.Key)] {
 			return ""
 		}
-		return f.Segment
+		return f.ShortSegment
 	})
 }
 

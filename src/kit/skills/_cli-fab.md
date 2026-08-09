@@ -387,9 +387,9 @@ fab config explain [key]      # registry documentation; --json for field rows
 fab config show [key]         # effective config; --origin adds provenance
 fab config set <key> <value>  # set one project override; --system targets user config
 fab config unset <key>        # restore inheritance; --system targets user config
-fab config init               # generate fab/project/config.yaml from the registry
-fab config init --system      # write ~/.fab-kit/config.yaml scaffold
-fab config upgrade            # reconcile fab/project/config.yaml against the registry
+fab config init               # generate fab/project/config.yaml from the registry (--print previews, --force overwrites)
+fab config init --system      # write ~/.fab-kit/config.yaml scaffold (same --print/--force)
+fab config upgrade            # reconcile fab/project/config.yaml against the registry (--check probes drift, zero writes)
 ```
 
 ### fab config explain `[key]` (`reference` alias)
@@ -472,37 +472,41 @@ A `set` whose key a **higher tier already defines** still writes and still exits
 
 Without `--system`, the target is `fab/project/config.yaml`. With it, the target is `~/.fab-kit/config.yaml`; only `scope: system`/`both` keys are accepted, and a missing file is created with the canonical system scaffold header and no project reference fence. Unknown keys fail naming the key and point to `fab config explain`.
 
-### fab config init `[--system]`
+### fab config init `[--system] [--print] [--force]`
 
 Bare `fab config init` selects project mode. `--project` is retained for compatibility; `--system` selects the system scaffold, and passing both explicit flags errors.
 
-**`--system`** writes a `~/.fab-kit/config.yaml` **scaffold** — a header explaining the system layer, then **only** the system-overridable fields (`scope: system`/`both` — today the `agent:` block and `providers`), **all commented**, generated from the same per-field metadata table as `fab config explain` so it cannot drift from the schema. It is the user's answer to "what can I safely override at the system level".
+**`--system`** writes a `~/.fab-kit/config.yaml` **scaffold** — a header explaining the system layer, then **only** the system-overridable fields (`scope: system`/`both` — today the `agent:` block and `providers`), **all commented**, generated from the same per-field metadata table as `fab config explain` so it cannot drift from the schema — rendering each field's SHORT file-bound advert (see § fab config upgrade), not the explain essays. It is the user's answer to "what can I safely override at the system level".
 
-**`--project`** generates a fresh `fab/project/config.yaml` from the registry — the retirement path for the hand-maintained scaffold `config.yaml` (deleted in 2.15.0). It writes the **A-class identity fields** (`--name`, `--description`, `--source-path` repeatable, `--test-path` repeatable) **live** above the managed reference fence, then the fence of commented C fields. No `agent:` key is pinned (presence=intent — an init-pinned knob or role profile would be an accidental override that stops tracking fab-kit's defaults). It shares the same fence renderer as `fab config upgrade`, so a generated file and an upgraded file carry a byte-identical fence. This is the shell-out target `fab init` (the fab-kit binary) calls to bootstrap a project config; when the installed fab-go predates it, `fab init` falls open to a minimal embedded stub instead (a fresh repo never fails preflight for lack of a config.yaml).
+**`--project`** generates a fresh `fab/project/config.yaml` from the registry — the retirement path for the hand-maintained scaffold `config.yaml` (deleted in 2.15.0). It writes the **A-class identity fields** (`--name`, `--description`, `--source-path` repeatable, `--test-path` repeatable) **live** above the managed reference fence, then the fence of commented C fields. No `agent:` key is pinned (presence=intent — an init-pinned knob or role profile would be an accidental override that stops tracking fab-kit's defaults). It shares the same fence renderer as `fab config upgrade`, so a generated file and an upgraded file carry a byte-identical fence. This is the shell-out target `fab init` (the fab-kit binary) calls to bootstrap a project config; when the installed fab-go predates it, `fab init` fails closed with a non-zero error naming the fab-go upgrade remedy — the minimal embedded stub fallback is retired, no stub is written.
 
 ```
 fab config init --name X --description Y --source-path src/ [--test-path "**/*_test.go"]
-fab config init --system      # write the ~/.fab-kit/config.yaml scaffold (refuses to overwrite)
+fab config init --system      # write the ~/.fab-kit/config.yaml scaffold (refuses to overwrite without --force)
+fab config init --print       # preview the exact file on stdout; zero writes, never blocked by an existing file
 ```
 
-Both modes **refuse to overwrite** an existing target file (non-zero exit, message naming the path) — the file is user-owned once created; there is no `--force`. The `--system` scaffold is fully commented (inert until uncommented).
+Both modes **refuse to overwrite** an existing target file (non-zero exit, message naming the path) unless **`--force`** is given — the file is user-owned once created; refusal stays the default. **`--print`** renders the exact file init would write to stdout with **zero writes**: it composes with bare/`--project` (including the seed flags) and `--system`, is never blocked by an existing target (a preview, not a write), and `--print --force` is a pure preview (print wins, nothing is written). The `--system` scaffold is fully commented (inert until uncommented).
 
-### fab config upgrade
+### fab config upgrade `[--check]`
 
 The whole-file reconciliation command for `fab/project/config.yaml`. It shares `internal/configupgrade`'s comment-aware writing engine and fence renderer with surgical `set`/`unset`.
 
 ```
 fab config upgrade            # reconcile config.yaml against the registry (idempotent)
+fab config upgrade --check    # drift probe: report what a run would change; writes nothing; non-zero when drifted
 ```
 
 Reconciliation, under the A/B/C field-category model:
 
 - **Live (A) fields kept verbatim**, including the user's own comments. *Presence = intent*: a live field is an override even when its value equals the default — it is NEVER auto-removed (B-hygiene "equals default — remove?" is an advisory report line only).
-- **The managed fence (C fields)**: `advertise: true` fields not currently overridden are regenerated as a fully-commented scaffold (including parent keys — a live `agent:` over comment-only children is exactly the `agent: null` the old masher produced) inside byte-exact splice anchors: `# >>> fab reference (kit X.Y.Z) >>> …` / `# <<< end fab reference <<< …`. Upgrade rewrites ONLY between the anchors; everything outside is the user's. The fence omits fields already overridden above it (at top-level-key granularity — a live top-level key suppresses the whole scaffolded block under it). A legacy file with no fence gets one appended at the bottom. Content the user places BELOW the fence is never dropped — it is **hoisted above** the fence on the next run and classified like any other live key.
+- **The managed fence (C fields)**: `advertise: true` fields not currently overridden are regenerated as a fully-commented scaffold (including parent keys — a live `agent:` over comment-only children is exactly the `agent: null` the old masher produced) inside byte-exact splice anchors: `# >>> fab reference (kit X.Y.Z) >>> …` / `# <<< end fab reference <<< …`. Each field advert is the registry row's SHORT file-bound form (`configref.ShortSegment`, 260809-wll4): 1–4 short description lines ending with a `[project|system|both]` scope tag, then — for `scope: both` fields — a `# Settable machine-wide: fab config set --system <key> <value>` pointer, then a `# Full prose: fab config explain <key>` pointer, then the field's YAML block. The long prose essays live in exactly one place — `fab config explain`'s LONG form (`Segment`), whose output is unchanged. Upgrade rewrites ONLY between the anchors; everything outside is the user's. The fence omits fields already overridden above it (at top-level-key granularity — a live top-level key suppresses the whole scaffolded block under it). A legacy file with no fence gets one appended at the bottom. Content the user places BELOW the fence is never dropped — it is **hoisted above** the fence on the next run and classified like any other live key.
 - **Unknown fields parked, never deleted**: a live key no longer in the registry is parked in a `# removed in … (parked by fab config upgrade — delete when done):` block below the fence, its value serialized — appended exactly once, never regenerated away.
 - **Renames carried mechanically**: a live field matching a registry row's `renamed_from` is carried to the new key, value verbatim (empty on every row today). A carry is **skipped** (and reported) if the target key is already live, so it never emits a duplicate top-level key.
 
 **Byte-stable and idempotent** — running it twice yields a byte-identical file (the `fab memory-index` discipline). Before writing, the reconciled document is **validated as YAML** and a run that would produce an unparseable file is **refused** (original left untouched) rather than bricking the repo. The write is atomic (`internal/atomicfile`). Requires a fab repo (walks up for `fab/`); `cobra.NoArgs`. `fab upgrade-repo` **auto-runs** it after sync (fail-open: if the installed fab-go predates the subcommand, it prints a reminder and the upgrade continues).
+
+**`--check` — the drift probe.** Computes exactly the same reconciliation (`configupgrade.Check` shares `Upgrade`'s render/validate path, so the probe can never disagree with a real run about what would change) but **writes nothing**: it prints the would-change report — the same report lines the applying run prints — and exits non-zero (operational, exit 1) when the file has drifted: a stale fence kit-version stamp, unparked removed keys, a missing fence, or any rendered-content delta — including a missing `config.yaml`, which a real run would create. On a clean file it exits 0 with the `already up to date` line. This is the CI/human probe for "is this repo's config clean?" — the file on disk is byte-identical before and after.
 
 ## fab pane
 

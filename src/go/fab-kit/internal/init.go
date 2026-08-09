@@ -52,9 +52,9 @@ func Init(systemVersion string) error {
 	warnIfFabVersionIgnored(repoRoot)
 
 	// 4. Generate config.yaml from the registry via the pinned fab-go
-	// (`fab config init --project`) — the scaffold config.yaml was retired. On a
-	// fab-go that predates the subcommand, fall back to a minimal embedded stub so
-	// a fresh repo never fails preflight for lack of a config.yaml (fail-open).
+	// (`fab config init --project`) — the scaffold config.yaml was retired. A
+	// fab-go that predates the subcommand fails the whole init with a clear
+	// upgrade remedy rather than silently writing a stub config.
 	configPath := filepath.Join(repoRoot, "fab", "project", "config.yaml")
 	if err := generateProjectConfig(fabGoBin, repoRoot, configPath); err != nil {
 		return err
@@ -144,12 +144,12 @@ func warnIfFabVersionIgnored(repoRoot string) {
 // rather than an empty header+fence. /fab-setup's Config Create Mode later refines
 // this interactively (it asks the user and can override any detected value).
 //
-// FAIL-OPEN: if the pinned fab-go predates `fab config init --project` (non-zero
-// exit / unknown command), fall back to a minimal EMBEDDED STUB config.yaml — a
-// tiny bounded copy of the A-class identity fields, carrying the same detected seed
-// — rather than a printed instruction, so a fresh repo never fails preflight for
-// lack of a config.yaml (user-confirmed decision). A pre-existing config.yaml is
-// never overwritten (`fab config init --project` refuses; the stub path checks too).
+// FAIL-CLOSED: if the pinned fab-go cannot generate the config (a binary that
+// predates `fab config init --project` — non-zero exit / unknown command, or an
+// exit 0 that leaves no file behind), the error propagates and `fab init` fails
+// non-zero naming the upgrade remedy, rather than silently writing a stub. A
+// pre-existing config.yaml is never overwritten (`fab config init --project`
+// refuses; the early stat here short-circuits too).
 func generateProjectConfig(fabGoBin, repoRoot, configPath string) error {
 	if _, err := os.Stat(configPath); err == nil {
 		// Already present (e.g. re-run over an existing repo) — leave it untouched.
@@ -175,15 +175,14 @@ func generateProjectConfig(fabGoBin, repoRoot, configPath string) error {
 	// The shell-out is "successful generation" only when it exits 0 AND actually
 	// wrote the file — a fab-go that predates the subcommand may exit 0 for an
 	// unknown flag on some cobra versions, or exit non-zero. Either way, if no
-	// config.yaml landed, fall open to the embedded stub so init never bricks.
+	// config.yaml landed, init fails with the upgrade remedy.
 	if err == nil {
 		if _, statErr := os.Stat(configPath); statErr == nil {
 			fmt.Println("Generated fab/project/config.yaml from the config registry")
 			return nil
 		}
 	}
-	fmt.Printf("Note: installed fab-go could not generate config.yaml (%s); writing a minimal stub. Run `fab config upgrade` after upgrading to refresh it.\n", strings.TrimSpace(string(out)))
-	return writeStubConfig(configPath, seed)
+	return fmt.Errorf("installed fab-go could not generate fab/project/config.yaml (%s) — it likely predates `fab config init --project` (shipped in fab-go 2.15.x); upgrade fab-go (e.g. `brew upgrade fab-kit`) and re-run `fab init`", strings.TrimSpace(string(out)))
 }
 
 // projectSeed is the mechanically-detected A-class identity seed fab-kit passes to
@@ -266,65 +265,6 @@ func detectTestPaths(repoRoot string) []string {
 		}
 	}
 	return out
-}
-
-// stubConfigHeader is the fixed banner of the minimal embedded fallback config.yaml,
-// written only when the pinned fab-go predates `fab config init --project`. The stub
-// is deliberately spare (no managed fence): its sole job is to exist so preflight
-// passes; the next `fab upgrade-repo` runs `fab config upgrade` and materializes the
-// full fence. /fab-setup refines the identity fields.
-const stubConfigHeader = `# fab/project/config.yaml — minimal stub written by ` + "`fab init`" + ` because the
-# installed fab-go predates registry-based generation. Run ` + "`fab config upgrade`" + `
-# (or ` + "`fab upgrade-repo`" + `) after upgrading to materialize the full reference fence.`
-
-// renderStubConfig builds the embedded stub from the detected seed, so the stub
-// (like the registry-generated file) carries the detected identity fields live
-// rather than a hardcoded placeholder. Missing seed values fall back to the standard
-// placeholders (name/description) or are omitted (source_paths/test_paths) so the
-// document always parses and always carries the required project.name/description.
-func renderStubConfig(seed projectSeed) string {
-	name := seed.name
-	if name == "" {
-		name = "My Project"
-	}
-	var b strings.Builder
-	b.WriteString(stubConfigHeader)
-	b.WriteString("\nproject:\n")
-	fmt.Fprintf(&b, "  name: %q\n", name)
-	b.WriteString("  description: \"One-line project description\"\n")
-
-	src := seed.sourcePaths
-	if len(src) == 0 {
-		src = []string{"src/"}
-	}
-	b.WriteString("\nsource_paths:\n")
-	for _, p := range src {
-		fmt.Fprintf(&b, "  - %s\n", p)
-	}
-
-	if len(seed.testPaths) > 0 {
-		b.WriteString("\ntest_paths:\n")
-		for _, p := range seed.testPaths {
-			fmt.Fprintf(&b, "  - %q\n", p)
-		}
-	}
-	return b.String()
-}
-
-// writeStubConfig writes the embedded stub (carrying the detected seed), creating
-// fab/project/ as needed. It refuses to overwrite an existing config.yaml (defensive
-// — the caller already checked, but the stub path must never clobber user data).
-func writeStubConfig(configPath string, seed projectSeed) error {
-	if _, err := os.Stat(configPath); err == nil {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
-		return fmt.Errorf("cannot create fab/project/ directory: %w", err)
-	}
-	if err := os.WriteFile(configPath, []byte(renderStubConfig(seed)), 0644); err != nil {
-		return fmt.Errorf("cannot write stub config.yaml: %w", err)
-	}
-	return nil
 }
 
 // copyDir copies src directory to dst, creating dst if needed.

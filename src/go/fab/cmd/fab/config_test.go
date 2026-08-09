@@ -210,6 +210,312 @@ func TestConfigInitSeedKeysSubsetOfRegistry(t *testing.T) {
 	}
 }
 
+// runConfigInit drives `fab config init <args...>` end to end via the cobra
+// command and returns its stdout.
+func runConfigInit(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	cmd := configCmd()
+	var out strings.Builder
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs(append([]string{"init"}, args...))
+	err := cmd.Execute()
+	return out.String(), err
+}
+
+// setupInitTempRepo creates a bare repo root with a fab/ directory and chdirs
+// into it so resolve.FabRoot finds the temp tree, not the real checkout.
+func setupInitTempRepo(t *testing.T) (fabRoot string) {
+	t.Helper()
+	repoRoot := t.TempDir()
+	fabRoot = filepath.Join(repoRoot, "fab")
+	if err := os.MkdirAll(fabRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	chdirTestEnv(t, repoRoot, nil)
+	return fabRoot
+}
+
+// TestConfigInitProjectPrintMatchesWrite pins the --print contract in project
+// mode: stdout is byte-for-byte the file the write path produces (same render
+// call), and the print run itself writes nothing.
+func TestConfigInitProjectPrintMatchesWrite(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	fabRoot := setupInitTempRepo(t)
+	path := filepath.Join(fabRoot, "project", "config.yaml")
+	seedArgs := []string{"--project", "--name", "my-app", "--description", "My application",
+		"--source-path", "src/", "--test-path", "**/*_test.go"}
+
+	printed, err := runConfigInit(t, append(seedArgs, "--print")...)
+	if err != nil {
+		t.Fatalf("`config init --print` returned an error: %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("--print must not write %s", path)
+	}
+
+	if _, err := runConfigInit(t, seedArgs...); err != nil {
+		t.Fatalf("`config init` write run returned an error: %v", err)
+	}
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if printed != string(written) {
+		t.Errorf("--print stdout != the bytes the write path produced\n--- printed ---\n%s\n--- written ---\n%s", printed, written)
+	}
+}
+
+// TestConfigInitSystemPrintMatchesWrite pins the same --print contract in
+// --system mode against a temp HOME.
+func TestConfigInitSystemPrintMatchesWrite(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	path := filepath.Join(home, ".fab-kit", "config.yaml")
+
+	printed, err := runConfigInit(t, "--system", "--print")
+	if err != nil {
+		t.Fatalf("`config init --system --print` returned an error: %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("--print must not write %s", path)
+	}
+
+	if _, err := runConfigInit(t, "--system"); err != nil {
+		t.Fatalf("`config init --system` write run returned an error: %v", err)
+	}
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if printed != string(written) {
+		t.Errorf("--print stdout != the bytes the write path produced\n--- printed ---\n%s\n--- written ---\n%s", printed, written)
+	}
+}
+
+// TestConfigInitPrintIgnoresExistingFile: an existing target file does NOT block
+// --print (it is a preview, not a write), and the file is left untouched.
+func TestConfigInitPrintIgnoresExistingFile(t *testing.T) {
+	sentinel := []byte("# user-owned\n")
+
+	t.Run("project", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		fabRoot := setupInitTempRepo(t)
+		path := filepath.Join(fabRoot, "project", "config.yaml")
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, sentinel, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		printed, err := runConfigInit(t, "--project", "--name", "my-app", "--print")
+		if err != nil {
+			t.Fatalf("--print with an existing file returned an error: %v", err)
+		}
+		if !strings.Contains(printed, "my-app") {
+			t.Errorf("--print output does not look like the seeded project config:\n%s", printed)
+		}
+		after, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(after) != string(sentinel) {
+			t.Error("--print modified the existing project config")
+		}
+	})
+
+	t.Run("system", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		path := filepath.Join(home, ".fab-kit", "config.yaml")
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, sentinel, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		printed, err := runConfigInit(t, "--system", "--print")
+		if err != nil {
+			t.Fatalf("--print with an existing file returned an error: %v", err)
+		}
+		if printed == "" {
+			t.Error("--print produced no output despite the existing file")
+		}
+		after, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(after) != string(sentinel) {
+			t.Error("--print modified the existing system config")
+		}
+	})
+}
+
+// TestConfigInitForceOverwrites: --force replaces the existing-file refusal with
+// an explicit overwrite in both modes; the refusal stays the default without it.
+func TestConfigInitForceOverwrites(t *testing.T) {
+	sentinel := []byte("# user-owned\n")
+
+	t.Run("project", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		fabRoot := setupInitTempRepo(t)
+		path := filepath.Join(fabRoot, "project", "config.yaml")
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, sentinel, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		seedArgs := []string{"--project", "--name", "my-app"}
+
+		// Default: refusal, verbatim prefix preserved, file untouched.
+		if _, err := runConfigInit(t, seedArgs...); err == nil ||
+			!strings.Contains(err.Error(), "refusing to overwrite existing project config") {
+			t.Fatalf("default run should refuse to overwrite, got: %v", err)
+		}
+		if after, _ := os.ReadFile(path); string(after) != string(sentinel) {
+			t.Fatal("the refused run modified the existing project config")
+		}
+
+		if _, err := runConfigInit(t, append(seedArgs, "--force")...); err != nil {
+			t.Fatalf("--force run returned an error: %v", err)
+		}
+		printed, err := runConfigInit(t, append(seedArgs, "--print")...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		after, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(after) == string(sentinel) || string(after) != printed {
+			t.Error("--force did not overwrite the project config with the rendered content")
+		}
+	})
+
+	t.Run("system", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		path := filepath.Join(home, ".fab-kit", "config.yaml")
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, sentinel, 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := runConfigInit(t, "--system"); err == nil ||
+			!strings.Contains(err.Error(), "refusing to overwrite existing system config") {
+			t.Fatalf("default run should refuse to overwrite, got: %v", err)
+		}
+		if after, _ := os.ReadFile(path); string(after) != string(sentinel) {
+			t.Fatal("the refused run modified the existing system config")
+		}
+
+		if _, err := runConfigInit(t, "--system", "--force"); err != nil {
+			t.Fatalf("--force run returned an error: %v", err)
+		}
+		printed, err := runConfigInit(t, "--system", "--print")
+		if err != nil {
+			t.Fatal(err)
+		}
+		after, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(after) == string(sentinel) || string(after) != printed {
+			t.Error("--force did not overwrite the system config with the rendered scaffold")
+		}
+	})
+}
+
+// TestConfigInitPrintForceIsPurePreview: --print + --force lets print win — the
+// preview prints and writes nothing, even with an existing file in place.
+func TestConfigInitPrintForceIsPurePreview(t *testing.T) {
+	sentinel := []byte("# user-owned\n")
+
+	t.Run("project", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		fabRoot := setupInitTempRepo(t)
+		path := filepath.Join(fabRoot, "project", "config.yaml")
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, sentinel, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		printed, err := runConfigInit(t, "--project", "--name", "my-app", "--print", "--force")
+		if err != nil {
+			t.Fatalf("--print --force returned an error: %v", err)
+		}
+		if printed == "" {
+			t.Error("--print --force produced no output")
+		}
+		if after, _ := os.ReadFile(path); string(after) != string(sentinel) {
+			t.Error("--print --force wrote to the project config")
+		}
+	})
+
+	t.Run("system", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		path := filepath.Join(home, ".fab-kit", "config.yaml")
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, sentinel, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		printed, err := runConfigInit(t, "--system", "--print", "--force")
+		if err != nil {
+			t.Fatalf("--print --force returned an error: %v", err)
+		}
+		if printed == "" {
+			t.Error("--print --force produced no output")
+		}
+		if after, _ := os.ReadFile(path); string(after) != string(sentinel) {
+			t.Error("--print --force wrote to the system config")
+		}
+	})
+}
+
+// TestConfigInitSystemScaffoldCarriesScopeAnnotations (260809-wll4 R6/R7): the
+// --system scaffold renders the file-bound SHORT form — every advert carries its
+// [system|both] scope tag, the `fab config set --system` machine-wide pointer,
+// and the `fab config explain <key>` pointer — and none of the long-form essays
+// (the old invite-to-uncomment machine-wide phrasing is gone from generated
+// files; it stays in `fab config explain`).
+func TestConfigInitSystemScaffoldCarriesScopeAnnotations(t *testing.T) {
+	scaffold, err := renderSystemScaffold()
+	if err != nil {
+		t.Fatalf("renderSystemScaffold: %v", err)
+	}
+	for _, want := range []string{
+		"[both]",
+		"# Settable machine-wide: fab config set --system ",
+		"# Full prose: fab config explain ",
+	} {
+		if !strings.Contains(scaffold, want) {
+			t.Errorf("system scaffold must carry %q.\n--- scaffold ---\n%s", want, scaffold)
+		}
+	}
+	if strings.Contains(scaffold, "outranks the project file") {
+		t.Error("system scaffold must not carry the long-form machine-wide essay phrasing (the diet moved it to `fab config explain`)")
+	}
+	// Project-scoped fields are never system-overridable — no [project] advert.
+	if strings.Contains(scaffold, "[project]") {
+		t.Error("system scaffold must not advertise project-scoped fields")
+	}
+	// Byte-stable across renders (the scaffold is a generated file).
+	second, err := renderSystemScaffold()
+	if err != nil {
+		t.Fatalf("renderSystemScaffold (2nd): %v", err)
+	}
+	if scaffold != second {
+		t.Error("system scaffold is not byte-stable across renders")
+	}
+}
+
 // TestConfigReferenceByteStable: repeated renders are byte-identical (the
 // byte-stable stdout contract the docs/website pointer relies on).
 func TestConfigReferenceByteStable(t *testing.T) {
@@ -946,8 +1252,8 @@ func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
 		"agent.profiles":        true,
 		"agent.session":         true, // the knob's built-in value IS claude, not "absent"
 		"agent.workers":         true,
-		"dispatch.mode":         true, // string: native IS the built-in default, not "absent"
-		"dispatch.column_width": true, // int: an absent yaml int reads as unset, so 35 is real
+		"dispatch.mode":         true, // string: the built-in mode IS a real default, not "absent"
+		"dispatch.column_width": true, // int: an absent yaml int reads as unset, so the built-in width is real
 		"dispatch.reap_done":    true, // bool defaulting TRUE — modeled as *bool so absent ≠ false
 	}
 	for _, obj := range arr {
@@ -1561,5 +1867,145 @@ func TestConfigReferenceDispatchReapDone(t *testing.T) {
 	}
 	if got := cfg.GetDispatchReapDone(); got != config.DefaultDispatchReapDone {
 		t.Errorf("the reference's dispatch block must be inert, got reap_done %v", got)
+	}
+}
+
+// runConfigUpgrade drives `fab config upgrade <args...>` end to end via the
+// cobra command and returns its stdout and execution error.
+func runConfigUpgrade(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	cmd := configCmd()
+	var out strings.Builder
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs(append([]string{"upgrade"}, args...))
+	err := cmd.Execute()
+	return out.String(), err
+}
+
+// TestConfigUpgradeCheckDriftExitsNonZeroWithoutWrite pins the drift-probe
+// contract (260809-wll4 R5) across the three drift shapes — a stale fence
+// kit-version stamp, an unparked unknown key, and a missing fence: `--check`
+// exits non-zero, prints the would-change report to stdout FIRST, and leaves
+// the file byte-identical on disk.
+func TestConfigUpgradeCheckDriftExitsNonZeroWithoutWrite(t *testing.T) {
+	// Build a clean file at a stale stamp for the stale-stamp case (a real
+	// upgrade at the old version, then probe with the current one).
+	fabRoot := setupInitRepo(t)
+	cfgPath := filepath.Join(fabRoot, "project", "config.yaml")
+	stale := "project:\n    name: t\n"
+	if err := os.WriteFile(cfgPath, []byte(stale), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runConfigUpgrade(t); err != nil {
+		t.Fatalf("seeding upgrade run: %v", err)
+	}
+	staleBytes, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Rewind the fence stamp so the current binary sees drift.
+	rewound := strings.Replace(string(staleBytes), "(kit "+version+")", "(kit 0.0.1)", 1)
+	if rewound == string(staleBytes) {
+		t.Fatalf("seeded file carries no (kit %s) fence stamp to rewind", version)
+	}
+
+	cases := map[string]string{
+		"stale fence stamp":    rewound,
+		"unparked unknown key": "project:\n    name: t\n\nlegacy_mode: true\n",
+		"missing fence":        "project:\n    name: t\n    description: d\n",
+	}
+	for name, content := range cases {
+		t.Run(name, func(t *testing.T) {
+			if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			out, err := runConfigUpgrade(t, "--check")
+			if err == nil {
+				t.Errorf("`config upgrade --check` must exit non-zero on %s drift", name)
+			}
+			if !strings.Contains(out, "drifted") {
+				t.Errorf("drift output must name the drift before the error return, got: %q", out)
+			}
+			after, readErr := os.ReadFile(cfgPath)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if string(after) != content {
+				t.Errorf("--check must write nothing (file changed on %s drift).\n--- before ---\n%s\n--- after ---\n%s", name, content, string(after))
+			}
+		})
+	}
+}
+
+// TestConfigUpgradeCheckUnparkedKeyReportLines: the non-zero drift path prints
+// the same advisory report lines an applying run prints, before returning the
+// error — the output names WHAT would change.
+func TestConfigUpgradeCheckUnparkedKeyReportLines(t *testing.T) {
+	fabRoot := setupInitRepo(t)
+	cfgPath := filepath.Join(fabRoot, "project", "config.yaml")
+	content := "project:\n    name: t\n\nlegacy_mode: true\n"
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runConfigUpgrade(t, "--check")
+	if err == nil {
+		t.Fatal("`config upgrade --check` must exit non-zero on drift")
+	}
+	if !strings.Contains(out, "  - ") || !strings.Contains(out, "legacy_mode") {
+		t.Errorf("the drift path must print the would-change report lines (\"  - …\") naming the unparked key, got: %q", out)
+	}
+}
+
+// TestConfigUpgradeCheckCleanExitsZeroWithoutWrite: on a file already reconciled
+// by a real run, `--check` exits 0 with the "already up to date" message and
+// leaves the file byte-identical.
+func TestConfigUpgradeCheckCleanExitsZeroWithoutWrite(t *testing.T) {
+	fabRoot := setupInitRepo(t)
+	cfgPath := filepath.Join(fabRoot, "project", "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte("project:\n    name: t\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runConfigUpgrade(t); err != nil {
+		t.Fatalf("seeding upgrade run: %v", err)
+	}
+	before, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runConfigUpgrade(t, "--check")
+	if err != nil {
+		t.Fatalf("`config upgrade --check` on a clean file must exit 0: %v", err)
+	}
+	if !strings.Contains(out, "already up to date") {
+		t.Errorf("clean --check must print the up-to-date message, got: %q", out)
+	}
+	after, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Error("--check on a clean file must write nothing")
+	}
+}
+
+// TestConfigUpgradeCheckMissingFileExitsNonZeroCreatesNothing: a repo with no
+// config.yaml is drift (a real run would create the file), so `--check` exits
+// non-zero — and creates nothing.
+func TestConfigUpgradeCheckMissingFileExitsNonZeroCreatesNothing(t *testing.T) {
+	fabRoot := setupInitRepo(t)
+	cfgPath := filepath.Join(fabRoot, "project", "config.yaml")
+
+	out, err := runConfigUpgrade(t, "--check")
+	if err == nil {
+		t.Error("`config upgrade --check` on a missing config.yaml must exit non-zero (a real run would create it)")
+	}
+	if !strings.Contains(out, "drifted") {
+		t.Errorf("the missing-file drift must be reported to stdout, got: %q", out)
+	}
+	if _, statErr := os.Stat(cfgPath); !os.IsNotExist(statErr) {
+		t.Errorf("--check must not create config.yaml, stat: %v", statErr)
 	}
 }

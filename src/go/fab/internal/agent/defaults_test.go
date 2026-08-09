@@ -15,13 +15,15 @@ import (
 // (260806-2j2i), so a typo in them is no longer a compile error. This file is the
 // replacement safety net: it re-parses the embedded bytes INDEPENDENTLY of the
 // package's own initialization and asserts both the file's shape (every knob,
-// provider, and per-role fill present and populated, nothing outside the surface it
-// is meant to define) and the wiring (defaultProviders and the exported command
-// vars read the keys they claim to).
+// provider, per-role fill, and the dispatch block present and populated, nothing
+// outside the surface it is meant to define) and the wiring (defaultProviders,
+// the exported command vars, and the config.DefaultDispatch* push read the keys
+// they claim to).
 //
 // It deliberately pins NO model IDs or command strings — those are pinned once,
 // in TestDefaultRoleProfilesArePinned, so a model bump stays a one-line edit to
-// defaults.yaml plus that one table.
+// defaults.yaml plus that one table. The dispatch VALUES are pinned once the same
+// way, in TestDefaultsFileDispatchBlockIsPinned.
 
 // parseDefaultsFile unmarshals the embedded bytes into the config schema, the
 // same way the package initializer does — but as a fresh parse the assertions can
@@ -167,11 +169,13 @@ func TestDefaultsFileProviders(t *testing.T) {
 }
 
 // TestDefaultsFileDefinesOnlyItsSurface: defaults.yaml is layer 0 of the config
-// cascade in shape, but it defines only the two blocks internal/agent owns — and
-// within `agent:`, only the two depth knobs (the role→depth partition and the
-// stage→role mapping are fab-owned POLICY and stay in Go). yaml.v3 ignores unknown
-// keys, so a key written at the wrong nesting level (or a block this package does
-// not read) would otherwise be silently inert.
+// cascade in shape, but it defines only the three blocks internal/agent owns —
+// `agent` (the two depth knobs), `providers`, and `dispatch` (the three
+// stage-dispatch defaults, 260809-wll4). Within `agent:` only the two depth
+// knobs belong: the role→depth partition and the stage→role mapping are
+// fab-owned POLICY and stay in Go. yaml.v3 ignores unknown keys, so a key
+// written at the wrong nesting level (or a block this package does not read)
+// would otherwise be silently inert.
 func TestDefaultsFileDefinesOnlyItsSurface(t *testing.T) {
 	var raw map[string]yaml.Node
 	if err := yaml.Unmarshal(defaultsYAML, &raw); err != nil {
@@ -182,7 +186,7 @@ func TestDefaultsFileDefinesOnlyItsSurface(t *testing.T) {
 	for key := range raw {
 		top = append(top, key)
 	}
-	assertSameKeys(t, "defaults.yaml top-level", top, []string{"providers", "agent"})
+	assertSameKeys(t, "defaults.yaml top-level", top, []string{"providers", "agent", "dispatch"})
 
 	var agentBlock map[string]yaml.Node
 	node, ok := raw["agent"]
@@ -252,6 +256,52 @@ func TestPackageTablesMatchDefaultsFile(t *testing.T) {
 		if c.got != c.want {
 			t.Errorf("%s = %q, defaults.yaml says %q", c.name, c.got, c.want)
 		}
+	}
+}
+
+// TestDefaultsFileDispatchBlockIsPinned is the ONE place the three built-in
+// dispatch default values are asserted in Go (260809-wll4). The dispatch: block
+// of defaults.yaml is their single value source — internal/config's
+// DefaultDispatch* vars carry no literal and are filled from this file by this
+// package's init() — so a deliberate change is a two-line edit (defaults.yaml +
+// this pin), and every other consumer derives from the injected vars. ReapDone
+// is pinned NON-NIL: its *bool shape is what keeps an absent key distinguishable
+// from an explicit false (see config.DispatchConfig).
+func TestDefaultsFileDispatchBlockIsPinned(t *testing.T) {
+	cfg := parseDefaultsFile(t)
+
+	if cfg.Dispatch.Mode != "native" {
+		t.Errorf("TestDefaultsFileDispatchBlockIsPinned: defaults.yaml dispatch.mode = %q, pinned %q — defaults.yaml is the canonical source; intentional bump? update this pin too", cfg.Dispatch.Mode, "native")
+	}
+	if cfg.Dispatch.ColumnWidth != 35 {
+		t.Errorf("TestDefaultsFileDispatchBlockIsPinned: defaults.yaml dispatch.column_width = %d, pinned %d — defaults.yaml is the canonical source; intentional bump? update this pin too", cfg.Dispatch.ColumnWidth, 35)
+	}
+	if cfg.Dispatch.ReapDone == nil || !*cfg.Dispatch.ReapDone {
+		t.Errorf("TestDefaultsFileDispatchBlockIsPinned: defaults.yaml dispatch.reap_done = %v, pinned true (non-nil) — defaults.yaml is the canonical source; intentional bump? update this pin too", cfg.Dispatch.ReapDone)
+	}
+}
+
+// TestConfigDispatchDefaultsMatchDefaultsFile guards the injection wiring
+// (260809-wll4): internal/config's three DefaultDispatch* vars must equal the
+// values this package's init() parsed out of defaults.yaml. The vars carry no
+// literal, so a broken (or never-run) init push leaves every consumer of the
+// accessors on Go zero values while this file stays the canonical source — fail
+// loudly here, naming the test and the fix.
+func TestConfigDispatchDefaultsMatchDefaultsFile(t *testing.T) {
+	cfg := parseDefaultsFile(t)
+
+	if config.DefaultDispatchMode != cfg.Dispatch.Mode {
+		t.Errorf("TestConfigDispatchDefaultsMatchDefaultsFile: config.DefaultDispatchMode = %q, defaults.yaml dispatch.mode = %q — the init() push in agent.go is broken; fix the wiring, defaults.yaml stays canonical", config.DefaultDispatchMode, cfg.Dispatch.Mode)
+	}
+	if config.DefaultDispatchColumnWidth != cfg.Dispatch.ColumnWidth {
+		t.Errorf("TestConfigDispatchDefaultsMatchDefaultsFile: config.DefaultDispatchColumnWidth = %d, defaults.yaml dispatch.column_width = %d — the init() push in agent.go is broken; fix the wiring, defaults.yaml stays canonical", config.DefaultDispatchColumnWidth, cfg.Dispatch.ColumnWidth)
+	}
+	wantReapDone := false
+	if cfg.Dispatch.ReapDone != nil {
+		wantReapDone = *cfg.Dispatch.ReapDone
+	}
+	if config.DefaultDispatchReapDone != wantReapDone {
+		t.Errorf("TestConfigDispatchDefaultsMatchDefaultsFile: config.DefaultDispatchReapDone = %v, defaults.yaml dispatch.reap_done = %v — the init() push in agent.go is broken; fix the wiring, defaults.yaml stays canonical", config.DefaultDispatchReapDone, wantReapDone)
 	}
 }
 

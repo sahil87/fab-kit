@@ -52,7 +52,7 @@ src/kit/
         ├── changes/archive/.gitkeep  # Archive directory marker
         ├── project/
         │   # config.yaml is NOT scaffolded (j0qm) — `fab init` generates it
-        │   # from the registry via `fab config init --project` (stub fallback on old fab-go)
+        │   # from the registry via `fab config init --project` (hard error on an old fab-go)
         │   ├── constitution.md # Constitution skeleton (copy-if-absent, /fab-setup detects)
         │   ├── context.md      # Project context template (copy-if-absent)
         │   ├── code-quality.md # Code quality defaults (copy-if-absent)
@@ -143,7 +143,7 @@ cd <repo>
 fab init
 ```
 
-`fab init` populates `src/kit/` from the version cache, stamps `fab/.fab-version` (j0qm), **generates `config.yaml` from the registry** (shell-out to the pinned fab-go `fab config init --project` with a mechanically-detected identity seed; embedded-stub fallback when the pinned fab-go predates the subcommand — see § fab-kit `Init` config generation below), and calls `Sync()` directly (the same logic as `fab-kit sync`).
+`fab init` populates `src/kit/` from the version cache, stamps `fab/.fab-version` (j0qm), **generates `config.yaml` from the registry** (shell-out to the pinned fab-go `fab config init --project` with a mechanically-detected identity seed; a pinned fab-go that predates the subcommand is a hard error naming the fab-go upgrade — see § fab-kit `Init` config generation below), and calls `Sync()` directly (the same logic as `fab-kit sync`).
 
 **Legacy method** (curl one-liner, for environments without Homebrew):
 ```
@@ -229,13 +229,13 @@ The `fab-kit` binary (installed via `brew install fab-kit`) owns workspace lifec
 
 `Sync(systemVersion, kitVersion string, shimOnly, projectOnly bool)` resolves the repository and kit directory before its flag-specific work. Under the override it prints provenance and bypasses both `versionGuard` and `EnsureCached`; prerequisites, resolved-kit scaffolding, agent skill deployment, direnv allow, project scripts, flags, and failure propagation keep their normal contracts. Without the override, the 6-step pipeline remains (1) prerequisites, (2) version guard, (3) ensure cache, (4) workspace scaffolding, (5) direnv allow, and (6) project scripts. Deployment and scaffold writes fail loudly. The sync implementation remains split across `sync.go`, `semver.go`, `prereqs.go`, `scaffold.go`, and `skills.go`, and its integration suite pins idempotency.
 
-#### fab-kit `Init` config generation + stub fallback
+#### fab-kit `Init` config generation
 
 Because there is no scaffold `config.yaml` (j0qm), fab-kit's `Init` **generates** the initial `fab/project/config.yaml` instead of relying on the scaffold walk's copy-if-absent. `generateProjectConfig(fabGoBin, repoRoot, configPath)` runs BEFORE the scaffold walk, preserving the `scaffoldDirectories` config.yaml-presence classification (a fresh `fab init` is still "new project"):
 
 - **Detection** — `detectProjectSeed(repoRoot)` mechanically derives the identity seed non-interactively: project name from the repo-folder name, `source_paths` from an existing `src/`, and `test_paths` from on-disk marker files (`detectTestPaths`, the same marker→ecosystem table `/fab-setup` and the `2.7.1-to-2.8.0` migration use). Any field with no confident detection is left empty. The description is NOT detected (only `/fab-setup config` adds it).
 - **Shell-out** — passes the detected seed as `--name`/`--source-path`/`--test-path` flags to the pinned fab-go `fab config init --project` (`EnsureCached(version)` returns the binary path; same one-brew-package skew + fail-open discipline as the auto-run below).
-- **Embedded stub fallback** — if the pinned fab-go predates `fab config init --project` (non-zero/unknown-command) and no config.yaml landed, `renderStubConfig` writes a minimal embedded stub (`stubConfigHeader` + the detected identity fields) — NOT a printed instruction (user-confirmed: a fresh repo must never fail preflight for lack of a config.yaml). Prints a `Note: … writing a minimal stub. Run \`fab config upgrade\` after upgrading to refresh it.` reminder.
+- **An old fab-go is a hard error, never a stub** — if the pinned fab-go predates `fab config init --project` (non-zero/unknown-command) and no config.yaml landed, `fab init` exits non-zero naming the cause and instructing the user to upgrade fab-go. Nothing is written in that state, and **no config content is embedded in any binary** — the config embed census is exactly: fab-go's `internal/agent` `defaults.yaml` (built-in values), the `internal/configref` registry (schema + prose), `internal/configscope` (scope taxonomy), and `src/kit/scaffold/` (non-config files only). The skew window a stub would cover closed when `fab config init --project` shipped in 2.15.x.
 
 The registry guard is `configref.InitSeedKeys()` + `TestConfigInitSeedKeysSubsetOfRegistry` (init-seeded keys ⊆ registry keys); the multi-language `test_paths` examples and providers narrative live in registry `Description`/`Segment` text. See [setup.md](/distribution/setup.md) § Config Create-Mode.
 

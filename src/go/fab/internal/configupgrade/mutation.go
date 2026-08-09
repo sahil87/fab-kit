@@ -285,15 +285,17 @@ type liveKeyLine struct {
 	commentPos int
 }
 
-// ensureRegistryMaterialization turns the owning registry Segment into the live
-// path skeleton for a top-level key that exists only in the managed fence. It
+// ensureRegistryMaterialization turns the owning registry ShortSegment into the
+// live path skeleton for a top-level key that exists only in the managed fence. It
 // extracts the parent/requested key lines from CommentOutSegment — the exact
-// renderer used by renderFence — but omits prose, sibling examples, and example
-// values. setLivePath then fills only the requested value, so a later unset can
-// remove the path cleanly without leaving generated comments outside the fence.
+// renderer used by renderFence (which, like this materializer, consumes the
+// file-bound ShortSegment, 260809-wll4 R6/R7) — but omits prose, sibling examples,
+// and example values. setLivePath then fills only the requested value, so a later
+// unset can remove the path cleanly without leaving generated comments outside
+// the fence.
 func ensureRegistryMaterialization(document, key string, owner configref.Field) string {
 	parts := strings.Split(key, ".")
-	if _, ok := findLiveEntry(scanLiveKeyLines(splitMutationLines(document)), parts[:1]); ok || owner.Segment == "" {
+	if _, ok := findLiveEntry(scanLiveKeyLines(splitMutationLines(document)), parts[:1]); ok || owner.ShortSegment == "" {
 		return document
 	}
 
@@ -308,7 +310,7 @@ func ensureRegistryMaterialization(document, key string, owner configref.Field) 
 }
 
 func registryMaterializationSkeleton(owner configref.Field, key string) (string, bool) {
-	lines := strings.Split(CommentOutSegment(owner.Segment), "\n")
+	lines := strings.Split(CommentOutSegment(owner.ShortSegment), "\n")
 	virtual := append([]string{}, lines...)
 	for i, line := range virtual {
 		if strings.HasPrefix(line, "# ") {

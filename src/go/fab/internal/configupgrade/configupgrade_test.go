@@ -173,17 +173,21 @@ func TestCommentOutSegment_MarkersAtColumnZero(t *testing.T) {
 // property the fence's visual alignment rests on. The guard that a new registry row
 // carrying deliberately-commented content (the providers block's
 // headless_command / non-claude provider lines) cannot reintroduce a ragged fence.
+// Both renderings are walked: the long Segment (explain) and the file-bound
+// ShortSegment (fence/scaffold/materializer, 260809-wll4 R6/R7).
 func TestCommentOutSegment_ShippedRegistryAlignment(t *testing.T) {
 	for _, f := range fieldsForTest(t) {
-		if f.Segment == "" {
-			continue
-		}
-		for i, ln := range strings.Split(CommentOutSegment(f.Segment), "\n") {
-			if strings.TrimSpace(ln) == "" {
+		for form, seg := range map[string]string{"Segment": f.Segment, "ShortSegment": f.ShortSegment} {
+			if seg == "" {
 				continue
 			}
-			if !strings.HasPrefix(ln, "#") {
-				t.Errorf("field %q line %d is not commented at column 0: %q", f.Key, i, ln)
+			for i, ln := range strings.Split(CommentOutSegment(seg), "\n") {
+				if strings.TrimSpace(ln) == "" {
+					continue
+				}
+				if !strings.HasPrefix(ln, "#") {
+					t.Errorf("field %q %s line %d is not commented at column 0: %q", f.Key, form, i, ln)
+				}
 			}
 		}
 	}
@@ -195,27 +199,30 @@ func TestCommentOutSegment_ShippedRegistryAlignment(t *testing.T) {
 // uncomments a whole block gets valid YAML with claude's headless_command and the
 // non-claude provider blocks still commented at their original indent. Verified over the
 // shipped registry; the fence-level prose lines (already column-0) are unchanged by
-// the commenting and so are not part of the strip.
+// the commenting and so are not part of the strip. Both renderings are walked:
+// the long Segment (explain) and the file-bound ShortSegment (260809-wll4 R6/R7).
 func TestCommentOutSegment_BlockStripRestoresSegment(t *testing.T) {
 	for _, f := range fieldsForTest(t) {
-		if f.Segment == "" {
-			continue
-		}
-		orig := strings.Split(f.Segment, "\n")
-		got := strings.Split(CommentOutSegment(f.Segment), "\n")
-		for i, want := range orig {
-			if strings.TrimSpace(want) == "" || strings.HasPrefix(want, "#") {
-				if got[i] != want {
-					t.Errorf("field %q line %d: a blank/prose line must pass through unchanged: %q → %q", f.Key, i, want, got[i])
+		for form, seg := range map[string]string{"Segment": f.Segment, "ShortSegment": f.ShortSegment} {
+			if seg == "" {
+				continue
+			}
+			orig := strings.Split(seg, "\n")
+			got := strings.Split(CommentOutSegment(seg), "\n")
+			for i, want := range orig {
+				if strings.TrimSpace(want) == "" || strings.HasPrefix(want, "#") {
+					if got[i] != want {
+						t.Errorf("field %q %s line %d: a blank/prose line must pass through unchanged: %q → %q", f.Key, form, i, want, got[i])
+					}
+					continue
 				}
-				continue
-			}
-			if !strings.HasPrefix(got[i], "# ") {
-				t.Errorf("field %q line %d: a block line must gain the `# ` prefix: %q", f.Key, i, got[i])
-				continue
-			}
-			if restored := strings.TrimPrefix(got[i], "# "); restored != want {
-				t.Errorf("field %q line %d: stripping `# ` must restore the segment byte-exactly: %q, want %q", f.Key, i, restored, want)
+				if !strings.HasPrefix(got[i], "# ") {
+					t.Errorf("field %q %s line %d: a block line must gain the `# ` prefix: %q", f.Key, form, i, got[i])
+					continue
+				}
+				if restored := strings.TrimPrefix(got[i], "# "); restored != want {
+					t.Errorf("field %q %s line %d: stripping `# ` must restore the segment byte-exactly: %q, want %q", f.Key, form, i, restored, want)
+				}
 			}
 		}
 	}
@@ -415,6 +422,43 @@ func TestRender_BHygieneSilentOnRealOverride(t *testing.T) {
 	}
 }
 
+// TestRender_FenceAdvertsCarryScopeAnnotations (260809-wll4 R6/R7): every field
+// advert rendered into the managed fence carries its [project|system|both] scope
+// tag sourced from the registry row, a `fab config explain <key>` pointer, and —
+// for the preference-class (scope both) adverts — the `fab config set --system`
+// machine-wide pointer instead of the old invite-to-uncomment essay phrasing.
+// Runs over the SHIPPED registry.
+func TestRender_FenceAdvertsCarryScopeAnnotations(t *testing.T) {
+	fields := fieldsForTest(t)
+	out, _ := render("", fields, "2.15.0")
+	_, fenceBody, _ := sliceFence(t, out)
+
+	advertised := 0
+	for _, f := range fields {
+		if !f.Advertise || f.ShortSegment == "" {
+			continue
+		}
+		advertised++
+		if tag := "[" + string(f.Scope) + "]"; !strings.Contains(fenceBody, tag) {
+			t.Errorf("fence must carry the scope tag %q for advertised field %q.\n--- fence ---\n%s", tag, f.Key, fenceBody)
+		}
+	}
+	if advertised == 0 {
+		t.Fatal("no advertised fields — the fence would render empty")
+	}
+	if !strings.Contains(fenceBody, "# Full prose: fab config explain ") {
+		t.Errorf("fence adverts must point at `fab config explain <key>` for the full prose.\n--- fence ---\n%s", fenceBody)
+	}
+	if !strings.Contains(fenceBody, "# Settable machine-wide: fab config set --system ") {
+		t.Errorf("scope-both fence adverts must point at `fab config set --system <key> <value>`.\n--- fence ---\n%s", fenceBody)
+	}
+	// The diet: the fence no longer carries the long-form machine-wide phrasing
+	// that invited an uncomment-in-repo — the explain pointer replaces it.
+	if strings.Contains(fenceBody, "outranks the project file") {
+		t.Errorf("fence must not carry the long-form machine-wide essay phrasing (the diet moved it to `fab config explain`).\n--- fence ---\n%s", fenceBody)
+	}
+}
+
 // TestRender_FenceAdvertisesConsolidateDetectors: the `consolidate.detectors` key
 // added for /fab-dedupe (260728-4v91) is an advertised C field, so an un-overridden
 // project gets it scaffolded — fully commented — into the managed fence, and a
@@ -472,6 +516,134 @@ func TestUpgrade_RefusesUnparseableOutput(t *testing.T) {
 	}
 }
 
+// TestCheck_StaleStampReportsDriftWithoutWrite: a file whose fence was stamped by
+// an older kit version is DRIFT — Check reports Changed=true (a real run would
+// restamp the fence) and leaves the file byte-identical on disk.
+func TestCheck_StaleStampReportsDriftWithoutWrite(t *testing.T) {
+	fields := fieldsForTest(t)
+	stale, _ := render("project:\n    name: t\n", fields, "2.14.0")
+	path := writeMutationFixture(t, stale)
+
+	res, err := Check(path, "2.15.0")
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	if !res.Changed {
+		t.Error("a stale fence kit-version stamp is drift — Check must report Changed")
+	}
+	if got := readMutationFixture(t, path); got != stale {
+		t.Errorf("Check must never write the file.\n--- before ---\n%s\n--- after ---\n%s", stale, got)
+	}
+}
+
+// TestCheck_UnparkedUnknownKeyReportsDriftWithoutWrite: a live key absent from
+// the registry is drift (a real run would park it below the fence); the report
+// names the key that would be parked and the file is left untouched.
+func TestCheck_UnparkedUnknownKeyReportsDriftWithoutWrite(t *testing.T) {
+	const src = "project:\n    name: t\n\nlegacy_mode: true\n"
+	path := writeMutationFixture(t, src)
+
+	res, err := Check(path, "2.15.0")
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	if !res.Changed {
+		t.Error("an unparked unknown key is drift — Check must report Changed")
+	}
+	if !strings.Contains(strings.Join(res.Report, "\n"), "legacy_mode") {
+		t.Errorf("the report must name the key a run would park, got %v", res.Report)
+	}
+	if got := readMutationFixture(t, path); got != src {
+		t.Errorf("Check must never write the file.\n--- before ---\n%s\n--- after ---\n%s", src, got)
+	}
+}
+
+// TestCheck_MissingFenceReportsDriftWithoutWrite: a legacy file with no managed
+// fence is drift (a real run would append one); the file is left untouched.
+func TestCheck_MissingFenceReportsDriftWithoutWrite(t *testing.T) {
+	const legacy = "project:\n    name: t\n    description: d\n"
+	path := writeMutationFixture(t, legacy)
+
+	res, err := Check(path, "2.15.0")
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	if !res.Changed {
+		t.Error("a file with no managed fence is drift — Check must report Changed")
+	}
+	if got := readMutationFixture(t, path); got != legacy {
+		t.Errorf("Check must never write the file.\n--- before ---\n%s\n--- after ---\n%s", legacy, got)
+	}
+}
+
+// TestCheck_MissingFileReportsDriftAndCreatesNothing: a missing config.yaml is
+// drift (a real run would create a fresh fence-only file); Check creates nothing.
+func TestCheck_MissingFileReportsDriftAndCreatesNothing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+
+	res, err := Check(path, "2.15.0")
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	if !res.Changed {
+		t.Error("a missing config.yaml is drift — a real run would create it, so Check must report Changed")
+	}
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		t.Errorf("Check must not create the file, stat: %v", statErr)
+	}
+}
+
+// TestCheck_CleanFileReportsNoDrift: a file already reconciled at this kit
+// version is clean — Changed=false and the file stays byte-identical.
+func TestCheck_CleanFileReportsNoDrift(t *testing.T) {
+	fields := fieldsForTest(t)
+	clean, _ := render("project:\n    name: t\n", fields, "2.15.0")
+	path := writeMutationFixture(t, clean)
+
+	res, err := Check(path, "2.15.0")
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	if res.Changed {
+		t.Errorf("an already-reconciled file is clean — Check must not report drift, report: %v", res.Report)
+	}
+	if got := readMutationFixture(t, path); got != clean {
+		t.Errorf("Check must never write the file.\n--- before ---\n%s\n--- after ---\n%s", clean, got)
+	}
+}
+
+// TestCheck_AgreesWithUpgrade is the compute-without-write contract: the drift
+// probe shares Upgrade's compute path, so it can never disagree with a real run
+// — on a drifted fixture Check and Upgrade report the same verdict AND the same
+// report lines, and once Upgrade has applied, Check is clean.
+func TestCheck_AgreesWithUpgrade(t *testing.T) {
+	const src = "project:\n    name: t\n\nlegacy_mode: true\n"
+	path := writeMutationFixture(t, src)
+
+	checkRes, err := Check(path, "2.15.0")
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	upRes, err := Upgrade(path, "2.15.0")
+	if err != nil {
+		t.Fatalf("Upgrade: %v", err)
+	}
+	if checkRes.Changed != upRes.Changed {
+		t.Errorf("Check and Upgrade disagree on drift: check=%v upgrade=%v", checkRes.Changed, upRes.Changed)
+	}
+	if got, want := strings.Join(checkRes.Report, "\n"), strings.Join(upRes.Report, "\n"); got != want {
+		t.Errorf("Check and Upgrade disagree on the report.\n--- check ---\n%s\n--- upgrade ---\n%s", got, want)
+	}
+
+	after, err := Check(path, "2.15.0")
+	if err != nil {
+		t.Fatalf("Check after Upgrade: %v", err)
+	}
+	if after.Changed {
+		t.Errorf("Check must be clean right after Upgrade applied, report: %v", after.Report)
+	}
+}
+
 // TestRender_FenceAdvertisesDispatchMode: the `dispatch.mode` preference is an
 // advertised C field, so an un-overridden project gets
 // it scaffolded — fully commented — into the managed fence, and a project that HAS
@@ -516,8 +688,8 @@ func TestRender_FenceAdvertisesDispatchColumnWidth(t *testing.T) {
 
 	out, _ := render("project:\n    name: t\n", fields, "2.15.0")
 	_, fenceBody, _ := sliceFence(t, out)
-	if !strings.Contains(fenceBody, "# dispatch.column_width") {
-		t.Errorf("fence must advertise the un-overridden dispatch.column_width field.\n--- fence ---\n%s", fenceBody)
+	if !strings.Contains(fenceBody, "# dispatch.mode / dispatch.column_width / dispatch.reap_done") {
+		t.Errorf("fence must advertise the un-overridden dispatch.column_width field (named in the shared dispatch header).\n--- fence ---\n%s", fenceBody)
 	}
 	wantScaffold := "#   column_width: " + strconv.Itoa(config.DefaultDispatchColumnWidth)
 	if !strings.Contains(fenceBody, wantScaffold) {
@@ -552,8 +724,8 @@ func TestRender_FenceAdvertisesDispatchReapDone(t *testing.T) {
 
 	out, _ := render("project:\n    name: t\n", fields, "2.15.0")
 	_, fenceBody, _ := sliceFence(t, out)
-	if !strings.Contains(fenceBody, "# dispatch.reap_done") {
-		t.Errorf("fence must advertise the un-overridden dispatch.reap_done field.\n--- fence ---\n%s", fenceBody)
+	if !strings.Contains(fenceBody, "# dispatch.mode / dispatch.column_width / dispatch.reap_done") {
+		t.Errorf("fence must advertise the un-overridden dispatch.reap_done field (named in the shared dispatch header).\n--- fence ---\n%s", fenceBody)
 	}
 	wantScaffold := "#   reap_done: " + strconv.FormatBool(config.DefaultDispatchReapDone)
 	if !strings.Contains(fenceBody, wantScaffold) {
@@ -964,7 +1136,7 @@ func TestMutation_UnsetRepairsWrongKindLiveValue(t *testing.T) {
 	if strings.Contains(live, "column_width:") || !strings.Contains(live, "# preserve repair note") {
 		t.Fatalf("unset did not repair the wrong-kind override while preserving its note\n--- got ---\n%s", got)
 	}
-	if !strings.Contains(got, "#   column_width: 35") {
+	if !strings.Contains(got, "#   column_width: "+strconv.Itoa(config.DefaultDispatchColumnWidth)) {
 		t.Fatalf("unset did not re-advertise the inherited field in the fence\n--- got ---\n%s", got)
 	}
 }

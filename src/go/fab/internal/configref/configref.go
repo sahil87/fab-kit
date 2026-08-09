@@ -23,8 +23,10 @@
 // agent.ResolveProvider over agent.ProviderNames (so the provider SET is derived
 // too, not a hand-maintained name list), the per-role default profiles via
 // agent.DefaultProfile over agent.RoleNames, the pipeline stage names via
-// agent.StageNames, and the pane-worker column width via
-// config.DefaultDispatchColumnWidth. The dynamic segments (providers, agent, stage_hooks)
+// agent.StageNames, and the dispatch defaults (mode, column width, reap_done) via
+// the config.DefaultDispatch* vars — which carry no literal: internal/agent's
+// init() fills them from defaults.yaml's dispatch: block, the single value
+// source (260809-wll4). The dynamic segments (providers, agent, stage_hooks)
 // interpolate those same symbols when the row is built, so the reference text
 // carries no literal copy of any value. The providers SEGMENT still names the
 // four built-ins one by one (via agent.DefaultInteractiveCommand and the
@@ -39,7 +41,17 @@
 // demoted to advertise:false, so it no longer costs ~90 commented lines in every
 // repo. It keeps its registry rows, its --json defaults, and its rendered segments,
 // because `fab config explain` is the canonical full schema surface and
-// `fab config init --system` renders from those same segments.
+// `fab config init --system` renders the short form of those same segments.
+//
+// SHORT vs. LONG SEGMENTS (260809-wll4, R6/R7). Every segment-carrying row has TWO
+// renderings of the same field. Segment is the LONG form `fab config explain`
+// prints (bare and keyed) — the full prose essays. ShortSegment is the FILE-BOUND
+// form the managed fence, `fab config init --system`, and the set/unset
+// materializer render: a short description carrying the row's
+// [project|system|both] scope tag, a `fab config set --system <key> <value>`
+// pointer for scope-both fields, and a `fab config explain <key>` pointer to the
+// long form, above the same YAML block. The essays therefore live in exactly one
+// place (Segment), and generated files carry the diet form.
 //
 // Canonical default vs. rendering example: a field's Default holds the CANONICAL
 // built-in default (what the downstream cascade falls back to), not the value the
@@ -55,8 +67,8 @@
 // would leak an implementation detail with no cascade meaning. A non-nil Default
 // therefore always denotes a real built-in value (the four built-in providers'
 // command grammars AND their per-role fills, the resolved per-role profiles, the
-// two depth knobs' claude, dispatch.mode's native, dispatch.column_width's 35,
-// dispatch.reap_done's true).
+// two depth knobs' built-in provider, and all three dispatch defaults — the
+// config.DefaultDispatch* vars, filled from defaults.yaml per above).
 // The convention still governs WITHIN a provider: codex's and agy's fill maps are
 // SPARSE, so a role fab-kit ships no fill for is simply absent rather than emitted
 // as an empty object — and kimi, which ships no fills at all, projects no fill map
@@ -190,7 +202,22 @@ type Field struct {
 	// is built by interpolating the same Go symbols Default reads, so the
 	// rendered text carries no literal copy of any value. Not exposed in the JSON
 	// dump (it is the human-readable rendering of the same metadata).
+	//
+	// This is the LONG form: `fab config explain` (bare via Render, keyed via
+	// RenderKey) prints it with the full prose. File-bound renderers consume
+	// ShortSegment instead (see the package doc's SHORT vs. LONG SEGMENTS).
 	Segment string
+	// ShortSegment is the file-bound short form of Segment: a short description
+	// carrying the row's [project|system|both] scope tag, a
+	// `fab config set --system <key> <value>` pointer line for scope-both fields,
+	// and a `fab config explain <key>` pointer to the long form, above the same
+	// YAML block. It is what the managed fence (configupgrade), the
+	// `fab config init --system` scaffold (cmd/fab), and the set/unset
+	// materializer render into generated files — the prose diet of 260809-wll4
+	// R6/R7. Required on every row that carries a Segment (the lint enforces the
+	// pair, the scope tag, and the explain pointer); empty only on rows rendered
+	// inside another field's block.
+	ShortSegment string
 }
 
 // jsonField is the JSON projection of a Field: stable snake_case keys and
@@ -364,6 +391,14 @@ project:
   # linear_workspace: myteam         # optional — enables Linear issue links in
                                      # PR bodies (https://linear.app/<slug>/issue/<ID>).
                                      # Omit or leave null for bare issue-ID text.`,
+			ShortSegment: shortAdvert(ScopeProject,
+				"project — identity and PR metadata: name/description are read by skills\n"+
+					"for orientation and PR bodies; linear_workspace enables Linear issue links.",
+				"project.name") +
+				"project:\n" +
+				"  name: \"My Project\"\n" +
+				"  description: \"One-line project description\"\n" +
+				"  # linear_workspace: myteam",
 		},
 		{
 			Key:         "project.description",
@@ -397,6 +432,12 @@ project:
 # root). Read by skills to scope apply context.
 source_paths:
   - src/`,
+			ShortSegment: shortAdvert(ScopeProject,
+				"source_paths — directories containing implementation code (relative to\n"+
+					"repo root); skills read them to scope apply context.",
+				"source_paths") +
+				"source_paths:\n" +
+				"  - src/",
 		},
 		{
 			Key:         "test_paths",
@@ -425,6 +466,12 @@ source_paths:
 				"#   - \"**/src/test/**\"               # Java/Kotlin (Maven/Gradle) — test source root\n" +
 				"test_paths:\n" +
 				"  - \"**/*_test.go\"                   # example (Go — `_test.go` suffix)",
+			ShortSegment: shortAdvert(ScopeProject,
+				"test_paths — glob/pathspec patterns identifying test files, used by\n"+
+					"/git-pr's true-impact breakdown (impl = total − tests). No kit default.",
+				"test_paths") +
+				"test_paths:\n" +
+				"  - \"**/*_test.go\"                   # example (Go — `_test.go` suffix)",
 		},
 		{
 			Key:         "true_impact_exclude",
@@ -439,6 +486,13 @@ source_paths:
 true_impact_exclude:
   - fab/
   - docs/`,
+			ShortSegment: shortAdvert(ScopeProject,
+				"true_impact_exclude — pathspecs /git-pr excludes from the PR body's\n"+
+					"true-impact line counts (noise directories). Absent/empty omits the block.",
+				"true_impact_exclude") +
+				"true_impact_exclude:\n" +
+				"  - fab/\n" +
+				"  - docs/",
 		},
 		{
 			Key:         "checklist.extra_categories",
@@ -453,6 +507,12 @@ true_impact_exclude:
 # Each becomes an extra subsection under plan.md ## Acceptance.
 checklist:
   extra_categories: []               # example: [performance, accessibility, i18n]`,
+			ShortSegment: shortAdvert(ScopeProject,
+				"checklist.extra_categories — project-specific quality categories appended\n"+
+					"to plan.md ## Acceptance, each an extra subsection.",
+				"checklist.extra_categories") +
+				"checklist:\n" +
+				"  extra_categories: []               # example: [performance, accessibility, i18n]",
 		},
 		{
 			Key:         "consolidate.detectors",
@@ -471,6 +531,13 @@ checklist:
 # consolidate:
 #   detectors:
 #     - jscpd --reporters json --output {out} {paths}`,
+			ShortSegment: shortAdvert(ScopeProject,
+				"consolidate.detectors — duplicate-detection commands /fab-dedupe runs to\n"+
+					"seed its sweep; {paths} and {out} substitute at run time (shell-quoted).",
+				"consolidate.detectors") +
+				"# consolidate:\n" +
+				"#   detectors:\n" +
+				"#     - jscpd --reporters json --output {out} {paths}",
 		},
 		{
 			Key:         "agent.session",
@@ -479,7 +546,8 @@ checklist:
 			Description: "Provider for the Tier-1 (session) roles — the agents you talk to: fab agent, fab operator, fab batch worker sessions (roles default and operator). Names an entry in the providers table; applies at launch time. Scope both — settable once machine-wide, where it outranks the project file. Default claude.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
-			Segment:     agentSegment(roles),
+			Segment:      agentSegment(roles),
+			ShortSegment: agentShortSegment(),
 		},
 		{
 			Key:         "agent.workers",
@@ -527,8 +595,9 @@ checklist:
 			// --json consumers; the on-disk rewrite is the 2.18.1-to-2.19.0
 			// migration's job, and the read-time alias keeps old spellings
 			// resolving meanwhile.
-			RenamedFrom: "providers.<name>.session_command, providers.<name>.dispatch_command",
-			Segment:     providersSegment(providers, roleOrder),
+			RenamedFrom:  "providers.<name>.session_command, providers.<name>.dispatch_command",
+			Segment:      providersSegment(providers, roleOrder),
+			ShortSegment: providersShortSegment(providers, roleOrder),
 		},
 		{
 			Key:         "dispatch.mode",
@@ -537,7 +606,8 @@ checklist:
 			Description: "Preferred stage-dispatch mode: pane, native, or headless. Resolution starts at the preference and descends pane → native → headless without ascending, choosing the first mode supported by the provider and environment. Scope both — settable once machine-wide, where it outranks the project file. Default native.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
-			Segment:     dispatchSegment(),
+			Segment:      dispatchSegment(),
+			ShortSegment: dispatchShortSegment(),
 		},
 		{
 			Key: "dispatch.column_width",
@@ -577,7 +647,8 @@ checklist:
 			Description: "Optional per-stage pre/post shell commands honored by fab status start/finish. Each runs as sh -c from the repo root; a failing pre hook blocks start. Not seeded by the scaffold — add by hand.",
 			Scope:       ScopeProject,
 			Advertise:   true,
-			Segment:     stageHooksSegment(),
+			Segment:      stageHooksSegment(),
+			ShortSegment: stageHooksShortSegment(),
 		},
 		{
 			Key:         "branch_prefix",
@@ -589,6 +660,11 @@ checklist:
 			Segment: "# branch_prefix — optional prefix applied by `fab batch switch` when creating\n" +
 				"# worktree branches (branch name = `{branch_prefix}{folder_name}`). Empty when\n" +
 				"# absent.\n" +
+				`# branch_prefix: ""`,
+			ShortSegment: shortAdvert(ScopeProject,
+				"branch_prefix — optional prefix `fab batch switch` applies to worktree\n"+
+					"branch names ({branch_prefix}{folder_name}). Empty when absent.",
+				"branch_prefix") +
 				`# branch_prefix: ""`,
 		},
 	}
@@ -739,25 +815,7 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# The bypass flags are deliberate: unattended stage workers cannot answer approval\n" +
 		"# prompts. Override the corresponding provider command to restore an\n" +
 		"# approval-gated posture.\n" +
-		"providers:\n" +
-		"  claude:\n" +
-		"    native: " + strconv.FormatBool(providers[agent.DefaultProviderName].Native) + "\n" +
-		"    interactive_command: " + YAMLSingleQuoted(agent.DefaultInteractiveCommand) + "\n" +
-		"    headless_command: " + YAMLSingleQuoted(agent.DefaultHeadlessCommand) + "\n" +
-		"  # codex:\n" +
-		"  #   interactive_command: " + YAMLSingleQuoted(agent.DefaultCodexInteractiveCommand) + "\n" +
-		"  #   headless_command: " + YAMLSingleQuoted(agent.DefaultCodexHeadlessCommand) + "\n" +
-		profilesLines(providers["codex"].Profiles, roleOrder) +
-		"  # agy:\n" +
-		"  #   headless_command: " + YAMLSingleQuoted(agent.DefaultAgyHeadlessCommand) + "   # dispatch only; no {effort} flag; nested shell so $(cat) reads the piped prompt\n" +
-		profilesLines(providers["agy"].Profiles, roleOrder) +
-		// kimi ships no fills, so profilesLines renders nothing for it — the trim
-		// therefore has to span the whole kimi block, not just its (empty) fill
-		// lines, or the segment would end with a stray newline.
-		strings.TrimRight(
-			"  # kimi:\n"+
-				"  #   headless_command: "+YAMLSingleQuoted(agent.DefaultKimiHeadlessCommand)+"   # dispatch only; no fills shipped, so the empty {model} drops -m\n"+
-				profilesLines(providers["kimi"].Profiles, roleOrder), "\n")
+		providersYAML(providers, roleOrder)
 }
 
 // YAMLSingleQuoted wraps a command string as a YAML single-quoted scalar, doubling
@@ -871,9 +929,11 @@ func agentSegment(roles []roleRow) string {
 // since `dispatch` is one YAML block and two separately-uncommentable `# dispatch:`
 // parents would collide into a duplicate key. dispatch.mode is the preferred
 // descent-ladder rung; dispatch.column_width sizes the worker column;
-// dispatch.reap_done reclaims a done worker's pane. All three have canonical
-// constants to interpolate: config.DefaultDispatchMode,
-// config.DefaultDispatchColumnWidth, and config.DefaultDispatchReapDone.
+// dispatch.reap_done reclaims a done worker's pane. All three interpolate the
+// canonical config.DefaultDispatchMode / config.DefaultDispatchColumnWidth /
+// config.DefaultDispatchReapDone vars — no literal copy — which internal/agent's
+// init() fills from defaults.yaml's dispatch: block, the single value source
+// (260809-wll4).
 //
 // The dispatch.column_width and dispatch.reap_done registry rows therefore carry no
 // Segment of their own — the project.name / project.description precedent for
@@ -935,7 +995,143 @@ func stageHooksSegment() string {
 		"#     post: make test"
 }
 
-// lintFields is the fail-loud registry validation: every row must have a
+// machineWideLead is the lead-in of the scope-both machine-wide pointer line in a
+// short segment. The continuation lines of a multi-key block align their `fab`
+// under the lead-in's.
+const machineWideLead = "# Settable machine-wide: "
+
+// shortAdvert renders the shared header of a file-bound SHORT segment (260809-wll4
+// R6/R7): the short description (one `# `-prefixed comment line per desc line, the
+// row's [project|system|both] scope tag appended to the last), the machine-wide
+// `fab config set --system` pointer for scope-both fields (one line per setKey,
+// continuation lines aligned), and the `fab config explain <key>` pointer to the
+// long-form prose. The caller appends the field's YAML lines. The lint
+// (lintFields) pins the scope tag and both pointers against the row's metadata,
+// so the annotations stay sourced from the registry row rather than re-typed.
+//
+// The pointer phrasing is deliberately not of the `# Key:` comment shape: the
+// mutation engine strips one leading `# ` from fence lines and scans the result
+// for live YAML keys, so a `# Explain: …` line would read as a live `Explain`
+// key. `# Full prose: …` and `# Settable machine-wide: …` never scan as keys.
+func shortAdvert(scope Scope, desc, explainKey string, setKeys ...string) string {
+	var b strings.Builder
+	lines := strings.Split(desc, "\n")
+	for i, ln := range lines {
+		b.WriteString("# " + ln)
+		if i == len(lines)-1 {
+			b.WriteString(" [" + string(scope) + "]")
+		}
+		b.WriteString("\n")
+	}
+	if scope == ScopeBoth {
+		for i, key := range setKeys {
+			if i == 0 {
+				b.WriteString(machineWideLead)
+			} else {
+				b.WriteString("#" + strings.Repeat(" ", len(machineWideLead)-1))
+			}
+			b.WriteString("fab config set --system " + key + "\n")
+		}
+	}
+	b.WriteString("# Full prose: fab config explain " + explainKey + "\n")
+	return b.String()
+}
+
+// agentShortSegment is the file-bound short form of agentSegment — same `agent:`
+// YAML block (the two live knobs plus the commented profiles example), diet
+// header. Values interpolate the same canonical symbols.
+func agentShortSegment() string {
+	return shortAdvert(ScopeBoth,
+		"agent.session / agent.workers — providers for the two agent DEPTHS: session is\n"+
+			"what you talk to (fab agent/operator/batch), workers is what stages dispatch\n"+
+			"to. agent.profiles.<role> is the sparse per-role escape hatch beneath the\n"+
+			"knobs. Default "+agent.DefaultProviderName+".",
+		"agent.session",
+		"agent.session <provider>", "agent.workers <provider>") +
+		"agent:\n" +
+		"  session: " + agent.DefaultProviderName + "\n" +
+		"  workers: " + agent.DefaultProviderName + "\n" +
+		"  # profiles:\n" +
+		"  #   review: { provider: codex }      # example: run just the critic elsewhere"
+}
+
+// dispatchShortSegment is the file-bound short form of dispatchSegment — same
+// fully-commented `dispatch:` block (one parent for all three keys), diet header.
+// Values interpolate the same canonical config.DefaultDispatch* vars.
+func dispatchShortSegment() string {
+	return shortAdvert(ScopeBoth,
+		"dispatch.mode / dispatch.column_width / dispatch.reap_done — stage-dispatch\n"+
+			"mode (pane → native → headless, descending), the pane-worker column width\n"+
+			"in percent, and done-pane reaping.",
+		"dispatch.mode",
+		"dispatch.mode <pane|native|headless>",
+		"dispatch.column_width <percent>",
+		"dispatch.reap_done <true|false>") +
+		"# dispatch:\n" +
+		"#   mode: " + config.DefaultDispatchMode + "\n" +
+		"#   column_width: " + strconv.Itoa(config.DefaultDispatchColumnWidth) + "\n" +
+		"#   reap_done: " + strconv.FormatBool(config.DefaultDispatchReapDone)
+}
+
+// stageHooksShortSegment is the file-bound short form of stageHooksSegment —
+// same commented example block, diet header, the stage-keys list interpolated
+// from agent.StageNames() like the long form.
+func stageHooksShortSegment() string {
+	return shortAdvert(ScopeProject,
+		"stage_hooks — optional per-stage pre/post shell commands honored by\n"+
+			"`fab status start` / `fab status finish`; a failing pre hook blocks start.\n"+
+			"Add by hand. Valid stage keys: "+strings.Join(agent.StageNames(), ", ")+".",
+		"stage_hooks") +
+		"# stage_hooks:\n" +
+		"#   apply:\n" +
+		"#     pre: ./scripts/check-clean-tree.sh\n" +
+		"#     post: make test"
+}
+
+// providersShortSegment is the file-bound short form of providersSegment — the
+// SAME YAML payload (providersYAML, shared with the long form so the rendered
+// grammar cannot drift between them) under a diet header. Consumed by
+// `fab config init --system`; the managed fence never scaffolds providers
+// (advertise:false).
+func providersShortSegment(providers map[string]providerDefault, roleOrder []string) string {
+	return shortAdvert(ScopeBoth,
+		"providers — named agent capability grammars (interactive/headless/native\n"+
+			"commands) plus per-role {model, effort} fills. fab-kit ships claude (the\n"+
+			"default), codex, agy and kimi; naming a built-in on a depth knob needs no\n"+
+			"entry here.",
+		"providers",
+		"providers.<name>.<field> <value>") +
+		providersYAML(providers, roleOrder)
+}
+
+// providersYAML is the YAML payload of the providers block — the claude baseline
+// (live) plus the commented codex/agy/kimi reference blocks and their per-role
+// fills — shared by providersSegment (long form, essay header) and
+// providersShortSegment (file-bound form, diet header) so the rendered grammar
+// has exactly one source. Values interpolate the canonical agent vars; fill
+// lines follow roleOrder for byte-stability.
+func providersYAML(providers map[string]providerDefault, roleOrder []string) string {
+	return "providers:\n" +
+		"  claude:\n" +
+		"    native: " + strconv.FormatBool(providers[agent.DefaultProviderName].Native) + "\n" +
+		"    interactive_command: " + YAMLSingleQuoted(agent.DefaultInteractiveCommand) + "\n" +
+		"    headless_command: " + YAMLSingleQuoted(agent.DefaultHeadlessCommand) + "\n" +
+		"  # codex:\n" +
+		"  #   interactive_command: " + YAMLSingleQuoted(agent.DefaultCodexInteractiveCommand) + "\n" +
+		"  #   headless_command: " + YAMLSingleQuoted(agent.DefaultCodexHeadlessCommand) + "\n" +
+		profilesLines(providers["codex"].Profiles, roleOrder) +
+		"  # agy:\n" +
+		"  #   headless_command: " + YAMLSingleQuoted(agent.DefaultAgyHeadlessCommand) + "   # dispatch only; no {effort} flag; nested shell so $(cat) reads the piped prompt\n" +
+		profilesLines(providers["agy"].Profiles, roleOrder) +
+		// kimi ships no fills, so profilesLines renders nothing for it — the trim
+		// therefore has to span the whole kimi block, not just its (empty) fill
+		// lines, or the segment would end with a stray newline.
+		strings.TrimRight(
+			"  # kimi:\n"+
+				"  #   headless_command: "+YAMLSingleQuoted(agent.DefaultKimiHeadlessCommand)+"   # dispatch only; no fills shipped, so the empty {model} drops -m\n"+
+				profilesLines(providers["kimi"].Profiles, roleOrder), "\n")
+}
+
 // non-empty Description and a valid Scope. A violation is a construction bug
 // (a new row added without metadata), caught here rather than shipped as a
 // degraded reference — the same discipline as the role-profile invariant above.
@@ -957,6 +1153,28 @@ func lintFields(fields []Field) error {
 		// construction instead. See internal/configscope.
 		if want := scopeFor(f.Key); f.Scope != want {
 			return fmt.Errorf("configref: field %q has scope %q but internal/configscope says %q — the scope taxonomy is single-sourced in configscope; fix it there", f.Key, f.Scope, want)
+		}
+		// File-bound short form (260809-wll4 R6/R7): every row carrying a Segment
+		// must carry a ShortSegment — the managed fence, `fab config init
+		// --system`, and the set/unset materializer render the short form while
+		// `fab config explain` keeps the long one. The short form must carry the
+		// row's scope tag, a `fab config explain <key>` pointer, and — for
+		// preference-class (scope both) fields — the `fab config set --system`
+		// machine-wide pointer, so a fence advert can never ship without its
+		// annotations or with a tag that disagrees with the row.
+		if f.Segment != "" && f.ShortSegment == "" {
+			return fmt.Errorf("configref: field %q has a Segment but no ShortSegment (the file-bound renderers — managed fence, init --system, set/unset materialization — consume the short form)", f.Key)
+		}
+		if f.ShortSegment != "" {
+			if tag := "[" + string(f.Scope) + "]"; !strings.Contains(f.ShortSegment, tag) {
+				return fmt.Errorf("configref: field %q ShortSegment is missing its scope tag %q (sourced from the row's configscope value)", f.Key, tag)
+			}
+			if !strings.Contains(f.ShortSegment, "fab config explain ") {
+				return fmt.Errorf("configref: field %q ShortSegment is missing its `fab config explain <key>` pointer to the full prose", f.Key)
+			}
+			if f.Scope == ScopeBoth && !strings.Contains(f.ShortSegment, "fab config set --system ") {
+				return fmt.Errorf("configref: field %q is scope both — its ShortSegment must point at `fab config set --system <key> <value>` for the machine-wide home", f.Key)
+			}
 		}
 	}
 	return nil
