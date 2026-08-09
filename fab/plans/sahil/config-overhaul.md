@@ -2,7 +2,8 @@
 
 > Backlog detail doc — written 2026-08-08 after a `/fab-discuss` session (the env-layer
 > change added later the same day from a follow-on discussion; Change 6 folded in from
-> backlog `[kpth]` the same day). All open decisions below are **resolved** (user-confirmed
+> backlog `[kpth]` the same day; Change 5 items 6–7 folded in from backlog `[a6nd]` +
+> `[q6kj]` on 2026-08-09). All open decisions below are **resolved** (user-confirmed
 > in that session). The work is split into six changes, each independently shippable, in
 > dependency order — intended to be picked up by other agents via `/fab-new`.
 >
@@ -31,7 +32,8 @@ Six related cleanups to how fab-kit's configuration is inspected, mutated, and r
 4. **Field naming** — `session_command`/`dispatch_command` renamed to the honest axis:
    `interactive_command`/`headless_command`.
 5. **Source consolidation** — one embedded values file, zero stub copies, a `--check` drift
-   mode, and a fence that teaches which file each setting belongs in.
+   mode, a fence that teaches which file each setting belongs in, a prose diet for both
+   generated config files, and `init --print`/`--force`.
 6. **Kit-dev resolution override** — a per-process `FAB_KIT_PATH` honored at the
    kit-resolution seam (shim + `kit-path`), so a kit-dev worktree can run its own unshipped
    `src/kit/`. The env-override *pattern* of Change 1 applied to infrastructure resolution —
@@ -428,10 +430,24 @@ Rides along after the dust settles; each item is small and independently committ
    provider rows read `claude # default` even when a depth knob names another provider
    (documented under-reporting in `_shared/configuration.md`); compose against the live
    config instead of the nil-config registry default.
+6. **`fab config init --print` / `--force`** *(folded from backlog `[a6nd]`, 2026-08-09)* —
+   `--print` renders the exact file `init` would write to stdout, zero writes (composes with
+   both `--project` and `--system`; the preview probe alongside `upgrade --check`'s drift
+   probe); `--force` replaces the existing-file refusal with an explicit overwrite. Extends
+   the same `cmd/fab/config.go` init verb C2 reworked — which is why this rides in C5, not
+   its own change.
+7. **Config-file prose diet** *(folded from backlog `[q6kj]`, 2026-08-09)* — both generated
+   files (the project `config.yaml` managed fence and `init --system`'s output) are far too
+   verbose: paragraph-length per-field essays. Tighten the configref rendered segments so
+   each field carries a short description plus a `fab config explain <key>` pointer for the
+   full prose — the registry keeps the essays; the files stop duplicating them. Natural
+   rider on item 4: both rework the fence's rendered text, so do them together and move the
+   byte-stability/golden tests once.
 
-**Obligations**: per item — tests (golden/idempotence for fence changes), `_cli-fab.md` +
-SPEC mirrors for `--check`, `docs/specs/config.md`, memory sweep. Item 2 touches the fab-kit
-binary (`internal/init.go`).
+**Obligations**: per item — tests (golden/idempotence for fence changes, which items 4 + 7
+share), `_cli-fab.md` + SPEC mirrors for `--check` and the new `init` flags,
+`docs/specs/config.md`, memory sweep. Item 2 touches the fab-kit binary (`internal/init.go`);
+item 7 rewrites the configref segment renderer (golden-heavy).
 
 ---
 
@@ -518,7 +534,11 @@ env-override note; memory `distribution/kit-architecture.md` (kit-resolution sec
     dependency on the verb surface, the mode ladder, the renames, or the consolidation, and
     it is the change that unlocks runtime provider switching; the former Changes 1–4 shift
     down to 2–5 with relative order preserved.
-14. **`FAB_KIT_PATH` is Change 6, not part of Change 1** (folded from backlog `[kpth]`,
+15. **`init --print`/`--force` and the config-prose diet ride in Change 5** (folded from
+    backlog `[a6nd]` + `[q6kj]`, user-confirmed 2026-08-09) — one change, not three: the
+    init flags extend the verb C2 already reworked and C5 already extends, and the prose
+    diet is inseparable from item 4's fence-text rework (same renderer, same golden tests).
+16. **`FAB_KIT_PATH` is Change 6, not part of Change 1** (folded from backlog `[kpth]`,
     user-confirmed 2026-08-08) — same env-override philosophy, different seam: kit
     resolution happens in the shim before any config cascade exists, the kit path is
     deliberately not a registry field (env-only is the hermeticity guardrail), and it
