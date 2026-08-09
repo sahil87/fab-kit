@@ -50,7 +50,7 @@ helpers: [_generation, _review, _srad, _pipeline]
 | `fab-adopt` | `[_srad, _generation, _review, _pipeline]` (orchestrator — reuses the diff-generation procedures, diff-only review, and the auto-rework budget) |
 | `fab-continue` | `[_srad]` (+ `_generation`/`_review` stage-conditionally, in-body) |
 | `fab-clarify` | `[_srad]` |
-| `fab-operator` | `[_cli-agents, _cli-fab, _cli-external]` (`_cli-agents` carries the generic agent-CLI interaction procedures extracted from the skill in 260805-nvad, plus the three-provider grammar/discovery dictionary) |
+| `fab-operator` | `[_cli-agents, _cli-fab, _cli-external]` (`_cli-agents` carries the generic agent-CLI interaction procedures extracted from the skill in 260805-nvad, plus the four-provider grammar/discovery dictionary) |
 | All other skills | omitted (load only `_preamble`) |
 
 Validation is **convention-only** — `fab sync` does not reject skills with unknown helper values. Drift surfaces as runtime behavior (agent loads an unexpected file or fails to find a needed one).

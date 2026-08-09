@@ -27,9 +27,10 @@
 // config.DefaultDispatchColumnWidth. The dynamic segments (providers, agent, stage_hooks)
 // interpolate those same symbols when the row is built, so the reference text
 // carries no literal copy of any value. The providers SEGMENT still names the
-// three built-ins one by one (via agent.DefaultSessionCommand and the
-// agent.DefaultCodex*/DefaultGemini* vars) because its per-provider commentary is
-// bespoke prose, not a derivable projection — only the values are interpolated.
+// four built-ins one by one (via agent.DefaultSessionCommand and the
+// agent.DefaultCodex*/DefaultAgy*/DefaultKimi* vars) because its per-provider
+// commentary is bespoke prose, not a derivable projection — only the values are
+// interpolated.
 //
 // ADVERTISED SURFACE vs. FULL REFERENCE. `advertise` decides only what the managed
 // fence scaffolds into every project's config.yaml. As of 260806-j9nh the advertised
@@ -52,13 +53,14 @@
 // uniform "no built-in default — the cascade falls back to absent" signal the
 // downstream resolver (Change 2) consumes; distinguishing []string{} from nil
 // would leak an implementation detail with no cascade meaning. A non-nil Default
-// therefore always denotes a real built-in value (the three built-in providers'
+// therefore always denotes a real built-in value (the four built-in providers'
 // command grammars AND their per-role fills, the resolved per-role profiles, the
 // two depth knobs' claude, dispatch.mode's native, dispatch.column_width's 35,
 // dispatch.reap_done's true).
-// The convention still governs WITHIN a provider: codex's and gemini's fill maps are
+// The convention still governs WITHIN a provider: codex's and agy's fill maps are
 // SPARSE, so a role fab-kit ships no fill for is simply absent rather than emitted
-// as an empty object. The three dispatch rows are the convention's
+// as an empty object — and kimi, which ships no fills at all, projects no fill map
+// rather than an empty one. The three dispatch rows are the convention's
 // boundary cases: mode carries its real string default, and an absent yaml int is
 // indistinguishable from 0 (which the accessor therefore reads as unset), so each
 // carries its real built-in value rather than
@@ -228,7 +230,7 @@ type providerProfileDefault struct {
 // Native is capability data rather than a provider-name inference. That
 // matches the registry's empty-default convention: a non-nil Default always denotes
 // a real built-in value, so an absent key means "fab-kit ships none", not "empty" —
-// which is also why a sparse fill map (codex, gemini) omits the roles it does not
+// which is also why a sparse fill map (codex, agy) omits the roles it does not
 // fill rather than emitting empty objects for them.
 //
 // The DEPRECATED flat fill (providers.<name>.model/.effort) is deliberately not
@@ -511,7 +513,7 @@ checklist:
 			Key:         "providers",
 			Default:     providers,
 			Kind:        configvalue.KindMapping,
-			Description: "Named agent capability grammars: three built-in providers with per-role fills on the kit-release cadence. Each provider MAY carry session_command (pane/session), dispatch_command (headless stage task), and native (native Agent-tool capability); presence describes how and never selects dispatch mode. Command fields are never merged or substituted for one another. profiles supplies {model}/{effort} placeholders with precedence invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty. Provider names are opaque, user-chosen strings.",
+			Description: "Named agent capability grammars: four built-in providers with per-role fills on the kit-release cadence. Each provider MAY carry session_command (pane/session), dispatch_command (headless stage task), and native (native Agent-tool capability); presence describes how and never selects dispatch mode. Command fields are never merged or substituted for one another. profiles supplies {model}/{effort} placeholders with precedence invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty. Fill roster: claude ships all six role fills, codex and agy sparse maps whose `default` entry is the cross-role fallback, and kimi NO fills at all (its -m takes a user-config model alias, so the empty model drops the flag and the CLI's own default_model applies). Provider names are opaque, user-chosen strings.",
 			Scope:       ScopeBoth,
 			// Demoted from the managed fence (260806-j9nh) for the same reason as
 			// agent.profiles: naming a built-in in a knob needs no providers: block at
@@ -607,25 +609,27 @@ const referenceHeader = `# Full reference of all available options: fab config e
 
 // providersSegment renders the providers block. Every command string is
 // interpolated from its canonical agent var (no literal copy):
-// agent.DefaultSessionCommand / agent.DefaultDispatchCommand for claude, and the four
-// agent.DefaultCodex*/DefaultGemini* vars for the other two built-ins. The
-// codex/gemini per-role FILLS are interpolated the same way, from the already-derived
+// agent.DefaultSessionCommand / agent.DefaultDispatchCommand for claude, and the
+// agent.DefaultCodex*/DefaultAgy*/DefaultKimi* vars for the other three built-ins
+// (codex carries both commands; agy and kimi are dispatch-only).
+// The per-role FILLS are interpolated the same way, from the already-derived
 // providerDefaults() view — so the shipped values appear here without a literal copy,
-// and a bump in defaults.yaml reaches the rendered reference by itself.
+// and a bump in defaults.yaml reaches the rendered reference by itself. kimi ships no
+// fills, so profilesLines renders no `profiles:` key for it at all.
 //
 // Fill lines are emitted in roleOrder (agent.RoleNames(), sorted) so the output stays
 // BYTE-STABLE: the profiles map is looked up by key, never range-iterated.
 //
-// Presentation (260805-j3cm): all three providers are BUILT-IN, so codex/gemini
-// are rendered as commented reference-style defaults — the same presentation every
-// other non-overridden default uses — not as uncomment-to-opt-in blocks. The
+// Presentation (260805-j3cm): all four providers are BUILT-IN, so the non-claude
+// blocks are rendered as commented reference-style defaults — the same presentation
+// every other non-overridden default uses — not as uncomment-to-opt-in blocks. The
 // commented form still registers no project override (presence=intent holds for
 // BEHAVIOR: a built-in provider is inert until a knob, a role override, or a flag names it), and
 // whole-block uncommenting still yields valid YAML because all per-provider prose
 // stays above the `providers:` key.
 //
 // This segment carries the registry's only DELIBERATELY-COMMENTED content lines —
-// the `# codex:` / `# gemini:` blocks.
+// the `# codex:` / `# agy:` / `# kimi:` blocks.
 // configupgrade.CommentOutSegment prefixes those like any live line (its column-0
 // rule), so in a rendered fence every marker lands at column 0 and the "strip the
 // leading '# ' from every line of a block" instruction below restores this text
@@ -668,20 +672,29 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# Provider names are opaque, user-chosen strings — fab NEVER infers a provider\n" +
 		"# from a model string, and values pass through verbatim with no validation.\n" +
 		"#\n" +
-		"# fab-kit ships THREE built-in providers — claude (the default), codex and gemini\n" +
-		"# — each WITH its per-role fills, so `agent.workers: codex` needs no providers:\n" +
-		"# block at all and every role still resolves a model suited to it. The non-claude\n" +
-		"# maps are SPARSE: a role absent from one takes that provider's `default` entry.\n" +
-		"# Those fills are refreshed at KIT-RELEASE cadence and pass through unvalidated —\n" +
-		"# override one with providers.<name>.profiles.<role>.model to pin a newer model.\n" +
+		"# fab-kit ships FOUR built-in providers — claude (the default), codex, agy and\n" +
+		"# kimi — so `agent.workers: codex` needs no providers: block at all. claude, codex\n" +
+		"# and agy carry per-role fills, and every role still resolves a model suited to it;\n" +
+		"# the non-claude maps are SPARSE: a role absent from one takes that provider's\n" +
+		"# `default` entry. Those fills are refreshed at KIT-RELEASE cadence and pass through\n" +
+		"# unvalidated — override one with providers.<name>.profiles.<role>.model to pin a\n" +
+		"# newer model. kimi deliberately ships NO fills (see its note below), so it\n" +
+		"# resolves an empty model and the -m flag drops out.\n" +
 		"# Only the non-claude maps are PRINTED below — claude's six fills are the role\n" +
-		"# defaults `fab resolve-agent <stage>` resolves, and all three providers' maps\n" +
-		"# are projected by `fab config explain --json`; their absence from claude's\n" +
+		"# defaults `fab resolve-agent <stage>` resolves, and every provider's map is\n" +
+		"# projected by `fab config explain --json`; their absence from claude's\n" +
 		"# block below is a rendering choice, not a missing fill.\n" +
 		"# Every non-claude block below is commented because it merely restates a built-in\n" +
 		"# default; claude's three capabilities are shown live as the baseline example.\n" +
-		"# Claude carries all three capabilities; codex/gemini carry pane + headless and\n" +
-		"# therefore descend from the default native preference to headless.\n" +
+		"# Claude carries all three capabilities; codex carries pane + headless and\n" +
+		"# therefore descends from the default native preference to headless. agy and kimi\n" +
+		"# ship NO session_command — they are DISPATCH-ONLY built-ins with no pane\n" +
+		"# capability: pane dispatch hands the worker its pointer prompt as a positional\n" +
+		"# argument, and neither CLI can receive a prompt that way (see their notes\n" +
+		"# below) — so mode resolution lands their stages on headless. Add\n" +
+		"# providers.<name>.session_command yourself if you want `fab agent --provider agy`\n" +
+		"# to open an interactive session, accepting that pane-dispatched stages will not\n" +
+		"# receive their prompt.\n" +
 		"#\n" +
 		"# Per-provider notes (kept out of the blocks below so uncommenting a whole block\n" +
 		"# yields valid YAML — strip the leading '# ' from every line of a block):\n" +
@@ -689,37 +702,72 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#   codex — codex exec reads the prompt from stdin; both commands carry\n" +
 		"#     --dangerously-bypass-approvals-and-sandbox. Its -m takes a concrete model\n" +
 		"#     SLUG, so the fills below are pinned IDs: override one to pin a newer model.\n" +
-		"#   gemini — both commands carry --approval-mode=yolo. There is no {effort} (the\n" +
-		"#     gemini CLI has no reasoning-effort flag, so its fills carry none either) and\n" +
-		"#     no -p: gemini's -p takes prompt TEXT (appended after stdin), whereas fab\n" +
-		"#     dispatch pipes the prompt to stdin, which gemini reads as the prompt in\n" +
-		"#     non-TTY mode. Its fills are that CLI's own stable ALIASES\n" +
-		"#     rather than versioned IDs, so they track its current best model on their own.\n" +
+		"#   agy — the Antigravity CLI. There is no {effort}: its model IDs EMBED the\n" +
+		"#     reasoning level (gemini-3.1-pro-high), so its fills are model-only. `agy -p`\n" +
+		"#     takes the prompt as an ARGUMENT and ignores stdin, so dispatch_command nests\n" +
+		"#     a shell — POSIX expands $(cat) before fab dispatch's stdin redirect applies,\n" +
+		"#     making the inner sh's stdin the prompt. --print-timeout is raised well above\n" +
+		"#     its 5m default because stage workers run far longer. No session_command:\n" +
+		"#     agy silently DROPS a positional prompt (its TUI starts empty) and gates a\n" +
+		"#     fresh workspace behind an interactive trust prompt even under\n" +
+		"#     --dangerously-skip-permissions, so a pane worker would never see its prompt.\n" +
+		"#   kimi — the kimi-code CLI, and the one built-in shipping NO fills: its -m takes\n" +
+		"#     a USER-CONFIG model alias rather than a catalog ID, so a pinned value would\n" +
+		"#     break non-managed installs. The empty model drops `-m` and kimi falls back to\n" +
+		"#     your own default_model; pin one with providers.kimi.profiles.<role>.model if\n" +
+		"#     you want per-role differentiation. Same nested-shell stdin idiom as agy, and\n" +
+		"#     no approval flag on dispatch: `kimi -p` already auto-approves tools and\n" +
+		"#     REJECTS --yolo/--auto. No session_command either: kimi parses a bare\n" +
+		"#     positional as a SUBCOMMAND and exits non-zero, and has no\n" +
+		"#     interactive-initial-prompt flag at all.\n" +
 		"# The bypass flags are deliberate: unattended stage workers cannot answer approval\n" +
-		"# prompts. Override either provider command to restore an approval-gated posture.\n" +
+		"# prompts. Override the corresponding provider command to restore an\n" +
+		"# approval-gated posture.\n" +
 		"providers:\n" +
 		"  claude:\n" +
 		"    native: " + strconv.FormatBool(providers[agent.DefaultProviderName].Native) + "\n" +
-		"    session_command: '" + agent.DefaultSessionCommand + "'\n" +
-		"    dispatch_command: '" + agent.DefaultDispatchCommand + "'\n" +
+		"    session_command: " + YAMLSingleQuoted(agent.DefaultSessionCommand) + "\n" +
+		"    dispatch_command: " + YAMLSingleQuoted(agent.DefaultDispatchCommand) + "\n" +
 		"  # codex:\n" +
-		"  #   session_command: '" + agent.DefaultCodexSessionCommand + "'\n" +
-		"  #   dispatch_command: '" + agent.DefaultCodexDispatchCommand + "'\n" +
+		"  #   session_command: " + YAMLSingleQuoted(agent.DefaultCodexSessionCommand) + "\n" +
+		"  #   dispatch_command: " + YAMLSingleQuoted(agent.DefaultCodexDispatchCommand) + "\n" +
 		profilesLines(providers["codex"].Profiles, roleOrder) +
-		"  # gemini:\n" +
-		"  #   session_command: '" + agent.DefaultGeminiSessionCommand + "'\n" +
-		"  #   dispatch_command: '" + agent.DefaultGeminiDispatchCommand + "'   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)\n" +
-		strings.TrimRight(profilesLines(providers["gemini"].Profiles, roleOrder), "\n")
+		"  # agy:\n" +
+		"  #   dispatch_command: " + YAMLSingleQuoted(agent.DefaultAgyDispatchCommand) + "   # dispatch only; no {effort} flag; nested shell so $(cat) reads the piped prompt\n" +
+		profilesLines(providers["agy"].Profiles, roleOrder) +
+		// kimi ships no fills, so profilesLines renders nothing for it — the trim
+		// therefore has to span the whole kimi block, not just its (empty) fill
+		// lines, or the segment would end with a stray newline.
+		strings.TrimRight(
+			"  # kimi:\n"+
+				"  #   dispatch_command: "+YAMLSingleQuoted(agent.DefaultKimiDispatchCommand)+"   # dispatch only; no fills shipped, so the empty {model} drops -m\n"+
+				profilesLines(providers["kimi"].Profiles, roleOrder), "\n")
+}
+
+// YAMLSingleQuoted wraps a command string as a YAML single-quoted scalar, doubling
+// any interior `'` per the YAML spec.
+//
+// It is load-bearing rather than cosmetic: the segment's own prose promises that
+// stripping the leading `# ` from a whole block yields VALID YAML, and the agy/kimi
+// dispatch commands nest a shell (`sh -c '… -p "$(cat)"'`) so they contain single
+// quotes. Naive wrapping would close the scalar early and hand a user who uncomments
+// the block a parse error.
+//
+// Exported because the rendering rule has exactly one owner: tests that assert the
+// rendered form (cmd/fab, internal/configupgrade) call this rather than re-deriving
+// the doubling, so a change to the quoting can never leave an assertion behind.
+func YAMLSingleQuoted(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
 // profilesLines renders a provider's per-role fill map as commented reference lines
 // under a `# profiles:` key, one role per line in roleOrder (so the output is
 // byte-stable — the map is looked up by key, never ranged over). A role absent from
 // the map is skipped, which is what keeps a SPARSE built-in rendering sparse. The
-// effort half is omitted for a fill that carries none (gemini), so the rendered YAML
+// effort half is omitted for a fill that carries none (agy), so the rendered YAML
 // never asserts an effort the provider has no flag for.
 //
-// Returns "" for a provider with no fills, so a future grammar-only built-in renders
+// Returns "" for a provider with no fills, so a grammar-only built-in (kimi) renders
 // no `profiles:` key at all rather than an empty one.
 func profilesLines(profiles map[string]providerProfileDefault, roleOrder []string) string {
 	if len(profiles) == 0 {
@@ -768,7 +816,7 @@ func agentSegment(roles []roleRow) string {
 	b.WriteString("# is what YOU talk to (fab agent, fab operator, fab batch); `workers` is what\n")
 	b.WriteString("# pipeline STAGES dispatch to. Each names an entry in the `providers:` table,\n")
 	b.WriteString("# which `fab config explain` prints in full (it is machinery, so the managed\n")
-	b.WriteString("# fence omits it) — fab-kit ships claude, codex and gemini, so `workers: codex`\n")
+	b.WriteString("# fence omits it) — fab-kit ships claude, codex, agy and kimi, so `workers: codex`\n")
 	b.WriteString("# needs no other config. Both default to claude. Scope `both`, so the choice is\n")
 	b.WriteString("# settable once machine-wide in ~/.fab-kit/config.yaml, where it outranks\n")
 	b.WriteString("# the project file.\n")

@@ -115,7 +115,7 @@ Each subcommand operates independently — they can be invoked directly without 
 | Directories (`changes/`, `memory/`, `specs/`) | `fab-kit sync` | Non-interactive, scriptable |
 | `fab/.kit-migration-version` | `fab-kit sync` | New project → engine version; existing project (has `config.yaml`) → `0.1.0`; existing file → preserved |
 | Skeleton files (`memory/index.md`, `specs/index.md`) | `fab-kit sync` | Copies from `{kit-dir}/scaffold/`; idempotent — skips if file exists |
-| Skill deployment (Claude Code, OpenCode, Codex, Gemini) | `fab-kit sync` | Deploys from `{kit-dir}/skills/`; conditional on agent CLI availability |
+| Skill deployment (Claude Code, OpenCode, and the generic agents dir) | `fab-kit sync` | Deploys from `{kit-dir}/skills/` to three targets; conditional on agent CLI availability — see [kit-architecture.md](/distribution/kit-architecture.md) § Agent Skill Deployment |
 | `.envrc` entries | `fab-kit sync` | Line-ensuring merge from `{kit-dir}/scaffold/fragment-.envrc` |
 | `.gitignore` entries | `fab-kit sync` | Line-ensuring merge from `{kit-dir}/scaffold/fragment-.gitignore` |
 | Hook registration | *(none)* | `fab-kit sync` registers no Claude Code hook and never touches `.claude/settings.local.json` — there is no `fab hook` command family (ioku). Agent-state is read from run-kit's `@rk_agent_state` convention; artifact bookkeeping is pull-based via `fab status refresh` (y022). Cleanup of any lingering hook entries in an existing project is the migrations' job — `2.13.6-to-2.14.0` (the checkout it runs in) and `2.15.7-to-2.15.8` (every worktree, main checkout included — see [migrations.md](/distribution/migrations.md) § `2.15.7-to-2.15.8`) |

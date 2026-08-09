@@ -22,7 +22,7 @@ import (
 // shape-driven rather than file-driven: a new doc that copies a role fill line is
 // picked up by the same assertion set as soon as it is added to mirrorDocs.
 //
-// PROVIDER-AWARE (260806-ywkx). All three built-ins ship fills now, so a fill line
+// PROVIDER-AWARE (260806-ywkx). Several built-ins ship fills, so a fill line
 // is checked against the PROVIDER whose block it sits in — the parser tracks the
 // enclosing `providers.<name>:` key and compares against
 // ResolveProvider(nil, name).Profiles[role]. For claude that is exactly what
@@ -54,8 +54,8 @@ import (
 //
 // stage-models.md stays: it is the one human-readable mirror of the values, in two
 // shapes — the 4-column table (covered by TestDocTablesMatchAgentMaps) and the
-// inline-YAML `providers.<name>.profiles` sample in § Three built-in providers,
-// which since 260806-ywkx shows all three providers' shipped fills (covered here).
+// inline-YAML `providers.<name>.profiles` sample in § Built-in providers, which
+// since 260806-ywkx shows every filled provider's shipped fills (covered here).
 //
 // _cli-fab.md is deliberately absent: it carries only the third, run-on shape,
 // guarded by TestCLIFabReferenceListsDefaultRoles below.
@@ -67,10 +67,10 @@ var mirrorDocs = []string{
 // column-aligned padding these docs use:
 //
 //	doing:    { model: claude-opus-5,   effort: high }
-//	default:  { model: pro }                             # effort half absent
+//	default:  { model: gemini-3.1-pro-high }             # effort half absent
 //
-// The `, effort: <level>` half is OPTIONAL: gemini's fills carry no effort (that
-// CLI has no reasoning-effort flag), and requiring it would leave exactly those
+// The `, effort: <level>` half is OPTIONAL: agy's fills carry no effort (its model
+// IDs embed the reasoning level instead), and requiring it would leave exactly those
 // lines unguarded.
 //
 // Leading "# " (commented reference blocks) is tolerated by the caller trimming it.

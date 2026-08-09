@@ -129,6 +129,13 @@ func isTemplate(spawnCmd string) bool {
 // supported grammar — the empty-value drop would remove the wrong preceding
 // token. Templated spawn_commands are expected to use plain value-carrying
 // flags (`-m`, `--model`, `--model=`, `-c key=`).
+//
+// Quote-blindness has one consequence worth naming, because two built-ins now
+// nest a shell (`sh -c 'kimi -m {model} -p "$(cat)"'`): a droppable placeholder
+// must not be the LAST token of such a command, or the drop takes the closing
+// quote with it. Both nested-shell built-ins put `-p "$(cat)"` after the
+// placeholder, so the drop is always INTERIOR and the quoting survives — that
+// ordering is load-bearing, not incidental.
 func resolveTemplate(spawnCmd, model, effort string) string {
 	// Whitespace-preserving fast path: taken when no placeholder that ACTUALLY
 	// APPEARS in spawnCmd would substitute an empty value. Gating on the present

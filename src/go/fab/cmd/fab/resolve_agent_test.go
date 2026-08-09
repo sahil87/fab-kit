@@ -580,7 +580,7 @@ func TestResolveAgentOverrideUnknownProviderErrors(t *testing.T) {
 	if !strings.Contains(msg, "bogus") {
 		t.Errorf("error should name the unknown provider, got: %v", err)
 	}
-	for _, want := range []string{"claude", "codex", "gemini"} {
+	for _, want := range []string{"claude", "codex", "agy", "kimi"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("error should list the resolvable provider %q, got: %v", want, err)
 		}
@@ -611,7 +611,7 @@ func TestResolveAgentOverrideUnknownProviderErrors(t *testing.T) {
 //
 // The sharp edge is worth pinning rather than merely documenting: the project
 // author sees only `{model: …, effort: …}` in their own file, yet the role runs on
-// the machine-wide layer's gemini. The escape is the documented one — do not pin a
+// the machine-wide layer's agy. The escape is the documented one — do not pin a
 // role's model in one scope and swap its provider in another; set the model in the
 // SAME scope as the switch, or leave it to the provider's fills. This test lives in
 // cmd/fab because that is the layer that can compose both scopes end-to-end
@@ -624,14 +624,14 @@ func TestResolveCrossScopeRoleProfileMerge(t *testing.T) {
 	if err := os.MkdirAll(sysDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// System scope: switch the doing role to gemini, supplying only the provider.
+	// System scope: switch the doing role to agy, supplying only the provider.
 	systemConfig := `providers:
-  gemini:
+  agy:
     profiles:
-      default: { model: gemini-2.5-pro }
+      default: { model: gemini-3.1-pro-low }
 agent:
   profiles:
-    doing: { provider: gemini }
+    doing: { provider: agy }
 `
 	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"), []byte(systemConfig), 0o644); err != nil {
 		t.Fatal(err)
@@ -658,9 +658,10 @@ agent:
 
 	// The merged role profile carries the system scope's provider and the project
 	// scope's explicit model/effort, and an explicit role-level pin outranks the
-	// resolved provider's fills — so gemini is invoked with the codex model ID
-	// rather than with providers.gemini.profiles.default.model.
-	want := "model=gpt-5.3-codex\neffort=high\nprovider=gemini\ndispatch=gemini --approval-mode=yolo -m gpt-5.3-codex\n"
+	// resolved provider's fills — so agy is invoked with the codex model ID
+	// rather than with providers.agy.profiles.default.model.
+	want := "model=gpt-5.3-codex\neffort=high\nprovider=agy\n" +
+		"dispatch=sh -c 'agy --dangerously-skip-permissions --print-timeout 120m --model gpt-5.3-codex -p \"$(cat)\"'\n"
 	if out != want {
 		t.Errorf("output = %q, want %q\n(the two scopes deep-merge into one agent.profiles.doing map "+
 			"before resolution, and an explicit role-level model/effort outranks the resolved provider's "+

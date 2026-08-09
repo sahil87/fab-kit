@@ -17,9 +17,9 @@
 #
 #   TestDefaultsFileIsWellFormed          this file parses + covers every role/provider (defaults_test.go)
 #   TestDefaultRoleProfilesArePinned      the deliberate-change pin, claude (agent_test.go)
-#   TestNonClaudeProviderFillsArePinned   the same pin for codex/gemini (agent_test.go)
+#   TestNonClaudeProviderFillsArePinned   the same pin for codex/agy/kimi (agent_test.go)
 #   TestDocTablesMatchAgentMaps           docs/specs/stage-models.md § default-role TABLE
-#   TestMirrorDocsMatchDefaultProfiles    docs/specs/stage-models.md inline-YAML sample (all 3 providers)
+#   TestMirrorDocsMatchDefaultProfiles    docs/specs/stage-models.md inline-YAML sample (all 4 providers)
 #   TestCLIFabReferenceListsDefaultRoles  src/kit/skills/_cli-fab.md § resolve-agent enumeration
 #
 # No other test hardcodes these strings — the rest derive from DefaultProfile(),
@@ -34,16 +34,29 @@ agent:
   workers: claude
 
 # providers — the built-in launch capability grammars plus each provider's per-role
-# fills. ALL THREE ship fills, so `agent.workers: codex` is one line and every
-# role still gets a model suited to it. Non-claude fills are refreshed at
+# fills. claude, codex and agy ship fills, so `agent.workers: codex` is one line
+# and every role still gets a model suited to it. Non-claude fills are refreshed at
 # KIT-RELEASE cadence (see docs/specs/stage-models.md § Refreshing the non-claude
 # fills): they are unvalidated pass-through values, and a stale one is corrected by
 # a single config line (providers.<name>.profiles.<role>.model) — a louder, cheaper
 # failure than the empty-model resolution that shipping nothing produced.
 #
+# kimi is the deliberate exception: it ships NO fills at all, because its -m takes a
+# USER-CONFIG model alias rather than a catalog ID (see its block below). Empty is
+# the correct built-in there, not a gap.
+#
 # Provider fields are pure capability grammar: presence says "here is how", never
 # "select this mode". dispatch.mode owns the preference; automatic resolution
 # descends pane → native → headless against these capabilities.
+#
+# agy and kimi deliberately carry NO session_command — no pane capability, so the
+# descent ladder lands their stages on headless. Pane dispatch appends the pointer
+# prompt as a positional argument to session_command, and neither CLI can receive
+# a prompt that way (kimi parses a bare positional as a SUBCOMMAND and exits
+# non-zero; agy silently drops it and starts at an empty prompt, then gates a
+# fresh workspace behind an interactive trust prompt). A user who adds
+# providers.<name>.session_command in their own config opts into pane workers
+# that never see their pointer prompt.
 providers:
   claude:
     native: true
@@ -74,24 +87,34 @@ providers:
       doing:   { effort: xhigh }        # model inherits `default`
       review:  { effort: xhigh }
       fast:    { model: gpt-5.6-luna, effort: low }
-  gemini:
-    # No {effort}: the gemini CLI has no reasoning-effort flag, so a resolved
-    # effort has nowhere to go. No `-p` on the dispatch command either: gemini's
-    # -p takes prompt TEXT (appended after stdin), whereas `fab dispatch` pipes
-    # the prompt to stdin, which gemini reads as the prompt in non-TTY mode. Both
-    # forms use yolo approval mode because unattended workers cannot answer
-    # approval prompts; the explicit approval-mode spelling avoids deprecated
-    # `--yolo` while matching the full-auto policy of the other built-ins.
-    session_command: 'gemini --approval-mode=yolo -m {model}'
-    dispatch_command: 'gemini --approval-mode=yolo -m {model}'
-    # Model-only, for the same no-{effort} reason. These are the gemini CLI's own
-    # stable ALIASES, not versioned IDs: `-m pro` / `-m flash` resolve to whatever
-    # that CLI's current best pro/flash model is for the caller's entitlement, and
-    # degrade gracefully without preview access — so these rows do not rot. The
-    # aliases are a CLI VERSION FLOOR, though: a gemini older than its
-    # resolveModel() alias support sees `pro` as an unknown model ID and fails
-    # there — fixed by a full versioned ID in providers.gemini.profiles.<role>.model,
-    # or by upgrading the CLI.
+  agy:
+    # Antigravity CLI. Model IDs embed the reasoning effort (e.g. gemini-3.1-pro-high),
+    # so there is NO {effort} placeholder — a separate --effort flag exists but would
+    # fight the suffix. agy -p takes the prompt as an ARGUMENT and ignores stdin, and
+    # POSIX expands $(cat) BEFORE applying the < redirect, so the dispatch command
+    # nests a shell: the inner sh's stdin IS the redirected prompt file.
+    # --print-timeout raised from its 5m default — stage workers run far longer.
+    # NO session_command: see the providers-block note above — a pane worker never
+    # receives the pointer prompt (agy drops the positional and trust-prompts a
+    # fresh workspace), so shipping one would orphan every tmux-dispatched stage.
+    dispatch_command: 'sh -c ''agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'''
+    # Sparse and model-only (the effort rides the ID's suffix). `default` is the
+    # cross-role fallback, so doing/review/hydrate/operator all take the pro-high
+    # model without a row of their own; `fast` takes the cheaper flash tier. These
+    # are concrete IDs from `agy models`, so they are the rows to bump when that
+    # catalog moves.
     profiles:
-      default: { model: pro }
-      fast:    { model: flash }
+      default: { model: gemini-3.1-pro-high }
+      fast:    { model: gemini-3.6-flash-low }
+  kimi:
+    # kimi-code CLI (Kimi K3). Ships NO fills: -m takes a USER-CONFIG model alias
+    # (managed installs: kimi-code/k3; custom providers differ), so a pinned value
+    # would break non-managed setups. The empty {model} drops the -m flag entirely
+    # (WithProfile empty-value token-drop) and kimi falls back to the user's
+    # default_model. -p is already non-interactive and auto-approves tools; it
+    # REJECTS --yolo/--auto ("Cannot combine --prompt with --yolo"), so the
+    # dispatch form carries no approval flag. Same nested-shell stdin idiom as agy.
+    # NO session_command either: kimi reads a bare positional as a SUBCOMMAND and
+    # exits non-zero, and has no interactive-initial-prompt flag at all, so a pane
+    # worker could never be handed the pointer prompt.
+    dispatch_command: 'sh -c ''kimi -m {model} -p "$(cat)"'''

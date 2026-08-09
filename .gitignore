@@ -11,6 +11,11 @@
 /.cursor
 /.opencode
 /.codex
+/.kimi
+# Kept after the gemini provider was retired: this checkout still carries an
+# untracked .gemini/skills/ tree from before, and un-ignoring it would surface
+# ~36 stray files in `git status`. The scaffold fragment dropped the entry —
+# user projects merge additively (lineEnsureMerge), so theirs is unaffected.
 /.gemini
 
 /ToBeDeleted/

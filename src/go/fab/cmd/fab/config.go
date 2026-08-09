@@ -765,7 +765,7 @@ func configSetCmd() *cobra.Command {
 			"~/.fab-kit/config.yaml; project-scoped keys are refused there.",
 		Example: `  fab config set agent.workers codex
   fab config set dispatch.column_width 42
-  fab config set agent.session gemini --system`,
+  fab config set agent.session agy --system`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key, rawValue := args[0], args[1]

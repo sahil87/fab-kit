@@ -80,15 +80,17 @@ func TestDefaultRoleProfilesArePinned(t *testing.T) {
 	}
 }
 
-// TestNonClaudeProviderFillsArePinned is the deliberate-change pin for the codex
-// and gemini fills fab-kit ships (260806-ywkx). It is the non-claude sibling of
+// TestNonClaudeProviderFillsArePinned is the deliberate-change pin for the
+// non-claude fills fab-kit ships (260806-ywkx). It is the non-claude sibling of
 // TestDefaultRoleProfilesArePinned: those fills never reach DefaultProfile (which
 // resolves through the claude-defaulted depth knobs), so without this table a
 // catalog bump would land unreviewed.
 //
 // The tables are SPARSE, exactly as defaults.yaml is — a role absent here must be
 // absent there, so the cross-role fallback through the provider's `default` entry
-// stays the shipped shape rather than an accident of enumeration.
+// stays the shipped shape rather than an accident of enumeration. kimi's EMPTY
+// table is pinned for the same reason (260808-rpsr): shipping it a fill is the
+// change that must be deliberate, not the change that slips through.
 //
 // When you bump a fill: edit defaults.yaml, then update this table to match. The
 // doc mirrors are guarded separately by TestMirrorDocsMatchDefaultProfiles.
@@ -100,13 +102,17 @@ func TestNonClaudeProviderFillsArePinned(t *testing.T) {
 			RoleReview:  {Effort: "xhigh"},
 			RoleFast:    {Model: "gpt-5.6-luna", Effort: "low"},
 		},
-		// Model-only: the gemini CLI has no reasoning-effort flag. The values are
-		// that CLI's own stable ALIASES rather than versioned IDs, so they track
-		// its current best pro/flash model without a bump.
-		providerGemini: {
-			RoleDefault: {Model: "pro"},
-			RoleFast:    {Model: "flash"},
+		// Model-only: agy's model IDs embed the reasoning level as an ID SUFFIX
+		// (…-high / …-low), so there is no separate effort to fill. These are
+		// concrete IDs from `agy models` and are the rows to bump when that
+		// catalog moves.
+		providerAgy: {
+			RoleDefault: {Model: "gemini-3.1-pro-high"},
+			RoleFast:    {Model: "gemini-3.6-flash-low"},
 		},
+		// kimi ships NOTHING, deliberately: its -m takes a user-config model alias
+		// rather than a catalog ID, so a pinned value breaks non-managed installs.
+		providerKimi: nil,
 	}
 	for name, want := range pinned {
 		prov, ok := ResolveProvider(nil, name)
@@ -158,18 +164,18 @@ func TestRoleDepthPartition(t *testing.T) {
 // moves exactly the four Tier-2 roles and leaves the two session roles alone, and
 // vice versa. Neither knob touches the other's partition.
 func TestDepthKnobSelectsProvider(t *testing.T) {
-	workers := &config.Config{Agent: config.AgentConfig{Workers: "gemini"}}
+	workers := &config.Config{Agent: config.AgentConfig{Workers: "agy"}}
 	for _, role := range RoleNames() {
 		want := "claude"
 		if roleDepth[role] == depthWorkers {
-			want = "gemini"
+			want = "agy"
 		}
 		got, err := ResolveRole(workers, role)
 		if err != nil {
 			t.Fatalf("ResolveRole(%s): %v", role, err)
 		}
 		if got.Provider != want {
-			t.Errorf("with agent.workers=gemini, role %q resolved provider %q, want %q", role, got.Provider, want)
+			t.Errorf("with agent.workers=agy, role %q resolved provider %q, want %q", role, got.Provider, want)
 		}
 	}
 
@@ -197,8 +203,12 @@ func TestDepthKnobSelectsProvider(t *testing.T) {
 // Expectations are DERIVED from ResolveProvider (with its cross-role fallback
 // through the provider's `default` entry), never restated, so a fill bump touches
 // defaults.yaml and TestNonClaudeProviderFillsArePinned only.
+//
+// kimi is deliberately NOT in this loop — it ships no fills, so it has no role
+// differentiation to preserve. Its opposite property (an empty model resolves for
+// every workers role) is asserted by TestWorkersKnobOnNoFillsBuiltIn below.
 func TestWorkersKnobResolvesBuiltInFills(t *testing.T) {
-	for _, provider := range []string{providerCodex, providerGemini} {
+	for _, provider := range []string{providerCodex, providerAgy} {
 		t.Run(provider, func(t *testing.T) {
 			cfg := &config.Config{Agent: config.AgentConfig{Workers: provider}}
 			prov, ok := ResolveProvider(nil, provider)
@@ -233,8 +243,8 @@ func TestWorkersKnobResolvesBuiltInFills(t *testing.T) {
 				if got.Model == "" {
 					t.Errorf("Resolve(%s) resolved an EMPTY model — a knob pointed at %s must resolve a real model for every role", stage, provider)
 				}
-				if provider == providerGemini && got.Effort != "" {
-					t.Errorf("Resolve(%s) = %+v, want no effort — the gemini CLI has no reasoning-effort flag", stage, got)
+				if provider == providerAgy && got.Effort != "" {
+					t.Errorf("Resolve(%s) = %+v, want no effort — agy's model IDs embed the reasoning level instead", stage, got)
 				}
 			}
 		})
@@ -247,6 +257,37 @@ func TestWorkersKnobResolvesBuiltInFills(t *testing.T) {
 	ship, _ := Resolve(cfg, "ship")   // fast
 	if apply == ship {
 		t.Errorf("apply and ship both resolved %+v — shipping fills exists precisely so the roles differ", apply)
+	}
+}
+
+// TestWorkersKnobOnNoFillsBuiltIn is the counterpart for kimi, the one built-in
+// that deliberately ships NO fills (260808-rpsr). `agent.workers: kimi` must move
+// every Tier-2 stage onto kimi with an EMPTY model — the inherit-the-CLI's-own-
+// default_model signal — rather than silently borrowing another provider's ID.
+// kimi's -m takes a user-config alias, so an empty model is the only value that is
+// correct for every install shape; the token-drop in internal/spawn is what turns
+// it into a command with no -m flag.
+func TestWorkersKnobOnNoFillsBuiltIn(t *testing.T) {
+	cfg := &config.Config{Agent: config.AgentConfig{Workers: providerKimi}}
+
+	for _, stage := range StageNames() {
+		role, _ := RoleForStage(stage)
+		got, err := Resolve(cfg, stage)
+		if err != nil {
+			t.Fatalf("Resolve(%s): %v", stage, err)
+		}
+
+		if roleDepth[role] == depthSession {
+			want, _ := DefaultProfile(role)
+			if got != want {
+				t.Errorf("Resolve(%s) = %+v, want the untouched Tier-1 claude default %+v", stage, got, want)
+			}
+			continue
+		}
+
+		if want := (Profile{Provider: providerKimi}); got != want {
+			t.Errorf("Resolve(%s) = %+v, want %+v — kimi ships no fills, so model and effort must resolve EMPTY", stage, got, want)
+		}
 	}
 }
 
@@ -582,12 +623,12 @@ func TestFlatProviderFillBeatsBuiltInDefault(t *testing.T) {
 // because a value the user wrote is not inheritance.
 func TestResolveRoleWithOverrides(t *testing.T) {
 	base, _ := DefaultProfile(RoleDoing)
-	gemini, _ := ResolveProvider(nil, providerGemini)
-	geminiDoing := Profile{
-		Provider: providerGemini,
-		// gemini ships no `doing` fill, so the role falls through to its `default`
+	agy, _ := ResolveProvider(nil, providerAgy)
+	agyDoing := Profile{
+		Provider: providerAgy,
+		// agy ships no `doing` fill, so the role falls through to its `default`
 		// entry — derived, not restated, so a fill bump does not touch this table.
-		Model: gemini.Profiles[RoleDefault].Model,
+		Model: agy.Profiles[RoleDefault].Model,
 	}
 	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
 		"codex": {Profiles: map[string]config.ProviderProfile{
@@ -626,13 +667,22 @@ func TestResolveRoleWithOverrides(t *testing.T) {
 			want: Profile{Provider: "codex", Model: "gpt-5.3-codex", Effort: "high"},
 		},
 		{
-			// gemini carries no `doing` fill of its own, so the swap lands on that
+			// agy carries no `doing` fill of its own, so the swap lands on that
 			// provider's `default` entry — never on claude's model, and (since
 			// 260806-ywkx ships the fills) never on an empty one.
 			name: "provider swap with no per-role fill falls to that provider's default entry",
 			cfg:  cfg,
-			o:    Overrides{Provider: "gemini", ProviderSet: true},
-			want: geminiDoing,
+			o:    Overrides{Provider: "agy", ProviderSet: true},
+			want: agyDoing,
+		},
+		{
+			// kimi ships no fills at all, so a swap onto it resolves an EMPTY model
+			// — the deliberate inherit-the-CLI's-own-default_model signal, which the
+			// empty-value token-drop turns into a command with no -m flag.
+			name: "provider swap onto the no-fills built-in resolves an empty model",
+			cfg:  cfg,
+			o:    Overrides{Provider: "kimi", ProviderSet: true},
+			want: Profile{Provider: "kimi"},
 		},
 		{
 			name: "explicit flags beat the swapped provider's fill",
@@ -873,18 +923,51 @@ func TestResolveProvider(t *testing.T) {
 	}
 }
 
-// TestResolveProvider_BuiltInCodexAndGemini: codex and gemini are BUILT-IN
-// providers — resolvable with NO providers: config at all — carrying both command
-// fields plus their own per-role fills, and never the DEPRECATED flat pair (which
-// exists only as a read-time alias for a user's profiles.default).
-func TestResolveProvider_BuiltInCodexAndGemini(t *testing.T) {
+// TestResolveProvider_NonClaudeBuiltIns: every non-claude built-in is resolvable
+// with NO providers: config at all, carries the command fields that define it,
+// ships a full-auto posture on the form that needs one, and never the DEPRECATED
+// flat pair (which exists only as a read-time alias for a user's profiles.default).
+//
+// `wantFills` distinguishes the two fill shapes rather than asserting one of them:
+// codex and agy ship per-role fills so a knob pointed at them resolves a real model
+// per role, while kimi ships none on purpose (its -m takes a user-config alias).
+//
+// An empty `session` likewise ASSERTS the absence of a session_command. agy and kimi
+// are DISPATCH-ONLY built-ins: a session_command makes a provider eligible for
+// pane-mode dispatch, which appends the worker's pointer prompt as a POSITIONAL
+// argument, and neither CLI can receive a prompt that way (kimi parses a bare
+// positional as a subcommand and exits non-zero; agy drops it silently and
+// trust-prompts a fresh workspace). With none, auto-mode dispatch soft-falls back to
+// headless instead of parking a pane worker at an empty prompt.
+func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 	cases := []struct {
-		name                  string
-		session, dispatch     string
-		approvalBypassGrammar string
+		name string
+		// An empty `session` means the built-in must ship NO session_command.
+		session, dispatch string
+		// sessionBypass / dispatchBypass are the full-auto grammar each FORM must
+		// carry, checked only when that form exists. kimi's dispatch form is
+		// deliberately empty: `kimi -p` already auto-approves tools and ERRORS on
+		// --yolo/--auto, so a bypass flag there would break the invocation rather
+		// than harden it.
+		sessionBypass, dispatchBypass string
+		wantFills                     bool
 	}{
-		{"codex", DefaultCodexSessionCommand, DefaultCodexDispatchCommand, "--dangerously-bypass-approvals-and-sandbox"},
-		{"gemini", DefaultGeminiSessionCommand, DefaultGeminiDispatchCommand, "--approval-mode=yolo"},
+		{
+			name: "codex", session: DefaultCodexSessionCommand, dispatch: DefaultCodexDispatchCommand,
+			sessionBypass:  "--dangerously-bypass-approvals-and-sandbox",
+			dispatchBypass: "--dangerously-bypass-approvals-and-sandbox",
+			wantFills:      true,
+		},
+		{
+			name: "agy", session: "", dispatch: DefaultAgyDispatchCommand,
+			dispatchBypass: "--dangerously-skip-permissions",
+			wantFills:      true,
+		},
+		{
+			name: "kimi", session: "", dispatch: DefaultKimiDispatchCommand,
+			dispatchBypass: "",
+			wantFills:      false,
+		},
 	}
 	for _, c := range cases {
 		prov, ok := ResolveProvider(nil, c.name)
@@ -892,7 +975,11 @@ func TestResolveProvider_BuiltInCodexAndGemini(t *testing.T) {
 			t.Fatalf("built-in %s provider must resolve with no config", c.name)
 		}
 		if prov.SessionCommand != c.session {
-			t.Errorf("%s.SessionCommand = %q, want %q", c.name, prov.SessionCommand, c.session)
+			if c.session == "" {
+				t.Errorf("%s.SessionCommand = %q, want absent — %s cannot receive a pane worker's pointer prompt as a positional argument, so shipping one would select pane dispatch and park the stage", c.name, prov.SessionCommand, c.name)
+			} else {
+				t.Errorf("%s.SessionCommand = %q, want %q", c.name, prov.SessionCommand, c.session)
+			}
 		}
 		if prov.DispatchCommand != c.dispatch {
 			t.Errorf("%s.DispatchCommand = %q, want %q", c.name, prov.DispatchCommand, c.dispatch)
@@ -900,27 +987,67 @@ func TestResolveProvider_BuiltInCodexAndGemini(t *testing.T) {
 		if prov.Native {
 			t.Errorf("%s.Native = true, want false", c.name)
 		}
-		if !strings.Contains(prov.SessionCommand, c.approvalBypassGrammar) {
-			t.Errorf("%s.SessionCommand = %q, want approval-bypass grammar %q (stage workers cannot answer approval prompts)", c.name, prov.SessionCommand, c.approvalBypassGrammar)
+		if c.sessionBypass != "" && !strings.Contains(prov.SessionCommand, c.sessionBypass) {
+			t.Errorf("%s.SessionCommand = %q, want approval-bypass grammar %q (stage workers cannot answer approval prompts)", c.name, prov.SessionCommand, c.sessionBypass)
 		}
-		if !strings.Contains(prov.DispatchCommand, c.approvalBypassGrammar) {
-			t.Errorf("%s.DispatchCommand = %q, want approval-bypass grammar %q (stage workers cannot answer approval prompts)", c.name, prov.DispatchCommand, c.approvalBypassGrammar)
+		if c.dispatchBypass != "" && !strings.Contains(prov.DispatchCommand, c.dispatchBypass) {
+			t.Errorf("%s.DispatchCommand = %q, want approval-bypass grammar %q (stage workers cannot answer approval prompts)", c.name, prov.DispatchCommand, c.dispatchBypass)
 		}
-		if len(prov.Profiles) == 0 {
-			t.Errorf("%s built-in carries no per-role fills — naming it on a depth knob must resolve a real model for every role", c.name)
+		if gotFills := len(prov.Profiles) > 0; gotFills != c.wantFills {
+			if c.wantFills {
+				t.Errorf("%s built-in carries no per-role fills — naming it on a depth knob must resolve a real model for every role", c.name)
+			} else {
+				t.Errorf("%s built-in carries fills %+v, want none — its -m takes a USER-CONFIG model alias, so a pinned value breaks non-managed installs", c.name, prov.Profiles)
+			}
 		}
 		if prov.Model != "" || prov.Effort != "" {
 			t.Errorf("%s built-in uses the DEPRECATED flat fill (%q/%q) — built-in fills belong under profiles.<role>", c.name, prov.Model, prov.Effort)
 		}
 	}
 
-	// The gemini grammar deliberately omits {effort} (no reasoning-effort flag) and
-	// -p (fab dispatch pipes the prompt to stdin; -p takes prompt TEXT).
-	if strings.Contains(DefaultGeminiSessionCommand, "{effort}") || strings.Contains(DefaultGeminiDispatchCommand, "{effort}") {
-		t.Error("the gemini built-in must carry no {effort} placeholder (the gemini CLI has no reasoning-effort flag)")
+	// The agy grammar deliberately omits {effort}: its model IDs embed the reasoning
+	// level as an ID suffix, so a separate effort flag would fight the suffix.
+	if strings.Contains(DefaultAgyDispatchCommand, "{effort}") {
+		t.Error("the agy built-in must carry no {effort} placeholder (its model IDs embed the reasoning level)")
 	}
-	if strings.Contains(DefaultGeminiDispatchCommand, "-p") {
-		t.Error("the gemini dispatch command must not carry -p (fab dispatch pipes the prompt to stdin)")
+
+	// Both new dispatch commands NEST a shell around `-p "$(cat)"`. Neither CLI
+	// reads stdin as the prompt, and POSIX expands $(cat) BEFORE fab dispatch's
+	// stdin redirect applies — so the un-nested form would read the OUTER stdin and
+	// hand the worker an empty prompt. This is the load-bearing shape.
+	for _, c := range []struct{ name, dispatch string }{
+		{"agy", DefaultAgyDispatchCommand},
+		{"kimi", DefaultKimiDispatchCommand},
+	} {
+		if !strings.HasPrefix(c.dispatch, "sh -c ") {
+			t.Errorf("the %s dispatch command %q must nest a shell — $(cat) expands before the stdin redirect applies", c.name, c.dispatch)
+		}
+		if !strings.Contains(c.dispatch, `-p "$(cat)"`) {
+			t.Errorf("the %s dispatch command %q must pass the piped prompt as the -p ARGUMENT (%s ignores stdin)", c.name, c.dispatch, c.name)
+		}
+	}
+
+	// kimi's dispatch form must carry NO approval flag: `kimi -p` auto-approves
+	// tools already and errors with "Cannot combine --prompt with --yolo".
+	for _, bad := range []string{"--yolo", "--auto"} {
+		if strings.Contains(DefaultKimiDispatchCommand, bad) {
+			t.Errorf("the kimi dispatch command must not carry %s — kimi -p rejects it and already auto-approves tools", bad)
+		}
+	}
+
+	// The dispatch-only posture at the seam that consumes it: a provider with no
+	// session_command is INELIGIBLE for pane-mode dispatch, which is what makes
+	// auto-mode soft-fall back to headless instead of spawning a pane worker that
+	// never receives its prompt. Asserting it here — over the same resolved
+	// providers the dispatcher reads — keeps the two in step.
+	for _, name := range []string{"agy", "kimi"} {
+		prov, ok := ResolveProvider(nil, name)
+		if !ok {
+			t.Fatalf("built-in %s provider must resolve with no config", name)
+		}
+		if prov.SessionCommand != "" {
+			t.Errorf("%s must stay ineligible for pane dispatch (session_command = %q); with one, auto mode inside tmux selects pane instead of soft-falling back to headless", name, prov.SessionCommand)
+		}
 	}
 }
 
@@ -945,15 +1072,17 @@ func TestResolveProvider_ProfilesMerge(t *testing.T) {
 		t.Errorf("commands = {%q, %q}, want the inherited built-in grammar", prov.SessionCommand, prov.DispatchCommand)
 	}
 
-	// A partial fill leaves the other field empty.
+	// A partial fill leaves the other field empty. agy is the natural case: its
+	// built-in fills are model-only, so a user pinning a newer ID must not acquire
+	// an invented effort.
 	cfg = &config.Config{Providers: map[string]config.ProviderConfig{
-		"gemini": {Profiles: map[string]config.ProviderProfile{
-			"default": {Model: "gemini-2.5-pro"},
+		"agy": {Profiles: map[string]config.ProviderProfile{
+			"default": {Model: "gemini-3.1-pro-low"},
 		}},
 	}}
-	prov, _ = ResolveProvider(cfg, "gemini")
-	if got := prov.Profiles["default"]; got.Model != "gemini-2.5-pro" || got.Effort != "" {
-		t.Errorf("partial fill = %+v, want {gemini-2.5-pro, \"\"}", got)
+	prov, _ = ResolveProvider(cfg, "agy")
+	if got := prov.Profiles["default"]; got.Model != "gemini-3.1-pro-low" || got.Effort != "" {
+		t.Errorf("partial fill = %+v, want {gemini-3.1-pro-low, \"\"}", got)
 	}
 
 	// Overriding one FIELD of one ROLE on claude leaves the rest of that role's
@@ -985,7 +1114,7 @@ func TestProviderNames(t *testing.T) {
 			}
 		}
 	}
-	assertNames(t, ProviderNames(nil), []string{"claude", "codex", "gemini"})
+	assertNames(t, ProviderNames(nil), []string{"agy", "claude", "codex", "kimi"})
 
 	// Project providers union the built-in, de-duplicating shared keys and sorting
 	// for stable error output.
@@ -994,7 +1123,7 @@ func TestProviderNames(t *testing.T) {
 		"claude":  {DispatchCommand: "claude -p"},
 		"myagent": {SessionCommand: "myagent"},
 	}}
-	assertNames(t, ProviderNames(cfg), []string{"claude", "codex", "gemini", "myagent"})
+	assertNames(t, ProviderNames(cfg), []string{"agy", "claude", "codex", "kimi", "myagent"})
 }
 
 // TestResolveUnknownStage: an unknown stage is the only Resolve-side error.

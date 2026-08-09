@@ -224,30 +224,45 @@ checklist:
 # command's STDIN). native:true records an Agent-tool seam. Capability presence
 # says HOW a rung runs, never WHICH rung to prefer; dispatch.mode below owns policy,
 # descends pane → native → headless, and never substitutes one command for another. fab-kit
-# ships THREE built-in providers — claude (the default), codex, and gemini — each
-# with BOTH its command grammar and its per-ROLE fill map, profiles.<role>.{model,
-# effort}, supplying the {model}/{effort} placeholders when that provider plays that
-# role (precedence: invocation flag > agent.profiles.<role> field > profiles.<role> >
-# profiles.default > empty; the `default` entry is the provider's cross-role
-# fallback, so the sparse non-claude maps are well-defined for the roles they omit).
-# So naming codex or gemini needs no providers: block at all; the blocks below merely
+# ships FOUR built-in providers — claude (the default), codex, agy and kimi — each
+# with its command grammar, and (except kimi) a per-ROLE fill map,
+# profiles.<role>.{model, effort}, supplying the {model}/{effort} placeholders when
+# that provider plays that role (precedence: invocation flag > agent.profiles.<role>
+# field > profiles.<role> > profiles.default > empty; the `default` entry is the
+# provider's cross-role fallback, so the sparse non-claude maps are well-defined for
+# the roles they omit).
+# So naming any built-in needs no providers: block at all; the blocks below merely
 # restate a built-in default and therefore ship commented, like every other default.
 # Non-claude fills are refreshed at kit-release cadence and pass through unvalidated —
 # pin a newer model with providers.<name>.profiles.<role>.model. Claude ships
-# session, native, and headless capabilities; codex/gemini ship both command fields
-# without native capability. Under the default mode, claude resolves native while
-# codex/gemini descend to headless.
+# session, native, and headless capabilities; codex ships both command fields
+# without native capability; agy and kimi ship headless capability ONLY (no
+# session_command — pane dispatch delivers the prompt pointer as a positional
+# argument neither CLI accepts). Under the default mode, claude resolves native
+# while the non-claude built-ins descend to headless.
 # (Automated PR reviewer toggles moved to code-review.md § Review Tools — absent = enabled.)
 # Per-provider notes (kept out of the blocks below so uncommenting a whole block
 # stays valid YAML): claude -p and codex exec both read the prompt from stdin.
-# Codex carries --dangerously-bypass-approvals-and-sandbox; gemini carries
-# --approval-mode=yolo. Both flags are deliberate because unattended stage workers
-# cannot answer approval prompts; override a provider command to restore approvals.
+# Codex carries --dangerously-bypass-approvals-and-sandbox; agy carries
+# --dangerously-skip-permissions. Both flags are deliberate because unattended stage
+# workers cannot answer approval prompts; override a provider command to restore
+# approvals. kimi's dispatch form carries no approval flag at all: kimi -p already
+# auto-approves tools and errors when combined with --yolo.
+# Only claude and codex ship a session_command — agy and kimi are DISPATCH-ONLY. A
+# session_command also confers PANE-mode eligibility, and pane dispatch appends the
+# stage prompt file's pointer as a POSITIONAL argument that neither CLI can accept
+# (kimi reads it as an unknown subcommand and exits; agy drops it silently and
+# trust-prompts a fresh workspace), so shipping one would park every tmux-dispatched
+# stage. With none, automatic resolution skips the pane rung and descends to headless
+# and explicit --pane hard-errors. Add providers.<name>.session_command yourself for
+# an interactive session, accepting that pane-dispatched stages lose their prompt.
 # Codex's -m takes a concrete model SLUG, so its shipped fills are pinned IDs.
-# Gemini carries no {effort} (no reasoning-effort flag, so its fills carry none
-# either) and no -p (it reads the stdin-piped prompt in non-TTY mode; -p would take
-# prompt text appended after stdin), and its fills are that CLI's own stable aliases
-# rather than versioned IDs. This whole block is advertise:false — documented in
+# agy carries no {effort} — its model IDs embed the reasoning level as a suffix, so
+# its fills carry none either. agy and kimi both take the prompt as the -p ARGUMENT
+# and ignore stdin, so their dispatch_commands nest a shell (sh -c '… -p "$(cat)"'):
+# POSIX expands $(cat) before fab dispatch's stdin redirect applies. kimi ships NO
+# fills — its -m takes a user-config model alias, so the empty model drops the flag
+# and its own default_model applies. This whole block is advertise:false — documented in
 # `fab config explain`, not scaffolded into every project's managed fence.
 providers:
   claude:
@@ -261,17 +276,19 @@ providers:
   #   dispatch_command: codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
   #   profiles:                            # sparse — run `fab config explain` for the live values
   #     default: { model: <model-id>, effort: <effort> }   # example: shape only
-  # gemini:
-  #   session_command: gemini --approval-mode=yolo -m {model}
-  #   dispatch_command: gemini --approval-mode=yolo -m {model}   # no {effort} flag; no -p (fab dispatch pipes the prompt to stdin)
-  #   profiles:                            # model-only: the gemini CLI has no reasoning-effort flag
+  # agy:                                   # dispatch-only: no session_command (see below)
+  #   dispatch_command: sh -c 'agy … --model {model} -p "$(cat)"'   # no {effort} flag; nested shell so $(cat) reads the piped prompt
+  #   profiles:                            # model-only: the reasoning level rides the ID suffix
   #     default: { model: <model-id> }     # example: shape only
+  # kimi:                                  # dispatch-only: no session_command (see below)
+  #   dispatch_command: sh -c 'kimi -m {model} -p "$(cat)"'   # no --yolo: kimi -p rejects it and already auto-approves
+  #                                        # no profiles: fab ships no kimi fill (its -m takes a user-config alias)
 
 # agent.session / agent.workers are the TWO ADVERTISED KNOBS, selecting a provider
 # by agent DEPTH: session = the Tier-1 roles you talk to (default, operator —
 # fab agent / fab operator / fab batch), workers = the Tier-2 roles pipeline stages
 # dispatch to (doing, review, hydrate, fast). Both default to claude, and both are
-# scope `both`, so "claude for what I talk to, gemini for the workers" is settable
+# scope `both`, so "claude for what I talk to, codex for the workers" is settable
 # once per machine. fab owns a FIXED, non-overridable stage→role mapping
 # (default: intake advisory / doing: apply, review-pr / review: review /
 # hydrate: hydrate / fast: ship + /fab-proceed prefix steps; operator: the fab
@@ -462,8 +479,9 @@ Skills are deployed to each detected agent by `fab sync`, sourcing from the kit 
 |-------|-----------|------|
 | Claude Code (`claude`) | `.claude/skills/{name}/SKILL.md` | Directory-based **copies** |
 | OpenCode (`opencode`) | `.opencode/commands/{name}.md` | Flat-file copies |
-| Codex (`codex`) | `.agents/skills/{name}/SKILL.md` | Directory-based copies |
-| Gemini CLI (`gemini`) | `.gemini/skills/{name}/SKILL.md` | Directory-based copies |
+| Agents dir (`codex`, `agy`, `kimi`) | `.agents/skills/{name}/SKILL.md` | Directory-based copies |
+
+`.agents/skills/` is the **generic** workspace directory: codex, agy and kimi all discover skills there natively, so it deploys once when **any** of them is on PATH and none of them gets a per-brand directory. That one-target-per-skill-set rule is deliberate — deploying the same skills to both a generic and a per-brand directory is what makes a CLI that reads both report every skill twice.
 
 All `*.md` skill files are deployed, including underscore partials (`_preamble.md`, `_generation.md`, `_review.md`, `_srad.md`, `_pipeline.md`, `_intake.md`, `_cli-fab.md`, `_cli-external.md`, `_cli-agents.md`), which carry `user-invocable: false` frontmatter to prevent direct invocation. The skill prompt files are agent-agnostic markdown; only the deployment locations and formats differ per agent.
 

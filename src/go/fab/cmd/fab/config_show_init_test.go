@@ -751,14 +751,14 @@ agent:
   session: claude
   workers: claude
 `)
-	t.Setenv("FAB_AGENT_SESSION", "gemini")
+	t.Setenv("FAB_AGENT_SESSION", "agy")
 	t.Setenv("FAB_AGENT_WORKERS", "codex")
 
 	plain, err := runConfig(t, "show")
 	if err != nil {
 		t.Fatalf("config show: %v", err)
 	}
-	if !strings.Contains(plain, "session: gemini") || !strings.Contains(plain, "workers: codex") {
+	if !strings.Contains(plain, "session: agy") || !strings.Contains(plain, "workers: codex") {
 		t.Errorf("plain show must include env-effective values:\n%s", plain)
 	}
 
@@ -767,8 +767,8 @@ agent:
 		t.Fatalf("config show --origin: %v", err)
 	}
 	for keyValue, variable := range map[string]string{
-		"agent.session = gemini": "$FAB_AGENT_SESSION",
-		"agent.workers = codex":  "$FAB_AGENT_WORKERS",
+		"agent.session = agy":   "$FAB_AGENT_SESSION",
+		"agent.workers = codex": "$FAB_AGENT_WORKERS",
 	} {
 		found := false
 		for _, line := range strings.Split(origin, "\n") {

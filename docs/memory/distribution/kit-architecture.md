@@ -101,7 +101,9 @@ Keying on the **socket path** (not server PID) is deliberate: the socket path su
 
 ### Agent Skill Deployment
 
-`fab-kit sync` deploys skills to each agent. Deployment is **conditional** — by default, each agent's CLI command is checked via PATH lookup before syncing. If an agent's CLI is not found in PATH, its sync is skipped with a message, and existing dot folders are preserved. When no agents are detected, a warning is printed but sync continues. The `FAB_AGENTS` environment variable (space-separated list of CLI command names, e.g., `claude opencode gemini`) can override PATH detection for testing and CI — when set, only the listed agents are synced.
+`fab-kit sync` deploys skills to **three** targets, and a target may serve more than one CLI. Deployment is **conditional** — each target names one or more candidate CLI commands, and it deploys when **any** of them is found via PATH lookup. A target whose candidates are all absent is skipped with a message naming them (`Skipping Claude Code: claude not found in PATH`; `Skipping Agents dir: none of codex, agy, kimi found in PATH`), and existing dot folders are preserved. When no target fires at all, a warning is printed but sync continues. The `FAB_AGENTS` environment variable (space-separated list of CLI command names, e.g., `claude opencode agy`) can override PATH detection for testing and CI — when set, a target deploys if `FAB_AGENTS` names any of its candidates.
+
+**One deployment target per skill set** is the invariant. A CLI that reads *both* the generic workspace directory and its own brand directory sees every skill twice when fab deploys to both, and warns per skill about the conflict. Deploying each skill set exactly once makes that class impossible by construction rather than by suppressing the warning.
 
 All `*.md` files in `$(fab kit-path)/skills/` are deployed, including underscore partials (`_preamble.md`, `_generation.md`, `_review.md`, `_cli-fab.md`, `_cli-external.md`, `_cli-agents.md`, …) which have `user-invocable: false` frontmatter to prevent direct invocation. The skill prompt files are agent-agnostic markdown; only the deployment locations and formats differ per agent:
 
@@ -111,23 +113,18 @@ All `*.md` files in `$(fab kit-path)/skills/` are deployed, including underscore
 └── SKILL.md    (copy of $(fab kit-path)/skills/fab-new.md)
 ```
 
-**OpenCode** (`opencode`) — flat file symlinks:
+**OpenCode** (`opencode`) — flat-file copies:
 ```
 .opencode/commands/
-└── fab-new.md → ../../$(fab kit-path)/skills/fab-new.md
+└── fab-new.md    (copy of $(fab kit-path)/skills/fab-new.md)
 ```
 
-**Codex** (`codex`) — directory-based copies:
+**Agents dir** (`codex`, `agy`, or `kimi`) — the generic workspace directory, directory-based copies:
 ```
 .agents/skills/fab-new/
 └── SKILL.md    (copy of $(fab kit-path)/skills/fab-new.md)
 ```
-
-**Gemini CLI** (`gemini`) — directory-based copies:
-```
-.gemini/skills/fab-new/
-└── SKILL.md    (copy of $(fab kit-path)/skills/fab-new.md)
-```
+All three CLIs discover skills there natively — agy reads `<workspace>/.agents/skills/<skill>/SKILL.md`, and kimi merges that generic group with its own brand group by priority — so none of them gets a per-brand target of its own.
 
 ### Distribution & Bootstrapping
 
@@ -184,7 +181,7 @@ Three version locations track the relationship between the installed engine and 
 
 Run `fab upgrade-repo` to update to the latest release. The command requires `FAB_KIT_PATH` to be unset, then downloads the new version to the cache if absent (verified + atomic — see distribution.md's Auto-Download Hardening), calls `Sync()` first with the target kit version, and stamps `fab/.fab-version` only after sync succeeds. A sync failure exits non-zero with repair guidance and leaves the stamp unwritten, so a re-run retries. Released kit content is served from the cache and is not copied into the repo. After the upgrade, if `fab/.kit-migration-version` is behind the engine version, the output includes a migration reminder. See [distribution.md](/distribution/distribution.md) for full upgrade details.
 
-Skill deployments in `.claude/skills/`, `.opencode/commands/`, `.agents/skills/`, and `.gemini/skills/` are refreshed by `fab-kit sync` after the update. OpenCode symlinks resolve automatically; copies for Claude Code, Codex, and Gemini are re-copied.
+Skill deployments in `.claude/skills/`, `.opencode/commands/`, and `.agents/skills/` are refreshed by `fab-kit sync` after the update — every target is re-copied.
 
 **Preserved** (lives outside `.kit/`): `config.yaml`, `constitution.md`, `docs/memory/`, `docs/specs/`, `changes/`, `.fab-status.yaml`, `.kit-migration-version`
 **Replaced** (lives inside `.kit/`): `templates/`, `reference/` (shipped read-only contracts, e.g. `reference/fkf.md`) (frlo), `skills/`, `scaffold/`, `migrations/`, `VERSION`
@@ -336,7 +333,7 @@ The `_` (underscore) prefix denotes internal partial files that are loaded by sk
 | `_srad.md` | Selective (via `helpers: [_srad]`) | SRAD autonomy framework — decision scoring, confidence grades, artifact markers, the Assumptions Summary block. The most widely declared helper: `fab-new`, `fab-draft`, `fab-dedupe`, `fab-continue`, `fab-clarify`, `fab-ff`, `fab-fff`, `fab-adopt` |
 | `_pipeline.md` | Selective (via `helpers: [_pipeline]`) | Shared ff/fff pipeline bracket — intake gate, apply → review → hydrate, the auto-rework loop and its exhaustion stop. Used by `fab-ff`, `fab-fff` (full bracket) and `fab-adopt` (partial consumer — the rework loop + hydrate dispatch only) |
 | `_intake.md` | Selective (via `helpers: [_intake]`) | Shared pre-boundary Create-Intake Procedure, parameterized by a `{questioning-mode}` knob. Used by `fab-new`, `fab-draft`, `fab-dedupe` |
-| `_cli-agents.md` | Selective (via `helpers: [_cli-agents]`) | Agent-CLI interaction reference — generic spawn / pre-send-validation / peek / await procedures for driving another agent CLI in a tmux pane, plus a three-provider operational dictionary (claude, codex, gemini). Used only by `fab-operator` |
+| `_cli-agents.md` | Selective (via `helpers: [_cli-agents]`) | Agent-CLI interaction reference — generic spawn / pre-send-validation / peek / await procedures for driving another agent CLI in a tmux pane, plus a four-provider operational dictionary (claude, codex, agy, kimi). Used only by `fab-operator` |
 | `_cli-external.md` | Selective (via `helpers: [_cli-external]`) | **Fab-owned** external-tool content only (clix): the operator spawning choreography, the escalation `rk notify` usage, the absent-binary discipline, `tmux` (reduced — `capture-pane`/`send-keys` internalized as `fab pane capture`/`fab pane send`; only `new-window` remains), and `/loop`. Each owned binary's *usage knowledge* — `wt`/`idea` (bare) and `rk`/`hop` (`command -v`-gated fail-silent) — is delegated at use-time to `<tool> skill` (with a silent `https://shll.ai/<tool>/skill` version-skew fallback), its command tree to `<tool> help-dump`. Used only by `fab-operator` |
 
 Only `_preamble.md` is always-loaded. All other helpers are opt-in via the `helpers:` frontmatter field on each skill. `_naming.md` and `_cli-rk.md` do not exist as separate files — their content is inlined into `_preamble.md` (`## Naming Conventions`, `## Run-Kit (rk) Reference`).
@@ -374,10 +371,10 @@ Outputs the tmux pane ID for a change's worktree. Signature: `fab resolve <chang
 *Introduced by*: doc/fab-spec/README.md, fab/project/constitution.md, 260401-46hw-brew-install-system-shim, 260402-3ac3-three-binary-architecture
 
 ### Agent Skill Deployment Strategy
-**Decision**: Agent skill directories are deployed via copies (Claude Code, Codex, Gemini CLI) or symlinks (OpenCode). Deployment is conditional on agent CLI availability in PATH. Deployment is performed by `fab-kit sync` (Go binary), replacing the previous shell implementation in `sync/2-sync-workspace.sh`.
-**Why**: Copies ensure each agent has a self-contained skill file regardless of symlink support. Conditional deployment avoids creating dot folders for agents the developer doesn't use, keeping workspaces clean. The `FAB_AGENTS` env var enables deterministic testing without PATH manipulation. Moving to Go enables consistent cross-platform behavior and testability.
-**Rejected**: Unconditional deployment to all agents — creates workspace clutter for unused agents. Also rejected: symlinks for all agents — Claude Code and Codex don't reliably follow symlinks.
-*Introduced by*: 260303-l6nk-gemini-cli-agent-aware-sync, 260219-d2y2-copy-template-skills-drop-agents, 260402-3ac3-three-binary-architecture
+**Decision**: Agent skill directories are deployed as **copies** on every shipped target — Claude Code (`.claude/skills`, directory format), OpenCode (`.opencode/commands`, flat format), and the generic `.agents/skills` dir shared by codex/agy/kimi — one target per skill set. `syncAgentSkills` retains a symlink mode, but no shipped target selects it. Deployment is conditional on **any** of a target's candidate CLIs being available in PATH. Deployment is performed by `fab-kit sync` (Go binary), replacing the previous shell implementation in `sync/2-sync-workspace.sh`.
+**Why**: Copies ensure each agent has a self-contained skill file regardless of symlink support. Conditional deployment avoids creating dot folders for agents the developer doesn't use, keeping workspaces clean. The `FAB_AGENTS` env var enables deterministic testing without PATH manipulation. Moving to Go enables consistent cross-platform behavior and testability. **One target per skill set** is what keeps duplicate-skill conflict warnings impossible: a CLI that reads both the generic workspace directory and its own brand directory sees every skill twice when fab deploys to both, so a CLI reading `.agents/skills/` natively gets no per-brand target — it joins that target's candidate list instead. The multi-candidate gate is the mechanism: a target deploys when *any* candidate is on PATH, and its skip message names them all so a user with none installed can tell what would enable it.
+**Rejected**: Unconditional deployment to all agents — creates workspace clutter for unused agents. Also rejected: symlinks for any target — Claude Code and Codex don't reliably follow them, and a symlinked entry breaks the moment the kit cache moves. Also rejected: a per-brand directory for every supported CLI — reintroduces the duplicate-discovery class, which warning suppression can only mask.
+*Introduced by*: 260303-l6nk-gemini-cli-agent-aware-sync, 260219-d2y2-copy-template-skills-drop-agents, 260402-3ac3-three-binary-architecture; *Updated by*: 260808-rpsr-remove-gemini-add-agy-kimi
 
 ### Scaffold Overlay Tree with Fragment Prefix
 **Decision**: `scaffold/` is structured as a repo-root overlay tree where file paths mirror their destinations. Files requiring merge strategies use a `fragment-` filename prefix. Template files (config.yaml, constitution.md) are detected at runtime by `/fab-setup` via placeholder string checks rather than being excluded from the tree-walk via a skip-list.
