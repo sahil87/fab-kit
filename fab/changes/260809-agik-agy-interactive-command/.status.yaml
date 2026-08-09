@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 35
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-08-09T17:28:01Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-09T17:36:16Z"}
     review: {started_at: "2026-08-09T17:36:16Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-09T17:44:03Z"}
     hydrate: {started_at: "2026-08-09T17:44:03Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-09T17:54:38Z"}
-    ship: {started_at: "2026-08-09T17:54:38Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-09T17:54:38Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-09T17:56:26Z"}
+    review-pr: {started_at: "2026-08-09T17:56:26Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/564
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 1825
+    deleted: 322
+    net: 1503
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 994
+        deleted: 233
+        net: 761
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-08-09T17:54:38Z"
-    computed_at_stage: hydrate
+        added: 678
+        deleted: 104
+        net: 574
+    computed_at: "2026-08-09T17:56:27Z"
+    computed_at_stage: ship
 summary: agy ships a built-in interactive_command via the new {prompt} placeholder; kimi is the sole dispatch-only built-in
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-09T17:54:38Z
+last_updated: 2026-08-09T17:56:27Z
