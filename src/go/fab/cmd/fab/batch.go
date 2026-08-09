@@ -13,8 +13,9 @@ import (
 // fab-kit's built-in claude provider and falls back to spawn.DefaultSpawnCommand)
 // with the default role's {model}/{effort} SUBSTITUTED via internal/spawn. Workers
 // spawn WITH a profile (the former placeholder-stripping print path is gone).
-// Substitution resolves every placeholder, so no literal {model}/{effort} braces
-// reach tmux.
+// Substitution resolves every profile placeholder, so no literal {model}/{effort}
+// braces reach tmux; a {prompt} placeholder survives this step by design and is
+// resolved by spawn.DeliverPrompt when the caller attaches the worker's prompt.
 //
 // `default` is a Tier-1 (session) role, so which provider it lands on is the
 // agent.session knob's call — a batch worker is an agent the user talks to.
@@ -31,6 +32,9 @@ func defaultRoleSpawnCommand(configPath string) string {
 		profile, _ = agent.DefaultProfile(agent.RoleDefault)
 	}
 
+	// Profile substitution only: both batch spawns CARRY an initial prompt
+	// (`/fab-new …` / `/fab-switch …`), so {prompt} is left standing for
+	// spawn.DeliverPrompt at the call sites.
 	return spawn.WithProfile(spawn.Command(configPath), profile.Model, profile.Effort)
 }
 

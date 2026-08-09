@@ -88,8 +88,11 @@ func runOperator(cmd *cobra.Command, args []string) error {
 	// fully defaulted.
 	spawnCmd := operatorSpawnCommand()
 
-	// Create new tab running the operator skill
-	shellCmd := fmt.Sprintf("%s '/fab-operator'", spawnCmd)
+	// Create new tab running the operator skill. The command is delivered through
+	// the shared two-shape grammar (spawn.DeliverPrompt), so a provider whose
+	// interactive_command declares {prompt} receives it as that flag's value
+	// rather than as a positional it would discard.
+	shellCmd := spawn.DeliverPrompt(spawnCmd, "/fab-operator")
 	workers, workersSet := workersOverride(cmd)
 	shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
 	if _, stderr, err := pane.RunCmd("tmux", "new-window", "-c", windowDir, "-n", tabName, shellCmd); err != nil {
@@ -142,6 +145,10 @@ func operatorSpawnCommand() string {
 	if prov, ok := agent.ResolveProvider(cfg, profile.Provider); ok && prov.InteractiveCommand != "" {
 		sessionCmd = prov.InteractiveCommand
 	}
+	// Profile substitution only: the operator launch CARRIES an initial prompt
+	// (`/fab-operator`), so {prompt} is left standing for spawn.DeliverPrompt at
+	// the call site. Resolving it here would drop the placeholder pair and the
+	// prompt would then be appended as a positional the provider may discard.
 	return spawn.WithProfile(sessionCmd, profile.Model, profile.Effort)
 }
 

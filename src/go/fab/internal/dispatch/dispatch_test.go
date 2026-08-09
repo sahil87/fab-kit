@@ -716,6 +716,50 @@ func TestWindowCommandShellQuotesThePointer(t *testing.T) {
 	}
 }
 
+// TestWindowCommandSubstitutesAtPromptPlaceholder pins the second delivery shape:
+// when the resolved command declares {prompt}, the shell-quoted pointer is
+// substituted THERE rather than appended. This is what a value-taking
+// initial-prompt flag requires — the built-in agy grammar's `-i`, where a bare
+// positional is discarded and a bare trailing `-i` exits non-zero.
+func TestWindowCommandSubstitutesAtPromptPlaceholder(t *testing.T) {
+	const resolved = `agy --dangerously-skip-permissions --model gemini-3.1-pro-high -i {prompt}`
+	const prefix = `agy --dangerously-skip-permissions --model gemini-3.1-pro-high -i`
+	pointer := PointerPrompt("sahil's-repo/.fab-dispatch/abcd/apply-prompt.md")
+	got := WindowCommand(resolved, pointer)
+
+	if contains(got, "{prompt}") {
+		t.Errorf("WindowCommand = %q, want the {prompt} token substituted away", got)
+	}
+	if !hasPrefix(got, prefix+" ") {
+		t.Errorf("WindowCommand = %q, want the pointer to land at the placeholder after %q", got, prefix)
+	}
+	// The same escape rule as the positional shape: a quote-bearing checkout path
+	// must not break out of the flag's value.
+	if !contains(got, `'\''`) {
+		t.Errorf("WindowCommand = %q, want the embedded single quote escaped", got)
+	}
+	if arg := shellRoundTrip(t, got, prefix); arg != pointer {
+		t.Errorf("shell parsed the pointer as %q, want it byte-identical to the pointer", arg)
+	}
+}
+
+// TestWindowCommandAppendsWhenNoPlaceholder pins the back-compat guarantee: a
+// command declaring no {prompt} composes byte-for-byte as it always did —
+// resolved command, one space, shell-quoted pointer — so claude, codex, and any
+// user command predating the placeholder are untouched by its introduction.
+func TestWindowCommandAppendsWhenNoPlaceholder(t *testing.T) {
+	for _, resolved := range []string{
+		`claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model m --effort high`,
+		`codex --dangerously-bypass-approvals-and-sandbox -m gpt-5 -c model_reasoning_effort=high`,
+	} {
+		pointer := PointerPrompt(".fab-dispatch/abcd/apply-prompt.md")
+		want := resolved + " '" + pointer + "'"
+		if got := WindowCommand(resolved, pointer); got != want {
+			t.Errorf("WindowCommand(%q) = %q, want the byte-identical positional append %q", resolved, got, want)
+		}
+	}
+}
+
 // shellRoundTrip runs `sh -c 'printf ... <quoted-pointer>'` — the windowCmd with
 // its verbatim command prefix swapped for a printf that echoes its single
 // argument — to prove the quoted tail parses as exactly one shell word.

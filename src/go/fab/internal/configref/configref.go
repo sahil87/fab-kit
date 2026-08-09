@@ -513,7 +513,7 @@ checklist:
 			Key:         "providers",
 			Default:     providers,
 			Kind:        configvalue.KindMapping,
-			Description: "Named agent capability grammars: four built-in providers with per-role fills on the kit-release cadence. Each provider MAY carry interactive_command (pane/session), headless_command (headless stage task), and native (native Agent-tool capability); presence describes how and never selects dispatch mode. Command fields are never merged or substituted for one another. profiles supplies {model}/{effort} placeholders with precedence invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty. Fill roster: claude ships all six role fills, codex and agy sparse maps whose `default` entry is the cross-role fallback, and kimi NO fills at all (its -m takes a user-config model alias, so the empty model drops the flag and the CLI's own default_model applies). Provider names are opaque, user-chosen strings.",
+			Description: "Named agent capability grammars: four built-in providers with per-role fills on the kit-release cadence. Each provider MAY carry interactive_command (pane/session), headless_command (headless stage task), and native (native Agent-tool capability); presence describes how and never selects dispatch mode. Command fields are never merged or substituted for one another. interactive_command MAY additionally carry a {prompt} placeholder marking where an initial prompt is delivered — substituted with the shell-quoted prompt by every prompt-carrying launch (fab operator, fab batch, pane dispatch), dropped with its preceding flag at the one promptless launch, bare `fab agent`; a command without one receives the prompt as a trailing positional argument instead. Only {model}/{effort} select template mode, so a command whose only placeholder is {prompt} still gets --model/--effort appended. profiles supplies {model}/{effort} placeholders with precedence invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty. Fill roster: claude ships all six role fills, codex and agy sparse maps whose `default` entry is the cross-role fallback, and kimi NO fills at all (its -m takes a user-config model alias, so the empty model drops the flag and the CLI's own default_model applies). Provider names are opaque, user-chosen strings.",
 			Scope:       ScopeBoth,
 			// Demoted from the managed fence (260806-j9nh) for the same reason as
 			// agent.profiles: naming a built-in in a knob needs no providers: block at
@@ -619,7 +619,7 @@ const referenceHeader = `# Full reference of all available options: fab config e
 // interpolated from its canonical agent var (no literal copy):
 // agent.DefaultInteractiveCommand / agent.DefaultHeadlessCommand for claude, and the
 // agent.DefaultCodex*/DefaultAgy*/DefaultKimi* vars for the other three built-ins
-// (codex carries both commands; agy and kimi are dispatch-only).
+// (codex and agy carry both commands; kimi is dispatch-only).
 // The per-role FILLS are interpolated the same way, from the already-derived
 // providerDefaults() view — so the shipped values appear here without a literal copy,
 // and a bump in defaults.yaml reaches the rendered reference by itself. kimi ships no
@@ -656,8 +656,16 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#                         from the --model/--effort flags on `fab agent\n" +
 		"#                         --provider <name>` (which bypasses role resolution);\n" +
 		"#                         the built-in commands below are all templated this\n" +
-		"#                         way. A command carrying NO placeholder instead gets\n" +
-		"#                         --model/--effort appended.\n" +
+		"#                         way. ONLY {model}/{effort} select template mode: a\n" +
+		"#                         command carrying neither instead gets --model/--effort\n" +
+		"#                         APPENDED, and that includes a command whose only\n" +
+		"#                         placeholder is {prompt}. {prompt} marks where an\n" +
+		"#                         initial prompt is delivered — the shell-quoted prompt\n" +
+		"#                         is substituted there by every prompt-carrying launch\n" +
+		"#                         (fab operator, fab batch, pane dispatch) and drops\n" +
+		"#                         with its preceding flag at the one promptless launch,\n" +
+		"#                         bare `fab agent`. A command without it receives the\n" +
+		"#                         prompt as a trailing positional argument instead.\n" +
 		"#   headless_command    — runs ONE headless stage task via fab dispatch. There\n" +
 		"#                         is NO substitution between command fields; fab\n" +
 		"#                         dispatch pipes the stage prompt to the command's\n" +
@@ -701,13 +709,14 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# block below is a rendering choice, not a missing fill.\n" +
 		"# Every non-claude block below is commented because it merely restates a built-in\n" +
 		"# default; claude's three capabilities are shown live as the baseline example.\n" +
-		"# Claude carries all three capabilities; codex carries pane + headless and\n" +
-		"# therefore descends from the default native preference to headless. agy and kimi\n" +
-		"# ship NO interactive_command — they are DISPATCH-ONLY built-ins with no pane\n" +
-		"# capability: pane dispatch hands the worker its pointer prompt as a positional\n" +
-		"# argument, and neither CLI can receive a prompt that way (see their notes\n" +
-		"# below) — so mode resolution lands their stages on headless. Add\n" +
-		"# providers.<name>.interactive_command yourself if you want `fab agent --provider agy`\n" +
+		"# Claude carries all three capabilities; codex and agy carry pane + headless and\n" +
+		"# therefore descend from the default native preference to headless. kimi ships NO\n" +
+		"# interactive_command — it is the one DISPATCH-ONLY built-in, with no pane\n" +
+		"# capability: pane dispatch delivers the worker's pointer prompt through that\n" +
+		"# command (substituted at a {prompt} placeholder, or appended as a positional\n" +
+		"# argument when there is none), and kimi can receive it neither way (see its note\n" +
+		"# below) — so mode resolution lands its stages on headless. Add\n" +
+		"# providers.kimi.interactive_command yourself if you want `fab agent --provider kimi`\n" +
 		"# to open an interactive session, accepting that pane-dispatched stages will not\n" +
 		"# receive their prompt.\n" +
 		"#\n" +
@@ -722,19 +731,26 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#     takes the prompt as an ARGUMENT and ignores stdin, so headless_command nests\n" +
 		"#     a shell — POSIX expands $(cat) before fab dispatch's stdin redirect applies,\n" +
 		"#     making the inner sh's stdin the prompt. --print-timeout is raised well above\n" +
-		"#     its 5m default because stage workers run far longer. No interactive_command:\n" +
-		"#     agy silently DROPS a positional prompt (its TUI starts empty) and gates a\n" +
-		"#     fresh workspace behind an interactive trust prompt even under\n" +
-		"#     --dangerously-skip-permissions, so a pane worker would never see its prompt.\n" +
+		"#     its 5m default because stage workers run far longer. Its interactive_command\n" +
+		"#     ends on `-i {prompt}` (--prompt-interactive) because agy DROPS a positional\n" +
+		"#     prompt and its -i takes a VALUE: every prompt-carrying launch (fab operator,\n" +
+		"#     fab batch, pane dispatch) substitutes its shell-quoted prompt there, and the\n" +
+		"#     one promptless launch, bare `fab agent`, substitutes empty so the pair\n" +
+		"#     token-drops.\n" +
+		"#     CAVEAT: agy gates a fresh workspace behind an interactive trust dialog even\n" +
+		"#     under --dangerously-skip-permissions, so a pane worker in a not-yet-trusted\n" +
+		"#     worktree parks there once until a human answers it (the trust store is\n" +
+		"#     ~/.gemini/antigravity-cli/settings.json trustedWorkspaces, exact-match paths;\n" +
+		"#     fab does not seed it).\n" +
 		"#   kimi — the kimi-code CLI, and the one built-in shipping NO fills: its -m takes\n" +
 		"#     a USER-CONFIG model alias rather than a catalog ID, so a pinned value would\n" +
 		"#     break non-managed installs. The empty model drops `-m` and kimi falls back to\n" +
 		"#     your own default_model; pin one with providers.kimi.profiles.<role>.model if\n" +
 		"#     you want per-role differentiation. Same nested-shell stdin idiom as agy, and\n" +
 		"#     no approval flag on dispatch: `kimi -p` already auto-approves tools and\n" +
-		"#     REJECTS --yolo/--auto. No interactive_command either: kimi parses a bare\n" +
-		"#     positional as a SUBCOMMAND and exits non-zero, and has no\n" +
-		"#     interactive-initial-prompt flag at all.\n" +
+		"#     REJECTS --yolo/--auto. No interactive_command: kimi parses a bare positional\n" +
+		"#     as a SUBCOMMAND and exits non-zero, and has no interactive-initial-prompt\n" +
+		"#     flag at all — not even a value-taking one a {prompt} placeholder could target.\n" +
 		"# The bypass flags are deliberate: unattended stage workers cannot answer approval\n" +
 		"# prompts. Override the corresponding provider command to restore an\n" +
 		"# approval-gated posture.\n" +
@@ -748,7 +764,8 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"  #   headless_command: " + YAMLSingleQuoted(agent.DefaultCodexHeadlessCommand) + "\n" +
 		profilesLines(providers["codex"].Profiles, roleOrder) +
 		"  # agy:\n" +
-		"  #   headless_command: " + YAMLSingleQuoted(agent.DefaultAgyHeadlessCommand) + "   # dispatch only; no {effort} flag; nested shell so $(cat) reads the piped prompt\n" +
+		"  #   interactive_command: " + YAMLSingleQuoted(agent.DefaultAgyInteractiveCommand) + "   # -i takes a VALUE, so the pointer rides {prompt}\n" +
+		"  #   headless_command: " + YAMLSingleQuoted(agent.DefaultAgyHeadlessCommand) + "   # no {effort} flag; nested shell so $(cat) reads the piped prompt\n" +
 		profilesLines(providers["agy"].Profiles, roleOrder) +
 		// kimi ships no fills, so profilesLines renders nothing for it — the trim
 		// therefore has to span the whole kimi block, not just its (empty) fill

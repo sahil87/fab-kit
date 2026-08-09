@@ -235,27 +235,34 @@ checklist:
 # restate a built-in default and therefore ship commented, like every other default.
 # Non-claude fills are refreshed at kit-release cadence and pass through unvalidated —
 # pin a newer model with providers.<name>.profiles.<role>.model. Claude ships
-# session, native, and headless capabilities; codex ships both command fields
-# without native capability; agy and kimi ship headless capability ONLY (no
-# interactive_command — pane dispatch delivers the prompt pointer as a positional
-# argument neither CLI accepts). Under the default mode, claude resolves native
+# session, native, and headless capabilities; codex and agy ship both command fields
+# without native capability; kimi ships headless capability ONLY (no
+# interactive_command — pane dispatch delivers the prompt pointer in a shape kimi
+# accepts in neither form). Under the default mode, claude resolves native
 # while the non-claude built-ins descend to headless.
 # (Automated PR reviewer toggles moved to code-review.md § Review Tools — absent = enabled.)
 # Per-provider notes (kept out of the blocks below so uncommenting a whole block
 # stays valid YAML): claude -p and codex exec both read the prompt from stdin.
 # Codex carries --dangerously-bypass-approvals-and-sandbox; agy carries
-# --dangerously-skip-permissions. Both flags are deliberate because unattended stage
-# workers cannot answer approval prompts; override a provider command to restore
-# approvals. kimi's dispatch form carries no approval flag at all: kimi -p already
-# auto-approves tools and errors when combined with --yolo.
-# Only claude and codex ship an interactive_command — agy and kimi are DISPATCH-ONLY. A
-# interactive_command also confers PANE-mode eligibility, and pane dispatch appends the
-# stage prompt file's pointer as a POSITIONAL argument that neither CLI can accept
-# (kimi reads it as an unknown subcommand and exits; agy drops it silently and
-# trust-prompts a fresh workspace), so shipping one would park every tmux-dispatched
-# stage. With none, automatic resolution skips the pane rung and descends to headless
-# and explicit --pane hard-errors. Add providers.<name>.interactive_command yourself for
-# an interactive session, accepting that pane-dispatched stages lose their prompt.
+# --dangerously-skip-permissions on both its forms. Both flags are deliberate because
+# unattended stage workers cannot answer approval prompts; override a provider command
+# to restore approvals. kimi's dispatch form carries no approval flag at all: kimi -p
+# already auto-approves tools and errors when combined with --yolo.
+# claude, codex and agy ship an interactive_command — kimi alone is DISPATCH-ONLY. An
+# interactive_command also confers PANE-mode eligibility, and pane dispatch delivers the
+# stage prompt file's pointer through it — substituted at a {prompt} placeholder, or
+# appended as a POSITIONAL argument when there is none. kimi accepts neither (it reads a
+# positional as an unknown subcommand and exits, and has no initial-prompt flag for a
+# placeholder to target), so shipping one would park every tmux-dispatched stage. With
+# none, automatic resolution skips the pane rung and descends to headless and explicit
+# --pane hard-errors. Add providers.kimi.interactive_command yourself for an interactive
+# session, accepting that pane-dispatched stages lose their prompt. agy DOES ship one,
+# using {prompt} because its -i (--prompt-interactive) takes a VALUE — a bare positional
+# is dropped and a bare -i exits 2 — so one field serves every prompt-carrying launch (fab
+# operator, fab batch, pane dispatch: prompt substituted) and the one promptless launch,
+# bare fab agent (empty ⇒ the -i {prompt} pair token-drops). Caveat:
+# agy trust-prompts a fresh workspace even under --dangerously-skip-permissions, so a
+# pane worker in a not-yet-trusted worktree parks there once until a human answers it.
 # Codex's -m takes a concrete model SLUG, so its shipped fills are pinned IDs.
 # agy carries no {effort} — its model IDs embed the reasoning level as a suffix, so
 # its fills carry none either. agy and kimi both take the prompt as the -p ARGUMENT
@@ -276,7 +283,8 @@ providers:
   #   headless_command: codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
   #   profiles:                            # sparse — run `fab config explain` for the live values
   #     default: { model: <model-id>, effort: <effort> }   # example: shape only
-  # agy:                                   # dispatch-only: no interactive_command (see below)
+  # agy:
+  #   interactive_command: agy … --model {model} -i {prompt}        # -i takes a VALUE, so the pane pointer rides {prompt}
   #   headless_command: sh -c 'agy … --model {model} -p "$(cat)"'   # no {effort} flag; nested shell so $(cat) reads the piped prompt
   #   profiles:                            # model-only: the reasoning level rides the ID suffix
   #     default: { model: <model-id> }     # example: shape only

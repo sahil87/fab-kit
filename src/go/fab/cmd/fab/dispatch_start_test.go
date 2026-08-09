@@ -13,6 +13,7 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 )
 
 // setupDispatchRepo builds a repo with one active change and a config whose
@@ -847,42 +848,73 @@ func TestDispatchStart_ExplicitPaneWithoutInteractiveCommandPersistsNothing(t *t
 	}
 }
 
-// TestModeCommand_DispatchOnlyBuiltInsAreHeadlessOnly ties the two shape-(b) tests
-// above to the BUILT-IN providers that actually rely on them. Those tests use a
+// TestModeCommand_DispatchOnlyBuiltInIsHeadlessOnly ties the two shape-(b) tests
+// above to the BUILT-IN provider that actually relies on them. Those tests use a
 // synthetic `cli` provider with an empty interactive_command; this one asserts that
-// agy and kimi — resolved from the shipped defaults with no providers: config at
-// all — genuinely present that shape at the seam `dispatch start` branches on.
+// kimi — resolved from the shipped defaults with no providers: config at all —
+// genuinely presents that shape at the seam `dispatch start` branches on.
 //
-// The two CLIs cannot receive a pane worker's pointer prompt (kimi parses a bare
-// positional as a subcommand and exits non-zero; agy drops it silently and
-// trust-prompts a fresh workspace), so shipping an interactive_command would make auto
-// mode inside tmux SELECT pane and park every stage. Shipping none is what routes
-// them to the documented soft fallback (`auto: no interactive_command`) while an
-// explicit --pane still hard-errors actionably.
+// kimi cannot receive a pane worker's pointer prompt in EITHER shape (it parses a
+// bare positional as a subcommand and exits non-zero, and has no
+// interactive-initial-prompt flag for a {prompt} placeholder to target), so shipping
+// an interactive_command would make auto mode inside tmux SELECT pane and park every
+// stage. Shipping none is what routes it to the documented soft fallback
+// (`auto: no interactive_command`) while an explicit --pane still hard-errors
+// actionably.
 //
 // modeCommand is the composition seam both modes go through, so exercising it
 // needs no tmux server — validatePane raises the identical missingCommandError.
-func TestModeCommand_DispatchOnlyBuiltInsAreHeadlessOnly(t *testing.T) {
-	for _, name := range []string{"agy", "kimi"} {
-		prov, ok := agent.ResolveProvider(nil, name)
-		if !ok {
-			t.Fatalf("built-in %s provider must resolve with no config", name)
-		}
+func TestModeCommand_DispatchOnlyBuiltInIsHeadlessOnly(t *testing.T) {
+	prov, ok := agent.ResolveProvider(nil, "kimi")
+	if !ok {
+		t.Fatal("built-in kimi provider must resolve with no config")
+	}
 
-		// Headless composes fine — the mode these providers exist for.
-		if _, err := modeCommand(dispatch.ModeHeadless, prov, "apply", name); err != nil {
-			t.Errorf("headless dispatch for the %s built-in must compose: %v", name, err)
-		}
+	// Headless composes fine — the mode this provider exists for.
+	if _, err := modeCommand(dispatch.ModeHeadless, prov, "apply", "kimi"); err != nil {
+		t.Errorf("headless dispatch for the kimi built-in must compose: %v", err)
+	}
 
-		// Pane cannot, and says so actionably: an empty interactive_command is exactly
-		// the condition validatePane turns into the auto soft-fallback.
-		_, err := modeCommand(dispatch.ModePane, prov, "apply", name)
-		if err == nil {
-			t.Fatalf("pane dispatch for the %s built-in must error — it ships no interactive_command", name)
+	// Pane cannot, and says so actionably: an empty interactive_command is exactly
+	// the condition validatePane turns into the auto soft-fallback.
+	_, err := modeCommand(dispatch.ModePane, prov, "apply", "kimi")
+	if err == nil {
+		t.Fatal("pane dispatch for the kimi built-in must error — it ships no interactive_command")
+	}
+	if !strings.Contains(err.Error(), "providers.kimi.interactive_command") {
+		t.Errorf("kimi pane error = %q, want the interactive_command config-key hint", err.Error())
+	}
+}
+
+// TestModeCommand_AgyBuiltInComposesBothRungs is the counterpart (260809-agik): agy
+// now ships BOTH commands, so it composes on either rung with no providers: config.
+// The pane composition deliberately still carries the raw `{prompt}` token here —
+// modeCommand + WithProfile resolve only the PROFILE placeholders; the pointer does
+// not exist until `start` has persisted the prompt file, and dispatch.WindowCommand
+// substitutes it at launch.
+func TestModeCommand_AgyBuiltInComposesBothRungs(t *testing.T) {
+	prov, ok := agent.ResolveProvider(nil, "agy")
+	if !ok {
+		t.Fatal("built-in agy provider must resolve with no config")
+	}
+	for _, mode := range []dispatch.Mode{dispatch.ModeHeadless, dispatch.ModePane} {
+		if _, err := modeCommand(mode, prov, "apply", "agy"); err != nil {
+			t.Errorf("%s dispatch for the agy built-in must compose: %v", mode, err)
 		}
-		if !strings.Contains(err.Error(), "providers."+name+".interactive_command") {
-			t.Errorf("%s pane error = %q, want the interactive_command config-key hint", name, err.Error())
-		}
+	}
+
+	paneCmd, err := modeCommand(dispatch.ModePane, prov, "apply", "agy")
+	if err != nil {
+		t.Fatalf("pane composition: %v", err)
+	}
+	resolved := spawn.WithProfile(paneCmd, "gemini-3.1-pro-high", "")
+	if !strings.HasSuffix(resolved, "-i {prompt}") {
+		t.Errorf("resolved pane command = %q, want the -i {prompt} pair intact for WindowCommand to fill", resolved)
+	}
+	windowCmd := dispatch.WindowCommand(resolved, dispatch.PointerPrompt(".fab-dispatch/abcd/apply-prompt.md"))
+	want := "agy --dangerously-skip-permissions --model gemini-3.1-pro-high -i 'Read .fab-dispatch/abcd/apply-prompt.md and execute it.'"
+	if windowCmd != want {
+		t.Errorf("WindowCommand = %q, want %q", windowCmd, want)
 	}
 }
 

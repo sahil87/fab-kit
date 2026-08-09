@@ -10,7 +10,7 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
-	"github.com/sahil87/fab-kit/src/go/fab/internal/shellquote"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 	"github.com/spf13/cobra"
 )
 
@@ -137,7 +137,7 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag, quietF
 		wtPath := strings.TrimSpace(wtOut)
 
 		// Open tmux window
-		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single("/fab-switch "+match))
+		shellCmd := spawn.DeliverPrompt(spawnCmd, "/fab-switch "+match)
 		shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
 		exec.Command("tmux", "new-window", "-n", match, "-c", wtPath, shellCmd).Run()
 	}

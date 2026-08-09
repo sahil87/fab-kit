@@ -105,6 +105,93 @@ printf '%s\n' "$@" >> ` + capture,
 	}
 }
 
+// stubOperatorLaunch chdirs into a fab fixture whose operator-role provider
+// (claude, via the agent.session knob's default) carries the given
+// interactive_command, stubs `git`/`tmux`, and returns the tmux argv capture
+// path. The operator role resolves to claude-sonnet-5/medium.
+func stubOperatorLaunch(t *testing.T, interactiveCommand string) string {
+	t.Helper()
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "fab", "project")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "providers:\n  claude:\n    interactive_command: \"" + interactiveCommand + "\"\n"
+	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	chdirTestEnv(t, root, map[string]string{"TMUX": "/tmp/tmux-test/default,123,0"})
+
+	bin := t.TempDir()
+	capture := filepath.Join(t.TempDir(), "tmux-args")
+	scripts := map[string]string{
+		"git": "if [ \"$1\" = rev-parse ]; then printf '%s\\n' \"$PWD\"; fi",
+		"tmux": `if [ "$1" = list-windows ]; then exit 0; fi
+printf '%s\n' "$@" >> ` + capture,
+	}
+	for name, script := range scripts {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+script+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	return capture
+}
+
+// TestRunOperator_PromptDeliveryShapes pins that `/fab-operator` reaches the
+// launched agent in BOTH delivery shapes (spawn.DeliverPrompt). The operator
+// launch is a prompt-CARRYING seam: a provider whose interactive_command declares
+// {prompt} must receive the command as that flag's value, because a value-taking
+// initial-prompt flag discards a bare positional — and a placeholder-free provider
+// must still get the byte-identical positional append it got before placeholders
+// existed.
+func TestRunOperator_PromptDeliveryShapes(t *testing.T) {
+	t.Run("placeholder provider gets /fab-operator substituted at {prompt}", func(t *testing.T) {
+		capture := stubOperatorLaunch(t, "mycli --model {model} -i {prompt}")
+
+		cmd := operatorCmd()
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetArgs(nil)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("operator: %v", err)
+		}
+
+		args, err := os.ReadFile(capture)
+		if err != nil {
+			t.Fatalf("reading tmux capture: %v", err)
+		}
+		got := string(args)
+		if strings.Contains(got, "{prompt}") {
+			t.Errorf("literal {prompt} reached tmux:\n%s", got)
+		}
+		if !strings.Contains(got, "mycli --model claude-sonnet-5 -i '/fab-operator'") {
+			t.Errorf("operator command not delivered at the placeholder:\n%s", got)
+		}
+	})
+
+	t.Run("placeholder-free provider keeps the positional append", func(t *testing.T) {
+		capture := stubOperatorLaunch(t, "mycli --dangerously-skip-permissions")
+
+		cmd := operatorCmd()
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetArgs(nil)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("operator: %v", err)
+		}
+
+		args, err := os.ReadFile(capture)
+		if err != nil {
+			t.Fatalf("reading tmux capture: %v", err)
+		}
+		want := "mycli --dangerously-skip-permissions --model claude-sonnet-5 --effort medium '/fab-operator'"
+		if !strings.Contains(string(args), want) {
+			t.Errorf("tmux command = %s\nwant the byte-identical positional form %q", args, want)
+		}
+	})
+}
+
 func TestRunOperator_WorkersOverrideDoesNotRelaunchExistingSingleton(t *testing.T) {
 	root := t.TempDir()
 	chdirTestEnv(t, root, map[string]string{"TMUX": "/tmp/tmux-test/default,123,0"})

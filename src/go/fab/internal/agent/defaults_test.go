@@ -79,8 +79,9 @@ func TestDefaultsFileIsWellFormed(t *testing.T) {
 // so shipping any fill would break non-managed installs. Empty is the correct
 // built-in there, and the empty-{model} token-drop is what makes it work.
 //
-// agy and kimi are the same kind of deliberate exception on the SESSION command:
-// they ship none, so both absences are asserted rather than exempted.
+// kimi is the same kind of deliberate exception on the INTERACTIVE command: it is
+// the sole built-in shipping none (agy gained one in 260809-agik), so that absence
+// is asserted rather than exempted.
 func TestDefaultsFileProviders(t *testing.T) {
 	cfg := parseDefaultsFile(t)
 
@@ -142,23 +143,47 @@ func TestDefaultsFileProviders(t *testing.T) {
 		}
 	}
 
-	// The mirror image: only claude and codex ship an interactive_command. agy and kimi
-	// are DISPATCH-ONLY built-ins, and the absence is load-bearing rather than an
+	// The mirror image: claude, codex and agy ship an interactive_command. kimi is
+	// the sole DISPATCH-ONLY built-in, and its absence is load-bearing rather than an
 	// omission — an interactive_command makes a provider eligible for pane-mode dispatch,
-	// which hands the worker its pointer prompt as a POSITIONAL argument, and neither
-	// CLI can receive a prompt that way (kimi reads a bare positional as a subcommand
-	// and exits non-zero; agy drops it silently and trust-prompts a fresh workspace).
-	// Asserting the absence is what stops a well-meaning interactive_command from landing
-	// and parking every tmux-dispatched stage at an empty prompt.
-	for _, name := range []string{DefaultProviderName, providerCodex} {
+	// which delivers the worker's pointer prompt through that command (substituted at a
+	// {prompt} placeholder, else appended as a POSITIONAL argument), and kimi can receive
+	// it neither way: it reads a bare positional as a subcommand and exits non-zero, and
+	// has no interactive-initial-prompt flag for a placeholder to target. Asserting the
+	// absence is what stops a well-meaning interactive_command from landing and parking
+	// every tmux-dispatched kimi stage at an empty prompt.
+	for _, name := range []string{DefaultProviderName, providerCodex, providerAgy} {
 		if cfg.Providers[name].InteractiveCommand == "" {
 			t.Errorf("defaults.yaml providers.%s has no interactive_command", name)
 		}
 	}
-	for _, name := range []string{providerAgy, providerKimi} {
-		if got := cfg.Providers[name].InteractiveCommand; got != "" {
-			t.Errorf("defaults.yaml providers.%s.interactive_command = %q, want absent — %s cannot receive a pane worker's pointer prompt as a positional argument, so shipping one would select pane dispatch and park the stage", name, got, name)
-		}
+	if got := cfg.Providers[providerKimi].InteractiveCommand; got != "" {
+		t.Errorf("defaults.yaml providers.%s.interactive_command = %q, want absent — kimi cannot receive a pane worker's pointer prompt in EITHER shape, so shipping one would select pane dispatch and park the stage", providerKimi, got)
+	}
+
+	// agy's interactive grammar is shape-pinned because every element is
+	// load-bearing (260809-agik):
+	//   --dangerously-skip-permissions — the full-auto posture every built-in carries
+	//   {model}, and NO {effort}      — agy's model IDs embed the reasoning level
+	//   a TRAILING `-i {prompt}` pair — `-i`/`--prompt-interactive` takes a VALUE
+	//                                   (a bare `-i` exits 2), agy discards a bare
+	//                                   positional, and the placeholder is what lets
+	//                                   the one field serve every prompt-carrying
+	//                                   launch (prompt substituted) and the one
+	//                                   promptless launch, bare `fab agent` (empty
+	//                                   ⇒ the pair token-drops).
+	agyInteractive := cfg.Providers[providerAgy].InteractiveCommand
+	if !strings.Contains(agyInteractive, "--dangerously-skip-permissions") {
+		t.Errorf("agy.interactive_command = %q, want the approval-bypass posture", agyInteractive)
+	}
+	if !strings.Contains(agyInteractive, "{model}") {
+		t.Errorf("agy.interactive_command = %q, want a {model} placeholder", agyInteractive)
+	}
+	if strings.Contains(agyInteractive, "{effort}") {
+		t.Errorf("agy.interactive_command = %q, want NO {effort} — agy's model IDs embed the reasoning level, so a separate flag would fight the suffix", agyInteractive)
+	}
+	if !strings.HasSuffix(agyInteractive, "-i {prompt}") {
+		t.Errorf("agy.interactive_command = %q, want it to END with `-i {prompt}` — -i takes a VALUE, so a prompt-carrying launch must deliver its prompt as that value and the promptless launch (bare `fab agent`) must token-drop the pair", agyInteractive)
 	}
 
 	// agy's and kimi's no-{effort} / nested-shell grammar is asserted once, over
@@ -242,9 +267,10 @@ func TestPackageTablesMatchDefaultsFile(t *testing.T) {
 		{"DefaultHeadlessCommand", DefaultHeadlessCommand, cfg.Providers[DefaultProviderName].HeadlessCommand},
 		{"DefaultCodexInteractiveCommand", DefaultCodexInteractiveCommand, cfg.Providers[providerCodex].InteractiveCommand},
 		{"DefaultCodexHeadlessCommand", DefaultCodexHeadlessCommand, cfg.Providers[providerCodex].HeadlessCommand},
-		// agy and kimi are dispatch-only, so they export no session-command var —
-		// their interactive_command ABSENCE is asserted in TestDefaultsFileProviders.
+		{"DefaultAgyInteractiveCommand", DefaultAgyInteractiveCommand, cfg.Providers[providerAgy].InteractiveCommand},
 		{"DefaultAgyHeadlessCommand", DefaultAgyHeadlessCommand, cfg.Providers[providerAgy].HeadlessCommand},
+		// kimi is the sole dispatch-only built-in, so it exports no session-command
+		// var — its interactive_command ABSENCE is asserted in TestDefaultsFileProviders.
 		{"DefaultKimiHeadlessCommand", DefaultKimiHeadlessCommand, cfg.Providers[providerKimi].HeadlessCommand},
 	}
 	for _, c := range commands {

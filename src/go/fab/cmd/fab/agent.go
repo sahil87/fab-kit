@@ -150,7 +150,13 @@ func runAgent(cmd *cobra.Command, role, provider string, providerSet bool, model
 			role, providerName, providerName)
 	}
 
-	resolvedCmd := spawn.WithProfile(prov.InteractiveCommand, profileModel, profileEffort)
+	// `fab agent` is a SESSION seam: the composed command opens a plain
+	// interactive session with no pointer prompt, so {prompt} resolves empty and
+	// its flag pair token-drops — the built-in agy `-i {prompt}` becomes a bare
+	// `agy … --model <id>`. (Pane dispatch is the other seam: it substitutes the
+	// shell-quoted pointer there instead — see internal/dispatch.WindowCommand.)
+	resolvedCmd := spawn.WithPrompt(
+		spawn.WithProfile(prov.InteractiveCommand, profileModel, profileEffort), "")
 
 	if printOnly {
 		fmt.Fprintln(cmd.OutOrStdout(), resolvedCmd)

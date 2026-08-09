@@ -525,8 +525,8 @@ func TestAgentUnknownProviderNamesAvailable(t *testing.T) {
 // TestAgentProviderNoInteractiveCommandErrors: a provider that resolves but carries no
 // interactive_command errors with the config-key hint (the provider-path counterpart of
 // TestAgentPrintNoInteractiveCommandErrors). Uses a project-defined dispatch-only
-// provider; the built-in agy/kimi half of the same rule is
-// TestAgentProviderDispatchOnlyBuiltInsError.
+// provider; the built-in half of the same rule is
+// TestAgentProviderDispatchOnlyBuiltInError.
 func TestAgentProviderNoInteractiveCommandErrors(t *testing.T) {
 	agentTestRepo(t, `providers:
   myagent:
@@ -559,29 +559,62 @@ func TestAgentProviderBuiltinCodexNoConfig(t *testing.T) {
 	}
 }
 
-// TestAgentProviderDispatchOnlyBuiltInsError: `fab agent` opens an interactive
-// SESSION, so the two dispatch-only built-ins cannot serve it and say so with the
+// TestAgentProviderDispatchOnlyBuiltInError: `fab agent` opens an interactive
+// SESSION, so the one dispatch-only built-in cannot serve it and says so with the
 // config-key hint — the same actionable error a user-defined dispatch-only provider
 // gets (TestAgentProviderNoInteractiveCommandErrors), reached here from the SHIPPED
 // table rather than project config.
 //
-// agy and kimi ship no interactive_command on purpose (260808-rpsr): a pane-mode worker
-// receives its pointer prompt as a POSITIONAL argument to that command, and neither
-// CLI can take a prompt that way — kimi parses a bare positional as a subcommand and
-// exits non-zero, agy drops it silently and trust-prompts a fresh workspace. The
-// error is the documented path to an interactive session: add
-// providers.<name>.interactive_command yourself, accepting the pane caveat.
-func TestAgentProviderDispatchOnlyBuiltInsError(t *testing.T) {
+// kimi ships no interactive_command on purpose: a pane-mode worker receives its
+// pointer prompt through that command — substituted at a {prompt} placeholder, else
+// appended as a POSITIONAL argument — and kimi can take it neither way (it parses a
+// bare positional as a subcommand and exits non-zero, and has no
+// interactive-initial-prompt flag for a placeholder to target). The error is the
+// documented path to an interactive session: add providers.kimi.interactive_command
+// yourself, accepting the pane caveat.
+func TestAgentProviderDispatchOnlyBuiltInError(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 
-	for _, name := range []string{"agy", "kimi"} {
-		_, err := runAgentPrint(t, "--provider", name)
-		if err == nil {
-			t.Fatalf("fab agent --provider %s must error — it is a dispatch-only built-in", name)
-		}
-		if !strings.Contains(err.Error(), "providers."+name+".interactive_command") {
-			t.Errorf("%s error = %q, want the interactive_command config-key hint", name, err.Error())
-		}
+	_, err := runAgentPrint(t, "--provider", "kimi")
+	if err == nil {
+		t.Fatal("fab agent --provider kimi must error — it is the dispatch-only built-in")
+	}
+	if !strings.Contains(err.Error(), "providers.kimi.interactive_command") {
+		t.Errorf("kimi error = %q, want the interactive_command config-key hint", err.Error())
+	}
+}
+
+// TestAgentProviderBuiltinAgyDropsThePromptPair (260809-agik): `fab agent --provider
+// agy` now composes a SESSION instead of erroring. The shipped grammar ends in
+// `-i {prompt}` for pane dispatch's sake, and this is the other half of that
+// contract: a session carries no initial prompt, so the empty {prompt} drops the
+// placeholder AND its preceding `-i` as a pair. Getting this wrong is not cosmetic —
+// agy's `-i`/`--prompt-interactive` takes a VALUE, so a surviving bare `-i` would
+// exit 2 with `flag needs an argument` and no session would open at all.
+//
+// The provider form bypasses role resolution and both fill sources, so the empty
+// {model} likewise drops `--model`, leaving the bare full-auto invocation.
+func TestAgentProviderBuiltinAgyDropsThePromptPair(t *testing.T) {
+	agentTestRepo(t, "project:\n  name: test\n")
+
+	out, err := runAgentPrint(t, "--provider", "agy")
+	if err != nil {
+		t.Fatalf("agent --provider agy --print: %v", err)
+	}
+	if out != "agy --dangerously-skip-permissions\n" {
+		t.Errorf("output = %q, want the model-free built-in agy grammar with its bypass flag and no -i", out)
+	}
+
+	// With a model supplied, only the {prompt} pair drops.
+	out, err = runAgentPrint(t, "--provider", "agy", "--model", "gemini-3.1-pro-high")
+	if err != nil {
+		t.Fatalf("agent --provider agy --model … --print: %v", err)
+	}
+	if out != "agy --dangerously-skip-permissions --model gemini-3.1-pro-high\n" {
+		t.Errorf("output = %q, want the resolved model with the -i {prompt} pair dropped", out)
+	}
+	if strings.Contains(out, "{prompt}") || strings.Contains(out, " -i") {
+		t.Errorf("output = %q, must carry neither the placeholder nor a dangling -i (a bare -i exits 2)", out)
 	}
 }
 

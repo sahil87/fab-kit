@@ -1,0 +1,17 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-09T07:25:45Z"}
+{"args":"Give agy/kimi an interactive_command (backlog [agik]) — pure provider-data change, post-C4 names, probe CLIs live before shipping","cmd":"fab-new","event":"command","ts":"2026-08-09T07:25:45Z"}
+{"args":"--folder 260809-agik-agy-kimi-interactive-command --slug agy-interactive-command","cmd":"changeman-rename","event":"command","ts":"2026-08-09T07:31:22Z"}
+{"delta":"+4.3","event":"confidence","score":4.3,"trigger":"calc-score","ts":"2026-08-09T07:33:01Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-09T07:35:20Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-09T07:35:35Z"}
+{"delta":"+0.0","event":"confidence","score":4.3,"trigger":"calc-score","ts":"2026-08-09T16:27:23Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-09T16:54:42Z"}
+{"event":"review","result":"failed","ts":"2026-08-09T17:03:04Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-09T17:03:04Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-09T17:21:17Z"}
+{"event":"review","result":"failed","ts":"2026-08-09T17:28:01Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-09T17:28:01Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-09T17:36:16Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-09T17:44:03Z"}
+{"event":"review","result":"passed","ts":"2026-08-09T17:44:03Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-09T17:54:38Z"}

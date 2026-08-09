@@ -49,14 +49,21 @@ agent:
 # "select this mode". dispatch.mode owns the preference; automatic resolution
 # descends pane → native → headless against these capabilities.
 #
-# agy and kimi deliberately carry NO interactive_command — no pane capability, so the
-# descent ladder lands their stages on headless. Pane dispatch appends the pointer
-# prompt as a positional argument to interactive_command, and neither CLI can receive
-# a prompt that way (kimi parses a bare positional as a SUBCOMMAND and exits
-# non-zero; agy silently drops it and starts at an empty prompt, then gates a
-# fresh workspace behind an interactive trust prompt). A user who adds
-# providers.<name>.interactive_command in their own config opts into pane workers
+# kimi deliberately carries NO interactive_command — no pane capability, so the
+# descent ladder lands its stages on headless. Pane dispatch delivers the pointer
+# prompt through interactive_command, and kimi can receive a prompt no way at all:
+# it parses a bare positional as a SUBCOMMAND and exits non-zero, and has no
+# interactive-initial-prompt flag to substitute into. A user who adds
+# providers.kimi.interactive_command in their own config opts into pane workers
 # that never see their pointer prompt.
+#
+# agy DOES carry one, via the {prompt} placeholder (see its block below). Note the
+# once-per-worktree caveat: agy gates a fresh workspace behind an interactive trust
+# dialog even under --dangerously-skip-permissions, so a pane-dispatched agy worker
+# in a not-yet-trusted worktree parks there until a human answers it (the pipeline's
+# wait-timeout peek classifies that as "waiting on genuine human input" and
+# escalates without killing). The trust store is ~/.gemini/antigravity-cli/
+# settings.json trustedWorkspaces, EXACT-match absolute paths; fab does not seed it.
 providers:
   claude:
     native: true
@@ -94,9 +101,14 @@ providers:
     # POSIX expands $(cat) BEFORE applying the < redirect, so the headless command
     # nests a shell: the inner sh's stdin IS the redirected prompt file.
     # --print-timeout raised from its 5m default — stage workers run far longer.
-    # NO interactive_command: see the providers-block note above — a pane worker never
-    # receives the pointer prompt (agy drops the positional and trust-prompts a
-    # fresh workspace), so shipping one would orphan every tmux-dispatched stage.
+    # The interactive form ends on `-i {prompt}` (`--prompt-interactive`), a
+    # VALUE-taking flag: agy discards a bare positional, and a bare `-i` exits 2
+    # with `flag needs an argument`. The {prompt} placeholder is what lets one
+    # field serve every launch — each prompt-carrying one (fab operator, fab batch,
+    # pane dispatch) substitutes its shell-quoted prompt there, and the one
+    # promptless launch (bare fab agent) substitutes empty so the `-i {prompt}`
+    # pair token-drops. See the trust-dialog caveat above.
+    interactive_command: 'agy --dangerously-skip-permissions --model {model} -i {prompt}'
     headless_command: 'sh -c ''agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'''
     # Sparse and model-only (the effort rides the ID's suffix). `default` is the
     # cross-role fallback, so doing/review/hydrate/operator all take the pro-high
@@ -114,7 +126,8 @@ providers:
     # default_model. -p is already non-interactive and auto-approves tools; it
     # REJECTS --yolo/--auto ("Cannot combine --prompt with --yolo"), so the
     # dispatch form carries no approval flag. Same nested-shell stdin idiom as agy.
-    # NO interactive_command either: kimi reads a bare positional as a SUBCOMMAND and
-    # exits non-zero, and has no interactive-initial-prompt flag at all, so a pane
-    # worker could never be handed the pointer prompt.
+    # NO interactive_command: kimi reads a bare positional as a SUBCOMMAND and
+    # exits non-zero, and has no interactive-initial-prompt flag at all — not even
+    # a value-taking one a {prompt} placeholder could target — so a pane worker
+    # could never be handed the pointer prompt.
     headless_command: 'sh -c ''kimi -m {model} -p "$(cat)"'''

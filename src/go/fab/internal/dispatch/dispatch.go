@@ -41,6 +41,8 @@ import (
 	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/atomicfile"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/shellquote"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 	"gopkg.in/yaml.v3"
 )
 
@@ -214,16 +216,12 @@ func WrapperArgv(cmd, promptPath, logPath, exitPath string, timeoutSecs int) []s
 	if timeoutSecs > 0 {
 		inner = "timeout " + strconv.Itoa(timeoutSecs) + " " + cmd
 	}
+	// State-dir paths are fab-controlled (repo root + .fab-dispatch + stage name),
+	// so the quoting is defensive rather than adversarial — but it is the same
+	// quoting internal/shellquote already owns for every command composer.
 	script := fmt.Sprintf("%s < %s > %s 2>&1; echo $? > %s",
-		inner, shellQuote(promptPath), shellQuote(logPath), shellQuote(exitPath))
+		inner, shellquote.Single(promptPath), shellquote.Single(logPath), shellquote.Single(exitPath))
 	return []string{"sh", "-c", script}
-}
-
-// shellQuote wraps s in single quotes, escaping any embedded single quote via
-// the '\” idiom. State-dir paths are fab-controlled (repo root + .fab-dispatch
-// + stage name), so this is defensive rather than adversarial.
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // PromptPath / YAMLPath / LogPath / ExitPath / ResultPath return the per-stage
@@ -450,23 +448,25 @@ func PointerPrompt(promptPath string) string {
 }
 
 // WindowCommand composes the tmux new-window shell-command argument for a pane
-// dispatch: the resolved session command followed by the pointer prompt as its
-// single QUOTED argument (the `_cli-agents.md` § Spawn Composition form).
+// dispatch: the resolved session command carrying the pointer prompt as a single
+// QUOTED argument (the `_cli-agents.md` § Spawn Composition form).
 //
-// The pointer is shell-quoted rather than wrapped in bare single quotes, because
-// the prompt path is derived from the repository path and a repo checked out
-// under a directory containing a single quote (`/home/me/sahil's-repo/...`) would
-// otherwise terminate the quoted argument early — breaking the new-window command
-// and letting the remainder of the path be interpreted by the window's shell.
-// § Spawn Composition states the rule directly ("shell-escape any user-supplied
-// text before embedding it"); this is the one place pane mode embeds such text.
+// Delivery — substitute the shell-quoted pointer at a `{prompt}` placeholder,
+// append it as a quoted positional otherwise — is spawn.DeliverPrompt's grammar,
+// shared with every other seam that launches an agent carrying initial content
+// (the operator launcher, both `fab batch` worker spawns). Pane dispatch is the
+// case that MAKES the shell-quoting mandatory rather than defensive: the pointer
+// embeds a repo-derived path, and a repo checked out under a directory containing
+// a single quote (`/home/me/sahil's-repo/...`) would otherwise terminate the
+// quoted argument early and let the remainder be interpreted by the window's
+// shell.
 //
-// resolvedCmd is inserted VERBATIM, per the resolver's pass-through philosophy:
-// it is the provider's own interactive_command and carries deliberate shell
-// expansions (e.g. `$(basename "$(pwd)")` in the built-in claude default) that
-// must expand inside the new window.
+// resolvedCmd is otherwise inserted VERBATIM, per the resolver's pass-through
+// philosophy: it is the provider's own interactive_command and carries deliberate
+// shell expansions (e.g. `$(basename "$(pwd)")` in the built-in claude default)
+// that must expand inside the new window.
 func WindowCommand(resolvedCmd, pointer string) string {
-	return resolvedCmd + " " + shellQuote(pointer)
+	return spawn.DeliverPrompt(resolvedCmd, pointer)
 }
 
 // Tail returns the last n lines of data (Go-side, no external `tail`). n <= 0

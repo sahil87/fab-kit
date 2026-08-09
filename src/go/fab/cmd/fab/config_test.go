@@ -403,9 +403,10 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 		}
 	}
 
-	// Every command field a non-claude built-in ships is documented. codex carries
-	// both; agy and kimi are DISPATCH-ONLY (their interactive_command absence is asserted
-	// below). The expectations are DERIVED from the agent command vars (never literal
+	// Every command field a non-claude built-in ships is documented. codex and agy
+	// carry both (agy's interactive_command is asserted separately below, with its
+	// block ordering); kimi alone is DISPATCH-ONLY (its interactive_command absence
+	// is asserted below). The expectations are DERIVED from the agent command vars (never literal
 	// copies), so a grammar change touches only internal/agent. They are compared in
 	// their YAML-SCALAR form — the nested-shell dispatch commands contain single
 	// quotes, which the renderer must double, so asserting the raw string would
@@ -446,22 +447,31 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 		}
 	}
 
-	// agy and kimi are DISPATCH-ONLY: each block's first key is headless_command,
-	// with no interactive_command line above it. A reader who uncomments the block must
-	// not be handed a pane-eligible provider — pane dispatch appends the pointer
-	// prompt as a positional argument, which neither CLI can receive.
-	for _, name := range []string{"agy", "kimi"} {
-		if !strings.Contains(out, "  # "+name+":\n  #   headless_command: ") {
-			t.Errorf("the %s block must open directly on headless_command (dispatch-only built-in)", name)
-		}
-		if strings.Contains(out, "  # "+name+":\n  #   interactive_command: ") {
-			t.Errorf("the %s block must render no interactive_command — shipping one would make auto dispatch select pane mode and park the stage", name)
-		}
+	// kimi is the sole DISPATCH-ONLY built-in: its block's first key is
+	// headless_command, with no interactive_command line above it. A reader who
+	// uncomments the block must not be handed a pane-eligible provider — pane
+	// dispatch delivers the pointer prompt in a shape kimi accepts in neither form.
+	if !strings.Contains(out, "  # kimi:\n  #   headless_command: ") {
+		t.Error("the kimi block must open directly on headless_command (dispatch-only built-in)")
 	}
-	// The prose must say WHY, not merely omit the field.
-	for _, phrase := range []string{"ship NO interactive_command", "DISPATCH-ONLY"} {
+	if strings.Contains(out, "  # kimi:\n  #   interactive_command: ") {
+		t.Error("the kimi block must render no interactive_command — shipping one would make auto dispatch select pane mode and park the stage")
+	}
+	// agy is the mirror image (260809-agik): its block OPENS on interactive_command,
+	// rendered from the agent var rather than a literal copy, and the pane-capable
+	// grammar must reach the reader intact — {prompt} included, since a reader who
+	// copies the block without it gets a pane worker that never sees its prompt.
+	if !strings.Contains(out, "  # agy:\n  #   interactive_command: ") {
+		t.Error("the agy block must open on interactive_command — agy is pane-capable via its {prompt} grammar")
+	}
+	if !strings.Contains(out, configref.YAMLSingleQuoted(agent.DefaultAgyInteractiveCommand)) {
+		t.Errorf("providers block must document agy's built-in interactive command %q (as a YAML scalar)", agent.DefaultAgyInteractiveCommand)
+	}
+	// The prose must say WHY, not merely omit the field — and must name kimi as the
+	// one it applies to, plus the {prompt} mechanism that took agy out of the set.
+	for _, phrase := range []string{"DISPATCH-ONLY", "{prompt} placeholder", "trust dialog"} {
 		if !strings.Contains(out, phrase) {
-			t.Errorf("providers block must explain the dispatch-only posture with %q", phrase)
+			t.Errorf("providers block must explain the pane-capability posture with %q", phrase)
 		}
 	}
 
@@ -751,7 +761,7 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 // the providers row's registry default is built by walking agent.ProviderNames(nil)
 // and resolving each name through agent.ResolveProvider(nil, …) — it is NOT a
 // hand-maintained list of built-in names. Asserting the key set EQUALS the agent
-// table (rather than merely contains the three names known today) is what makes a
+// table (rather than merely contains the four names known today) is what makes a
 // built-in added or renamed in defaults.yaml surface here automatically instead of
 // silently drifting out of `fab config explain --json`.
 //

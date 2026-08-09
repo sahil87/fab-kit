@@ -5,6 +5,7 @@ import (
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/shellquote"
 )
 
 // DefaultSpawnCommand is the fallback interactive command Command returns when
@@ -50,15 +51,22 @@ func Command(configPath string) string {
 	return DefaultSpawnCommand
 }
 
-// Placeholder tokens recognized in a templated spawn_command. Their presence
-// (either one) switches WithProfile from append mode to template mode.
+// Placeholder tokens recognized in a templated spawn_command. The first two are
+// the PROFILE placeholders: their presence (either one) switches WithProfile from
+// append mode to template mode.
+//
+// promptPlaceholder is deliberately NOT one of them. It marks where a pane
+// worker's pointer prompt is delivered, which is resolved by WithPrompt in a
+// separate pass — see that function for why the mode decision must not key on it.
 const (
 	modelPlaceholder  = "{model}"
 	effortPlaceholder = "{effort}"
+	promptPlaceholder = "{prompt}"
 )
 
 // WithProfile injects the resolved model/effort into spawnCmd. It operates in
-// one of two modes, selected by whether spawnCmd contains a placeholder:
+// one of two modes, selected by whether spawnCmd contains a PROFILE placeholder
+// ({model}/{effort}; {prompt} deliberately does not participate — see WithPrompt):
 //
 //   - Template mode (spawnCmd contains "{model}" or "{effort}"): substitute
 //     every occurrence of each placeholder with the resolved value. Template
@@ -97,18 +105,107 @@ func WithProfile(spawnCmd, model, effort string) string {
 	return b.String()
 }
 
-// isTemplate reports whether spawnCmd contains at least one placeholder, which
-// switches WithProfile (and fab spawn-command) into template mode.
+// isTemplate reports whether spawnCmd contains at least one PROFILE placeholder,
+// which switches WithProfile into template mode. {prompt} is deliberately not
+// consulted: a command carrying only `-i {prompt}` must still take append mode so
+// its --model/--effort are appended (see WithPrompt).
 func isTemplate(spawnCmd string) bool {
 	return strings.Contains(spawnCmd, modelPlaceholder) ||
 		strings.Contains(spawnCmd, effortPlaceholder)
 }
 
+// HasPrompt reports whether spawnCmd carries the {prompt} placeholder — the
+// signal DeliverPrompt branches on to choose between substituting the prompt at
+// the placeholder and appending it as a positional argument.
+func HasPrompt(spawnCmd string) bool {
+	return strings.Contains(spawnCmd, promptPlaceholder)
+}
+
+// WithPrompt resolves the {prompt} placeholder — the delivery point for an
+// agent's initial prompt — under the same substitute-or-drop contract
+// {model}/{effort} have (see substitute). It is a NO-OP on a command carrying no
+// {prompt}, whatever the value. The value is substituted VERBATIM: a caller
+// delivering user-derived text quotes it first (DeliverPrompt is that caller).
+//
+// Two kinds of caller reach it: DeliverPrompt, for the seams that HAVE initial
+// content, and the one promptless session seam (bare `fab agent`), which passes
+// "" to drop the placeholder and its flag.
+//
+// It is a SEPARATE pass rather than a third WithProfile parameter, and callers
+// run it AFTER WithProfile, for three reasons:
+//
+//   - The lifetimes differ. Model and effort are known at profile resolution;
+//     a pane worker's pointer only exists once `fab dispatch start` has persisted
+//     the stage prompt file, and the promptless seam never has one at all.
+//   - The MODE decision must not key on {prompt}. isTemplate covers the profile
+//     placeholders only, so a command carrying just `-i {prompt}` still takes
+//     WithProfile's append mode and receives its --model/--effort — folding
+//     {prompt} into isTemplate would silently suppress that append.
+//   - Running last means a pointer whose text happens to contain `{model}` is
+//     never re-substituted.
+//
+// One grammar therefore serves both kinds of launch: agy's built-in
+// `agy … --model {model} -i {prompt}` becomes a plain session at the promptless
+// launch (the `-i {prompt}` pair token-drops) and carries the shell-quoted prompt
+// at every prompt-carrying one. agy's `-i`/`--prompt-interactive` is a
+// VALUE-TAKING flag, so a bare trailing `-i` would hard-error the promptless
+// launch — the placeholder is what lets one command field serve both.
+func WithPrompt(spawnCmd, prompt string) string {
+	return substitute(spawnCmd, placeholderSub{promptPlaceholder, prompt})
+}
+
+// DeliverPrompt composes spawnCmd with an initial prompt, in whichever of the
+// two delivery shapes spawnCmd declares. It is the SINGLE implementation of the
+// delivery grammar: every seam that launches an agent WITH initial content —
+// pane dispatch (internal/dispatch.WindowCommand), the operator launcher, and
+// both `fab batch` worker spawns — goes through it, so the grammar cannot drift
+// between them.
+//
+//   - PLACEHOLDER (HasPrompt): the shell-quoted prompt is substituted AT the
+//     {prompt} placeholder. This is what a value-taking initial-prompt flag
+//     requires — the agy built-in's `-i {prompt}` (`--prompt-interactive` takes a
+//     value, so a bare positional never reaches it and is silently discarded).
+//   - POSITIONAL (no placeholder): the shell-quoted prompt is APPENDED as the
+//     command's final argument. This is the original and still-default shape,
+//     kept byte-for-byte for every provider that declares no placeholder
+//     (claude, codex, and any user command written before placeholders existed).
+//
+// The prompt is shell-quoted on BOTH shapes: it carries user-derived text (a
+// backlog item's content, a change name, a repo-derived pointer path), and an
+// embedded single quote would otherwise terminate the argument early and let the
+// remainder be interpreted by the spawning shell.
+//
+// The empty-prompt case belongs to WithPrompt, not here: a seam with NO initial
+// content (bare `fab agent`) must DROP the placeholder pair rather than deliver
+// an empty argument, so it calls WithPrompt(cmd, "") directly.
+func DeliverPrompt(spawnCmd, prompt string) string {
+	quoted := shellquote.Single(prompt)
+	if HasPrompt(spawnCmd) {
+		return WithPrompt(spawnCmd, quoted)
+	}
+	return spawnCmd + " " + quoted
+}
+
 // resolveTemplate substitutes {model}/{effort} in a templated spawnCmd.
+func resolveTemplate(spawnCmd, model, effort string) string {
+	return substitute(spawnCmd,
+		placeholderSub{modelPlaceholder, model},
+		placeholderSub{effortPlaceholder, effort})
+}
+
+// placeholderSub pairs a placeholder token with the value substituted for it.
+type placeholderSub struct {
+	token string
+	value string
+}
+
+// substitute resolves one or more placeholders in a command string. It is the
+// single implementation of the substitute-or-drop grammar every placeholder
+// shares — resolveTemplate passes {model}/{effort}, WithPrompt passes {prompt}.
 //
 // The two paths are structurally distinct:
 //
-//   - When BOTH substituted values are non-empty, substitution is a plain
+//   - When EVERY substituted value is non-empty, substitution is a plain
 //     strings.ReplaceAll over the RAW command string — the author's whitespace
 //     (multi-space runs, tabs) is preserved exactly, because non-empty
 //     substitution needs no token surgery.
@@ -140,19 +237,30 @@ func isTemplate(spawnCmd string) bool {
 // must not be the LAST token of such a command, or the drop takes the closing
 // quote with it. Both nested-shell built-ins put `-p "$(cat)"` after the
 // placeholder, so the drop is always INTERIOR and the quoting survives — that
-// ordering is load-bearing, not incidental.
-func resolveTemplate(spawnCmd, model, effort string) string {
+// ordering is load-bearing, not incidental. agy's interactive command ends on the
+// droppable `{prompt}`, but it nests no shell, so the hazard does not reach it.
+func substitute(spawnCmd string, subs ...placeholderSub) string {
 	// Whitespace-preserving fast path: taken when no placeholder that ACTUALLY
 	// APPEARS in spawnCmd would substitute an empty value. Gating on the present
-	// placeholders (not merely `model != "" && effort != ""`) means a command
+	// placeholders (not merely "every value is non-empty") means a command
 	// carrying only {model} with a non-empty model still preserves its raw
 	// whitespace even when effort is empty — the absent {effort} needs no
 	// token-drop, so tokenizing (which collapses whitespace runs) is unwarranted.
-	modelNeedsDrop := model == "" && strings.Contains(spawnCmd, modelPlaceholder)
-	effortNeedsDrop := effort == "" && strings.Contains(spawnCmd, effortPlaceholder)
-	if !modelNeedsDrop && !effortNeedsDrop {
-		out := strings.ReplaceAll(spawnCmd, modelPlaceholder, model)
-		return strings.ReplaceAll(out, effortPlaceholder, effort)
+	// It is also what makes WithPrompt a true no-op on the {prompt}-free
+	// built-ins, whose nested-shell quoting must survive untokenized.
+	needsDrop := false
+	for _, s := range subs {
+		if s.value == "" && strings.Contains(spawnCmd, s.token) {
+			needsDrop = true
+			break
+		}
+	}
+	if !needsDrop {
+		out := spawnCmd
+		for _, s := range subs {
+			out = strings.ReplaceAll(out, s.token, s.value)
+		}
+		return out
 	}
 
 	// Empty-value path: tokenize so a dangling flag can be dropped.
@@ -160,25 +268,31 @@ func resolveTemplate(spawnCmd, model, effort string) string {
 	out := make([]string, 0, len(tokens))
 
 	for _, tok := range tokens {
-		// A token may carry either or both placeholder flavors (e.g.
-		// `--profile={model}-{effort}`), and the default branch substitutes
+		// A token may carry several placeholder flavors (e.g.
+		// `--profile={model}-{effort}`), and the substitution branch resolves
 		// every occurrence of each; a token with no placeholder is kept verbatim.
 		// Token-drop fires only when a placeholder present in the token has an
 		// empty substitution value.
-		switch {
-		case strings.Contains(tok, modelPlaceholder) && model == "",
-			strings.Contains(tok, effortPlaceholder) && effort == "":
+		drop := false
+		for _, s := range subs {
+			if s.value == "" && strings.Contains(tok, s.token) {
+				drop = true
+				break
+			}
+		}
+		if drop {
 			// Empty-value drop: drop this token, plus a preceding `-`-flag token.
 			if n := len(out); n > 0 && strings.HasPrefix(out[n-1], "-") {
 				out = out[:n-1]
 			}
-		default:
-			// Substitute every occurrence of each placeholder (non-empty values;
-			// an empty value here means the token has no placeholder of that kind).
-			tok = strings.ReplaceAll(tok, modelPlaceholder, model)
-			tok = strings.ReplaceAll(tok, effortPlaceholder, effort)
-			out = append(out, tok)
+			continue
 		}
+		// Substitute every occurrence of each placeholder (non-empty values;
+		// an empty value here means the token has no placeholder of that kind).
+		for _, s := range subs {
+			tok = strings.ReplaceAll(tok, s.token, s.value)
+		}
+		out = append(out, tok)
 	}
 	return strings.Join(out, " ")
 }

@@ -325,6 +325,9 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 		_ = os.Remove(p)
 	}
 
+	// spawn_cmd persists the PROFILE-RESOLVED command, not the delivered one: a
+	// pane launch substitutes the quoted pointer at {prompt} inside WindowCommand,
+	// so the record keeps the placeholder verbatim (restart re-derives delivery).
 	rec := &dispatch.Dispatch{
 		SpawnCmd:  resolvedCmd,
 		StartedAt: time.Now().UTC().Format(time.RFC3339),

@@ -50,7 +50,7 @@ provider) is **provider-neutral and adapter-independent** — see
 |---------|--------|-----------------|-------------------------|----------------------|
 | **1. Native Agent-tool** | in-harness sub-agent (Claude Code Agent tool) | the dispatched prompt itself | the held sub-agent handle (structural) | all five |
 | **2. Headless CLI** (`fab dispatch start`) | detached `sh -c` wrapper, `setsid` semantics | prompt file on the command's **stdin** | `{stage}.exit` + pid liveness + result file | all five |
-| **3. Interactive pane** (`fab dispatch start --pane`) | a tmux pane running the provider's `interactive_command` — split into the dispatching agent's own window, or a new window when there is no pane to split | prompt **file** + a one-line **pointer** to it, embedded at spawn | **result file** + pane liveness | `running` / `done` / `orphaned` |
+| **3. Interactive pane** (`fab dispatch start --pane`) | a tmux pane running the provider's `interactive_command` — split into the dispatching agent's own window, or a new window when there is no pane to split | prompt **file** + a one-line **pointer** to it, embedded at spawn (substituted at the command's `{prompt}` placeholder, else appended positionally) | **result file** + pane liveness | `running` / `done` / `orphaned` |
 
 Adapters 2 and 3 are two **modes of the same command family** (`fab dispatch`), sharing its resolution,
 `.fab-dispatch/{id}/` state directory, refuse-if-running concurrency, and the status/kill/reap/clean
@@ -199,6 +199,26 @@ Mechanics, all fixed by this spec:
   command itself is inserted verbatim so its own expansions still apply. A multi-thousand-token prompt
   cannot ride `send-keys` or argv reliably, and embedding the pointer *at spawn* also sidesteps the
   printed-prompt trap entirely — there is no pre-existing input buffer to probe.
+
+  **WHERE the pointer lands has two shapes**, chosen by the resolved `interactive_command` (`260809-agik`):
+
+  | Shape | Condition | Composition |
+  |-------|-----------|-------------|
+  | **Placeholder** | the command declares `{prompt}` | the shell-quoted pointer is substituted **at** the placeholder |
+  | **Positional** | no `{prompt}` | the shell-quoted pointer is **appended** as the command's trailing argument |
+
+  The positional shape is the original and remains byte-for-byte unchanged for every command that
+  declares no placeholder (claude, codex, and any user command predating the placeholder). The
+  placeholder shape exists for a CLI whose initial-prompt flag **takes a value** — agy's
+  `-i`/`--prompt-interactive`, where a bare positional is discarded and a bare trailing `-i` exits
+  non-zero — so one `interactive_command` can serve both this seam and the *promptless* launch (bare
+  `fab agent`) that composes the same field with no prompt at all (there `{prompt}` resolves empty and
+  the flag pair token-drops, per `internal/spawn`'s substitute-or-drop rule). The two shapes above are
+  **not pane-specific**: they are `internal/spawn`'s single delivery implementation, shared with every
+  other prompt-carrying launcher (`fab operator`, `fab batch new`/`switch`), so a provider's grammar
+  cannot behave one way for a pane worker and another for a session the user opens. `{prompt}` is an `interactive_command`
+  construct only: headless delivery is stdin, and the `dispatch=` line of `fab resolve-agent` leaves the
+  placeholder verbatim because the pointer does not exist until `start` persists the prompt file.
 - **The pane path has TWO prerequisites — a reachable tmux server and an `interactive_command` on the
   resolved provider.** Under an explicit `--pane`/`--server`, either missing prerequisite is a hard error
   with no launch or state write. Under automatic selection, a missing prerequisite skips pane and the

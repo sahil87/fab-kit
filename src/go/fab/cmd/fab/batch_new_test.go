@@ -413,6 +413,59 @@ func TestRunBatchNew_SpawnCommandProfileInjection(t *testing.T) {
 	})
 }
 
+// TestRunBatchNew_PromptDeliveryShapes pins that the worker's `/fab-new …`
+// prompt reaches the spawned agent in BOTH delivery shapes (spawn.DeliverPrompt).
+// A batch spawn is a prompt-CARRYING seam: a provider whose interactive_command
+// declares {prompt} must receive the prompt as that flag's value (a value-taking
+// initial-prompt flag discards a bare positional), while a placeholder-free
+// provider keeps the byte-identical positional append.
+func TestRunBatchNew_PromptDeliveryShapes(t *testing.T) {
+	const item = "/fab-new Add retry logic to API client"
+
+	t.Run("placeholder provider gets the prompt substituted at {prompt}", func(t *testing.T) {
+		root := chdirBatchNewFixture(t, testBacklog)
+		writeBatchNewConfig(t, root, "mycli --model {model} -i {prompt}")
+		t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
+		capture := stubBatchNewTmuxCapture(t)
+
+		if _, stderr, err := runBatchNewCmd(t, "90g5"); err != nil {
+			t.Fatalf("expected nil error, got %v\nstderr: %s", err, stderr)
+		}
+
+		args, err := os.ReadFile(capture)
+		if err != nil {
+			t.Fatalf("reading tmux capture: %v", err)
+		}
+		got := string(args)
+		if strings.Contains(got, "{prompt}") {
+			t.Errorf("literal {prompt} reached tmux:\n%s", got)
+		}
+		if !strings.Contains(got, "mycli --model claude-fable-5 -i '"+item+"'") {
+			t.Errorf("worker prompt not delivered at the placeholder:\n%s", got)
+		}
+	})
+
+	t.Run("placeholder-free provider keeps the positional append", func(t *testing.T) {
+		root := chdirBatchNewFixture(t, testBacklog)
+		writeBatchNewConfig(t, root, "mycli --dangerously-skip-permissions")
+		t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
+		capture := stubBatchNewTmuxCapture(t)
+
+		if _, stderr, err := runBatchNewCmd(t, "90g5"); err != nil {
+			t.Fatalf("expected nil error, got %v\nstderr: %s", err, stderr)
+		}
+
+		args, err := os.ReadFile(capture)
+		if err != nil {
+			t.Fatalf("reading tmux capture: %v", err)
+		}
+		want := "mycli --dangerously-skip-permissions --model claude-fable-5 --effort high '" + item + "'"
+		if !strings.Contains(string(args), want) {
+			t.Errorf("tmux command = %s\nwant the byte-identical positional form %q", args, want)
+		}
+	})
+}
+
 func TestRunBatchNew_WorkersOverride(t *testing.T) {
 	root := chdirBatchNewFixture(t, testBacklog)
 	writeBatchNewConfig(t, root, "claude")

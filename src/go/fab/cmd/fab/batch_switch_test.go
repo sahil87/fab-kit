@@ -502,6 +502,58 @@ func TestRunBatchSwitch_SpawnCommandProfileInjection(t *testing.T) {
 	})
 }
 
+// TestRunBatchSwitch_PromptDeliveryShapes pins that the worker's `/fab-switch …`
+// prompt reaches the spawned agent in BOTH delivery shapes (spawn.DeliverPrompt)
+// — the `fab batch switch` half of the prompt-carrying seam class.
+func TestRunBatchSwitch_PromptDeliveryShapes(t *testing.T) {
+	t.Run("placeholder provider gets the prompt substituted at {prompt}", func(t *testing.T) {
+		_, change := batchSwitchFixture(t, "mycli --model {model} -i {prompt}")
+		capture := stubBatchSwitchTmuxCapture(t)
+
+		cmd := batchSwitchCmd()
+		var out, errOut bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&errOut)
+		if err := runBatchSwitch(cmd, []string{change}, false, false, false); err != nil {
+			t.Fatalf("expected nil error, got %v\nstderr: %s", err, errOut.String())
+		}
+
+		args, err := os.ReadFile(capture)
+		if err != nil {
+			t.Fatalf("reading tmux capture: %v", err)
+		}
+		got := string(args)
+		if strings.Contains(got, "{prompt}") {
+			t.Errorf("literal {prompt} reached tmux:\n%s", got)
+		}
+		if !strings.Contains(got, "mycli --model claude-fable-5 -i '/fab-switch "+change+"'") {
+			t.Errorf("worker prompt not delivered at the placeholder:\n%s", got)
+		}
+	})
+
+	t.Run("placeholder-free provider keeps the positional append", func(t *testing.T) {
+		_, change := batchSwitchFixture(t, "mycli --dangerously-skip-permissions")
+		capture := stubBatchSwitchTmuxCapture(t)
+
+		cmd := batchSwitchCmd()
+		var out, errOut bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&errOut)
+		if err := runBatchSwitch(cmd, []string{change}, false, false, false); err != nil {
+			t.Fatalf("expected nil error, got %v\nstderr: %s", err, errOut.String())
+		}
+
+		args, err := os.ReadFile(capture)
+		if err != nil {
+			t.Fatalf("reading tmux capture: %v", err)
+		}
+		want := "mycli --dangerously-skip-permissions --model claude-fable-5 --effort high '/fab-switch " + change + "'"
+		if !strings.Contains(string(args), want) {
+			t.Errorf("tmux command = %s\nwant the byte-identical positional form %q", args, want)
+		}
+	})
+}
+
 func TestRunBatchSwitch_WorkersOverride(t *testing.T) {
 	_, change := batchSwitchFixture(t, "claude")
 	capture := stubBatchSwitchTmuxCapture(t)

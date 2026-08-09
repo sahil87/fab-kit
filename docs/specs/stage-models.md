@@ -239,7 +239,8 @@ providers:
       review:  { effort: xhigh }
       fast:    { model: gpt-5.6-luna, effort: low }
   agy:
-    # NO interactive_command: dispatch-only (see below).
+    # -i takes a VALUE, so the pane pointer rides the {prompt} placeholder (see below).
+    interactive_command: 'agy --dangerously-skip-permissions --model {model} -i {prompt}'
     headless_command: 'sh -c ''agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'''
     profiles:                                 # model-only: the reasoning level rides the ID suffix
       default: { model: gemini-3.1-pro-high }
@@ -256,23 +257,38 @@ land on codex's `default` model and effort, and agy's non-`fast` roles on agy's 
 without a row of their own. (The merge is per FIELD, so codex's `doing`/`review` rows — effort only —
 take their model from `default` too.)
 
-**Two of the four are dispatch-only.** Only `claude` and `codex` ship an `interactive_command`; `agy` and
-`kimi` ship dispatch grammar alone, and the absence is load-bearing rather than an omission. A
+**One of the four is dispatch-only.** `claude`, `codex` and `agy` ship an `interactive_command`;
+`kimi` ships dispatch grammar alone, and the absence is load-bearing rather than an omission. An
 `interactive_command` is what makes a provider eligible for **pane-mode dispatch**, which composes that
-command and appends a one-line pointer to the stage prompt file as a **positional argument** — and
-neither CLI can receive a prompt that way. kimi parses a bare positional as a **subcommand** and exits
-non-zero, and has no interactive-initial-prompt flag at all; agy **silently discards** it (the TUI
-opens at an empty prompt) and additionally gates a fresh workspace behind an interactive trust prompt
-even under `--dangerously-skip-permissions`. Shipping one would therefore make a pane-preferring dispatch
-inside tmux select pane and park every stage. With none, automatic resolution skips the pane rung
-and descends to headless (`descended: pane unavailable: no interactive_command`), and an explicit
-`--pane` hard-errors actionably. A user who
-wants an interactive `agy`/`kimi` session adds `providers.<name>.interactive_command` in their own config,
-accepting that pane-dispatched stages will then not receive their prompt.
+command and delivers a one-line pointer to the stage prompt file through it — substituted at a
+**`{prompt}` placeholder** when the command declares one, appended as a trailing **positional
+argument** when it does not. kimi can receive it neither way: it parses a bare positional as a
+**subcommand** and exits non-zero, and has no interactive-initial-prompt flag at all for a placeholder
+to target. Shipping one would therefore make a pane-preferring dispatch inside tmux select pane and
+park every stage. With none, automatic resolution skips the pane rung and descends to headless
+(`descended: pane unavailable: no interactive_command`), and an explicit `--pane` hard-errors
+actionably. A user who wants an interactive `kimi` session adds
+`providers.kimi.interactive_command` in their own config, accepting that pane-dispatched stages will
+then not receive their prompt.
+
+**agy's `{prompt}` placeholder, and its trust wall.** agy also discards a bare positional, so its
+grammar routes the pointer through `-i` (`--prompt-interactive`) instead. `-i` is a **value-taking**
+flag — a bare `-i` exits 2 with `flag needs an argument` — so a static trailing `-i` would hard-error
+the *promptless* launch (bare `fab agent`), the one seam that composes the field with no prompt at all.
+The `{prompt}` placeholder is what lets one field serve every launch: every prompt-carrying launcher
+(`fab operator`, `fab batch new`/`switch`, pane dispatch) substitutes its shell-quoted prompt there
+through one shared `internal/spawn` implementation, and the promptless launch's empty value drops the
+`-i {prompt}` pair under the same token-drop rule `{model}`/`{effort}` use. Caveat: agy gates a **fresh workspace** behind
+an interactive **trust dialog** even under `--dangerously-skip-permissions`, so a pane-dispatched agy
+worker in a not-yet-trusted worktree parks there once until a human answers it (the wait-timeout peek
+classifies that as waiting on genuine human input and escalates without killing). The store is
+`~/.gemini/antigravity-cli/settings.json` `trustedWorkspaces`, exact-match absolute paths; fab does
+not seed it.
 
 **Full-auto posture, per FORM.** Claude uses `--dangerously-skip-permissions` on both its forms,
 codex `--dangerously-bypass-approvals-and-sandbox` on both its forms, and agy
-`--dangerously-skip-permissions` on its headless command. kimi's carries no approval
+`--dangerously-skip-permissions` on both its forms (which does not cover its
+workspace-trust dialog). kimi's carries no approval
 flag at all: `kimi -p` is already non-interactive and auto-approves tool calls, and *errors* when
 combined with `--yolo` (`Cannot combine --prompt with --yolo`). Pipeline workers are
 unattended and have no channel for answering approval prompts. Users who require approval-gated
@@ -311,9 +327,9 @@ Consequences:
 - **A built-in provider is inert until named.** Adding the rows changes no default behavior (both
   depth knobs ship `claude`), which is why presence=intent — the rule that keeps behavior-changing
   config commented — does not force the table out of Go.
-- **Claude carries all three capabilities; codex carries both command fields and is non-native;
-  agy/kimi carry a `headless_command` only.** Under the default `dispatch.mode: native`, claude
-  resolves native while the non-claude built-ins descend to headless. Adding a command never
+- **Claude carries all three capabilities; codex and agy carry both command fields and are
+  non-native; kimi carries a `headless_command` only.** Under the default `dispatch.mode: native`,
+  claude resolves native while the non-claude built-ins descend to headless. Adding a command never
   changes policy by itself.
 - The reference renders the non-claude blocks **commented**, like every other non-overridden
   default (a commented block registers no project override). Their command strings render as YAML
@@ -430,7 +446,8 @@ providers:
   #   headless_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
   #   profiles:
   #     default: { model: <codex-model-id>, effort: high }   # e.g. — pin a newer model here
-  # agy:                                                              # dispatch-only: no interactive_command
+  # agy:
+  #   interactive_command: 'agy … --model {model} -i {prompt}'          # -i takes a VALUE, so the pane pointer rides {prompt}
   #   headless_command: 'sh -c ''agy … --model {model} -p "$(cat)"'''   # no {effort} flag; nested shell so $(cat) reads the piped prompt
   #   profiles:
   #     default: { model: <agy-model-id> }  # e.g. — no effort: the reasoning level rides the ID suffix
@@ -452,7 +469,11 @@ dispatch:
   provider's own fills.
 - An **empty model** signals "inherit the session/orchestrator model" once resolution bottoms out.
 - The `{model}`/`{effort}` placeholders in a provider command are substituted at resolve time via the
-  same `internal/spawn` template machinery. *This spec covers the config schema and the `dispatch=`
+  same `internal/spawn` template machinery. The third placeholder, `{prompt}` (an `interactive_command`
+  construct only), is **not** a profile fill and is not resolved here: it marks where an initial prompt
+  is delivered, and is substituted with the shell-quoted prompt by every **prompt-carrying** launch
+  (`fab operator`, `fab batch new`/`switch`, pane dispatch) or dropped (with its preceding flag) at the
+  one **promptless** launch, bare `fab agent`. *This spec covers the config schema and the `dispatch=`
   resolution output; the dispatch that RUNS a `headless_command` (`fab dispatch`) and the skill
   dispatch-seam wiring share the cross-adapter contract fixed by
   [`harness-adapters.md`](harness-adapters.md).*
@@ -541,7 +562,9 @@ effort the agent dispatch needs.)
    value. The command's `{model}`/`{effort}` placeholders are substituted via
    `internal/spawn`'s template resolution (reused, not reimplemented), using the role's own resolved
    model/effort — and the `{model}` is **always the full model ID**, even under `--alias` (see
-   § Harness-adapter boundary).
+   § Harness-adapter boundary). A `{prompt}` placeholder is left **verbatim** on the line: the pointer
+   it marks does not exist until `fab dispatch start` persists the prompt file, and the line is never
+   executed.
 5. **Byte-stable** for the same config (like other `fab resolve` queries). Non-zero exit only on a
    real error: an unreadable/malformed config, an unknown stage/role name, a supplied `--provider`
    that resolves to no provider, or a configured provider with no reachable dispatch capability.
@@ -727,7 +750,12 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   each flag omitted independently when its value is empty, per the `empty ⇒ omit` convention). Placing
   the default's placeholders last makes substitution byte-identical to the former append — so a
   non-Claude worker CLI is configurable without the launcher emitting Claude-only flags; 260702-6tmi,
-  templated default 260703-gvxd.)*
+  templated default 260703-gvxd. The launcher then delivers its `/fab-operator` prompt through
+  `spawn.DeliverPrompt` — the one two-shape implementation shared with `fab batch` and pane dispatch —
+  substituting it shell-quoted at a `{prompt}` placeholder when the command declares one and appending
+  it as a trailing quoted positional when it does not. `{prompt}` deliberately does not
+  participate in the template-vs-append decision — a command carrying only `{prompt}` still gets
+  `--model`/`--effort` appended; 260809-agik.)*
 - *Cross-harness stage dispatch (the `dispatch=` adapter):* the resolved `dispatch.mode` + capability
   ladder is the seam for handing one stage to a native Agent-tool, pane, or headless CLI adapter.
   Pane/headless resolution emits `dispatch=<command>` with `{model}`/`{effort}` substituted via

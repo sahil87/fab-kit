@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/shellquote"
 )
 
 func TestCommand_WithInteractiveCommand(t *testing.T) {
@@ -273,7 +275,7 @@ func TestWithProfile_Template(t *testing.T) {
 			want:   "codex  -m  gpt-5\t-c model_reasoning_effort=high",
 		},
 		// Placeholder as the FIRST token with an empty value: the drop must not
-		// touch a preceding token (exercises the `n > 0` guard in resolveTemplate).
+		// touch a preceding token (exercises the `n > 0` guard in substitute).
 		{
 			name:   "empty value on first-token placeholder, no preceding token to drop",
 			spawn:  "{model} run",
@@ -298,5 +300,226 @@ func TestWithProfile_Template(t *testing.T) {
 				t.Errorf("WithProfile(%q, %q, %q) = %q, want %q", tc.spawn, tc.model, tc.effort, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestHasPrompt pins the predicate DeliverPrompt branches on: only the {prompt}
+// token counts, never the profile placeholders.
+func TestHasPrompt(t *testing.T) {
+	tests := []struct {
+		name  string
+		spawn string
+		want  bool
+	}{
+		{"agy built-in shape", "agy --dangerously-skip-permissions --model {model} -i {prompt}", true},
+		{"claude built-in shape (profile placeholders only)", `claude --dangerously-skip-permissions -n "x" --model {model} --effort {effort}`, false},
+		{"plain command", "codex --tui", false},
+		{"prompt-only command", "mycli -i {prompt}", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := HasPrompt(tc.spawn); got != tc.want {
+				t.Errorf("HasPrompt(%q) = %v, want %v", tc.spawn, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestWithPrompt verifies the {prompt} pass: substitution preserves the raw
+// string (no tokenize/rejoin), an EMPTY value drops the placeholder token plus a
+// preceding `-`-flag under the same grammar {model}/{effort} use, and a command
+// carrying no {prompt} is returned untouched whatever the value.
+func TestWithPrompt(t *testing.T) {
+	const agy = "agy --dangerously-skip-permissions --model gemini-3.1-pro-high -i {prompt}"
+
+	tests := []struct {
+		name   string
+		spawn  string
+		prompt string
+		want   string
+	}{
+		{
+			// The shipped prompt-carrying resolution: the prompt arrives already
+			// shell-quoted from the shared delivery helper, and lands as -i's value.
+			name:   "agy prompt-carrying seam substitutes the quoted prompt at the placeholder",
+			spawn:  agy,
+			prompt: `'Read .fab-dispatch/agik/apply-prompt.md and execute it.'`,
+			want:   `agy --dangerously-skip-permissions --model gemini-3.1-pro-high -i 'Read .fab-dispatch/agik/apply-prompt.md and execute it.'`,
+		},
+		{
+			// The shipped promptless resolution — bare `fab agent`, the one seam
+			// that composes an interactive_command with no initial prompt.
+			name:   "agy promptless seam drops the -i {prompt} pair",
+			spawn:  agy,
+			prompt: "",
+			want:   "agy --dangerously-skip-permissions --model gemini-3.1-pro-high",
+		},
+		{
+			name:   "placeholder fused into a --flag= token drops alone",
+			spawn:  "mycli --initial-prompt={prompt} --run",
+			prompt: "",
+			want:   "mycli --run",
+		},
+		{
+			name:   "interior placeholder drop leaves the tail intact",
+			spawn:  "mycli -i {prompt} --run",
+			prompt: "",
+			want:   "mycli --run",
+		},
+		// No-placeholder commands are untouched on BOTH values — this is what keeps
+		// claude/codex byte-identical through the session seams, whitespace and
+		// nested-shell quoting included (the fast path never tokenizes).
+		{
+			name:   "no placeholder, empty value: claude built-in untouched",
+			spawn:  `claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model claude-fable-5 --effort high`,
+			prompt: "",
+			want:   `claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model claude-fable-5 --effort high`,
+		},
+		{
+			name:   "no placeholder, non-empty value: nested-shell command untouched",
+			spawn:  `sh -c 'kimi -p "$(cat)"'`,
+			prompt: "'ignored'",
+			want:   `sh -c 'kimi -p "$(cat)"'`,
+		},
+		{
+			name:   "multi-space whitespace preserved on the substitution path",
+			spawn:  "mycli  -i  {prompt}",
+			prompt: "'p'",
+			want:   "mycli  -i  'p'",
+		},
+		{
+			name:   "first-token placeholder with empty value has no preceding token to drop",
+			spawn:  "{prompt} run",
+			prompt: "",
+			want:   "run",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := WithPrompt(tc.spawn, tc.prompt); got != tc.want {
+				t.Errorf("WithPrompt(%q, %q) = %q, want %q", tc.spawn, tc.prompt, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestDeliverPrompt pins the shared two-shape delivery grammar every
+// prompt-carrying seam runs through — pane dispatch, the operator launcher and
+// both `fab batch` worker spawns. A {prompt}-carrying command receives the
+// shell-quoted prompt AT the placeholder; a placeholder-free one receives it as
+// an appended positional, byte-identical to the pre-placeholder form.
+func TestDeliverPrompt(t *testing.T) {
+	const (
+		agy    = "agy --dangerously-skip-permissions --model gemini-3.1-pro-high -i {prompt}"
+		claude = `claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model claude-fable-5`
+	)
+
+	tests := []struct {
+		name   string
+		spawn  string
+		prompt string
+		want   string
+	}{
+		{
+			name:   "placeholder shape: prompt lands as the flag's value",
+			spawn:  agy,
+			prompt: "/fab-operator",
+			want:   "agy --dangerously-skip-permissions --model gemini-3.1-pro-high -i '/fab-operator'",
+		},
+		{
+			name:   "positional shape: prompt is appended, quoted",
+			spawn:  claude,
+			prompt: "/fab-operator",
+			want:   claude + " '/fab-operator'",
+		},
+		{
+			// Quote safety, placeholder path: a backlog item's text is user-derived
+			// and may carry an apostrophe. It must not terminate the -i argument.
+			name:   "placeholder shape escapes an embedded single quote",
+			spawn:  agy,
+			prompt: "/fab-new sahil's item",
+			want:   `agy --dangerously-skip-permissions --model gemini-3.1-pro-high -i '/fab-new sahil'\''s item'`,
+		},
+		{
+			name:   "positional shape escapes an embedded single quote",
+			spawn:  claude,
+			prompt: "/fab-new sahil's item",
+			want:   claude + ` '/fab-new sahil'\''s item'`,
+		},
+		{
+			// The positional path must not tokenize: nested-shell quoting and
+			// multi-space runs in the provider's own command survive verbatim.
+			name:   "positional shape leaves the command verbatim",
+			spawn:  `sh -c 'kimi  -p "$(cat)"'`,
+			prompt: "/fab-switch abcd",
+			want:   `sh -c 'kimi  -p "$(cat)"' '/fab-switch abcd'`,
+		},
+		{
+			// A prompt whose text happens to contain a profile placeholder is
+			// substituted in verbatim — the prompt pass runs last and nothing
+			// re-resolves it.
+			name:   "prompt text containing {model} is not re-substituted",
+			spawn:  agy,
+			prompt: "/fab-new document the {model} placeholder",
+			want:   "agy --dangerously-skip-permissions --model gemini-3.1-pro-high -i '/fab-new document the {model} placeholder'",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := DeliverPrompt(tc.spawn, tc.prompt); got != tc.want {
+				t.Errorf("DeliverPrompt(%q, %q) = %q, want %q", tc.spawn, tc.prompt, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestDeliverPromptMatchesLegacyPositionalForm is the back-compat pin: for every
+// placeholder-free command, DeliverPrompt must produce exactly what the seams
+// composed before the placeholder existed — `<cmd> <shell-quoted prompt>`.
+func TestDeliverPromptMatchesLegacyPositionalForm(t *testing.T) {
+	commands := []string{
+		DefaultSpawnCommand,
+		"codex --tui",
+		`sh -c 'kimi -p "$(cat)"'`,
+	}
+	prompts := []string{"/fab-operator", "/fab-new add a thing", "/fab-switch sahil's-change"}
+
+	for _, cmd := range commands {
+		for _, prompt := range prompts {
+			want := cmd + " " + shellquote.Single(prompt)
+			if got := DeliverPrompt(cmd, prompt); got != want {
+				t.Errorf("DeliverPrompt(%q, %q) = %q, want the byte-identical legacy form %q", cmd, prompt, got, want)
+			}
+		}
+	}
+}
+
+// TestPromptDoesNotAffectProfileMode is the mode-interaction guard: {prompt} is
+// deliberately absent from isTemplate, so a command carrying ONLY {prompt} must
+// still take WithProfile's APPEND mode and receive --model/--effort. Folding
+// {prompt} into the template test would silently suppress that append.
+func TestPromptDoesNotAffectProfileMode(t *testing.T) {
+	const promptOnly = "mycli --flag -i {prompt}"
+
+	got := WithProfile(promptOnly, "m1", "high")
+	want := "mycli --flag -i {prompt} --model m1 --effort high"
+	if got != want {
+		t.Errorf("WithProfile(%q, ...) = %q, want %q — {prompt} must not flip append mode", promptOnly, got, want)
+	}
+
+	// And the composed pipeline the call sites run: profile first, prompt last.
+	if got := WithPrompt(got, ""); got != "mycli --flag --model m1 --effort high" {
+		t.Errorf("session pipeline = %q, want %q", got, "mycli --flag --model m1 --effort high")
+	}
+
+	// A command carrying BOTH kinds still takes template mode, and the {prompt}
+	// token survives WithProfile untouched for the later pass to resolve.
+	const both = "agy --model {model} -i {prompt}"
+	if got := WithProfile(both, "gemini-3.1-pro-high", "high"); got != "agy --model gemini-3.1-pro-high -i {prompt}" {
+		t.Errorf("WithProfile(%q, ...) = %q, want the {prompt} token preserved", both, got)
+	}
+	// The empty-model drop path must likewise preserve it.
+	if got := WithProfile(both, "", ""); got != "agy -i {prompt}" {
+		t.Errorf("WithProfile(%q, empty) = %q, want %q", both, got, "agy -i {prompt}")
 	}
 }

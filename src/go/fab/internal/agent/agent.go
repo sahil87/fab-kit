@@ -150,13 +150,14 @@ var DefaultHeadlessCommand = defaultProviders[DefaultProviderName].HeadlessComma
 // All four providers carry a headless_command. Only claude also declares native
 // capability; dispatch.mode resolves the adapter independently of command presence.
 //
-// Only codex carries a non-claude INTERACTIVE command. agy and kimi deliberately
-// ship none: an interactive_command is the pane capability, and pane-mode dispatch
-// hands the worker its pointer prompt as a positional argument to that command,
-// which neither CLI can receive (kimi reads a bare positional as a subcommand and
-// exits non-zero; agy drops it silently and trust-prompts a fresh workspace).
-// Without one they have no pane capability, so mode resolution lands their
-// stages on headless. See defaults.yaml's providers-block note.
+// codex and agy carry non-claude INTERACTIVE commands; kimi deliberately ships
+// none. An interactive_command is the pane capability, and pane-mode dispatch
+// delivers the worker's pointer prompt through that command — either substituted
+// at a {prompt} placeholder or, absent one, appended as a positional argument.
+// kimi can receive it neither way: it reads a bare positional as a subcommand and
+// exits non-zero, and has no interactive-initial-prompt flag for a placeholder to
+// target. Without an interactive_command it has no pane capability, so mode
+// resolution lands its stages on headless. See defaults.yaml's providers-block note.
 //
 // These are the canonical names internal/configref interpolates into the rendered
 // reference, so the reference text carries no literal copy (the same
@@ -169,17 +170,28 @@ var (
 	// SUBCOMMAND (not a flag) and reads the prompt from stdin, which is where
 	// `fab dispatch` pipes it.
 	DefaultCodexHeadlessCommand = defaultProviders[providerCodex].HeadlessCommand
+	// DefaultAgyInteractiveCommand opens an interactive agy TUI session. It ends
+	// on `-i {prompt}` (`--prompt-interactive`), a VALUE-taking flag: agy discards
+	// a bare positional, and a bare `-i` exits 2. The {prompt} placeholder lets the
+	// one field serve every launch — each prompt-carrying one substitutes its
+	// shell-quoted prompt (internal/spawn.DeliverPrompt), and the one promptless
+	// launch, bare `fab agent`, substitutes empty so the pair token-drops
+	// (internal/spawn.WithPrompt). Like the headless form it carries no {effort}.
+	// Caveat: agy gates a fresh workspace behind an interactive trust dialog even
+	// under --dangerously-skip-permissions, so a pane worker in a not-yet-trusted
+	// worktree parks there once until a human answers it; fab does not seed agy's
+	// trustedWorkspaces store.
+	DefaultAgyInteractiveCommand = defaultProviders[providerAgy].InteractiveCommand
 	// DefaultAgyHeadlessCommand runs one headless agy task. `agy -p` takes the
 	// prompt as an ARGUMENT and ignores stdin, so the command NESTS a shell:
 	// POSIX expands `$(cat)` before applying `fab dispatch`'s stdin redirect, so
 	// the inner sh's stdin is the prompt. It carries NO {effort} placeholder —
 	// agy's model IDs embed the reasoning level (gemini-3.1-pro-high), so a
-	// separate effort flag would fight the suffix. agy ships no interactive command
-	// (see the note above), so this is its only invocation grammar.
+	// separate effort flag would fight the suffix.
 	DefaultAgyHeadlessCommand = defaultProviders[providerAgy].HeadlessCommand
 	// DefaultKimiHeadlessCommand runs one headless kimi task. Same nested-shell
 	// stdin idiom as agy, and deliberately NO approval flag: `kimi -p` already
-	// auto-approves tools and errors on `--yolo`/`--auto`. kimi likewise ships no
+	// auto-approves tools and errors on `--yolo`/`--auto`. kimi ships no
 	// interactive command, so this is its only invocation grammar.
 	DefaultKimiHeadlessCommand = defaultProviders[providerKimi].HeadlessCommand
 )
@@ -203,14 +215,15 @@ type Profile struct {
 //     role absent from the map resolves that provider's `default` entry). Naming it
 //     resolves with zero providers config; it declares no native capability, so
 //     mode resolution runs its stages on the CLI adapters.
-//   - agy — a headless command ONLY (no interactive command, so no pane capability),
-//     plus its own SPARSE per-role fills under the same
-//     absent-role-falls-back-to-`default` rule. Naming it resolves with zero
-//     providers config; its stages land on headless.
-//   - kimi — a headless command ONLY (no interactive command), and deliberately NO
-//     fills: its -m takes a user-config model alias rather than a catalog ID, so the
-//     empty model drops the -m pair and the CLI's own default_model applies. Its
-//     stages likewise land on headless.
+//   - agy — interactive AND headless commands (the interactive one delivers a pane
+//     worker's pointer at its {prompt} placeholder), plus its own SPARSE per-role
+//     fills under the same absent-role-falls-back-to-`default` rule. Naming it
+//     resolves with zero providers config; it declares no native capability, so mode
+//     resolution runs its stages on the CLI adapters.
+//   - kimi — a headless command ONLY (no interactive command, so no pane
+//     capability), and deliberately NO fills: its -m takes a user-config model alias
+//     rather than a catalog ID, so the empty model drops the -m pair and the CLI's
+//     own default_model applies. Its stages land on headless.
 //
 // A built-in provider is INERT until a knob, an agent.profiles entry, or a flag
 // names it — adding a row changes no default behavior, which is why the
