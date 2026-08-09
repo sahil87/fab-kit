@@ -16,7 +16,7 @@ import (
 )
 
 // setupDispatchRepo builds a repo with one active change and a config whose
-// `doing` role (apply's role) points at a provider carrying a dispatch_command,
+// `doing` role (apply's role) points at a provider carrying a headless_command,
 // then chdirs into it so resolve.FabRoot() resolves. When dispatchCmd is empty,
 // the resolved provider is the native-capable built-in claude. Returns the repo
 // root and the 4-char change ID.
@@ -26,8 +26,8 @@ func setupDispatchRepo(t *testing.T, dispatchCmd string) (repoRoot, id string) {
 }
 
 // setupDispatchRepoWithCommands is setupDispatchRepo with independent control of
-// the resolved provider's TWO command fields, so the pane path (session_command)
-// and the headless path (dispatch_command) can be exercised separately —
+// the resolved provider's TWO command fields, so the pane path (interactive_command)
+// and the headless path (headless_command) can be exercised separately —
 // including the case that proves there is no cross-substitution in either direction
 // (one field set, the other empty). An empty pair leaves the built-in claude
 // provider resolved (which carries native and both command capabilities).
@@ -71,10 +71,10 @@ func setupDispatchRepoWithCommands(t *testing.T, dispatchCmd, sessionCmd string)
 		// A cli provider carries the command field(s); the doing role points at it.
 		body += "providers:\n  cli:\n"
 		if dispatchCmd != "" {
-			body += "    dispatch_command: \"" + dispatchCmd + "\"\n"
+			body += "    headless_command: \"" + dispatchCmd + "\"\n"
 		}
 		if sessionCmd != "" {
-			body += "    session_command: \"" + sessionCmd + "\"\n"
+			body += "    interactive_command: \"" + sessionCmd + "\"\n"
 		}
 		// The role profile PINS the `doing` role's built-in model/effort explicitly.
 		// Model and effort come from the RESOLVED provider's own per-role fills, and
@@ -357,18 +357,18 @@ func TestDispatchStart_PaneWithoutTmuxServerErrors(t *testing.T) {
 	}
 }
 
-// TestDispatchStart_HeadlessStillRequiresDispatchCommand is the other half of the
-// no-cross-substitution rule: a provider carrying ONLY a session_command must not
+// TestDispatchStart_HeadlessStillRequiresHeadlessCommand is the other half of the
+// no-cross-substitution rule: a provider carrying ONLY an interactive_command must not
 // satisfy a headless start.
-func TestDispatchStart_HeadlessStillRequiresDispatchCommand(t *testing.T) {
+func TestDispatchStart_HeadlessStillRequiresHeadlessCommand(t *testing.T) {
 	setupDispatchRepoWithCommands(t, "", "sh -c 'exit 0'")
 
 	_, err := runStart(t, "prompt", "abcd", "apply")
 	if err == nil {
-		t.Fatal("expected an error: a session_command must not satisfy a headless start")
+		t.Fatal("expected an error: an interactive_command must not satisfy a headless start")
 	}
-	if !strings.Contains(err.Error(), "providers.cli.dispatch_command") {
-		t.Errorf("error = %q, want the dispatch_command config-key hint", err.Error())
+	if !strings.Contains(err.Error(), "providers.cli.headless_command") {
+		t.Errorf("error = %q, want the headless_command config-key hint", err.Error())
 	}
 }
 
@@ -381,7 +381,7 @@ func TestDispatchStart_PaneMode_Integration(t *testing.T) {
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("tmux not available")
 	}
-	// A stand-in session_command that behaves like a real agent CLI: TEMPLATED
+	// A stand-in interactive_command that behaves like a real agent CLI: TEMPLATED
 	// with {model}/{effort} (as the built-in claude default is, so WithProfile
 	// substitutes rather than appending flags after the prompt), taking the prompt
 	// as its trailing argument. It echoes that argument — so the test can prove
@@ -648,7 +648,7 @@ func TestDispatchStart_PanePreferenceDescendsOnUnreachableTmux(t *testing.T) {
 		t.Errorf("output = %q, want the %q selection source", out, wantReason)
 	}
 
-	// The record is headless-SHAPED: descent re-composed dispatch_command and
+	// The record is headless-SHAPED: descent re-composed headless_command and
 	// launched the wrapper, so no pane identity leaks into the record.
 	rec, err := dispatch.Load(dir, "apply")
 	if err != nil {
@@ -663,34 +663,34 @@ func TestDispatchStart_PanePreferenceDescendsOnUnreachableTmux(t *testing.T) {
 	if rec.Window != "" || rec.Server != "" {
 		t.Errorf("descended record carries pane identity: window=%q server=%q", rec.Window, rec.Server)
 	}
-	// The descended mode composed dispatch_command, NOT session_command — the
+	// The descended mode composed headless_command, NOT interactive_command — the
 	// no-cross-substitution rule survives the mode change.
 	if !strings.HasPrefix(rec.SpawnCmd, "sh -c 'exit 0'") {
-		t.Errorf("spawn_cmd = %q, want the dispatch_command as prefix", rec.SpawnCmd)
+		t.Errorf("spawn_cmd = %q, want the headless_command as prefix", rec.SpawnCmd)
 	}
 }
 
-// TestDispatchStart_PanePreferenceDescendsWithoutSessionCommand is descent shape
+// TestDispatchStart_PanePreferenceDescendsWithoutInteractiveCommand is descent shape
 // (b) with a STALE $TMUX: the pane path cannot proceed for TWO
-// independent reasons at once (unreachable server AND no session_command), and
+// independent reasons at once (unreachable server AND no interactive_command), and
 // either way a pane preference must descend rather than error. The probe fires
 // first, so the shape-(a) notice is the one printed — what this test pins is that a
-// dispatch_command-only provider does not hard-error on composition before the
+// headless_command-only provider does not hard-error on composition before the
 // descent decision point is even reached.
-func TestDispatchStart_PanePreferenceDescendsWithoutSessionCommand(t *testing.T) {
-	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "") // no session_command
+func TestDispatchStart_PanePreferenceDescendsWithoutInteractiveCommand(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "") // no interactive_command
 	appendProjectConfig(t, repoRoot, "dispatch:\n  mode: pane\n")
 	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, "fabtest-nosess-stale"))
 	t.Setenv("TMUX", "/tmp/tmux-dead/default,9999,0")
 
 	out, stderr, err := runStartCapturingStderr(t, "prompt", "abcd", "apply")
 	if err != nil {
-		t.Fatalf("pane preference with a dispatch_command-only provider must descend, not error: %v", err)
+		t.Fatalf("pane preference with a headless_command-only provider must descend, not error: %v", err)
 	}
 	dir := dispatch.DirFor(repoRoot, id)
 	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
 
-	if !strings.Contains(stderr, "no session_command") {
+	if !strings.Contains(stderr, "no interactive_command") {
 		t.Errorf("stderr = %q, want the missing-session descent notice", stderr)
 	}
 	if !strings.Contains(out, "mode: headless (descended:") {
@@ -704,16 +704,16 @@ func TestDispatchStart_PanePreferenceDescendsWithoutSessionCommand(t *testing.T)
 		t.Errorf("descended record must be headless-shaped, got %+v", *rec)
 	}
 	if !strings.HasPrefix(rec.SpawnCmd, "sh -c 'exit 0'") {
-		t.Errorf("spawn_cmd = %q, want the dispatch_command as prefix", rec.SpawnCmd)
+		t.Errorf("spawn_cmd = %q, want the headless_command as prefix", rec.SpawnCmd)
 	}
 }
 
-// TestDispatchStart_PanePreferenceNoSessionCommand_Integration is descent shape (b)
+// TestDispatchStart_PanePreferenceNoInteractiveCommand_Integration is descent shape (b)
 // in isolation, against a LIVE tmux server: the reachability probe PASSES, so the
-// only reason the pane path cannot proceed is the missing session_command. This is
+// only reason the pane path cannot proceed is the missing interactive_command. This is
 // the regression the review found — before pane-command composition was deferred,
-// a dispatch_command-only provider that worked headless hard-errored inside live
-// tmux, demanding a session_command it never needed.
+// a headless_command-only provider that worked headless hard-errored inside live
+// tmux, demanding an interactive_command it never needed.
 //
 // SAFETY: this test issues UNSCOPED (no `-L`) tmux calls on purpose, because
 // pane-preferred mode passes no `-L` and must reach the server through tmux's
@@ -723,11 +723,11 @@ func TestDispatchStart_PanePreferenceDescendsWithoutSessionCommand(t *testing.T)
 // the server is created (a set $TMUX makes a client target ITS socket and ignore
 // TMUX_TMPDIR, which would put the session on — and later kill — the real server).
 // Every destructive call, kill-server included, is scoped by a VERIFIED `-S` path.
-func TestDispatchStart_PanePreferenceNoSessionCommand_Integration(t *testing.T) {
+func TestDispatchStart_PanePreferenceNoInteractiveCommand_Integration(t *testing.T) {
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("tmux not available")
 	}
-	// dispatch_command only — the pane path has nothing to open interactively.
+	// headless_command only — the pane path has nothing to open interactively.
 	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "")
 	appendProjectConfig(t, repoRoot, "dispatch:\n  mode: pane\n")
 
@@ -756,20 +756,20 @@ func TestDispatchStart_PanePreferenceNoSessionCommand_Integration(t *testing.T) 
 
 	out, stderr, err := runStartCapturingStderr(t, "prompt", "abcd", "apply")
 	if err != nil {
-		t.Fatalf("a dispatch_command-only provider must still dispatch headless inside live tmux, got: %v", err)
+		t.Fatalf("a headless_command-only provider must still dispatch headless inside live tmux, got: %v", err)
 	}
 	dir := dispatch.DirFor(repoRoot, id)
 	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
 
-	// The probe passed, so this is shape (b) specifically — the session_command
+	// The probe passed, so this is shape (b) specifically — the interactive_command
 	// notice and reason, not the unreachable-tmux pair.
-	if !strings.Contains(stderr, "no session_command") {
+	if !strings.Contains(stderr, "no interactive_command") {
 		t.Errorf("stderr = %q, want the no-session descent notice", stderr)
 	}
 	if strings.Contains(stderr, "tmux unreachable") {
 		t.Errorf("stderr = %q must not carry the unreachable-tmux notice: tmux WAS reachable", stderr)
 	}
-	wantReason := "mode: headless (descended: pane unavailable: no session_command; native unavailable)"
+	wantReason := "mode: headless (descended: pane unavailable: no interactive_command; native unavailable)"
 	if !strings.Contains(out, wantReason) {
 		t.Errorf("output = %q, want the %q selection source", out, wantReason)
 	}
@@ -788,7 +788,7 @@ func TestDispatchStart_PanePreferenceNoSessionCommand_Integration(t *testing.T) 
 		t.Errorf("descended record carries pane identity: window=%q server=%q", rec.Window, rec.Server)
 	}
 	if !strings.HasPrefix(rec.SpawnCmd, "sh -c 'exit 0'") {
-		t.Errorf("spawn_cmd = %q, want the dispatch_command as prefix", rec.SpawnCmd)
+		t.Errorf("spawn_cmd = %q, want the headless_command as prefix", rec.SpawnCmd)
 	}
 	// No dispatch window was opened on the reachable server.
 	if names, err := exec.Command("tmux", "-S", privateSocket,
@@ -799,24 +799,24 @@ func TestDispatchStart_PanePreferenceNoSessionCommand_Integration(t *testing.T) 
 	}
 }
 
-// TestDispatchStart_ExplicitPaneWithoutSessionCommandPersistsNothing is the
+// TestDispatchStart_ExplicitPaneWithoutInteractiveCommandPersistsNothing is the
 // explicit half of shape (b): the hard error is unchanged and — since composition
 // now happens after validation — still leaves no dispatch record behind. tmux is
-// deliberately REACHABLE here (an ephemeral server), so the missing session_command
+// deliberately REACHABLE here (an ephemeral server), so the missing interactive_command
 // is the sole failure cause and the error cannot be the probe's.
 //
 // It is also the sole home of the no-cross-substitution rule's PANE half (folded in
-// from the former TestDispatchStart_PaneRequiresSessionCommand, which asserted the
+// from the former TestDispatchStart_PaneRequiresInteractiveCommand, which asserted the
 // same hint against the ambient default socket and so failed on a host with no
-// tmux running): pane mode composes session_command and must never substitute
-// dispatch_command, so the error names the stage's resolved role and the exact
-// session_command config key. Its headless mirror is
-// TestDispatchStart_HeadlessStillRequiresDispatchCommand.
-func TestDispatchStart_ExplicitPaneWithoutSessionCommandPersistsNothing(t *testing.T) {
+// tmux running): pane mode composes interactive_command and must never substitute
+// headless_command, so the error names the stage's resolved role and the exact
+// interactive_command config key. Its headless mirror is
+// TestDispatchStart_HeadlessStillRequiresHeadlessCommand.
+func TestDispatchStart_ExplicitPaneWithoutInteractiveCommandPersistsNothing(t *testing.T) {
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("tmux not available")
 	}
-	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "") // no session_command
+	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "") // no interactive_command
 
 	server := "fabtest-explicit-nosess"
 	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
@@ -831,10 +831,10 @@ func TestDispatchStart_ExplicitPaneWithoutSessionCommandPersistsNothing(t *testi
 
 	_, stderr, err := runStartCapturingStderr(t, "prompt", "abcd", "apply", "--pane", "--server", server)
 	if err == nil {
-		t.Fatal("explicit --pane must hard-error when the provider has no session_command")
+		t.Fatal("explicit --pane must hard-error when the provider has no interactive_command")
 	}
-	if !strings.Contains(err.Error(), "providers.cli.session_command") {
-		t.Errorf("error = %q, want the session_command config-key hint", err.Error())
+	if !strings.Contains(err.Error(), "providers.cli.interactive_command") {
+		t.Errorf("error = %q, want the interactive_command config-key hint", err.Error())
 	}
 	if !strings.Contains(err.Error(), "doing") {
 		t.Errorf("error = %q, want mention of the resolved role", err.Error())
@@ -849,15 +849,15 @@ func TestDispatchStart_ExplicitPaneWithoutSessionCommandPersistsNothing(t *testi
 
 // TestModeCommand_DispatchOnlyBuiltInsAreHeadlessOnly ties the two shape-(b) tests
 // above to the BUILT-IN providers that actually rely on them. Those tests use a
-// synthetic `cli` provider with an empty session_command; this one asserts that
+// synthetic `cli` provider with an empty interactive_command; this one asserts that
 // agy and kimi — resolved from the shipped defaults with no providers: config at
 // all — genuinely present that shape at the seam `dispatch start` branches on.
 //
 // The two CLIs cannot receive a pane worker's pointer prompt (kimi parses a bare
 // positional as a subcommand and exits non-zero; agy drops it silently and
-// trust-prompts a fresh workspace), so shipping a session_command would make auto
+// trust-prompts a fresh workspace), so shipping an interactive_command would make auto
 // mode inside tmux SELECT pane and park every stage. Shipping none is what routes
-// them to the documented soft fallback (`auto: no session_command`) while an
+// them to the documented soft fallback (`auto: no interactive_command`) while an
 // explicit --pane still hard-errors actionably.
 //
 // modeCommand is the composition seam both modes go through, so exercising it
@@ -874,14 +874,14 @@ func TestModeCommand_DispatchOnlyBuiltInsAreHeadlessOnly(t *testing.T) {
 			t.Errorf("headless dispatch for the %s built-in must compose: %v", name, err)
 		}
 
-		// Pane cannot, and says so actionably: an empty session_command is exactly
+		// Pane cannot, and says so actionably: an empty interactive_command is exactly
 		// the condition validatePane turns into the auto soft-fallback.
 		_, err := modeCommand(dispatch.ModePane, prov, "apply", name)
 		if err == nil {
-			t.Fatalf("pane dispatch for the %s built-in must error — it ships no session_command", name)
+			t.Fatalf("pane dispatch for the %s built-in must error — it ships no interactive_command", name)
 		}
-		if !strings.Contains(err.Error(), "providers."+name+".session_command") {
-			t.Errorf("%s pane error = %q, want the session_command config-key hint", name, err.Error())
+		if !strings.Contains(err.Error(), "providers."+name+".interactive_command") {
+			t.Errorf("%s pane error = %q, want the interactive_command config-key hint", name, err.Error())
 		}
 	}
 }
@@ -1115,7 +1115,7 @@ func paneTitle(t *testing.T, tmuxScoped func(...string) (string, error), paneID 
 // the dispatcher's window count is unchanged — which is the reported problem this
 // change fixes (every worker used to surface as another run-kit window).
 func TestDispatchStart_SplitPane_Integration(t *testing.T) {
-	// TEMPLATED with {model}/{effort} (as the built-in claude session_command is), so
+	// TEMPLATED with {model}/{effort} (as the built-in claude interactive_command is), so
 	// spawn.WithProfile SUBSTITUTES rather than appending flags after the prompt
 	// argument — which would otherwise make $1 the appended `--model`.
 	repoRoot, id := setupDispatchRepoWithCommands(t, "",

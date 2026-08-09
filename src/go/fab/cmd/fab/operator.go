@@ -122,12 +122,12 @@ func findWindowExact(out, name string) (windowID string, found bool) {
 }
 
 // operatorSpawnCommand resolves the operator role's session command in-process:
-// the operator role → its provider → that provider's session_command, with
+// the operator role → its provider → that provider's interactive_command, with
 // {model}/{effort} substituted via internal/spawn. A missing/unreadable fab
 // project degrades to fab-kit's built-in operator profile + built-in claude
 // provider (config.Load returns an empty config; agent.ResolveRole/ResolveProvider
 // both fall back to the built-ins), so a neutral-directory launch is fully
-// defaulted. A provider without a session_command falls back to
+// defaulted. A provider without an interactive_command falls back to
 // spawn.DefaultSpawnCommand (still profile-substituted) rather than erroring — the
 // operator must always launch.
 func operatorSpawnCommand() string {
@@ -139,8 +139,8 @@ func operatorSpawnCommand() string {
 	profile := operatorProfile(cfg)
 
 	sessionCmd := spawn.DefaultSpawnCommand
-	if prov, ok := agent.ResolveProvider(cfg, profile.Provider); ok && prov.SessionCommand != "" {
-		sessionCmd = prov.SessionCommand
+	if prov, ok := agent.ResolveProvider(cfg, profile.Provider); ok && prov.InteractiveCommand != "" {
+		sessionCmd = prov.InteractiveCommand
 	}
 	return spawn.WithProfile(sessionCmd, profile.Model, profile.Effort)
 }

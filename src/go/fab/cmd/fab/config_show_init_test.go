@@ -64,12 +64,12 @@ func TestConfigShow_PrintsEffectiveConfig(t *testing.T) {
 	_, home := setupConfigRepo(t, `
 providers:
   claude:
-    session_command: project-session
+    interactive_command: project-session
 `)
 	writeSystemConfig(t, home, `
 providers:
   codex:
-    dispatch_command: codex exec
+    headless_command: codex exec
 `)
 	out, err := runConfig(t, "show")
 	if err != nil {
@@ -86,7 +86,7 @@ providers:
 
 // TestConfigShow_RejectsTooManyArgs: show accepts one key but rejects two.
 func TestConfigShow_RejectsExtraArgs(t *testing.T) {
-	setupConfigRepo(t, "providers:\n  claude:\n    session_command: x\n")
+	setupConfigRepo(t, "providers:\n  claude:\n    interactive_command: x\n")
 	if _, err := runConfig(t, "show", "agent.workers", "extra"); err == nil {
 		t.Error("`config show` should reject more than one key")
 	}
@@ -117,7 +117,7 @@ func TestConfigShow_KeyedValueOriginAndUnknown(t *testing.T) {
 	if out != want {
 		t.Fatalf("keyed origin output = %q,\nwant %q", out, want)
 	}
-	for _, key := range []string{"agent.workerz", "providers.#local.session_command"} {
+	for _, key := range []string{"agent.workerz", "providers.#local.interactive_command"} {
 		if _, err := runConfig(t, "show", key); err == nil || !strings.Contains(err.Error(), key) {
 			t.Fatalf("unknown/structurally invalid keyed show %q should name the key, got %v", key, err)
 		}
@@ -287,7 +287,7 @@ func TestConfigSet_OpaqueProviderNamesAreEffective(t *testing.T) {
 	for _, name := range []string{"123", "true", "on", "-local", "测试"} {
 		t.Run(name, func(t *testing.T) {
 			setupConfigRepo(t, "")
-			key := "providers." + name + ".session_command"
+			key := "providers." + name + ".interactive_command"
 			if _, err := runConfig(t, "set", key, "tool"); err != nil {
 				t.Fatalf("config set %q: %v", key, err)
 			}
@@ -309,7 +309,7 @@ func TestConfigSetUnset_ValidationAndSystemScope(t *testing.T) {
 		want string
 	}{
 		{[]string{"set", "agent.workerz", "codex"}, "agent.workerz"},
-		{[]string{"set", "providers.#local.session_command", "tool"}, "dotted config-key grammar"},
+		{[]string{"set", "providers.#local.interactive_command", "tool"}, "dotted config-key grammar"},
 		{[]string{"set", "agent.workers", "{bad: kind}"}, "single-line YAML scalar"},
 		{[]string{"set", "agent.workers", "codex # note"}, "must not contain a YAML comment"},
 		{[]string{"set", "source_paths", "[src/]"}, "scalar leaf"},
@@ -509,12 +509,12 @@ func TestConfigShowOrigin_DrillDownIsKnobAware(t *testing.T) {
 // TestConfigShowOrigin_AllEmptyMapDoesNotClaimTheNode: a tier whose subtree is
 // entirely empty leaves defines NOTHING — the merge drops such a map wholesale, so
 // provenance must too. With the emptiness test applied shallowly the system tier's
-// `{claude: {session_command: null}}` looked like a defining map, hid the tier
+// `{claude: {interactive_command: null}}` looked like a defining map, hid the tier
 // below it, and the listing reported a key no tier defines while the merge was
 // resolving the project's value.
 func TestConfigShowOrigin_AllEmptyMapDoesNotClaimTheNode(t *testing.T) {
 	repo, home := setupConfigRepo(t, "providers: replaced-wholesale\n")
-	writeSystemConfig(t, home, "providers:\n    claude:\n        session_command: null\n")
+	writeSystemConfig(t, home, "providers:\n    claude:\n        interactive_command: null\n")
 
 	out, err := runConfig(t, "show", "providers", "--origin")
 	if err != nil {
@@ -634,7 +634,7 @@ func TestConfigShowOrigin_Provenance(t *testing.T) {
 	repo, home := setupConfigRepo(t, `
 providers:
   claude:
-    session_command: project-session
+    interactive_command: project-session
 `)
 	writeSystemConfig(t, home, `
 agent:
@@ -666,7 +666,7 @@ agent:
 	}
 
 	// A project-set field shows the project path.
-	assertOriginLine("providers.claude.session_command = project-session", projectPath)
+	assertOriginLine("providers.claude.interactive_command = project-session", projectPath)
 	// A system-only field shows the system path (per-key map drill-down).
 	assertOriginLine("agent.profiles.newbie.model = sys-model", systemPath)
 	// An unset field with a built-in default shows `default`. The doing role's
@@ -913,7 +913,7 @@ func TestConfigShowKey_EmptyValuesFallThrough(t *testing.T) {
 func TestConfigShowKey_UsesNearestReplacedAncestorOrigin(t *testing.T) {
 	repo, _ := setupConfigRepo(t, "providers: oops\n")
 
-	plain, err := runConfig(t, "show", "providers.claude.session_command")
+	plain, err := runConfig(t, "show", "providers.claude.interactive_command")
 	if err != nil {
 		t.Fatalf("config show descendant: %v", err)
 	}
@@ -921,11 +921,11 @@ func TestConfigShowKey_UsesNearestReplacedAncestorOrigin(t *testing.T) {
 		t.Fatalf("ancestor replacement did not null the descendant: %q", plain)
 	}
 
-	origin, err := runConfig(t, "show", "providers.claude.session_command", "--origin")
+	origin, err := runConfig(t, "show", "providers.claude.interactive_command", "--origin")
 	if err != nil {
 		t.Fatalf("config show descendant --origin: %v", err)
 	}
-	want := "providers.claude.session_command = null  # project " + filepath.Join(repo, "fab", "project", "config.yaml") + "  (effective)\n"
+	want := "providers.claude.interactive_command = null  # project " + filepath.Join(repo, "fab", "project", "config.yaml") + "  (effective)\n"
 	if origin != want {
 		t.Fatalf("descendant lost the nearest replaced ancestor's provenance: got %q, want %q", origin, want)
 	}
@@ -935,7 +935,7 @@ func TestConfigShowKey_UsesNearestReplacedAncestorOrigin(t *testing.T) {
 // --system` writes the ~/.fab-kit/config.yaml scaffold (only system/both fields,
 // all commented → parses as inert), and a second run refuses to overwrite.
 func TestConfigInitSystem_WritesScaffoldAndRefusesOverwrite(t *testing.T) {
-	_, home := setupConfigRepo(t, "providers:\n  claude:\n    session_command: x\n")
+	_, home := setupConfigRepo(t, "providers:\n  claude:\n    interactive_command: x\n")
 
 	out, err := runConfig(t, "init", "--system")
 	if err != nil {

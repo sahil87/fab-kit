@@ -130,34 +130,34 @@ func TestDefaultsFileProviders(t *testing.T) {
 	if !claude.Native {
 		t.Errorf("defaults.yaml providers.%s.native = false, want true", DefaultProviderName)
 	}
-	if claude.DispatchCommand == "" {
-		t.Errorf("defaults.yaml providers.%s has no dispatch_command", DefaultProviderName)
+	if claude.HeadlessCommand == "" {
+		t.Errorf("defaults.yaml providers.%s has no headless_command", DefaultProviderName)
 	}
 	for _, name := range []string{providerCodex, providerAgy, providerKimi} {
-		if cfg.Providers[name].DispatchCommand == "" {
-			t.Errorf("defaults.yaml providers.%s has no dispatch_command", name)
+		if cfg.Providers[name].HeadlessCommand == "" {
+			t.Errorf("defaults.yaml providers.%s has no headless_command", name)
 		}
 		if cfg.Providers[name].Native {
 			t.Errorf("defaults.yaml providers.%s.native = true, want false", name)
 		}
 	}
 
-	// The mirror image: only claude and codex ship a session_command. agy and kimi
+	// The mirror image: only claude and codex ship an interactive_command. agy and kimi
 	// are DISPATCH-ONLY built-ins, and the absence is load-bearing rather than an
-	// omission — a session_command makes a provider eligible for pane-mode dispatch,
+	// omission — an interactive_command makes a provider eligible for pane-mode dispatch,
 	// which hands the worker its pointer prompt as a POSITIONAL argument, and neither
 	// CLI can receive a prompt that way (kimi reads a bare positional as a subcommand
 	// and exits non-zero; agy drops it silently and trust-prompts a fresh workspace).
-	// Asserting the absence is what stops a well-meaning session_command from landing
+	// Asserting the absence is what stops a well-meaning interactive_command from landing
 	// and parking every tmux-dispatched stage at an empty prompt.
 	for _, name := range []string{DefaultProviderName, providerCodex} {
-		if cfg.Providers[name].SessionCommand == "" {
-			t.Errorf("defaults.yaml providers.%s has no session_command", name)
+		if cfg.Providers[name].InteractiveCommand == "" {
+			t.Errorf("defaults.yaml providers.%s has no interactive_command", name)
 		}
 	}
 	for _, name := range []string{providerAgy, providerKimi} {
-		if got := cfg.Providers[name].SessionCommand; got != "" {
-			t.Errorf("defaults.yaml providers.%s.session_command = %q, want absent — %s cannot receive a pane worker's pointer prompt as a positional argument, so shipping one would select pane dispatch and park the stage", name, got, name)
+		if got := cfg.Providers[name].InteractiveCommand; got != "" {
+			t.Errorf("defaults.yaml providers.%s.interactive_command = %q, want absent — %s cannot receive a pane worker's pointer prompt as a positional argument, so shipping one would select pane dispatch and park the stage", name, got, name)
 		}
 	}
 
@@ -226,7 +226,7 @@ func TestPackageTablesMatchDefaultsFile(t *testing.T) {
 			continue
 		}
 		// The resolved Profiles map is a defensive copy, so compare by value.
-		if got.SessionCommand != want.SessionCommand || got.DispatchCommand != want.DispatchCommand || got.Native != want.Native ||
+		if got.InteractiveCommand != want.InteractiveCommand || got.HeadlessCommand != want.HeadlessCommand || got.Native != want.Native ||
 			got.Model != want.Model || got.Effort != want.Effort ||
 			!reflect.DeepEqual(got.Profiles, want.Profiles) {
 			t.Errorf("ResolveProvider(nil, %q) = %+v, defaults.yaml says %+v", name, got, want)
@@ -238,14 +238,14 @@ func TestPackageTablesMatchDefaultsFile(t *testing.T) {
 		got  string
 		want string
 	}{
-		{"DefaultSessionCommand", DefaultSessionCommand, cfg.Providers[DefaultProviderName].SessionCommand},
-		{"DefaultDispatchCommand", DefaultDispatchCommand, cfg.Providers[DefaultProviderName].DispatchCommand},
-		{"DefaultCodexSessionCommand", DefaultCodexSessionCommand, cfg.Providers[providerCodex].SessionCommand},
-		{"DefaultCodexDispatchCommand", DefaultCodexDispatchCommand, cfg.Providers[providerCodex].DispatchCommand},
+		{"DefaultInteractiveCommand", DefaultInteractiveCommand, cfg.Providers[DefaultProviderName].InteractiveCommand},
+		{"DefaultHeadlessCommand", DefaultHeadlessCommand, cfg.Providers[DefaultProviderName].HeadlessCommand},
+		{"DefaultCodexInteractiveCommand", DefaultCodexInteractiveCommand, cfg.Providers[providerCodex].InteractiveCommand},
+		{"DefaultCodexHeadlessCommand", DefaultCodexHeadlessCommand, cfg.Providers[providerCodex].HeadlessCommand},
 		// agy and kimi are dispatch-only, so they export no session-command var —
-		// their session_command ABSENCE is asserted in TestDefaultsFileProviders.
-		{"DefaultAgyDispatchCommand", DefaultAgyDispatchCommand, cfg.Providers[providerAgy].DispatchCommand},
-		{"DefaultKimiDispatchCommand", DefaultKimiDispatchCommand, cfg.Providers[providerKimi].DispatchCommand},
+		// their interactive_command ABSENCE is asserted in TestDefaultsFileProviders.
+		{"DefaultAgyHeadlessCommand", DefaultAgyHeadlessCommand, cfg.Providers[providerAgy].HeadlessCommand},
+		{"DefaultKimiHeadlessCommand", DefaultKimiHeadlessCommand, cfg.Providers[providerKimi].HeadlessCommand},
 	}
 	for _, c := range commands {
 		if c.got != c.want {

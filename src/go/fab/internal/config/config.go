@@ -71,10 +71,10 @@ type ProviderProfile struct {
 // are opaque, user-chosen strings (fab never infers a provider from a model
 // string).
 //
-//   - SessionCommand opens an interactive agent SESSION (the relocated
+//   - InteractiveCommand opens an interactive agent SESSION (the relocated
 //     agent.spawn_command semantics — consumed by fab operator / fab batch /
 //     fab agent).
-//   - DispatchCommand runs ONE headless stage task via fab dispatch.
+//   - HeadlessCommand runs ONE headless stage task via fab dispatch.
 //   - Native declares that the provider can run through the native Agent-tool
 //     adapter. Provider names are opaque, so this capability is shipped data.
 //
@@ -113,13 +113,18 @@ type ProviderProfile struct {
 // The whole table is scope `both`, so a machine-wide fill is settable once in
 // ~/.fab-kit/config.yaml.
 type ProviderConfig struct {
-	SessionCommand  string `yaml:"session_command"`
-	DispatchCommand string `yaml:"dispatch_command"`
-	Native          bool   `yaml:"native"`
+	InteractiveCommand string `yaml:"interactive_command"`
+	HeadlessCommand    string `yaml:"headless_command"`
+	Native             bool   `yaml:"native"`
 	// NativeSet preserves YAML presence so an explicit `native: false` can
 	// override a built-in true value during the provider-table merge.
 	NativeSet bool                       `yaml:"-"`
 	Profiles  map[string]ProviderProfile `yaml:"profiles"`
+
+	// Deprecated: pre-2.19 spellings, read-time alias only. Resolution prefers
+	// the new spelling PER FIELD, so a half-migrated config resolves everything.
+	SessionCommand  string `yaml:"session_command"`
+	DispatchCommand string `yaml:"dispatch_command"`
 
 	// Deprecated: the flat fill. Read as an ALIAS for Profiles["default"] — folded
 	// into it per field by internal/agent.ResolveProvider; see the type doc.
@@ -213,8 +218,8 @@ type ProjectConfig struct {
 // Mode is the PREFERRED dispatch rung. Automatic resolution starts there and
 // descends pane → native → headless, never ascending, until provider capability
 // and environment make a rung possible. The default is native, which preserves
-// the shipped built-in behavior: claude runs natively while codex/gemini descend
-// to their headless dispatch commands.
+// the shipped built-in behavior: claude runs natively while codex, agy, and kimi
+// descend to their headless commands.
 //
 // ColumnWidth is the WORKER-COLUMN WIDTH, in percent of the window, used by the
 // column-carving `-h` split that opens a pane-mode worker beside its dispatching

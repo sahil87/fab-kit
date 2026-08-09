@@ -115,7 +115,7 @@ const (
 	providerKimi  = "kimi"
 )
 
-// DefaultSessionCommand is the built-in claude provider's session command — the
+// DefaultInteractiveCommand is the built-in claude provider's interactive command — the
 // relocated agent.spawn_command default. Kept here (not internal/spawn) because
 // the provider table is agent-owned; internal/spawn re-exports the string for its
 // own no-config fallback.
@@ -131,11 +131,11 @@ const (
 // It is a var rather than a const because defaults.yaml owns the string: a const
 // here would mean the same command text lived in two places, which is the drift
 // the data file exists to make impossible.
-var DefaultSessionCommand = defaultProviders[DefaultProviderName].SessionCommand
+var DefaultInteractiveCommand = defaultProviders[DefaultProviderName].InteractiveCommand
 
-// DefaultDispatchCommand is the built-in claude provider's headless command.
+// DefaultHeadlessCommand is the built-in claude provider's headless command.
 // Its presence describes capability only; dispatch.mode selects whether it runs.
-var DefaultDispatchCommand = defaultProviders[DefaultProviderName].DispatchCommand
+var DefaultHeadlessCommand = defaultProviders[DefaultProviderName].HeadlessCommand
 
 // The non-claude built-in provider commands (260805-j3cm). These are the
 // invocation templates; the matching per-role fills ship alongside them in
@@ -147,41 +147,41 @@ var DefaultDispatchCommand = defaultProviders[DefaultProviderName].DispatchComma
 // kimi is the deliberate no-fills built-in (its -m takes a user-config alias, not a
 // catalog ID), so it resolves an empty model and the -m pair drops out.
 //
-// All four providers carry a dispatch_command. Only claude also declares native
+// All four providers carry a headless_command. Only claude also declares native
 // capability; dispatch.mode resolves the adapter independently of command presence.
 //
-// Only codex carries a non-claude SESSION command. agy and kimi deliberately ship
-// none: a session_command is the pane capability, and pane-mode dispatch hands
-// the worker its pointer prompt as a positional argument to that command, which
-// neither CLI can receive (kimi reads a bare positional as a subcommand and
+// Only codex carries a non-claude INTERACTIVE command. agy and kimi deliberately
+// ship none: an interactive_command is the pane capability, and pane-mode dispatch
+// hands the worker its pointer prompt as a positional argument to that command,
+// which neither CLI can receive (kimi reads a bare positional as a subcommand and
 // exits non-zero; agy drops it silently and trust-prompts a fresh workspace).
 // Without one they have no pane capability, so mode resolution lands their
 // stages on headless. See defaults.yaml's providers-block note.
 //
 // These are the canonical names internal/configref interpolates into the rendered
 // reference, so the reference text carries no literal copy (the same
-// no-duplicate-literal rule DefaultSessionCommand follows). Their values, like
+// no-duplicate-literal rule DefaultInteractiveCommand follows). Their values, like
 // every other string here, come from defaults.yaml.
 var (
-	// DefaultCodexSessionCommand opens an interactive codex TUI session.
-	DefaultCodexSessionCommand = defaultProviders[providerCodex].SessionCommand
-	// DefaultCodexDispatchCommand runs one headless codex task. `codex exec` is a
+	// DefaultCodexInteractiveCommand opens an interactive codex TUI session.
+	DefaultCodexInteractiveCommand = defaultProviders[providerCodex].InteractiveCommand
+	// DefaultCodexHeadlessCommand runs one headless codex task. `codex exec` is a
 	// SUBCOMMAND (not a flag) and reads the prompt from stdin, which is where
 	// `fab dispatch` pipes it.
-	DefaultCodexDispatchCommand = defaultProviders[providerCodex].DispatchCommand
-	// DefaultAgyDispatchCommand runs one headless agy task. `agy -p` takes the
+	DefaultCodexHeadlessCommand = defaultProviders[providerCodex].HeadlessCommand
+	// DefaultAgyHeadlessCommand runs one headless agy task. `agy -p` takes the
 	// prompt as an ARGUMENT and ignores stdin, so the command NESTS a shell:
 	// POSIX expands `$(cat)` before applying `fab dispatch`'s stdin redirect, so
 	// the inner sh's stdin is the prompt. It carries NO {effort} placeholder —
 	// agy's model IDs embed the reasoning level (gemini-3.1-pro-high), so a
-	// separate effort flag would fight the suffix. agy ships no session command
+	// separate effort flag would fight the suffix. agy ships no interactive command
 	// (see the note above), so this is its only invocation grammar.
-	DefaultAgyDispatchCommand = defaultProviders[providerAgy].DispatchCommand
-	// DefaultKimiDispatchCommand runs one headless kimi task. Same nested-shell
+	DefaultAgyHeadlessCommand = defaultProviders[providerAgy].HeadlessCommand
+	// DefaultKimiHeadlessCommand runs one headless kimi task. Same nested-shell
 	// stdin idiom as agy, and deliberately NO approval flag: `kimi -p` already
 	// auto-approves tools and errors on `--yolo`/`--auto`. kimi likewise ships no
-	// session command, so this is its only invocation grammar.
-	DefaultKimiDispatchCommand = defaultProviders[providerKimi].DispatchCommand
+	// interactive command, so this is its only invocation grammar.
+	DefaultKimiHeadlessCommand = defaultProviders[providerKimi].HeadlessCommand
 )
 
 // Profile is a concrete {provider, model, effort} triple. An empty Provider names
@@ -197,17 +197,17 @@ type Profile struct {
 // defaultProviders is fab-kit's built-in provider table: four providers, parsed
 // from the `providers:` block of defaults.yaml verbatim.
 //
-//   - claude — the default: session and dispatch commands, native capability,
+//   - claude — the default: interactive and headless commands, native capability,
 //     and the six per-role fills.
-//   - codex — session AND dispatch commands plus its own SPARSE per-role fills (a
+//   - codex — interactive AND headless commands plus its own SPARSE per-role fills (a
 //     role absent from the map resolves that provider's `default` entry). Naming it
 //     resolves with zero providers config; it declares no native capability, so
 //     mode resolution runs its stages on the CLI adapters.
-//   - agy — a dispatch command ONLY (no session command, so no pane capability),
+//   - agy — a headless command ONLY (no interactive command, so no pane capability),
 //     plus its own SPARSE per-role fills under the same
 //     absent-role-falls-back-to-`default` rule. Naming it resolves with zero
 //     providers config; its stages land on headless.
-//   - kimi — a dispatch command ONLY (no session command), and deliberately NO
+//   - kimi — a headless command ONLY (no interactive command), and deliberately NO
 //     fills: its -m takes a user-config model alias rather than a catalog ID, so the
 //     empty model drops the -m pair and the CLI's own default_model applies. Its
 //     stages likewise land on headless.
@@ -534,7 +534,7 @@ func ProviderNames(cfg *config.Config) []string {
 	return names
 }
 
-// ResolveProvider returns the {session_command, dispatch_command, native, profiles} for a
+// ResolveProvider returns the {interactive_command, headless_command, native, profiles} for a
 // provider name: the project's providers.<name> override PER-FIELD merged over
 // fab-kit's built-in provider table (an override field that is set wins; an omitted
 // field inherits the built-in). The profiles map merges per ROLE and then per FIELD,
@@ -542,7 +542,7 @@ func ProviderNames(cfg *config.Config) []string {
 // (and review's effort) on the built-in values. A provider present in neither the
 // project config nor the built-in table resolves to a zero ProviderConfig with
 // ok=false — the caller decides whether that is an error (a session with no
-// session_command, or a dispatch with no reachable capability at or below the
+// interactive_command, or a dispatch with no reachable capability at or below the
 // selected mode, are the two failure surfaces).
 //
 // The DEPRECATED flat providers.<name>.model/.effort is folded into the OVERRIDE's
@@ -565,8 +565,16 @@ func ResolveProvider(cfg *config.Config, name string) (config.ProviderConfig, bo
 
 	if override, ok := cfg.GetProvider(name); ok {
 		known = true
-		mergeField(&resolved.SessionCommand, override.SessionCommand)
-		mergeField(&resolved.DispatchCommand, override.DispatchCommand)
+		interactive := override.InteractiveCommand
+		if interactive == "" {
+			interactive = override.SessionCommand
+		}
+		mergeField(&resolved.InteractiveCommand, interactive)
+		headless := override.HeadlessCommand
+		if headless == "" {
+			headless = override.DispatchCommand
+		}
+		mergeField(&resolved.HeadlessCommand, headless)
 		if override.NativeSet || override.Native {
 			resolved.Native = override.Native
 		}

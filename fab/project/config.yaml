@@ -61,11 +61,11 @@ true_impact_exclude:
 # dispatch.mode — preferred stage-worker adapter: pane, native, or headless.
 # Resolution starts at the preference and DESCENDS pane → native → headless,
 # never ascending, until provider capability + environment make a rung possible:
-# pane needs tmux + session_command; native needs native: true; headless needs
-# dispatch_command. Command fields are pure capability grammar — presence says
+# pane needs tmux + interactive_command; native needs native: true; headless needs
+# headless_command. Command fields are pure capability grammar — presence says
 # HOW, never WHETHER. `pane` is the watchable preference (no `auto` value):
 # outside tmux it descends to native or headless. Default native reproduces the
-# shipped behavior (claude native; codex/gemini headless). Scope `both`, so it
+# shipped behavior (claude native; codex/agy/kimi headless). Scope `both`, so it
 # is settable once machine-wide in ~/.fab-kit/config.yaml, where it outranks
 # the project file. Invalid values warn and fail open to native.
 #

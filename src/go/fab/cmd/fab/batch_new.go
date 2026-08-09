@@ -87,7 +87,7 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 	}
 
 	// Compose the worker spawn command from the default role's provider
-	// session_command with the default role's {model}/{effort} profile SUBSTITUTED
+	// interactive_command with the default role's {model}/{effort} profile SUBSTITUTED
 	// (workers finally spawn WITH a profile). The composed command is interpolated
 	// into a tmux new-window shell command; substitution resolves all placeholders
 	// so no literal braces reach tmux.

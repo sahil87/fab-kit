@@ -42,7 +42,7 @@ func runAgentPrint(t *testing.T, args ...string) (string, error) {
 func TestAgentWorkersOverride(t *testing.T) {
 	agentTestRepo(t, `providers:
   claude:
-    session_command: "claude"
+    interactive_command: "claude"
 `)
 
 	t.Run("exec environment receives the supplied value", func(t *testing.T) {
@@ -134,7 +134,7 @@ func TestAgentWorkersOverride(t *testing.T) {
 func TestAgentPrintDefaultRole(t *testing.T) {
 	agentTestRepo(t, `providers:
   claude:
-    session_command: "claude --dangerously-skip-permissions"
+    interactive_command: "claude --dangerously-skip-permissions"
 `)
 	out, err := runAgentPrint(t)
 	if err != nil {
@@ -151,7 +151,7 @@ func TestAgentPrintDefaultRole(t *testing.T) {
 func TestAgentPrintOperatorRole(t *testing.T) {
 	agentTestRepo(t, `providers:
   claude:
-    session_command: "claude"
+    interactive_command: "claude"
 `)
 	out, err := runAgentPrint(t, "operator")
 	if err != nil {
@@ -163,15 +163,15 @@ func TestAgentPrintOperatorRole(t *testing.T) {
 	}
 }
 
-// TestAgentPrintTemplatedSessionCommand: a templated session_command has the
+// TestAgentPrintTemplatedInteractiveCommand: a templated interactive_command has the
 // resolved profile substituted (not appended); no literal braces survive. The role
 // profile pins the model/effort because `codex` supplies no per-role fills of its
 // own (260806-j9nh) — model/effort come from the role profile, that provider's
 // fills, or a flag.
-func TestAgentPrintTemplatedSessionCommand(t *testing.T) {
+func TestAgentPrintTemplatedInteractiveCommand(t *testing.T) {
 	agentTestRepo(t, `providers:
   codex:
-    session_command: "codex -m {model} -c model_reasoning_effort={effort}"
+    interactive_command: "codex -m {model} -c model_reasoning_effort={effort}"
 agent:
   profiles:
     default: { provider: codex, model: gpt-5.3-codex, effort: high }
@@ -204,7 +204,7 @@ agent:
 	if err != nil {
 		t.Fatalf("agent --print: %v", err)
 	}
-	// The command grammar comes from the codex BUILT-IN (no session_command
+	// The command grammar comes from the codex BUILT-IN (no interactive_command
 	// configured), the fill from the provider entry.
 	want := "codex --dangerously-bypass-approvals-and-sandbox -m gpt-5.3-codex -c model_reasoning_effort=high\n"
 	if out != want {
@@ -268,23 +268,23 @@ func TestAgentPrintUnknownRoleErrors(t *testing.T) {
 	}
 }
 
-// TestAgentPrintNoSessionCommandErrors: a resolved provider with no
-// session_command errors with a config-key hint. The fixture uses a project-only
+// TestAgentPrintNoInteractiveCommandErrors: a resolved provider with no
+// interactive_command errors with a config-key hint. The fixture uses a project-only
 // provider (`myagent`); the built-in agy/kimi half of the same rule is
 // TestAgentProviderDispatchOnlyBuiltInsError.
-func TestAgentPrintNoSessionCommandErrors(t *testing.T) {
+func TestAgentPrintNoInteractiveCommandErrors(t *testing.T) {
 	agentTestRepo(t, `providers:
   myagent:
-    dispatch_command: "myagent run"
+    headless_command: "myagent run"
 agent:
   profiles:
     default: { provider: myagent }
 `)
 	_, err := runAgentPrint(t)
 	if err == nil {
-		t.Fatal("expected an error when the resolved provider has no session_command")
+		t.Fatal("expected an error when the resolved provider has no interactive_command")
 	}
-	if !strings.Contains(err.Error(), "providers.myagent.session_command") {
+	if !strings.Contains(err.Error(), "providers.myagent.interactive_command") {
 		t.Errorf("error = %q, want the config-key hint", err.Error())
 	}
 }
@@ -293,11 +293,11 @@ agent:
 
 // TestAgentPrintProviderExplicitProfile: --provider bypasses role resolution and
 // substitutes the explicitly supplied --model/--effort into the provider's
-// templated session_command.
+// templated interactive_command.
 func TestAgentPrintProviderExplicitProfile(t *testing.T) {
 	agentTestRepo(t, `providers:
   codex:
-    session_command: "codex -m {model} -c model_reasoning_effort={effort}"
+    interactive_command: "codex -m {model} -c model_reasoning_effort={effort}"
 `)
 	out, err := runAgentPrint(t, "--provider", "codex", "--model", "gpt-5.3-codex", "--effort", "high")
 	if err != nil {
@@ -321,7 +321,7 @@ func TestAgentPrintProviderExplicitProfile(t *testing.T) {
 func TestAgentPrintProviderEmptyProfileDropsTokens(t *testing.T) {
 	agentTestRepo(t, `providers:
   codex:
-    session_command: "codex -m {model} -c model_reasoning_effort={effort}"
+    interactive_command: "codex -m {model} -c model_reasoning_effort={effort}"
 `)
 	out, err := runAgentPrint(t, "--provider", "codex")
 	if err != nil {
@@ -333,12 +333,12 @@ func TestAgentPrintProviderEmptyProfileDropsTokens(t *testing.T) {
 }
 
 // TestAgentPrintProviderEmptyProfileAppendsNothing: on a NON-templated
-// session_command the append-mode empty-value rule omits both flags, so the
+// interactive_command the append-mode empty-value rule omits both flags, so the
 // command passes through unchanged (the append-mode counterpart of the test above).
 func TestAgentPrintProviderEmptyProfileAppendsNothing(t *testing.T) {
 	agentTestRepo(t, `providers:
   myagent:
-    session_command: "myagent"
+    interactive_command: "myagent"
 `)
 	out, err := runAgentPrint(t, "--provider", "myagent")
 	if err != nil {
@@ -355,7 +355,7 @@ func TestAgentPrintProviderEmptyProfileAppendsNothing(t *testing.T) {
 func TestAgentPrintProviderBypassesRole(t *testing.T) {
 	agentTestRepo(t, `providers:
   claude:
-    session_command: "claude --model {model} --effort {effort}"
+    interactive_command: "claude --model {model} --effort {effort}"
 `)
 	out, err := runAgentPrint(t, "--provider", "claude")
 	if err != nil {
@@ -430,7 +430,7 @@ func TestAgentModelEffortRequireProvider(t *testing.T) {
 func TestAgentEmptyProviderStillMutuallyExclusive(t *testing.T) {
 	agentTestRepo(t, `providers:
   claude:
-    session_command: "claude --dangerously-skip-permissions"
+    interactive_command: "claude --dangerously-skip-permissions"
 `)
 	out, err := runAgentPrint(t, "doing", "--provider=")
 	if err == nil {
@@ -454,7 +454,7 @@ func TestAgentEmptyProviderStillMutuallyExclusive(t *testing.T) {
 func TestAgentEmptyProviderAloneIsLookupFailure(t *testing.T) {
 	agentTestRepo(t, `providers:
   claude:
-    session_command: "claude --dangerously-skip-permissions"
+    interactive_command: "claude --dangerously-skip-permissions"
 `)
 	out, err := runAgentPrint(t, "--provider=")
 	if err == nil {
@@ -483,7 +483,7 @@ func TestAgentEmptyModelEffortStillRequireProvider(t *testing.T) {
 		t.Run(arg, func(t *testing.T) {
 			agentTestRepo(t, `providers:
   claude:
-    session_command: "claude --dangerously-skip-permissions"
+    interactive_command: "claude --dangerously-skip-permissions"
 `)
 			out, err := runAgentPrint(t, arg)
 			if err == nil {
@@ -504,7 +504,7 @@ func TestAgentEmptyModelEffortStillRequireProvider(t *testing.T) {
 func TestAgentUnknownProviderNamesAvailable(t *testing.T) {
 	agentTestRepo(t, `providers:
   codex:
-    session_command: "codex"
+    interactive_command: "codex"
 `)
 	_, err := runAgentPrint(t, "--provider", "bogus")
 	if err == nil {
@@ -522,21 +522,21 @@ func TestAgentUnknownProviderNamesAvailable(t *testing.T) {
 	}
 }
 
-// TestAgentProviderNoSessionCommandErrors: a provider that resolves but carries no
-// session_command errors with the config-key hint (the provider-path counterpart of
-// TestAgentPrintNoSessionCommandErrors). Uses a project-defined dispatch-only
+// TestAgentProviderNoInteractiveCommandErrors: a provider that resolves but carries no
+// interactive_command errors with the config-key hint (the provider-path counterpart of
+// TestAgentPrintNoInteractiveCommandErrors). Uses a project-defined dispatch-only
 // provider; the built-in agy/kimi half of the same rule is
 // TestAgentProviderDispatchOnlyBuiltInsError.
-func TestAgentProviderNoSessionCommandErrors(t *testing.T) {
+func TestAgentProviderNoInteractiveCommandErrors(t *testing.T) {
 	agentTestRepo(t, `providers:
   myagent:
-    dispatch_command: "myagent run"
+    headless_command: "myagent run"
 `)
 	_, err := runAgentPrint(t, "--provider", "myagent")
 	if err == nil {
-		t.Fatal("expected an error when the named provider has no session_command")
+		t.Fatal("expected an error when the named provider has no interactive_command")
 	}
-	if !strings.Contains(err.Error(), "providers.myagent.session_command") {
+	if !strings.Contains(err.Error(), "providers.myagent.interactive_command") {
 		t.Errorf("error = %q, want the config-key hint", err.Error())
 	}
 }
@@ -562,15 +562,15 @@ func TestAgentProviderBuiltinCodexNoConfig(t *testing.T) {
 // TestAgentProviderDispatchOnlyBuiltInsError: `fab agent` opens an interactive
 // SESSION, so the two dispatch-only built-ins cannot serve it and say so with the
 // config-key hint — the same actionable error a user-defined dispatch-only provider
-// gets (TestAgentProviderNoSessionCommandErrors), reached here from the SHIPPED
+// gets (TestAgentProviderNoInteractiveCommandErrors), reached here from the SHIPPED
 // table rather than project config.
 //
-// agy and kimi ship no session_command on purpose (260808-rpsr): a pane-mode worker
+// agy and kimi ship no interactive_command on purpose (260808-rpsr): a pane-mode worker
 // receives its pointer prompt as a POSITIONAL argument to that command, and neither
 // CLI can take a prompt that way — kimi parses a bare positional as a subcommand and
 // exits non-zero, agy drops it silently and trust-prompts a fresh workspace. The
 // error is the documented path to an interactive session: add
-// providers.<name>.session_command yourself, accepting the pane caveat.
+// providers.<name>.interactive_command yourself, accepting the pane caveat.
 func TestAgentProviderDispatchOnlyBuiltInsError(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 
@@ -579,8 +579,8 @@ func TestAgentProviderDispatchOnlyBuiltInsError(t *testing.T) {
 		if err == nil {
 			t.Fatalf("fab agent --provider %s must error — it is a dispatch-only built-in", name)
 		}
-		if !strings.Contains(err.Error(), "providers."+name+".session_command") {
-			t.Errorf("%s error = %q, want the session_command config-key hint", name, err.Error())
+		if !strings.Contains(err.Error(), "providers."+name+".interactive_command") {
+			t.Errorf("%s error = %q, want the interactive_command config-key hint", name, err.Error())
 		}
 	}
 }
@@ -590,7 +590,7 @@ func TestAgentProviderDispatchOnlyBuiltInsError(t *testing.T) {
 func TestAgentPrintProviderWithRepoFlag(t *testing.T) {
 	agentTestRepo(t, `providers:
   codex:
-    session_command: "current-codex"
+    interactive_command: "current-codex"
 `)
 
 	target := t.TempDir()
@@ -599,7 +599,7 @@ func TestAgentPrintProviderWithRepoFlag(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"),
-		[]byte("providers:\n  codex:\n    session_command: \"target-codex -m {model}\"\n"), 0o644); err != nil {
+		[]byte("providers:\n  codex:\n    interactive_command: \"target-codex -m {model}\"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -624,7 +624,7 @@ func TestAgentPrintRepoFlag(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"),
-		[]byte("providers:\n  claude:\n    session_command: \"target-claude\"\n"), 0o644); err != nil {
+		[]byte("providers:\n  claude:\n    interactive_command: \"target-claude\"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

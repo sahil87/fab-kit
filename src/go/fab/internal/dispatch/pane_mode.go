@@ -82,7 +82,7 @@ const (
 // presence, while dispatch start replaces it with a real reachability result
 // before launching. That keeps environment/probe I/O outside this pure function.
 func SelectMode(paneFlag, headlessFlag, timeoutSet, serverSet bool, preference string,
-	native, sessionCommand, dispatchCommand bool, tmux TmuxAvailability,
+	native, interactiveCommand, headlessCommand bool, tmux TmuxAvailability,
 ) (Mode, AutoReason, error) {
 	switch {
 	case paneFlag:
@@ -100,8 +100,8 @@ func SelectMode(paneFlag, headlessFlag, timeoutSet, serverSet bool, preference s
 		switch {
 		case tmux != TmuxAvailable:
 			skipped = append(skipped, "pane unavailable: "+string(tmux))
-		case !sessionCommand:
-			skipped = append(skipped, "pane unavailable: no session_command")
+		case !interactiveCommand:
+			skipped = append(skipped, "pane unavailable: no interactive_command")
 		default:
 			return ModePane, preferredReason(ModePane), nil
 		}
@@ -114,7 +114,7 @@ func SelectMode(paneFlag, headlessFlag, timeoutSet, serverSet bool, preference s
 		skipped = append(skipped, "native unavailable")
 	}
 
-	if dispatchCommand {
+	if headlessCommand {
 		return ModeHeadless, selectionReason(ModeHeadless, skipped), nil
 	}
 	return "", "", ErrNoMode
@@ -246,7 +246,7 @@ func ServerReachable(server string) error {
 //
 // cmd is passed as new-window's shell-command argument, so it is the WHOLE
 // left-hand side including any shell expansions it carries (e.g.
-// `$(basename "$(pwd)")` in the built-in claude session_command), which expand
+// `$(basename "$(pwd)")` in the built-in claude interactive_command), which expand
 // at invocation inside the new window — the `_cli-agents.md` § Spawn
 // Composition contract.
 func OpenWindow(server, name, dir, cmd string) (paneID string, err error) {

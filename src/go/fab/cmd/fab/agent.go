@@ -25,11 +25,11 @@ import (
 //   - Role-addressed (the `[role]` positional, `default` when omitted; any of the
 //     six role names accepted): resolves the role profile — whose provider comes
 //     from an agent.profiles override, else the role's depth knob — then composes
-//     providers.<profile.provider>.session_command with the role's {model}/{effort}.
+//     providers.<profile.provider>.interactive_command with the role's {model}/{effort}.
 //   - Provider-addressed (`--provider <name>`): BYPASSES role resolution and looks
 //     up providers.<name> directly (project config per-field merged over fab-kit's
 //     built-in table, exactly as the role path's provider lookup does), composing
-//     its session_command with the `--model`/`--effort` values. Omitted values are
+//     its interactive_command with the `--model`/`--effort` values. Omitted values are
 //     empty and follow spawn.WithProfile's documented empty-value rule (template
 //     mode drops the placeholder's token plus a preceding `-`-flag; append mode
 //     omits the flag) — so `fab agent --provider codex --print` composes a bare
@@ -142,15 +142,15 @@ func runAgent(cmd *cobra.Command, role, provider string, providerSet bool, model
 	if providerSet && !known {
 		return unknownProviderError(cfg, providerName)
 	}
-	if !known || prov.SessionCommand == "" {
+	if !known || prov.InteractiveCommand == "" {
 		if providerSet {
-			return fmt.Errorf("provider %q has no session_command; configure providers.%s.session_command", providerName, providerName)
+			return fmt.Errorf("provider %q has no interactive_command; configure providers.%s.interactive_command", providerName, providerName)
 		}
-		return fmt.Errorf("role %q resolves to provider %q, which has no session_command; configure providers.%s.session_command",
+		return fmt.Errorf("role %q resolves to provider %q, which has no interactive_command; configure providers.%s.interactive_command",
 			role, providerName, providerName)
 	}
 
-	resolvedCmd := spawn.WithProfile(prov.SessionCommand, profileModel, profileEffort)
+	resolvedCmd := spawn.WithProfile(prov.InteractiveCommand, profileModel, profileEffort)
 
 	if printOnly {
 		fmt.Fprintln(cmd.OutOrStdout(), resolvedCmd)

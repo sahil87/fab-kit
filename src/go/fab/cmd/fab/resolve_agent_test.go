@@ -278,7 +278,7 @@ func TestResolveAgentAliasEmptyModelInheritSignal(t *testing.T) {
 func TestResolveAgentNativeThreeLines(t *testing.T) {
 	resolveAgentTestRepo(t, `providers:
   claude:
-    session_command: claude --dangerously-skip-permissions
+    interactive_command: claude --dangerously-skip-permissions
 `)
 	out, err := runResolveAgentCmd(t, "apply")
 	if err != nil {
@@ -290,15 +290,15 @@ func TestResolveAgentNativeThreeLines(t *testing.T) {
 	}
 }
 
-// TestResolveAgentDispatchFourLines: a provider with a dispatch_command emits the
+// TestResolveAgentDispatchFourLines: a provider with a headless_command emits the
 // fourth dispatch= line with {model}/{effort} substituted from the resolved
 // profile. The role profile must point its provider at that dispatch-carrying
 // provider.
 func TestResolveAgentDispatchFourLines(t *testing.T) {
 	resolveAgentTestRepo(t, `providers:
   codex:
-    session_command: "codex -m {model}"
-    dispatch_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
+    interactive_command: "codex -m {model}"
+    headless_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
 agent:
   profiles:
 `+pinnedRoleLine(t, agent.RoleDoing, "codex"))
@@ -319,7 +319,7 @@ agent:
 func TestResolveAgentAliasDispatchUsesFullModelID(t *testing.T) {
 	resolveAgentTestRepo(t, `providers:
   codex:
-    dispatch_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
+    headless_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
 agent:
   profiles:
 `+pinnedRoleLine(t, agent.RoleDoing, "codex"))
@@ -340,7 +340,7 @@ agent:
 func TestResolveAgentDispatchSubstitutionReusesSpawnPackage(t *testing.T) {
 	resolveAgentTestRepo(t, `providers:
   codex:
-    dispatch_command: "codex  exec  -m {model}  -c reasoning={effort}"
+    headless_command: "codex  exec  -m {model}  -c reasoning={effort}"
 agent:
   profiles:
 `+pinnedRoleLine(t, agent.RoleFast, "codex"))
@@ -354,12 +354,12 @@ agent:
 	}
 }
 
-// TestResolveAgentDispatchByteStable: repeated resolution with a dispatch_command
+// TestResolveAgentDispatchByteStable: repeated resolution with a headless_command
 // is byte-identical (the dispatch= line participates in the byte-stable contract).
 func TestResolveAgentDispatchByteStable(t *testing.T) {
 	body := `providers:
   codex:
-    dispatch_command: "codex exec -m {model}"
+    headless_command: "codex exec -m {model}"
 agent:
   profiles:
 ` + pinnedRoleLine(t, agent.RoleDoing, "codex")
@@ -402,7 +402,7 @@ func TestResolveAgentByteStable(t *testing.T) {
 
 // TestResolveAgentOverrideProviderBuiltInFill: `--provider codex` on a default
 // config swaps the provider, re-derives dispatch= from the codex BUILT-IN's
-// dispatch_command, and — because a swap re-derives model/effort from the NEW
+// headless_command, and — because a swap re-derives model/effort from the NEW
 // provider's own fills — resolves codex's shipped `doing` profile rather than
 // retaining any claude value. Since 260806-ywkx that profile is a real one, so both
 // placeholder tokens are substituted rather than dropped.
@@ -526,7 +526,7 @@ func TestResolveAgentOverrideAliasKeepsNonClaudeVerbatim(t *testing.T) {
 
 // TestResolveAgentOverrideDispatchDisappearsOnNativeSwap: swapping TO a
 // native-capable provider drops the dispatch= line even when that provider also
-// has a dispatch_command. The QUERY reports the selected execution mode.
+// has a headless_command. The QUERY reports the selected execution mode.
 // It is NOT an adapter move: `fab dispatch start` takes no override flags and
 // re-resolves the stage from config, so only a config/role override relocates a
 // stage between native Agent-tool dispatch and CLI dispatch.
@@ -752,12 +752,12 @@ func TestDispatchLineFor_Matrix(t *testing.T) {
 		want       string
 		wantErr    bool
 	}{
-		{"pane direct", config.ProviderConfig{SessionCommand: sess, DispatchCommand: disp, Native: true}, "pane", "/tmp/tmux-1000/default,1,0", sess, false},
-		{"pane descends native outside tmux", config.ProviderConfig{SessionCommand: sess, DispatchCommand: disp, Native: true}, "pane", "", "", false},
-		{"pane descends headless outside tmux", config.ProviderConfig{SessionCommand: sess, DispatchCommand: disp}, "pane", "", disp, false},
-		{"native direct", config.ProviderConfig{DispatchCommand: disp, Native: true}, "native", "", "", false},
-		{"native descends headless", config.ProviderConfig{SessionCommand: sess, DispatchCommand: disp}, "native", "/tmp/tmux-1000/default,1,0", disp, false},
-		{"headless never ascends", config.ProviderConfig{SessionCommand: sess, Native: true}, "headless", "/tmp/tmux-1000/default,1,0", "", true},
+		{"pane direct", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp, Native: true}, "pane", "/tmp/tmux-1000/default,1,0", sess, false},
+		{"pane descends native outside tmux", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp, Native: true}, "pane", "", "", false},
+		{"pane descends headless outside tmux", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp}, "pane", "", disp, false},
+		{"native direct", config.ProviderConfig{HeadlessCommand: disp, Native: true}, "native", "", "", false},
+		{"native descends headless", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp}, "native", "/tmp/tmux-1000/default,1,0", disp, false},
+		{"headless never ascends", config.ProviderConfig{InteractiveCommand: sess, Native: true}, "headless", "/tmp/tmux-1000/default,1,0", "", true},
 		{"no capabilities", config.ProviderConfig{}, "pane", "", "", true},
 	}
 	for _, tc := range tests {
@@ -779,12 +779,12 @@ func TestDispatchLineFor_Matrix(t *testing.T) {
 	}
 }
 
-func TestResolveAgentPaneEmitsSessionCommandInTmux(t *testing.T) {
+func TestResolveAgentPaneEmitsInteractiveCommandInTmux(t *testing.T) {
 	resolveAgentTestRepo(t, `dispatch:
   mode: pane
 providers:
   claude:
-    session_command: "claude -n {model} --effort {effort}"
+    interactive_command: "claude -n {model} --effort {effort}"
 `)
 	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
 
@@ -796,7 +796,7 @@ providers:
 	want := "model=" + doingModel + "\neffort=high\nprovider=claude\n" +
 		"dispatch=claude -n " + doingModel + " --effort high\n"
 	if out != want {
-		t.Errorf("output = %q, want %q (pane + $TMUX ⇒ session_command)", out, want)
+		t.Errorf("output = %q, want %q (pane + $TMUX ⇒ interactive_command)", out, want)
 	}
 }
 
@@ -805,7 +805,7 @@ func TestResolveAgentPaneDescendsNativeOutsideTmux(t *testing.T) {
   mode: pane
 providers:
   claude:
-    session_command: "claude -n {model} --effort {effort}"
+    interactive_command: "claude -n {model} --effort {effort}"
 `)
 	// resolveAgentTestRepo already unsets TMUX; assert the no-tmux arm explicitly.
 	out, err := runResolveAgentCmd(t, "apply")
@@ -840,7 +840,7 @@ func TestResolveAgentDefaultNativeDescendsHeadlessForCodex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	if !strings.Contains(out, "provider=codex\n") || !strings.Contains(out, "dispatch="+agent.DefaultCodexDispatchCommand[:10]) {
+	if !strings.Contains(out, "provider=codex\n") || !strings.Contains(out, "dispatch="+agent.DefaultCodexHeadlessCommand[:10]) {
 		t.Errorf("output = %q, want codex headless resolution", out)
 	}
 }
@@ -850,7 +850,7 @@ func TestResolveAgentPaneAliasKeepsFullModelIDInDispatch(t *testing.T) {
   mode: pane
 providers:
   claude:
-    session_command: "claude -n {model} --effort {effort}"
+    interactive_command: "claude -n {model} --effort {effort}"
 `)
 	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
 
@@ -881,7 +881,7 @@ func TestResolveAgentModeFromSystemConfig(t *testing.T) {
   name: test
 providers:
   claude:
-    session_command: "claude -n {model} --effort {effort}"
+    interactive_command: "claude -n {model} --effort {effort}"
 `)
 	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
 
@@ -914,7 +914,7 @@ func TestResolveAgentModeSystemOverridesProject(t *testing.T) {
   mode: native
 providers:
   claude:
-    session_command: "claude -n {model} --effort {effort}"
+    interactive_command: "claude -n {model} --effort {effort}"
 `)
 	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
 
@@ -951,7 +951,7 @@ func TestResolveAgentNoCapabilityErrors(t *testing.T) {
 
 // TestNoDispatchCapabilityErrorRemediesRespectCeiling: the preference is a
 // ceiling and selection never ascends, so the remedies must name only the rungs
-// at or below it. Offering session_command under a `headless` preference would
+// at or below it. Offering interactive_command under a `headless` preference would
 // point at a capability the ladder would skip.
 func TestNoDispatchCapabilityErrorRemediesRespectCeiling(t *testing.T) {
 	for _, tc := range []struct {
@@ -961,17 +961,17 @@ func TestNoDispatchCapabilityErrorRemediesRespectCeiling(t *testing.T) {
 	}{
 		{
 			preference: "pane",
-			want:       "configure providers.void.session_command for pane, providers.void.native for native, or providers.void.dispatch_command for headless:",
+			want:       "configure providers.void.interactive_command for pane, providers.void.native for native, or providers.void.headless_command for headless:",
 		},
 		{
 			preference: "native",
-			want:       "configure providers.void.native for native or providers.void.dispatch_command for headless:",
-			absent:     []string{"session_command"},
+			want:       "configure providers.void.native for native or providers.void.headless_command for headless:",
+			absent:     []string{"interactive_command"},
 		},
 		{
 			preference: "headless",
-			want:       "configure providers.void.dispatch_command for headless:",
-			absent:     []string{"session_command", ".native"},
+			want:       "configure providers.void.headless_command for headless:",
+			absent:     []string{"interactive_command", ".native"},
 		},
 	} {
 		t.Run(tc.preference, func(t *testing.T) {

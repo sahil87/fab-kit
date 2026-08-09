@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"io"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -571,6 +573,115 @@ func TestLegacyFlatProviderFill(t *testing.T) {
 	}
 }
 
+// TestResolveProvider_CommandFieldsAlias (260809-n1he): a config still carrying the
+// pre-2.19.0 `session_command`/`dispatch_command` spellings keeps resolving, PER
+// FIELD — so a half-migrated provider (one field renamed, one not) resolves both
+// commands — and the new spelling wins wherever both are present, independently per
+// field. Driven through yaml.Unmarshal rather than struct literals because the
+// deprecated `yaml:` tags on config.ProviderConfig are half of what makes the alias
+// work; a struct-literal test would keep passing with the tags dropped.
+func TestResolveProvider_CommandFieldsAlias(t *testing.T) {
+	cases := []struct {
+		name            string
+		providerYAML    string
+		wantInteractive string
+		wantHeadless    string
+	}{
+		{
+			name: "only the old spellings — both fields resolve",
+			providerYAML: "    session_command: myagent\n" +
+				"    dispatch_command: myagent -p\n",
+			wantInteractive: "myagent",
+			wantHeadless:    "myagent -p",
+		},
+		{
+			name: "both spellings on both fields — the new one wins on each",
+			providerYAML: "    interactive_command: myagent --new\n" +
+				"    session_command: myagent --old\n" +
+				"    headless_command: myagent -p --new\n" +
+				"    dispatch_command: myagent -p --old\n",
+			wantInteractive: "myagent --new",
+			wantHeadless:    "myagent -p --new",
+		},
+		{
+			name: "half-migrated — new interactive_command beside an old dispatch_command",
+			providerYAML: "    interactive_command: myagent --new\n" +
+				"    dispatch_command: myagent -p --old\n",
+			wantInteractive: "myagent --new",
+			wantHeadless:    "myagent -p --old",
+		},
+		{
+			name: "per-field independence — new wins the field that carries both, old still resolves the field it alone carries",
+			providerYAML: "    interactive_command: myagent --new\n" +
+				"    session_command: myagent --old\n" +
+				"    dispatch_command: myagent -p --old\n",
+			wantInteractive: "myagent --new",
+			wantHeadless:    "myagent -p --old",
+		},
+	}
+
+	stderr := captureStderr(t)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var cfg config.Config
+			if err := yaml.Unmarshal([]byte("providers:\n  myagent:\n"+tc.providerYAML), &cfg); err != nil {
+				t.Fatalf("yaml.Unmarshal: %v", err)
+			}
+			prov, ok := ResolveProvider(&cfg, "myagent")
+			if !ok {
+				t.Fatal("a provider carrying deprecated command spellings must still resolve as known")
+			}
+			if prov.InteractiveCommand != tc.wantInteractive {
+				t.Errorf("interactive_command = %q, want %q", prov.InteractiveCommand, tc.wantInteractive)
+			}
+			if prov.HeadlessCommand != tc.wantHeadless {
+				t.Errorf("headless_command = %q, want %q", prov.HeadlessCommand, tc.wantHeadless)
+			}
+		})
+	}
+
+	// R1: the alias is a silent read affordance — an old spelling resolves without a
+	// deprecation notice (the on-disk rewrite is the 2.18.1-to-2.19.0 migration's job).
+	if out := stderr(); out != "" {
+		t.Errorf("resolving deprecated command spellings wrote %q, want silence", out)
+	}
+}
+
+// captureStderr redirects os.Stderr for the rest of the test and returns a func that
+// restores it and yields everything written meanwhile (calling it more than once
+// yields "" after the first). internal/config resolves its warning stream at CALL
+// time — os.Stderr unless a test in that package overrides it — so swapping the file
+// here is how a test in this package observes, or asserts the absence of, a warning.
+func captureStderr(t *testing.T) func() string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	orig := os.Stderr
+	os.Stderr = w
+	restored := false
+	restore := func() {
+		if !restored {
+			restored = true
+			os.Stderr = orig
+			w.Close()
+		}
+	}
+	t.Cleanup(func() {
+		restore()
+		r.Close()
+	})
+	return func() string {
+		restore()
+		out, err := io.ReadAll(r)
+		if err != nil {
+			t.Fatalf("read captured stderr: %v", err)
+		}
+		return string(out)
+	}
+}
+
 // TestFlatProviderFillBeatsBuiltInDefault (260806-ywkx) is the regression guard for
 // shipping non-claude fills: the flat spelling is an ALIAS for the user's own
 // profiles.default, so it must outrank the BUILT-IN profiles.default it is trying to
@@ -854,27 +965,27 @@ func TestResolveProvider(t *testing.T) {
 	if !ok {
 		t.Fatal("built-in claude provider must resolve")
 	}
-	if prov.SessionCommand != DefaultSessionCommand {
-		t.Errorf("claude.SessionCommand = %q, want the built-in default", prov.SessionCommand)
+	if prov.InteractiveCommand != DefaultInteractiveCommand {
+		t.Errorf("claude.InteractiveCommand = %q, want the built-in default", prov.InteractiveCommand)
 	}
-	if prov.DispatchCommand != DefaultDispatchCommand || !prov.Native {
-		t.Errorf("claude capabilities = %+v, want dispatch command %q and native=true", prov, DefaultDispatchCommand)
+	if prov.HeadlessCommand != DefaultHeadlessCommand || !prov.Native {
+		t.Errorf("claude capabilities = %+v, want dispatch command %q and native=true", prov, DefaultHeadlessCommand)
 	}
 
-	// Project override replaces dispatch_command; the session/native capability inherits the
+	// Project override replaces headless_command; the session/native capability inherits the
 	// built-in (per-field merge).
 	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
-		"claude": {DispatchCommand: "claude -p"},
+		"claude": {HeadlessCommand: "claude -p"},
 	}}
 	prov, ok = ResolveProvider(cfg, "claude")
 	if !ok {
 		t.Fatal("claude provider must resolve with a project override")
 	}
-	if prov.SessionCommand != DefaultSessionCommand {
-		t.Errorf("session_command = %q, want the inherited built-in", prov.SessionCommand)
+	if prov.InteractiveCommand != DefaultInteractiveCommand {
+		t.Errorf("interactive_command = %q, want the inherited built-in", prov.InteractiveCommand)
 	}
-	if prov.DispatchCommand != "claude -p" {
-		t.Errorf("dispatch_command = %q, want the override", prov.DispatchCommand)
+	if prov.HeadlessCommand != "claude -p" {
+		t.Errorf("headless_command = %q, want the override", prov.HeadlessCommand)
 	}
 	if !prov.Native {
 		t.Error("native capability must survive a command-only override")
@@ -897,23 +1008,23 @@ func TestResolveProvider(t *testing.T) {
 
 	// A project override of a non-claude built-in per-field merges too.
 	cfg = &config.Config{Providers: map[string]config.ProviderConfig{
-		"codex": {DispatchCommand: "codex exec --json"},
+		"codex": {HeadlessCommand: "codex exec --json"},
 	}}
 	prov, ok = ResolveProvider(cfg, "codex")
-	if !ok || prov.DispatchCommand != "codex exec --json" {
-		t.Errorf("codex dispatch_command = %q, ok=%v, want the project override", prov.DispatchCommand, ok)
+	if !ok || prov.HeadlessCommand != "codex exec --json" {
+		t.Errorf("codex headless_command = %q, ok=%v, want the project override", prov.HeadlessCommand, ok)
 	}
-	if prov.SessionCommand != DefaultCodexSessionCommand {
-		t.Errorf("codex session_command = %q, want the inherited built-in", prov.SessionCommand)
+	if prov.InteractiveCommand != DefaultCodexInteractiveCommand {
+		t.Errorf("codex interactive_command = %q, want the inherited built-in", prov.InteractiveCommand)
 	}
 
 	// A project-only provider (in neither the built-in table nor a knob) resolves
 	// as known off the project entry alone.
 	cfg = &config.Config{Providers: map[string]config.ProviderConfig{
-		"myagent": {SessionCommand: "myagent", DispatchCommand: "myagent run"},
+		"myagent": {InteractiveCommand: "myagent", HeadlessCommand: "myagent run"},
 	}}
 	prov, ok = ResolveProvider(cfg, "myagent")
-	if !ok || prov.DispatchCommand != "myagent run" {
+	if !ok || prov.HeadlessCommand != "myagent run" {
 		t.Errorf("myagent provider = %+v, ok=%v, want the project entry", prov, ok)
 	}
 
@@ -932,8 +1043,8 @@ func TestResolveProvider(t *testing.T) {
 // codex and agy ship per-role fills so a knob pointed at them resolves a real model
 // per role, while kimi ships none on purpose (its -m takes a user-config alias).
 //
-// An empty `session` likewise ASSERTS the absence of a session_command. agy and kimi
-// are DISPATCH-ONLY built-ins: a session_command makes a provider eligible for
+// An empty `session` likewise ASSERTS the absence of an interactive_command. agy and kimi
+// are DISPATCH-ONLY built-ins: an interactive_command makes a provider eligible for
 // pane-mode dispatch, which appends the worker's pointer prompt as a POSITIONAL
 // argument, and neither CLI can receive a prompt that way (kimi parses a bare
 // positional as a subcommand and exits non-zero; agy drops it silently and
@@ -942,7 +1053,7 @@ func TestResolveProvider(t *testing.T) {
 func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 	cases := []struct {
 		name string
-		// An empty `session` means the built-in must ship NO session_command.
+		// An empty `session` means the built-in must ship NO interactive_command.
 		session, dispatch string
 		// sessionBypass / dispatchBypass are the full-auto grammar each FORM must
 		// carry, checked only when that form exists. kimi's dispatch form is
@@ -953,18 +1064,18 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 		wantFills                     bool
 	}{
 		{
-			name: "codex", session: DefaultCodexSessionCommand, dispatch: DefaultCodexDispatchCommand,
+			name: "codex", session: DefaultCodexInteractiveCommand, dispatch: DefaultCodexHeadlessCommand,
 			sessionBypass:  "--dangerously-bypass-approvals-and-sandbox",
 			dispatchBypass: "--dangerously-bypass-approvals-and-sandbox",
 			wantFills:      true,
 		},
 		{
-			name: "agy", session: "", dispatch: DefaultAgyDispatchCommand,
+			name: "agy", session: "", dispatch: DefaultAgyHeadlessCommand,
 			dispatchBypass: "--dangerously-skip-permissions",
 			wantFills:      true,
 		},
 		{
-			name: "kimi", session: "", dispatch: DefaultKimiDispatchCommand,
+			name: "kimi", session: "", dispatch: DefaultKimiHeadlessCommand,
 			dispatchBypass: "",
 			wantFills:      false,
 		},
@@ -974,24 +1085,24 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 		if !ok {
 			t.Fatalf("built-in %s provider must resolve with no config", c.name)
 		}
-		if prov.SessionCommand != c.session {
+		if prov.InteractiveCommand != c.session {
 			if c.session == "" {
-				t.Errorf("%s.SessionCommand = %q, want absent — %s cannot receive a pane worker's pointer prompt as a positional argument, so shipping one would select pane dispatch and park the stage", c.name, prov.SessionCommand, c.name)
+				t.Errorf("%s.InteractiveCommand = %q, want absent — %s cannot receive a pane worker's pointer prompt as a positional argument, so shipping one would select pane dispatch and park the stage", c.name, prov.InteractiveCommand, c.name)
 			} else {
-				t.Errorf("%s.SessionCommand = %q, want %q", c.name, prov.SessionCommand, c.session)
+				t.Errorf("%s.InteractiveCommand = %q, want %q", c.name, prov.InteractiveCommand, c.session)
 			}
 		}
-		if prov.DispatchCommand != c.dispatch {
-			t.Errorf("%s.DispatchCommand = %q, want %q", c.name, prov.DispatchCommand, c.dispatch)
+		if prov.HeadlessCommand != c.dispatch {
+			t.Errorf("%s.HeadlessCommand = %q, want %q", c.name, prov.HeadlessCommand, c.dispatch)
 		}
 		if prov.Native {
 			t.Errorf("%s.Native = true, want false", c.name)
 		}
-		if c.sessionBypass != "" && !strings.Contains(prov.SessionCommand, c.sessionBypass) {
-			t.Errorf("%s.SessionCommand = %q, want approval-bypass grammar %q (stage workers cannot answer approval prompts)", c.name, prov.SessionCommand, c.sessionBypass)
+		if c.sessionBypass != "" && !strings.Contains(prov.InteractiveCommand, c.sessionBypass) {
+			t.Errorf("%s.InteractiveCommand = %q, want approval-bypass grammar %q (stage workers cannot answer approval prompts)", c.name, prov.InteractiveCommand, c.sessionBypass)
 		}
-		if c.dispatchBypass != "" && !strings.Contains(prov.DispatchCommand, c.dispatchBypass) {
-			t.Errorf("%s.DispatchCommand = %q, want approval-bypass grammar %q (stage workers cannot answer approval prompts)", c.name, prov.DispatchCommand, c.dispatchBypass)
+		if c.dispatchBypass != "" && !strings.Contains(prov.HeadlessCommand, c.dispatchBypass) {
+			t.Errorf("%s.HeadlessCommand = %q, want approval-bypass grammar %q (stage workers cannot answer approval prompts)", c.name, prov.HeadlessCommand, c.dispatchBypass)
 		}
 		if gotFills := len(prov.Profiles) > 0; gotFills != c.wantFills {
 			if c.wantFills {
@@ -1007,7 +1118,7 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 
 	// The agy grammar deliberately omits {effort}: its model IDs embed the reasoning
 	// level as an ID suffix, so a separate effort flag would fight the suffix.
-	if strings.Contains(DefaultAgyDispatchCommand, "{effort}") {
+	if strings.Contains(DefaultAgyHeadlessCommand, "{effort}") {
 		t.Error("the agy built-in must carry no {effort} placeholder (its model IDs embed the reasoning level)")
 	}
 
@@ -1016,8 +1127,8 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 	// stdin redirect applies — so the un-nested form would read the OUTER stdin and
 	// hand the worker an empty prompt. This is the load-bearing shape.
 	for _, c := range []struct{ name, dispatch string }{
-		{"agy", DefaultAgyDispatchCommand},
-		{"kimi", DefaultKimiDispatchCommand},
+		{"agy", DefaultAgyHeadlessCommand},
+		{"kimi", DefaultKimiHeadlessCommand},
 	} {
 		if !strings.HasPrefix(c.dispatch, "sh -c ") {
 			t.Errorf("the %s dispatch command %q must nest a shell — $(cat) expands before the stdin redirect applies", c.name, c.dispatch)
@@ -1030,13 +1141,13 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 	// kimi's dispatch form must carry NO approval flag: `kimi -p` auto-approves
 	// tools already and errors with "Cannot combine --prompt with --yolo".
 	for _, bad := range []string{"--yolo", "--auto"} {
-		if strings.Contains(DefaultKimiDispatchCommand, bad) {
+		if strings.Contains(DefaultKimiHeadlessCommand, bad) {
 			t.Errorf("the kimi dispatch command must not carry %s — kimi -p rejects it and already auto-approves tools", bad)
 		}
 	}
 
 	// The dispatch-only posture at the seam that consumes it: a provider with no
-	// session_command is INELIGIBLE for pane-mode dispatch, which is what makes
+	// interactive_command is INELIGIBLE for pane-mode dispatch, which is what makes
 	// auto-mode soft-fall back to headless instead of spawning a pane worker that
 	// never receives its prompt. Asserting it here — over the same resolved
 	// providers the dispatcher reads — keeps the two in step.
@@ -1045,8 +1156,8 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 		if !ok {
 			t.Fatalf("built-in %s provider must resolve with no config", name)
 		}
-		if prov.SessionCommand != "" {
-			t.Errorf("%s must stay ineligible for pane dispatch (session_command = %q); with one, auto mode inside tmux selects pane instead of soft-falling back to headless", name, prov.SessionCommand)
+		if prov.InteractiveCommand != "" {
+			t.Errorf("%s must stay ineligible for pane dispatch (interactive_command = %q); with one, auto mode inside tmux selects pane instead of soft-falling back to headless", name, prov.InteractiveCommand)
 		}
 	}
 }
@@ -1068,8 +1179,8 @@ func TestResolveProvider_ProfilesMerge(t *testing.T) {
 	if prov.Profiles["default"].Model != "gpt-5.3-codex" || prov.Profiles["default"].Effort != "high" {
 		t.Errorf("fill = %+v, want the configured {gpt-5.3-codex, high}", prov.Profiles["default"])
 	}
-	if prov.SessionCommand != DefaultCodexSessionCommand || prov.DispatchCommand != DefaultCodexDispatchCommand {
-		t.Errorf("commands = {%q, %q}, want the inherited built-in grammar", prov.SessionCommand, prov.DispatchCommand)
+	if prov.InteractiveCommand != DefaultCodexInteractiveCommand || prov.HeadlessCommand != DefaultCodexHeadlessCommand {
+		t.Errorf("commands = {%q, %q}, want the inherited built-in grammar", prov.InteractiveCommand, prov.HeadlessCommand)
 	}
 
 	// A partial fill leaves the other field empty. agy is the natural case: its
@@ -1120,8 +1231,8 @@ func TestProviderNames(t *testing.T) {
 	// for stable error output.
 	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
 		"codex":   {Profiles: map[string]config.ProviderProfile{"default": {Model: "gpt-5.3-codex"}}},
-		"claude":  {DispatchCommand: "claude -p"},
-		"myagent": {SessionCommand: "myagent"},
+		"claude":  {HeadlessCommand: "claude -p"},
+		"myagent": {InteractiveCommand: "myagent"},
 	}}
 	assertNames(t, ProviderNames(cfg), []string{"agy", "claude", "codex", "kimi", "myagent"})
 }

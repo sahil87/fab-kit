@@ -124,7 +124,7 @@ func TestLoad_WidenedKeys(t *testing.T) {
 	content := `branch_prefix: "feature/"
 providers:
   claude:
-    session_command: "claude --effort high"
+    interactive_command: "claude --effort high"
 project:
   name: test
   linear_workspace: acme
@@ -148,8 +148,8 @@ project:
 	if !ok {
 		t.Fatal("expected a 'claude' provider entry")
 	}
-	if prov.SessionCommand != "claude --effort high" {
-		t.Errorf("claude.session_command = %q, want %q", prov.SessionCommand, "claude --effort high")
+	if prov.InteractiveCommand != "claude --effort high" {
+		t.Errorf("claude.interactive_command = %q, want %q", prov.InteractiveCommand, "claude --effort high")
 	}
 	if got := cfg.GetLinearWorkspace(); got != "acme" {
 		t.Errorf("GetLinearWorkspace = %q, want %q", got, "acme")
@@ -213,10 +213,10 @@ func TestLoad_WithProviders(t *testing.T) {
 providers:
   claude:
     native: true
-    session_command: 'claude --dangerously-skip-permissions'
+    interactive_command: 'claude --dangerously-skip-permissions'
   codex:
-    session_command: 'codex -m {model} -c model_reasoning_effort={effort}'
-    dispatch_command: 'codex exec -m {model} -c model_reasoning_effort={effort}'
+    interactive_command: 'codex -m {model} -c model_reasoning_effort={effort}'
+    headless_command: 'codex exec -m {model} -c model_reasoning_effort={effort}'
 `
 	os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(configYAML), 0o644)
 
@@ -229,11 +229,11 @@ providers:
 	if !ok {
 		t.Fatal("expected a 'claude' provider")
 	}
-	if claude.SessionCommand != "claude --dangerously-skip-permissions" {
-		t.Errorf("claude.SessionCommand = %q", claude.SessionCommand)
+	if claude.InteractiveCommand != "claude --dangerously-skip-permissions" {
+		t.Errorf("claude.InteractiveCommand = %q", claude.InteractiveCommand)
 	}
-	if claude.DispatchCommand != "" {
-		t.Errorf("claude.DispatchCommand = %q, want empty (not configured in this fixture)", claude.DispatchCommand)
+	if claude.HeadlessCommand != "" {
+		t.Errorf("claude.HeadlessCommand = %q, want empty (not configured in this fixture)", claude.HeadlessCommand)
 	}
 	if !claude.Native {
 		t.Error("claude.Native = false, want true")
@@ -243,11 +243,11 @@ providers:
 	if !ok {
 		t.Fatal("expected a 'codex' provider")
 	}
-	if codex.SessionCommand != "codex -m {model} -c model_reasoning_effort={effort}" {
-		t.Errorf("codex.SessionCommand = %q", codex.SessionCommand)
+	if codex.InteractiveCommand != "codex -m {model} -c model_reasoning_effort={effort}" {
+		t.Errorf("codex.InteractiveCommand = %q", codex.InteractiveCommand)
 	}
-	if codex.DispatchCommand != "codex exec -m {model} -c model_reasoning_effort={effort}" {
-		t.Errorf("codex.DispatchCommand = %q", codex.DispatchCommand)
+	if codex.HeadlessCommand != "codex exec -m {model} -c model_reasoning_effort={effort}" {
+		t.Errorf("codex.HeadlessCommand = %q", codex.HeadlessCommand)
 	}
 	if codex.Native {
 		t.Error("codex.Native = true, want false when omitted")
@@ -293,8 +293,8 @@ providers:
 	if codex.Model != "gpt-5.3-codex" || codex.Effort != "high" {
 		t.Errorf("codex fill = {%q, %q}, want {gpt-5.3-codex, high}", codex.Model, codex.Effort)
 	}
-	if codex.SessionCommand != "" || codex.DispatchCommand != "" {
-		t.Errorf("codex commands = {%q, %q}, want empty here (the built-in merge is internal/agent's job)", codex.SessionCommand, codex.DispatchCommand)
+	if codex.InteractiveCommand != "" || codex.HeadlessCommand != "" {
+		t.Errorf("codex commands = {%q, %q}, want empty here (the built-in merge is internal/agent's job)", codex.InteractiveCommand, codex.HeadlessCommand)
 	}
 
 	// Effort may be omitted independently (agy's model IDs embed the reasoning
@@ -323,7 +323,7 @@ providers:
 	fabRoot := writeProjectConfig(t, `
 providers:
   codex:
-    dispatch_command: 'codex exec --json'
+    headless_command: 'codex exec --json'
 `)
 	cfg, err := Load(fabRoot)
 	if err != nil {
@@ -336,8 +336,8 @@ providers:
 	if codex.Model != "gpt-5.3-codex" || codex.Effort != "high" {
 		t.Errorf("codex fill = {%q, %q}, want the system layer's {gpt-5.3-codex, high}", codex.Model, codex.Effort)
 	}
-	if codex.DispatchCommand != "codex exec --json" {
-		t.Errorf("codex dispatch_command = %q, want the project layer's override", codex.DispatchCommand)
+	if codex.HeadlessCommand != "codex exec --json" {
+		t.Errorf("codex headless_command = %q, want the project layer's override", codex.HeadlessCommand)
 	}
 }
 
@@ -361,7 +361,7 @@ func TestLoad_WithAgentProfiles(t *testing.T) {
 	configYAML := `
 providers:
   claude:
-    session_command: "claude --effort high"
+    interactive_command: "claude --effort high"
 agent:
   profiles:
     doing: { provider: claude, model: claude-sonnet-5, effort: medium }
@@ -400,8 +400,8 @@ agent:
 
 	// providers still parse alongside the profiles block.
 	prov, ok := cfg.GetProvider("claude")
-	if !ok || prov.SessionCommand != "claude --effort high" {
-		t.Errorf("claude provider = %+v, ok=%v, want session_command 'claude --effort high'", prov, ok)
+	if !ok || prov.InteractiveCommand != "claude --effort high" {
+		t.Errorf("claude provider = %+v, ok=%v, want interactive_command 'claude --effort high'", prov, ok)
 	}
 }
 
@@ -482,7 +482,7 @@ func TestLoad_ProviderProfiles(t *testing.T) {
 	configYAML := `
 providers:
   codex:
-    session_command: "codex"
+    interactive_command: "codex"
     profiles:
       default: { model: codex-default, effort: medium }
       review: { model: codex-review, effort: high }
@@ -531,7 +531,7 @@ func TestLoad_NoAgentProfiles(t *testing.T) {
 	configYAML := `
 providers:
   claude:
-    session_command: "claude"
+    interactive_command: "claude"
 project:
   name: "test"
 `
@@ -613,7 +613,7 @@ func TestLoadPath_MalformedCoupledFailure(t *testing.T) {
   oops: true
 providers:
   claude:
-    session_command: "claude"
+    interactive_command: "claude"
 `
 	os.WriteFile(path, []byte(content), 0o644)
 
@@ -725,7 +725,7 @@ agent:
 
 // TestCascade_ScalarReplaceSystemWins: a scalar set in both layers takes the
 // SYSTEM value — the machine-wide preference outranks the repo's committed
-// suggestion (providers.claude.session_command is `both`-scoped, so it is a
+// suggestion (providers.claude.interactive_command is `both`-scoped, so it is a
 // valid system-file override to exercise end-to-end). A system-only provider
 // entry survives alongside it (per-key map merge). The list-replace rule is
 // exercised separately in TestCascade_ListReplace (lists are project-scoped, so
@@ -735,14 +735,14 @@ func TestCascade_ScalarReplaceSystemWins(t *testing.T) {
 	writeSystemConfig(t, home, `
 providers:
   claude:
-    session_command: system-session
+    interactive_command: system-session
   codex:
-    dispatch_command: codex exec
+    headless_command: codex exec
 `)
 	fabRoot := writeProjectConfig(t, `
 providers:
   claude:
-    session_command: project-session
+    interactive_command: project-session
 `)
 
 	cfg, err := Load(fabRoot)
@@ -750,11 +750,11 @@ providers:
 		t.Fatalf("Load: %v", err)
 	}
 	claude, ok := cfg.GetProvider("claude")
-	if !ok || claude.SessionCommand != "system-session" {
-		t.Errorf("claude.session_command = %q ok=%v, want system-session (scalar: system wins)", claude.SessionCommand, ok)
+	if !ok || claude.InteractiveCommand != "system-session" {
+		t.Errorf("claude.interactive_command = %q ok=%v, want system-session (scalar: system wins)", claude.InteractiveCommand, ok)
 	}
 	// System-only provider survives (per-key map merge).
-	if codex, ok := cfg.GetProvider("codex"); !ok || codex.DispatchCommand != "codex exec" {
+	if codex, ok := cfg.GetProvider("codex"); !ok || codex.HeadlessCommand != "codex exec" {
 		t.Errorf("system-only codex provider lost: %+v ok=%v", codex, ok)
 	}
 }
@@ -871,7 +871,7 @@ func TestCascade_AbsentSystemFile(t *testing.T) {
 branch_prefix: "feature/"
 providers:
   claude:
-    session_command: only-project
+    interactive_command: only-project
 `)
 	cfg, err := Load(fabRoot)
 	if err != nil {
@@ -880,8 +880,8 @@ providers:
 	if cfg.GetBranchPrefix() != "feature/" {
 		t.Errorf("branch_prefix = %q, want feature/", cfg.GetBranchPrefix())
 	}
-	if claude, ok := cfg.GetProvider("claude"); !ok || claude.SessionCommand != "only-project" {
-		t.Errorf("claude.session_command = %+v ok=%v, want only-project", claude, ok)
+	if claude, ok := cfg.GetProvider("claude"); !ok || claude.InteractiveCommand != "only-project" {
+		t.Errorf("claude.interactive_command = %+v ok=%v, want only-project", claude, ok)
 	}
 	if w := warnings(); w != "" {
 		t.Errorf("absent system file must emit no warning, got %q", w)
@@ -898,13 +898,13 @@ func TestCascade_MalformedSystemFileFailsOpen(t *testing.T) {
 	fabRoot := writeProjectConfig(t, `
 providers:
   claude:
-    session_command: project-wins
+    interactive_command: project-wins
 `)
 	cfg, err := Load(fabRoot)
 	if err != nil {
 		t.Fatalf("malformed system file must be fail-open (no error), got: %v", err)
 	}
-	if claude, ok := cfg.GetProvider("claude"); !ok || claude.SessionCommand != "project-wins" {
+	if claude, ok := cfg.GetProvider("claude"); !ok || claude.InteractiveCommand != "project-wins" {
 		t.Errorf("project layer must survive a skipped system layer: %+v ok=%v", claude, ok)
 	}
 	if w := warnings(); !strings.Contains(w, "fab: warning:") || !strings.Contains(w, "malformed system config") {
@@ -932,14 +932,14 @@ func TestCascade_ProjectAbsentSystemPresent(t *testing.T) {
 	writeSystemConfig(t, home, `
 providers:
   claude:
-    session_command: from-system
+    interactive_command: from-system
 `)
 	fabRoot := t.TempDir() // no project/config.yaml written
 	cfg, err := Load(fabRoot)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if claude, ok := cfg.GetProvider("claude"); !ok || claude.SessionCommand != "from-system" {
+	if claude, ok := cfg.GetProvider("claude"); !ok || claude.InteractiveCommand != "from-system" {
 		t.Errorf("system layer must apply with no project file: %+v ok=%v", claude, ok)
 	}
 }
@@ -1096,7 +1096,7 @@ func TestEnvCascade_BlockStyleCollectionResolves(t *testing.T) {
 	isolateSystemConfig(t)
 	warnings := captureWarnings(t)
 	fabRoot := writeProjectConfig(t, "agent:\n  workers: claude\n")
-	t.Setenv("FAB_PROVIDERS", "custom:\n  session_command: tool")
+	t.Setenv("FAB_PROVIDERS", "custom:\n  interactive_command: tool")
 
 	layers, err := LoadLayers(filepath.Join(fabRoot, "project", "config.yaml"))
 	if err != nil {
@@ -1110,7 +1110,7 @@ func TestEnvCascade_BlockStyleCollectionResolves(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if custom, ok := cfg.GetProvider("custom"); !ok || custom.SessionCommand != "tool" {
+	if custom, ok := cfg.GetProvider("custom"); !ok || custom.InteractiveCommand != "tool" {
 		t.Errorf("block-style env collection did not resolve: %+v ok=%v", custom, ok)
 	}
 	if w := warnings(); w != "" {

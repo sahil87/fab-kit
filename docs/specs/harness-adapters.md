@@ -50,7 +50,7 @@ provider) is **provider-neutral and adapter-independent** — see
 |---------|--------|-----------------|-------------------------|----------------------|
 | **1. Native Agent-tool** | in-harness sub-agent (Claude Code Agent tool) | the dispatched prompt itself | the held sub-agent handle (structural) | all five |
 | **2. Headless CLI** (`fab dispatch start`) | detached `sh -c` wrapper, `setsid` semantics | prompt file on the command's **stdin** | `{stage}.exit` + pid liveness + result file | all five |
-| **3. Interactive pane** (`fab dispatch start --pane`) | a tmux pane running the provider's `session_command` — split into the dispatching agent's own window, or a new window when there is no pane to split | prompt **file** + a one-line **pointer** to it, embedded at spawn | **result file** + pane liveness | `running` / `done` / `orphaned` |
+| **3. Interactive pane** (`fab dispatch start --pane`) | a tmux pane running the provider's `interactive_command` — split into the dispatching agent's own window, or a new window when there is no pane to split | prompt **file** + a one-line **pointer** to it, embedded at spawn | **result file** + pane liveness | `running` / `done` / `orphaned` |
 
 Adapters 2 and 3 are two **modes of the same command family** (`fab dispatch`), sharing its resolution,
 `.fab-dispatch/{id}/` state directory, refuse-if-running concurrency, and the status/kill/reap/clean
@@ -58,8 +58,8 @@ surfaces — plus the `restart` recovery verb, which relaunches either mode from
 re-derives its mode from the current environment (see § Recovery is orchestrator policy over these states). `logs` is the one verb that is **not** shared: it reads the headless wrapper's redirected
 stream, so against a pane record it refuses and names the pane-mode equivalent, `fab pane capture
 <pane>` (carrying the recorded socket as `-L <server>` when there is one). They differ in which of the
-provider's two command fields they compose — `dispatch_command`
-for headless, `session_command` for pane — and in how completion is observed. The two fields are never
+provider's two command fields they compose — `headless_command`
+for headless, `interactive_command` for pane — and in how completion is observed. The two fields are never
 merged and **never fall back to each other in either direction**.
 
 ### 1. Native Agent-tool adapter (in-harness)
@@ -102,7 +102,7 @@ The headless path: the worker is a **detached CLI process** (e.g. `claude …` o
 launched and observed via `fab dispatch` (see [`_cli-fab.md`](../../src/kit/skills/_cli-fab.md)
 § fab dispatch). It exists because the native path is **tmux/in-harness-bound** and cannot drive a
 stage on a CI box, a remote host, or a different agent CLI. `fab dispatch start` launches the resolved
-provider `dispatch_command` detached via `sh -c '<cmd> < prompt > log 2>&1; echo $? > exit'` launched with
+provider `headless_command` detached via `sh -c '<cmd> < prompt > log 2>&1; echo $? > exit'` launched with
 `setsid` semantics (the shell is the supervisor — no Go process remains, so the dispatch survives the
 orchestrator dying), tracks it
 under `.fab-dispatch/{id}/`, and the orchestrator observes all five states **via `fab dispatch status` /
@@ -130,10 +130,10 @@ per-provider integration work.
 
 Mechanics, all fixed by this spec:
 
-- **Command composed**: the resolved provider's **`session_command`** — the same string `fab agent`
+- **Command composed**: the resolved provider's **`interactive_command`** — the same string `fab agent`
   composes — with `{model}`/`{effort}` substituted through the shared `internal/spawn` resolution. This is
   why pane mode needs **no new provider config field**: the interactive invocation is already in the
-  provider table. It MUST NOT read or fall back to `dispatch_command`.
+  provider table. It MUST NOT read or fall back to `headless_command`.
 - **Where the pane opens — TWO SHAPES, one identity.** Both are the `_cli-agents.md` § Spawn Composition
   form with cwd = the repo root, and both record the new **pane ID** in
   `.fab-dispatch/{id}/{stage}.yaml` alongside the `fab-{id}-{stage}` identity string and the tmux socket
@@ -199,7 +199,7 @@ Mechanics, all fixed by this spec:
   command itself is inserted verbatim so its own expansions still apply. A multi-thousand-token prompt
   cannot ride `send-keys` or argv reliably, and embedding the pointer *at spawn* also sidesteps the
   printed-prompt trap entirely — there is no pre-existing input buffer to probe.
-- **The pane path has TWO prerequisites — a reachable tmux server and a `session_command` on the
+- **The pane path has TWO prerequisites — a reachable tmux server and an `interactive_command` on the
   resolved provider.** Under an explicit `--pane`/`--server`, either missing prerequisite is a hard error
   with no launch or state write. Under automatic selection, a missing prerequisite skips pane and the
   fixed ladder continues to native, then headless. Pane command composition is deferred until validation;
@@ -209,12 +209,12 @@ Mechanics, all fixed by this spec:
   `fab dispatch start`/`restart` through the same pure selector used by `fab resolve-agent`. In order,
   `--pane` ⇒ pane; `--headless` ⇒ headless; `--timeout` ⇒ headless; `--server` ⇒ pane. With no signal,
   start at `dispatch.mode` (default `native`) and descend only through `pane → native → headless`:
-  pane needs tmux + `session_command`, native needs `native: true`, headless needs `dispatch_command`.
+  pane needs tmux + `interactive_command`, native needs `native: true`, headless needs `headless_command`.
   Automatic selection never ascends. A native result is not launchable by `fab dispatch`; it errors
   before state writes with `fab resolve-agent` re-resolution guidance. Automatic success appends exactly
   `mode: <rung> (preferred)` or `mode: <rung> (descended: <reason>[; <reason>])`; pane reasons are
   `pane unavailable: no tmux`, `pane unavailable: tmux unreachable`, or
-  `pane unavailable: no session_command`, followed in ladder order by
+  `pane unavailable: no interactive_command`, followed in ladder order by
   `native unavailable`. Explicit selection carries no suffix.
 
   The complete selector reason set is:
@@ -224,11 +224,11 @@ Mechanics, all fixed by this spec:
   - `mode: headless (preferred)`
   - `mode: native (descended: pane unavailable: no tmux)`
   - `mode: native (descended: pane unavailable: tmux unreachable)`
-  - `mode: native (descended: pane unavailable: no session_command)`
+  - `mode: native (descended: pane unavailable: no interactive_command)`
   - `mode: headless (descended: native unavailable)`
   - `mode: headless (descended: pane unavailable: no tmux; native unavailable)`
   - `mode: headless (descended: pane unavailable: tmux unreachable; native unavailable)`
-  - `mode: headless (descended: pane unavailable: no session_command; native unavailable)`
+  - `mode: headless (descended: pane unavailable: no interactive_command; native unavailable)`
 - **No timeout**: `--timeout` is enforced by the headless `sh -c` wrapper (POSIX `timeout`), which pane
   mode never constructs, so `--pane --timeout` is a **usage error** rather than a silently unenforced
   bound.
@@ -525,7 +525,7 @@ invocation flag. An invocation-time `fab resolve-agent <stage> --provider <name>
 (`260805-j3cm`) binds the **native adapter only**: `fab dispatch start` accepts no override flags and
 re-resolves the stage from config itself, so an overridden profile never reaches either `fab dispatch` mode
 (the headless mode would compose — or fail on the absence of — the *unoverridden* provider's
-`dispatch_command`, and `--pane` the unoverridden provider's `session_command`). Dispatch sites still
+`headless_command`, and `--pane` the unoverridden provider's `interactive_command`). Dispatch sites still
 re-read the resolved `dispatch=` line after an override — the branch rule is unchanged (it has always keyed
 on `dispatch=` presence) — but a `dispatch=` line that appears *only* because of an override is **not
 actionable**, and the two remedies are **not interchangeable**: dispatching that stage natively with the
@@ -535,8 +535,8 @@ the native adapter's model seam is the Agent tool's `model` param — a Claude-a
 `--provider` override** the **sole executable path** is a config override — a depth knob (`agent.workers`/`agent.session`) or
 `agent.profiles.<role>.provider` — that `dispatch start`'s
 own re-resolution will see. Nothing else moves: pane composes the resolved provider's existing
-`session_command` (the same field `fab agent` and the operator launcher compose) through the same
+`interactive_command` (the same field `fab agent` and the operator launcher compose) through the same
 `internal/spawn` substitution. Mode selection is **per invocation**: explicit flags first, otherwise the
 configured descending ladder (§ 3's *Mode selection*), never a property inferred from command presence.
-A provider whose interactive grammar genuinely diverges from its `session_command` would be the
+A provider whose interactive grammar genuinely diverges from its `interactive_command` would be the
 trigger to add a dedicated field later — a data-only config addition, not a protocol change.

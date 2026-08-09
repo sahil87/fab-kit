@@ -8,8 +8,8 @@ import (
 )
 
 // defaultRoleSpawnCommand composes the worker session command for `fab batch
-// new`/`switch`: the default role's provider session_command (resolved by
-// spawn.Command, which reads providers.<default-role.provider>.session_command over
+// new`/`switch`: the default role's provider interactive_command (resolved by
+// spawn.Command, which reads providers.<default-role.provider>.interactive_command over
 // fab-kit's built-in claude provider and falls back to spawn.DefaultSpawnCommand)
 // with the default role's {model}/{effort} SUBSTITUTED via internal/spawn. Workers
 // spawn WITH a profile (the former placeholder-stripping print path is gone).

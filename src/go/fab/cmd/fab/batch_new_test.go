@@ -336,16 +336,16 @@ func TestRunBatchNew_LaunchFailures(t *testing.T) {
 }
 
 // writeBatchNewConfig writes fab/project/config.yaml under an existing fixture
-// root (from chdirBatchNewFixture) with the given providers.claude.session_command
+// root (from chdirBatchNewFixture) with the given providers.claude.interactive_command
 // (the `default` role's provider), so defaultRoleSpawnCommand reads it instead of
 // falling back to DefaultSpawnCommand.
-func writeBatchNewConfig(t *testing.T, root, sessionCommand string) {
+func writeBatchNewConfig(t *testing.T, root, interactiveCommand string) {
 	t.Helper()
 	projectDir := filepath.Join(root, "fab", "project")
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := "providers:\n  claude:\n    session_command: \"" + sessionCommand + "\"\n"
+	body := "providers:\n  claude:\n    interactive_command: \"" + interactiveCommand + "\"\n"
 	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -366,11 +366,11 @@ func stubBatchNewTmuxCapture(t *testing.T) string {
 
 // TestRunBatchNew_SpawnCommandProfileInjection verifies that the worker spawn
 // command carries the `default` role's {model}/{effort} PROFILE — substituted into
-// a templated session_command (no literal braces reach tmux), or appended as
+// a templated interactive_command (no literal braces reach tmux), or appended as
 // --model/--effort to a non-templated command. The `default` role resolves to
 // claude/claude-fable-5/high.
 func TestRunBatchNew_SpawnCommandProfileInjection(t *testing.T) {
-	t.Run("templated session_command substituted with the default profile", func(t *testing.T) {
+	t.Run("templated interactive_command substituted with the default profile", func(t *testing.T) {
 		root := chdirBatchNewFixture(t, testBacklog)
 		writeBatchNewConfig(t, root, "codex -m {model} -c model_reasoning_effort={effort}")
 		t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
@@ -389,11 +389,11 @@ func TestRunBatchNew_SpawnCommandProfileInjection(t *testing.T) {
 			t.Errorf("literal placeholder braces reached tmux:\n%s", got)
 		}
 		if !strings.Contains(got, "codex -m claude-fable-5 -c model_reasoning_effort=high '/fab-new") {
-			t.Errorf("templated session_command not substituted with the default profile:\n%s", got)
+			t.Errorf("templated interactive_command not substituted with the default profile:\n%s", got)
 		}
 	})
 
-	t.Run("non-templated session_command has the profile appended", func(t *testing.T) {
+	t.Run("non-templated interactive_command has the profile appended", func(t *testing.T) {
 		root := chdirBatchNewFixture(t, testBacklog)
 		writeBatchNewConfig(t, root, "claude --dangerously-skip-permissions")
 		t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
@@ -408,7 +408,7 @@ func TestRunBatchNew_SpawnCommandProfileInjection(t *testing.T) {
 			t.Fatalf("reading tmux capture: %v", err)
 		}
 		if !strings.Contains(string(args), "claude --dangerously-skip-permissions --model claude-fable-5 --effort high '/fab-new") {
-			t.Errorf("non-templated session_command missing the appended default profile:\n%s", string(args))
+			t.Errorf("non-templated interactive_command missing the appended default profile:\n%s", string(args))
 		}
 	})
 }

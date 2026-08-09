@@ -91,7 +91,7 @@ func TestSelectMode(t *testing.T) {
 		{"pane preferred and possible", false, false, false, false, "pane", true, true, true, TmuxAvailable, ModePane, "mode: pane (preferred)", false},
 		{"pane to native: no tmux", false, false, false, false, "pane", true, true, true, TmuxAbsent, ModeNative, "mode: native (descended: pane unavailable: no tmux)", false},
 		{"pane to native: unreachable", false, false, false, false, "pane", true, true, true, TmuxUnreachable, ModeNative, "mode: native (descended: pane unavailable: tmux unreachable)", false},
-		{"pane to native: no session", false, false, false, false, "pane", true, false, true, TmuxAvailable, ModeNative, "mode: native (descended: pane unavailable: no session_command)", false},
+		{"pane to native: no session", false, false, false, false, "pane", true, false, true, TmuxAvailable, ModeNative, "mode: native (descended: pane unavailable: no interactive_command)", false},
 		{"pane to headless across two rungs", false, false, false, false, "pane", false, true, true, TmuxAbsent, ModeHeadless, "mode: headless (descended: pane unavailable: no tmux; native unavailable)", false},
 		{"native preferred and possible", false, false, false, false, "native", true, true, true, TmuxAvailable, ModeNative, "mode: native (preferred)", false},
 		{"native to headless", false, false, false, false, "native", false, true, true, TmuxAvailable, ModeHeadless, "mode: headless (descended: native unavailable)", false},

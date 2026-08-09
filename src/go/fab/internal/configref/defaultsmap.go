@@ -129,7 +129,7 @@ func defaultsMapFromFields(fields []Field) map[string]any {
 // normalizeToGeneric round-trips a typed registry default into the generic shape
 // the layer maps use. It marshals via JSON, NOT YAML: the registry default structs
 // (providerDefault, roleProfileDefault) carry `json:` tags whose names match the
-// real config keys (session_command, provider, model, effort), whereas they carry
+// real config keys (interactive_command, provider, model, effort), whereas they carry
 // no `yaml:` tags — a YAML marshal would emit lowercased Go field names
 // (sessioncommand) that would not line up with the layer maps' snake_case keys,
 // producing phantom leaves. Config values are strings/lists/maps, so JSON's

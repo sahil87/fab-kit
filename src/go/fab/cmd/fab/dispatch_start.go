@@ -79,7 +79,7 @@ func (f *launchFlags) resolveMode(cmd *cobra.Command, cfg *config.Config, prov c
 	}
 	mode, reason, err := dispatch.SelectMode(f.paneMode, f.headlessMode,
 		cmd.Flags().Changed("timeout"), serverSet, cfg.GetDispatchMode(), prov.Native,
-		prov.SessionCommand != "", prov.DispatchCommand != "", tmux)
+		prov.InteractiveCommand != "", prov.HeadlessCommand != "", tmux)
 	if err != nil {
 		return "", "", paneTarget{}, err
 	}
@@ -177,9 +177,9 @@ func promptFromStdin(cmd *cobra.Command, _, _ string) ([]byte, bool, error) {
 // promptSource, resolves the mode, then launches the worker and persists
 // {stage}.yaml:
 //
-//	dispatch.ModeHeadless — the provider's dispatch_command, detached via the
+//	dispatch.ModeHeadless — the provider's headless_command, detached via the
 //	                        `sh -c` wrapper; tmux-independent (launchHeadless)
-//	dispatch.ModePane     — the provider's session_command, interactive in a tmux
+//	dispatch.ModePane     — the provider's interactive_command, interactive in a tmux
 //	                        pane the user can watch and steer — split into the
 //	                        dispatching agent's own window, or in a new window
 //	                        when the dispatcher has no pane to split (launchPane)
@@ -258,8 +258,8 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 				tmux = dispatch.TmuxUnreachable
 			}
 			mode, reason, err = dispatch.SelectMode(false, false, false, false,
-				cfg.GetDispatchMode(), prov.Native, prov.SessionCommand != "",
-				prov.DispatchCommand != "", tmux)
+				cfg.GetDispatchMode(), prov.Native, prov.InteractiveCommand != "",
+				prov.HeadlessCommand != "", tmux)
 			if err != nil {
 				return noDispatchCapabilityError(profile.Provider, cfg.GetDispatchMode(), err)
 			}
@@ -371,7 +371,7 @@ type paneFallback struct {
 //
 //	(a) the tmux server does not answer — a stale $TMUX inherited from a killed
 //	    server, or no tmux at all (ServerReachable's actionable error).
-//	(b) tmux answered, but the resolved provider carries no session_command —
+//	(b) tmux answered, but the resolved provider carries no interactive_command —
 //	    there is no interactive invocation to open a window on.
 //
 // Shape (b) is normally filtered by SelectMode for automatic selection, but is
@@ -384,9 +384,9 @@ func validatePane(prov config.ProviderConfig, server, stage, providerName string
 			err:             probeErr,
 		}
 	}
-	if prov.SessionCommand == "" {
+	if prov.InteractiveCommand == "" {
 		return &paneFallback{
-			err: missingCommandError(stage, providerName, "session_command"),
+			err: missingCommandError(stage, providerName, "interactive_command"),
 		}
 	}
 	return nil
@@ -408,13 +408,13 @@ func nativeDispatchError(stage, provider string) error {
 //
 // The two fields are deliberately NOT merged and never fall back to each other
 // (they are different invocations of the same binary — see the `providers:`
-// contract): headless runs ONE headless task via dispatch_command, pane mode
-// opens an interactive SESSION via session_command — the same string `fab agent`
+// contract): headless runs ONE headless task via headless_command, pane mode
+// opens an interactive SESSION via interactive_command — the same string `fab agent`
 // composes, which is why pane mode needs no new provider config field.
 func modeCommand(mode dispatch.Mode, prov config.ProviderConfig, stage, providerName string) (string, error) {
-	field, cmdStr := "dispatch_command", prov.DispatchCommand
+	field, cmdStr := "headless_command", prov.HeadlessCommand
 	if mode == dispatch.ModePane {
-		field, cmdStr = "session_command", prov.SessionCommand
+		field, cmdStr = "interactive_command", prov.InteractiveCommand
 	}
 	if cmdStr == "" {
 		return "", missingCommandError(stage, providerName, field)
@@ -426,7 +426,7 @@ func modeCommand(mode dispatch.Mode, prov config.ProviderConfig, stage, provider
 // stage" error naming the stage, its resolved role, the provider, and the exact
 // config key to set. It lives in one place because two callers raise it —
 // modeCommand (at composition) and validatePane (shape (b), which must diagnose
-// the missing session_command before composition) — and the two must not drift.
+// the missing interactive_command before composition) — and the two must not drift.
 func missingCommandError(stage, providerName, field string) error {
 	role, _ := agent.RoleForStage(stage)
 	return fmt.Errorf("stage %q resolves to role %q (provider %q), which has no %s; configure providers.%s.%s to dispatch this stage",
