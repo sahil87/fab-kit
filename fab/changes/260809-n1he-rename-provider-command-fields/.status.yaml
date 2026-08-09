@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 17
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-08-09T06:27:01Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-09T06:35:26Z"}
     review: {started_at: "2026-08-09T06:35:26Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-09T06:43:58Z"}
     hydrate: {started_at: "2026-08-09T06:43:58Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-09T06:49:33Z"}
-    ship: {started_at: "2026-08-09T06:49:33Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-09T06:49:33Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-09T06:52:09Z"}
+    review-pr: {started_at: "2026-08-09T06:52:09Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/560
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 1412
+    deleted: 737
+    net: 675
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 829
+        deleted: 530
+        net: 299
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-08-09T06:49:33Z"
-    computed_at_stage: hydrate
+        added: 468
+        deleted: 329
+        net: 139
+    computed_at: "2026-08-09T06:52:09Z"
+    computed_at_stage: ship
 summary: Renamed providers config fields session_command/dispatch_command to interactive_command/headless_command with a silent per-field read-time alias, a both-scopes 2.18.1-to-2.19.0 migration, new-spellings-only config write surface, and a full kit/spec/memory sweep
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-09T06:49:33Z
+last_updated: 2026-08-09T06:52:09Z
