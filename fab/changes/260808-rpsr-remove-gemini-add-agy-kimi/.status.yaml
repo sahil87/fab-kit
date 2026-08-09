@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 22
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-08-09T00:24:22Z", driver: fab-fff, iterations: 4, completed_at: "2026-08-09T00:27:21Z"}
     review: {started_at: "2026-08-09T00:27:21Z", driver: fab-fff, iterations: 4, completed_at: "2026-08-09T00:35:26Z"}
     hydrate: {started_at: "2026-08-09T00:35:26Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-09T00:46:03Z"}
-    ship: {started_at: "2026-08-09T00:46:03Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-09T00:46:03Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-09T00:48:48Z"}
+    review-pr: {started_at: "2026-08-09T00:48:48Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/559
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 1830
+    deleted: 508
+    net: 1322
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 973
+        deleted: 325
+        net: 648
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-08-09T00:46:03Z"
-    computed_at_stage: hydrate
+        added: 650
+        deleted: 185
+        net: 465
+    computed_at: "2026-08-09T00:48:48Z"
+    computed_at_stage: ship
 summary: Provider roster becomes claude/codex/agy/kimi — gemini removed outright (no migration), agy and kimi ship dispatch-only grammar, and skills deploy to one generic .agents/skills target gated on any of codex/agy/kimi
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-09T00:46:03Z
+last_updated: 2026-08-09T00:48:48Z
