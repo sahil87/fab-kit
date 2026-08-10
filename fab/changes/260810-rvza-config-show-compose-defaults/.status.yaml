@@ -2,54 +2,54 @@ id: rvza
 name: 260810-rvza-config-show-compose-defaults
 created: 2026-08-10T05:43:16Z
 created_by: Sahil Ahuja
-change_type: fix
+change_type: feat
 issues: []
 progress:
-    intake: done
-    apply: done
-    review: done
-    hydrate: done
-    ship: done
-    review-pr: active
+  intake: done
+  apply: done
+  review: done
+  hydrate: done
+  ship: done
+  review-pr: active
 plan:
-    generated: true
-    task_count: 7
-    acceptance_count: 8
-    acceptance_completed: 8
+  generated: true
+  task_count: 7
+  acceptance_count: 8
+  acceptance_completed: 8
 confidence:
-    certain: 2
-    confident: 3
-    tentative: 0
-    unresolved: 0
-    score: 4.7
-    fuzzy: true
-    dimensions:
-        signal: 75.0
-        reversibility: 84.0
-        competence: 81.0
-        disambiguation: 75.0
+  certain: 2
+  confident: 3
+  tentative: 0
+  unresolved: 0
+  score: 4.7
+  fuzzy: true
+  dimensions:
+    signal: 75.0
+    reversibility: 84.0
+    competence: 81.0
+    disambiguation: 75.0
 stage_metrics:
-    intake: {started_at: "2026-08-10T05:43:16Z", driver: fab-new, iterations: 1, completed_at: "2026-08-10T12:27:07Z"}
-    apply: {started_at: "2026-08-10T12:27:07Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T12:50:09Z"}
-    review: {started_at: "2026-08-10T12:50:09Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T12:53:22Z"}
-    hydrate: {started_at: "2026-08-10T12:53:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T12:56:06Z"}
-    ship: {started_at: "2026-08-10T12:56:06Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T12:58:06Z"}
-    review-pr: {started_at: "2026-08-10T12:58:06Z", driver: git-pr, iterations: 1}
+  intake: {started_at: "2026-08-10T05:43:16Z", driver: fab-new, iterations: 1, completed_at: "2026-08-10T12:27:07Z"}
+  apply: {started_at: "2026-08-10T12:27:07Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T12:50:09Z"}
+  review: {started_at: "2026-08-10T12:50:09Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T12:53:22Z"}
+  hydrate: {started_at: "2026-08-10T12:53:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T12:56:06Z"}
+  ship: {started_at: "2026-08-10T12:56:06Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T12:58:06Z"}
+  review-pr: {started_at: "2026-08-10T12:58:06Z", driver: git-pr, iterations: 1, reviewer: '@Copilot', phase: fixing}
 prs:
-    - https://github.com/sahil87/fab-kit/pull/578
+  - https://github.com/sahil87/fab-kit/pull/578
 true_impact:
-    added: 151
-    deleted: 32
-    net: 119
-    excluding:
-        added: 16
-        deleted: 12
-        net: 4
-    tests:
-        added: 7
-        deleted: 0
-        net: 7
-    computed_at: "2026-08-10T12:58:06Z"
-    computed_at_stage: ship
+  added: 151
+  deleted: 32
+  net: 119
+  excluding:
+    added: 16
+    deleted: 12
+    net: 4
+  tests:
+    added: 7
+    deleted: 0
+    net: 7
+  computed_at: "2026-08-10T12:58:06Z"
+  computed_at_stage: ship
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
 last_updated: 2026-08-10T12:58:06Z
