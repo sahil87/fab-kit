@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configref"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configscope"
@@ -58,8 +60,9 @@ func runConfig(t *testing.T, args ...string) (string, error) {
 	return out.String(), err
 }
 
-// TestConfigShow_PrintsEffectiveConfig: `fab config show` prints the merged
-// effective config (system over project) as YAML and exits 0.
+// TestConfigShow_PrintsEffectiveConfig: `fab config show` prints the fully
+// composed effective config (defaults beneath project beneath system) as YAML
+// and exits 0.
 func TestConfigShow_PrintsEffectiveConfig(t *testing.T) {
 	_, home := setupConfigRepo(t, `
 providers:
@@ -81,6 +84,54 @@ providers:
 	}
 	if !strings.Contains(out, "codex exec") {
 		t.Errorf("show output missing system-layer value:\n%s", out)
+	}
+}
+
+func TestConfigShow_PrintsBuiltInDefaults(t *testing.T) {
+	setupConfigRepo(t, "")
+	out, err := runConfig(t, "show")
+	if err != nil {
+		t.Fatalf("config show: %v", err)
+	}
+
+	var effective map[string]any
+	if err := yaml.Unmarshal([]byte(out), &effective); err != nil {
+		t.Fatalf("config show output is not YAML: %v\n%s", err, out)
+	}
+	dispatch, ok := effective["dispatch"].(map[string]any)
+	if !ok {
+		t.Fatalf("config show output missing the built-in dispatch map:\n%s", out)
+	}
+	if got := dispatch["mode"]; got != "native" {
+		t.Fatalf("dispatch.mode = %#v, want the pure built-in default %q\n%s", got, "native", out)
+	}
+}
+
+func TestConfigShow_ComposesDerivedDefaultsAgainstLiveKnobs(t *testing.T) {
+	setupConfigRepo(t, "agent:\n  workers: codex\n")
+	out, err := runConfig(t, "show")
+	if err != nil {
+		t.Fatalf("config show: %v", err)
+	}
+
+	var effective map[string]any
+	if err := yaml.Unmarshal([]byte(out), &effective); err != nil {
+		t.Fatalf("config show output is not YAML: %v\n%s", err, out)
+	}
+	agentMap, ok := effective["agent"].(map[string]any)
+	if !ok {
+		t.Fatalf("config show output missing the agent map:\n%s", out)
+	}
+	profiles, ok := agentMap["profiles"].(map[string]any)
+	if !ok {
+		t.Fatalf("config show output missing derived agent profiles:\n%s", out)
+	}
+	doing, ok := profiles["doing"].(map[string]any)
+	if !ok {
+		t.Fatalf("config show output missing the derived doing profile:\n%s", out)
+	}
+	if got := doing["provider"]; got != "codex" {
+		t.Fatalf("agent.profiles.doing.provider = %#v, want knob-composed default %q\n%s", got, "codex", out)
 	}
 }
 
@@ -369,7 +420,7 @@ func TestConfigSet_EmptyValueRefusedWithoutWriting(t *testing.T) {
 // the read model ONCE. The surfaces used to load it twice (LoadLayers, then a
 // second LoadPath behind the defaults projection), which printed each fail-open
 // loader warning twice — a scope-pruned system key looked like two distinct
-// problems. Bare `show` skips the defaults projection entirely.
+// problems. The defaults projection now consumes the already-loaded layers.
 func TestConfigLoaderWarningsAreNotDuplicated(t *testing.T) {
 	const warning = "ignoring project-scoped field"
 	for _, args := range [][]string{
