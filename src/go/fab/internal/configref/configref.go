@@ -695,7 +695,7 @@ const referenceHeader = `# Full reference of all available options: fab config e
 // interpolated from its canonical agent var (no literal copy):
 // agent.DefaultInteractiveCommand / agent.DefaultHeadlessCommand for claude, and the
 // agent.DefaultCodex*/DefaultAgy*/DefaultKimi* vars for the other three built-ins
-// (codex and kimi carry both commands; agy is dispatch-only).
+// (all three carry both commands).
 // The per-role FILLS are interpolated the same way, from the already-derived
 // providerDefaults() view — so the shipped values appear here without a literal copy,
 // and a bump in defaults.yaml reaches the rendered reference by itself. kimi ships no
@@ -775,17 +775,16 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# block below is a rendering choice, not a missing fill.\n" +
 		"# All four blocks below render LIVE and uniformly — claude's baseline and the\n" +
 		"# codex, agy and kimi blocks at the same indentation, one `#` deep in your\n" +
-		"# fence. Claude carries all three capabilities; codex and kimi carry pane +\n" +
+		"# fence. Claude carries all three capabilities; codex, agy and kimi carry pane +\n" +
 		"# headless and therefore descend from the default native preference to headless.\n" +
-		"# agy ships NO interactive_command — it is the one DISPATCH-ONLY built-in, with\n" +
-		"# no pane capability, so mode resolution lands its stages on headless.\n" +
 		"# interactive_command is pure LAUNCH GRAMMAR: fab appends nothing to it, and a\n" +
 		"# pane worker's stage prompt is delivered afterwards by `fab dispatch deliver`,\n" +
 		"# which types a pointer through tmux and verifies it landed. What has to be probed\n" +
-		"# per provider is FIRST-RUN behavior and input echo (see their notes below); agy's\n" +
-		"# is the one still open. Set providers.<name>.interactive_command yourself to opt\n" +
-		"# any provider into interactive sessions and pane dispatch — agy ahead of that\n" +
-		"# probe, or a provider you define yourself.\n" +
+		"# per provider is FIRST-RUN behavior and input echo (see their notes below); both\n" +
+		"# agy's and kimi's first-run trust walls are ordinary readiness-gate judgment\n" +
+		"# rounds (one answer, remembered per folder). Set\n" +
+		"# providers.<name>.interactive_command yourself to opt a provider you define\n" +
+		"# yourself into interactive sessions and pane dispatch.\n" +
 		"#\n" +
 		"# Per-provider notes (kept out of the blocks below so a block hoisted into your\n" +
 		"# config stays valid YAML — strip the leading '# ' from every line of the\n" +
@@ -799,10 +798,12 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#     takes the prompt as an ARGUMENT and ignores stdin, so headless_command nests\n" +
 		"#     a shell — POSIX expands $(cat) before fab dispatch's stdin redirect applies,\n" +
 		"#     making the inner sh's stdin the prompt. --print-timeout is raised well above\n" +
-		"#     its 5m default because stage workers run far longer. No interactive_command:\n" +
-		"#     agy gates a FRESH WORKSPACE behind an interactive trust prompt even under\n" +
-		"#     --dangerously-skip-permissions, and worktree-per-change makes every dispatch\n" +
-		"#     a fresh workspace, so a pane worker parks before it can be delivered to.\n" +
+		"#     its 5m default because stage workers run far longer. Both commands carry\n" +
+		"#     --dangerously-skip-permissions. Its fresh-workspace trust prompt (it fires\n" +
+		"#     even under the bypass flag, and worktree-per-change makes every dispatch a\n" +
+		"#     fresh workspace) is an ordinary readiness-gate judgment round — one answer,\n" +
+		"#     remembered per folder; the trust store\n" +
+		"#     (~/.gemini/antigravity-cli/settings.json) is additionally user-seedable.\n" +
 		"#   kimi — the kimi-code CLI, and the one built-in shipping NO fills: its -m takes\n" +
 		"#     a USER-CONFIG model alias rather than a catalog ID, so a pinned value would\n" +
 		"#     break non-managed installs. The empty model drops `-m` and kimi falls back to\n" +
@@ -1131,7 +1132,8 @@ func providersYAML(providers map[string]providerDefault, roleOrder []string) str
 		"    headless_command: " + YAMLSingleQuoted(agent.DefaultCodexHeadlessCommand) + "\n" +
 		profilesLines(providers["codex"].Profiles, roleOrder) +
 		"  agy:\n" +
-		"    headless_command: " + YAMLSingleQuoted(agent.DefaultAgyHeadlessCommand) + "   # dispatch only; no {effort} flag; nested shell so $(cat) reads the piped prompt\n" +
+		"    interactive_command: " + YAMLSingleQuoted(agent.DefaultAgyInteractiveCommand) + "   # same bypass flag as the headless form; no {effort} flag\n" +
+		"    headless_command: " + YAMLSingleQuoted(agent.DefaultAgyHeadlessCommand) + "   # nested shell so $(cat) reads the piped prompt\n" +
 		profilesLines(providers["agy"].Profiles, roleOrder) +
 		// kimi ships no fills, so profilesLines renders nothing for it — the trim
 		// therefore has to span the whole kimi block, not just its (empty) fill

@@ -70,20 +70,19 @@ dispatch:
 # landed), so pane capability no longer depends on whether a CLI accepts a positional
 # initial prompt.
 #
-# agy deliberately carries NO interactive_command — no pane capability, so the
-# descent ladder lands its stages on headless. What has to be probed per provider is
-# FIRST-RUN behavior and input echo, not prompt grammar: agy gates a fresh workspace
-# behind an interactive trust prompt even under --dangerously-skip-permissions, and
-# worktree-per-change makes every dispatch a fresh workspace. Backlog [agik] owns
-# that probe and agy's roster flip; a user who adds providers.agy.interactive_command
-# in their own config opts into pane workers for it ahead of that.
+# All four built-ins are pane-capable. What has to be probed per provider is
+# FIRST-RUN behavior and input echo, not prompt grammar — and both agy's and kimi's
+# first-run trust walls ("Trust this folder?" and agy's per-workspace trust prompt,
+# which fires even under --dangerously-skip-permissions) are ordinary readiness-gate
+# judgment rounds: one Enter clears the wall and the answer is remembered per folder,
+# so it amortizes across every later pane worker in that checkout. agy's trust store
+# (~/.gemini/antigravity-cli/settings.json, exact-match paths) is additionally
+# user-seedable — a user-side optimization, nothing fab ships.
 #
 # kimi's probe is DONE (2026-08-10, kimi 0.34.0): its first-run "Trust this folder?"
-# wall is an ordinary readiness-gate judgment round (one Enter, remembered per
-# folder), and its input echo verifies now that the gate's squeeze drops box-drawing
-# runes as well as whitespace — kimi's input box draws vertical side rules, which a
-# wrap interleaves between the halves. So kimi ships an interactive_command below and
-# is pane-capable.
+# wall clears as above, and its input echo verifies now that the gate's squeeze drops
+# box-drawing runes as well as whitespace — kimi's input box draws vertical side
+# rules, which a wrap interleaves between the halves.
 providers:
   claude:
     native: true
@@ -122,11 +121,10 @@ providers:
     # POSIX expands $(cat) BEFORE applying the < redirect, so the headless command
     # nests a shell: the inner sh's stdin IS the redirected prompt file.
     # --print-timeout raised from its 5m default — stage workers run far longer.
-    # NO interactive_command: see the providers-block note above — the open blocker
-    # is agy's per-workspace TRUST PROMPT (it fires on a fresh workspace even under
-    # --dangerously-skip-permissions, and worktree-per-change makes every dispatch
-    # one), which parks a worker before the readiness gate can deliver to it.
-    # Backlog [agik] owns the probe and the roster flip.
+    # The interactive form carries the same full-auto posture flag as the headless
+    # one; its fresh-workspace trust prompt is an ordinary readiness-gate judgment
+    # round (see the providers-block note above).
+    interactive_command: 'agy --dangerously-skip-permissions --model {model}'
     headless_command: 'sh -c ''agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'''
     # Sparse and model-only (the effort rides the ID's suffix). `default` is the
     # cross-role fallback, so doing/review/hydrate/operator all take the pro-high

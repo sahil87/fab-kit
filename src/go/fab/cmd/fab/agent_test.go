@@ -525,8 +525,8 @@ func TestAgentUnknownProviderNamesAvailable(t *testing.T) {
 // TestAgentProviderNoInteractiveCommandErrors: a provider that resolves but carries no
 // interactive_command errors with the config-key hint (the provider-path counterpart of
 // TestAgentPrintNoInteractiveCommandErrors). Uses a project-defined dispatch-only
-// provider; the built-in agy half of the same rule is
-// TestAgentProviderDispatchOnlyBuiltInsError.
+// provider — every built-in ships an interactive_command, so the error path is
+// reachable only from user config.
 func TestAgentProviderNoInteractiveCommandErrors(t *testing.T) {
 	agentTestRepo(t, `providers:
   myagent:
@@ -559,28 +559,26 @@ func TestAgentProviderBuiltinCodexNoConfig(t *testing.T) {
 	}
 }
 
-// TestAgentProviderDispatchOnlyBuiltInsError: `fab agent` opens an interactive
-// SESSION, so the one dispatch-only built-in cannot serve it and says so with the
-// config-key hint — the same actionable error a user-defined dispatch-only provider
-// gets (TestAgentProviderNoInteractiveCommandErrors), reached here from the SHIPPED
-// table rather than project config.
+// TestAgentProviderBuiltinAgyNoConfig: every built-in ships an interactive_command,
+// so `fab agent --provider agy` composes a session with NO providers: block at all.
+// The no-interactive_command error path remains reachable only from a user-defined
+// provider (TestAgentProviderNoInteractiveCommandErrors).
 //
-// agy ships no interactive_command on purpose (260808-rpsr) — not because of prompt
-// grammar (fab appends nothing to the command and types a pane worker's pointer in
-// afterwards) but because its interactive FIRST-RUN behavior is unprobed against the
-// delivery choreography: it trust-prompts a fresh workspace even under
-// --dangerously-skip-permissions. Backlog [agik] owns that probe. The error is the
-// documented path to an interactive session: add providers.agy.interactive_command
-// yourself, accepting the unprobed-provider caveat.
-func TestAgentProviderDispatchOnlyBuiltInsError(t *testing.T) {
+// The composed form is the shipped grammar minus the model pair: the provider form
+// bypasses agy's fills and supplies no --model, so the empty {model} drops the
+// `--model` flag with it while the fixed --dangerously-skip-permissions survives —
+// the same token-drop the codex and kimi cases pin. agy's fresh-workspace trust
+// prompt is an ordinary readiness-gate judgment round (the kimi precedent), so pane
+// capability rides launch grammar alone.
+func TestAgentProviderBuiltinAgyNoConfig(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 
-	_, err := runAgentPrint(t, "--provider", "agy")
-	if err == nil {
-		t.Fatal("fab agent --provider agy must error — it is a dispatch-only built-in")
+	out, err := runAgentPrint(t, "--provider", "agy")
+	if err != nil {
+		t.Fatalf("agent --provider agy --print: %v", err)
 	}
-	if !strings.Contains(err.Error(), "providers.agy.interactive_command") {
-		t.Errorf("agy error = %q, want the interactive_command config-key hint", err.Error())
+	if out != "agy --dangerously-skip-permissions\n" {
+		t.Errorf("output = %q, want the model-free built-in agy grammar with its bypass flag", out)
 	}
 }
 

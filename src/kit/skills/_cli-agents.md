@@ -58,7 +58,7 @@ fab agent --provider codex --print                                  # bare invoc
 fab agent --provider codex --model <id> --effort <level> --print     # explicit profile
 ```
 
-> **Not every provider has a session form.** Composition needs an `interactive_command`, and three of the four built-ins ship one — `claude`, `codex`, and `kimi`; `agy` alone is **dispatch-only** (see its dictionary entry for why, and for the config block that adds one). Either form errors actionably against a provider with none, naming the `providers.<name>.interactive_command` key to set.
+> **Not every provider has a session form.** Composition needs an `interactive_command`, and all four built-ins ship one. Either form errors actionably against a provider with none — a user-defined, dispatch-only `providers:` entry — naming the `providers.<name>.interactive_command` key to set.
 
 **Which form to use.** Use the **role** form when the spawn should inherit fab's role/budget policy (a pipeline-shaped worker, the operator's own coordinator) — including which provider the `agent.session` knob points Tier-1 agents at. Use the **provider** form when the question is mechanical — "give me a codex session right here" — with no role to speak of. `--provider` is mutually exclusive with the `[role]` positional, and `--model`/`--effort` are only valid alongside `--provider` (see `_cli-fab.md` § fab agent — note `fab resolve-agent` deliberately allows them bare, being a pure query). **No `providers:` block is needed for either form**: `claude`, `codex`, `agy`, and `kimi` are built-in providers.
 
@@ -141,7 +141,7 @@ Each entry below carries only **stable invocation grammar** and **discovery reci
 - **Model IDs are NOT recorded *here*.** Model catalogs rot in weeks, and this dictionary is read by an agent that may be reasoning about an uninstalled CLI. Instead each entry carries a *discovery recipe*: what to run against the **installed** binary to learn which models it accepts. Never assume a model ID from memory; run the recipe. *(fab-kit does ship per-role model fills in the binary — `providers.<name>.profiles` — but those are DATA refreshed at kit-release cadence and overridden by one config line, not knowledge an agent should carry. The recipe is still how you verify one.)*
 - **Quirks accrete from real encounters only.** An entry records an interactive quirk (first-run trust prompt, submit-key behavior) only once it has actually been hit and confirmed. Speculating about an uninstalled CLI's behavior is worse than silence — it reads as verified.
 
-- **Built-ins:** `claude`, `codex`, `agy`, and `kimi` use the independent `interactive_command` / `headless_command` / `native` capability grammar in `internal/agent`'s embedded `defaults.yaml`; all resolve without a `providers:` block. Claude ships all three capabilities; codex and kimi are non-native (pane + headless); agy is headless-only (no `interactive_command`, so no pane capability). `dispatch.mode` chooses the starting rung of the descending `pane → native → headless` ladder.
+- **Built-ins:** `claude`, `codex`, `agy`, and `kimi` use the independent `interactive_command` / `headless_command` / `native` capability grammar in `internal/agent`'s embedded `defaults.yaml`; all resolve without a `providers:` block. Claude ships all three capabilities; codex, agy and kimi are non-native (pane + headless). `dispatch.mode` chooses the starting rung of the descending `pane → native → headless` ladder.
 - **Fill-consuming paths:** depth knobs (`agent.session` / `agent.workers`), `agent.profiles.<role>.provider`, and `fab resolve-agent --provider` consume the built-in per-role fills and resolve a real model for every role — except on `kimi`, which ships none deliberately and resolves an empty model so the CLI's own `default_model` applies.
 - **Provider-addressed sessions:** `fab agent --provider` bypasses both fill sources and stays bare unless `--model`/`--effort` is passed.
 - **Freshness and overrides:** non-Claude fills are release-cadence, unvalidated data. Discover current IDs with each entry's recipe; override with `providers.<name>.profiles.<role>.{model,effort}` (including in `~/.fab-kit/config.yaml`) or invocation flags. A `providers:` block overrides capabilities/fills; it does not register built-ins.
@@ -179,7 +179,7 @@ The Antigravity CLI. Verified against v1.1.11.
 
 | Aspect | Value |
 |--------|-------|
-| Interactive | `agy` — **fab ships no `interactive_command` for agy** (see § Dispatch-only, below) |
+| Interactive | `agy --dangerously-skip-permissions --model {model}` — the shipped built-in `interactive_command` |
 | Headless | `agy -p "<prompt>"` — `-p` takes the prompt as an **ARGUMENT** and **ignores stdin** |
 | stdin delivery | Requires a **nested shell**: `sh -c 'agy … -p "$(cat)"'`. POSIX expands `$(cat)` *before* the outer `< prompt.md` redirect applies, so the un-nested form reads the *outer* stdin and the worker gets an empty prompt. The inner `sh`'s stdin is the redirected file — which is why the built-in `headless_command` nests |
 | Timeout | `--print-timeout <dur>` — the 5m default kills long stage workers, so the built-in `headless_command` raises it to `120m` |
@@ -189,17 +189,7 @@ The Antigravity CLI. Verified against v1.1.11.
 
 **Template consequence.** Because the agy grammar carries no `{effort}` placeholder, the substitution is all-or-nothing per placeholder present: a resolved effort simply has nowhere to go and is not injected. That is the intended behavior — provider grammar is the provider's, and fab never appends a flag the CLI does not have.
 
-**Dispatch-only.** The agy built-in ships a `headless_command` and **no `interactive_command`** — the absence is deliberate. A provider carrying an `interactive_command` becomes eligible for **pane-mode dispatch**, and the blocker is agy's FIRST-RUN behavior, not its prompt grammar (fab appends nothing to `interactive_command`; the prompt is typed post-spawn — § Spawn Composition). agy gates a fresh workspace behind an interactive **trust prompt** even under `--dangerously-skip-permissions`, and worktree-per-change makes every dispatch a fresh workspace, so a pane worker parks before the readiness gate can deliver to it. With no `interactive_command`, automatic resolution skips the pane rung and descends to headless (`descended: pane unavailable: no interactive_command`) and an explicit `fab dispatch open` hard-errors actionably.
-
-To open an interactive agy session anyway — `fab agent --provider agy`, `fab operator` — add one in your own config:
-
-```yaml
-providers:
-  agy:
-    interactive_command: 'agy --dangerously-skip-permissions --model {model}'
-```
-
-**Caveat**: doing so re-enables pane-mode eligibility, so stages dispatched inside tmux open a pane worker whose readiness gate has to clear agy's trust prompt first. The gate can answer it (that is what its judgment rounds are for) and the answer is workspace-scoped, so it clears once per checkout — but until backlog `[agik]` probes it, pair it with `--headless` on unattended dispatches, or point stage roles at a different provider.
+**Pane-capable.** The agy built-in ships an `interactive_command` — `agy --dangerously-skip-permissions --model {model}`, the same full-auto posture flag as its headless form — so like every built-in it is eligible for **pane-mode dispatch**. What had to be answered first is agy's FIRST-RUN behavior, not its prompt grammar (fab appends nothing to `interactive_command`; the prompt is typed post-spawn — § Spawn Composition): agy gates a fresh workspace behind an interactive **trust prompt** even under `--dangerously-skip-permissions`, and worktree-per-change makes every dispatch a fresh workspace. That wall is an ordinary readiness-gate **judgment round** — the pane reads `parked`, one Enter clears it, and the answer is remembered per folder, so it amortizes across a checkout (the kimi precedent, probed live 2026-08-10). The trust store (`~/.gemini/antigravity-cli/settings.json`, exact-match paths) is additionally user-seedable — a user-side optimization, nothing fab ships. An absent `interactive_command` in a user's own `providers:` block remains a valid configuration the ladder handles (`descended: pane unavailable: no interactive_command`, and an explicit `fab dispatch open` hard-errors actionably) — it is just no longer a shipped state.
 
 **Skill discovery.** agy reads `<workspace>/.agents/skills/<skill>/SKILL.md` natively — which is why `fab sync` deploys **one** skill set to `.agents/skills/` and no `.agy/skills/` directory. One target per skill set is what makes duplicate-skill conflicts impossible.
 

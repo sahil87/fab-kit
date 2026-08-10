@@ -357,11 +357,9 @@ using stdlib `encoding/json` only (no new dependencies). Each element is a per-f
   profile; the first-level `default` key is the *default role*, not a wrapper. Likewise
   `providers.default` is keyed by provider name (four entries — claude/codex/agy/kimi), each carrying
   its independent `interactive_command`, `headless_command`, and `native` capabilities (omitted when
-  unavailable, so each block shows exactly what it ships): claude all three, codex and `kimi` both
-  commands without native, and `agy` a `headless_command` alone — it is the one **dispatch-only**
-  built-in (`260808-rpsr`, narrowed by `260810-ki9v`), since an `interactive_command` also confers
-  pane-mode eligibility and agy's interactive first-run has not been probed against the pane
-  readiness gate (backlog `[agik]`). Every entry carries **no** `model`/`effort` — see § Default semantics.
+  unavailable, so each block shows exactly what it ships): claude all three, and codex, `agy` and
+  `kimi` both commands without native — every built-in is pane-capable. Every entry carries
+  **no** `model`/`effort` — see § Default semantics.
 - `renamed_from` is omitted when empty (`omitempty`), so it appears on the `agent.profiles` object only.
 - Output is deterministic and byte-stable, like the commented-YAML rendering — the table is ordered and
   the marshalling is stable.

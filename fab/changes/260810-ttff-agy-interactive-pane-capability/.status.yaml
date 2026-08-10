@@ -5,17 +5,17 @@ created_by: sahil-noon
 change_type: fix
 issues: []
 progress:
-    intake: ready
-    apply: pending
-    review: pending
-    hydrate: pending
-    ship: pending
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
     review-pr: pending
 plan:
-    generated: false
-    task_count: 0
-    acceptance_count: 0
-    acceptance_completed: 0
+    generated: true
+    task_count: 17
+    acceptance_count: 18
+    acceptance_completed: 18
 confidence:
     certain: 2
     confident: 3
@@ -29,7 +29,26 @@ confidence:
         competence: 81.0
         disambiguation: 78.0
 stage_metrics:
-    intake: {started_at: "2026-08-10T05:42:46Z", driver: fab-new, iterations: 1}
+    intake: {started_at: "2026-08-10T05:42:46Z", driver: fab-new, iterations: 1, completed_at: "2026-08-10T05:57:25Z"}
+    apply: {started_at: "2026-08-10T06:13:09Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-10T06:16:05Z"}
+    review: {started_at: "2026-08-10T06:16:05Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-10T06:18:23Z"}
+    hydrate: {started_at: "2026-08-10T06:18:23Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T06:20:42Z"}
+    ship: {started_at: "2026-08-10T06:20:42Z", driver: fab-fff, iterations: 1}
 prs: []
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-08-10T06:20:42Z"
+    computed_at_stage: hydrate
+summary: agy built-in ships interactive_command 'agy --dangerously-skip-permissions --model {model}' — all four built-ins pane-capable; first-run trust wall rides the generic readiness gate (user-seedable trust store); the dispatch-only framing swept repo-wide
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-10T05:45:11Z
+last_updated: 2026-08-10T06:20:42Z
