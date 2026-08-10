@@ -928,6 +928,7 @@ func agentSegment(roles []roleRow) string {
 	b.WriteString("  session: " + agent.DefaultProviderName + "                    # Tier 1 — the agents you talk to\n")
 	b.WriteString("  workers: " + agent.DefaultProviderName + "                    # Tier 2 — the agents stages dispatch to\n")
 	b.WriteString("  # profiles:\n")
+	b.WriteString("  #   operator: { provider: codex }    # example: coordinate from another CLI\n")
 	b.WriteString("  #   review: { provider: codex }      # example: run just the critic elsewhere\n")
 	// Trim the trailing newline: Render() re-inserts the inter-field separator.
 	return strings.TrimRight(b.String(), "\n")
@@ -1060,6 +1061,7 @@ func agentShortSegment() string {
 		"  session: " + agent.DefaultProviderName + "\n" +
 		"  workers: " + agent.DefaultProviderName + "\n" +
 		"  # profiles:\n" +
+		"  #   operator: { provider: codex }    # example: coordinate from another CLI\n" +
 		"  #   review: { provider: codex }      # example: run just the critic elsewhere"
 }
 

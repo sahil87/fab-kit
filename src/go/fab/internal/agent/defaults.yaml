@@ -105,15 +105,16 @@ providers:
     # matching claude's shipped `--dangerously-skip-permissions` posture.
     interactive_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
     headless_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
-    # Sparse: a role absent here resolves the `default` entry, so hydrate and
-    # operator get the frontier model at `high` without a row of their own. The
-    # codex CLI takes a concrete model SLUG (no alias mechanism), so these are
-    # pinned IDs and are the rows to bump when the catalog moves.
+    # Sparse: a role absent here resolves the `default` entry, so hydrate gets
+    # the frontier model at `high` without a row of its own. The codex CLI takes
+    # a concrete model SLUG (no alias mechanism), so these are pinned IDs and
+    # are the rows to bump when the catalog moves.
     profiles:
-      default: { model: gpt-5.6-sol,  effort: high }
-      doing:   { effort: xhigh }        # model inherits `default`
-      review:  { effort: xhigh }
-      fast:    { model: gpt-5.6-luna, effort: low }
+      default:  { model: gpt-5.6-sol,  effort: high }
+      operator: { model: gpt-5.6-luna, effort: medium }
+      doing:    { effort: xhigh }        # model inherits `default`
+      review:   { effort: xhigh }
+      fast:     { model: gpt-5.6-luna, effort: low }
   agy:
     # Antigravity CLI. Model IDs embed the reasoning effort (e.g. gemini-3.1-pro-high),
     # so there is NO {effort} placeholder — a separate --effort flag exists but would

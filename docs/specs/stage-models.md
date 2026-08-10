@@ -237,10 +237,11 @@ providers:
     interactive_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
     headless_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
     profiles:                                 # sparse — an absent role takes `default`
-      default: { model: gpt-5.6-sol,  effort: high }
-      doing:   { effort: xhigh }
-      review:  { effort: xhigh }
-      fast:    { model: gpt-5.6-luna, effort: low }
+      default:  { model: gpt-5.6-sol,  effort: high }
+      operator: { model: gpt-5.6-luna, effort: medium }
+      doing:    { effort: xhigh }
+      review:   { effort: xhigh }
+      fast:     { model: gpt-5.6-luna, effort: low }
   agy:
     # NO interactive_command: dispatch-only (see below).
     headless_command: 'sh -c ''agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'''
@@ -254,8 +255,8 @@ providers:
 ```
 
 **Three of the four carry fills.** The maps are SPARSE for the non-claude providers: a role absent
-from a provider's map resolves that provider's `default` entry, so codex's `hydrate` and `operator`
-land on codex's `default` model and effort, and agy's non-`fast` roles on agy's `default` model,
+from a provider's map resolves that provider's `default` entry, so codex's `hydrate` lands on
+codex's `default` model and effort, and agy's non-`fast` roles on agy's `default` model,
 without a row of their own. (The merge is per FIELD, so codex's `doing`/`review` rows — effort only —
 take their model from `default` too.)
 
