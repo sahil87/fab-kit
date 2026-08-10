@@ -1,0 +1,36 @@
+id: ki9v
+name: 260810-ki9v-kimi-pane-enablement
+created: 2026-08-10T02:56:54Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: ready
+    apply: pending
+    review: pending
+    hydrate: pending
+    ship: pending
+    review-pr: pending
+plan:
+    generated: false
+    task_count: 0
+    acceptance_count: 0
+    acceptance_completed: 0
+confidence:
+    certain: 4
+    confident: 3
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    fuzzy: true
+    dimensions:
+        signal: 77.9
+        reversibility: 80.7
+        competence: 84.3
+        disambiguation: 80.7
+stage_metrics:
+    intake: {started_at: "2026-08-10T02:56:54Z", driver: fab-new, iterations: 1}
+prs: []
+change_type_source: explicit
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-10T03:00:55Z
