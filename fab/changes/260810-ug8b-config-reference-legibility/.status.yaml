@@ -5,17 +5,17 @@ created_by: sahil-noon
 change_type: refactor
 issues: []
 progress:
-    intake: ready
-    apply: pending
-    review: pending
-    hydrate: pending
-    ship: pending
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
     review-pr: pending
 plan:
-    generated: false
-    task_count: 0
-    acceptance_count: 0
-    acceptance_completed: 0
+    generated: true
+    task_count: 8
+    acceptance_count: 11
+    acceptance_completed: 11
 confidence:
     certain: 3
     confident: 3
@@ -29,7 +29,26 @@ confidence:
         competence: 84.2
         disambiguation: 81.7
 stage_metrics:
-    intake: {started_at: "2026-08-10T02:56:52Z", driver: fab-new, iterations: 1}
+    intake: {started_at: "2026-08-10T02:56:52Z", driver: fab-new, iterations: 1, completed_at: "2026-08-10T03:06:05Z"}
+    apply: {started_at: "2026-08-10T03:06:05Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T03:25:28Z"}
+    review: {started_at: "2026-08-10T03:25:28Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T03:34:25Z"}
+    hydrate: {started_at: "2026-08-10T03:34:25Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T03:39:49Z"}
+    ship: {started_at: "2026-08-10T03:39:49Z", driver: fab-fff, iterations: 1}
 prs: []
+true_impact:
+    added: 114
+    deleted: 0
+    net: 114
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-08-10T03:39:49Z"
+    computed_at_stage: hydrate
+summary: Flattened provider reference blocks to uniform single-hash live rendering with a pins-on-hoist prose warning; moved dispatch.* registry rows above agent.*
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-10T03:00:55Z
+last_updated: 2026-08-10T03:39:49Z

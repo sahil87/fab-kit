@@ -316,10 +316,13 @@ Consequences:
   agy/kimi carry a `headless_command` only.** Under the default `dispatch.mode: native`, claude
   resolves native while the non-claude built-ins descend to headless. Adding a command never
   changes policy by itself.
-- The reference renders the non-claude blocks **commented**, like every other non-overridden
-  default (a commented block registers no project override). Their command strings render as YAML
+- The reference renders all four blocks **live and uniformly** — in a fence or
+  `init --system` scaffold every provider line carries exactly one `#`, and
+  presence=intent is untouched (a built-in stays inert until named). Their command strings render as YAML
   single-quoted scalars with interior quotes doubled, so uncommenting a nested-shell
-  `headless_command` yields valid YAML.
+  `headless_command` yields valid YAML. Hoisting a whole block PINS its fills
+  against kit-release refreshes — the segment prose warns to override a single
+  field (`providers.<name>.profiles.<role>.model`) instead.
 
 ### Refreshing the non-claude fills
 
@@ -421,9 +424,10 @@ providers:
     interactive_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
     headless_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
   # codex, agy and kimi are BUILT-IN providers carrying grammar (and, for the
-  # first two, fills) — these blocks merely restate a built-in default, so they
-  # ship commented like every other default. Uncomment only to OVERRIDE a grammar
-  # or pin a newer model.
+  # first two, fills) — `fab config explain` shows their blocks LIVE like
+  # claude's, and a copy hoisted into your config PINS the shown values against
+  # kit-release refreshes. Uncomment only to OVERRIDE a grammar or pin a newer
+  # model; prefer a single-field override (providers.<name>.profiles.<role>.model).
   # (Shape only below; § Built-in providers above carries the live values,
   # and `fab config explain` prints what your binary actually ships.)
   # codex:
