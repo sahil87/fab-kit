@@ -58,7 +58,7 @@ fab agent --provider codex --print                                  # bare invoc
 fab agent --provider codex --model <id> --effort <level> --print     # explicit profile
 ```
 
-> **Not every provider has a session form.** Composition needs an `interactive_command`, and only `claude` and `codex` ship one among the built-ins — `agy` and `kimi` are **dispatch-only** (see their dictionary entries for why, and for the config block that adds one). Either form errors actionably against a provider with none, naming the `providers.<name>.interactive_command` key to set.
+> **Not every provider has a session form.** Composition needs an `interactive_command`, and three of the four built-ins ship one — `claude`, `codex`, and `kimi`; `agy` alone is **dispatch-only** (see its dictionary entry for why, and for the config block that adds one). Either form errors actionably against a provider with none, naming the `providers.<name>.interactive_command` key to set.
 
 **Which form to use.** Use the **role** form when the spawn should inherit fab's role/budget policy (a pipeline-shaped worker, the operator's own coordinator) — including which provider the `agent.session` knob points Tier-1 agents at. Use the **provider** form when the question is mechanical — "give me a codex session right here" — with no role to speak of. `--provider` is mutually exclusive with the `[role]` positional, and `--model`/`--effort` are only valid alongside `--provider` (see `_cli-fab.md` § fab agent — note `fab resolve-agent` deliberately allows them bare, being a pure query). **No `providers:` block is needed for either form**: `claude`, `codex`, `agy`, and `kimi` are built-in providers.
 
@@ -131,7 +131,7 @@ Each entry below carries only **stable invocation grammar** and **discovery reci
 - **Model IDs are NOT recorded *here*.** Model catalogs rot in weeks, and this dictionary is read by an agent that may be reasoning about an uninstalled CLI. Instead each entry carries a *discovery recipe*: what to run against the **installed** binary to learn which models it accepts. Never assume a model ID from memory; run the recipe. *(fab-kit does ship per-role model fills in the binary — `providers.<name>.profiles` — but those are DATA refreshed at kit-release cadence and overridden by one config line, not knowledge an agent should carry. The recipe is still how you verify one.)*
 - **Quirks accrete from real encounters only.** An entry records an interactive quirk (first-run trust prompt, submit-key behavior) only once it has actually been hit and confirmed. Speculating about an uninstalled CLI's behavior is worse than silence — it reads as verified.
 
-- **Built-ins:** `claude`, `codex`, `agy`, and `kimi` use the independent `interactive_command` / `headless_command` / `native` capability grammar in `internal/agent`'s embedded `defaults.yaml`; all resolve without a `providers:` block. Claude ships all three capabilities; codex is non-native (pane + headless); agy and kimi are headless-only (no `interactive_command`, so no pane capability). `dispatch.mode` chooses the starting rung of the descending `pane → native → headless` ladder.
+- **Built-ins:** `claude`, `codex`, `agy`, and `kimi` use the independent `interactive_command` / `headless_command` / `native` capability grammar in `internal/agent`'s embedded `defaults.yaml`; all resolve without a `providers:` block. Claude ships all three capabilities; codex and kimi are non-native (pane + headless); agy is headless-only (no `interactive_command`, so no pane capability). `dispatch.mode` chooses the starting rung of the descending `pane → native → headless` ladder.
 - **Fill-consuming paths:** depth knobs (`agent.session` / `agent.workers`), `agent.profiles.<role>.provider`, and `fab resolve-agent --provider` consume the built-in per-role fills and resolve a real model for every role — except on `kimi`, which ships none deliberately and resolves an empty model so the CLI's own `default_model` applies.
 - **Provider-addressed sessions:** `fab agent --provider` bypasses both fill sources and stays bare unless `--model`/`--effort` is passed.
 - **Freshness and overrides:** non-Claude fills are release-cadence, unvalidated data. Discover current IDs with each entry's recipe; override with `providers.<name>.profiles.<role>.{model,effort}` (including in `~/.fab-kit/config.yaml`) or invocation flags. A `providers:` block overrides capabilities/fills; it does not register built-ins.
@@ -189,7 +189,7 @@ providers:
     interactive_command: 'agy --dangerously-skip-permissions --model {model}'
 ```
 
-**Caveat**: doing so re-enables pane-mode eligibility, so stages dispatched inside tmux open a pane worker whose readiness gate has to clear agy's trust prompt first. The gate can answer it (that is what its judgment rounds are for) and the answer is workspace-scoped, so it clears once per checkout — but until backlog `[agik]` probes this per provider, pair it with `--headless` on unattended dispatches, or point stage roles at a different provider.
+**Caveat**: doing so re-enables pane-mode eligibility, so stages dispatched inside tmux open a pane worker whose readiness gate has to clear agy's trust prompt first. The gate can answer it (that is what its judgment rounds are for) and the answer is workspace-scoped, so it clears once per checkout — but until backlog `[agik]` probes it, pair it with `--headless` on unattended dispatches, or point stage roles at a different provider.
 
 **Skill discovery.** agy reads `<workspace>/.agents/skills/<skill>/SKILL.md` natively — which is why `fab sync` deploys **one** skill set to `.agents/skills/` and no `.agy/skills/` directory. One target per skill set is what makes duplicate-skill conflicts impossible.
 
@@ -199,24 +199,19 @@ The kimi-code CLI (Moonshot's Kimi K3 agent). Verified against v0.34.0.
 
 | Aspect | Value |
 |--------|-------|
-| Interactive | `kimi` (`--yolo` for full-auto) — **fab ships no `interactive_command` for kimi** (see § Dispatch-only, below) |
+| Interactive | `kimi --auto -m {model}` — the shipped `interactive_command` (`--auto` is the full-auto posture the headless form rejects; `--yolo` is the same idea and equally interactive-only) |
 | Headless | `kimi -p "<prompt>"` — like agy, `-p` takes the prompt as an **ARGUMENT** and ignores stdin, so stdin delivery uses the same nested-shell `"$(cat)"` idiom |
-| Approvals | `-p` is **already** non-interactive and auto-approves tool calls. It **REJECTS** `--yolo`/`--auto` (`Cannot combine --prompt with --yolo`), so the built-in `headless_command` carries no approval flag at all; `--yolo` is only meaningful on an interactive invocation |
+| Approvals | `-p` is **already** non-interactive and auto-approves tool calls. It **REJECTS** `--yolo`/`--auto` (`Cannot combine --prompt with --yolo`), so the built-in `headless_command` carries no approval flag at all — the full-auto flag is meaningful only on an interactive invocation, which is why the built-in `interactive_command` is the one carrying `--auto` |
 | Profile flags | `-m <alias>` — note this is a **user-config model alias**, not a vendor catalog ID |
 | Fills | **fab ships NONE**, deliberately: the `-m` alias set differs per install (managed installs expose `kimi-code`/`k3`; custom providers differ), so a pinned value would break non-managed setups. The empty `{model}` drops `-m` entirely and kimi falls back to the user's configured `default_model` |
 | Model discovery | Read the installed CLI's own model configuration (its config file / `kimi --help`) for the aliases *that install* accepts — there is no portable catalog to quote. Pin one per role with `providers.kimi.profiles.<role>.model` if you want role differentiation; otherwise every role inherits `default_model` |
 
-**Dispatch-only.** Like agy, the kimi built-in ships a `headless_command` and **no `interactive_command`** — but no longer for a prompt-grammar reason. kimi's lack of an interactive-initial-prompt flag (`-p` is non-interactive; upstream issue #2240 tracks the gap) stopped mattering once delivery moved off the launch command: fab types the pointer into the running TUI itself. What has NOT been established is how kimi's interactive first-run and input echo behave under the delivery choreography, which is what the readiness gate's echo probe keys on. Until backlog `[agik]` probes it, kimi ships none, so automatic resolution descends to headless (`descended: pane unavailable: no interactive_command`) and an explicit `fab dispatch open` hard-errors.
+**Pane-capable.** kimi ships **both** command fields, so it is eligible for interactive sessions and for pane-mode dispatch. Its lack of an interactive-initial-prompt flag (`-p` is non-interactive; upstream issue #2240 tracks the gap) does not matter: delivery moved off the launch command, and fab types the pointer into the running TUI itself. The two things that had to be established were probed live on 2026-08-10 against v0.34.0:
 
-An interactive kimi session likewise needs an `interactive_command` you add yourself:
+- **First run**: kimi gates a fresh folder behind a `Trust this folder?` wall. That is an ordinary readiness-gate **judgment round** — the pane reads `parked`, one Enter clears it, and the answer is remembered per folder — so it needs no code and amortizes across every later pane worker in the same checkout.
+- **Input echo**: kimi draws **vertical side rules** down its input box, so a wrapped line arrives in a capture with `││` interleaved between the halves. `fab dispatch deliver`'s echo verification ignores box-drawing runes as well as whitespace, so the pointer verifies.
 
-```yaml
-providers:
-  kimi:
-    interactive_command: 'kimi --yolo -m {model}'
-```
-
-**Caveat**: the same unprobed-provider caveat as agy applies — pane delivery depends on kimi's TUI echoing typed input the way the readiness gate expects, which nobody has verified.
+**Caveat**: the trust wall is the one interactive step a first pane worker in a fresh worktree spends a judgment round on. Budget is 2 rounds, so it costs one and leaves one.
 
 **Skill discovery.** kimi reads the generic workspace `.agents/skills/` directory alongside its brand group, merged by priority — which is why `fab sync` deploys **one** skill set to `.agents/skills/` and no `.kimi/skills/` directory. One target per skill set is what makes duplicate-skill conflicts impossible.
 

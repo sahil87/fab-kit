@@ -1043,17 +1043,20 @@ func TestResolveProvider(t *testing.T) {
 // codex and agy ship per-role fills so a knob pointed at them resolves a real model
 // per role, while kimi ships none on purpose (its -m takes a user-config alias).
 //
-// An empty `session` likewise ASSERTS the absence of an interactive_command. agy and kimi
-// are DISPATCH-ONLY built-ins: an interactive_command makes a provider eligible for
-// pane-mode dispatch, and what is unprobed for these two is their interactive
-// FIRST-RUN behavior and input echo — not their prompt grammar, since fab appends
-// nothing to the command and types a pane worker's pointer in afterwards. agy gates
-// a fresh workspace behind a trust prompt even under --dangerously-skip-permissions
-// (and worktree-per-change makes every dispatch a fresh workspace), which parks a
-// worker before the readiness gate can deliver to it; kimi's first run has not been
-// checked against the delivery choreography at all. Backlog [agik] owns the probe
-// and the roster flip. With none, mode resolution descends to headless instead of
-// parking a pane worker.
+// An empty `session` likewise ASSERTS the absence of an interactive_command. agy is
+// the one DISPATCH-ONLY built-in: an interactive_command makes a provider eligible
+// for pane-mode dispatch, and what is unprobed for agy is its interactive FIRST-RUN
+// behavior — not its prompt grammar, since fab appends nothing to the command and
+// types a pane worker's pointer in afterwards. agy gates a fresh workspace behind a
+// trust prompt even under --dangerously-skip-permissions (and worktree-per-change
+// makes every dispatch a fresh workspace), which parks a worker before the readiness
+// gate can deliver to it. Backlog [agik] owns that probe and agy's roster flip. With
+// none, mode resolution descends to headless instead of parking a pane worker.
+//
+// kimi's probe is done (2026-08-10, kimi 0.34.0): its trust wall is an ordinary
+// readiness-gate judgment round and its side-bordered input box verifies under the
+// gate's box-drawing-tolerant squeeze, so it ships a session command and is
+// pane-capable.
 func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 	cases := []struct {
 		name string
@@ -1079,7 +1082,10 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 			wantFills:      true,
 		},
 		{
-			name: "kimi", session: "", dispatch: DefaultKimiHeadlessCommand,
+			name: "kimi", session: DefaultKimiInteractiveCommand, dispatch: DefaultKimiHeadlessCommand,
+			// The full-auto flag rides the SESSION form only: `kimi -p` already
+			// auto-approves tools and errors when combined with it.
+			sessionBypass:  "--auto",
 			dispatchBypass: "",
 			wantFills:      false,
 		},
@@ -1155,14 +1161,27 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 	// auto-mode soft-fall back to headless instead of spawning a pane worker that
 	// never receives its prompt. Asserting it here — over the same resolved
 	// providers the dispatcher reads — keeps the two in step.
-	for _, name := range []string{"agy", "kimi"} {
-		prov, ok := ResolveProvider(nil, name)
-		if !ok {
-			t.Fatalf("built-in %s provider must resolve with no config", name)
-		}
-		if prov.InteractiveCommand != "" {
-			t.Errorf("%s must stay ineligible for pane dispatch (interactive_command = %q); with one, auto mode inside tmux selects pane instead of soft-falling back to headless", name, prov.InteractiveCommand)
-		}
+	agy, ok := ResolveProvider(nil, "agy")
+	if !ok {
+		t.Fatalf("built-in agy provider must resolve with no config")
+	}
+	if agy.InteractiveCommand != "" {
+		t.Errorf("agy must stay ineligible for pane dispatch (interactive_command = %q); with one, auto mode inside tmux selects pane instead of soft-falling back to headless", agy.InteractiveCommand)
+	}
+
+	// kimi is the same seam read the other way: shipping an interactive_command is
+	// exactly what makes it pane-ELIGIBLE, which is the whole point of the probe
+	// that closed. Its {model} must stay droppable — kimi ships no fills, so a
+	// pinned model here would be a value no install is guaranteed to accept.
+	kimi, ok := ResolveProvider(nil, "kimi")
+	if !ok {
+		t.Fatalf("built-in kimi provider must resolve with no config")
+	}
+	if kimi.InteractiveCommand == "" {
+		t.Error("kimi must be eligible for pane dispatch — its interactive first run and input echo were probed on 2026-08-10")
+	}
+	if !strings.Contains(kimi.InteractiveCommand, "-m {model}") {
+		t.Errorf("kimi.InteractiveCommand = %q, want the droppable `-m {model}` pair (it ships no fills, so the empty model must remove the flag)", kimi.InteractiveCommand)
 	}
 }
 

@@ -1,0 +1,57 @@
+id: ki9v
+name: 260810-ki9v-kimi-pane-enablement
+created: 2026-08-10T02:56:54Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 14
+    acceptance_count: 19
+    acceptance_completed: 19
+confidence:
+    certain: 4
+    confident: 3
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    fuzzy: true
+    dimensions:
+        signal: 77.9
+        reversibility: 80.7
+        competence: 84.3
+        disambiguation: 80.7
+stage_metrics:
+    intake: {started_at: "2026-08-10T02:56:54Z", driver: fab-new, iterations: 1, completed_at: "2026-08-10T03:06:37Z"}
+    apply: {started_at: "2026-08-10T03:47:34Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-10T03:50:57Z"}
+    review: {started_at: "2026-08-10T03:50:57Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-10T03:58:40Z"}
+    hydrate: {started_at: "2026-08-10T03:58:40Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T04:09:47Z"}
+    ship: {started_at: "2026-08-10T04:09:47Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T04:12:36Z"}
+    review-pr: {started_at: "2026-08-10T04:12:36Z", driver: git-pr, iterations: 1, completed_at: "2026-08-10T04:19:27Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/566
+change_type_source: explicit
+true_impact:
+    added: 877
+    deleted: 227
+    net: 650
+    excluding:
+        added: 362
+        deleted: 171
+        net: 191
+    tests:
+        added: 261
+        deleted: 98
+        net: 163
+    computed_at: "2026-08-10T04:12:36Z"
+    computed_at_stage: ship
+summary: kimi ships interactive_command 'kimi --auto -m {model}' and is pane-capable; deliver/ready echo verification drops box-drawing runes alongside whitespace, admitting side-bordered input boxes; agy is the one dispatch-only built-in
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-10T04:19:27Z

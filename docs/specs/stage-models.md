@@ -248,7 +248,7 @@ providers:
       default: { model: gemini-3.1-pro-high }
       fast:    { model: gemini-3.6-flash-low }
   kimi:
-    # NO interactive_command: dispatch-only (see below).
+    interactive_command: 'kimi --auto -m {model}'
     headless_command: 'sh -c ''kimi -m {model} -p "$(cat)"'''
     # NO profiles: kimi's -m takes a user-config model alias, not a catalog ID.
 ```
@@ -259,23 +259,29 @@ land on codex's `default` model and effort, and agy's non-`fast` roles on agy's 
 without a row of their own. (The merge is per FIELD, so codex's `doing`/`review` rows — effort only —
 take their model from `default` too.)
 
-**Two of the four are dispatch-only.** Only `claude` and `codex` ship an `interactive_command`; `agy` and
-`kimi` ship dispatch grammar alone, and the absence is load-bearing rather than an omission. An
+**One of the four is dispatch-only.** `claude`, `codex` and `kimi` ship an `interactive_command`; `agy`
+ships dispatch grammar alone, and the absence is load-bearing rather than an omission. An
 `interactive_command` is what makes a provider eligible for **pane-mode dispatch**, and the open question
 per provider is **first-run behavior**, not prompt grammar: agy gates a fresh workspace behind an
 interactive **trust prompt** even under `--dangerously-skip-permissions`, and worktree-per-change makes
-every dispatch a fresh workspace, so a pane worker parks before the readiness gate can deliver to it;
-kimi's interactive first-run and input echo have not been probed against the delivery choreography at
-all. With no `interactive_command`, automatic resolution skips the pane rung and descends to headless
+every dispatch a fresh workspace, so a pane worker parks before the readiness gate can deliver to it.
+With no `interactive_command`, automatic resolution skips the pane rung and descends to headless
 (`descended: pane unavailable: no interactive_command`), and an explicit `fab dispatch open`
-hard-errors actionably. A user who wants an interactive `agy`/`kimi` session — or pane workers for one —
-adds `providers.<name>.interactive_command` in their own config, ahead of that probe.
+hard-errors actionably. A user who wants an interactive `agy` session — or pane workers for it —
+adds `providers.agy.interactive_command` in their own config, ahead of that probe.
+
+**kimi's equivalent probe closed** (2026-08-10, kimi 0.34.0), which is why it ships one. Its two
+unknowns were answered rather than designed around: the first-run `Trust this folder?` wall is an
+ordinary readiness-gate **judgment round** (`parked` → one Enter → ready, remembered per folder, so it
+amortizes across a checkout), and its **input echo** verifies now that delivery's echo check ignores
+box-drawing runes as well as whitespace — kimi draws vertical side rules down its input box, so a
+wrapped pointer arrives in the capture with `││` interleaved between the halves.
 
 **Full-auto posture, per FORM.** Claude uses `--dangerously-skip-permissions` on both its forms,
 codex `--dangerously-bypass-approvals-and-sandbox` on both its forms, and agy
-`--dangerously-skip-permissions` on its headless command. kimi's carries no approval
-flag at all: `kimi -p` is already non-interactive and auto-approves tool calls, and *errors* when
-combined with `--yolo` (`Cannot combine --prompt with --yolo`). Pipeline workers are
+`--dangerously-skip-permissions` on its headless command. kimi carries `--auto` on its INTERACTIVE
+form only: `kimi -p` is already non-interactive and auto-approves tool calls, and *errors* when
+combined with `--yolo`/`--auto` (`Cannot combine --prompt with --yolo`). Pipeline workers are
 unattended and have no channel for answering approval prompts. Users who require approval-gated
 workers override the corresponding `providers.<name>.interactive_command` or `.headless_command`.
 
@@ -312,8 +318,8 @@ Consequences:
 - **A built-in provider is inert until named.** Adding the rows changes no default behavior (both
   depth knobs ship `claude`), which is why presence=intent — the rule that keeps behavior-changing
   config commented — does not force the table out of Go.
-- **Claude carries all three capabilities; codex carries both command fields and is non-native;
-  agy/kimi carry a `headless_command` only.** Under the default `dispatch.mode: native`, claude
+- **Claude carries all three capabilities; codex and kimi carry both command fields and are
+  non-native; agy carries a `headless_command` only.** Under the default `dispatch.mode: native`, claude
   resolves native while the non-claude built-ins descend to headless. Adding a command never
   changes policy by itself.
 - The reference renders all four blocks **live and uniformly** — in a fence or
@@ -440,7 +446,8 @@ providers:
   #   headless_command: 'sh -c ''agy … --model {model} -p "$(cat)"'''   # no {effort} flag; nested shell so $(cat) reads the piped prompt
   #   profiles:
   #     default: { model: <agy-model-id> }  # e.g. — no effort: the reasoning level rides the ID suffix
-  # kimi:                                                             # dispatch-only: no interactive_command
+  # kimi:
+  #   interactive_command: 'kimi --auto -m {model}'               # --auto: the full-auto flag its headless form rejects
   #   headless_command: 'sh -c ''kimi -m {model} -p "$(cat)"'''   # no --yolo: kimi -p rejects it and already auto-approves
   #   profiles:
   #     default: { model: <your-kimi-alias> }  # e.g. — fab ships no kimi fill at all

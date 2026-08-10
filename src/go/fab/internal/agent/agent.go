@@ -172,15 +172,17 @@ var DefaultHeadlessCommand = defaultProviders[DefaultProviderName].HeadlessComma
 // All four providers carry a headless_command. Only claude also declares native
 // capability; dispatch.mode resolves the adapter independently of command presence.
 //
-// Only codex carries a non-claude INTERACTIVE command. agy and kimi deliberately
-// ship none, so they have no pane capability and mode resolution lands their
-// stages on headless. The field itself is pure launch grammar — fab appends
-// nothing to it and delivers a pane worker's prompt afterwards through the
-// verified send-keys choreography — so what remains to be probed per provider is
-// FIRST-RUN behavior and input echo: agy trust-prompts a fresh workspace even
-// under --dangerously-skip-permissions, and kimi's interactive first run is
-// simply unprobed against that choreography. Backlog [agik] owns the probe and
-// the roster flip. See defaults.yaml's providers-block note.
+// codex and kimi carry a non-claude INTERACTIVE command; agy deliberately ships
+// none, so it has no pane capability and mode resolution lands its stages on
+// headless. The field itself is pure launch grammar — fab appends nothing to it
+// and delivers a pane worker's prompt afterwards through the verified send-keys
+// choreography — so what is probed per provider is FIRST-RUN behavior and input
+// echo. agy trust-prompts a fresh workspace even under
+// --dangerously-skip-permissions, which parks a worker before the gate can
+// deliver to it; backlog [agik] owns that probe and agy's roster flip. kimi's
+// probe is done (2026-08-10): its trust wall is an ordinary judgment round and
+// its side-bordered input box verifies under the gate's box-drawing-tolerant
+// squeeze. See defaults.yaml's providers-block note.
 //
 // These are the canonical names internal/configref interpolates into the rendered
 // reference, so the reference text carries no literal copy (the same
@@ -203,9 +205,13 @@ var (
 	DefaultAgyHeadlessCommand = defaultProviders[providerAgy].HeadlessCommand
 	// DefaultKimiHeadlessCommand runs one headless kimi task. Same nested-shell
 	// stdin idiom as agy, and deliberately NO approval flag: `kimi -p` already
-	// auto-approves tools and errors on `--yolo`/`--auto`. kimi likewise ships no
-	// interactive command, so this is its only invocation grammar.
+	// auto-approves tools and errors on `--yolo`/`--auto`.
 	DefaultKimiHeadlessCommand = defaultProviders[providerKimi].HeadlessCommand
+	// DefaultKimiInteractiveCommand opens an interactive kimi TUI session. This is
+	// where kimi's full-auto flag belongs (`--auto`), since the headless form
+	// rejects it. Its {model} resolves empty — kimi ships no fills — so the -m pair
+	// drops out and the CLI's own default_model applies.
+	DefaultKimiInteractiveCommand = defaultProviders[providerKimi].InteractiveCommand
 )
 
 // Profile is a concrete {provider, model, effort} triple. An empty Provider names
@@ -231,10 +237,10 @@ type Profile struct {
 //     plus its own SPARSE per-role fills under the same
 //     absent-role-falls-back-to-`default` rule. Naming it resolves with zero
 //     providers config; its stages land on headless.
-//   - kimi — a headless command ONLY (no interactive command), and deliberately NO
-//     fills: its -m takes a user-config model alias rather than a catalog ID, so the
-//     empty model drops the -m pair and the CLI's own default_model applies. Its
-//     stages likewise land on headless.
+//   - kimi — interactive AND headless commands, and deliberately NO fills: its -m
+//     takes a user-config model alias rather than a catalog ID, so the empty model
+//     drops the -m pair and the CLI's own default_model applies. It declares no
+//     native capability, so mode resolution runs its stages on the CLI adapters.
 //
 // A built-in provider is INERT until a knob, an agent.profiles entry, or a flag
 // names it — adding a row changes no default behavior, which is why the

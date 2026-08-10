@@ -12,6 +12,7 @@ import (
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 )
 
 // setupDispatchRepo builds a repo with one active change and a config whose
@@ -593,43 +594,88 @@ func TestDispatchStart_PanePreferenceNoInteractiveCommand_Integration(t *testing
 }
 
 // TestModeCommand_DispatchOnlyBuiltInsAreHeadlessOnly ties the two shape-(b) tests
-// above to the BUILT-IN providers that actually rely on them. Those tests use a
+// above to the BUILT-IN provider that actually relies on them. Those tests use a
 // synthetic `cli` provider with an empty interactive_command; this one asserts that
-// agy and kimi — resolved from the shipped defaults with no providers: config at
-// all — genuinely present that shape at the seam `dispatch start` branches on.
+// agy — resolved from the shipped defaults with no providers: config at all —
+// genuinely presents that shape at the seam `dispatch start` branches on.
 //
-// Neither CLI's interactive first run has been probed against the delivery
-// choreography — agy trust-prompts a fresh workspace even under
-// --dangerously-skip-permissions, and kimi's first run and input echo are unchecked
-// (backlog [agik]) — so shipping an interactive_command would make resolution inside
+// agy's interactive first run has not been probed against the delivery choreography
+// (it trust-prompts a fresh workspace even under --dangerously-skip-permissions,
+// backlog [agik]), so shipping an interactive_command would make resolution inside
 // tmux SELECT pane and park every stage before the readiness gate could deliver to
-// it. Shipping none is what routes them to the documented descent
+// it. Shipping none is what routes it to the documented descent
 // (`descended: pane unavailable: no interactive_command`) while an explicit
 // `fab dispatch open` still hard-errors actionably.
 //
 // modeCommand is the composition seam both modes go through, so exercising it
 // needs no tmux server — validatePane raises the identical missingCommandError.
 func TestModeCommand_DispatchOnlyBuiltInsAreHeadlessOnly(t *testing.T) {
-	for _, name := range []string{"agy", "kimi"} {
-		prov, ok := agent.ResolveProvider(nil, name)
-		if !ok {
-			t.Fatalf("built-in %s provider must resolve with no config", name)
-		}
+	prov, ok := agent.ResolveProvider(nil, "agy")
+	if !ok {
+		t.Fatal("built-in agy provider must resolve with no config")
+	}
 
-		// Headless composes fine — the mode these providers exist for.
-		if _, err := modeCommand(dispatch.ModeHeadless, prov, "apply", name); err != nil {
-			t.Errorf("headless dispatch for the %s built-in must compose: %v", name, err)
-		}
+	// Headless composes fine — the mode this provider exists for.
+	if _, err := modeCommand(dispatch.ModeHeadless, prov, "apply", "agy"); err != nil {
+		t.Errorf("headless dispatch for the agy built-in must compose: %v", err)
+	}
 
-		// Pane cannot, and says so actionably: an empty interactive_command is exactly
-		// the condition validatePane turns into the descent to headless.
-		_, err := modeCommand(dispatch.ModePane, prov, "apply", name)
-		if err == nil {
-			t.Fatalf("pane dispatch for the %s built-in must error — it ships no interactive_command", name)
+	// Pane cannot, and says so actionably: an empty interactive_command is exactly
+	// the condition validatePane turns into the descent to headless.
+	_, err := modeCommand(dispatch.ModePane, prov, "apply", "agy")
+	if err == nil {
+		t.Fatal("pane dispatch for the agy built-in must error — it ships no interactive_command")
+	}
+	if !strings.Contains(err.Error(), "providers.agy.interactive_command") {
+		t.Errorf("agy pane error = %q, want the interactive_command config-key hint", err.Error())
+	}
+}
+
+// TestModeCommand_KimiComposesBothModes is the flip side since 260810-ki9v: kimi's
+// interactive first run and input echo WERE probed (2026-08-10, kimi 0.34.0 — the
+// trust wall is an ordinary readiness-gate judgment round, and its side-bordered
+// input box verifies under the gate's box-drawing-tolerant squeeze), so it ships an
+// interactive_command and BOTH rungs compose from the shipped defaults.
+//
+// Asserted at the same seam as the agy case above, because this is where a
+// regression would show as a stage silently descending to headless again.
+//
+// modeCommand returns the provider's TEMPLATE — substitution is the caller's next
+// step (dispatchStart's spawn.WithProfile) — so the rung assertions compare against
+// the shipped grammar, and the launched form is checked through WithProfile after.
+func TestModeCommand_KimiComposesBothModes(t *testing.T) {
+	prov, ok := agent.ResolveProvider(nil, "kimi")
+	if !ok {
+		t.Fatal("built-in kimi provider must resolve with no config")
+	}
+
+	for _, tc := range []struct {
+		mode dispatch.Mode
+		want string
+	}{
+		{dispatch.ModeHeadless, agent.DefaultKimiHeadlessCommand},
+		{dispatch.ModePane, agent.DefaultKimiInteractiveCommand},
+	} {
+		got, err := modeCommand(tc.mode, prov, "apply", "kimi")
+		if err != nil {
+			t.Errorf("%s dispatch for the kimi built-in must compose: %v", tc.mode, err)
+			continue
 		}
-		if !strings.Contains(err.Error(), "providers."+name+".interactive_command") {
-			t.Errorf("%s pane error = %q, want the interactive_command config-key hint", name, err.Error())
+		if got != tc.want {
+			t.Errorf("%s dispatch composes %q, want the shipped %s grammar %q", tc.mode, got, tc.mode, tc.want)
 		}
+	}
+
+	// The pane rung's LAUNCHED form: kimi ships no fills, so the role resolves an
+	// empty model and the token-drop takes `-m` with its placeholder, leaving the
+	// fixed --auto. That is the invocation a pane worker actually opens with, and
+	// the one the 2026-08-10 probe ran.
+	paneCmd, err := modeCommand(dispatch.ModePane, prov, "apply", "kimi")
+	if err != nil {
+		t.Fatalf("pane dispatch for the kimi built-in must compose: %v", err)
+	}
+	if got, want := spawn.WithProfile(paneCmd, "", ""), "kimi --auto"; got != want {
+		t.Errorf("the launched kimi pane command = %q, want %q (the empty model must drop the -m pair)", got, want)
 	}
 }
 

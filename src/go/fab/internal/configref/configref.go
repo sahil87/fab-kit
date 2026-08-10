@@ -695,7 +695,7 @@ const referenceHeader = `# Full reference of all available options: fab config e
 // interpolated from its canonical agent var (no literal copy):
 // agent.DefaultInteractiveCommand / agent.DefaultHeadlessCommand for claude, and the
 // agent.DefaultCodex*/DefaultAgy*/DefaultKimi* vars for the other three built-ins
-// (codex carries both commands; agy and kimi are dispatch-only).
+// (codex and kimi carry both commands; agy is dispatch-only).
 // The per-role FILLS are interpolated the same way, from the already-derived
 // providerDefaults() view — so the shipped values appear here without a literal copy,
 // and a bump in defaults.yaml reaches the rendered reference by itself. kimi ships no
@@ -775,16 +775,17 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# block below is a rendering choice, not a missing fill.\n" +
 		"# All four blocks below render LIVE and uniformly — claude's baseline and the\n" +
 		"# codex, agy and kimi blocks at the same indentation, one `#` deep in your\n" +
-		"# fence. Claude carries all three capabilities; codex carries pane + headless and\n" +
-		"# therefore descends from the default native preference to headless. agy and kimi\n" +
-		"# ship NO interactive_command — they are DISPATCH-ONLY built-ins with no pane\n" +
-		"# capability, so mode resolution lands their stages on headless.\n" +
+		"# fence. Claude carries all three capabilities; codex and kimi carry pane +\n" +
+		"# headless and therefore descend from the default native preference to headless.\n" +
+		"# agy ships NO interactive_command — it is the one DISPATCH-ONLY built-in, with\n" +
+		"# no pane capability, so mode resolution lands its stages on headless.\n" +
 		"# interactive_command is pure LAUNCH GRAMMAR: fab appends nothing to it, and a\n" +
 		"# pane worker's stage prompt is delivered afterwards by `fab dispatch deliver`,\n" +
-		"# which types a pointer through tmux and verifies it landed. What still has to be\n" +
-		"# probed per provider is FIRST-RUN behavior and input echo (see their notes\n" +
-		"# below). Add providers.<name>.interactive_command yourself to opt that provider\n" +
-		"# into interactive sessions and pane dispatch ahead of that probe.\n" +
+		"# which types a pointer through tmux and verifies it landed. What has to be probed\n" +
+		"# per provider is FIRST-RUN behavior and input echo (see their notes below); agy's\n" +
+		"# is the one still open. Set providers.<name>.interactive_command yourself to opt\n" +
+		"# any provider into interactive sessions and pane dispatch — agy ahead of that\n" +
+		"# probe, or a provider you define yourself.\n" +
 		"#\n" +
 		"# Per-provider notes (kept out of the blocks below so a block hoisted into your\n" +
 		"# config stays valid YAML — strip the leading '# ' from every line of the\n" +
@@ -808,9 +809,12 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#     your own default_model; pin one with providers.kimi.profiles.<role>.model if\n" +
 		"#     you want per-role differentiation. Same nested-shell stdin idiom as agy, and\n" +
 		"#     no approval flag on dispatch: `kimi -p` already auto-approves tools and\n" +
-		"#     REJECTS --yolo/--auto. No interactive_command either — its interactive\n" +
-		"#     first-run and input echo have not been probed against the pane-delivery\n" +
-		"#     choreography.\n" +
+		"#     REJECTS --yolo/--auto — which is why the full-auto flag rides its\n" +
+		"#     interactive_command (--auto) instead. That command ships because kimi's\n" +
+		"#     interactive first run WAS probed: its `Trust this folder?` wall is one\n" +
+		"#     readiness-gate answer (remembered per folder), and its side-bordered input\n" +
+		"#     box verifies now that delivery ignores box-drawing runes when checking the\n" +
+		"#     echo. So kimi is pane-capable.\n" +
 		"# The bypass flags are deliberate: unattended stage workers cannot answer approval\n" +
 		"# prompts. Override the corresponding provider command to restore an\n" +
 		"# approval-gated posture.\n" +
@@ -1132,7 +1136,8 @@ func providersYAML(providers map[string]providerDefault, roleOrder []string) str
 		// lines, or the segment would end with a stray newline.
 		strings.TrimRight(
 			"  kimi:\n"+
-				"    headless_command: "+YAMLSingleQuoted(agent.DefaultKimiHeadlessCommand)+"   # dispatch only; no fills shipped, so the empty {model} drops -m\n"+
+				"    interactive_command: "+YAMLSingleQuoted(agent.DefaultKimiInteractiveCommand)+"   # --auto is the full-auto flag its headless form rejects\n"+
+				"    headless_command: "+YAMLSingleQuoted(agent.DefaultKimiHeadlessCommand)+"   # no fills shipped, so the empty {model} drops -m\n"+
 				profilesLines(providers["kimi"].Profiles, roleOrder), "\n")
 }
 

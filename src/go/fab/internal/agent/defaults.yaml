@@ -70,14 +70,20 @@ dispatch:
 # landed), so pane capability no longer depends on whether a CLI accepts a positional
 # initial prompt.
 #
-# agy and kimi deliberately carry NO interactive_command — no pane capability, so the
-# descent ladder lands their stages on headless. What still has to be probed per
-# provider is FIRST-RUN behavior and input echo, not prompt grammar: agy gates a
-# fresh workspace behind an interactive trust prompt even under
-# --dangerously-skip-permissions, and worktree-per-change makes every dispatch a
-# fresh workspace. Backlog [agik] owns that probe and the roster flip; a user who
-# adds providers.<name>.interactive_command in their own config opts into pane
-# workers for that provider ahead of it.
+# agy deliberately carries NO interactive_command — no pane capability, so the
+# descent ladder lands its stages on headless. What has to be probed per provider is
+# FIRST-RUN behavior and input echo, not prompt grammar: agy gates a fresh workspace
+# behind an interactive trust prompt even under --dangerously-skip-permissions, and
+# worktree-per-change makes every dispatch a fresh workspace. Backlog [agik] owns
+# that probe and agy's roster flip; a user who adds providers.agy.interactive_command
+# in their own config opts into pane workers for it ahead of that.
+#
+# kimi's probe is DONE (2026-08-10, kimi 0.34.0): its first-run "Trust this folder?"
+# wall is an ordinary readiness-gate judgment round (one Enter, remembered per
+# folder), and its input echo verifies now that the gate's squeeze drops box-drawing
+# runes as well as whitespace — kimi's input box draws vertical side rules, which a
+# wrap interleaves between the halves. So kimi ships an interactive_command below and
+# is pane-capable.
 providers:
   claude:
     native: true
@@ -137,8 +143,9 @@ providers:
     # default_model. -p is already non-interactive and auto-approves tools; it
     # REJECTS --yolo/--auto ("Cannot combine --prompt with --yolo"), so the
     # dispatch form carries no approval flag. Same nested-shell stdin idiom as agy.
-    # NO interactive_command either — not for a prompt-grammar reason (delivery is
-    # fab's, typed post-spawn), but because kimi's interactive first-run and input
-    # echo have not been probed against the delivery choreography. Backlog [agik]
-    # owns that probe and the roster flip.
+    # The INTERACTIVE form is where the full-auto flag belongs: --auto is kimi's
+    # unattended posture, matching claude's shipped --dangerously-skip-permissions.
+    # Its {model} resolves empty (no fills), so the -m pair drops out and kimi runs
+    # on the user's own default_model.
+    interactive_command: 'kimi --auto -m {model}'
     headless_command: 'sh -c ''kimi -m {model} -p "$(cat)"'''

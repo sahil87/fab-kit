@@ -335,21 +335,29 @@ func newlyEchoed(baseline, typed, pointer string) bool {
 }
 
 // countWrapped counts needle's occurrences in a pane capture, ignoring
-// WHITESPACE in both. tmux hard-wraps a pane's visible lines at the pane width,
-// so a pointer longer than a narrow pane arrives in the capture split across
-// lines; a plain substring test would then miss text that is plainly on screen.
-// Dropping all whitespace from both sides makes the check wrap-independent
-// without needing to know the pane's width.
+// WHITESPACE and BOX-DRAWING runes in both. tmux hard-wraps a pane's visible
+// lines at the pane width, so a pointer longer than a narrow pane arrives in the
+// capture split across lines; a plain substring test would then miss text that is
+// plainly on screen. Dropping both classes from both sides makes the check
+// wrap-independent without needing to know the pane's width — or how the TUI
+// frames its input line.
 //
-// Whitespace is the only thing dropped, so the tolerance holds exactly as long
-// as a wrap inserts nothing but whitespace into the line. Probed live on
-// 2026-08-09 against the two TUIs that can be reached today: claude at 50 and at
-// 30 columns (narrow enough to wrap mid-word) and agy at 50 columns each yield
-// countWrapped == 1 for a typed pointer — both draw their input box as
-// horizontal rules with NO side borders, so nothing but whitespace lands between
-// the wrapped halves. A TUI that boxed its input line with vertical rules would
-// interleave frame runes and read 0; kimi is unprobed and rides backlog [agik]'s
-// pre-shipping echo probe. The failure mode of a wrong answer here is a loud
+// The two classes cover the two shapes a wrap can insert, both probed live:
+//
+//   - NO side borders (2026-08-09): claude at 50 and at 30 columns (narrow enough
+//     to wrap mid-word) and agy at 50 columns each yield countWrapped == 1 with
+//     whitespace alone dropped — both draw their input box as horizontal rules,
+//     so nothing but whitespace lands between the wrapped halves.
+//   - SIDE BORDERS (2026-08-10, kimi 0.34.0): kimi draws vertical rules down both
+//     sides of its input box, so a wrap interleaves `││` between the halves and a
+//     whitespace-only squeeze read 0 for a pointer plainly on screen. Dropping
+//     U+2500–U+257F is what admits that class.
+//
+// The drop is deliberately range-scoped rather than a broader
+// "ignore non-alphanumerics" normalization: a ReadySentinel and a prompt-file
+// pointer line never legitimately contain frame runes, so removing them cannot
+// mask a genuine mismatch, while a wider class would grow the false-positive
+// surface with no probed need. The failure mode of a wrong answer here is a loud
 // double failure into the gate's escalation, never a false success.
 //
 // Presence is `countWrapped(...) > 0` — deliberately not a second helper, since
@@ -358,10 +366,17 @@ func countWrapped(capture, needle string) int {
 	return strings.Count(squeeze(capture), squeeze(needle))
 }
 
-// squeeze removes every whitespace rune from s.
+// boxDrawing reports whether r is in the Unicode box-drawing block — the frame
+// runes a TUI draws its input box with. Named rather than inlined so the range
+// the squeeze tolerates has one readable definition.
+func boxDrawing(r rune) bool {
+	return r >= 0x2500 && r <= 0x257F
+}
+
+// squeeze removes every whitespace and box-drawing rune from s.
 func squeeze(s string) string {
 	return strings.Map(func(r rune) rune {
-		if unicode.IsSpace(r) {
+		if unicode.IsSpace(r) || boxDrawing(r) {
 			return -1
 		}
 		return r
