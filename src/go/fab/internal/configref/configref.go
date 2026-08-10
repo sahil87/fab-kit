@@ -708,9 +708,10 @@ const referenceHeader = `# Full reference of all available options: fab config e
 // uniformly LIVE — claude's baseline and the codex/agy/kimi blocks at the same
 // indentation. In a rendered fence or `init --system` scaffold,
 // configupgrade.CommentOutSegment prefixes every line alike (its column-0
-// rule), so each provider line carries exactly one `#` and the "strip the
-// leading '# ' from every line of a block" instruction below restores this
-// text byte-exactly. The commented form registers no project override
+// rule), so each provider line carries exactly one LEADING `#` prefix — no
+// doubled `# #` marker (an inline `# ...` note on a command line stays
+// content, not a second marker) — and the "strip the leading '# ' from every
+// line of a block" instruction below restores this text byte-exactly. The commented form registers no project override
 // (presence=intent holds for BEHAVIOR: a built-in provider is inert until a
 // knob, a role override, or a flag names it) — but a hoisted copy PINS the
 // fills it carries against kit-release refreshes, which is what the prose's
@@ -785,8 +786,9 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# below). Add providers.<name>.interactive_command yourself to opt that provider\n" +
 		"# into interactive sessions and pane dispatch ahead of that probe.\n" +
 		"#\n" +
-		"# Per-provider notes (kept out of the blocks below so uncommenting a whole block\n" +
-		"# yields valid YAML — strip the leading '# ' from every line of a block):\n" +
+		"# Per-provider notes (kept out of the blocks below so a block hoisted into your\n" +
+		"# config stays valid YAML — strip the leading '# ' from every line of the\n" +
+		"# block in its fence/scaffold form):\n" +
 		"#   claude.headless_command — claude -p reads the prompt from stdin.\n" +
 		"#   codex — codex exec reads the prompt from stdin; both commands carry\n" +
 		"#     --dangerously-bypass-approvals-and-sandbox. Its -m takes a concrete model\n" +

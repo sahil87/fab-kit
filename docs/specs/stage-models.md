@@ -317,7 +317,8 @@ Consequences:
   resolves native while the non-claude built-ins descend to headless. Adding a command never
   changes policy by itself.
 - The reference renders all four blocks **live and uniformly** — in a fence or
-  `init --system` scaffold every provider line carries exactly one `#`, and
+  `init --system` scaffold every provider line carries exactly one leading `#` prefix (no
+  doubled `# #` marker; an inline `# ...` note stays content), and
   presence=intent is untouched (a built-in stays inert until named). Their command strings render as YAML
   single-quoted scalars with interior quotes doubled, so uncommenting a nested-shell
   `headless_command` yields valid YAML. Hoisting a whole block PINS its fills
