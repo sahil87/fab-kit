@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 14
@@ -33,22 +33,24 @@ stage_metrics:
     apply: {started_at: "2026-08-10T09:10:05Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-10T09:14:21Z"}
     review: {started_at: "2026-08-10T09:14:21Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-10T09:29:51Z"}
     hydrate: {started_at: "2026-08-10T09:29:51Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T09:35:18Z"}
-    ship: {started_at: "2026-08-10T09:35:18Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-10T09:35:18Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T09:38:32Z"}
+    review-pr: {started_at: "2026-08-10T09:38:32Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/576
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 670
+    deleted: 359
+    net: 311
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 251
+        deleted: 259
+        net: -8
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-08-10T09:35:18Z"
-    computed_at_stage: hydrate
+        added: 174
+        deleted: 192
+        net: -18
+    computed_at: "2026-08-10T09:38:32Z"
+    computed_at_stage: ship
 summary: agy ships interactive_command 'agy --dangerously-skip-permissions --model {model}' — all four built-ins are pane-capable; pane capability is the default expectation and headless grammar is the per-CLI variable; first-run trust walls are readiness-gate judgment rounds
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-10T09:35:18Z
+last_updated: 2026-08-10T09:38:32Z
