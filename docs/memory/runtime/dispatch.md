@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`fab dispatch {start,open,ready,deliver,restart,status,wait,logs,kill,reap,clean}` manages headless and pane stage workers. `start` launches headless; pane mode enters at `open`, is probed by `ready`, and gets its prompt from the verified `deliver` choreography (also the pane-arm resume) — thin bindings over the `fab pane open`/`ready`/`deliver` primitives. Automatic launch descends dispatch.mode's pane → native → headless ceiling. Covers state layout, observation, recovery, placement, reaping."
+description: "`fab dispatch {start,open,ready,deliver,restart,status,wait,logs,kill,reap,clean}` manages headless and pane stage workers: pane open/ready/deliver (including resume), headless start, preference-bounded pane → native → headless descent, valid user providers that omit interactive grammar, state layout, observation, recovery, placement, and reaping."
 ---
 # fab dispatch
 
@@ -310,7 +310,7 @@ The pointer is rendered **repo-relative** (a path outside the repo root, or an u
 
 ### Requirement: Pane prerequisites hard-error when explicit and trigger re-descent when automatic
 
-Pane requires a reachable tmux server and `interactive_command`. `open` — and an explicit `restart --pane`/`--server` — hard-errors on either missing prerequisite, launches nothing, and writes no state. Automatic selection instead records the failed pane reason and continues down the same ladder: `pane unavailable: no tmux`, `pane unavailable: tmux unreachable`, or `pane unavailable: no interactive_command`. The no-`interactive_command` shape is a **shipped** configuration, not a hypothetical one: the built-in `agy` provider is dispatch-only pending a first-run-wall probe (see [providers-and-profiles.md](/runtime/providers-and-profiles.md) § The dispatch-only built-in).
+Pane requires a reachable tmux server and `interactive_command`. `open` — and an explicit `restart --pane`/`--server` — hard-errors on either missing prerequisite, launches nothing, and writes no state. Automatic selection instead records the failed pane reason and continues down the same ladder: `pane unavailable: no tmux`, `pane unavailable: tmux unreachable`, or `pane unavailable: no interactive_command`. Every built-in provider has an interactive command; the last shape remains valid for a wholly user-defined provider that deliberately omits one.
 
 The first possible lower rung wins. A native-capable provider therefore redirects to native before any write; a non-native provider with `headless_command` launches headless. If neither lower rung is available, the launch verbs return the shared no-reachable-capability error. Command composition occurs only after final selection, so each rung reads only its own capability field.
 

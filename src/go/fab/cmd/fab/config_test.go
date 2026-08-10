@@ -711,9 +711,8 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 		}
 	}
 
-	// Every command field a non-claude built-in ships is documented. codex and kimi
-	// carry both; agy is DISPATCH-ONLY (its interactive_command absence is asserted
-	// below). The expectations are DERIVED from the agent command vars (never literal
+	// Every command field a non-claude built-in ships is documented. All three carry
+	// both forms. The expectations are DERIVED from the agent command vars (never literal
 	// copies), so a grammar change touches only internal/agent. They are compared in
 	// their YAML-SCALAR form — the nested-shell dispatch commands contain single
 	// quotes, which the renderer must double, so asserting the raw string would
@@ -721,6 +720,7 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 	for _, cmd := range []string{
 		agent.DefaultCodexInteractiveCommand,
 		agent.DefaultCodexHeadlessCommand,
+		agent.DefaultAgyInteractiveCommand,
 		agent.DefaultAgyHeadlessCommand,
 		agent.DefaultKimiInteractiveCommand,
 		agent.DefaultKimiHeadlessCommand,
@@ -757,25 +757,19 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 		}
 	}
 
-	// agy is DISPATCH-ONLY: its block's first key is headless_command, with no
-	// interactive_command line above it. A reader who hoists the block must not be
-	// handed a pane-eligible provider — agy's interactive first run has not been probed
-	// against the pane-delivery choreography (backlog [agik]).
-	if !strings.Contains(out, "  agy:\n    headless_command: ") {
-		t.Error("the agy block must open directly on headless_command (dispatch-only built-in)")
-	}
-	if strings.Contains(out, "  agy:\n    interactive_command: ") {
-		t.Error("the agy block must render no interactive_command — shipping one would make auto dispatch select pane mode and park the stage")
+	// agy's block opens on interactive_command like the other pane-capable built-ins.
+	if !strings.Contains(out, "  agy:\n    interactive_command: ") {
+		t.Error("the agy block must open on interactive_command — every built-in is pane-capable")
 	}
 	// kimi's probe closed (260810-ki9v), so its block opens on interactive_command
 	// like codex's — the rendered ordering a reader hoisting the block gets.
 	if !strings.Contains(out, "  kimi:\n    interactive_command: ") {
 		t.Error("the kimi block must open on interactive_command — kimi is pane-capable since its 2026-08-10 probe")
 	}
-	// The prose must say WHY, not merely omit the field.
-	for _, phrase := range []string{"agy ships NO interactive_command", "DISPATCH-ONLY"} {
+	// The prose carries the corrected capability model and agy's gate behavior.
+	for _, phrase := range []string{"Every supported agent", "HEADLESS prompt grammar", "ordinary readiness-gate judgment round", "settings.json"} {
 		if !strings.Contains(out, phrase) {
-			t.Errorf("providers block must explain the dispatch-only posture with %q", phrase)
+			t.Errorf("providers block must explain pane-by-default capability with %q", phrase)
 		}
 	}
 
