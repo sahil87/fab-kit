@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 17
@@ -33,22 +33,24 @@ stage_metrics:
     apply: {started_at: "2026-08-10T06:13:09Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-10T06:16:05Z"}
     review: {started_at: "2026-08-10T06:16:05Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-10T06:18:23Z"}
     hydrate: {started_at: "2026-08-10T06:18:23Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T06:20:42Z"}
-    ship: {started_at: "2026-08-10T06:20:42Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-10T06:20:42Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T06:23:11Z"}
+    review-pr: {started_at: "2026-08-10T06:23:11Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/571
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 433
+    deleted: 257
+    net: 176
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 170
+        deleted: 185
+        net: -15
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-08-10T06:20:42Z"
-    computed_at_stage: hydrate
+        added: 114
+        deleted: 119
+        net: -5
+    computed_at: "2026-08-10T06:23:11Z"
+    computed_at_stage: ship
 summary: agy built-in ships interactive_command 'agy --dangerously-skip-permissions --model {model}' — all four built-ins pane-capable; first-run trust wall rides the generic readiness gate (user-seedable trust store); the dispatch-only framing swept repo-wide
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-10T06:20:42Z
+last_updated: 2026-08-10T06:23:11Z
