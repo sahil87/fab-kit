@@ -145,7 +145,7 @@ The non-claude built-ins run **full-auto**, because a stage worker is unattended
 
 **kimi is pane-capable**, shipping `kimi --auto -m {model}` alongside its headless command, because both halves of that same question were answered against kimi 0.34.0 (2026-08-10):
 
-- **First run**: kimi gates a fresh folder behind a `Trust this folder?` wall, which is an ordinary readiness-gate **judgment round** — the pane reads `parked`, one Enter clears it, and the answer is remembered per folder, so it amortizes across every later pane worker in that checkout ([dispatch.md](/runtime/dispatch.md) § `fab dispatch ready`). It needs no code.
+- **First run**: kimi gates a fresh folder behind a `Trust this folder?` wall, which is an ordinary readiness-gate **judgment round** — the pane reads `parked` until the prompt is answered, one answer clears it, and the answer is remembered per folder, so it amortizes across every later pane worker in that checkout ([dispatch.md](/runtime/dispatch.md) § `fab dispatch ready`). It needs no code.
 - **Input echo**: kimi draws vertical rules down both sides of its input box, so a hard-wrapped pointer arrives with `││` interleaved between the halves. `deliver`'s echo verification counts occurrences with box-drawing runes dropped alongside whitespace, so the pointer verifies ([dispatch.md](/runtime/dispatch.md) § `fab dispatch deliver`).
 
 kimi has no interactive-initial-prompt flag — its `-p` is the non-interactive form, and a bare positional parses as a subcommand — which costs it nothing: delivery is post-open in every case, so pane capability never depended on that flag.
@@ -173,7 +173,7 @@ kimi has no interactive-initial-prompt flag — its `-p` is the non-interactive 
 
 - **GIVEN** `agent.workers: kimi`, `dispatch.mode: pane`, a reachable tmux server, and no `providers.kimi` block
 - **WHEN** `fab dispatch open` runs for a stage
-- **THEN** the pane opens on `kimi --auto` — the empty `{model}` dropping the `-m` pair — and the readiness gate answers the first-run trust wall before `deliver` types the pointer
+- **THEN** the pane opens on `kimi --auto` — the empty `{model}` dropping the `-m` pair — and the readiness gate reports `parked` until the first-run trust wall is answered, before `deliver` types the pointer
 - **AND** `fab agent --provider kimi --print` prints that same composed command instead of erroring on a missing `interactive_command`
 
 #### Scenario: a user-defined dispatch-only provider inside tmux descends to headless
@@ -187,7 +187,7 @@ kimi has no interactive-initial-prompt flag — its `-p` is the non-interactive 
 
 - **GIVEN** `agent.workers: agy`, `dispatch.mode: pane`, a reachable tmux server, and no `providers.agy` block
 - **WHEN** `fab dispatch open` runs for a stage
-- **THEN** the pane opens on the shipped `agy --dangerously-skip-permissions --model <fill>` grammar, and the readiness gate answers the first-run trust wall before `deliver` types the pointer
+- **THEN** the pane opens on the shipped `agy --dangerously-skip-permissions --model <fill>` grammar, and the readiness gate reports `parked` until the first-run trust wall is answered, before `deliver` types the pointer
 - **AND** `fab agent --provider agy --print` prints the composed command instead of erroring on a missing `interactive_command`
 
 #### Scenario: naming a built-in provider with no `providers:` block

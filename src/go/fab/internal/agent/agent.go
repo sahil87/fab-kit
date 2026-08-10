@@ -176,7 +176,7 @@ var DefaultHeadlessCommand = defaultProviders[DefaultProviderName].HeadlessComma
 // and delivers a pane worker's prompt afterwards through the verified send-keys
 // choreography — so what is probed per provider is FIRST-RUN behavior and input
 // echo, not prompt grammar. agy's and kimi's first-run trust walls are ordinary
-// readiness-gate judgment rounds (one Enter, remembered per folder); kimi's probe
+// readiness-gate judgment rounds (one answer, remembered per folder); kimi's probe
 // is done (2026-08-10), its side-bordered input box verifying under the gate's
 // box-drawing-tolerant squeeze, and agy's trust store is additionally user-seedable.
 // See defaults.yaml's providers-block note.

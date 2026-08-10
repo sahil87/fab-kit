@@ -274,7 +274,7 @@ ladder handles (`descended: pane unavailable: no interactive_command`, and an ex
 
 **kimi's equivalent probe closed** (2026-08-10, kimi 0.34.0), which is why it ships one. Its two
 unknowns were answered rather than designed around: the first-run `Trust this folder?` wall is an
-ordinary readiness-gate **judgment round** (`parked` → one Enter → ready, remembered per folder, so it
+ordinary readiness-gate **judgment round** (`parked` → one answer → ready, remembered per folder, so it
 amortizes across a checkout), and its **input echo** verifies now that delivery's echo check ignores
 box-drawing runes as well as whitespace — kimi draws vertical side rules down its input box, so a
 wrapped pointer arrives in the capture with `││` interleaved between the halves.

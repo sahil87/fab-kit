@@ -74,7 +74,7 @@ dispatch:
 # FIRST-RUN behavior and input echo, not prompt grammar — and both agy's and kimi's
 # first-run trust walls ("Trust this folder?" and agy's per-workspace trust prompt,
 # which fires even under --dangerously-skip-permissions) are ordinary readiness-gate
-# judgment rounds: one Enter clears the wall and the answer is remembered per folder,
+# judgment rounds: one answer clears the wall and the answer is remembered per folder,
 # so it amortizes across every later pane worker in that checkout. agy's trust store
 # (~/.gemini/antigravity-cli/settings.json, exact-match paths) is additionally
 # user-seedable — a user-side optimization, nothing fab ships.
