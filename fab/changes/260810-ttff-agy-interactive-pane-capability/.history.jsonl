@@ -1,0 +1,3 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-10T05:42:46Z"}
+{"args":"Ship agy interactive_command (pane capability) and reframe memory: interactive mode is universal, headless is the per-provider variable","cmd":"fab-new","event":"command","ts":"2026-08-10T05:42:46Z"}
+{"delta":"+4.8","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-08-10T05:45:11Z"}

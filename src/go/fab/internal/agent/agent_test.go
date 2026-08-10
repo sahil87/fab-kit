@@ -99,10 +99,11 @@ func TestDefaultRoleProfilesArePinned(t *testing.T) {
 func TestNonClaudeProviderFillsArePinned(t *testing.T) {
 	pinned := map[string]map[string]config.ProviderProfile{
 		providerCodex: {
-			RoleDefault: {Model: "gpt-5.6-sol", Effort: "high"},
-			RoleDoing:   {Effort: "xhigh"},
-			RoleReview:  {Effort: "xhigh"},
-			RoleFast:    {Model: "gpt-5.6-luna", Effort: "low"},
+			RoleDefault:  {Model: "gpt-5.6-sol", Effort: "high"},
+			RoleOperator: {Model: "gpt-5.6-luna", Effort: "medium"},
+			RoleDoing:    {Effort: "xhigh"},
+			RoleReview:   {Effort: "xhigh"},
+			RoleFast:     {Model: "gpt-5.6-luna", Effort: "low"},
 		},
 		// Model-only: agy's model IDs embed the reasoning level as an ID SUFFIX
 		// (…-high / …-low), so there is no separate effort to fill. These are
