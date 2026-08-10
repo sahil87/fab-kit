@@ -81,8 +81,8 @@ func TestDefaultsFileIsWellFormed(t *testing.T) {
 // so shipping any fill would break non-managed installs. Empty is the correct
 // built-in there, and the empty-{model} token-drop is what makes it work.
 //
-// agy and kimi are the same kind of deliberate exception on the SESSION command:
-// they ship none, so both absences are asserted rather than exempted.
+// agy is a deliberate exception of the same kind on the SESSION command: it ships
+// none, so the absence is asserted rather than exempted.
 func TestDefaultsFileProviders(t *testing.T) {
 	cfg := parseDefaultsFile(t)
 
@@ -144,24 +144,31 @@ func TestDefaultsFileProviders(t *testing.T) {
 		}
 	}
 
-	// The mirror image: only claude and codex ship an interactive_command. agy and kimi
-	// are DISPATCH-ONLY built-ins, and the absence is load-bearing rather than an
+	// The mirror image: claude, codex and kimi ship an interactive_command; agy is the
+	// one DISPATCH-ONLY built-in, and its absence is load-bearing rather than an
 	// omission — an interactive_command makes a provider eligible for pane-mode
-	// dispatch, and neither CLI's interactive FIRST RUN has been probed against the
-	// pane-delivery choreography (agy trust-prompts a fresh workspace even under
-	// --dangerously-skip-permissions, and worktree-per-change makes every dispatch one;
-	// kimi is simply unprobed). Backlog [agik] owns the probe and the roster flip.
-	// Asserting the absence is what stops a well-meaning interactive_command from
-	// landing and parking every tmux-dispatched stage at a first-run wall.
-	for _, name := range []string{DefaultProviderName, providerCodex} {
+	// dispatch, and agy's interactive FIRST RUN has not been probed against the
+	// pane-delivery choreography (it trust-prompts a fresh workspace even under
+	// --dangerously-skip-permissions, and worktree-per-change makes every dispatch
+	// one). Backlog [agik] owns that probe and agy's roster flip. Asserting the
+	// absence is what stops a well-meaning interactive_command from landing and
+	// parking every tmux-dispatched stage at a first-run wall.
+	for _, name := range []string{DefaultProviderName, providerCodex, providerKimi} {
 		if cfg.Providers[name].InteractiveCommand == "" {
 			t.Errorf("defaults.yaml providers.%s has no interactive_command", name)
 		}
 	}
-	for _, name := range []string{providerAgy, providerKimi} {
-		if got := cfg.Providers[name].InteractiveCommand; got != "" {
-			t.Errorf("defaults.yaml providers.%s.interactive_command = %q, want absent — %s's interactive first run is unprobed against the pane-delivery choreography, so shipping one would select pane dispatch and park the stage (backlog [agik])", name, got, name)
-		}
+	if got := cfg.Providers[providerAgy].InteractiveCommand; got != "" {
+		t.Errorf("defaults.yaml providers.agy.interactive_command = %q, want absent — agy's interactive first run is unprobed against the pane-delivery choreography, so shipping one would select pane dispatch and park the stage (backlog [agik])", got)
+	}
+
+	// kimi's is pinned by VALUE, not merely by presence: it was probed live
+	// (2026-08-10, kimi 0.34.0) as `kimi --auto -m {model}` — the full-auto flag the
+	// headless form rejects, plus the droppable model pair. A well-meaning edit to
+	// `--yolo`, or to a form carrying a pinned model, would ship an unprobed
+	// invocation to every pane worker.
+	if got, want := cfg.Providers[providerKimi].InteractiveCommand, "kimi --auto -m {model}"; got != want {
+		t.Errorf("defaults.yaml providers.kimi.interactive_command = %q, want %q (the probed invocation)", got, want)
 	}
 
 	// agy's and kimi's no-{effort} / nested-shell grammar is asserted once, over
@@ -247,9 +254,10 @@ func TestPackageTablesMatchDefaultsFile(t *testing.T) {
 		{"DefaultHeadlessCommand", DefaultHeadlessCommand, cfg.Providers[DefaultProviderName].HeadlessCommand},
 		{"DefaultCodexInteractiveCommand", DefaultCodexInteractiveCommand, cfg.Providers[providerCodex].InteractiveCommand},
 		{"DefaultCodexHeadlessCommand", DefaultCodexHeadlessCommand, cfg.Providers[providerCodex].HeadlessCommand},
-		// agy and kimi are dispatch-only, so they export no session-command var —
-		// their interactive_command ABSENCE is asserted in TestDefaultsFileProviders.
+		// agy is dispatch-only, so it exports no session-command var — its
+		// interactive_command ABSENCE is asserted in TestDefaultsFileProviders.
 		{"DefaultAgyHeadlessCommand", DefaultAgyHeadlessCommand, cfg.Providers[providerAgy].HeadlessCommand},
+		{"DefaultKimiInteractiveCommand", DefaultKimiInteractiveCommand, cfg.Providers[providerKimi].InteractiveCommand},
 		{"DefaultKimiHeadlessCommand", DefaultKimiHeadlessCommand, cfg.Providers[providerKimi].HeadlessCommand},
 	}
 	for _, c := range commands {

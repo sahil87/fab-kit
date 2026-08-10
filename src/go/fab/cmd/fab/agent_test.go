@@ -270,7 +270,7 @@ func TestAgentPrintUnknownRoleErrors(t *testing.T) {
 
 // TestAgentPrintNoInteractiveCommandErrors: a resolved provider with no
 // interactive_command errors with a config-key hint. The fixture uses a project-only
-// provider (`myagent`); the built-in agy/kimi half of the same rule is
+// provider (`myagent`); the built-in agy half of the same rule is
 // TestAgentProviderDispatchOnlyBuiltInsError.
 func TestAgentPrintNoInteractiveCommandErrors(t *testing.T) {
 	agentTestRepo(t, `providers:
@@ -525,7 +525,7 @@ func TestAgentUnknownProviderNamesAvailable(t *testing.T) {
 // TestAgentProviderNoInteractiveCommandErrors: a provider that resolves but carries no
 // interactive_command errors with the config-key hint (the provider-path counterpart of
 // TestAgentPrintNoInteractiveCommandErrors). Uses a project-defined dispatch-only
-// provider; the built-in agy/kimi half of the same rule is
+// provider; the built-in agy half of the same rule is
 // TestAgentProviderDispatchOnlyBuiltInsError.
 func TestAgentProviderNoInteractiveCommandErrors(t *testing.T) {
 	agentTestRepo(t, `providers:
@@ -560,30 +560,50 @@ func TestAgentProviderBuiltinCodexNoConfig(t *testing.T) {
 }
 
 // TestAgentProviderDispatchOnlyBuiltInsError: `fab agent` opens an interactive
-// SESSION, so the two dispatch-only built-ins cannot serve it and say so with the
+// SESSION, so the one dispatch-only built-in cannot serve it and says so with the
 // config-key hint — the same actionable error a user-defined dispatch-only provider
 // gets (TestAgentProviderNoInteractiveCommandErrors), reached here from the SHIPPED
 // table rather than project config.
 //
-// agy and kimi ship no interactive_command on purpose (260808-rpsr) — not because of
-// prompt grammar (fab appends nothing to the command and types a pane worker's
-// pointer in afterwards) but because their interactive FIRST-RUN behavior and input
-// echo are unprobed against the delivery choreography: agy trust-prompts a fresh
-// workspace even under --dangerously-skip-permissions, and kimi has not been checked
-// at all. Backlog [agik] owns the probe. The error is the documented path to an
-// interactive session: add providers.<name>.interactive_command yourself, accepting
-// the unprobed-provider caveat.
+// agy ships no interactive_command on purpose (260808-rpsr) — not because of prompt
+// grammar (fab appends nothing to the command and types a pane worker's pointer in
+// afterwards) but because its interactive FIRST-RUN behavior is unprobed against the
+// delivery choreography: it trust-prompts a fresh workspace even under
+// --dangerously-skip-permissions. Backlog [agik] owns that probe. The error is the
+// documented path to an interactive session: add providers.agy.interactive_command
+// yourself, accepting the unprobed-provider caveat.
 func TestAgentProviderDispatchOnlyBuiltInsError(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 
-	for _, name := range []string{"agy", "kimi"} {
-		_, err := runAgentPrint(t, "--provider", name)
-		if err == nil {
-			t.Fatalf("fab agent --provider %s must error — it is a dispatch-only built-in", name)
-		}
-		if !strings.Contains(err.Error(), "providers."+name+".interactive_command") {
-			t.Errorf("%s error = %q, want the interactive_command config-key hint", name, err.Error())
-		}
+	_, err := runAgentPrint(t, "--provider", "agy")
+	if err == nil {
+		t.Fatal("fab agent --provider agy must error — it is a dispatch-only built-in")
+	}
+	if !strings.Contains(err.Error(), "providers.agy.interactive_command") {
+		t.Errorf("agy error = %q, want the interactive_command config-key hint", err.Error())
+	}
+}
+
+// TestAgentProviderBuiltinKimiNoConfig is the other half of the same rule since
+// 260810-ki9v: kimi's interactive first run and input echo WERE probed (2026-08-10,
+// kimi 0.34.0), so it ships an interactive_command and `fab agent --provider kimi`
+// composes a session rather than erroring.
+//
+// The composed form is the shipped grammar minus the model pair: kimi ships no fills
+// and the provider form supplies no --model, so the empty {model} drops `-m` with it
+// while the fixed --auto survives — the same token-drop the codex case pins, over the
+// one built-in for which an empty model is the SHIPPED resolution rather than an edge
+// case (its -m takes a user-config alias, so kimi's own default_model is the honest
+// value).
+func TestAgentProviderBuiltinKimiNoConfig(t *testing.T) {
+	agentTestRepo(t, "project:\n  name: test\n")
+
+	out, err := runAgentPrint(t, "--provider", "kimi")
+	if err != nil {
+		t.Fatalf("agent --provider kimi --print: %v", err)
+	}
+	if out != "kimi --auto\n" {
+		t.Errorf("output = %q, want the model-free built-in kimi grammar with its full-auto flag", out)
 	}
 }
 

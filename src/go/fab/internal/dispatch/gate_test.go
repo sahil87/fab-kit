@@ -184,6 +184,70 @@ func TestProbeFindsWrappedSentinel(t *testing.T) {
 	}
 }
 
+// boxedInput renders text as a kimi-style input box: a horizontal rule, each
+// wrapped line between VERTICAL side rules, and a closing rule. It is the shape
+// probed live on 2026-08-10 (kimi 0.34.0) — the one that defeated the former
+// whitespace-only squeeze, because a wrap interleaves `││` between the halves.
+func boxedInput(wrapped ...string) string {
+	out := "╭" + strings.Repeat("─", 40) + "╮\n"
+	for _, line := range wrapped {
+		out += "│ " + line + strings.Repeat(" ", 8) + "│\n"
+	}
+	return out + "╰" + strings.Repeat("─", 40) + "╯\n"
+}
+
+// TestProbeFindsSentinelWrappedInABoxedInputLine is the wrap tolerance's second
+// shape: a TUI that frames its input line with VERTICAL rules interleaves those
+// frame runes between the wrapped halves, so a whitespace-only squeeze read the
+// sentinel as absent and reported `parked` for a pane that had plainly echoed it.
+func TestProbeFindsSentinelWrappedInABoxedInputLine(t *testing.T) {
+	io := newFakeIO(boxedInput("> "+ReadySentinel[:5], ReadySentinel[5:]))
+	state, _, err := testGate(io).Probe("%17")
+	if err != nil {
+		t.Fatalf("Probe: %v", err)
+	}
+	if state != ReadyReady {
+		t.Errorf("state = %q, want %q for a sentinel wrapped inside a side-bordered input box", state, ReadyReady)
+	}
+}
+
+// TestDeliverVerifiesEchoInABoxedInputLine is the same tolerance at the OTHER
+// call site: the pointer is longer than the sentinel and therefore the line that
+// actually wraps in practice, so the delivery verification is where a boxed TUI
+// failed first (a doubly-verified delivery that could never verify).
+func TestDeliverVerifiesEchoInABoxedInputLine(t *testing.T) {
+	io := newFakeIO(
+		boxedInput("> "+ReadySentinel[:5], ReadySentinel[5:]), // probe: ready
+		boxedInput("> "), // after C-u: the echo baseline
+		boxedInput("> "+testPointer[:30], testPointer[30:]), // the pointer echoed, wrapped inside the box
+		boxedInput("> ")+"● working…",                       // after Enter: the screen advanced
+	)
+	warnings, snippet, err := testGate(io).Deliver("%17", testPointer)
+	if err != nil {
+		t.Fatalf("Deliver: %v (snippet %q)", err, snippet)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("a clean delivery warns about nothing, got %v", warnings)
+	}
+}
+
+// TestCountWrappedDropsOnlyFrameRunes pins that the normalization stays
+// RANGE-SCOPED. Dropping whitespace and box-drawing runes is safe because a
+// sentinel or pointer never legitimately contains them; widening it to
+// punctuation generally would start matching text the pane never showed, turning
+// the verifier's loud double failure into a false success.
+func TestCountWrappedDropsOnlyFrameRunes(t *testing.T) {
+	if got := countWrapped(boxedInput("> "+testPointer[:30], testPointer[30:]), testPointer); got != 1 {
+		t.Errorf("countWrapped over a boxed wrap = %d, want 1", got)
+	}
+	// Same text with the pointer's own punctuation stripped: still a mismatch,
+	// because only whitespace and frame runes are ignored.
+	stripped := strings.ReplaceAll(testPointer, ".", "")
+	if got := countWrapped(boxedInput("> "+stripped), testPointer); got != 0 {
+		t.Errorf("countWrapped over a capture missing the pointer's punctuation = %d, want 0 — the drop must not extend past whitespace and box-drawing runes", got)
+	}
+}
+
 // TestSnippetSkipsThePanePadding pins that the evidence a report carries is the
 // screen, not the pane's blank padding: tmux pads a capture to the pane's full
 // height, so a wall drawn near the top of a tall pane sits above more empty lines

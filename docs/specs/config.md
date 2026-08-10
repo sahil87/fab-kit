@@ -221,7 +221,7 @@ the canonical `native` default, with invalid input producing a `fab: warning:` d
 preference ceiling: automatic resolution descends only through `pane → native → headless`. Provider
 fields are independent capabilities—`interactive_command` for pane, `native: true` for the Agent-tool
 adapter, `headless_command` for headless—and their presence never chooses policy. Claude ships all
-three; codex ships pane/headless grammar without native capability; agy and kimi ship headless
+three; codex and kimi ship pane/headless grammar without native capability; agy ships headless
 grammar only. The
 `2.17.3-to-2.18.0` migration rewrites live `dispatch.watchable: true` to `mode: pane`, removes live
 `watchable: false`, sweeps project and system config, and leaves commented/fence content untouched.
@@ -357,9 +357,10 @@ using stdlib `encoding/json` only (no new dependencies). Each element is a per-f
   profile; the first-level `default` key is the *default role*, not a wrapper. Likewise
   `providers.default` is keyed by provider name (four entries — claude/codex/agy/kimi), each carrying
   its independent `interactive_command`, `headless_command`, and `native` capabilities (omitted when
-  unavailable, so each block shows exactly what it ships): claude all three, codex both commands
-  without native, and `agy`/`kimi` a `headless_command` alone — they are **dispatch-only** built-ins (`260808-rpsr`), since an `interactive_command` also confers
-  pane-mode eligibility and neither CLI's interactive first-run has been probed against the pane
+  unavailable, so each block shows exactly what it ships): claude all three, codex and `kimi` both
+  commands without native, and `agy` a `headless_command` alone — it is the one **dispatch-only**
+  built-in (`260808-rpsr`, narrowed by `260810-ki9v`), since an `interactive_command` also confers
+  pane-mode eligibility and agy's interactive first-run has not been probed against the pane
   readiness gate (backlog `[agik]`). Every entry carries **no** `model`/`effort` — see § Default semantics.
 - `renamed_from` is omitted when empty (`omitempty`), so it appears on the `agent.profiles` object only.
 - Output is deterministic and byte-stable, like the commented-YAML rendering — the table is ordered and

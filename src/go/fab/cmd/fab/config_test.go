@@ -711,8 +711,8 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 		}
 	}
 
-	// Every command field a non-claude built-in ships is documented. codex carries
-	// both; agy and kimi are DISPATCH-ONLY (their interactive_command absence is asserted
+	// Every command field a non-claude built-in ships is documented. codex and kimi
+	// carry both; agy is DISPATCH-ONLY (its interactive_command absence is asserted
 	// below). The expectations are DERIVED from the agent command vars (never literal
 	// copies), so a grammar change touches only internal/agent. They are compared in
 	// their YAML-SCALAR form — the nested-shell dispatch commands contain single
@@ -722,6 +722,7 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 		agent.DefaultCodexInteractiveCommand,
 		agent.DefaultCodexHeadlessCommand,
 		agent.DefaultAgyHeadlessCommand,
+		agent.DefaultKimiInteractiveCommand,
 		agent.DefaultKimiHeadlessCommand,
 	} {
 		quoted := configref.YAMLSingleQuoted(cmd)
@@ -741,33 +742,38 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 
 	// agy carries NO {effort} placeholder — its model IDs embed the reasoning level
 	// as an ID suffix, so a separate effort flag would fight the suffix. kimi's
-	// dispatch form carries NO approval flag (kimi -p already auto-approves and
-	// errors on --yolo/--auto). Guard that no rendered command smuggles these in.
+	// approval flag is per FORM: its DISPATCH form carries none (`kimi -p` already
+	// auto-approves and errors on --yolo/--auto), while its INTERACTIVE form is
+	// exactly where --auto belongs — so the guard here is against an approval flag on
+	// the dispatch line, not against --auto appearing anywhere in the document.
 	for _, bad := range []string{
 		"agy --dangerously-skip-permissions --model {model} --effort",
 		"agy --dangerously-skip-permissions --model {model} -c model_reasoning_effort",
-		"kimi --yolo -m {model} -p",
-		"kimi --auto",
+		"kimi --yolo",
+		"kimi --auto -m {model} -p",
 	} {
 		if strings.Contains(out, bad) {
 			t.Errorf("rendered provider commands must not contain %q", bad)
 		}
 	}
 
-	// agy and kimi are DISPATCH-ONLY: each block's first key is headless_command,
-	// with no interactive_command line above it. A reader who hoists the block must
-	// not be handed a pane-eligible provider — neither CLI's interactive first run has
-	// been probed against the pane-delivery choreography (backlog [agik]).
-	for _, name := range []string{"agy", "kimi"} {
-		if !strings.Contains(out, "  "+name+":\n    headless_command: ") {
-			t.Errorf("the %s block must open directly on headless_command (dispatch-only built-in)", name)
-		}
-		if strings.Contains(out, "  "+name+":\n    interactive_command: ") {
-			t.Errorf("the %s block must render no interactive_command — shipping one would make auto dispatch select pane mode and park the stage", name)
-		}
+	// agy is DISPATCH-ONLY: its block's first key is headless_command, with no
+	// interactive_command line above it. A reader who hoists the block must not be
+	// handed a pane-eligible provider — agy's interactive first run has not been probed
+	// against the pane-delivery choreography (backlog [agik]).
+	if !strings.Contains(out, "  agy:\n    headless_command: ") {
+		t.Error("the agy block must open directly on headless_command (dispatch-only built-in)")
+	}
+	if strings.Contains(out, "  agy:\n    interactive_command: ") {
+		t.Error("the agy block must render no interactive_command — shipping one would make auto dispatch select pane mode and park the stage")
+	}
+	// kimi's probe closed (260810-ki9v), so its block opens on interactive_command
+	// like codex's — the rendered ordering a reader hoisting the block gets.
+	if !strings.Contains(out, "  kimi:\n    interactive_command: ") {
+		t.Error("the kimi block must open on interactive_command — kimi is pane-capable since its 2026-08-10 probe")
 	}
 	// The prose must say WHY, not merely omit the field.
-	for _, phrase := range []string{"ship NO interactive_command", "DISPATCH-ONLY"} {
+	for _, phrase := range []string{"agy ships NO interactive_command", "DISPATCH-ONLY"} {
 		if !strings.Contains(out, phrase) {
 			t.Errorf("providers block must explain the dispatch-only posture with %q", phrase)
 		}
