@@ -82,6 +82,13 @@ providers:
 	if !strings.Contains(out, "codex exec") {
 		t.Errorf("show output missing system-layer value:\n%s", out)
 	}
+	// defaults composed into output.
+	if !strings.Contains(out, "dispatch:") {
+		t.Errorf("show output missing default dispatch node:\n%s", out)
+	}
+	if !strings.Contains(out, "mode: native") {
+		t.Errorf("show output missing default mode leaf:\n%s", out)
+	}
 }
 
 // TestConfigShow_RejectsTooManyArgs: show accepts one key but rejects two.

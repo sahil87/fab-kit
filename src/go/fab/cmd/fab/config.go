@@ -206,9 +206,8 @@ func configShowCmd() *cobra.Command {
 			"defaults — and prints it. Each leaf takes the value of the highest tier " +
 			"that defines it NON-EMPTY: a null, empty string, empty list, or empty map " +
 			"falls through to the tier below instead of shadowing it. Without a flag, " +
-			"prints the merged config of the environment and two FILES as YAML; " +
-			"built-in defaults are NOT materialized here — they apply at point-of-use " +
-			"and are only surfaced explicitly by --origin. With --origin, prints each " +
+			"prints the fully composed config as YAML, including built-in defaults. " +
+			"With --origin, prints each " +
 			"field's effective value and its provenance (environment variable / system " +
 			"path / project path / default), composing the built-in defaults into the " +
 			"listing and drilling down per-key for map-valued fields (agent.profiles, " +
@@ -237,13 +236,10 @@ func configShowCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			// Bare `show` prints the file+environment merge and never consults the
-			// defaults tier, so it does not pay for the projection either.
+			// Bare `show` now prints the composed config including defaults.
 			var defaults map[string]any
-			if withOrigin || len(args) == 1 {
-				if defaults, err = readModelDefaults(layers); err != nil {
-					return err
-				}
+			if defaults, err = readModelDefaults(layers); err != nil {
+				return err
 			}
 			if len(args) == 1 {
 				out, err := renderShowKey(layers, defaults, args[0], withOrigin)
@@ -388,10 +384,11 @@ func flowStyle(node *yaml.Node) {
 // provenance. It is factored out of the cobra RunE so it is unit-testable.
 func renderShow(layers *config.Layers, defaults map[string]any, withOrigin bool) (string, error) {
 	if !withOrigin {
-		if len(layers.Effective) == 0 {
+		effective := config.MergeLayers(defaults, layers.Effective)
+		if len(effective) == 0 {
 			return "# (no effective config — no project or system config.yaml found)\n", nil
 		}
-		data, err := yaml.Marshal(layers.Effective)
+		data, err := yaml.Marshal(effective)
 		if err != nil {
 			return "", err
 		}

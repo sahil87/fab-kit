@@ -435,7 +435,7 @@ Pure query (no file writes) for the current repo. `docs/specs/config.md` owns th
 
 | Mode | Output |
 |------|--------|
-| `fab config show` | Environment-over-system-over-project merge as YAML; built-in defaults remain point-of-use values and are not materialized |
+| `fab config show` | Fully composed config as YAML, including built-in defaults |
 | `fab config show --origin` | Effective values including defaults, WINNER only — one line per leaf with origin `$ENV_VARIABLE` / `system path` / `project path` / `default`; map fields (`agent.profiles`, `providers`) drill down per key |
 | `fab config show <key>` | Effective value including the built-in default; scalar/list values are raw, map values are YAML subtrees |
 | `fab config show <key> --origin` | The key's FULL STACK — one line per tier that defines it, highest first, as `key = value  # <tier> <label>  (effective\|shadowed)`; a map-valued key drills down per leaf, each leaf listing its own tiers |
