@@ -10,6 +10,7 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configref"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configscope"
+	"gopkg.in/yaml.v3"
 )
 
 // setupConfigRepo creates a temp fab/ repo with the given project config.yaml
@@ -81,6 +82,37 @@ providers:
 	}
 	if !strings.Contains(out, "codex exec") {
 		t.Errorf("show output missing system-layer value:\n%s", out)
+	}
+}
+
+// TestConfigShow_BareShowComposesDefaults: bare `show` merges the built-in
+// defaults tier beneath the file and environment layers — a field no tier above
+// defines surfaces at its built-in value instead of being omitted, a live
+// override still wins, and the derived agent.profiles rows compose against the
+// live depth knob (the shared DefaultsMapFor projection, same as the keyed and
+// --origin paths).
+func TestConfigShow_BareShowComposesDefaults(t *testing.T) {
+	setupConfigRepo(t, "agent:\n    workers: codex\n")
+
+	out, err := runConfig(t, "show")
+	if err != nil {
+		t.Fatalf("config show: %v", err)
+	}
+	var composed map[string]any
+	if err := yaml.Unmarshal([]byte(out), &composed); err != nil {
+		t.Fatalf("bare show output must parse as YAML: %v\n%s", err, out)
+	}
+	// A pure-default field (no file/env tier defines it) is materialized.
+	if got, _ := valueAtPath(composed, []string{"dispatch", "mode"}); got != "native" {
+		t.Errorf("dispatch.mode = %v, want the built-in native:\n%s", got, out)
+	}
+	// The live override still wins over the built-in default.
+	if got, _ := valueAtPath(composed, []string{"agent", "workers"}); got != "codex" {
+		t.Errorf("agent.workers = %v, want the project override codex:\n%s", got, out)
+	}
+	// The derived profiles report the provider the depth knob actually selects.
+	if got, _ := valueAtPath(composed, []string{"agent", "profiles", "doing", "provider"}); got != "codex" {
+		t.Errorf("agent.profiles.doing.provider = %v, want knob-aware codex:\n%s", got, out)
 	}
 }
 
@@ -369,7 +401,9 @@ func TestConfigSet_EmptyValueRefusedWithoutWriting(t *testing.T) {
 // the read model ONCE. The surfaces used to load it twice (LoadLayers, then a
 // second LoadPath behind the defaults projection), which printed each fail-open
 // loader warning twice — a scope-pruned system key looked like two distinct
-// problems. Bare `show` skips the defaults projection entirely.
+// problems. Every show form (bare included) now runs the defaults projection,
+// always built from the SAME already-loaded layers via config.FromMap, so the
+// one-load rule holds across the whole surface.
 func TestConfigLoaderWarningsAreNotDuplicated(t *testing.T) {
 	const warning = "ignoring project-scoped field"
 	for _, args := range [][]string{

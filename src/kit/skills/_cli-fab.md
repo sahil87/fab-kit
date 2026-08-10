@@ -435,7 +435,7 @@ Pure query (no file writes) for the current repo. `docs/specs/config.md` owns th
 
 | Mode | Output |
 |------|--------|
-| `fab config show` | Environment-over-system-over-project merge as YAML; built-in defaults remain point-of-use values and are not materialized |
+| `fab config show` | Fully composed config as YAML — the built-in defaults tier merged beneath the environment-over-system-over-project layers, so unset fields surface at their built-in values |
 | `fab config show --origin` | Effective values including defaults, WINNER only — one line per leaf with origin `$ENV_VARIABLE` / `system path` / `project path` / `default`; map fields (`agent.profiles`, `providers`) drill down per key |
 | `fab config show <key>` | Effective value including the built-in default; scalar/list values are raw, map values are YAML subtrees |
 | `fab config show <key> --origin` | The key's FULL STACK — one line per tier that defines it, highest first, as `key = value  # <tier> <label>  (effective\|shadowed)`; a map-valued key drills down per leaf, each leaf listing its own tiers |
@@ -455,7 +455,7 @@ agent.workers = kimi3    # system /home/u/.fab-kit/config.yaml  (shadowed)
 agent.workers = claude   # default  (shadowed)
 ```
 
-Accepts at most one known dotted key; unknown keys fail non-zero naming the key. Requires a fab repo (walks up for `fab/`, like `fab preflight`). Writes no file. Bare output remains unchanged.
+Accepts at most one known dotted key; unknown keys fail non-zero naming the key. Requires a fab repo (walks up for `fab/`, like `fab preflight`). Writes no file.
 
 ### fab config set / unset
 

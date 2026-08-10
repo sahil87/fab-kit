@@ -187,7 +187,9 @@ func renderReference(asJSON bool, key ...string) (string, error) {
 // configShowCmd implements `fab config show [key] [--origin]` — a pure query (no
 // file writes) in the same family as `fab config explain`. It resolves the
 // effective (post-cascade) config for the current repo and prints it. Without a
-// flag it prints the merged effective config as YAML. With --origin it prints, per
+// flag it prints the fully composed config as YAML — the built-in defaults tier
+// merged beneath the environment and file layers, so unset fields surface at
+// their built-in values. With --origin it prints, per
 // registry field, the effective value alongside its provenance (the git config
 // --show-origin precedent): environment variable, `system` file path, `project`
 // file path, or `default` — with per-key drill-down for map-valued fields
@@ -206,9 +208,9 @@ func configShowCmd() *cobra.Command {
 			"defaults — and prints it. Each leaf takes the value of the highest tier " +
 			"that defines it NON-EMPTY: a null, empty string, empty list, or empty map " +
 			"falls through to the tier below instead of shadowing it. Without a flag, " +
-			"prints the merged config of the environment and two FILES as YAML; " +
-			"built-in defaults are NOT materialized here — they apply at point-of-use " +
-			"and are only surfaced explicitly by --origin. With --origin, prints each " +
+			"prints the FULLY COMPOSED config as YAML — the built-in defaults merged " +
+			"beneath the environment and two files, so unset fields appear at their " +
+			"built-in values. With --origin, prints each " +
 			"field's effective value and its provenance (environment variable / system " +
 			"path / project path / default), composing the built-in defaults into the " +
 			"listing and drilling down per-key for map-valued fields (agent.profiles, " +
@@ -237,13 +239,12 @@ func configShowCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			// Bare `show` prints the file+environment merge and never consults the
-			// defaults tier, so it does not pay for the projection either.
-			var defaults map[string]any
-			if withOrigin || len(args) == 1 {
-				if defaults, err = readModelDefaults(layers); err != nil {
-					return err
-				}
+			// Bare `show` prints the FULLY composed config — the defaults projection
+			// merged beneath the file+environment layers — so every surface pays for
+			// the same projection and no form under-reports unset fields.
+			defaults, err := readModelDefaults(layers)
+			if err != nil {
+				return err
 			}
 			if len(args) == 1 {
 				out, err := renderShowKey(layers, defaults, args[0], withOrigin)
@@ -384,14 +385,17 @@ func flowStyle(node *yaml.Node) {
 	}
 }
 
-// renderShow renders the effective config, plain (merged YAML) or with per-field
-// provenance. It is factored out of the cobra RunE so it is unit-testable.
+// renderShow renders the effective config, plain (fully composed YAML — the
+// built-in defaults tier merged beneath the file and environment layers) or
+// with per-field provenance. It is factored out of the cobra RunE so it is
+// unit-testable.
 func renderShow(layers *config.Layers, defaults map[string]any, withOrigin bool) (string, error) {
 	if !withOrigin {
-		if len(layers.Effective) == 0 {
+		effective := config.MergeLayers(defaults, layers.Effective)
+		if len(effective) == 0 {
 			return "# (no effective config — no project or system config.yaml found)\n", nil
 		}
-		data, err := yaml.Marshal(layers.Effective)
+		data, err := yaml.Marshal(effective)
 		if err != nil {
 			return "", err
 		}
