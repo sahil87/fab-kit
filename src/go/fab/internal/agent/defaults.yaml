@@ -135,7 +135,7 @@ providers:
     # judgment round, the same wall kimi's gate clears (see the providers-block note).
     interactive_command: 'agy --dangerously-skip-permissions --model {model}'
     headless_command: 'sh -c ''agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'''
-    # Sparse and model-only (the effort rides the ID's suffix). `default` is the
+    # Sparse and model-only (the effort rides the ID suffix). `default` is the
     # cross-role fallback, so doing/review/hydrate/operator all take the pro-high
     # model without a row of their own; `fast` takes the cheaper flash tier. These
     # are concrete IDs from `agy models`, so they are the rows to bump when that

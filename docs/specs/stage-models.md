@@ -451,7 +451,7 @@ providers:
   #   profiles:
   #     default: { model: <codex-model-id>, effort: high }   # e.g. — pin a newer model here
   # agy:
-  #   interactive_command: 'agy --dangerously-skip-permissions --model {model}'   # no {effort} flag: the level rides the model ID's suffix
+  #   interactive_command: 'agy --dangerously-skip-permissions --model {model}'   # no {effort} flag: the level rides the model ID suffix
   #   headless_command: 'sh -c ''agy … --model {model} -p "$(cat)"'''   # nested shell so $(cat) reads the piped prompt
   #   profiles:
   #     default: { model: <agy-model-id> }  # e.g. — no effort: the reasoning level rides the ID suffix

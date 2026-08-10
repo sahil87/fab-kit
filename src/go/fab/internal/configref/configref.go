@@ -1135,7 +1135,7 @@ func providersYAML(providers map[string]providerDefault, roleOrder []string) str
 		"    headless_command: " + YAMLSingleQuoted(agent.DefaultCodexHeadlessCommand) + "\n" +
 		profilesLines(providers["codex"].Profiles, roleOrder) +
 		"  agy:\n" +
-		"    interactive_command: " + YAMLSingleQuoted(agent.DefaultAgyInteractiveCommand) + "   # no {effort} flag: the reasoning level rides the model ID's suffix\n" +
+		"    interactive_command: " + YAMLSingleQuoted(agent.DefaultAgyInteractiveCommand) + "   # no {effort} flag: the reasoning level rides the model ID suffix\n" +
 		"    headless_command: " + YAMLSingleQuoted(agent.DefaultAgyHeadlessCommand) + "   # nested shell so $(cat) reads the piped prompt\n" +
 		profilesLines(providers["agy"].Profiles, roleOrder) +
 		// kimi ships no fills, so profilesLines renders nothing for it — the trim

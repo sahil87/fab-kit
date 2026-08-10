@@ -1163,7 +1163,7 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 	}
 
 	// agy's session grammar omits {effort} for the same reason its dispatch grammar
-	// does — the reasoning level rides the model ID's suffix.
+	// does — the reasoning level rides the model ID suffix.
 	if strings.Contains(DefaultAgyInteractiveCommand, "{effort}") {
 		t.Error("the agy session command must carry no {effort} placeholder (its model IDs embed the reasoning level)")
 	}
