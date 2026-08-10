@@ -1044,10 +1044,11 @@ func TestResolveProvider(t *testing.T) {
 // codex and agy ship per-role fills so a knob pointed at them resolves a real model
 // per role, while kimi ships none on purpose (its -m takes a user-config alias).
 //
-// An empty `session` likewise ASSERTS the absence of an interactive_command. agy
-// ships `agy --dangerously-skip-permissions --model {model}`; the first-run trust
+// An empty `session` (if any built-in lacked one) would assert the absence of an
+// interactive_command, but all current built-ins ship one. agy ships
+// `agy --dangerously-skip-permissions --model {model}`; the first-run trust
 // wall is an ordinary readiness-gate judgment round (kimi precedent) and the trust
-// store is user-seedable. If a built-in ships none, mode resolution descends to
+// store is user-seedable. If a custom provider ships none, mode resolution descends to
 // headless instead of parking a pane worker.
 //
 // kimi's probe is done (2026-08-10, kimi 0.34.0): its trust wall is an ordinary

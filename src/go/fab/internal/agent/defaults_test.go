@@ -152,9 +152,10 @@ func TestDefaultsFileProviders(t *testing.T) {
 		}
 	}
 
-	// agy's and kimi's are pinned by VALUE, not merely by presence: they were probed live.
+	// agy's and kimi's are pinned by VALUE, not merely by presence (kimi's was probed
+	// live; agy's live probe is deferred but pinned here to match its headless shape).
 	if got, want := cfg.Providers[providerAgy].InteractiveCommand, "agy --dangerously-skip-permissions --model {model}"; got != want {
-		t.Errorf("defaults.yaml providers.agy.interactive_command = %q, want %q (the probed invocation)", got, want)
+		t.Errorf("defaults.yaml providers.agy.interactive_command = %q, want %q", got, want)
 	}
 
 	// kimi's is pinned by VALUE, not merely by presence: it was probed live

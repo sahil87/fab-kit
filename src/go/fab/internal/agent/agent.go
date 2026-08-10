@@ -236,7 +236,9 @@ type Profile struct {
 //   - agy — interactive AND headless commands,
 //     plus its own SPARSE per-role fills under the same
 //     absent-role-falls-back-to-`default` rule. Naming it resolves with zero
-//     providers config; its stages land on headless.
+//     providers config; it declares no native capability, so mode resolution runs
+//     its stages on the CLI adapters (descending to headless under the default
+//     `dispatch.mode: native`).
 //   - kimi — interactive AND headless commands, and deliberately NO fills: its -m
 //     takes a user-config model alias rather than a catalog ID, so the empty model
 //     drops the -m pair and the CLI's own default_model applies. It declares no
