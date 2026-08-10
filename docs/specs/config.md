@@ -471,11 +471,14 @@ environment walk cannot drift from the reference schema.
 
 ### Six intent-grouped verbs
 
-- `fab config show [<key>] [--origin]` — a pure query. Plain bare output prints the environment-over-system-over-
-  project merge as YAML; built-in defaults are NOT materialized here (they apply at
-  point-of-use), surfaced explicitly only by `--origin`, which adds per-field provenance (exact
+- `fab config show [<key>] [--origin]` — a pure query. Plain bare output prints the FULLY COMPOSED
+  config as YAML — environment over system over project over the materialized built-in defaults
+  tier, merged through the same four-layer expression and empty-skip rule the keyed form uses, so a
+  field nobody overrode shows the built-in the binary will use rather than nothing at all.
+  `--origin` annotates those same values with per-field provenance (exact
   `$FAB_…` variable / system path / project path / `default`, following the
-  `git config --show-origin` precedent) with per-key drill-down for map-valued fields. Bare
+  `git config --show-origin` precedent) with per-key drill-down for map-valued fields; it is the
+  provenance annotator, not the route to the composed values. Bare
   `--origin` is **winner-only**: one line per leaf. It surfaces
   typo'd overrides that silently no-op (the intended field shows origin `default`). With a
   known dotted key, scalar/list output is the raw effective value and map output is its YAML subtree;

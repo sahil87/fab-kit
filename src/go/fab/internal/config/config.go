@@ -452,10 +452,11 @@ type Layers struct {
 	Env        map[string]any
 	EnvOrigins map[string]string
 	// Effective is MergeLayers(Project, System, Env) — the merged tree LoadPath
-	// unmarshals. The built-in defaults tier is deliberately NOT composed in here:
-	// bare `fab config show` prints the file+env merge, and the defaults tier is
-	// projected from the registry by the caller (cmd/fab) for the surfaces that
-	// need it.
+	// unmarshals. The built-in defaults tier is deliberately NOT composed in here
+	// (it would poison Config.Agent.Profiles for the resolver, and this package
+	// cannot import configref): the defaults tier is projected from the registry by
+	// the caller (cmd/fab), which merges it beneath these layers for every read-model
+	// surface — `fab config show`, keyed or not, with or without --origin.
 	Effective map[string]any
 }
 

@@ -435,13 +435,13 @@ Pure query (no file writes) for the current repo. `docs/specs/config.md` owns th
 
 | Mode | Output |
 |------|--------|
-| `fab config show` | Environment-over-system-over-project merge as YAML; built-in defaults remain point-of-use values and are not materialized |
-| `fab config show --origin` | Effective values including defaults, WINNER only — one line per leaf with origin `$ENV_VARIABLE` / `system path` / `project path` / `default`; map fields (`agent.profiles`, `providers`) drill down per key |
+| `fab config show` | The FULLY COMPOSED config as YAML — environment over system over project over built-in defaults, so a field nobody overrode shows the built-in the binary will use |
+| `fab config show --origin` | The same composed values, WINNER only — one line per leaf with origin `$ENV_VARIABLE` / `system path` / `project path` / `default`; map fields (`agent.profiles`, `providers`) drill down per key |
 | `fab config show <key>` | Effective value including the built-in default; scalar/list values are raw, map values are YAML subtrees |
 | `fab config show <key> --origin` | The key's FULL STACK — one line per tier that defines it, highest first, as `key = value  # <tier> <label>  (effective\|shadowed)`; a map-valued key drills down per leaf, each leaf listing its own tiers |
 
 ```
-fab config show                        # effective config as YAML
+fab config show                        # composed effective config as YAML (built-in defaults included)
 fab config show --origin               # each field: value + origin ($ENV_VARIABLE / system path / project path / default)
 fab config show agent.workers          # one effective value
 fab config show agent.workers --origin # every tier that defines it, winner first
@@ -455,7 +455,7 @@ agent.workers = kimi3    # system /home/u/.fab-kit/config.yaml  (shadowed)
 agent.workers = claude   # default  (shadowed)
 ```
 
-Accepts at most one known dotted key; unknown keys fail non-zero naming the key. Requires a fab repo (walks up for `fab/`, like `fab preflight`). Writes no file. Bare output remains unchanged.
+Accepts at most one known dotted key; unknown keys fail non-zero naming the key. Requires a fab repo (walks up for `fab/`, like `fab preflight`). Writes no file. Every form composes the same four tiers — `--origin` annotates provenance, it is not the route to the composed values. The composed output is a **view of resolution, never a file to paste back** into `config.yaml`: derived rows (notably the composed `agent.profiles`) become live user overrides when materialized in a config file, pinning values against the provider's own fills.
 
 ### fab config set / unset
 

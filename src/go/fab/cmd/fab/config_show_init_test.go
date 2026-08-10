@@ -58,18 +58,22 @@ func runConfig(t *testing.T, args ...string) (string, error) {
 	return out.String(), err
 }
 
-// TestConfigShow_PrintsEffectiveConfig: `fab config show` prints the merged
-// effective config (system over project) as YAML and exits 0.
+// TestConfigShow_PrintsEffectiveConfig: `fab config show` prints the composed
+// effective config (system over project, over the built-in defaults tier) as YAML
+// and exits 0.
 func TestConfigShow_PrintsEffectiveConfig(t *testing.T) {
 	_, home := setupConfigRepo(t, `
 providers:
   claude:
     interactive_command: project-session
 `)
+	// The system value must be DISTINCTIVE: the composed defaults tier already
+	// supplies codex's built-in headless_command, so asserting a substring of
+	// the built-in (e.g. "codex exec") would pass with no system config at all.
 	writeSystemConfig(t, home, `
 providers:
   codex:
-    headless_command: codex exec
+    headless_command: system-headless
 `)
 	out, err := runConfig(t, "show")
 	if err != nil {
@@ -79,8 +83,71 @@ providers:
 	if !strings.Contains(out, "project-session") {
 		t.Errorf("show output missing project value:\n%s", out)
 	}
-	if !strings.Contains(out, "codex exec") {
+	if !strings.Contains(out, "system-headless") {
 		t.Errorf("show output missing system-layer value:\n%s", out)
+	}
+}
+
+// TestConfigShow_ComposesDefaultsTier: bare `show` prints the FULLY COMPOSED
+// config — the built-in defaults tier merged beneath the files and the
+// environment. A field nobody overrode (dispatch.mode) reports the built-in the
+// binary will actually use instead of being absent, and a field the project file
+// DOES set still wins over its built-in default.
+func TestConfigShow_ComposesDefaultsTier(t *testing.T) {
+	setupConfigRepo(t, "agent:\n    workers: codex\n")
+
+	out, err := runConfig(t, "show")
+	if err != nil {
+		t.Fatalf("config show: %v", err)
+	}
+	for _, want := range []string{
+		"dispatch:",
+		"mode: " + config.DefaultDispatchMode, // a pure built-in: no tier above defines it
+		"workers: codex",                      // the project override still wins
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("composed bare show missing %q:\n%s", want, out)
+		}
+	}
+	// The defaults tier must not echo a value back where a higher tier won.
+	if strings.Contains(out, "workers: claude") {
+		t.Errorf("built-in default shadowed the project override:\n%s", out)
+	}
+}
+
+// TestConfigShow_ComposedOutputHonorsEmptySkip: an EMPTY override neither wins nor
+// blocks in the composed bare output — the tier below supplies the value, down to
+// the built-in default.
+func TestConfigShow_ComposedOutputHonorsEmptySkip(t *testing.T) {
+	setupConfigRepo(t, "agent:\n    workers: null\n")
+	t.Setenv("FAB_AGENT_SESSION", "null")
+
+	out, err := runConfig(t, "show")
+	if err != nil {
+		t.Fatalf("config show: %v", err)
+	}
+	for _, want := range []string{"workers: claude", "session: claude"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("an empty override must fall through to the built-in default (%q):\n%s", want, out)
+		}
+	}
+}
+
+// TestConfigShow_BareRepoReportsTheBuiltIns: the pain point this change closed — a
+// repo with no project or system config no longer under-reports. Bare `show` prints
+// the built-in defaults rather than an empty-config note.
+func TestConfigShow_BareRepoReportsTheBuiltIns(t *testing.T) {
+	setupConfigRepo(t, "")
+
+	out, err := runConfig(t, "show")
+	if err != nil {
+		t.Fatalf("config show: %v", err)
+	}
+	if strings.Contains(out, "no effective config") {
+		t.Fatalf("a bare project must still report the built-in defaults:\n%s", out)
+	}
+	if !strings.Contains(out, "mode: "+config.DefaultDispatchMode) {
+		t.Errorf("composed bare show missing the built-in dispatch.mode:\n%s", out)
 	}
 }
 
@@ -369,7 +436,8 @@ func TestConfigSet_EmptyValueRefusedWithoutWriting(t *testing.T) {
 // the read model ONCE. The surfaces used to load it twice (LoadLayers, then a
 // second LoadPath behind the defaults projection), which printed each fail-open
 // loader warning twice — a scope-pruned system key looked like two distinct
-// problems. Bare `show` skips the defaults projection entirely.
+// problems. Every form — bare `show` included, since it composes the defaults tier
+// too — projects the defaults from the layers it already loaded.
 func TestConfigLoaderWarningsAreNotDuplicated(t *testing.T) {
 	const warning = "ignoring project-scoped field"
 	for _, args := range [][]string{
