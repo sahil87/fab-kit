@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 )
 
 // runRestartCapturingStderr executes `fab dispatch restart`, returning stdout,
@@ -699,7 +700,7 @@ func TestDispatchRestart_PaneRefuseHonorsTheResultFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if !dispatch.PaneAlive(first.Pane, server) {
+	if !pane.PaneAlive(first.Pane, server) {
 		t.Fatalf("pane %s should be alive; the test needs a live pane to be meaningful", first.Pane)
 	}
 

@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 )
 
 // This file covers `fab dispatch ready`'s REPORT — the surface the orchestrator's
 // judgment rounds read. The classification itself is unit-tested against scripted
-// captures in internal/dispatch/gate_test.go; what can only be pinned here is what
+// captures in internal/pane/gate_test.go; what can only be pinned here is what
 // a non-`ready` answer actually prints, and that answering at all is a success.
 //
 // The `ready` case rides the end-to-end delivery test in dispatch_deliver_test.go,
@@ -63,8 +64,8 @@ func TestDispatchReady_RefusesAMidStageWorker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a `done` worker must pass the mid-stage guard: %v", err)
 	}
-	if out != string(dispatch.ReadyReady)+"\n" {
-		t.Errorf("report = %q, want %q from the live shell", out, string(dispatch.ReadyReady)+"\n")
+	if out != string(pane.ReadyReady)+"\n" {
+		t.Errorf("report = %q, want %q from the live shell", out, string(pane.ReadyReady)+"\n")
 	}
 }
 
@@ -82,11 +83,11 @@ func TestDispatchReady_NonReadyReports(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
 		command string
-		want    dispatch.Readiness
+		want    pane.Readiness
 		screen  string
 	}{
-		{"parked behind a wall", parkedPaneCommand, dispatch.ReadyParked, "TRUST-THIS-FOLDER-WALL"},
-		{"still booting", bootingPaneCommand, dispatch.ReadyBooting, ""},
+		{"parked behind a wall", parkedPaneCommand, pane.ReadyParked, "TRUST-THIS-FOLDER-WALL"},
+		{"still booting", bootingPaneCommand, pane.ReadyBooting, ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
@@ -105,7 +106,7 @@ func TestDispatchReady_NonReadyReports(t *testing.T) {
 			}
 			wants := []string{"pane: " + paneID, "server: " + server}
 			if tt.screen != "" {
-				wants = append(wants, fmt.Sprintf("--- last %d lines ---", dispatch.SnippetLines), tt.screen)
+				wants = append(wants, fmt.Sprintf("--- last %d lines ---", pane.SnippetLines), tt.screen)
 			}
 			for _, want := range wants {
 				if !strings.Contains(out, want) {

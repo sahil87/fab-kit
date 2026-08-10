@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/spf13/cobra"
 )
 
@@ -44,11 +45,11 @@ func runDispatchKill(cmd *cobra.Command, changeArg, stage string) error {
 		// Killing the tmux pane takes the interactive worker down with it — the
 		// pane's process group is tmux's to reap, so there is no separate
 		// signalling. An already-gone pane is the benign no-op case.
-		if !dispatch.PaneAlive(rec.Pane, rec.Server) {
+		if !pane.PaneAlive(rec.Pane, rec.Server) {
 			fmt.Fprintf(cmd.OutOrStdout(), "dispatch %s/%s already dead (pane %s); nothing to kill\n", changeArg, stage, rec.Pane)
 			return nil
 		}
-		if err := dispatch.KillPane(rec.Pane, rec.Server); err != nil {
+		if err := pane.KillPane(rec.Pane, rec.Server); err != nil {
 			return err
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "killed %s/%s (pane %s)\n", changeArg, stage, rec.Pane)

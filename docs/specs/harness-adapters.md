@@ -163,6 +163,16 @@ the worker its prompt are two separate events with a decision between them, so t
 | `fab dispatch ready <change> <stage>` | mechanically probes whether the pane accepts typed input | `ready` \| `booting` \| `parked` (+ pane, socket, capture snippet) |
 | `fab dispatch deliver <change> <stage> [--prompt-file <p>]` | types the prompt pointer and verifies it landed | `delivered <id>/<stage> (…)` |
 
+**Implementation layering — primitives vs. bindings (260810-1lah).** The readiness classifier (the
+mechanical gate: typed sentinel, echo check, `C-u` clear), the wrap-tolerant echo-verify delivery
+choreography, and the tmux pane mechanics live in `internal/pane` as **pane-addressed primitives**,
+exposed as `fab pane open` / `fab pane ready` / `fab pane deliver` for driving any pane by id with no
+dispatch record ([`_cli-fab.md`](../../src/kit/skills/_cli-fab.md) § fab pane). The three dispatch
+verbs above are **thin record-keeping bindings** over those primitives: they add the `.fab-dispatch/`
+record, the stdin-prompt persistence, the delivery marker, and the dispatch-owned placement policy —
+and nothing else. Every MUST below binds the primitives exactly as before; the relocation is
+behavior-preserving and this contract is byte-identical.
+
 `fab dispatch start` is consequently **headless-only**: it MUST refuse a pane landing (flag or resolved
 preference) with an actionable pointer at `open`, before any state write, rather than silently launching
 headless or opening a promptless pane. `restart` still re-derives its mode; on a pane landing it performs

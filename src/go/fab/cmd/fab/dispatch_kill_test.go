@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 )
 
 func runKill(t *testing.T, args ...string) (string, error) {
@@ -95,7 +96,7 @@ func TestDispatchKill_PaneMode_Integration(t *testing.T) {
 	}
 	seedPaneDispatch(t, repoRoot, id, "apply", paneID, server)
 
-	if !dispatch.PaneAlive(paneID, server) {
+	if !pane.PaneAlive(paneID, server) {
 		t.Skip("created pane not observably alive; skipping liveness-dependent kill assertion")
 	}
 
@@ -106,7 +107,7 @@ func TestDispatchKill_PaneMode_Integration(t *testing.T) {
 	if !strings.Contains(out, "killed") || !strings.Contains(out, paneID) {
 		t.Errorf("output = %q, want a killed report naming the pane", out)
 	}
-	if dispatch.PaneAlive(paneID, server) {
+	if pane.PaneAlive(paneID, server) {
 		t.Errorf("pane %s should be gone after kill", paneID)
 	}
 

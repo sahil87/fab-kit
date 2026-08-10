@@ -1,12 +1,9 @@
-package dispatch
+package pane
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"testing"
-
-	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 )
 
 // fakePaneIO is a scripted tmux stand-in: captures come from a queue (the last
@@ -66,7 +63,8 @@ func testGate(io PaneIO) *Gate { return &Gate{IO: io} }
 
 // TestDeriveReadiness is the pure classifier's table. Every row is a screen the
 // gate must name correctly without any tmux involved — the same
-// exhaustively-table-tested treatment DeriveState and DerivePaneState get.
+// exhaustively-table-tested treatment internal/dispatch's DeriveState and
+// DerivePaneState get.
 func TestDeriveReadiness(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -105,7 +103,7 @@ func TestProbeReportsReadyOnEcho(t *testing.T) {
 	if snippet != "" {
 		t.Errorf("a ready report carries no snippet, got %q", snippet)
 	}
-	want := []string{"literal:" + ReadySentinel, "key:" + pane.KeyClear}
+	want := []string{"literal:" + ReadySentinel, "key:" + KeyClear}
 	if strings.Join(io.sends, ",") != strings.Join(want, ",") {
 		t.Errorf("sends = %v, want %v", io.sends, want)
 	}
@@ -127,11 +125,11 @@ func TestProbeClearsSentinelWhenItDidNotEcho(t *testing.T) {
 	if !strings.Contains(snippet, "Trust this folder?") {
 		t.Errorf("snippet = %q, want the parked screen", snippet)
 	}
-	if !contains(strings.Join(io.sends, ","), "key:"+pane.KeyClear) {
+	if !strings.Contains(strings.Join(io.sends, ","), "key:"+KeyClear) {
 		t.Errorf("sends = %v, want a C-u clear", io.sends)
 	}
 	for _, s := range io.sends {
-		if s == "key:"+pane.KeyEnter {
+		if s == "key:"+KeyEnter {
 			t.Error("the probe must never press Enter")
 		}
 	}
@@ -162,7 +160,7 @@ func TestProbeCapturesTheStabilityPairBeforeClearing(t *testing.T) {
 	if _, _, err := testGate(io).Probe("%17"); err != nil {
 		t.Fatalf("Probe: %v", err)
 	}
-	want := []string{"literal:" + ReadySentinel, "capture", "capture", "key:" + pane.KeyClear}
+	want := []string{"literal:" + ReadySentinel, "capture", "capture", "key:" + KeyClear}
 	if strings.Join(io.ops, ",") != strings.Join(want, ",") {
 		t.Errorf("ops =\n  %v\nwant\n  %v", io.ops, want)
 	}
@@ -261,9 +259,9 @@ func TestSnippetSkipsThePanePadding(t *testing.T) {
 }
 
 // TestSnippetTerminatesItsLastLine pins the newline every print site relies on:
-// both `fab dispatch ready` and a failed `fab dispatch deliver` write the snippet
-// as the last thing on their stream, so an unterminated tail would leave the
-// shell prompt sitting on the evidence line. An EMPTY snippet stays empty — a
+// both `fab pane ready`/`fab dispatch ready` and a failed delivery write the
+// snippet as the last thing on their stream, so an unterminated tail would leave
+// the shell prompt sitting on the evidence line. An EMPTY snippet stays empty — a
 // lone newline there would be a blank line reporting nothing.
 func TestSnippetTerminatesItsLastLine(t *testing.T) {
 	if got := Snippet("Trust this folder? [y/N]"); !strings.HasSuffix(got, "\n") {
@@ -296,10 +294,10 @@ func TestDeliverVerifiesEchoAndSubmission(t *testing.T) {
 	}
 	want := []string{
 		"literal:" + ReadySentinel,
-		"key:" + pane.KeyClear,
-		"key:" + pane.KeyClear,
+		"key:" + KeyClear,
+		"key:" + KeyClear,
 		"literal:" + testPointer,
-		"key:" + pane.KeyEnter,
+		"key:" + KeyEnter,
 	}
 	if strings.Join(io.sends, ",") != strings.Join(want, ",") {
 		t.Errorf("sends =\n  %v\nwant\n  %v", io.sends, want)
@@ -311,12 +309,12 @@ func TestDeliverVerifiesEchoAndSubmission(t *testing.T) {
 	wantOps := []string{
 		"literal:" + ReadySentinel,
 		"capture", // probe
-		"key:" + pane.KeyClear,
-		"key:" + pane.KeyClear,
+		"key:" + KeyClear,
+		"key:" + KeyClear,
 		"capture", // the echo baseline — after the clear, before the pointer
 		"literal:" + testPointer,
 		"capture", // echo check
-		"key:" + pane.KeyEnter,
+		"key:" + KeyEnter,
 		"capture", // busy check
 	}
 	if strings.Join(io.ops, ",") != strings.Join(wantOps, ",") {
@@ -476,81 +474,27 @@ func TestDeliverPropagatesIOFailure(t *testing.T) {
 	}
 }
 
-// TestDeliveredMarkerIsPaneOnlyAndOmittedWhenFalse pins the record's additive
-// shape: `delivered` appears only once it is true, so an `open`ed pane reads as
-// undelivered by ABSENCE and every headless record's bytes are unchanged.
-//
-// The assertions read the MARSHALLED YAML, not the struct field: `omitempty` is
-// the whole contract here, and a round-tripped struct reads false either way — it
-// cannot tell an omitted key from a `delivered: false` one written into every
-// headless record on disk.
-func TestDeliveredMarkerIsPaneOnlyAndOmittedWhenFalse(t *testing.T) {
-	dir := t.TempDir()
-
-	readRecord := func(stage string) string {
-		t.Helper()
-		data, err := os.ReadFile(YAMLPath(dir, stage))
-		if err != nil {
-			t.Fatalf("read %s record: %v", stage, err)
-		}
-		return string(data)
+func TestTail(t *testing.T) {
+	tests := []struct {
+		name string
+		data string
+		n    int
+		want string
+	}{
+		{"n<=0 returns all", "a\nb\nc\n", 0, "a\nb\nc\n"},
+		{"empty", "", 5, ""},
+		{"fewer lines than n", "a\nb\n", 5, "a\nb\n"},
+		{"last 1 with trailing newline", "a\nb\nc\n", 1, "c\n"},
+		{"last 2 with trailing newline", "a\nb\nc\n", 2, "b\nc\n"},
+		{"last 1 without trailing newline", "a\nb\nc", 1, "c"},
+		{"exact match keeps all", "a\nb\nc\n", 3, "a\nb\nc\n"},
 	}
-
-	if err := Save(dir, "apply", &Dispatch{Pane: "%17", Window: "fab-abcd-apply", SpawnCmd: "claude", StartedAt: "t"}); err != nil {
-		t.Fatalf("Save opened: %v", err)
-	}
-	if got := readRecord("apply"); strings.Contains(got, "delivered") {
-		t.Errorf("an `open`ed pane record carries a delivery key:\n%s", got)
-	}
-	opened, err := Load(dir, "apply")
-	if err != nil {
-		t.Fatalf("Load opened: %v", err)
-	}
-	if opened.Delivered {
-		t.Error("a pane record written by `open` must read as not delivered")
-	}
-
-	opened.Delivered = true
-	if err := Save(dir, "apply", opened); err != nil {
-		t.Fatalf("Save delivered: %v", err)
-	}
-	if got := readRecord("apply"); !strings.Contains(got, "delivered: true") {
-		t.Errorf("a delivered pane record must carry `delivered: true`:\n%s", got)
-	}
-	delivered, err := Load(dir, "apply")
-	if err != nil {
-		t.Fatalf("Load delivered: %v", err)
-	}
-	if !delivered.Delivered {
-		t.Error("the delivery marker must round-trip")
-	}
-
-	if err := Save(dir, "review", &Dispatch{PID: 7, PGID: 7, SpawnCmd: "codex exec", StartedAt: "t"}); err != nil {
-		t.Fatalf("Save headless: %v", err)
-	}
-	if got := readRecord("review"); strings.Contains(got, "delivered") {
-		t.Errorf("a headless record's bytes changed — it now carries a delivery key:\n%s", got)
-	}
-	headless, err := Load(dir, "review")
-	if err != nil {
-		t.Fatalf("Load headless: %v", err)
-	}
-	if headless.Delivered {
-		t.Error("a headless record must never carry a delivery marker")
-	}
-}
-
-// TestDeliveredChangesNoState pins that the marker is bookkeeping, not a state:
-// the pane derivation is a function of the result file and pane liveness alone,
-// exactly as before.
-func TestDeliveredChangesNoState(t *testing.T) {
-	for _, delivered := range []bool{false, true} {
-		rec := &Dispatch{Pane: "%17", Delivered: delivered}
-		if !rec.IsPane() || rec.Mode() != ModePane {
-			t.Errorf("delivered=%v changed the derived mode", delivered)
-		}
-		if got := DerivePaneState(true, false); got != StateDone {
-			t.Errorf("delivered=%v: result-present derivation = %q, want %q", delivered, got, StateDone)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := string(Tail([]byte(tt.data), tt.n))
+			if got != tt.want {
+				t.Errorf("Tail(%q, %d) = %q, want %q", tt.data, tt.n, got, tt.want)
+			}
+		})
 	}
 }

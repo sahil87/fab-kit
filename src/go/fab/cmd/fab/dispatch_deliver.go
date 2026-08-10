@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/spf13/cobra"
 )
@@ -84,8 +85,8 @@ func runDispatchDeliver(cmd *cobra.Command, changeArg, stage, promptFile string)
 		return err
 	}
 
-	warnings, snippet, err := dispatch.NewGate(rec.Server).
-		Deliver(rec.Pane, dispatch.PointerPrompt(pointerPath))
+	warnings, snippet, err := pane.NewGate(rec.Server).
+		Deliver(rec.Pane, pane.PointerPrompt(pointerPath))
 	for _, w := range warnings {
 		fmt.Fprintf(cmd.ErrOrStderr(), "warning: %v\n", w)
 	}
@@ -101,7 +102,7 @@ func runDispatchDeliver(cmd *cobra.Command, changeArg, stage, promptFile string)
 		restoreStash(cmd, stash)
 		if snippet != "" {
 			fmt.Fprintf(cmd.ErrOrStderr(), "--- pane %s, last %d lines ---\n%s",
-				rec.Pane, dispatch.SnippetLines, snippet)
+				rec.Pane, pane.SnippetLines, snippet)
 		}
 		return err
 	}

@@ -5,17 +5,17 @@ created_by: sahil-noon
 change_type: feat
 issues: []
 progress:
-    intake: ready
-    apply: pending
-    review: pending
-    hydrate: pending
-    ship: pending
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
     review-pr: pending
 plan:
-    generated: false
-    task_count: 0
-    acceptance_count: 0
-    acceptance_completed: 0
+    generated: true
+    task_count: 12
+    acceptance_count: 22
+    acceptance_completed: 22
 confidence:
     certain: 2
     confident: 5
@@ -29,8 +29,27 @@ confidence:
         competence: 77.1
         disambiguation: 72.1
 stage_metrics:
-    intake: {started_at: "2026-08-10T02:56:55Z", driver: fab-new, iterations: 1}
+    intake: {started_at: "2026-08-10T02:56:55Z", driver: fab-new, iterations: 1, completed_at: "2026-08-10T04:15:23Z"}
+    apply: {started_at: "2026-08-10T04:15:23Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T04:48:43Z"}
+    review: {started_at: "2026-08-10T04:48:43Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T04:55:57Z"}
+    hydrate: {started_at: "2026-08-10T04:55:57Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T05:04:50Z"}
+    ship: {started_at: "2026-08-10T05:04:50Z", driver: fab-fff, iterations: 1}
 prs: []
 change_type_source: explicit
+true_impact:
+    added: 995
+    deleted: 227
+    net: 768
+    excluding:
+        added: 362
+        deleted: 171
+        net: 191
+    tests:
+        added: 261
+        deleted: 98
+        net: 163
+    computed_at: "2026-08-10T05:04:50Z"
+    computed_at_stage: hydrate
+summary: New provider-generic fab pane open/ready/deliver primitives in internal/pane; dispatch open/ready/deliver become thin record-keeping bindings; fab pane send warns and proceeds on unknown agent state
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-10T03:00:55Z
+last_updated: 2026-08-10T05:04:50Z

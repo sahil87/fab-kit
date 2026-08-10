@@ -115,20 +115,24 @@ func TestSendEnterArgs(t *testing.T) {
 }
 
 // TestIdleGate exercises the pure three-state send gate extracted from
-// runPaneSend. It pins BOTH message contracts (the "not idle (state: <state>)"
-// refusal and the distinct unknown/--force refusal) so a future reword of
-// either message trips this test. This is the unit half of the A-014 coverage
-// the review flagged as missing; TestPaneSendGate_Integration is the
-// end-to-end half against a real tmux server.
+// runPaneSend. It pins BOTH contracts — the "not idle (state: <state>)" refusal
+// and the unknown-state warn-and-proceed warning — so a future reword of either
+// trips this test. This is the unit half of the coverage;
+// TestPaneSendGate_Integration is the end-to-end half against a real tmux
+// server.
 func TestIdleGate(t *testing.T) {
-	t.Run("idle permits the send", func(t *testing.T) {
-		if err := idleGate("%5", strPtr(pane.AgentStateIdle)); err != nil {
+	t.Run("idle permits the send without a warning", func(t *testing.T) {
+		warning, err := idleGate("%5", strPtr(pane.AgentStateIdle))
+		if err != nil {
 			t.Errorf("idle should permit send, got error: %v", err)
+		}
+		if warning != "" {
+			t.Errorf("idle should not warn, got %q", warning)
 		}
 	})
 
 	t.Run("active refuses with three-state-aware message", func(t *testing.T) {
-		err := idleGate("%5", strPtr(pane.AgentStateActive))
+		_, err := idleGate("%5", strPtr(pane.AgentStateActive))
 		if err == nil {
 			t.Fatal("active must refuse")
 		}
@@ -138,7 +142,7 @@ func TestIdleGate(t *testing.T) {
 	})
 
 	t.Run("waiting refuses with the same not-idle shape", func(t *testing.T) {
-		err := idleGate("%5", strPtr(pane.AgentStateWaiting))
+		_, err := idleGate("%5", strPtr(pane.AgentStateWaiting))
 		if err == nil {
 			t.Fatal("waiting must refuse")
 		}
@@ -147,22 +151,13 @@ func TestIdleGate(t *testing.T) {
 		}
 	})
 
-	t.Run("unknown refuses with a distinct message naming --force", func(t *testing.T) {
-		err := idleGate("%5", nil)
-		if err == nil {
-			t.Fatal("unknown must refuse")
+	t.Run("unknown warns and proceeds", func(t *testing.T) {
+		warning, err := idleGate("%5", nil)
+		if err != nil {
+			t.Fatalf("unknown must not refuse: %v", err)
 		}
-		msg := err.Error()
-		// The unknown refusal must be DISTINCT from the not-idle shape and must
-		// point the caller at --force.
-		if strings.Contains(msg, "is not idle (state:") {
-			t.Errorf("unknown refusal must not reuse the not-idle shape: %q", msg)
-		}
-		if !strings.Contains(msg, "--force") {
-			t.Errorf("unknown refusal must name --force: %q", msg)
-		}
-		if !strings.Contains(msg, pane.AgentStateOption) {
-			t.Errorf("unknown refusal should name the %s option: %q", pane.AgentStateOption, msg)
+		if warning != "agent state unknown — sending anyway" {
+			t.Errorf("unknown warning drifted: %q", warning)
 		}
 	})
 }
@@ -232,11 +227,11 @@ func TestTmuxSocketDirLengthGuard(t *testing.T) {
 // TestPaneSendGate_Integration drives the full `fab pane send` command against
 // a real ephemeral tmux server, simulating run-kit's rk agent-setup writer via
 // `tmux set-option -p @rk_agent_state "<state>:<epoch>"` (the writer directed by
-// the intake — the actual writer does not exist yet). This is the A-014
+// the intake — the actual writer does not exist yet). This is the end-to-end
 // coverage: it exercises the codex-pane scenario (a pane the old Claude-only
 // _agents pipeline could never see) end-to-end, proving the gate refuses
-// active/waiting/unknown, sends on idle, and that --force bypasses the gate.
-// Skipped when tmux is unavailable.
+// active/waiting, WARNS and sends on unknown (the foreign-pane posture), sends
+// on idle, and that --force bypasses the gate. Skipped when tmux is unavailable.
 func TestPaneSendGate_Integration(t *testing.T) {
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("tmux not available")
@@ -279,18 +274,22 @@ func TestPaneSendGate_Integration(t *testing.T) {
 
 	// runSend invokes the real command via cobra so the whole path
 	// (ValidatePane → ResolvePaneContext → idleGate → send-keys) is exercised.
-	// --no-enter avoids submitting a stray line into the pane's shell.
-	runSend := func(args ...string) error {
+	// --no-enter avoids submitting a stray line into the pane's shell. stderr is
+	// captured so the unknown-state warning is assertable.
+	runSend := func(args ...string) (string, error) {
+		var errBuf strings.Builder
 		cmd := paneCmd()
 		cmd.SetArgs(append([]string{"send", "-L", server, "--no-enter"}, args...))
+		cmd.SetErr(&errBuf)
 		cmd.SilenceUsage = true
 		cmd.SilenceErrors = true
-		return cmd.Execute()
+		err := cmd.Execute()
+		return errBuf.String(), err
 	}
 
 	t.Run("active refuses (codex pane, previously invisible)", func(t *testing.T) {
 		setState(t, pane.AgentStateActive, 1751800000)
-		err := runSend(paneID, "hi")
+		_, err := runSend(paneID, "hi")
 		if err == nil {
 			t.Fatal("expected refusal for active state")
 		}
@@ -301,7 +300,7 @@ func TestPaneSendGate_Integration(t *testing.T) {
 
 	t.Run("waiting refuses", func(t *testing.T) {
 		setState(t, pane.AgentStateWaiting, 1751800000)
-		err := runSend(paneID, "hi")
+		_, err := runSend(paneID, "hi")
 		if err == nil {
 			t.Fatal("expected refusal for waiting state")
 		}
@@ -310,27 +309,31 @@ func TestPaneSendGate_Integration(t *testing.T) {
 		}
 	})
 
-	t.Run("unknown (option unset) refuses distinctly", func(t *testing.T) {
+	t.Run("unknown (option unset) warns and sends", func(t *testing.T) {
 		unsetState(t)
-		err := runSend(paneID, "hi")
-		if err == nil {
-			t.Fatal("expected refusal for unknown state")
+		stderr, err := runSend(paneID, "hi")
+		if err != nil {
+			t.Fatalf("unknown must warn and send, got error: %v", err)
 		}
-		if !strings.Contains(err.Error(), "--force") {
-			t.Errorf("unknown refusal must name --force: %q", err.Error())
+		if !strings.Contains(stderr, "warning: agent state unknown — sending anyway") {
+			t.Errorf("stderr = %q, want the unknown-state warning", stderr)
 		}
 	})
 
-	t.Run("idle sends", func(t *testing.T) {
+	t.Run("idle sends without a warning", func(t *testing.T) {
 		setState(t, pane.AgentStateIdle, time.Now().Unix())
-		if err := runSend(paneID, "true"); err != nil {
+		stderr, err := runSend(paneID, "true")
+		if err != nil {
 			t.Errorf("idle should send, got error: %v", err)
+		}
+		if stderr != "" {
+			t.Errorf("idle should not warn, got stderr %q", stderr)
 		}
 	})
 
 	t.Run("--force bypasses the gate on a non-idle pane", func(t *testing.T) {
 		setState(t, pane.AgentStateActive, 1751800000)
-		if err := runSend("--force", paneID, "true"); err != nil {
+		if _, err := runSend("--force", paneID, "true"); err != nil {
 			t.Errorf("--force should bypass the active gate, got error: %v", err)
 		}
 	})

@@ -11,13 +11,14 @@ import (
 	"time"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 )
 
 // This file covers `fab dispatch deliver` and `fab dispatch ready` at the COMMAND
 // layer: the guards that decide whether a delivery may happen at all, and the
 // end-to-end delivery into a real tmux pane. The send-keys choreography itself —
 // echo verification, the single retry, the busy confirmation — is unit-tested
-// against a scripted fake in internal/dispatch/gate_test.go, which is where the
+// against a scripted fake in internal/pane/gate_test.go, which is where the
 // retry path can be forced deterministically.
 
 // runDeliver executes `fab dispatch deliver`, returning stdout, stderr, and error.
@@ -334,8 +335,8 @@ func TestDispatchDeliver_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ready: %v", err)
 	}
-	if readyOut != string(dispatch.ReadyReady)+"\n" {
-		t.Errorf("ready output = %q, want exactly %q", readyOut, string(dispatch.ReadyReady)+"\n")
+	if readyOut != string(pane.ReadyReady)+"\n" {
+		t.Errorf("ready output = %q, want exactly %q", readyOut, string(pane.ReadyReady)+"\n")
 	}
 
 	stdout, _, err := runDeliver(t, "abcd", "apply")

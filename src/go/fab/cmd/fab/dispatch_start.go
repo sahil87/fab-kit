@@ -12,6 +12,7 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 	"github.com/spf13/cobra"
@@ -513,7 +514,7 @@ type paneFallback struct {
 // checked here for explicit pane and as a defensive invariant. Headless performs
 // no tmux probe.
 func validatePane(prov config.ProviderConfig, server, stage, providerName string) *paneFallback {
-	if probeErr := dispatch.ServerReachable(server); probeErr != nil {
+	if probeErr := pane.ServerReachable(server); probeErr != nil {
 		return &paneFallback{
 			tmuxUnavailable: true,
 			err:             probeErr,
@@ -614,7 +615,7 @@ func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoo
 				probeErr, place.Describe())
 		}
 		var warnings []error
-		paneID, warnings, err = dispatch.OpenSplitPane(server, place, title, repoRoot, resolvedCmd)
+		paneID, warnings, err = pane.OpenSplitPane(server, place, title, repoRoot, resolvedCmd)
 		// Cosmetic-only failures (a size tmux would not take, a title it would not
 		// set): the worker is running and its pane ID — the real identity — is
 		// already recorded, so these warn rather than aborting.
@@ -626,7 +627,7 @@ func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoo
 		}
 		report = fmt.Sprintf("pane %s, split, title %s", paneID, title)
 	} else {
-		paneID, err = dispatch.OpenWindow(server, title, repoRoot, resolvedCmd)
+		paneID, err = pane.OpenWindow(server, title, repoRoot, resolvedCmd)
 		if err != nil {
 			return "", err
 		}
@@ -671,7 +672,7 @@ func priorRunning(dir, stage string, prior *dispatch.Dispatch) (bool, error) {
 		if dispatch.ResultPresent(dir, stage) {
 			return false, nil
 		}
-		return dispatch.PaneAlive(prior.Pane, prior.Server), nil
+		return pane.PaneAlive(prior.Pane, prior.Server), nil
 	}
 	exitPresent, _, err := dispatch.ReadExit(dir, stage)
 	if err != nil {

@@ -1,17 +1,19 @@
-package dispatch
+package pane
 
 import (
 	"fmt"
 	"strings"
 	"time"
 	"unicode"
-
-	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 )
 
 // This file holds the PANE READINESS GATE and the VERIFIED DELIVERY
-// choreography — the two halves of how a pane-mode worker gets its prompt now
-// that `fab dispatch open` spawns the pane WITHOUT one.
+// choreography — the shared, pane-addressed mechanics of the pane layer. The
+// provider-generic primitives (`fab pane ready` / `fab pane deliver`) run them
+// directly against a pane id, and `fab dispatch ready` / `fab dispatch
+// deliver` are thin record-keeping bindings over the same gate — the two
+// halves of how a pane-mode worker gets its prompt now that `fab dispatch
+// open` spawns the pane WITHOUT one.
 //
 // Why delivery moved off the spawn command: a spawn-time positional pointer is
 // fire-and-forget and unverifiable (a provider CLI that silently drops it leaves
@@ -30,9 +32,9 @@ import (
 // is the orchestrator's judgment, over the snippet this file returns.
 
 // Readiness is the gate's classification of a pane. The values are the exact
-// strings `fab dispatch ready` prints — they are the report contract the
-// orchestrator branches on, so they are named constants, never inline literals
-// (the State precedent in dispatch.go).
+// strings `fab pane ready` and `fab dispatch ready` print — they are the report
+// contract the orchestrator branches on, so they are named constants, never
+// inline literals (the State precedent in internal/dispatch).
 type Readiness string
 
 const (
@@ -96,21 +98,21 @@ type PaneIO interface {
 	SendKey(paneID, key string) error
 }
 
-// tmuxPaneIO is the real implementation, delegating to internal/pane's shared
+// tmuxPaneIO is the real implementation, delegating to this package's shared
 // helpers so the gate, `fab pane capture`, and `fab pane send` all go through
 // one tmux argv builder and one stderr-enrichment convention.
 type tmuxPaneIO struct{ server string }
 
 func (t tmuxPaneIO) Capture(paneID string, lines int) (string, error) {
-	return pane.Capture(t.server, paneID, lines)
+	return Capture(t.server, paneID, lines)
 }
 
 func (t tmuxPaneIO) SendLiteral(paneID, text string) error {
-	return pane.SendLiteral(t.server, paneID, text)
+	return SendLiteral(t.server, paneID, text)
 }
 
 func (t tmuxPaneIO) SendKey(paneID, key string) error {
-	return pane.SendKey(t.server, paneID, key)
+	return SendKey(t.server, paneID, key)
 }
 
 // Gate runs the readiness probe and the delivery choreography against one tmux
@@ -143,7 +145,7 @@ func (g *Gate) sleep(d time.Duration) {
 // DeriveReadiness is the pure classifier: given whether the sentinel echoed and
 // two captures spaced by the stability delay, it names the pane's state. Kept
 // free of I/O so the whole table is testable against scripted captures, exactly
-// like DeriveState/DerivePaneState.
+// like internal/dispatch's DeriveState/DerivePaneState.
 //
 //	echoed                        → ready
 //	blank screen                  → booting  (nothing has been drawn yet)
@@ -203,7 +205,7 @@ func (g *Gate) Probe(paneID string) (Readiness, string, error) {
 	// Clear unconditionally: a sentinel that echoed must not be left in the
 	// worker's input buffer, and one that did not echo may still have landed
 	// somewhere the capture did not show.
-	if err := g.IO.SendKey(paneID, pane.KeyClear); err != nil {
+	if err := g.IO.SendKey(paneID, KeyClear); err != nil {
 		return "", "", err
 	}
 	if echoed {
@@ -251,7 +253,7 @@ func (g *Gate) deliverOnce(paneID, pointer string) (snippet string, err error) {
 		return evidence, fmt.Errorf("pane is %s, not ready", state)
 	}
 
-	if err := g.IO.SendKey(paneID, pane.KeyClear); err != nil {
+	if err := g.IO.SendKey(paneID, KeyClear); err != nil {
 		return "", err
 	}
 	// The echo baseline is taken HERE — after this attempt's own clear, not from
@@ -280,7 +282,7 @@ func (g *Gate) deliverOnce(paneID, pointer string) (snippet string, err error) {
 		return Snippet(typed), fmt.Errorf("the pointer line did not echo in the pane")
 	}
 
-	if err := g.IO.SendKey(paneID, pane.KeyEnter); err != nil {
+	if err := g.IO.SendKey(paneID, KeyEnter); err != nil {
 		return "", err
 	}
 	g.sleep(g.Busy)
@@ -381,4 +383,26 @@ func squeeze(s string) string {
 		}
 		return r
 	}, s)
+}
+
+// Tail returns the last n lines of data (Go-side, no external `tail`). n <= 0
+// returns the whole content unchanged. A trailing newline is treated as a line
+// terminator, not an empty final line, so `Tail(data, 1)` on "a\nb\n" yields
+// "b\n".
+func Tail(data []byte, n int) []byte {
+	if n <= 0 || len(data) == 0 {
+		return data
+	}
+	s := string(data)
+	// Split off a single trailing newline so it doesn't count as a blank line.
+	trailing := ""
+	if strings.HasSuffix(s, "\n") {
+		trailing = "\n"
+		s = s[:len(s)-1]
+	}
+	lines := strings.Split(s, "\n")
+	if len(lines) <= n {
+		return data
+	}
+	return []byte(strings.Join(lines[len(lines)-n:], "\n") + trailing)
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/spf13/cobra"
 )
 
@@ -55,14 +56,14 @@ func runDispatchReady(cmd *cobra.Command, changeArg, stage string) error {
 		return err
 	}
 
-	state, snippet, err := dispatch.NewGate(rec.Server).Probe(rec.Pane)
+	state, snippet, err := pane.NewGate(rec.Server).Probe(rec.Pane)
 	if err != nil {
 		return err
 	}
 
 	out := cmd.OutOrStdout()
 	fmt.Fprintln(out, state)
-	if state == dispatch.ReadyReady {
+	if state == pane.ReadyReady {
 		return nil
 	}
 	// The pane and socket are printed for the judgment rounds that follow a
@@ -76,7 +77,7 @@ func runDispatchReady(cmd *cobra.Command, changeArg, stage string) error {
 	// ordinary `booting` case, and a header with nothing under it reads as a
 	// truncated report rather than as "there is nothing on the screen".
 	if snippet != "" {
-		fmt.Fprintf(out, "--- last %d lines ---\n", dispatch.SnippetLines)
+		fmt.Fprintf(out, "--- last %d lines ---\n", pane.SnippetLines)
 		fmt.Fprint(out, snippet)
 	}
 	return nil
@@ -105,7 +106,7 @@ func loadPaneDispatch(changeArg, stage, verb string) (rec *dispatch.Dispatch, di
 		return nil, "", "", fmt.Errorf("%s/%s is a headless dispatch; `fab dispatch %s` applies only to pane workers (a headless worker is handed its prompt on stdin by `fab dispatch start`)",
 			changeArg, stage, verb)
 	}
-	if !dispatch.PaneAlive(rec.Pane, rec.Server) {
+	if !pane.PaneAlive(rec.Pane, rec.Server) {
 		return nil, "", "", fmt.Errorf("pane %s for %s/%s is gone; run `fab dispatch restart %s %s` to open a fresh worker",
 			rec.Pane, changeArg, stage, changeArg, stage)
 	}

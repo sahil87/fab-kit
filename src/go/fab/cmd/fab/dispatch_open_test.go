@@ -9,6 +9,7 @@ import (
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 )
 
 // This file covers `fab dispatch open` — pane mode's entry — and with it the
@@ -176,7 +177,7 @@ func TestDispatchOpen_Integration(t *testing.T) {
 		t.Errorf("pane received prompt content (%q); open delivers nothing", captured)
 	}
 	// The pane is observably alive (the liveness signal status keys on).
-	if !dispatch.PaneAlive(rec.Pane, server) {
+	if !pane.PaneAlive(rec.Pane, server) {
 		t.Errorf("pane %s should be alive right after open", rec.Pane)
 	}
 }
@@ -214,7 +215,7 @@ func TestDispatchOpen_RefuseIfRunningHonorsTheResultFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if !dispatch.PaneAlive(first.Pane, server) {
+	if !pane.PaneAlive(first.Pane, server) {
 		t.Fatalf("pane %s should be alive; the test needs a live pane to be meaningful", first.Pane)
 	}
 
@@ -229,7 +230,7 @@ func TestDispatchOpen_RefuseIfRunningHonorsTheResultFile(t *testing.T) {
 	// The worker finishes: it writes its result and sits at its prompt (pane still
 	// alive). status derives `done`, so open must now OVERWRITE rather than refuse.
 	mustWrite(t, dispatch.ResultPath(dir, "apply"), "stage: apply\nstatus: success\n")
-	if !dispatch.PaneAlive(first.Pane, server) {
+	if !pane.PaneAlive(first.Pane, server) {
 		t.Fatalf("pane %s died; the finished-but-alive case is what this test covers", first.Pane)
 	}
 
@@ -395,7 +396,7 @@ func TestDispatchOpen_SplitPane_Integration(t *testing.T) {
 	}
 
 	// The pane is alive and — as in the window shape — received NOTHING.
-	if !dispatch.PaneAlive(rec.Pane, "") {
+	if !pane.PaneAlive(rec.Pane, "") {
 		t.Errorf("pane %s should be alive right after open", rec.Pane)
 	}
 	captured, err := tmuxScoped("capture-pane", "-p", "-t", rec.Pane)
@@ -432,7 +433,7 @@ func TestDispatchOpen_SplitPanesStackInTheRightColumn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load apply: %v", err)
 	}
-	if !dispatch.PaneAlive(first.Pane, "") {
+	if !pane.PaneAlive(first.Pane, "") {
 		t.Fatalf("pane %s must be alive for the sibling probe to find it", first.Pane)
 	}
 
@@ -501,16 +502,16 @@ func TestDispatchOpen_SplitPanesStackInTheRightColumn(t *testing.T) {
 
 	// Killing one worker pane leaves the dispatcher's window (and the other worker)
 	// intact — plain tmux kill-pane semantics, which is why KillPane needed no change.
-	if err := dispatch.KillPane(second.Pane, ""); err != nil {
+	if err := pane.KillPane(second.Pane, ""); err != nil {
 		t.Fatalf("KillPane: %v", err)
 	}
-	if dispatch.PaneAlive(second.Pane, "") {
+	if pane.PaneAlive(second.Pane, "") {
 		t.Errorf("pane %s should be gone after KillPane", second.Pane)
 	}
-	if !dispatch.PaneAlive(dispatcherPane, "") {
+	if !pane.PaneAlive(dispatcherPane, "") {
 		t.Error("killing a split worker pane must leave the dispatcher's pane alive")
 	}
-	if !dispatch.PaneAlive(first.Pane, "") {
+	if !pane.PaneAlive(first.Pane, "") {
 		t.Error("killing one worker pane must leave the sibling worker alive")
 	}
 	if got := paneWindow(t, tmuxScoped, dispatcherPane); got != dispatcherWindow {
@@ -568,7 +569,7 @@ func TestDispatchOpen_UnreadableRecordWarnsAndStillLaunches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the worker must still have launched and been recorded: %v", err)
 	}
-	if !dispatch.PaneAlive(second.Pane, "") {
+	if !pane.PaneAlive(second.Pane, "") {
 		t.Errorf("worker pane %s is not alive; the degraded probe must not cost the dispatch", second.Pane)
 	}
 	// The readable sibling still won the intersection: same left edge, distinct top.

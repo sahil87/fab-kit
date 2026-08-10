@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/spf13/cobra"
 )
 
@@ -52,7 +53,7 @@ func runDispatchLogs(cmd *cobra.Command, changeArg, stage string, tail int) erro
 	}
 
 	if tail > 0 {
-		data = dispatch.Tail(data, tail)
+		data = pane.Tail(data, tail)
 	}
 	_, err = cmd.OutOrStdout().Write(data)
 	return err
