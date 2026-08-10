@@ -46,10 +46,7 @@ func TestDispatchReady_RefusesAMidStageWorker(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	before, err := tmux("capture-pane", "-p", "-t", paneID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	before := settledPane(t, tmux, paneID)
 	if _, err := runReady(t, "abcd", "apply"); err == nil {
 		t.Fatal("ready must refuse a worker that is mid-stage")
 	} else if !strings.Contains(err.Error(), "still running") {
