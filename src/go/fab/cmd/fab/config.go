@@ -385,9 +385,6 @@ func flowStyle(node *yaml.Node) {
 func renderShow(layers *config.Layers, defaults map[string]any, withOrigin bool) (string, error) {
 	if !withOrigin {
 		effective := config.MergeLayers(defaults, layers.Effective)
-		if len(effective) == 0 {
-			return "# (no effective config — no project or system config.yaml found)\n", nil
-		}
 		data, err := yaml.Marshal(effective)
 		if err != nil {
 			return "", err
