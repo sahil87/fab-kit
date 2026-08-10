@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 12
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-08-10T04:15:23Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T04:48:43Z"}
     review: {started_at: "2026-08-10T04:48:43Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T04:55:57Z"}
     hydrate: {started_at: "2026-08-10T04:55:57Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T05:04:50Z"}
-    ship: {started_at: "2026-08-10T05:04:50Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-10T05:04:50Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T05:08:10Z"}
+    review-pr: {started_at: "2026-08-10T05:08:10Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/568
 change_type_source: explicit
 true_impact:
-    added: 995
-    deleted: 227
-    net: 768
+    added: 3066
+    deleted: 969
+    net: 2097
     excluding:
-        added: 362
-        deleted: 171
-        net: 191
+        added: 2087
+        deleted: 885
+        net: 1202
     tests:
-        added: 261
-        deleted: 98
-        net: 163
-    computed_at: "2026-08-10T05:04:50Z"
-    computed_at_stage: hydrate
+        added: 1204
+        deleted: 440
+        net: 764
+    computed_at: "2026-08-10T05:08:10Z"
+    computed_at_stage: ship
 summary: New provider-generic fab pane open/ready/deliver primitives in internal/pane; dispatch open/ready/deliver become thin record-keeping bindings; fab pane send warns and proceeds on unknown agent state
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-10T05:04:50Z
+last_updated: 2026-08-10T05:08:10Z
