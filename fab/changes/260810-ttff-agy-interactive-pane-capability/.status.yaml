@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 7
@@ -33,22 +33,24 @@ stage_metrics:
     apply: {started_at: "2026-08-10T06:46:04Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-10T06:49:42Z"}
     review: {started_at: "2026-08-10T06:49:42Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-10T06:57:52Z"}
     hydrate: {started_at: "2026-08-10T06:57:52Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T07:03:22Z"}
-    ship: {started_at: "2026-08-10T07:03:22Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-10T07:03:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T07:06:56Z"}
+    review-pr: {started_at: "2026-08-10T07:06:56Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/573
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 408
+    deleted: 270
+    net: 138
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 158
+        deleted: 188
+        net: -30
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-08-10T07:03:22Z"
-    computed_at_stage: hydrate
+        added: 104
+        deleted: 128
+        net: -24
+    computed_at: "2026-08-10T07:06:56Z"
+    computed_at_stage: ship
 summary: ships agy pane grammar and documents pane-by-default provider capability
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-10T07:03:22Z
+last_updated: 2026-08-10T07:06:56Z
