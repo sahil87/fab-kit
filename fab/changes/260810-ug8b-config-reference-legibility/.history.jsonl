@@ -1,0 +1,3 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-10T02:56:52Z"}
+{"args":"flatten provider double-hash reference blocks + reorder dispatch above agent in config reference","cmd":"fab-new","event":"command","ts":"2026-08-10T02:56:52Z"}
+{"delta":"+0.0","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-08-10T03:00:04Z"}
