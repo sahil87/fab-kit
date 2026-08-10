@@ -6,6 +6,7 @@ import (
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/spf13/cobra"
 )
@@ -64,7 +65,7 @@ func runDispatchReap(cmd *cobra.Command, changeArg, stage string) error {
 	if rec.IsPane() {
 		state = dispatch.DerivePaneState(
 			dispatch.ResultPresent(dir, stage),
-			dispatch.PaneAlive(rec.Pane, rec.Server),
+			pane.PaneAlive(rec.Pane, rec.Server),
 		)
 	}
 
@@ -95,11 +96,11 @@ func runDispatchReap(cmd *cobra.Command, changeArg, stage string) error {
 	// server) is a benign already-gone report rather than an error. The liveness probe
 	// gates the report; KillPane itself also treats a missing pane as a no-op, so a
 	// race between the two is harmless.
-	if !dispatch.PaneAlive(rec.Pane, rec.Server) {
+	if !pane.PaneAlive(rec.Pane, rec.Server) {
 		fmt.Fprintf(out, "pane %s for %s/%s is already gone; nothing to reap\n", rec.Pane, changeArg, stage)
 		return nil
 	}
-	if err := dispatch.KillPane(rec.Pane, rec.Server); err != nil {
+	if err := pane.KillPane(rec.Pane, rec.Server); err != nil {
 		return err
 	}
 	fmt.Fprintf(out, "reaped pane %s for %s/%s\n", rec.Pane, changeArg, stage)

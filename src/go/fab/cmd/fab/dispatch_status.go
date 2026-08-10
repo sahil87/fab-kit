@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/spf13/cobra"
 )
 
@@ -103,7 +104,7 @@ func observeDispatch(dir, id, stage string, rec *dispatch.Dispatch) (dispatchSta
 		// erroring out of status.
 		state = dispatch.DerivePaneState(
 			dispatch.ResultPresent(dir, stage),
-			dispatch.PaneAlive(rec.Pane, rec.Server),
+			pane.PaneAlive(rec.Pane, rec.Server),
 		)
 		out.Pane = rec.Pane
 		out.Window = rec.Window

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 )
 
 func runReap(t *testing.T, args ...string) (string, error) {
@@ -255,7 +256,7 @@ func TestDispatchReap_PaneMode_Integration(t *testing.T) {
 	mustWrite(t, dispatch.PromptPath(dir, "apply"), "prompt\n")
 	mustWrite(t, dispatch.ResultPath(dir, "apply"), "stage: apply\nstatus: success\n")
 
-	if !dispatch.PaneAlive(worker, server) {
+	if !pane.PaneAlive(worker, server) {
 		t.Skip("created pane not observably alive; skipping liveness-dependent reap assertion")
 	}
 	if st, err := runStatus(t, "abcd", "apply"); err != nil || strings.TrimSpace(st) != "done" {
@@ -270,13 +271,13 @@ func TestDispatchReap_PaneMode_Integration(t *testing.T) {
 		t.Errorf("output = %q, want a reaped report naming the pane", out)
 	}
 
-	if dispatch.PaneAlive(worker, server) {
+	if pane.PaneAlive(worker, server) {
 		t.Errorf("worker pane %s should be gone after reap", worker)
 	}
-	if !dispatch.PaneAlive(dispatcher, server) {
+	if !pane.PaneAlive(dispatcher, server) {
 		t.Errorf("the dispatching agent's pane %s must survive a worker reap", dispatcher)
 	}
-	if !dispatch.PaneAlive(sibling, server) {
+	if !pane.PaneAlive(sibling, server) {
 		t.Errorf("the sibling worker pane %s must survive a worker reap", sibling)
 	}
 

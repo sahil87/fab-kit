@@ -1,0 +1,10 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-10T02:56:55Z"}
+{"args":"extract provider-generic pane-addressed open/ready/deliver primitives from dispatch","cmd":"fab-new","event":"command","ts":"2026-08-10T02:56:55Z"}
+{"delta":"+0.0","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-08-10T03:00:04Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-10T04:14:44Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-10T04:15:23Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-10T04:48:43Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-10T04:55:57Z"}
+{"event":"review","result":"passed","ts":"2026-08-10T04:55:57Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-10T05:04:50Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-10T05:08:10Z"}

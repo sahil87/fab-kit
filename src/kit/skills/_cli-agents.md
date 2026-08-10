@@ -35,7 +35,7 @@ This file carries **only the generic mechanics** of interacting with an agent CL
 
 It deliberately carries **no orchestration policy**. Repo targeting, worktree creation, change-pointer activation, monitored-set enrollment, dependency resolution, autopilot, confirmation tiers, and bounded-retry budgets are **operator** concerns and live in `fab-operator.md` (with the fab-owned `wt`/tmux choreography in `_cli-external.md`). A consumer of this file supplies its own policy around these primitives.
 
-The `fab` commands referenced here (`fab agent`, `fab pane capture`, `fab pane send`, `fab pane map`) are documented in `_cli-fab.md` — load it too when you need their exhaustive flag surface.
+The `fab` commands referenced here (`fab agent`, `fab pane open`/`ready`/`deliver`, `fab pane capture`, `fab pane send`, `fab pane map`) are documented in `_cli-fab.md` — load it too when you need their exhaustive flag surface.
 
 ---
 
@@ -66,7 +66,15 @@ fab agent --provider codex --model <id> --effort <level> --print     # explicit 
 
 **Provider-form caveat:** `fab agent --provider <name>` bypasses role resolution and both per-role fill sources, so its profile is exactly the passed flags; pass `--model` explicitly or use the role form when fills should apply. See `_cli-fab.md` § fab agent for the fill ladder and model-free Codex example.
 
-**Open it in a pane:**
+**Open it in a pane** — the mechanized form composes *and* spawns in one step, with **no prompt attached**:
+
+```sh
+fab pane open --provider <name> [--role <role>] [-c <dir>]
+```
+
+It resolves the fills through the standard precedence with the provider pinned (unlike `fab agent --provider`'s bypass), spawns a plain split of your window inside tmux (an unnamed new window otherwise), prints the new pane id, and writes no dispatch state. The prompt goes in afterwards, verified: loop `fab pane ready %N` until it reports `ready` — answering any wall the non-`ready` report's snippet shows between probes — then `fab pane deliver %N --text "<prompt>"`. This 3-command flow is also the **provider-probe recipe** (a pre-ship probe, a first-run wall discovery — the rpsr/ki9v flow): open, probe, answer walls, deliver a probe prompt, and record what the walls turned out to be.
+
+The raw form — for when the prompt should ride the spawn itself:
 
 ```sh
 tmux new-window -n "<name>" -c "<dir>" "<composed-cmd> '<initial-prompt>'"
@@ -75,16 +83,16 @@ tmux new-window -n "<name>" -c "<dir>" "<composed-cmd> '<initial-prompt>'"
 - The composed command is the *whole* left-hand side — including any shell expansions it carries (e.g. `$(basename "$(pwd)")`), which expand at invocation inside the new window.
 - The initial prompt is embedded **at spawn** as a single quoted argument. Shell-escape any user-supplied text before embedding it.
 - **One prompt, one leading command.** The embedded string is delivered as a single prompt to the agent, where `&&` is *not* a shell operator and an agent harness reads at most one leading `/command` — so an `&&`-joined pair of slash commands does not run two commands; the tail is swallowed into the first command's argument. Embed exactly one command; if a second step is genuinely required, run it as a synchronous CLI call before opening the window, or as a separate Enter-terminated send afterwards.
-- **Embedding at spawn also sidesteps the printed-prompt trap** (§ Delivery Probe): the trap needs a *pre-existing* input buffer to mistake printed output for, and a window created with its prompt already attached has none. Prefer spawn-embedding over "open the window, then send the prompt" whenever the prompt is known up front **and the send is one you can afford not to verify** — a one-shot argument either is or is not ingested, and you cannot tell which. Where that matters, verify instead of embedding: send, capture-check the echo, submit, confirm the screen moved. That is exactly the trade the pane dispatch adapter makes (below).
+- **Embedding at spawn also sidesteps the printed-prompt trap** (§ Delivery Probe): the trap needs a *pre-existing* input buffer to mistake printed output for, and a window created with its prompt already attached has none. Prefer spawn-embedding over "open the window, then send the prompt" whenever the prompt is known up front **and the send is one you can afford not to verify** — a one-shot argument either is or is not ingested, and you cannot tell which. Where that matters, verify instead of embedding: `fab pane ready` → `fab pane deliver --text` mechanizes exactly that sequence (echo-checked send, submit, screen-advance confirm — § Delivery Probe), with the manual recipe as the fallback for non-fab driving. That is exactly the trade the pane dispatch adapter makes (below).
 
-> **Pipeline consumer**: `fab dispatch open <change> <stage>` (the interactive-pane dispatch adapter — `_cli-fab.md` § fab dispatch, contract in `docs/specs/harness-adapters.md`) is built on this procedure's LAUNCH half only. It composes the resolved provider's `interactive_command` and opens it **verbatim, with no prompt attached** — because a multi-thousand-token stage prompt cannot ride argv, and a positional one-shot cannot be verified. The prompt arrives afterwards as a **one-line pointer** typed by `fab dispatch deliver` behind the `fab dispatch ready` gate, which is the adapter's own answer to the printed-prompt trap: an echo-checked send beats an unverifiable spawn argument. Completion detection follows § Await's "prefer asking for an artifact over a screen pattern" rule (the worker's `{stage}-result.yaml`).
+> **Pipeline consumer**: `fab dispatch open <change> <stage>` (the interactive-pane dispatch adapter — `_cli-fab.md` § fab dispatch, contract in `docs/specs/harness-adapters.md`) is built on this procedure's LAUNCH half only. It composes the resolved provider's `interactive_command` and opens it **verbatim, with no prompt attached** — because a multi-thousand-token stage prompt cannot ride argv, and a positional one-shot cannot be verified. The prompt arrives afterwards as a **one-line pointer** typed by `fab dispatch deliver` behind the `fab dispatch ready` gate, which is the adapter's own answer to the printed-prompt trap: an echo-checked send beats an unverifiable spawn argument. Since 260810-1lah the dispatch verbs are thin record-keeping bindings over this section's own primitives — `fab pane open`/`ready`/`deliver` — so adapter and procedure share one gate and one delivery choreography. Completion detection follows § Await's "prefer asking for an artifact over a screen pattern" rule (the worker's `{stage}-result.yaml`).
 
 ### Pre-Send Validation
 
 Before sending keys into an *existing* agent pane:
 
 1. **Verify the pane exists** — refresh the pane map (`fab pane map [--all-sessions] [--json]`). A dead pane accepts keys silently into nothing, so a stale pane ID is a silent-failure hazard, not an error you will see.
-2. **Verify the agent is idle** — read the pane's agent state. The state is the three-state `@rk_agent_state` convention plus unknown: `idle` is the only state safe to send to unattended; `active` (turn in progress) and `waiting` (blocked on a human) both risk corrupting work or cutting across a pending answer; `—`/unknown means the pane is uninstrumented. `fab pane send` enforces this same gate — it refuses `active`/`waiting`/unknown without `--force` — so prefer `fab pane send` over raw `tmux send-keys` and let the binary hold the gate. The convention's exact semantics (value format, the mandatory epoch suffix, what counts as unknown, the no-staleness-heuristic rule) are in `_cli-fab.md` § fab pane → § agent state.
+2. **Verify the agent is idle** — read the pane's agent state. The state is the three-state `@rk_agent_state` convention plus unknown: `idle` is the only state safe to send to unattended; `active` (turn in progress) and `waiting` (blocked on a human) both risk corrupting work or cutting across a pending answer; `—`/unknown means the pane is uninstrumented. `fab pane send` enforces this same gate — `active`/`waiting` refuse without `--force`; unknown only **warns** (`warning: agent state unknown — sending anyway` on stderr) and sends, since an uninstrumented or foreign-agent pane is ordinary, not refused — so prefer `fab pane send` over raw `tmux send-keys` and let the binary hold the gate. The convention's exact semantics (value format, the mandatory epoch suffix, what counts as unknown, the no-staleness-heuristic rule) are in `_cli-fab.md` § fab pane → § agent state.
 
 Anything beyond these two mechanics (whether to ask the user, how many times to retry, whether the target pane is on the right change or branch) is the consumer's policy.
 
@@ -92,7 +100,9 @@ Anything beyond these two mechanics (whether to ask the user, how many times to 
 
 **The trap.** A `/command` visible at an agent's `❯` prompt may be *printed output*, not a live input buffer. Pressing Enter then submits nothing — a **silent no-op**. The pane looks exactly like a pane that is about to run your command.
 
-**The probe-and-retype recovery:**
+**The mechanized probe.** `fab pane ready <pane>` runs the classification half (typed sentinel → echo check → `ready`/`booting`/`parked`, snippet attached), and `fab pane deliver <pane> --text "<cmd>"` IS the probe-and-retype recovery mechanized: readiness probe → `C-u` clear → type → echo-verify → Enter → confirm the screen advanced, with one retry and the pane's snippet on stderr if nothing verifies. Reach for these first; the manual recipe below is the fallback for non-fab driving — and the explanation of what the binary is doing.
+
+**The probe-and-retype recovery (manual fallback):**
 
 1. Send a literal, harmless sentinel (e.g. `XYZTEST`) with **no** Enter.
 2. Re-capture the pane. If the sentinel appears appended to the visible prompt text, the buffer is live. If it does not appear, what you are looking at is printed output.

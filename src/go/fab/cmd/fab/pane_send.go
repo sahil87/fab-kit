@@ -39,16 +39,20 @@ func runPaneSend(cmd *cobra.Command, args []string) error {
 	// via the shared reader. Three known states plus unknown:
 	//   idle           → send.
 	//   active/waiting → refuse, three-state-aware (state name in message).
-	//   unknown        → refuse with a DISTINCT message pointing at --force
-	//                    (absent option / unparseable / non-Claude pane with
-	//                    no instrumented agent).
+	//   unknown        → warn and send anyway (a foreign-agent pane — an
+	//                    absent option / unparseable value / a pane with no
+	//                    instrumented agent — carries no state to gate on).
 	if !force {
 		ctx, err := pane.ResolvePaneContext(paneID, "", server)
 		if err != nil {
 			return fmt.Errorf("resolve context: %w", err)
 		}
-		if err := idleGate(paneID, ctx.AgentState); err != nil {
+		warning, err := idleGate(paneID, ctx.AgentState)
+		if err != nil {
 			return err
+		}
+		if warning != "" {
+			fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", warning)
 		}
 	}
 
@@ -73,22 +77,22 @@ func runPaneSend(cmd *cobra.Command, args []string) error {
 }
 
 // idleGate is the pure decision half of the pane-send state gate: given the
-// resolved agent state (nil = unknown), it reports whether a send is allowed
-// and, when refused, carries the exact error contract. Extracted from
-// runPaneSend so the three-state gate is unit-testable without the cobra/tmux
-// plumbing — behavior is identical to the inline switch it replaced.
+// resolved agent state (nil = unknown), it reports whether a send is allowed —
+// a non-empty warning for the warn-and-proceed case, an error carrying the
+// exact refusal contract when refused. Extracted from runPaneSend so the
+// three-state gate is unit-testable without the cobra/tmux plumbing.
 //
-//	nil (unknown)        → distinct "unknown" refusal naming --force
+//	nil (unknown)        → warn "agent state unknown — sending anyway", no error
 //	active / waiting     → "not idle (state: <state>)" refusal (three-state aware)
-//	idle                 → nil (send permitted)
-func idleGate(paneID string, agentState *string) error {
+//	idle                 → no warning, no error (send permitted)
+func idleGate(paneID string, agentState *string) (warning string, err error) {
 	switch {
 	case agentState == nil:
-		return fmt.Errorf("agent state for pane %s is unknown (missing or unparseable %s) — use --force to send anyway", paneID, pane.AgentStateOption)
+		return "agent state unknown — sending anyway", nil
 	case *agentState != pane.AgentStateIdle:
-		return fmt.Errorf("agent in pane %s is not idle (state: %s)", paneID, *agentState)
+		return "", fmt.Errorf("agent in pane %s is not idle (state: %s)", paneID, *agentState)
 	}
-	return nil
+	return "", nil
 }
 
 // sendTextArgs builds the tmux argv for literal-text send-keys.

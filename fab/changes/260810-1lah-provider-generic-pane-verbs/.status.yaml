@@ -1,0 +1,57 @@
+id: 1lah
+name: 260810-1lah-provider-generic-pane-verbs
+created: 2026-08-10T02:56:55Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: active
+plan:
+    generated: true
+    task_count: 12
+    acceptance_count: 22
+    acceptance_completed: 22
+confidence:
+    certain: 2
+    confident: 5
+    tentative: 0
+    unresolved: 0
+    score: 4.1
+    fuzzy: true
+    dimensions:
+        signal: 67.1
+        reversibility: 72.9
+        competence: 77.1
+        disambiguation: 72.1
+stage_metrics:
+    intake: {started_at: "2026-08-10T02:56:55Z", driver: fab-new, iterations: 1, completed_at: "2026-08-10T04:15:23Z"}
+    apply: {started_at: "2026-08-10T04:15:23Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T04:48:43Z"}
+    review: {started_at: "2026-08-10T04:48:43Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T04:55:57Z"}
+    hydrate: {started_at: "2026-08-10T04:55:57Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T05:04:50Z"}
+    ship: {started_at: "2026-08-10T05:04:50Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-10T05:08:10Z"}
+    review-pr: {started_at: "2026-08-10T05:08:10Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/568
+change_type_source: explicit
+true_impact:
+    added: 3066
+    deleted: 969
+    net: 2097
+    excluding:
+        added: 2087
+        deleted: 885
+        net: 1202
+    tests:
+        added: 1204
+        deleted: 440
+        net: 764
+    computed_at: "2026-08-10T05:08:10Z"
+    computed_at_stage: ship
+summary: New provider-generic fab pane open/ready/deliver primitives in internal/pane; dispatch open/ready/deliver become thin record-keeping bindings; fab pane send warns and proceeds on unknown agent state
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-10T05:08:10Z

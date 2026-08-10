@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 )
 
 func TestDeriveState(t *testing.T) {
@@ -475,14 +477,14 @@ func TestSplitPlacement(t *testing.T) {
 		sibling     string
 		dispatcher  string
 		columnWidth int
-		want        SplitPlacement
+		want        pane.SplitPlacement
 	}{
 		{"no sibling ⇒ carve a sized column off the dispatcher", "", "%1", 35,
-			SplitPlacement{Target: "%1", Direction: splitRight, SizePercent: 35}},
+			pane.SplitPlacement{Target: "%1", Direction: pane.SplitRight, SizePercent: 35}},
 		{"probe failed (empty sibling) ⇒ the same sized carve", "", "%1", 20,
-			SplitPlacement{Target: "%1", Direction: splitRight, SizePercent: 20}},
+			pane.SplitPlacement{Target: "%1", Direction: pane.SplitRight, SizePercent: 20}},
 		{"a sibling ⇒ stack under it, unsized", "%2", "%1", 35,
-			SplitPlacement{Target: "%2", Direction: splitBelow, SizePercent: 0}},
+			pane.SplitPlacement{Target: "%2", Direction: pane.SplitBelow, SizePercent: 0}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -491,52 +493,6 @@ func TestSplitPlacement(t *testing.T) {
 					tt.sibling, tt.dispatcher, tt.columnWidth, got, tt.want)
 			}
 		})
-	}
-}
-
-// TestSplitArgs pins the sized-split argv composition: `-l <n>%` appears only when
-// the placement carries a size (i.e. only for a column-carving split), always as a
-// PERCENTAGE so the column scales with the window, and the pane-id format request
-// is present in both shapes so no follow-up lookup can race a fast-exiting worker.
-func TestSplitArgs(t *testing.T) {
-	carve := splitArgs(SplitPlacement{Target: "%1", Direction: splitRight, SizePercent: 35},
-		"/repo", "claude 'go'")
-	wantCarve := []string{"split-window", "-h", "-t", "%1", "-l", "35%",
-		"-P", "-F", "#{pane_id}", "-c", "/repo", "claude 'go'"}
-	if !reflect.DeepEqual(carve, wantCarve) {
-		t.Errorf("carving argv = %q, want %q", carve, wantCarve)
-	}
-
-	stack := splitArgs(SplitPlacement{Target: "%2", Direction: splitBelow},
-		"/repo", "claude 'go'")
-	wantStack := []string{"split-window", "-v", "-t", "%2",
-		"-P", "-F", "#{pane_id}", "-c", "/repo", "claude 'go'"}
-	if !reflect.DeepEqual(stack, wantStack) {
-		t.Errorf("stacking argv = %q, want %q", stack, wantStack)
-	}
-
-	// A zero/absent size is the UNSIZED signal in either direction — tmux's own even
-	// split — never a literal `-l 0%`, which tmux would reject.
-	unsizedCarve := splitArgs(SplitPlacement{Target: "%1", Direction: splitRight}, "/repo", "cmd")
-	for _, arg := range unsizedCarve {
-		if arg == sizeFlag {
-			t.Errorf("a zero-size placement must emit no %s argument, got %q", sizeFlag, unsizedCarve)
-		}
-	}
-}
-
-// TestSplitPlacementDescribe pins the placement's own vocabulary: Describe is the
-// only cross-package reader of Direction, which is what keeps the bare tmux `-h`/`-v`
-// flag inside this package. The two phrasings are the ones the degraded-probe warning
-// is documented with, so they are asserted rather than left to the cobra layer.
-func TestSplitPlacementDescribe(t *testing.T) {
-	carve := SplitPlacement{Target: "%1", Direction: splitRight, SizePercent: 35}.Describe()
-	if carve != "carving a new worker column off pane %1" {
-		t.Errorf("carve description = %q, want the column-carving wording", carve)
-	}
-	stack := SplitPlacement{Target: "%2", Direction: splitBelow}.Describe()
-	if stack != "stacking the worker under pane %2" {
-		t.Errorf("stack description = %q, want the stacking wording", stack)
 	}
 }
 
@@ -550,98 +506,6 @@ func stubTmux(t *testing.T, body string) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-}
-
-// TestOpenSplitPane_RejectedSizeRetriesUnsized covers the size-degradation branch:
-// a tmux that refuses `-l <n>%` — every tmux before 3.1, which had no percentage
-// size — must not fail a dispatch that would otherwise launch. The split is retried
-// with the size dropped and the refusal comes back as a WARNING, not an error.
-//
-// The refusal is stubbed rather than provoked: modern tmux CLAMPS an extreme
-// percentage instead of rejecting it, so the only real-world trigger is a tmux too
-// old to run this suite's other pane tests at all.
-func TestOpenSplitPane_RejectedSizeRetriesUnsized(t *testing.T) {
-	// Refuses any argv containing -l; otherwise prints a pane id (split-window) or
-	// succeeds silently (select-pane). The argv of every call is appended to $ARGLOG.
-	argLog := filepath.Join(t.TempDir(), "argv.log")
-	t.Setenv("ARGLOG", argLog)
-	stubTmux(t, `echo "$@" >> "$ARGLOG"
-for a in "$@"; do
-  if [ "$a" = "-l" ]; then echo "usage: split-window" >&2; exit 1; fi
-done
-case "$1" in split-window) echo "%42" ;; esac
-exit 0`)
-
-	place := SplitPlacement{Target: "%1", Direction: splitRight, SizePercent: 35}
-	paneID, warnings, err := OpenSplitPane("", place, "fab-abcd-apply", "/repo", "cmd")
-	if err != nil {
-		t.Fatalf("a rejected size must degrade, not fail the dispatch: %v", err)
-	}
-	if paneID != "%42" {
-		t.Errorf("pane id = %q, want the retried split's %q", paneID, "%42")
-	}
-	if len(warnings) != 1 {
-		t.Fatalf("want exactly one warning (the rejected size), got %d: %v", len(warnings), warnings)
-	}
-	for _, want := range []string{sizeFlag, "35%", "retrying unsized"} {
-		if !strings.Contains(warnings[0].Error(), want) {
-			t.Errorf("warning %q must name %q so the fallback is explainable from output", warnings[0], want)
-		}
-	}
-
-	log, err := os.ReadFile(argLog)
-	if err != nil {
-		t.Fatal(err)
-	}
-	calls := strings.Split(strings.TrimSpace(string(log)), "\n")
-	if len(calls) != 3 {
-		t.Fatalf("want 3 tmux calls (sized split, unsized retry, select-pane), got %d: %v", len(calls), calls)
-	}
-	if !strings.Contains(calls[0], "-l 35%") {
-		t.Errorf("first call = %q, want the SIZED split attempted first", calls[0])
-	}
-	if strings.Contains(calls[1], "-l") {
-		t.Errorf("retry = %q, want the size dropped", calls[1])
-	}
-	if !strings.Contains(calls[2], "select-pane") || !strings.Contains(calls[2], "fab-abcd-apply") {
-		t.Errorf("third call = %q, want the identity title still set on the retried pane", calls[2])
-	}
-}
-
-// TestOpenSplitPane_UnsizedSplitIsNotRetried: a stacking split carries no size, so a
-// tmux failure there is a genuine placement failure — reported as an error with no
-// second attempt (a blind retry would double-launch a worker).
-func TestOpenSplitPane_UnsizedSplitIsNotRetried(t *testing.T) {
-	argLog := filepath.Join(t.TempDir(), "argv.log")
-	t.Setenv("ARGLOG", argLog)
-	stubTmux(t, `echo "$@" >> "$ARGLOG"
-echo "can't find pane" >&2
-exit 1`)
-
-	_, _, err := OpenSplitPane("", SplitPlacement{Target: "%2", Direction: splitBelow}, "fab-abcd-apply", "/repo", "cmd")
-	if err == nil {
-		t.Fatal("a failing unsized split must be an error, not a silent degrade")
-	}
-	log, _ := os.ReadFile(argLog)
-	if n := len(strings.Split(strings.TrimSpace(string(log)), "\n")); n != 1 {
-		t.Errorf("tmux was called %d times, want exactly 1 (no retry without a size to drop)", n)
-	}
-}
-
-// TestSplitFlagsAreDistinct pins the stacked-column rule's flags as the tmux flags
-// they must be: the FIRST worker carves the column to the right of the dispatcher,
-// later workers stack BELOW the previous worker, and the size rides tmux's `-l`.
-// Swap the directions and every dispatch would shrink the dispatcher's own pane.
-func TestSplitFlagsAreDistinct(t *testing.T) {
-	if splitRight != "-h" {
-		t.Errorf("splitRight = %q, want tmux's horizontal split flag -h", splitRight)
-	}
-	if splitBelow != "-v" {
-		t.Errorf("splitBelow = %q, want tmux's vertical split flag -v", splitBelow)
-	}
-	if sizeFlag != "-l" {
-		t.Errorf("sizeFlag = %q, want tmux's split size flag -l", sizeFlag)
-	}
 }
 
 func TestModeAccessors(t *testing.T) {
@@ -673,20 +537,6 @@ func TestWindowNameCarriesNoOperatorMarker(t *testing.T) {
 		if contains(got, marker) {
 			t.Errorf("WindowName = %q, must not carry the operator marker %q", got, marker)
 		}
-	}
-}
-
-// TestPointerPromptNamesThePromptFile pins the DELIVERED pointer's shape. It is
-// typed into the pane by `fab dispatch deliver`, not embedded at spawn, so the
-// two properties that matter are that it names the prompt path and that it is a
-// single line — a newline would submit the pointer half-typed.
-func TestPointerPromptNamesThePromptFile(t *testing.T) {
-	got := PointerPrompt(".fab-dispatch/abcd/apply-prompt.md")
-	if !contains(got, ".fab-dispatch/abcd/apply-prompt.md") {
-		t.Errorf("PointerPrompt = %q, want it to name the prompt path", got)
-	}
-	if contains(got, "\n") {
-		t.Errorf("PointerPrompt = %q, want a single line", got)
 	}
 }
 
@@ -783,31 +633,6 @@ func TestWrapperArgvQuotesPathsWithSpaces(t *testing.T) {
 	want := "cmd < '/a b/p.md' > '/a b/l.log' 2>&1; echo $? > '/a b/e.exit'"
 	if argv[2] != want {
 		t.Errorf("script = %q, want %q", argv[2], want)
-	}
-}
-
-func TestTail(t *testing.T) {
-	tests := []struct {
-		name string
-		data string
-		n    int
-		want string
-	}{
-		{"n<=0 returns all", "a\nb\nc\n", 0, "a\nb\nc\n"},
-		{"empty", "", 5, ""},
-		{"fewer lines than n", "a\nb\n", 5, "a\nb\n"},
-		{"last 1 with trailing newline", "a\nb\nc\n", 1, "c\n"},
-		{"last 2 with trailing newline", "a\nb\nc\n", 2, "b\nc\n"},
-		{"last 1 without trailing newline", "a\nb\nc", 1, "c"},
-		{"exact match keeps all", "a\nb\nc\n", 3, "a\nb\nc\n"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := string(Tail([]byte(tt.data), tt.n))
-			if got != tt.want {
-				t.Errorf("Tail(%q, %d) = %q, want %q", tt.data, tt.n, got, tt.want)
-			}
-		})
 	}
 }
 
@@ -919,4 +744,83 @@ func contains(s, sub string) bool {
 		}
 	}
 	return false
+}
+
+// TestDeliveredMarkerIsPaneOnlyAndOmittedWhenFalse pins the record's additive
+// shape: `delivered` appears only once it is true, so an `open`ed pane reads as
+// undelivered by ABSENCE and every headless record's bytes are unchanged.
+//
+// The assertions read the MARSHALLED YAML, not the struct field: `omitempty` is
+// the whole contract here, and a round-tripped struct reads false either way — it
+// cannot tell an omitted key from a `delivered: false` one written into every
+// headless record on disk.
+func TestDeliveredMarkerIsPaneOnlyAndOmittedWhenFalse(t *testing.T) {
+	dir := t.TempDir()
+
+	readRecord := func(stage string) string {
+		t.Helper()
+		data, err := os.ReadFile(YAMLPath(dir, stage))
+		if err != nil {
+			t.Fatalf("read %s record: %v", stage, err)
+		}
+		return string(data)
+	}
+
+	if err := Save(dir, "apply", &Dispatch{Pane: "%17", Window: "fab-abcd-apply", SpawnCmd: "claude", StartedAt: "t"}); err != nil {
+		t.Fatalf("Save opened: %v", err)
+	}
+	if got := readRecord("apply"); strings.Contains(got, "delivered") {
+		t.Errorf("an `open`ed pane record carries a delivery key:\n%s", got)
+	}
+	opened, err := Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load opened: %v", err)
+	}
+	if opened.Delivered {
+		t.Error("a pane record written by `open` must read as not delivered")
+	}
+
+	opened.Delivered = true
+	if err := Save(dir, "apply", opened); err != nil {
+		t.Fatalf("Save delivered: %v", err)
+	}
+	if got := readRecord("apply"); !strings.Contains(got, "delivered: true") {
+		t.Errorf("a delivered pane record must carry `delivered: true`:\n%s", got)
+	}
+	delivered, err := Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load delivered: %v", err)
+	}
+	if !delivered.Delivered {
+		t.Error("the delivery marker must round-trip")
+	}
+
+	if err := Save(dir, "review", &Dispatch{PID: 7, PGID: 7, SpawnCmd: "codex exec", StartedAt: "t"}); err != nil {
+		t.Fatalf("Save headless: %v", err)
+	}
+	if got := readRecord("review"); strings.Contains(got, "delivered") {
+		t.Errorf("a headless record's bytes changed — it now carries a delivery key:\n%s", got)
+	}
+	headless, err := Load(dir, "review")
+	if err != nil {
+		t.Fatalf("Load headless: %v", err)
+	}
+	if headless.Delivered {
+		t.Error("a headless record must never carry a delivery marker")
+	}
+}
+
+// TestDeliveredChangesNoState pins that the marker is bookkeeping, not a state:
+// the pane derivation is a function of the result file and pane liveness alone,
+// exactly as before.
+func TestDeliveredChangesNoState(t *testing.T) {
+	for _, delivered := range []bool{false, true} {
+		rec := &Dispatch{Pane: "%17", Delivered: delivered}
+		if !rec.IsPane() || rec.Mode() != ModePane {
+			t.Errorf("delivered=%v changed the derived mode", delivered)
+		}
+		if got := DerivePaneState(true, false); got != StateDone {
+			t.Errorf("delivered=%v: result-present derivation = %q, want %q", delivered, got, StateDone)
+		}
+	}
 }
