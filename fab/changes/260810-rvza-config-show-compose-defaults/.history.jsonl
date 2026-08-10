@@ -1,0 +1,3 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-10T05:43:16Z"}
+{"args":"Make bare fab config show print the fully composed config including built-in defaults; keep --origin as pure provenance","cmd":"fab-new","event":"command","ts":"2026-08-10T05:43:16Z"}
+{"delta":"+4.7","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-08-10T05:45:11Z"}
