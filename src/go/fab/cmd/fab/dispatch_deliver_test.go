@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
 )
@@ -61,6 +62,29 @@ func newTmuxPane(t *testing.T, server, command string, width int) (tmux func(arg
 		t.Fatalf("resolve pane id: %v (%q)", err, paneID)
 	}
 	return tmux, paneID
+}
+
+// settledPane returns the pane's content once its initial screen has finished
+// drawing — non-empty and unchanged across two consecutive reads. The refused-verb
+// tests diff a later capture against this baseline to prove nothing was typed; a
+// baseline taken before the shell draws its prompt makes that diff blame the
+// prompt's late arrival on the verb under test (the CI-runner race).
+func settledPane(t *testing.T, tmux func(args ...string) (string, error), paneID string) string {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	var prev string
+	for time.Now().Before(deadline) {
+		cur, err := tmux("capture-pane", "-p", "-t", paneID)
+		if err == nil && cur != "" && cur == prev {
+			return cur
+		}
+		if err == nil {
+			prev = cur
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("pane %s never settled (last capture %q)", paneID, prev)
+	return ""
 }
 
 // runReady executes `fab dispatch ready`, returning stdout and error.
@@ -153,10 +177,7 @@ func TestDispatchDeliver_RefusesAMidStageWorker(t *testing.T) {
 	}
 
 	// Delivered, live pane, NO result ⇒ the worker is executing its stage.
-	before, err := tmux("capture-pane", "-p", "-t", paneID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	before := settledPane(t, tmux, paneID)
 	_, _, err = runDeliver(t, "abcd", "apply")
 	if err == nil {
 		t.Fatal("deliver must refuse a worker that is mid-stage")
