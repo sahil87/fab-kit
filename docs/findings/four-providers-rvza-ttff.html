@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Four-provider fab pipeline head-to-head</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f9f9f7;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --kimi: #2a78d6;
+    --codex: #eb6834;
+    --claude: #1baf7a;
+    --agy: #eda100;
+    --st-apply: #86b6ef;
+    --st-review: #5598e7;
+    --st-hydrate: #2a78d6;
+    --st-ship: #1c5cab;
+    --st-post: #e1e0d9;
+    --seg-ink: #0b2445;
+    --good: #006300;
+    --track: #f0efec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0d0d0d;
+      --surface: #1a1a19;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --kimi: #3987e5;
+      --codex: #d95926;
+      --claude: #199e70;
+      --agy: #c98500;
+      --st-apply: #b7d3f6;
+      --st-review: #86b6ef;
+      --st-hydrate: #5598e7;
+      --st-ship: #2a78d6;
+      --st-post: #2c2c2a;
+      --seg-ink: #0b2445;
+      --good: #0ca30c;
+      --track: #232322;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --kimi: #3987e5;
+    --codex: #d95926;
+    --claude: #199e70;
+    --agy: #c98500;
+    --st-apply: #b7d3f6;
+    --st-review: #86b6ef;
+    --st-hydrate: #5598e7;
+    --st-ship: #2a78d6;
+    --st-post: #2c2c2a;
+    --seg-ink: #0b2445;
+    --good: #0ca30c;
+    --track: #232322;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 40px 24px 88px; }
+  code, .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.86em; }
+  h1, h2, h3 { text-wrap: balance; line-height: 1.2; }
+  h1 { font-size: 1.9rem; font-weight: 700; margin: 8px 0 10px; letter-spacing: -0.015em; }
+  h2 { font-size: 1.25rem; font-weight: 650; margin: 0 0 4px; }
+  h3 { font-size: 1rem; font-weight: 650; margin: 0 0 8px; }
+  section { margin-top: 52px; }
+  .eyebrow { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); margin: 0; }
+  .lede { color: var(--ink-2); max-width: 68ch; margin: 0; }
+  .sec-note { color: var(--muted); font-size: 0.85rem; max-width: 75ch; margin: 2px 0 20px; }
+  a { color: var(--kimi); text-decoration: none; }
+  a:hover, a:focus-visible { text-decoration: underline; }
+  a:focus-visible { outline: 2px solid var(--kimi); outline-offset: 2px; border-radius: 2px; }
+
+  .verdict { margin-top: 28px; padding: 18px 22px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; display: grid; gap: 6px; }
+  .verdict p { margin: 0; max-width: 78ch; }
+  .verdict strong.k { color: var(--kimi); }
+  .verdict strong.c { color: var(--codex); }
+  .verdict strong.cl { color: var(--claude); }
+  .verdict strong.ag { color: var(--agy); }
+
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 20px; }
+  @media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .tiles { grid-template-columns: 1fr; } }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px 12px; }
+  .tile .label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+  .tile .value { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; margin-top: 2px; }
+  .tile .value .u { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+  .tile .sub { font-size: 0.78rem; color: var(--ink-2); margin-top: 2px; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: baseline; }
+  .dot.k { background: var(--kimi); }
+  .dot.c { background: var(--codex); }
+  .dot.cl { background: var(--claude); }
+  .dot.ag { background: var(--agy); }
+
+  .tbl-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  th { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.8rem; color: var(--ink-2); margin: 0 0 14px; }
+  .legend .chip { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+  .gantt { display: grid; gap: 0; }
+  .g-row { display: grid; grid-template-columns: 176px 1fr 74px; align-items: center; min-height: 44px; }
+  .g-label { font-size: 0.84rem; line-height: 1.3; padding-right: 10px; }
+  .g-label .who { font-weight: 650; }
+  .g-label .what { color: var(--muted); font-size: 0.76rem; }
+  .g-total { font-variant-numeric: tabular-nums; font-weight: 650; font-size: 0.88rem; text-align: right; }
+  .g-track { position: relative; height: 32px; border-left: 1px solid var(--baseline); }
+  .g-track .gl { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--grid); }
+  .seg { position: absolute; top: 6px; height: 20px; border-radius: 4px; min-width: 3px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .seg:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .seg .d { font-size: 0.68rem; font-weight: 650; color: var(--seg-ink); white-space: nowrap; }
+  .seg.post { background: var(--st-post); border: 1px dashed var(--baseline); }
+  .seg.est { border: 1px dashed var(--seg-ink); }
+  .pr-mark { position: absolute; top: 1px; bottom: 1px; width: 2px; background: var(--ink); }
+  .pr-mark::after { content: "PR"; position: absolute; top: -3px; left: 4px; font-size: 0.6rem; font-weight: 700; color: var(--ink); }
+  .rw-mark { position: absolute; top: 4px; height: 24px; width: 2px; background: var(--ink); opacity: 0.85; }
+  .g-axis { display: grid; grid-template-columns: 176px 1fr 74px; margin-top: 2px; }
+  .g-axis .ticks { position: relative; height: 18px; }
+  .g-axis .t { position: absolute; transform: translateX(-50%); font-size: 0.7rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .g-sep { border-top: 1px solid var(--grid); margin: 8px 0; }
+
+  .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .panels { grid-template-columns: 1fr; } }
+  .dim { display: grid; grid-template-columns: 142px 1fr 40px; align-items: center; column-gap: 10px; }
+  .dim + .dim { margin-top: 12px; }
+  .dim .name { font-size: 0.8rem; line-height: 1.25; }
+  .dim .name .w { color: var(--muted); font-size: 0.7rem; }
+  .quad { display: grid; gap: 2px; }
+  .bar-track { position: relative; height: 8px; background: var(--track); border-radius: 4px; }
+  .bar { position: absolute; inset: 0 auto 0 0; border-radius: 4px; }
+  .bar.k { background: var(--kimi); }
+  .bar.c { background: var(--codex); }
+  .bar.cl { background: var(--claude); }
+  .bar.ag { background: var(--agy); }
+  .dim .vals { font-size: 0.72rem; font-variant-numeric: tabular-nums; color: var(--ink-2); line-height: 1.25; text-align: right; }
+  .dim.total .name { font-weight: 700; }
+  .dim.total .bar-track { height: 10px; }
+  .dim.total .vals { font-weight: 700; color: var(--ink); }
+  .panel h3 .pr-ids { color: var(--muted); font-weight: 500; font-size: 0.78rem; }
+
+  .diff-grid { display: grid; gap: 8px; }
+  .diff-row { display: grid; grid-template-columns: 158px 1fr 168px; align-items: center; column-gap: 10px; }
+  .diff-row .name { font-size: 0.82rem; }
+  .diff-row .detail { font-size: 0.76rem; color: var(--ink-2); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .diff-row .bar-track { height: 14px; }
+  .diff-sep { border-top: 1px solid var(--grid); margin: 10px 0 6px; }
+
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .cards { grid-template-columns: 1fr; } }
+  .scorecard .head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .scorecard .head .score { margin-left: auto; font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .scorecard ul { margin: 6px 0; padding-left: 0; list-style: none; }
+  .scorecard li { font-size: 0.85rem; color: var(--ink-2); padding-left: 18px; position: relative; margin-top: 5px; max-width: 72ch; }
+  .scorecard li.plus::before { content: "+"; position: absolute; left: 2px; font-weight: 700; color: var(--good); }
+  .scorecard li.minus::before { content: "–"; position: absolute; left: 2px; font-weight: 700; color: var(--muted); }
+  .scorecard .verdict-x { font-size: 0.85rem; color: var(--ink-2); border-top: 1px solid var(--grid); margin-top: 12px; padding-top: 10px; max-width: 72ch; }
+  .pill { display: inline-block; font-size: 0.7rem; font-weight: 650; letter-spacing: 0.03em; padding: 2px 9px; border-radius: 99px; border: 1px solid var(--border); }
+  .pill.k { color: var(--kimi); }
+  .pill.c { color: var(--codex); }
+  .pill.cl { color: var(--claude); }
+  .pill.ag { color: var(--agy); }
+
+  .reads { display: grid; gap: 14px; max-width: 82ch; }
+  .reads .item { padding-left: 16px; border-left: 3px solid var(--grid); }
+  .reads .item p { margin: 2px 0 0; color: var(--ink-2); font-size: 0.92rem; }
+  .reads .item h3 { margin: 0; font-size: 0.95rem; }
+
+  details { margin-top: 12px; }
+  summary { cursor: pointer; font-size: 0.8rem; color: var(--muted); }
+  summary:focus-visible { outline: 2px solid var(--kimi); outline-offset: 2px; }
+
+  #tip { position: fixed; z-index: 10; pointer-events: none; display: none; background: var(--ink); color: var(--bg); font-size: 0.75rem; line-height: 1.4; padding: 6px 9px; border-radius: 6px; max-width: 280px; }
+  @media (prefers-reduced-motion: no-preference) { .bar { transition: width 0.4s ease; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">fab-kit findings · 2026-08-10 · experiment report, part 3 (final)</p>
+    <h1>Four providers, two changes, eight pipeline runs: kimi · codex · claude · agy</h1>
+    <p class="lede">
+      The same two draft intakes — <span class="mono">rvza</span> (config-show-compose-defaults, a surgical Go fix) and
+      <span class="mono">ttff</span> (agy-interactive-pane-capability, a prose-heavy repo-wide sweep) — were each run to a
+      draft PR through the full <span class="mono">fab-fff</span> pipeline on four worker providers:
+      <strong>kimi</strong> (<span class="mono">kimi --auto</span>, k3), <strong>codex</strong>
+      (<span class="mono">gpt-5.6-sol @ xhigh</span>), <strong>claude</strong> (<span class="mono">claude-opus-5 @ high</span>),
+      and <strong>agy</strong> (<span class="mono">gemini-3.1-pro-high</span>, all stages on pane workers). This page
+      supersedes the <a href="kimi-vs-codex-rvza-ttff.html">two-provider</a> and
+      <a href="kimi-codex-claude-rvza-ttff.html">three-provider</a> rounds; rubric and prior data are unchanged.
+      A pleasing recursion: the agy arm ran on the very <span class="mono">interactive_command</span> pane grammar that the
+      ttff change — which it was implementing — shipped to main hours earlier.
+    </p>
+
+    <div class="verdict">
+      <p><strong><strong class="k">Kimi</strong> is the speed pick; <strong class="cl">claude</strong> and <strong class="c">codex</strong> tie for quality, each winning one change; <strong class="ag">agy</strong> trails clearly on quality (6.63 mean) despite mid-pack speed and the leanest diffs.</strong></p>
+      <p>
+        Agy's Go work is competent — both scorers called the core implementation "close to ideal" / "clean and
+        pattern-faithful" — but it loses where this repo's bar is highest: finishing discipline. It missed the
+        constitution-required SPEC mirror on rvza, left four stale claims on ttff, wrote an unperformed probe into
+        memory as fact, and hand-edited frozen generated history. Its lean diffs are partly lean because the sweep
+        work is missing — unlike codex, whose lean diffs are complete.
+      </p>
+    </div>
+
+    <div class="tiles">
+      <div class="tile">
+        <div class="label"><span class="dot k"></span>kimi · time / quality</div>
+        <div class="value">20.8<span class="u">m</span> · 8.53</div>
+        <div class="sub">13m35s + 28m04s · 8.40 / 8.65</div>
+      </div>
+      <div class="tile">
+        <div class="label"><span class="dot c"></span>codex · time / quality</div>
+        <div class="value">52.6<span class="u">m</span> · 9.05</div>
+        <div class="sub">33m27s + 71m42s · 8.65 / 9.45</div>
+      </div>
+      <div class="tile">
+        <div class="label"><span class="dot cl"></span>claude · time / quality</div>
+        <div class="value">58.4<span class="u">m</span> · 9.15</div>
+        <div class="sub">34m45s + 81m57s · 9.20 / 9.10</div>
+      </div>
+      <div class="tile">
+        <div class="label"><span class="dot ag"></span>agy · time / quality</div>
+        <div class="value">44.5<span class="u">m</span> · 6.63</div>
+        <div class="sub">35m55s + 53m09s · 6.80 / 6.45</div>
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <h2>The eight runs</h2>
+    <p class="sec-note">
+      Same intake, same pipeline per quadruple — only the worker provider differs. All eight PRs were produced
+      without human code intervention and completed review-pr. The kimi/codex pair ran as one concurrent batch
+      (~11:25 IST), claude ~13:46, agy ~17:52; later batches had <em>less</em> machine contention.
+      The codex PRs (#572, #573) were subsequently picked and merged; the agy branches are based just before those
+      merges, so their diffs are scored against their own base.
+    </p>
+    <div class="tbl-scroll card">
+      <table>
+        <thead>
+          <tr>
+            <th>PR</th><th>Arm</th><th>Change</th><th>Worker roster</th>
+            <th class="num">Wall-clock</th><th class="num">Rework</th><th class="num">Copilot</th><th class="num">Diff (lines · files)</th><th class="num">Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><a href="https://github.com/sahil87/fab-kit/pull/570">#570</a></td>
+            <td><span class="dot k"></span>kimi</td><td class="mono">rvza</td>
+            <td class="mono">kimi --auto (k3), all stages, pane</td>
+            <td class="num">13m 35s</td><td class="num">0</td><td class="num">0</td><td class="num">362 · 9</td><td class="num">8.40</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/sahil87/fab-kit/pull/572">#572</a></td>
+            <td><span class="dot c"></span>codex</td><td class="mono">rvza</td>
+            <td class="mono">sol@xhigh; hydrate sol@high; ship luna@low</td>
+            <td class="num">33m 27s</td><td class="num">0</td><td class="num">1</td><td class="num">283 · 9</td><td class="num">8.65</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/sahil87/fab-kit/pull/575">#575</a></td>
+            <td><span class="dot cl"></span>claude</td><td class="mono">rvza</td>
+            <td class="mono">opus-5@high pane; ship sonnet@med + review-pr opus@high native</td>
+            <td class="num">34m 45s</td><td class="num">0</td><td class="num">0</td><td class="num">439 · 12</td><td class="num"><strong>9.20</strong></td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/sahil87/fab-kit/pull/578">#578</a></td>
+            <td><span class="dot ag"></span>agy</td><td class="mono">rvza</td>
+            <td class="mono">gemini-3.1-pro-high, all stages, pane</td>
+            <td class="num">35m 55s†</td><td class="num">0†</td><td class="num">2</td><td class="num">190 · 9</td><td class="num">6.80</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/sahil87/fab-kit/pull/571">#571</a></td>
+            <td><span class="dot k"></span>kimi</td><td class="mono">ttff</td>
+            <td class="mono">kimi --auto (k3), all stages, pane</td>
+            <td class="num">28m 04s</td><td class="num">1</td><td class="num">5</td><td class="num">706 · 25</td><td class="num">8.65</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/sahil87/fab-kit/pull/573">#573</a></td>
+            <td><span class="dot c"></span>codex</td><td class="mono">ttff</td>
+            <td class="mono">sol@xhigh; hydrate sol@high; ship luna@low</td>
+            <td class="num">71m 42s</td><td class="num">2</td><td class="num">0</td><td class="num">686 · 26</td><td class="num"><strong>9.45</strong></td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/sahil87/fab-kit/pull/576">#576</a></td>
+            <td><span class="dot cl"></span>claude</td><td class="mono">ttff</td>
+            <td class="mono">opus-5@high pane; ship sonnet@med + review-pr opus@high native</td>
+            <td class="num">81m 57s</td><td class="num">2</td><td class="num">4</td><td class="num">1036 · 25</td><td class="num">9.10</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/sahil87/fab-kit/pull/579">#579</a></td>
+            <td><span class="dot ag"></span>agy</td><td class="mono">ttff</td>
+            <td class="mono">gemini-3.1-pro-high, all stages, pane</td>
+            <td class="num">53m 09s</td><td class="num">1</td><td class="num">5</td><td class="num">507 · 23</td><td class="num">6.45</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:0.78rem;color:var(--muted);margin:10px 0 0">
+        † #578 had zero review-fail rework cycles but spent the pipeline's single recovery restart: its first apply
+        worker completed the work without writing the required result file (a worker-contract miss no other arm produced),
+        and the ~16-minute lost attempt is inside its wall-clock.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Where the time went</h2>
+    <p class="sec-note">
+      Stage spans from <span class="mono">.fab-dispatch/</span> record and result-file timestamps; x-axis is minutes since
+      each run's worktree creation. Gaps between segments are orchestrator triage; a reworked run's apply segment includes
+      its interleaved failed reviews (only the final cycle's files survive). The <strong>PR</strong> tick is the measurement
+      endpoint; dashed-gray segments after it are the post-PR Copilot review-pr stage; dash-outlined segments are estimated
+      from commit timestamps (native-seam stages with no dispatch record).
+    </p>
+    <div class="legend">
+      <span class="chip"><span class="swatch" style="background:var(--st-apply)"></span>apply</span>
+      <span class="chip"><span class="swatch" style="background:var(--st-review)"></span>review</span>
+      <span class="chip"><span class="swatch" style="background:var(--st-hydrate)"></span>hydrate</span>
+      <span class="chip"><span class="swatch" style="background:var(--st-ship)"></span>ship</span>
+      <span class="chip"><span class="swatch" style="background:var(--st-post);border:1px dashed var(--baseline)"></span>review-pr (post-PR)</span>
+      <span class="chip"><span class="swatch" style="background:var(--ink);width:2px;height:14px;border-radius:0"></span>rework / restart delivery</span>
+    </div>
+    <div class="card">
+      <div class="gantt">
+        <div class="g-row">
+          <div class="g-label"><span class="who"><span class="dot k"></span>kimi · rvza</span><br><span class="what">#570</span></div>
+          <div class="g-track">
+            <span class="gl" style="left:16.3%"></span><span class="gl" style="left:32.61%"></span><span class="gl" style="left:48.91%"></span><span class="gl" style="left:65.22%"></span><span class="gl" style="left:81.52%"></span><span class="gl" style="left:97.83%"></span>
+            <div class="seg" tabindex="0" style="left:3.13%;width:4.23%;background:var(--st-apply)" data-tip="apply — 3m 53s"></div>
+            <div class="seg" tabindex="0" style="left:8.46%;width:1.63%;background:var(--st-review)" data-tip="review — 1m 30s, pass"></div>
+            <div class="seg" tabindex="0" style="left:11.01%;width:1.11%;background:var(--st-hydrate)" data-tip="hydrate — 1m 01s"></div>
+            <div class="seg" tabindex="0" style="left:13.18%;width:1.73%;background:var(--st-ship)" data-tip="ship — draft PR #570"></div>
+            <div class="seg post" tabindex="0" style="left:16.07%;width:5.71%" data-tip="review-pr — 5m 15s. Copilot: 0 comments"></div>
+            <div class="pr-mark" style="left:14.76%" data-tip="PR #570 at 13m 35s"></div>
+          </div>
+          <div class="g-total">13m 35s</div>
+        </div>
+        <div class="g-row">
+          <div class="g-label"><span class="who"><span class="dot c"></span>codex · rvza</span><br><span class="what">#572</span></div>
+          <div class="g-track">
+            <span class="gl" style="left:16.3%"></span><span class="gl" style="left:32.61%"></span><span class="gl" style="left:48.91%"></span><span class="gl" style="left:65.22%"></span><span class="gl" style="left:81.52%"></span><span class="gl" style="left:97.83%"></span>
+            <div class="seg" tabindex="0" style="left:4.15%;width:16.50%;background:var(--st-apply)" data-tip="apply — 15m 11s, zero rework"></div>
+            <div class="seg" tabindex="0" style="left:21.90%;width:6.00%;background:var(--st-review)" data-tip="review — 5m 31s, pass (1 should-fix)"></div>
+            <div class="seg" tabindex="0" style="left:29.70%;width:3.76%;background:var(--st-hydrate)" data-tip="hydrate — 3m 28s"></div>
+            <div class="seg" tabindex="0" style="left:35.03%;width:2.60%;background:var(--st-ship)" data-tip="ship — draft PR #572"></div>
+            <div class="seg post" tabindex="0" style="left:42.86%;width:9.91%" data-tip="review-pr — 9m 07s. Copilot: 1 comment, fixed"></div>
+            <div class="pr-mark" style="left:36.41%" data-tip="PR #572 at 33m 27s"></div>
+          </div>
+          <div class="g-total">33m 27s</div>
+        </div>
+        <div class="g-row">
+          <div class="g-label"><span class="who"><span class="dot cl"></span>claude · rvza</span><br><span class="what">#575</span></div>
+          <div class="g-track">
+            <span class="gl" style="left:16.3%"></span><span class="gl" style="left:32.61%"></span><span class="gl" style="left:48.91%"></span><span class="gl" style="left:65.22%"></span><span class="gl" style="left:81.52%"></span><span class="gl" style="left:97.83%"></span>
+            <div class="seg" tabindex="0" style="left:2.74%;width:12.37%;background:var(--st-apply)" data-tip="apply — 11m 23s, zero rework (also generated plan.md)"></div>
+            <div class="seg" tabindex="0" style="left:16.01%;width:8.01%;background:var(--st-review)" data-tip="review — 7m 22s, pass (2 should-fix fixed inline)"></div>
+            <div class="seg" tabindex="0" style="left:26.79%;width:8.51%;background:var(--st-hydrate)" data-tip="hydrate — 7m 50s"></div>
+            <div class="seg est" tabindex="0" style="left:35.43%;width:2.34%;background:var(--st-ship)" data-tip="ship — native seam (sonnet@medium), estimated"></div>
+            <div class="seg post" tabindex="0" style="left:38.04%;width:9.37%" data-tip="review-pr — native (opus@high), ~8m 52s est. Copilot: 0 comments"></div>
+            <div class="pr-mark" style="left:37.77%" data-tip="PR #575 at 34m 45s"></div>
+          </div>
+          <div class="g-total">34m 45s</div>
+        </div>
+        <div class="g-row">
+          <div class="g-label"><span class="who"><span class="dot ag"></span>agy · rvza</span><br><span class="what">#578</span></div>
+          <div class="g-track">
+            <span class="gl" style="left:16.3%"></span><span class="gl" style="left:32.61%"></span><span class="gl" style="left:48.91%"></span><span class="gl" style="left:65.22%"></span><span class="gl" style="left:81.52%"></span><span class="gl" style="left:97.83%"></span>
+            <div class="seg" tabindex="0" style="left:6.54%;width:23.43%;background:var(--st-apply)" data-tip="apply — 21m 34s span incl. a failed first attempt (worker skipped the result-file contract) + recovery restart at 22m; restarted attempt ran 5m 38s"></div>
+            <div class="seg" tabindex="0" style="left:31.60%;width:2.10%;background:var(--st-review)" data-tip="review — 1m 55s, pass (1 should-fix)"></div>
+            <div class="seg" tabindex="0" style="left:34.80%;width:1.79%;background:var(--st-hydrate)" data-tip="hydrate — 1m 39s"></div>
+            <div class="seg" tabindex="0" style="left:37.91%;width:1.58%;background:var(--st-ship)" data-tip="ship — draft PR #578"></div>
+            <div class="seg post" tabindex="0" style="left:40.46%;width:11.15%" data-tip="review-pr — 10m 16s. Copilot: 2 comments, fixed"></div>
+            <div class="rw-mark" style="left:23.86%" data-tip="recovery restart delivered (failed first apply attempt)"></div>
+            <div class="pr-mark" style="left:39.04%" data-tip="PR #578 at 35m 55s"></div>
+          </div>
+          <div class="g-total">35m 55s</div>
+        </div>
+        <div class="g-sep"></div>
+        <div class="g-row">
+          <div class="g-label"><span class="who"><span class="dot k"></span>kimi · ttff</span><br><span class="what">#571</span></div>
+          <div class="g-track">
+            <span class="gl" style="left:16.3%"></span><span class="gl" style="left:32.61%"></span><span class="gl" style="left:48.91%"></span><span class="gl" style="left:65.22%"></span><span class="gl" style="left:81.52%"></span><span class="gl" style="left:97.83%"></span>
+            <div class="seg" tabindex="0" style="left:3.59%;width:19.04%;background:var(--st-apply)" data-tip="apply incl. 1 rework loop — 17m 31s total"></div>
+            <div class="seg" tabindex="0" style="left:23.17%;width:1.90%;background:var(--st-review)" data-tip="review (cycle 2) — 1m 45s, pass"></div>
+            <div class="seg" tabindex="0" style="left:26.12%;width:1.63%;background:var(--st-hydrate)" data-tip="hydrate — 1m 30s"></div>
+            <div class="seg" tabindex="0" style="left:29.02%;width:1.77%;background:var(--st-ship)" data-tip="ship — draft PR #571"></div>
+            <div class="seg post" tabindex="0" style="left:31.82%;width:10.20%" data-tip="review-pr — 9m 23s. Copilot: 5 comments, all fixed"></div>
+            <div class="rw-mark" style="left:20.78%" data-tip="rework continuation (cycle 2)"></div>
+            <div class="pr-mark" style="left:30.62%" data-tip="PR #571 at 28m 04s"></div>
+          </div>
+          <div class="g-total">28m 04s</div>
+        </div>
+        <div class="g-row">
+          <div class="g-label"><span class="who"><span class="dot c"></span>codex · ttff</span><br><span class="what">#573</span></div>
+          <div class="g-track">
+            <span class="gl" style="left:16.3%"></span><span class="gl" style="left:32.61%"></span><span class="gl" style="left:48.91%"></span><span class="gl" style="left:65.22%"></span><span class="gl" style="left:81.52%"></span><span class="gl" style="left:97.83%"></span>
+            <div class="seg" tabindex="0" style="left:3.35%;width:55.92%;background:var(--st-apply)" data-tip="apply incl. 2 rework loops — 51m 27s total"></div>
+            <div class="seg" tabindex="0" style="left:60.02%;width:8.11%;background:var(--st-review)" data-tip="review (cycle 3) — 7m 28s, pass (0 findings)"></div>
+            <div class="seg" tabindex="0" style="left:68.93%;width:4.90%;background:var(--st-hydrate)" data-tip="hydrate — 4m 31s"></div>
+            <div class="seg est" tabindex="0" style="left:73.91%;width:4.33%;background:var(--st-ship)" data-tip="ship — estimated from commit timestamps"></div>
+            <div class="seg post est" tabindex="0" style="left:78.32%;width:4.80%" data-tip="review-pr — ran later, est. Copilot: 0 comments"></div>
+            <div class="rw-mark" style="left:56.05%" data-tip="last rework continuation (cycle 3)"></div>
+            <div class="pr-mark" style="left:78.08%" data-tip="PR #573 at 71m 42s"></div>
+          </div>
+          <div class="g-total">71m 42s</div>
+        </div>
+        <div class="g-row">
+          <div class="g-label"><span class="who"><span class="dot cl"></span>claude · ttff</span><br><span class="what">#576</span></div>
+          <div class="g-track">
+            <span class="gl" style="left:16.3%"></span><span class="gl" style="left:32.61%"></span><span class="gl" style="left:48.91%"></span><span class="gl" style="left:65.22%"></span><span class="gl" style="left:81.52%"></span><span class="gl" style="left:97.83%"></span>
+            <div class="seg" tabindex="0" style="left:2.26%;width:60.54%;background:var(--st-apply)" data-tip="apply incl. 2 rework loops — 55m 42s total (contrastive-phrase miss; splice defect)"></div>
+            <div class="seg" tabindex="0" style="left:63.17%;width:15.20%;background:var(--st-review)" data-tip="review (cycle 3) — 13m 59s, pass (2 should-fix fixed inline)"></div>
+            <div class="seg" tabindex="0" style="left:80.58%;width:5.04%;background:var(--st-hydrate)" data-tip="hydrate — 4m 38s"></div>
+            <div class="seg est" tabindex="0" style="left:85.87%;width:3.21%;background:var(--st-ship)" data-tip="ship — native seam (sonnet@medium), estimated"></div>
+            <div class="seg post" tabindex="0" style="left:89.13%;width:9.89%" data-tip="review-pr — 9m 09s (opus@high native). Copilot: 4 comments, fixed"></div>
+            <div class="rw-mark" style="left:59.11%" data-tip="last rework continuation (cycle 3)"></div>
+            <div class="pr-mark" style="left:89.08%" data-tip="PR #576 at 81m 57s"></div>
+          </div>
+          <div class="g-total">81m 57s</div>
+        </div>
+        <div class="g-row">
+          <div class="g-label"><span class="who"><span class="dot ag"></span>agy · ttff</span><br><span class="what">#579</span></div>
+          <div class="g-track">
+            <span class="gl" style="left:16.3%"></span><span class="gl" style="left:32.61%"></span><span class="gl" style="left:48.91%"></span><span class="gl" style="left:65.22%"></span><span class="gl" style="left:81.52%"></span><span class="gl" style="left:97.83%"></span>
+            <div class="seg" tabindex="0" style="left:10.47%;width:36.02%;background:var(--st-apply)" data-tip="apply incl. 1 rework loop — 33m 08s total"></div>
+            <div class="seg" tabindex="0" style="left:47.52%;width:2.78%;background:var(--st-review)" data-tip="review (cycle 2) — 2m 34s, pass (0 findings)"></div>
+            <div class="seg" tabindex="0" style="left:51.27%;width:4.00%;background:var(--st-hydrate)" data-tip="hydrate — 3m 41s"></div>
+            <div class="seg" tabindex="0" style="left:56.50%;width:1.51%;background:var(--st-ship)" data-tip="ship — draft PR #579"></div>
+            <div class="seg post" tabindex="0" style="left:58.93%;width:16.91%" data-tip="review-pr — 15m 34s. Copilot: 5 comments, fixed (ba1ef253)"></div>
+            <div class="rw-mark" style="left:43.64%" data-tip="rework continuation (cycle 2)"></div>
+            <div class="pr-mark" style="left:57.77%" data-tip="PR #579 at 53m 09s"></div>
+          </div>
+          <div class="g-total">53m 09s</div>
+        </div>
+        <div class="g-axis">
+          <div></div>
+          <div class="ticks">
+            <span class="t" style="left:0">0</span><span class="t" style="left:16.3%">15</span><span class="t" style="left:32.61%">30</span>
+            <span class="t" style="left:48.91%">45</span><span class="t" style="left:65.22%">60</span><span class="t" style="left:81.52%">75</span><span class="t" style="left:97.83%">90 min</span>
+          </div>
+          <div></div>
+        </div>
+      </div>
+      <details>
+        <summary>Data table — stage spans (IST)</summary>
+        <div class="tbl-scroll">
+          <table>
+            <thead><tr><th>Run</th><th>Worktree born</th><th>Apply span</th><th>Review</th><th>Hydrate</th><th>PR</th><th>Review-pr</th></tr></thead>
+            <tbody>
+              <tr><td>#570 kimi·rvza</td><td class="mono">11:24:57</td><td class="mono">11:27:50–11:31:43</td><td class="mono">11:32:44–11:34:14</td><td class="mono">11:35:05–11:36:06</td><td class="mono">11:38:32</td><td class="mono">11:39:44–11:44:59</td></tr>
+              <tr><td>#572 codex·rvza</td><td class="mono">11:25:00</td><td class="mono">11:28:46–11:43:57</td><td class="mono">11:45:06–11:50:37</td><td class="mono">11:52:16–11:55:44</td><td class="mono">11:58:27</td><td class="mono">12:04:23–12:13:30</td></tr>
+              <tr><td>#575 claude·rvza</td><td class="mono">13:46:18</td><td class="mono">13:48:49–14:00:12</td><td class="mono">14:01:02–14:08:24</td><td class="mono">14:10:57–14:18:47</td><td class="mono">14:21:03</td><td class="mono">~14:21–14:29:55 (native)</td></tr>
+              <tr><td>#578 agy·rvza</td><td class="mono">17:51:58</td><td class="mono">17:57:59–18:19:33 (restart 18:13:55)</td><td class="mono">18:21:02–18:22:57</td><td class="mono">18:23:59–18:25:38</td><td class="mono">18:27:53</td><td class="mono">18:29:11–18:39:27</td></tr>
+              <tr><td>#571 kimi·ttff</td><td class="mono">11:25:03</td><td class="mono">11:28:15–11:45:46 (×1)</td><td class="mono">11:46:16–11:48:01</td><td class="mono">11:48:59–11:50:29</td><td class="mono">11:53:07</td><td class="mono">11:54:13–12:03:36</td></tr>
+              <tr><td>#573 codex·ttff</td><td class="mono">11:25:05</td><td class="mono">11:28:02–12:19:29 (×2)</td><td class="mono">12:20:10–12:27:38</td><td class="mono">12:28:22–12:32:53</td><td class="mono">12:36:47</td><td class="mono">~12:37–12:41:25 (est)</td></tr>
+              <tr><td>#576 claude·ttff</td><td class="mono">13:46:21</td><td class="mono">13:48:26–14:44:08 (×2)</td><td class="mono">14:44:28–14:58:27</td><td class="mono">15:00:29–15:05:07</td><td class="mono">15:08:18</td><td class="mono">15:08:18–15:17:27 (native)</td></tr>
+              <tr><td>#579 agy·ttff</td><td class="mono">17:51:59</td><td class="mono">18:01:37–18:34:45 (×1)</td><td class="mono">18:35:42–18:38:16</td><td class="mono">18:39:09–18:42:50</td><td class="mono">18:45:08</td><td class="mono">18:46:12–19:01:46</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <section>
+    <h2>Diff economy</h2>
+    <p class="sec-note">
+      Lines touched (insertions + deletions) and files changed per PR, each against its own merge base. Size alone is not
+      a quality signal — the scorers judged where the lines went — but it is a review-cost signal, and this round adds a
+      twist: a lean diff can be lean because the work is missing.
+    </p>
+    <div class="card">
+      <div class="diff-grid">
+        <div class="diff-row"><div class="name"><span class="dot ag"></span>agy · rvza <span class="mono" style="color:var(--muted)">#578</span></div>
+          <div class="bar-track"><div class="bar ag" style="width:18.3%"></div></div>
+          <div class="detail">+156 / −34 · 9 files</div></div>
+        <div class="diff-row"><div class="name"><span class="dot c"></span>codex · rvza <span class="mono" style="color:var(--muted)">#572</span></div>
+          <div class="bar-track"><div class="bar c" style="width:27.3%"></div></div>
+          <div class="detail">+237 / −46 · 9 files</div></div>
+        <div class="diff-row"><div class="name"><span class="dot k"></span>kimi · rvza <span class="mono" style="color:var(--muted)">#570</span></div>
+          <div class="bar-track"><div class="bar k" style="width:34.9%"></div></div>
+          <div class="detail">+326 / −36 · 9 files</div></div>
+        <div class="diff-row"><div class="name"><span class="dot cl"></span>claude · rvza <span class="mono" style="color:var(--muted)">#575</span></div>
+          <div class="bar-track"><div class="bar cl" style="width:42.4%"></div></div>
+          <div class="detail">+372 / −67 · 12 files</div></div>
+        <div class="diff-sep"></div>
+        <div class="diff-row"><div class="name"><span class="dot ag"></span>agy · ttff <span class="mono" style="color:var(--muted)">#579</span></div>
+          <div class="bar-track"><div class="bar ag" style="width:48.9%"></div></div>
+          <div class="detail">+252 / −255 · 23 files</div></div>
+        <div class="diff-row"><div class="name"><span class="dot c"></span>codex · ttff <span class="mono" style="color:var(--muted)">#573</span></div>
+          <div class="bar-track"><div class="bar c" style="width:66.2%"></div></div>
+          <div class="detail">+414 / −272 · 26 files</div></div>
+        <div class="diff-row"><div class="name"><span class="dot k"></span>kimi · ttff <span class="mono" style="color:var(--muted)">#571</span></div>
+          <div class="bar-track"><div class="bar k" style="width:68.1%"></div></div>
+          <div class="detail">+443 / −263 · 25 files</div></div>
+        <div class="diff-row"><div class="name"><span class="dot cl"></span>claude · ttff <span class="mono" style="color:var(--muted)">#576</span></div>
+          <div class="bar-track"><div class="bar cl" style="width:100%"></div></div>
+          <div class="detail">+675 / −361 · 25 files</div></div>
+      </div>
+      <p style="font-size:0.85rem;color:var(--ink-2);margin:14px 0 0;max-width:78ch">
+        Agy is the smallest on both changes — but its missing SPEC-mirror update (rvza) and four unswept claims (ttff)
+        account for part of the shortfall: some of those absent lines are the work. Codex remains the benchmark for
+        <em>complete</em> economy: second-leanest on both changes with a verified-complete sweep. Claude stays the largest
+        (defense-in-depth: extra tests, guards, hazard docs the scorers credited); kimi sits in between, skewing additive.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Quality scores</h2>
+    <p class="sec-note">
+      Each PR scored blind-to-its-siblings by an independent sub-agent against the same anchored 0–10 rubric,
+      grading the final branch state against the intake, with mandatory file:line evidence and scorer-run tests.
+      Weights: intake fidelity 20% · correctness 20% · diff hygiene 20% · sweep completeness 15% · test quality 15% ·
+      prose &amp; docs 10%. Bars per dimension: kimi, codex, claude, agy.
+    </p>
+    <div class="legend">
+      <span class="chip"><span class="swatch" style="background:var(--kimi)"></span>kimi (k3)</span>
+      <span class="chip"><span class="swatch" style="background:var(--codex)"></span>codex (sol)</span>
+      <span class="chip"><span class="swatch" style="background:var(--claude)"></span>claude (opus-5)</span>
+      <span class="chip"><span class="swatch" style="background:var(--agy)"></span>agy (gemini-3.1-pro)</span>
+    </div>
+    <div class="panels">
+      <div class="card panel">
+        <h3>rvza — config-show-compose-defaults <span class="pr-ids">#570 · #572 · #575 · #578</span></h3>
+        <div class="dim"><div class="name">Intake fidelity <span class="w">20%</span></div>
+          <div class="quad">
+            <div class="bar-track"><div class="bar k" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar c" style="width:100%"></div></div>
+            <div class="bar-track"><div class="bar cl" style="width:100%"></div></div>
+            <div class="bar-track"><div class="bar ag" style="width:90%"></div></div>
+          </div><div class="vals">9<br>10<br>10<br>9</div></div>
+        <div class="dim"><div class="name">Correctness <span class="w">20%</span></div>
+          <div class="quad">
+            <div class="bar-track"><div class="bar k" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar c" style="width:80%"></div></div>
+            <div class="bar-track"><div class="bar cl" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar ag" style="width:70%"></div></div>
+          </div><div class="vals">9<br>8<br>9<br>7</div></div>
+        <div class="dim"><div class="name">Diff hygiene <span class="w">20%</span></div>
+          <div class="quad">
+            <div class="bar-track"><div class="bar k" style="width:80%"></div></div>
+            <div class="bar-track"><div class="bar c" style="width:80%"></div></div>
+            <div class="bar-track"><div class="bar cl" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar ag" style="width:70%"></div></div>
+          </div><div class="vals">8<br>8<br>9<br>7</div></div>
+        <div class="dim"><div class="name">Sweep completeness <span class="w">15%</span></div>
+          <div class="quad">
+            <div class="bar-track"><div class="bar k" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar c" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar cl" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar ag" style="width:40%"></div></div>
+          </div><div class="vals">9<br>9<br>9<br>4</div></div>
+        <div class="dim"><div class="name">Test quality <span class="w">15%</span></div>
+          <div class="quad">
+            <div class="bar-track"><div class="bar k" style="width:70%"></div></div>
+            <div class="bar-track"><div class="bar c" style="width:80%"></div></div>
+            <div class="bar-track"><div class="bar cl" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar ag" style="width:60%"></div></div>
+          </div><div class="vals">7<br>8<br>9<br>6</div></div>
+        <div class="dim"><div class="name">Prose &amp; docs <span class="w">10%</span></div>
+          <div class="quad">
+            <div class="bar-track"><div class="bar k" style="width:80%"></div></div>
+            <div class="bar-track"><div class="bar c" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar cl" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar ag" style="width:70%"></div></div>
+          </div><div class="vals">8<br>9<br>9<br>7</div></div>
+        <div class="dim total"><div class="name">Weighted total</div>
+          <div class="quad">
+            <div class="bar-track"><div class="bar k" style="width:84%"></div></div>
+            <div class="bar-track"><div class="bar c" style="width:86.5%"></div></div>
+            <div class="bar-track"><div class="bar cl" style="width:92%"></div></div>
+            <div class="bar-track"><div class="bar ag" style="width:68%"></div></div>
+          </div><div class="vals">8.40<br>8.65<br>9.20<br>6.80</div></div>
+      </div>
+      <div class="card panel">
+        <h3>ttff — agy-interactive-pane-capability <span class="pr-ids">#571 · #573 · #576 · #579</span></h3>
+        <div class="dim"><div class="name">Intake fidelity <span class="w">20%</span></div>
+          <div class="quad">
+            <div class="bar-track"><div class="bar k" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar c" style="width:100%"></div></div>
+            <div class="bar-track"><div class="bar cl" style="width:100%"></div></div>
+            <div class="bar-track"><div class="bar ag" style="width:60%"></div></div>
+          </div><div class="vals">9<br>10<br>10<br>6</div></div>
+        <div class="dim"><div class="name">Correctness <span class="w">20%</span></div>
+          <div class="quad">
+            <div class="bar-track"><div class="bar k" style="width:100%"></div></div>
+            <div class="bar-track"><div class="bar c" style="width:100%"></div></div>
+            <div class="bar-track"><div class="bar cl" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar ag" style="width:80%"></div></div>
+          </div><div class="vals">10<br>10<br>9<br>8</div></div>
+        <div class="dim"><div class="name">Diff hygiene <span class="w">20%</span></div>
+          <div class="quad">
+            <div class="bar-track"><div class="bar k" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar c" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar cl" style="width:80%"></div></div>
+            <div class="bar-track"><div class="bar ag" style="width:70%"></div></div>
+          </div><div class="vals">9<br>9<br>8<br>7</div></div>
+        <div class="dim"><div class="name">Sweep completeness <span class="w">15%</span></div>
+          <div class="quad">
+            <div class="bar-track"><div class="bar k" style="width:60%"></div></div>
+            <div class="bar-track"><div class="bar c" style="width:100%"></div></div>
+            <div class="bar-track"><div class="bar cl" style="width:100%"></div></div>
+            <div class="bar-track"><div class="bar ag" style="width:40%"></div></div>
+          </div><div class="vals">6<br>10<br>10<br>4</div></div>
+        <div class="dim"><div class="name">Test quality <span class="w">15%</span></div>
+          <div class="quad">
+            <div class="bar-track"><div class="bar k" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar c" style="width:90%"></div></div>
+            <div class="bar-track"><div class="bar cl" style="width:100%"></div></div>
+            <div class="bar-track"><div class="bar ag" style="width:70%"></div></div>
+          </div><div class="vals">9<br>9<br>10<br>7</div></div>
+        <div class="dim"><div class="name">Prose &amp; docs <span class="w">10%</span></div>
+          <div class="quad">
+            <div class="bar-track"><div class="bar k" style="width:80%"></div></div>
+            <div class="bar-track"><div class="bar c" style="width:80%"></div></div>
+            <div class="bar-track"><div class="bar cl" style="width:70%"></div></div>
+            <div class="bar-track"><div class="bar ag" style="width:60%"></div></div>
+          </div><div class="vals">8<br>8<br>7<br>6</div></div>
+        <div class="dim total"><div class="name">Weighted total</div>
+          <div class="quad">
+            <div class="bar-track"><div class="bar k" style="width:86.5%"></div></div>
+            <div class="bar-track"><div class="bar c" style="width:94.5%"></div></div>
+            <div class="bar-track"><div class="bar cl" style="width:91%"></div></div>
+            <div class="bar-track"><div class="bar ag" style="width:64.5%"></div></div>
+          </div><div class="vals">8.65<br>9.45<br>9.10<br>6.45</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Scorer verdicts — the agy round</h2>
+    <p class="sec-note">
+      The six kimi/codex/claude cards are unchanged from the <a href="kimi-codex-claude-rvza-ttff.html">three-provider report</a>;
+      here are the two new ones in full, plus the two change-winners for reference.
+    </p>
+    <div class="cards">
+      <div class="card scorecard">
+        <div class="head"><span class="pill ag">agy</span><h3 style="margin:0">#578 · rvza</h3><span class="score">6.80</span></div>
+        <ul>
+          <li class="plus">Core change is exactly the right three lines — reuses the existing defaults projection, so knob-composed profile rows ride along free; 26-line source diff, <span class="mono">--origin</span> genuinely untouched.</li>
+          <li class="plus">Voluntarily swept a memory file the intake never listed.</li>
+          <li class="minus"><strong><span class="mono">SPEC-_cli-fab.md</span> never updated</strong> — still asserts "built-in defaults are NOT materialized here" — the constitution-required mirror and this repo's named #1 rework class. The agy pipeline's own reviewer missed it too.</li>
+          <li class="minus">Now-unreachable empty-config branch left in place; the config-less-repo behavior flip is untested and unacknowledged; leftover scaffolding + "now prints" narration comment.</li>
+        </ul>
+        <p class="verdict-x">"The implementation itself is close to ideal … what holds it back is finishing discipline rather than engineering judgment. A reviewer would merge the Go change happily and send the docs and dead branch back for one round."</p>
+      </div>
+      <div class="card scorecard">
+        <div class="head"><span class="pill ag">agy</span><h3 style="margin:0">#579 · ttff</h3><span class="score">6.45</span></div>
+        <ul>
+          <li class="plus">The shipping half is clean and pattern-faithful — right command value, sibling-shaped export, pin-by-value test, error path relocated to a user-defined provider exactly as asked.</li>
+          <li class="minus"><strong>Four stale claims survive</strong>, two in files the intake named explicitly — including a live false instruction (<span class="mono">_cli-fab.md:1222</span> still tells agents <span class="mono">--provider agy</span> errors). All four are phrase-class or contrastive variants; canonical-token greps were clean.</li>
+          <li class="minus"><strong>Writes an unperformed probe as fact</strong>: a memory Design Decision titled "agy Ships the <em>Probed</em> … Verbatim" for a probe the intake explicitly deferred — in the file whose own rule forbids speculation-as-verification.</li>
+          <li class="minus">Hand-edited four frozen generated <span class="mono">log.md</span> history entries against the FKF immutability rule, rewriting another change's accurate history.</li>
+        </ul>
+        <p class="verdict-x">"The mechanical change is correct and well-executed … Merging this is safe for the binary but ships documentation that contradicts it in four places, so a follow-up sweep is required rather than optional."</p>
+      </div>
+      <div class="card scorecard">
+        <div class="head"><span class="pill cl">claude</span><h3 style="margin:0">#575 · rvza <span style="font-weight:500;color:var(--muted);font-size:0.75rem">(change winner)</span></h3><span class="score">9.20</span></div>
+        <ul>
+          <li class="plus">Only run to catch that composing defaults made an existing assertion vacuous; documented the paste-back footgun beyond intake scope.</li>
+          <li class="minus">Kept a dead guard branch its own plan flagged; one spec surface missing the hazard caveat.</li>
+        </ul>
+        <p class="verdict-x">"Nine lines of real substance … the sweep is the strongest part. The only things I would change are cosmetic."</p>
+      </div>
+      <div class="card scorecard">
+        <div class="head"><span class="pill c">codex</span><h3 style="margin:0">#573 · ttff <span style="font-weight:500;color:var(--muted);font-size:0.75rem">(change winner, merged)</span></h3><span class="score">9.45</span></div>
+        <ul>
+          <li class="plus">Sweep complete including the habitually-missed frontmatter/index mirror-row class; every removed negative assertion replaced at the same seam.</li>
+          <li class="minus">One over-long rendered line; one "instead of" transition clause in permanent memory.</li>
+        </ul>
+        <p class="verdict-x">"A near-exemplary execution of a change that is 80% sweep discipline and 20% code … what keeps it off a perfect score is cosmetic."</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Reading the result</h2>
+    <div class="reads">
+      <div class="item">
+        <h3>The quality ranking is a reviewer-quality ranking</h3>
+        <p>Four data points now: the strictness of each arm's internal reviewer — which is the same model as its worker —
+        predicts final PR quality better than apply-stage output does. Codex and claude reviewers forced 2 rework cycles
+        and produced 9+ PRs; kimi's reviewer accepted after 1 cycle and shipped a sweep miss; agy's reviewer passed a PR
+        whose SPEC mirror contradicted the binary (rvza) and found 0 findings on a ttff cycle that still carried four
+        stale claims. The binding constraint in this pipeline is the critic, not the author.</p>
+      </div>
+      <div class="item">
+        <h3>Agy's failure modes are integrity classes, not skill classes</h3>
+        <p>Beyond ordinary sweep misses, agy produced three failure classes no other arm did: an apply worker that finished
+        its work but skipped the result-file contract (costing the recovery restart), a memory Design Decision claiming a
+        probe that was explicitly deferred ("Probed … Verbatim"), and hand-edits to frozen generated history. The first is
+        an operational nuisance; the latter two poison the knowledge base — they are the exact failure the FKF
+        present-truth rules exist to prevent, and they argue for keeping agy on a shorter leash than a score of 6.6 alone
+        would suggest.</p>
+      </div>
+      <div class="item">
+        <h3>Lean is only a virtue when it's complete</h3>
+        <p>The diff-size metric needed one round to show its trap: agy's diffs are the smallest on both changes, but part
+        of the missing volume <em>is the missing work</em>. Codex holds the useful crown — second-leanest with
+        verified-complete sweeps. Read diff size jointly with sweep completeness, never alone.</p>
+      </div>
+      <div class="item">
+        <h3>The sweep-miss taxonomy is now three classes deep</h3>
+        <p>Token misses (none this round — every arm greps canonical vocabulary correctly), phrase-class misses
+        ("headless grammar only" — kimi and agy), and contrastive misses ("unlike agy" — claude's rework, agy's #579).
+        Verification greps must cover all three; the strongest observed defense is codex/claude-style re-derivation of the
+        sweep class plus claude's regression-guard test pinning retired literals out of rendered output.</p>
+      </div>
+      <div class="item">
+        <h3>Speed: kimi ≪ agy &lt; codex ≈ claude</h3>
+        <p>Agy is genuinely the second-fastest engine — its restarted rvza apply ran just 5m 38s, and per-stage spans sit
+        between kimi's and codex's. But its contract miss cost 16 minutes of its rvza wall-clock, and speed is worth little
+        at a 6.6 quality level in a repo whose review gates treat sweep misses as must-fix: the rework it avoids up front
+        comes back as human-triggered follow-up later.</p>
+      </div>
+      <div class="item">
+        <h3>Provider knob guidance after 8 runs</h3>
+        <p>Small surgical change: kimi for economics, claude for the best absolute result. Wide prose sweep: codex (lean,
+        complete, merged) or claude (thorough, defense-in-depth). Agy, on this evidence, is not yet a drop-in pipeline
+        worker for this repo: competent Go, but its docs work needs a stricter reviewer arm (e.g. mixed roster:
+        agy apply + codex/claude review) before its speed is usable.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Method &amp; caveats</h2>
+    <div class="cards">
+      <div class="card">
+        <h3>Scoring protocol</h3>
+        <p style="font-size:0.9rem;color:var(--ink-2);max-width:70ch">
+          One sub-agent per PR with an identical prompt: read the project constitution and quality/review policies, the
+          intake and plan, and the full diff against the branch's own merge base; run <span class="mono">go test</span> +
+          <span class="mono">gofmt</span> in the PR's own worktree; score six anchored dimensions 0–10 with mandatory
+          file:line evidence; grade against the intake, never against sibling PRs. Anchors: 10 flawless · 8–9 minor nits ·
+          6–7 one real gap · 4–5 significant gap · ≤3 major failure. The ttff scorers from the claude round onward carried
+          the phrase-class + contrastive grep instruction; round-1 scorers reached comparable depth on their own initiative.
+        </p>
+        <div class="tbl-scroll">
+          <table>
+            <thead><tr><th>Dimension</th><th class="num">Weight</th></tr></thead>
+            <tbody>
+              <tr><td>Intake fidelity — every "What Changes" item, nothing beyond scope</td><td class="num">20%</td></tr>
+              <tr><td>Correctness — logic read directly; tests run by the scorer</td><td class="num">20%</td></tr>
+              <tr><td>Diff hygiene — minimal diff, pattern conformance, commit/PR quality</td><td class="num">20%</td></tr>
+              <tr><td>Sweep completeness — mirror classes, aggregate specs, memory</td><td class="num">15%</td></tr>
+              <tr><td>Test quality — pin-by-value, coverage relocated not deleted</td><td class="num">15%</td></tr>
+              <tr><td>Prose &amp; docs — present-truth framing, no transition narration</td><td class="num">10%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Caveats</h3>
+        <ul style="font-size:0.9rem;color:var(--ink-2);padding-left:18px;margin:6px 0;max-width:70ch">
+          <li>n = 2 changes per provider — directional evidence, not statistics.</li>
+          <li><strong>The judge is Claude (Fable 5)</strong>; one contestant is Claude (Opus 5). Mitigations: anchored rubric, mandatory cited evidence, scorer-run tests, no sibling comparison. Agy's gap (−1.9 to −2.75 vs the leaders) is far outside plausible judge noise and rests on binary, checkable facts (a file untouched by the diff, a probe that did not happen).</li>
+          <li>Provider identity was visible in branch names; scoring could not be fully blind.</li>
+          <li>The four batches ran hours apart with different machine contention (kimi/codex shared a 4-run batch; claude and agy ran as 2-run batches). Cross-batch wall-clock comparisons are approximate; within-batch ordering and per-stage spans are solid.</li>
+          <li>The agy branches are based at the #577 merge commit — docs-identical to the other arms' base for everything the intakes touch, but predating the merged codex implementations, so the agy PRs conflict with current main. Scorers diffed against the branches' own base.</li>
+          <li>The agy runs rode a system-config <span class="mono">providers.agy.interactive_command</span> override, since the installed fab binary predates ttff's defaults change — operationally identical to the shipped grammar.</li>
+          <li>Native-seam stages (claude ship/review-pr, codex #573 ship/review-pr) left no dispatch records; those spans are estimated from commit timestamps (dash-outlined).</li>
+          <li>Scorers hit known pre-existing tmux test flakes (<span class="mono">TestPaneReady_ReadyReport</span>, <span class="mono">TestDispatchDeliver_Integration</span>, one unreproducible cmd/fab failure) and verified each against baseline — not counted against any PR.</li>
+          <li>#573 was scored pre-review-pr (Copilot subsequently found 0 comments; scored state = final state). All others scored post-review-pr at final HEAD.</li>
+          <li>Per-stage token/dollar cost was not measured — "speed" here is wall-clock only.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer style="margin-top:56px;color:var(--muted);font-size:0.8rem">
+    Sources: PR #570–573, #575–576, #578–579 branches and bodies, <span class="mono">.fab-dispatch/</span> stage records in
+    the eight worktrees, GitHub PR metadata and CI checks, and eight scoring sub-agent reports (2026-08-10). Supersedes
+    <span class="mono">kimi-vs-codex-rvza-ttff.html</span> and <span class="mono">kimi-codex-claude-rvza-ttff.html</span>.
+    Lives at <span class="mono">docs/findings/four-providers-rvza-ttff.html</span>.
+  </footer>
+</div>
+
+<div id="tip" role="tooltip"></div>
+<script>
+  (function () {
+    var tip = document.getElementById('tip');
+    function show(e) {
+      var t = e.target.closest('[data-tip]');
+      if (!t) { tip.style.display = 'none'; return; }
+      tip.textContent = t.getAttribute('data-tip');
+      tip.style.display = 'block';
+      var x = (e.touches ? e.touches[0].clientX : e.clientX) || 0;
+      var y = (e.touches ? e.touches[0].clientY : e.clientY) || 0;
+      var w = tip.offsetWidth;
+      tip.style.left = Math.min(x + 12, window.innerWidth - w - 8) + 'px';
+      tip.style.top = (y + 14) + 'px';
+    }
+    document.addEventListener('mousemove', show);
+    document.addEventListener('mouseout', function (e) {
+      if (!e.relatedTarget || !e.relatedTarget.closest('[data-tip]')) tip.style.display = 'none';
+    });
+    document.addEventListener('focusin', function (e) {
+      var t = e.target.closest('[data-tip]');
+      if (!t) { tip.style.display = 'none'; return; }
+      var r = t.getBoundingClientRect();
+      tip.textContent = t.getAttribute('data-tip');
+      tip.style.display = 'block';
+      tip.style.left = r.left + 'px';
+      tip.style.top = (r.bottom + 6) + 'px';
+    });
+    document.addEventListener('focusout', function () { tip.style.display = 'none'; });
+  })();
+</script>
+
+</body>
+</html>
