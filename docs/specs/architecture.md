@@ -236,35 +236,33 @@ checklist:
 # against kit-release refreshes — prefer a single-field override.
 # Non-claude fills are refreshed at kit-release cadence and pass through unvalidated —
 # pin a newer model with providers.<name>.profiles.<role>.model. Claude ships
-# session, native, and headless capabilities; codex and kimi ship both command fields
-# without native capability; agy ships headless capability ONLY (no
-# interactive_command — its interactive first-run behavior is unprobed against the
-# pane readiness gate; backlog [agik]). Under the default mode, claude resolves native
+# session, native, and headless capabilities; codex, agy and kimi ship both command
+# fields without native capability. Under the default mode, claude resolves native
 # while the non-claude built-ins descend to headless.
 # (Automated PR reviewer toggles moved to code-review.md § Review Tools — absent = enabled.)
 # Per-provider notes (kept out of the blocks below so uncommenting a whole block
 # stays valid YAML): claude -p and codex exec both read the prompt from stdin.
-# Codex carries --dangerously-bypass-approvals-and-sandbox; agy carries
-# --dangerously-skip-permissions. Both flags are deliberate because unattended stage
-# workers cannot answer approval prompts; override a provider command to restore
-# approvals. kimi's dispatch form carries no approval flag at all: kimi -p already
-# auto-approves tools and errors when combined with --yolo/--auto, so its full-auto
-# flag rides its interactive_command instead.
-# claude, codex and kimi ship an interactive_command — agy is the one DISPATCH-ONLY
-# built-in. An interactive_command also confers PANE-mode eligibility, and it is pure
-# launch grammar: fab appends nothing to it, and a pane worker's prompt is typed in
-# afterwards by `fab dispatch deliver`. What is unprobed for agy is FIRST-RUN behavior
-# — it trust-prompts a fresh workspace even under --dangerously-skip-permissions, and
-# worktree-per-change makes every dispatch one — so with none, automatic resolution
-# skips the pane rung and descends to headless and an explicit `fab dispatch open`
-# hard-errors. Add providers.agy.interactive_command yourself to opt in ahead of
-# backlog [agik]'s probe. kimi's probe is done (2026-08-10): its trust wall is one
-# readiness-gate judgment round and its side-bordered input box verifies under
-# delivery's box-drawing-tolerant echo check, so it ships one and is pane-capable.
+# Codex carries --dangerously-bypass-approvals-and-sandbox on both its forms; agy
+# carries --dangerously-skip-permissions on both of its. Both flags are deliberate
+# because unattended stage workers cannot answer approval prompts; override a provider
+# command to restore approvals. kimi's dispatch form carries no approval flag at all:
+# kimi -p already auto-approves tools and errors when combined with --yolo/--auto, so
+# its full-auto flag rides its interactive_command instead.
+# ALL FOUR ship an interactive_command and are therefore PANE-capable. That is the
+# default expectation rather than a per-provider achievement: every agent CLI has an
+# interactive mode, and the field is pure launch grammar — fab appends nothing to it,
+# and a pane worker's prompt is typed in afterwards by `fab dispatch deliver`. HEADLESS
+# grammar is the half that varies per CLI and needs probing. A first-run trust wall is
+# a readiness-gate input, not a missing capability: agy and kimi both wall a fresh
+# workspace even under their full-auto flags, and the gate answers that in one judgment
+# round, remembered per folder. An ABSENT interactive_command stays a valid shape in a
+# user's own block — automatic resolution then skips the pane rung and descends, while
+# an explicit `fab dispatch open` hard-errors.
 # Codex's -m takes a concrete model SLUG, so its shipped fills are pinned IDs.
-# agy carries no {effort} — its model IDs embed the reasoning level as a suffix, so
-# its fills carry none either. agy and kimi both take the prompt as the -p ARGUMENT
-# and ignore stdin, so their headless_commands nest a shell (sh -c '… -p "$(cat)"'):
+# agy carries no {effort} on either grammar — its model IDs embed the reasoning level
+# as a suffix, so its fills carry none either. agy and kimi both take the prompt as
+# the -p ARGUMENT and ignore stdin, so their headless_commands nest a shell
+# (sh -c '… -p "$(cat)"'):
 # POSIX expands $(cat) before fab dispatch's stdin redirect applies. kimi ships NO
 # fills — its -m takes a user-config model alias, so the empty model drops the flag
 # and its own default_model applies. This whole block is advertise:false — documented in
@@ -281,8 +279,9 @@ providers:
     headless_command: codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
     profiles:                            # sparse — run `fab config explain` for the live values
       default: { model: <model-id>, effort: <effort> }   # example: shape only
-  agy:                                   # dispatch-only: no interactive_command (see below)
-    headless_command: sh -c 'agy … --model {model} -p "$(cat)"'   # no {effort} flag; nested shell so $(cat) reads the piped prompt
+  agy:
+    interactive_command: agy --dangerously-skip-permissions --model {model}   # no {effort}: the level rides the model ID suffix
+    headless_command: sh -c 'agy … --model {model} -p "$(cat)"'   # nested shell so $(cat) reads the piped prompt
     profiles:                            # model-only: the reasoning level rides the ID suffix
       default: { model: <model-id> }     # example: shape only
   kimi:

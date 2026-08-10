@@ -221,8 +221,8 @@ the canonical `native` default, with invalid input producing a `fab: warning:` d
 preference ceiling: automatic resolution descends only through `pane → native → headless`. Provider
 fields are independent capabilities—`interactive_command` for pane, `native: true` for the Agent-tool
 adapter, `headless_command` for headless—and their presence never chooses policy. Claude ships all
-three; codex and kimi ship pane/headless grammar without native capability; agy ships headless
-grammar only. The
+three; codex, agy and kimi ship pane/headless grammar without native capability, so every built-in
+is pane-eligible and the ceiling plus each rung's environment prerequisite decide which rung runs. The
 `2.17.3-to-2.18.0` migration rewrites live `dispatch.watchable: true` to `mode: pane`, removes live
 `watchable: false`, sweeps project and system config, and leaves commented/fence content untouched.
 There is no binary read-time alias; an unmigrated legacy key is inert.
@@ -357,11 +357,11 @@ using stdlib `encoding/json` only (no new dependencies). Each element is a per-f
   profile; the first-level `default` key is the *default role*, not a wrapper. Likewise
   `providers.default` is keyed by provider name (four entries — claude/codex/agy/kimi), each carrying
   its independent `interactive_command`, `headless_command`, and `native` capabilities (omitted when
-  unavailable, so each block shows exactly what it ships): claude all three, codex and `kimi` both
-  commands without native, and `agy` a `headless_command` alone — it is the one **dispatch-only**
-  built-in (`260808-rpsr`, narrowed by `260810-ki9v`), since an `interactive_command` also confers
-  pane-mode eligibility and agy's interactive first-run has not been probed against the pane
-  readiness gate (backlog `[agik]`). Every entry carries **no** `model`/`effort` — see § Default semantics.
+  unavailable, so each block shows exactly what it ships): claude all three; `codex`, `agy` and
+  `kimi` both command fields without native — so **every built-in is pane-capable**
+  (`260808-rpsr` → `260810-ki9v` → `260810-ttff`). An absent `interactive_command` remains a valid
+  user-config shape the descent ladder handles; it is no longer a shipped one. Every entry carries
+  **no** `model`/`effort` — see § Default semantics.
 - `renamed_from` is omitted when empty (`omitempty`), so it appears on the `agent.profiles` object only.
 - Output is deterministic and byte-stable, like the commented-YAML rendering — the table is ordered and
   the marshalling is stable.

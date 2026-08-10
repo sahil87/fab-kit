@@ -243,7 +243,7 @@ providers:
       review:   { effort: xhigh }
       fast:     { model: gpt-5.6-luna, effort: low }
   agy:
-    # NO interactive_command: dispatch-only (see below).
+    interactive_command: 'agy --dangerously-skip-permissions --model {model}'
     headless_command: 'sh -c ''agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'''
     profiles:                                 # model-only: the reasoning level rides the ID suffix
       default: { model: gemini-3.1-pro-high }
@@ -260,27 +260,34 @@ codex's `default` model and effort, and agy's non-`fast` roles on agy's `default
 without a row of their own. (The merge is per FIELD, so codex's `doing`/`review` rows — effort only —
 take their model from `default` too.)
 
-**One of the four is dispatch-only.** `claude`, `codex` and `kimi` ship an `interactive_command`; `agy`
-ships dispatch grammar alone, and the absence is load-bearing rather than an omission. An
-`interactive_command` is what makes a provider eligible for **pane-mode dispatch**, and the open question
-per provider is **first-run behavior**, not prompt grammar: agy gates a fresh workspace behind an
-interactive **trust prompt** even under `--dangerously-skip-permissions`, and worktree-per-change makes
-every dispatch a fresh workspace, so a pane worker parks before the readiness gate can deliver to it.
-With no `interactive_command`, automatic resolution skips the pane rung and descends to headless
-(`descended: pane unavailable: no interactive_command`), and an explicit `fab dispatch open`
-hard-errors actionably. A user who wants an interactive `agy` session — or pane workers for it —
-adds `providers.agy.interactive_command` in their own config, ahead of that probe.
+**All four are pane-capable, and that is the default expectation.** Every agent CLI has an interactive
+mode — that is what a TUI is — so shipping an `interactive_command` is a fab decision about launch
+grammar, not a discovery about the CLI. Pane-mode dispatch rides that launch grammar plus the
+**provider-neutral readiness gate**: fab appends nothing to the command and types the stage prompt in
+afterwards (`fab dispatch deliver`), so no initial-prompt grammar is involved. The half that genuinely
+varies per CLI — and the half a new provider has to be probed for — is **headless** grammar: stdin vs a
+`-p` argument, nested shells, per-form approval flags, timeout defaults.
 
-**kimi's equivalent probe closed** (2026-08-10, kimi 0.34.0), which is why it ships one. Its two
-unknowns were answered rather than designed around: the first-run `Trust this folder?` wall is an
-ordinary readiness-gate **judgment round** (`parked` → one Enter → ready, remembered per folder, so it
-amortizes across a checkout), and its **input echo** verifies now that delivery's echo check ignores
-box-drawing runes as well as whitespace — kimi draws vertical side rules down its input box, so a
-wrapped pointer arrives in the capture with `││` interleaved between the halves.
+**First-run behavior is a gate input, not a capability.** The per-provider open question is what a
+fresh workspace walls a session behind, and for all four it is now answered. agy and kimi both gate a
+fresh workspace behind a **trust prompt** even under their full-auto flags, and worktree-per-change
+makes every dispatch a fresh workspace — so each costs the readiness gate one **judgment round**
+(`parked` → one answer → ready, remembered per workspace, amortizing across a checkout). kimi's second
+unknown, its **input echo**, is answered too: delivery's echo check ignores box-drawing runes as well as
+whitespace, so the `││` its vertical side rules interleave into a wrapped pointer no longer defeats
+verification. agy's trust store is additionally user-seedable
+(`~/.gemini/antigravity-cli/settings.json` `trustedWorkspaces`, EXACT-match paths) — a legitimate
+user-side optimization, deliberately not shipped: the gate is the provider-neutral path and needs no
+knowledge of any provider's file format.
+
+An **absent** `interactive_command` is still a valid shape — a provider a user defines with headless
+grammar alone — and automatic resolution handles it by skipping the pane rung
+(`descended: pane unavailable: no interactive_command`) while an explicit `fab dispatch open`
+hard-errors actionably. It is simply no longer a shipped state.
 
 **Full-auto posture, per FORM.** Claude uses `--dangerously-skip-permissions` on both its forms,
 codex `--dangerously-bypass-approvals-and-sandbox` on both its forms, and agy
-`--dangerously-skip-permissions` on its headless command. kimi carries `--auto` on its INTERACTIVE
+`--dangerously-skip-permissions` on both its forms. kimi carries `--auto` on its INTERACTIVE
 form only: `kimi -p` is already non-interactive and auto-approves tool calls, and *errors* when
 combined with `--yolo`/`--auto` (`Cannot combine --prompt with --yolo`). Pipeline workers are
 unattended and have no channel for answering approval prompts. Users who require approval-gated
@@ -319,10 +326,10 @@ Consequences:
 - **A built-in provider is inert until named.** Adding the rows changes no default behavior (both
   depth knobs ship `claude`), which is why presence=intent — the rule that keeps behavior-changing
   config commented — does not force the table out of Go.
-- **Claude carries all three capabilities; codex and kimi carry both command fields and are
-  non-native; agy carries a `headless_command` only.** Under the default `dispatch.mode: native`, claude
-  resolves native while the non-claude built-ins descend to headless. Adding a command never
-  changes policy by itself.
+- **Claude carries all three capabilities; codex, agy and kimi carry both command fields and are
+  non-native.** Under the default `dispatch.mode: native`, claude resolves native while the non-claude
+  built-ins descend to headless. Adding a command never changes policy by itself — which is why
+  making all four pane-capable changed no default: the ladder never ascends to the pane rung.
 - The reference renders all four blocks **live and uniformly** — in a fence or
   `init --system` scaffold every provider line carries exactly one leading `#` prefix (no
   doubled `# #` marker; an inline `# ...` note stays content), and
@@ -443,8 +450,9 @@ providers:
   #   headless_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
   #   profiles:
   #     default: { model: <codex-model-id>, effort: high }   # e.g. — pin a newer model here
-  # agy:                                                              # dispatch-only: no interactive_command
-  #   headless_command: 'sh -c ''agy … --model {model} -p "$(cat)"'''   # no {effort} flag; nested shell so $(cat) reads the piped prompt
+  # agy:
+  #   interactive_command: 'agy --dangerously-skip-permissions --model {model}'   # no {effort} flag: the level rides the model ID's suffix
+  #   headless_command: 'sh -c ''agy … --model {model} -p "$(cat)"'''   # nested shell so $(cat) reads the piped prompt
   #   profiles:
   #     default: { model: <agy-model-id> }  # e.g. — no effort: the reasoning level rides the ID suffix
   # kimi:

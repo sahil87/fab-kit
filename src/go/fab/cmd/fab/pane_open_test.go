@@ -104,8 +104,9 @@ func TestPaneOpenCmd(t *testing.T) {
 // unknown provider is the shared lookup failure naming the available providers,
 // and a provider with no interactive_command is a hard error naming the
 // provider. Both are RunE errors raised BEFORE any tmux call, so neither needs
-// a server — and both run outside a fab repo, where the empty config still
-// yields the built-in provider table.
+// a server. The unknown-provider case runs outside a fab repo, where the empty
+// config still yields the built-in provider table; the grammar-less case needs
+// one, because a providers: block is the only place that shape now exists.
 func TestPaneOpen_ResolutionErrors(t *testing.T) {
 	t.Run("unknown provider names the available providers", func(t *testing.T) {
 		chdirTestEnv(t, t.TempDir(), nil)
@@ -118,13 +119,16 @@ func TestPaneOpen_ResolutionErrors(t *testing.T) {
 		}
 	})
 
+	// Every BUILT-IN ships an interactive_command since 260810-ttff, so this shape's
+	// only remaining subject is a provider the user defines with headless grammar
+	// alone — which needs a repo, since that is where a providers: block lives.
 	t.Run("provider without interactive_command is a hard error", func(t *testing.T) {
-		chdirTestEnv(t, t.TempDir(), nil)
-		_, _, err := runPaneCmd(t, "open", "--provider", "agy")
+		agentTestRepo(t, "providers:\n  myagent:\n    headless_command: \"myagent run\"\n")
+		_, _, err := runPaneCmd(t, "open", "--provider", "myagent")
 		if err == nil {
 			t.Fatal("a provider without interactive_command must fail")
 		}
-		want := `provider "agy" has no interactive_command; configure providers.agy.interactive_command`
+		want := `provider "myagent" has no interactive_command; configure providers.myagent.interactive_command`
 		if err.Error() != want {
 			t.Errorf("error = %q, want exactly %q", err, want)
 		}

@@ -695,9 +695,9 @@ func TestConfigReferenceDocumentsProviders(t *testing.T) {
 // TestConfigReferenceDocumentsBuiltInProviders is the j3cm contract (which
 // supersedes ho9y's starter-template contract): the providers block documents
 // fab-kit's FOUR BUILT-IN providers — claude (the default), codex, agy and kimi —
-// with every command string sourced from its canonical agent constant. agy carries
-// no {effort} placeholder (its model IDs embed the reasoning level), and kimi
-// deliberately ships no fills at all.
+// with every command string sourced from its canonical agent constant. All four are
+// pane-capable (260810-ttff); agy carries no {effort} placeholder on either grammar
+// (its model IDs embed the reasoning level), and kimi deliberately ships no fills.
 func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
@@ -711,9 +711,8 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 		}
 	}
 
-	// Every command field a non-claude built-in ships is documented. codex and kimi
-	// carry both; agy is DISPATCH-ONLY (its interactive_command absence is asserted
-	// below). The expectations are DERIVED from the agent command vars (never literal
+	// Every command field a non-claude built-in ships is documented — all three carry
+	// both. The expectations are DERIVED from the agent command vars (never literal
 	// copies), so a grammar change touches only internal/agent. They are compared in
 	// their YAML-SCALAR form — the nested-shell dispatch commands contain single
 	// quotes, which the renderer must double, so asserting the raw string would
@@ -721,6 +720,7 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 	for _, cmd := range []string{
 		agent.DefaultCodexInteractiveCommand,
 		agent.DefaultCodexHeadlessCommand,
+		agent.DefaultAgyInteractiveCommand,
 		agent.DefaultAgyHeadlessCommand,
 		agent.DefaultKimiInteractiveCommand,
 		agent.DefaultKimiHeadlessCommand,
@@ -740,8 +740,9 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 		}
 	}
 
-	// agy carries NO {effort} placeholder — its model IDs embed the reasoning level
-	// as an ID suffix, so a separate effort flag would fight the suffix. kimi's
+	// agy carries NO {effort} placeholder on EITHER grammar — its model IDs embed the
+	// reasoning level as an ID suffix, so a separate effort flag would fight the
+	// suffix, and the interactive line ends at `--model {model}`. kimi's
 	// approval flag is per FORM: its DISPATCH form carries none (`kimi -p` already
 	// auto-approves and errors on --yolo/--auto), while its INTERACTIVE form is
 	// exactly where --auto belongs — so the guard here is against an approval flag on
@@ -757,25 +758,38 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 		}
 	}
 
-	// agy is DISPATCH-ONLY: its block's first key is headless_command, with no
-	// interactive_command line above it. A reader who hoists the block must not be
-	// handed a pane-eligible provider — agy's interactive first run has not been probed
-	// against the pane-delivery choreography (backlog [agik]).
-	if !strings.Contains(out, "  agy:\n    headless_command: ") {
-		t.Error("the agy block must open directly on headless_command (dispatch-only built-in)")
+	// Every non-claude block opens on interactive_command — the rendered ordering a
+	// reader hoisting one gets, and the shape that tells them the provider is
+	// pane-eligible. agy was the last block to open on headless_command (260810-ttff).
+	for _, name := range []string{"codex", "agy", "kimi"} {
+		if !strings.Contains(out, "  "+name+":\n    interactive_command: ") {
+			t.Errorf("the %s block must open on interactive_command — every built-in is pane-capable", name)
+		}
 	}
-	if strings.Contains(out, "  agy:\n    interactive_command: ") {
-		t.Error("the agy block must render no interactive_command — shipping one would make auto dispatch select pane mode and park the stage")
-	}
-	// kimi's probe closed (260810-ki9v), so its block opens on interactive_command
-	// like codex's — the rendered ordering a reader hoisting the block gets.
-	if !strings.Contains(out, "  kimi:\n    interactive_command: ") {
-		t.Error("the kimi block must open on interactive_command — kimi is pane-capable since its 2026-08-10 probe")
-	}
-	// The prose must say WHY, not merely omit the field.
-	for _, phrase := range []string{"agy ships NO interactive_command", "DISPATCH-ONLY"} {
+	// The prose must say WHY they all are, not merely render the field: pane
+	// capability rides launch grammar plus the provider-neutral readiness gate, so a
+	// first-run trust wall is a gate input rather than a missing capability.
+	for _, phrase := range []string{
+		"ALL FOUR ARE PANE-CAPABLE",
+		"readiness-gate input, not a missing capability",
+		"pane unavailable: no interactive_command",
+	} {
 		if !strings.Contains(out, phrase) {
-			t.Errorf("providers block must explain the dispatch-only posture with %q", phrase)
+			t.Errorf("providers block must explain the pane-by-default capability model with %q", phrase)
+		}
+	}
+	// And the retired framing must not survive: no shipped provider is dispatch-only
+	// any more, so a stale claim in the text rendered into every project's fence is a
+	// user-facing documentation inaccuracy.
+	//
+	// The literals are DISCRIMINATING on purpose. A bare "dispatch only" would also
+	// match innocent prose ("this rung is dispatch only when …"), so the guard pins the
+	// hyphenated term in both cases plus the one agy-specific sentence — the exact
+	// strings the retired framing used — rather than a substring that could fail on
+	// text carrying no claim at all.
+	for _, retired := range []string{"agy ships NO interactive_command", "DISPATCH-ONLY", "dispatch-only", "agik"} {
+		if strings.Contains(out, retired) {
+			t.Errorf("providers block must not carry the retired dispatch-only framing %q", retired)
 		}
 	}
 

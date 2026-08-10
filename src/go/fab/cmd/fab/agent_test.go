@@ -269,9 +269,10 @@ func TestAgentPrintUnknownRoleErrors(t *testing.T) {
 }
 
 // TestAgentPrintNoInteractiveCommandErrors: a resolved provider with no
-// interactive_command errors with a config-key hint. The fixture uses a project-only
-// provider (`myagent`); the built-in agy half of the same rule is
-// TestAgentProviderDispatchOnlyBuiltInsError.
+// interactive_command errors with a config-key hint. Since 260810-ttff every BUILT-IN
+// ships one, so a project-only provider (`myagent`) is the rule's only remaining
+// subject — the shape is still reachable through user config and still owes an
+// actionable error.
 func TestAgentPrintNoInteractiveCommandErrors(t *testing.T) {
 	agentTestRepo(t, `providers:
   myagent:
@@ -524,9 +525,9 @@ func TestAgentUnknownProviderNamesAvailable(t *testing.T) {
 
 // TestAgentProviderNoInteractiveCommandErrors: a provider that resolves but carries no
 // interactive_command errors with the config-key hint (the provider-path counterpart of
-// TestAgentPrintNoInteractiveCommandErrors). Uses a project-defined dispatch-only
-// provider; the built-in agy half of the same rule is
-// TestAgentProviderDispatchOnlyBuiltInsError.
+// TestAgentPrintNoInteractiveCommandErrors). Uses a project-defined grammar-less
+// provider — since 260810-ttff every built-in ships an interactive_command, so user
+// config is where this shape now lives.
 func TestAgentProviderNoInteractiveCommandErrors(t *testing.T) {
 	agentTestRepo(t, `providers:
   myagent:
@@ -559,28 +560,26 @@ func TestAgentProviderBuiltinCodexNoConfig(t *testing.T) {
 	}
 }
 
-// TestAgentProviderDispatchOnlyBuiltInsError: `fab agent` opens an interactive
-// SESSION, so the one dispatch-only built-in cannot serve it and says so with the
-// config-key hint — the same actionable error a user-defined dispatch-only provider
-// gets (TestAgentProviderNoInteractiveCommandErrors), reached here from the SHIPPED
-// table rather than project config.
+// TestAgentProviderBuiltinAgyNoConfig (260810-ttff): `fab agent --provider agy`
+// composes a session rather than erroring — agy ships an interactive_command like
+// every other built-in, so no SHIPPED provider is a subject of the
+// no-interactive_command error any more (its remaining subject is a project-defined
+// grammar-less entry, TestAgentProviderNoInteractiveCommandErrors).
 //
-// agy ships no interactive_command on purpose (260808-rpsr) — not because of prompt
-// grammar (fab appends nothing to the command and types a pane worker's pointer in
-// afterwards) but because its interactive FIRST-RUN behavior is unprobed against the
-// delivery choreography: it trust-prompts a fresh workspace even under
-// --dangerously-skip-permissions. Backlog [agik] owns that probe. The error is the
-// documented path to an interactive session: add providers.agy.interactive_command
-// yourself, accepting the unprobed-provider caveat.
-func TestAgentProviderDispatchOnlyBuiltInsError(t *testing.T) {
+// The composed form is the shipped grammar minus the model pair: the provider form
+// bypasses agy's per-role fills and supplies no --model, so the empty {model} drops
+// `--model` with it while the fixed --dangerously-skip-permissions survives. There is
+// no --effort to drop — agy's model IDs embed the reasoning level, so neither of its
+// grammars carries the placeholder.
+func TestAgentProviderBuiltinAgyNoConfig(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 
-	_, err := runAgentPrint(t, "--provider", "agy")
-	if err == nil {
-		t.Fatal("fab agent --provider agy must error — it is a dispatch-only built-in")
+	out, err := runAgentPrint(t, "--provider", "agy")
+	if err != nil {
+		t.Fatalf("agent --provider agy --print: %v", err)
 	}
-	if !strings.Contains(err.Error(), "providers.agy.interactive_command") {
-		t.Errorf("agy error = %q, want the interactive_command config-key hint", err.Error())
+	if out != "agy --dangerously-skip-permissions\n" {
+		t.Errorf("output = %q, want the model-free built-in agy grammar with its bypass flag", out)
 	}
 }
 

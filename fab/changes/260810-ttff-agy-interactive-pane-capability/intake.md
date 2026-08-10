@@ -60,6 +60,7 @@ Write the corrected framing where the wrong one lived (`providers-and-profiles.m
 - `runtime/providers-and-profiles`: (modify) § The dispatch-only built-in replaced with the pane-by-default framing; agy entry gains its shipped interactive_command + trust-wall note
 - `runtime/dispatch`: (modify) descent-ladder example no longer cites agy as the shipped no-interactive_command instance
 - `runtime/agent-primitives`: (modify) agy grammar entry updated — interactive form recorded, pane caveat dropped
+- `_shared/configuration`: (modify) § `providers` roster claim ("agy has a headless command only (dispatch-only — no `interactive_command`)") replaced with the pane-capable roster <!-- added at review cycle 1: _shared/ prose under-covered by the original list; ki9v precedent updated this same file for this same claim -->
 
 ## Impact
 
@@ -69,6 +70,8 @@ Write the corrected framing where the wrong one lived (`providers-and-profiles.m
 - `src/kit/skills/_cli-fab.md` (if it restates the roster's capabilities)
 - Three runtime memory files (above)
 - No migration: built-in defaults are embedded data; user configs are untouched (presence=intent means a user's own `providers.agy.*` overrides still win per-field)
+
+**Coordination, PR #564 (agik)**: the still-open #564 sets `providers.agy.interactive_command` to the spawn-time form `'agy --dangerously-skip-permissions --model {model} -i {prompt}'`. This change's promptless form is the intended final state — since 3oz7/1lah, delivery is post-open (`fab dispatch deliver`), so no `{prompt}` placeholder belongs in the grammar. If #564 merges first, this branch's rebase keeps THIS value (and the pin-by-value test with it); if this merges first, #564 must drop its agy `interactive_command` row on rebase (its `{prompt}` placeholder machinery stands independently). <!-- added at review cycle 2 -->
 
 **Verification constraint**: agy quota is exhausted until ~2026-08-16, so a live pane-worker run cannot be part of this change's verification. Tests (pin-by-value, gate fixtures) and the kimi-precedent gate mechanics carry verification; a live probe is a recorded follow-up.
 
