@@ -572,7 +572,7 @@ is the user's. Every scaffolded block is **fully commented including its parent 
 over comment-only children is exactly the `agent: null` the old whole-file masher produced), with every
 comment marker at **column 0**: the comment-out helper skips only a line whose `#` is ALREADY at column
 0 (fence-level prose), so a line the segment ships deliberately commented at an INDENT (the
-`# codex:` / `# agy:` / `# kimi:` provider examples) gains the fence prefix like a live line —
+`  # profiles:` / `  #   review: { provider: codex }` agent-block examples) gains the fence prefix like a live line —
 which both keeps the fence visually flush and makes "strip the leading `# ` from every line of a block"
 restore the segment byte-exactly. The fence
 **omits fields already overridden** above it. Omission is at **top-level-key granularity**: a live

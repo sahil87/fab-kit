@@ -540,6 +540,47 @@ checklist:
 				"#     - jscpd --reporters json --output {out} {paths}",
 		},
 		{
+			Key:          "dispatch.mode",
+			Default:      config.DefaultDispatchMode,
+			Kind:         configvalue.KindString,
+			Description:  "Preferred stage-dispatch mode: pane, native, or headless. Resolution starts at the preference and descends pane → native → headless without ascending, choosing the first mode supported by the provider and environment. Scope both — settable once machine-wide, where it outranks the project file. Default native.",
+			Scope:        ScopeBoth,
+			Advertise:    true,
+			Segment:      dispatchSegment(),
+			ShortSegment: dispatchShortSegment(),
+		},
+		{
+			Key: "dispatch.column_width",
+			// Like mode, a real built-in value rather than "no default": the
+			// cascade bottoms out at 35, and an absent yaml int is indistinguishable
+			// from 0, so the accessor treats out-of-range as unset. Sourced from the
+			// canonical config symbol, never a literal copy.
+			Default:     config.DefaultDispatchColumnWidth,
+			Kind:        configvalue.KindInt,
+			Description: "Pane-worker column width, in percent of the window, applied by the column-carving `-h` split that opens a pane-mode stage worker beside its dispatching agent (`split-window -h -l <n>%`). Only that first split is sized — later workers stack inside the column with unsized `-v` splits. Out-of-range values (and an absent key) resolve to the default. Scope both — settable once machine-wide, where it outranks the project file. Default 35.",
+			Scope:       ScopeBoth,
+			Advertise:   true,
+			// Rendered inline in the dispatch.mode Segment (dispatch is one YAML
+			// block, so a second `# dispatch:` block would collide if a reader
+			// uncommented both); this row carries no Segment of its own. Same pattern
+			// as project.description / project.linear_workspace.
+		},
+		{
+			Key: "dispatch.reap_done",
+			// The third real built-in value under `dispatch:` — and the boundary case
+			// that needed a POINTER on the config struct: the default is TRUE, so the
+			// Go zero value means the opposite of it and an absent key had to stay
+			// distinguishable from an explicit `false`. Sourced from the canonical
+			// config symbol, never a literal copy.
+			Default:     config.DefaultDispatchReapDone,
+			Kind:        configvalue.KindBool,
+			Description: "Done-worker pane reaping. When true, `fab dispatch reap` kills a pane-mode stage worker's tmux pane once its result file is present, reclaiming the column space a finished worker would otherwise hold for the rest of the run. Reap is not kill: it never touches a running, orphaned, or failed dispatch, and it removes no .fab-dispatch/ state. Set false to keep a done worker's scrollback. Scope both — settable once machine-wide, where it outranks the project file. Default true.",
+			Scope:       ScopeBoth,
+			Advertise:   true,
+			// Rendered inline in the dispatch.mode Segment, same as
+			// dispatch.column_width; this row carries no Segment of its own.
+		},
+		{
 			Key:          "agent.session",
 			Default:      agent.DefaultProviderName,
 			Kind:         configvalue.KindString,
@@ -598,47 +639,6 @@ checklist:
 			RenamedFrom:  "providers.<name>.session_command, providers.<name>.dispatch_command",
 			Segment:      providersSegment(providers, roleOrder),
 			ShortSegment: providersShortSegment(providers, roleOrder),
-		},
-		{
-			Key:          "dispatch.mode",
-			Default:      config.DefaultDispatchMode,
-			Kind:         configvalue.KindString,
-			Description:  "Preferred stage-dispatch mode: pane, native, or headless. Resolution starts at the preference and descends pane → native → headless without ascending, choosing the first mode supported by the provider and environment. Scope both — settable once machine-wide, where it outranks the project file. Default native.",
-			Scope:        ScopeBoth,
-			Advertise:    true,
-			Segment:      dispatchSegment(),
-			ShortSegment: dispatchShortSegment(),
-		},
-		{
-			Key: "dispatch.column_width",
-			// Like mode, a real built-in value rather than "no default": the
-			// cascade bottoms out at 35, and an absent yaml int is indistinguishable
-			// from 0, so the accessor treats out-of-range as unset. Sourced from the
-			// canonical config symbol, never a literal copy.
-			Default:     config.DefaultDispatchColumnWidth,
-			Kind:        configvalue.KindInt,
-			Description: "Pane-worker column width, in percent of the window, applied by the column-carving `-h` split that opens a pane-mode stage worker beside its dispatching agent (`split-window -h -l <n>%`). Only that first split is sized — later workers stack inside the column with unsized `-v` splits. Out-of-range values (and an absent key) resolve to the default. Scope both — settable once machine-wide, where it outranks the project file. Default 35.",
-			Scope:       ScopeBoth,
-			Advertise:   true,
-			// Rendered inline in the dispatch.mode Segment (dispatch is one YAML
-			// block, so a second `# dispatch:` block would collide if a reader
-			// uncommented both); this row carries no Segment of its own. Same pattern
-			// as project.description / project.linear_workspace.
-		},
-		{
-			Key: "dispatch.reap_done",
-			// The third real built-in value under `dispatch:` — and the boundary case
-			// that needed a POINTER on the config struct: the default is TRUE, so the
-			// Go zero value means the opposite of it and an absent key had to stay
-			// distinguishable from an explicit `false`. Sourced from the canonical
-			// config symbol, never a literal copy.
-			Default:     config.DefaultDispatchReapDone,
-			Kind:        configvalue.KindBool,
-			Description: "Done-worker pane reaping. When true, `fab dispatch reap` kills a pane-mode stage worker's tmux pane once its result file is present, reclaiming the column space a finished worker would otherwise hold for the rest of the run. Reap is not kill: it never touches a running, orphaned, or failed dispatch, and it removes no .fab-dispatch/ state. Set false to keep a done worker's scrollback. Scope both — settable once machine-wide, where it outranks the project file. Default true.",
-			Scope:       ScopeBoth,
-			Advertise:   true,
-			// Rendered inline in the dispatch.mode Segment, same as
-			// dispatch.column_width; this row carries no Segment of its own.
 		},
 		{
 			Key:          "stage_hooks",
@@ -704,20 +704,18 @@ const referenceHeader = `# Full reference of all available options: fab config e
 // Fill lines are emitted in roleOrder (agent.RoleNames(), sorted) so the output stays
 // BYTE-STABLE: the profiles map is looked up by key, never range-iterated.
 //
-// Presentation (260805-j3cm): all four providers are BUILT-IN, so the non-claude
-// blocks are rendered as commented reference-style defaults — the same presentation
-// every other non-overridden default uses — not as uncomment-to-opt-in blocks. The
-// commented form still registers no project override (presence=intent holds for
-// BEHAVIOR: a built-in provider is inert until a knob, a role override, or a flag names it), and
-// whole-block uncommenting still yields valid YAML because all per-provider prose
-// stays above the `providers:` key.
-//
-// This segment carries the registry's only DELIBERATELY-COMMENTED content lines —
-// the `# codex:` / `# agy:` / `# kimi:` blocks.
-// configupgrade.CommentOutSegment prefixes those like any live line (its column-0
-// rule), so in a rendered fence every marker lands at column 0 and the "strip the
-// leading '# ' from every line of a block" instruction below restores this text
-// byte-exactly — with those lines still commented at their original indent.
+// Presentation: all four providers are BUILT-IN, so all four blocks render
+// uniformly LIVE — claude's baseline and the codex/agy/kimi blocks at the same
+// indentation. In a rendered fence or `init --system` scaffold,
+// configupgrade.CommentOutSegment prefixes every line alike (its column-0
+// rule), so each provider line carries exactly one LEADING `#` prefix — no
+// doubled `# #` marker (an inline `# ...` note on a command line stays
+// content, not a second marker) — and the "strip the leading '# ' from every
+// line of a block" instruction below restores this text byte-exactly. The commented form registers no project override
+// (presence=intent holds for BEHAVIOR: a built-in provider is inert until a
+// knob, a role override, or a flag names it) — but a hoisted copy PINS the
+// fills it carries against kit-release refreshes, which is what the prose's
+// NOTE warns about.
 func providersSegment(providers map[string]providerDefault, roleOrder []string) string {
 	return "# providers — named independent interactive, headless, and native launch capabilities plus their per-role fills. This\n" +
 		"# block is MACHINERY: naming a built-in on a depth knob (agent.session /\n" +
@@ -775,9 +773,9 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# defaults `fab resolve-agent <stage>` resolves, and every provider's map is\n" +
 		"# projected by `fab config explain --json`; their absence from claude's\n" +
 		"# block below is a rendering choice, not a missing fill.\n" +
-		"# Every non-claude block below is commented because it merely restates a built-in\n" +
-		"# default; claude's three capabilities are shown live as the baseline example.\n" +
-		"# Claude carries all three capabilities; codex carries pane + headless and\n" +
+		"# All four blocks below render LIVE and uniformly — claude's baseline and the\n" +
+		"# codex, agy and kimi blocks at the same indentation, one `#` deep in your\n" +
+		"# fence. Claude carries all three capabilities; codex carries pane + headless and\n" +
 		"# therefore descends from the default native preference to headless. agy and kimi\n" +
 		"# ship NO interactive_command — they are DISPATCH-ONLY built-ins with no pane\n" +
 		"# capability, so mode resolution lands their stages on headless.\n" +
@@ -788,8 +786,9 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# below). Add providers.<name>.interactive_command yourself to opt that provider\n" +
 		"# into interactive sessions and pane dispatch ahead of that probe.\n" +
 		"#\n" +
-		"# Per-provider notes (kept out of the blocks below so uncommenting a whole block\n" +
-		"# yields valid YAML — strip the leading '# ' from every line of a block):\n" +
+		"# Per-provider notes (kept out of the blocks below so a block hoisted into your\n" +
+		"# config stays valid YAML — strip the leading '# ' from every line of the\n" +
+		"# block in its fence/scaffold form):\n" +
 		"#   claude.headless_command — claude -p reads the prompt from stdin.\n" +
 		"#   codex — codex exec reads the prompt from stdin; both commands carry\n" +
 		"#     --dangerously-bypass-approvals-and-sandbox. Its -m takes a concrete model\n" +
@@ -815,6 +814,11 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# The bypass flags are deliberate: unattended stage workers cannot answer approval\n" +
 		"# prompts. Override the corresponding provider command to restore an\n" +
 		"# approval-gated posture.\n" +
+		"#\n" +
+		"# NOTE: uncommenting a whole provider block makes its fills a live override\n" +
+		"# that PINS the shown values — kit releases refresh the built-in fills, but a\n" +
+		"# pinned copy shadows every refresh. Prefer overriding a single field\n" +
+		"# (providers.<name>.profiles.<role>.model) instead of hoisting a block.\n" +
 		providersYAML(providers, roleOrder)
 }
 
@@ -834,8 +838,8 @@ func YAMLSingleQuoted(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
-// profilesLines renders a provider's per-role fill map as commented reference lines
-// under a `# profiles:` key, one role per line in roleOrder (so the output is
+// profilesLines renders a provider's per-role fill map as YAML lines under a
+// `profiles:` key, one role per line in roleOrder (so the output is
 // byte-stable — the map is looked up by key, never ranged over). A role absent from
 // the map is skipped, which is what keeps a SPARSE built-in rendering sparse. The
 // effort half is omitted for a fill that carries none (agy), so the rendered YAML
@@ -848,7 +852,7 @@ func profilesLines(profiles map[string]providerProfileDefault, roleOrder []strin
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("  #   profiles:\n")
+	b.WriteString("    profiles:\n")
 	for _, role := range roleOrder {
 		fill, ok := profiles[role]
 		if !ok {
@@ -867,7 +871,7 @@ func profilesLines(profiles map[string]providerProfileDefault, roleOrder []strin
 		if len(set) == 0 {
 			continue
 		}
-		fmt.Fprintf(&b, "  #     %s: { %s }\n", role, strings.Join(set, ", "))
+		fmt.Fprintf(&b, "      %s: { %s }\n", role, strings.Join(set, ", "))
 	}
 	return b.String()
 }
@@ -1104,31 +1108,31 @@ func providersShortSegment(providers map[string]providerDefault, roleOrder []str
 		providersYAML(providers, roleOrder)
 }
 
-// providersYAML is the YAML payload of the providers block — the claude baseline
-// (live) plus the commented codex/agy/kimi reference blocks and their per-role
-// fills — shared by providersSegment (long form, essay header) and
-// providersShortSegment (file-bound form, diet header) so the rendered grammar
-// has exactly one source. Values interpolate the canonical agent vars; fill
-// lines follow roleOrder for byte-stability.
+// providersYAML is the YAML payload of the providers block — all four built-in
+// provider blocks rendered LIVE at one indentation family — shared by
+// providersSegment (long form, essay header) and providersShortSegment
+// (file-bound form, diet header) so the rendered grammar has exactly one
+// source. Values interpolate the canonical agent vars; fill lines follow
+// roleOrder for byte-stability.
 func providersYAML(providers map[string]providerDefault, roleOrder []string) string {
 	return "providers:\n" +
 		"  claude:\n" +
 		"    native: " + strconv.FormatBool(providers[agent.DefaultProviderName].Native) + "\n" +
 		"    interactive_command: " + YAMLSingleQuoted(agent.DefaultInteractiveCommand) + "\n" +
 		"    headless_command: " + YAMLSingleQuoted(agent.DefaultHeadlessCommand) + "\n" +
-		"  # codex:\n" +
-		"  #   interactive_command: " + YAMLSingleQuoted(agent.DefaultCodexInteractiveCommand) + "\n" +
-		"  #   headless_command: " + YAMLSingleQuoted(agent.DefaultCodexHeadlessCommand) + "\n" +
+		"  codex:\n" +
+		"    interactive_command: " + YAMLSingleQuoted(agent.DefaultCodexInteractiveCommand) + "\n" +
+		"    headless_command: " + YAMLSingleQuoted(agent.DefaultCodexHeadlessCommand) + "\n" +
 		profilesLines(providers["codex"].Profiles, roleOrder) +
-		"  # agy:\n" +
-		"  #   headless_command: " + YAMLSingleQuoted(agent.DefaultAgyHeadlessCommand) + "   # dispatch only; no {effort} flag; nested shell so $(cat) reads the piped prompt\n" +
+		"  agy:\n" +
+		"    headless_command: " + YAMLSingleQuoted(agent.DefaultAgyHeadlessCommand) + "   # dispatch only; no {effort} flag; nested shell so $(cat) reads the piped prompt\n" +
 		profilesLines(providers["agy"].Profiles, roleOrder) +
 		// kimi ships no fills, so profilesLines renders nothing for it — the trim
 		// therefore has to span the whole kimi block, not just its (empty) fill
 		// lines, or the segment would end with a stray newline.
 		strings.TrimRight(
-			"  # kimi:\n"+
-				"  #   headless_command: "+YAMLSingleQuoted(agent.DefaultKimiHeadlessCommand)+"   # dispatch only; no fills shipped, so the empty {model} drops -m\n"+
+			"  kimi:\n"+
+				"    headless_command: "+YAMLSingleQuoted(agent.DefaultKimiHeadlessCommand)+"   # dispatch only; no fills shipped, so the empty {model} drops -m\n"+
 				profilesLines(providers["kimi"].Profiles, roleOrder), "\n")
 }
 

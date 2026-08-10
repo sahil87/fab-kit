@@ -144,8 +144,8 @@ func TestRender_FenceFullyComments(t *testing.T) {
 
 // TestCommentOutSegment_MarkersAtColumnZero: EVERY non-blank line of a commented
 // segment carries its comment marker at column 0 — the alignment defect. A
-// deliberately-commented CONTENT line (an indented `#`, e.g. claude's
-// `    # headless_command:` or the `  # codex:` block) must gain the fence-level
+// deliberately-commented CONTENT line (an indented `#`, e.g. the agent block's
+// `  # profiles:` example lines) must gain the fence-level
 // `# ` prefix like any live line; only a line whose `#` is ALREADY at column 0 is
 // fence-level prose and is left as-is.
 func TestCommentOutSegment_MarkersAtColumnZero(t *testing.T) {
@@ -171,8 +171,8 @@ func TestCommentOutSegment_MarkersAtColumnZero(t *testing.T) {
 // TestCommentOutSegment_ShippedRegistryAlignment: over the SHIPPED registry, every
 // non-blank line of every commented segment starts with `#` at column 0 — the
 // property the fence's visual alignment rests on. The guard that a new registry row
-// carrying deliberately-commented content (the providers block's
-// headless_command / non-claude provider lines) cannot reintroduce a ragged fence.
+// carrying deliberately-commented content (the agent block's commented
+// agent.profiles example lines) cannot reintroduce a ragged fence.
 // Both renderings are walked: the long Segment (explain) and the file-bound
 // ShortSegment (fence/scaffold/materializer, 260809-wll4 R6/R7).
 func TestCommentOutSegment_ShippedRegistryAlignment(t *testing.T) {
@@ -196,8 +196,8 @@ func TestCommentOutSegment_ShippedRegistryAlignment(t *testing.T) {
 // TestCommentOutSegment_BlockStripRestoresSegment: the reverse operation
 // `configref.providersSegment`'s prose promises — "strip the leading '# ' from every
 // line of a block" — restores the segment's YAML block BYTE-EXACTLY, so a user who
-// uncomments a whole block gets valid YAML with claude's headless_command and the
-// non-claude provider blocks still commented at their original indent. Verified over the
+// uncomments a whole block gets valid YAML (the providers block restores to all
+// four built-in provider blocks LIVE at their original indent). Verified over the
 // shipped registry; the fence-level prose lines (already column-0) are unchanged by
 // the commenting and so are not part of the strip. Both renderings are walked:
 // the long Segment (explain) and the file-bound ShortSegment (260809-wll4 R6/R7).

@@ -52,20 +52,22 @@ func TestConfigReferenceRoundTrips(t *testing.T) {
 	if prov.HeadlessCommand != agent.DefaultHeadlessCommand || !prov.Native {
 		t.Errorf("providers.claude capabilities = %+v, want live dispatch command and native=true", prov)
 	}
-	// codex, agy and kimi are Go BUILT-IN providers (260805-j3cm), so their reference
-	// blocks merely RESTATE a built-in default and ship commented like every other
-	// non-overridden default. They must parse as absent from Config: a commented
-	// block registers no project override (presence=intent for behavior — a
-	// built-in provider is inert until a role profile, knob, or flag names it, and
-	// agent.ResolveProvider resolves it from the Go table either way).
-	if _, ok := cfg.GetProvider("codex"); ok {
-		t.Error("providers.codex must be commented-out in the reference (parsed as live)")
-	}
-	if _, ok := cfg.GetProvider("agy"); ok {
-		t.Error("providers.agy must be commented-out in the reference (parsed as live)")
-	}
-	if _, ok := cfg.GetProvider("kimi"); ok {
-		t.Error("providers.kimi must be commented-out in the reference (parsed as live)")
+	// codex, agy and kimi are Go BUILT-IN providers whose reference blocks render
+	// LIVE like claude's — all four blocks uniform, so a fence hoist of any one
+	// yields exactly the built-in the block restates (a live copy PINS those
+	// fills against kit-release refreshes; presence=intent still holds because
+	// the reference file is documentation, not a project config).
+	for _, name := range []string{"codex", "agy", "kimi"} {
+		want, _ := agent.ResolveProvider(nil, name)
+		got, ok := cfg.GetProvider(name)
+		if !ok {
+			t.Errorf("providers.%s must be live in the reference (all four built-ins render uniformly)", name)
+			continue
+		}
+		if got.InteractiveCommand != want.InteractiveCommand || got.HeadlessCommand != want.HeadlessCommand {
+			t.Errorf("providers.%s = {%q, %q}, want the built-in {%q, %q}",
+				name, got.InteractiveCommand, got.HeadlessCommand, want.InteractiveCommand, want.HeadlessCommand)
+		}
 	}
 	if len(cfg.TestPaths) == 0 {
 		t.Error("test_paths should be a live key with a value in the reference")
@@ -753,14 +755,14 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 	}
 
 	// agy and kimi are DISPATCH-ONLY: each block's first key is headless_command,
-	// with no interactive_command line above it. A reader who uncomments the block must
+	// with no interactive_command line above it. A reader who hoists the block must
 	// not be handed a pane-eligible provider — neither CLI's interactive first run has
 	// been probed against the pane-delivery choreography (backlog [agik]).
 	for _, name := range []string{"agy", "kimi"} {
-		if !strings.Contains(out, "  # "+name+":\n  #   headless_command: ") {
+		if !strings.Contains(out, "  "+name+":\n    headless_command: ") {
 			t.Errorf("the %s block must open directly on headless_command (dispatch-only built-in)", name)
 		}
-		if strings.Contains(out, "  # "+name+":\n  #   interactive_command: ") {
+		if strings.Contains(out, "  "+name+":\n    interactive_command: ") {
 			t.Errorf("the %s block must render no interactive_command — shipping one would make auto dispatch select pane mode and park the stage", name)
 		}
 	}
@@ -822,91 +824,42 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 	}
 }
 
-// TestConfigReferenceUncommentedProviderBlocksParse is the promise the providers
-// segment makes in its own prose — "strip the leading '# ' from every line of a
-// block" — held to account for EVERY commented built-in block.
+// TestConfigReferenceProviderBlocksParse is the promise the providers segment
+// makes in its own prose: the four built-in blocks render LIVE and uniformly, and
+// what you read is exactly what the built-in table resolves — so a reader who
+// hoists a block out of their fence (strip the leading '# ' from every line)
+// gets a working override, not a parse error.
 //
 // It is not a theoretical guard. The agy and kimi dispatch commands nest a shell
 // (`sh -c '… -p "$(cat)"'`), so they carry single quotes inside a YAML
 // single-quoted scalar; without doubling them the scalar closes early and a user
 // who follows the documented instruction gets a parse error instead of a working
 // override.
-func TestConfigReferenceUncommentedProviderBlocksParse(t *testing.T) {
+func TestConfigReferenceProviderBlocksParse(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
 	}
 
+	var parsed struct {
+		Providers map[string]config.ProviderConfig `yaml:"providers"`
+	}
+	if err := yaml.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("the rendered reference must parse as valid YAML: %v", err)
+	}
+
 	for _, name := range agent.ProviderNames(nil) {
-		if name == agent.DefaultProviderName {
-			continue // claude's block ships live, not commented
-		}
-		block := uncommentProviderBlock(t, out, name)
-		if block == "" {
-			t.Errorf("no `# %s:` block found in the rendered reference", name)
-			continue
-		}
-
-		var parsed struct {
-			Providers map[string]config.ProviderConfig `yaml:"providers"`
-		}
-		if err := yaml.Unmarshal([]byte("providers:\n"+block), &parsed); err != nil {
-			t.Errorf("uncommenting the %s block yields invalid YAML: %v\n%s", name, err, block)
-			continue
-		}
-
 		want, _ := agent.ResolveProvider(nil, name)
-		got := parsed.Providers[name]
+		got, ok := parsed.Providers[name]
+		if !ok {
+			t.Errorf("no live `%s:` block found in the rendered reference", name)
+			continue
+		}
 		if got.InteractiveCommand != want.InteractiveCommand || got.HeadlessCommand != want.HeadlessCommand {
-			t.Errorf("uncommented %s block = {%q, %q}, want the built-in {%q, %q}",
+			t.Errorf("rendered %s block = {%q, %q}, want the built-in {%q, %q}",
 				name, got.InteractiveCommand, got.HeadlessCommand, want.InteractiveCommand, want.HeadlessCommand)
 		}
 	}
-}
-
-// uncommentProviderBlock extracts the `# <name>:` block from the rendered
-// reference and strips the leading `# ` from each of its lines — exactly the
-// operation the segment's prose tells a reader to perform. Returns "" when the
-// block is absent.
-func uncommentProviderBlock(t *testing.T, rendered, name string) string {
-	t.Helper()
-	// The comment marker is INDENTED in these blocks (`  # codex:`) because it
-	// belongs to the YAML structure, not to a fence — so the strip removes the
-	// `# ` where it sits, leaving the indentation that carries the nesting.
-	strip := func(line string) (string, bool) {
-		i := strings.Index(line, "# ")
-		if i < 0 || strings.TrimSpace(line[:i]) != "" {
-			return line, false
-		}
-		return line[:i] + line[i+2:], true
-	}
-
-	var block strings.Builder
-	inBlock := false
-	for _, line := range strings.Split(rendered, "\n") {
-		stripped, wasComment := strip(line)
-		if !wasComment {
-			if inBlock {
-				break // a live line ends the commented block
-			}
-			continue
-		}
-		if strings.TrimSpace(stripped) == name+":" {
-			inBlock = true
-			block.WriteString(stripped + "\n")
-			continue
-		}
-		if !inBlock {
-			continue
-		}
-		// The block ends at the first line that is not one of its indented
-		// children (the next provider key, or the end of the segment).
-		if !strings.HasPrefix(stripped, "    ") {
-			break
-		}
-		block.WriteString(stripped + "\n")
-	}
-	return block.String()
 }
 
 // TestConfigReferenceDocumentsProviderFill is the fill contract, reshaped by
@@ -937,7 +890,7 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 	}
 
 	// The RENDERED reference must carry the shipped codex/agy fills, not just
-	// the JSON projection below: those commented lines ARE the user-facing half of
+	// the JSON projection below: those fill lines ARE the user-facing half of
 	// R7, and without this assertion they can be dropped from providersSegment with
 	// the whole suite staying green. Expectations are DERIVED from ResolveProvider,
 	// shaped by the same omitempty rule the renderer applies — so codex's
@@ -965,7 +918,7 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 			if fill.Effort != "" {
 				set = append(set, "effort: "+fill.Effort)
 			}
-			want := "  #     " + role + ": { " + strings.Join(set, ", ") + " }"
+			want := "      " + role + ": { " + strings.Join(set, ", ") + " }"
 			if !strings.Contains(out, want) {
 				t.Errorf("providers block must render %s's %s fill as %q", name, role, want)
 			}

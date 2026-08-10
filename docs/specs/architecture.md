@@ -231,8 +231,9 @@ checklist:
 # field > profiles.<role> > profiles.default > empty; the `default` entry is the
 # provider's cross-role fallback, so the sparse non-claude maps are well-defined for
 # the roles they omit).
-# So naming any built-in needs no providers: block at all; the blocks below merely
-# restate a built-in default and therefore ship commented, like every other default.
+# So naming any built-in needs no providers: block at all. All four blocks below
+# render LIVE and uniformly (one `#` deep in a fence); hoisting one PINS its fills
+# against kit-release refreshes — prefer a single-field override.
 # Non-claude fills are refreshed at kit-release cadence and pass through unvalidated —
 # pin a newer model with providers.<name>.profiles.<role>.model. Claude ships
 # session, native, and headless capabilities; codex ships both command fields
@@ -272,18 +273,18 @@ providers:
     headless_command: claude -p --dangerously-skip-permissions --model {model} --effort {effort}
     profiles:                              # the six per-role fills — run `fab config explain` for the live values
       doing: { model: <model-id>, effort: <effort> }   # example: shape only
-  # codex:
-  #   interactive_command: codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
-  #   headless_command: codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
-  #   profiles:                            # sparse — run `fab config explain` for the live values
-  #     default: { model: <model-id>, effort: <effort> }   # example: shape only
-  # agy:                                   # dispatch-only: no interactive_command (see below)
-  #   headless_command: sh -c 'agy … --model {model} -p "$(cat)"'   # no {effort} flag; nested shell so $(cat) reads the piped prompt
-  #   profiles:                            # model-only: the reasoning level rides the ID suffix
-  #     default: { model: <model-id> }     # example: shape only
-  # kimi:                                  # dispatch-only: no interactive_command (see below)
-  #   headless_command: sh -c 'kimi -m {model} -p "$(cat)"'   # no --yolo: kimi -p rejects it and already auto-approves
-  #                                        # no profiles: fab ships no kimi fill (its -m takes a user-config alias)
+  codex:
+    interactive_command: codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
+    headless_command: codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
+    profiles:                            # sparse — run `fab config explain` for the live values
+      default: { model: <model-id>, effort: <effort> }   # example: shape only
+  agy:                                   # dispatch-only: no interactive_command (see below)
+    headless_command: sh -c 'agy … --model {model} -p "$(cat)"'   # no {effort} flag; nested shell so $(cat) reads the piped prompt
+    profiles:                            # model-only: the reasoning level rides the ID suffix
+      default: { model: <model-id> }     # example: shape only
+  kimi:                                  # dispatch-only: no interactive_command (see below)
+    headless_command: sh -c 'kimi -m {model} -p "$(cat)"'   # no --yolo: kimi -p rejects it and already auto-approves
+                                         # no profiles: fab ships no kimi fill (its -m takes a user-config alias)
 
 # agent.session / agent.workers are the TWO ADVERTISED KNOBS, selecting a provider
 # by agent DEPTH: session = the Tier-1 roles you talk to (default, operator —
