@@ -243,7 +243,7 @@ providers:
       review:   { effort: xhigh }
       fast:     { model: gpt-5.6-luna, effort: low }
   agy:
-    # NO interactive_command: dispatch-only (see below).
+    interactive_command: 'agy --dangerously-skip-permissions --model {model}'
     headless_command: 'sh -c ''agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'''
     profiles:                                 # model-only: the reasoning level rides the ID suffix
       default: { model: gemini-3.1-pro-high }
@@ -260,16 +260,12 @@ codex's `default` model and effort, and agy's non-`fast` roles on agy's `default
 without a row of their own. (The merge is per FIELD, so codex's `doing`/`review` rows — effort only —
 take their model from `default` too.)
 
-**One of the four is dispatch-only.** `claude`, `codex` and `kimi` ship an `interactive_command`; `agy`
-ships dispatch grammar alone, and the absence is load-bearing rather than an omission. An
-`interactive_command` is what makes a provider eligible for **pane-mode dispatch**, and the open question
-per provider is **first-run behavior**, not prompt grammar: agy gates a fresh workspace behind an
-interactive **trust prompt** even under `--dangerously-skip-permissions`, and worktree-per-change makes
-every dispatch a fresh workspace, so a pane worker parks before the readiness gate can deliver to it.
-With no `interactive_command`, automatic resolution skips the pane rung and descends to headless
-(`descended: pane unavailable: no interactive_command`), and an explicit `fab dispatch open`
-hard-errors actionably. A user who wants an interactive `agy` session — or pane workers for it —
-adds `providers.agy.interactive_command` in their own config, ahead of that probe.
+**All four carry an interactive_command.** `claude`, `codex`, `agy` and `kimi` ship an `interactive_command`. An
+`interactive_command` is what makes a provider eligible for **pane-mode dispatch**. The open question
+per provider is **first-run behavior**, not prompt grammar. For agy, it gates a fresh workspace behind an
+interactive **trust prompt** even under `--dangerously-skip-permissions`, which the readiness gate
+handles as a standard judgment round. A user who wants an interactive provider session — or pane workers
+for a custom provider they define — adds `providers.<name>.interactive_command` in their own config.
 
 **kimi's equivalent probe closed** (2026-08-10, kimi 0.34.0), which is why it ships one. Its two
 unknowns were answered rather than designed around: the first-run `Trust this folder?` wall is an
@@ -443,7 +439,8 @@ providers:
   #   headless_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
   #   profiles:
   #     default: { model: <codex-model-id>, effort: high }   # e.g. — pin a newer model here
-  # agy:                                                              # dispatch-only: no interactive_command
+  # agy:
+  #   interactive_command: 'agy --dangerously-skip-permissions --model {model}'
   #   headless_command: 'sh -c ''agy … --model {model} -p "$(cat)"'''   # no {effort} flag; nested shell so $(cat) reads the piped prompt
   #   profiles:
   #     default: { model: <agy-model-id> }  # e.g. — no effort: the reasoning level rides the ID suffix

@@ -559,31 +559,6 @@ func TestAgentProviderBuiltinCodexNoConfig(t *testing.T) {
 	}
 }
 
-// TestAgentProviderDispatchOnlyBuiltInsError: `fab agent` opens an interactive
-// SESSION, so the one dispatch-only built-in cannot serve it and says so with the
-// config-key hint — the same actionable error a user-defined dispatch-only provider
-// gets (TestAgentProviderNoInteractiveCommandErrors), reached here from the SHIPPED
-// table rather than project config.
-//
-// agy ships no interactive_command on purpose (260808-rpsr) — not because of prompt
-// grammar (fab appends nothing to the command and types a pane worker's pointer in
-// afterwards) but because its interactive FIRST-RUN behavior is unprobed against the
-// delivery choreography: it trust-prompts a fresh workspace even under
-// --dangerously-skip-permissions. Backlog [agik] owns that probe. The error is the
-// documented path to an interactive session: add providers.agy.interactive_command
-// yourself, accepting the unprobed-provider caveat.
-func TestAgentProviderDispatchOnlyBuiltInsError(t *testing.T) {
-	agentTestRepo(t, "project:\n  name: test\n")
-
-	_, err := runAgentPrint(t, "--provider", "agy")
-	if err == nil {
-		t.Fatal("fab agent --provider agy must error — it is a dispatch-only built-in")
-	}
-	if !strings.Contains(err.Error(), "providers.agy.interactive_command") {
-		t.Errorf("agy error = %q, want the interactive_command config-key hint", err.Error())
-	}
-}
-
 // TestAgentProviderBuiltinKimiNoConfig is the other half of the same rule since
 // 260810-ki9v: kimi's interactive first run and input echo WERE probed (2026-08-10,
 // kimi 0.34.0), so it ships an interactive_command and `fab agent --provider kimi`

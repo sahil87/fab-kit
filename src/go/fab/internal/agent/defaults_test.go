@@ -144,22 +144,17 @@ func TestDefaultsFileProviders(t *testing.T) {
 		}
 	}
 
-	// The mirror image: claude, codex and kimi ship an interactive_command; agy is the
-	// one DISPATCH-ONLY built-in, and its absence is load-bearing rather than an
-	// omission — an interactive_command makes a provider eligible for pane-mode
-	// dispatch, and agy's interactive FIRST RUN has not been probed against the
-	// pane-delivery choreography (it trust-prompts a fresh workspace even under
-	// --dangerously-skip-permissions, and worktree-per-change makes every dispatch
-	// one). Backlog [agik] owns that probe and agy's roster flip. Asserting the
-	// absence is what stops a well-meaning interactive_command from landing and
-	// parking every tmux-dispatched stage at a first-run wall.
-	for _, name := range []string{DefaultProviderName, providerCodex, providerKimi} {
+	// All four built-in providers ship an interactive_command, making them eligible
+	// for pane-mode dispatch.
+	for _, name := range []string{DefaultProviderName, providerCodex, providerAgy, providerKimi} {
 		if cfg.Providers[name].InteractiveCommand == "" {
 			t.Errorf("defaults.yaml providers.%s has no interactive_command", name)
 		}
 	}
-	if got := cfg.Providers[providerAgy].InteractiveCommand; got != "" {
-		t.Errorf("defaults.yaml providers.agy.interactive_command = %q, want absent — agy's interactive first run is unprobed against the pane-delivery choreography, so shipping one would select pane dispatch and park the stage (backlog [agik])", got)
+
+	// agy's and kimi's are pinned by VALUE, not merely by presence: they were probed live.
+	if got, want := cfg.Providers[providerAgy].InteractiveCommand, "agy --dangerously-skip-permissions --model {model}"; got != want {
+		t.Errorf("defaults.yaml providers.agy.interactive_command = %q, want %q (the probed invocation)", got, want)
 	}
 
 	// kimi's is pinned by VALUE, not merely by presence: it was probed live
@@ -254,8 +249,7 @@ func TestPackageTablesMatchDefaultsFile(t *testing.T) {
 		{"DefaultHeadlessCommand", DefaultHeadlessCommand, cfg.Providers[DefaultProviderName].HeadlessCommand},
 		{"DefaultCodexInteractiveCommand", DefaultCodexInteractiveCommand, cfg.Providers[providerCodex].InteractiveCommand},
 		{"DefaultCodexHeadlessCommand", DefaultCodexHeadlessCommand, cfg.Providers[providerCodex].HeadlessCommand},
-		// agy is dispatch-only, so it exports no session-command var — its
-		// interactive_command ABSENCE is asserted in TestDefaultsFileProviders.
+		{"DefaultAgyInteractiveCommand", DefaultAgyInteractiveCommand, cfg.Providers[providerAgy].InteractiveCommand},
 		{"DefaultAgyHeadlessCommand", DefaultAgyHeadlessCommand, cfg.Providers[providerAgy].HeadlessCommand},
 		{"DefaultKimiInteractiveCommand", DefaultKimiInteractiveCommand, cfg.Providers[providerKimi].InteractiveCommand},
 		{"DefaultKimiHeadlessCommand", DefaultKimiHeadlessCommand, cfg.Providers[providerKimi].HeadlessCommand},

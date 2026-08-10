@@ -111,7 +111,7 @@ Capability fields are never merged or substituted for one another. Their presenc
 |----------|-------------------|----------|--------------------|------------|
 | `claude` | templated default | `true` | `claude -p --dangerously-skip-permissions --model {model} --effort {effort}` | all six roles |
 | `codex` | `codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}` | absent | `codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}` | sparse — `default`, `doing`, `review`, `fast` |
-| `agy` | **none** → dispatch-only (§ The dispatch-only built-in) | absent | `sh -c 'agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'` | sparse — `default`, `fast` (model only) |
+| `agy` | `agy --dangerously-skip-permissions --model {model}` | absent | `sh -c 'agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'` | sparse — `default`, `fast` (model only) |
 | `kimi` | `kimi --auto -m {model}` | absent | `sh -c 'kimi -m {model} -p "$(cat)"'` | **none** — deliberate |
 
 **claude, codex and agy ship per-role fills**, so naming one of them on a depth knob is a complete configuration: `agent.workers: codex` resolves a model suited to each role, and **role differentiation survives the provider swap** (apply/review run at codex's higher effort while ship takes its cheaper `fast` model). Their non-claude maps are **sparse** — a role absent from a map resolves that provider's `default` entry — and the merge is per **field**, so a codex row carrying `effort` only takes its model from `default`.
@@ -141,7 +141,7 @@ The non-claude built-ins run **full-auto**, because a stage worker is unattended
 
 **Prompt delivery differs per CLI, and the grammar absorbs the difference.** `fab dispatch` always pipes the stage prompt to the command's **stdin**. codex reads stdin directly via its `exec` subcommand, as does claude's headless command through `-p`. agy and kimi do not — their `-p` takes the prompt as an **argument** and ignores stdin — so both dispatch commands nest a shell: `sh -c '<cli> … -p "$(cat)"'`. The nesting is load-bearing, not stylistic (§ Design Decisions → "Nested-Shell `$(cat)` Idiom"). agy's command additionally raises `--print-timeout` to `120m`, since that CLI's 5-minute default would kill a long stage worker.
 
-**The dispatch-only built-in.** `agy` alone carries **no `interactive_command`**, the mirror image of claude carrying no `headless_command`. What an `interactive_command` confers is eligibility for **pane-mode dispatch**, where fab types a one-line pointer to the stage prompt file into the pane and verifies that it landed — so what decides the field is not the CLI's argument grammar but its **first-run behavior and input echo**. agy fails on the first: it gates a fresh workspace behind an interactive trust prompt even under `--dangerously-skip-permissions`, and worktree-per-change makes every dispatch a fresh workspace, so a pane worker parks before it can be delivered to. Backlog `[agik]` owns that probe and agy's roster flip. With no `interactive_command`, automatic selection skips the pane rung and descends to headless (`descended: pane unavailable: no interactive_command` — [dispatch.md](/runtime/dispatch.md)) and `fab dispatch open` hard-errors with the `providers.agy.interactive_command` hint. A user who wants an interactive agy session may add one in their own config.
+**First-run behavior and input echo.** What an `interactive_command` confers is eligibility for **pane-mode dispatch**, where fab types a one-line pointer to the stage prompt file into the pane and verifies that it landed — so what decides the field is not the CLI's argument grammar but its **first-run behavior and input echo**. agy gates a fresh workspace behind an interactive trust prompt even under `--dangerously-skip-permissions`, which the readiness gate handles as a standard judgment round. A user who wants pane workers for a custom provider they define adds `providers.<name>.interactive_command` in their own config.
 
 **kimi is pane-capable**, shipping `kimi --auto -m {model}` alongside its headless command, because both halves of that same question were answered against kimi 0.34.0 (2026-08-10):
 
@@ -175,13 +175,6 @@ kimi has no interactive-initial-prompt flag — its `-p` is the non-interactive 
 - **WHEN** `fab dispatch open` runs for a stage
 - **THEN** the pane opens on `kimi --auto` — the empty `{model}` dropping the `-m` pair — and the readiness gate answers the first-run trust wall before `deliver` types the pointer
 - **AND** `fab agent --provider kimi --print` prints that same composed command instead of erroring on a missing `interactive_command`
-
-#### Scenario: the dispatch-only built-in inside tmux descends to headless
-
-- **GIVEN** `agent.workers: agy` and a reachable tmux server
-- **WHEN** `fab dispatch start` runs in auto mode
-- **THEN** automatic selection skips the pane rung and lands on headless, reporting `mode: headless (descended: pane unavailable: no interactive_command)` — no pane worker is spawned and nothing orphans
-- **AND** `fab dispatch open` instead exits non-zero naming `providers.agy.interactive_command`, persisting no dispatch record
 
 #### Scenario: naming a built-in provider with no `providers:` block
 
@@ -482,12 +475,11 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 **Rejected**: Passing `-p` with no argument (both CLIs error: `flag needs an argument: -p`); teaching `fab dispatch` a per-provider prompt-delivery mode (provider mechanics belong in the provider's command string).
 *Introduced by*: 260808-rpsr-remove-gemini-add-agy-kimi
 
-### agy Is Dispatch-Only Until Its Interactive First Run Is Probed
-**Decision**: The agy built-in carries a `headless_command` and deliberately no `interactive_command`, the mirror image of claude carrying no `headless_command`. What gates its roster flip is a **probe of first-run behavior and input echo**, owned by backlog `[agik]`.
-**Why**: An `interactive_command` is what makes a provider **pane-eligible**, and a pane worker is delivered to by typing — so what matters is whether the CLI can be *reached at the keyboard* on a fresh workspace, not whether it accepts a positional prompt. agy fails that: it gates a fresh workspace behind an interactive trust prompt even under `--dangerously-skip-permissions`, and worktree-per-change makes every dispatch a fresh workspace, so a pane worker parks before it can be delivered to. Withholding the field makes automatic resolution skip the pane rung and descend to headless (`descended: pane unavailable: no interactive_command`) and makes `fab dispatch open` fail loudly with the config-key hint, which is the honest state until the probe says otherwise.
-**Rejected**: Shipping the interactive grammar ahead of the probe and documenting the hazard (a parked worker is a per-stage stall, exactly what the descent exists to prevent); adding a per-provider "pane-ineligible" config flag (the absent `interactive_command` already encodes it, and the no-cross-fallback rule already reads it correctly); a provider-specific trust-store pre-seed in Go (undocumented-format provider machinery inside a provider-neutral binary — see [dispatch.md](/runtime/dispatch.md) § First-run walls).
-**Known consequence**: `fab agent --provider agy` and `fab operator` on agy need an `interactive_command` the user adds themselves — which also re-enables pane eligibility for it ahead of the probe.
-*Introduced by*: 260808-rpsr-remove-gemini-add-agy-kimi; *Updated by*: 260809-3oz7-pane-readiness-gate-sendkeys-delivery, 260810-ki9v-kimi-pane-enablement
+### agy Ships the Probed `agy --dangerously-skip-permissions --model {model}` Verbatim
+**Decision**: The agy built-in carries both `interactive_command` and `headless_command`. Its interactive grammar is `agy --dangerously-skip-permissions --model {model}`.
+**Why**: An `interactive_command` makes a provider pane-eligible. agy's interactive first-run behavior (a trust prompt on a fresh workspace) is cleared by an ordinary readiness-gate judgment round, exactly like kimi's, meaning it can be reached at the keyboard automatically. The command uses the identical `--dangerously-skip-permissions` posture as its headless command, and no `{effort}` is used because agy's model IDs embed the reasoning level.
+**Rejected**: Withholding the `interactive_command` (unnecessary since the readiness gate clears the wall); adding a per-provider trust-store pre-seed in Go (the gate handles it cleanly without coupling fab to agy's internal paths).
+*Introduced by*: 260808-rpsr-remove-gemini-add-agy-kimi; *Updated by*: 260809-3oz7-pane-readiness-gate-sendkeys-delivery, 260810-ki9v-kimi-pane-enablement, 260810-ttff-agy-interactive-pane-capability
 
 ### kimi Ships the Probed `kimi --auto -m {model}` Verbatim
 **Decision**: kimi's built-in `interactive_command` is exactly `kimi --auto -m {model}` — the invocation probed live against the CLI (2026-08-10, kimi 0.34.0) — and the value is pinned by a test rather than merely asserted present.

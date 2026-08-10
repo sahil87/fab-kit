@@ -593,44 +593,6 @@ func TestDispatchStart_PanePreferenceNoInteractiveCommand_Integration(t *testing
 	}
 }
 
-// TestModeCommand_DispatchOnlyBuiltInsAreHeadlessOnly ties the two shape-(b) tests
-// above to the BUILT-IN provider that actually relies on them. Those tests use a
-// synthetic `cli` provider with an empty interactive_command; this one asserts that
-// agy — resolved from the shipped defaults with no providers: config at all —
-// genuinely presents that shape at the seam `dispatch start` branches on.
-//
-// agy's interactive first run has not been probed against the delivery choreography
-// (it trust-prompts a fresh workspace even under --dangerously-skip-permissions,
-// backlog [agik]), so shipping an interactive_command would make resolution inside
-// tmux SELECT pane and park every stage before the readiness gate could deliver to
-// it. Shipping none is what routes it to the documented descent
-// (`descended: pane unavailable: no interactive_command`) while an explicit
-// `fab dispatch open` still hard-errors actionably.
-//
-// modeCommand is the composition seam both modes go through, so exercising it
-// needs no tmux server — validatePane raises the identical missingCommandError.
-func TestModeCommand_DispatchOnlyBuiltInsAreHeadlessOnly(t *testing.T) {
-	prov, ok := agent.ResolveProvider(nil, "agy")
-	if !ok {
-		t.Fatal("built-in agy provider must resolve with no config")
-	}
-
-	// Headless composes fine — the mode this provider exists for.
-	if _, err := modeCommand(dispatch.ModeHeadless, prov, "apply", "agy"); err != nil {
-		t.Errorf("headless dispatch for the agy built-in must compose: %v", err)
-	}
-
-	// Pane cannot, and says so actionably: an empty interactive_command is exactly
-	// the condition validatePane turns into the descent to headless.
-	_, err := modeCommand(dispatch.ModePane, prov, "apply", "agy")
-	if err == nil {
-		t.Fatal("pane dispatch for the agy built-in must error — it ships no interactive_command")
-	}
-	if !strings.Contains(err.Error(), "providers.agy.interactive_command") {
-		t.Errorf("agy pane error = %q, want the interactive_command config-key hint", err.Error())
-	}
-}
-
 // TestModeCommand_KimiComposesBothModes is the flip side since 260810-ki9v: kimi's
 // interactive first run and input echo WERE probed (2026-08-10, kimi 0.34.0 — the
 // trust wall is an ordinary readiness-gate judgment round, and its side-bordered

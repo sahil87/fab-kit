@@ -119,12 +119,12 @@ func TestPaneOpen_ResolutionErrors(t *testing.T) {
 	})
 
 	t.Run("provider without interactive_command is a hard error", func(t *testing.T) {
-		chdirTestEnv(t, t.TempDir(), nil)
-		_, _, err := runPaneCmd(t, "open", "--provider", "agy")
+		agentTestRepo(t, "project:\n  name: test\nproviders:\n  no_pane:\n    headless_command: 'sh -c exit'\n")
+		_, _, err := runPaneCmd(t, "open", "--provider", "no_pane")
 		if err == nil {
 			t.Fatal("a provider without interactive_command must fail")
 		}
-		want := `provider "agy" has no interactive_command; configure providers.agy.interactive_command`
+		want := `provider "no_pane" has no interactive_command; configure providers.no_pane.interactive_command`
 		if err.Error() != want {
 			t.Errorf("error = %q, want exactly %q", err, want)
 		}

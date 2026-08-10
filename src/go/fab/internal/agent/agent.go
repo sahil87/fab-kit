@@ -172,17 +172,15 @@ var DefaultHeadlessCommand = defaultProviders[DefaultProviderName].HeadlessComma
 // All four providers carry a headless_command. Only claude also declares native
 // capability; dispatch.mode resolves the adapter independently of command presence.
 //
-// codex and kimi carry a non-claude INTERACTIVE command; agy deliberately ships
-// none, so it has no pane capability and mode resolution lands its stages on
-// headless. The field itself is pure launch grammar — fab appends nothing to it
-// and delivers a pane worker's prompt afterwards through the verified send-keys
-// choreography — so what is probed per provider is FIRST-RUN behavior and input
-// echo. agy trust-prompts a fresh workspace even under
-// --dangerously-skip-permissions, which parks a worker before the gate can
-// deliver to it; backlog [agik] owns that probe and agy's roster flip. kimi's
-// probe is done (2026-08-10): its trust wall is an ordinary judgment round and
-// its side-bordered input box verifies under the gate's box-drawing-tolerant
-// squeeze. See defaults.yaml's providers-block note.
+// codex, agy, and kimi carry a non-claude INTERACTIVE command. The field itself is pure
+// launch grammar — fab appends nothing to it and delivers a pane worker's prompt
+// afterwards through the verified send-keys choreography — so what is probed per
+// provider is FIRST-RUN behavior and input echo. agy trust-prompts a fresh workspace
+// initially, which parks a worker before the gate can deliver to it; this is handled
+// as an ordinary readiness-gate judgment round. kimi's probe is done (2026-08-10):
+// its trust wall is an ordinary judgment round and its side-bordered input box
+// verifies under the gate's box-drawing-tolerant squeeze. See defaults.yaml's
+// providers-block note.
 //
 // These are the canonical names internal/configref interpolates into the rendered
 // reference, so the reference text carries no literal copy (the same
@@ -195,13 +193,15 @@ var (
 	// SUBCOMMAND (not a flag) and reads the prompt from stdin, which is where
 	// `fab dispatch` pipes it.
 	DefaultCodexHeadlessCommand = defaultProviders[providerCodex].HeadlessCommand
+	// DefaultAgyInteractiveCommand opens an interactive agy TUI session. First-run
+	// trust wall is handled via readiness gate.
+	DefaultAgyInteractiveCommand = defaultProviders[providerAgy].InteractiveCommand
 	// DefaultAgyHeadlessCommand runs one headless agy task. `agy -p` takes the
 	// prompt as an ARGUMENT and ignores stdin, so the command NESTS a shell:
 	// POSIX expands `$(cat)` before applying `fab dispatch`'s stdin redirect, so
 	// the inner sh's stdin is the prompt. It carries NO {effort} placeholder —
 	// agy's model IDs embed the reasoning level (gemini-3.1-pro-high), so a
-	// separate effort flag would fight the suffix. agy ships no interactive command
-	// (see the note above), so this is its only invocation grammar.
+	// separate effort flag would fight the suffix.
 	DefaultAgyHeadlessCommand = defaultProviders[providerAgy].HeadlessCommand
 	// DefaultKimiHeadlessCommand runs one headless kimi task. Same nested-shell
 	// stdin idiom as agy, and deliberately NO approval flag: `kimi -p` already
@@ -233,7 +233,7 @@ type Profile struct {
 //     role absent from the map resolves that provider's `default` entry). Naming it
 //     resolves with zero providers config; it declares no native capability, so
 //     mode resolution runs its stages on the CLI adapters.
-//   - agy — a headless command ONLY (no interactive command, so no pane capability),
+//   - agy — interactive AND headless commands,
 //     plus its own SPARSE per-role fills under the same
 //     absent-role-falls-back-to-`default` rule. Naming it resolves with zero
 //     providers config; its stages land on headless.
