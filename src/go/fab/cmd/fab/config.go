@@ -205,17 +205,16 @@ func configShowCmd() *cobra.Command {
 			"(fab/project/config.yaml) > built-in " +
 			"defaults — and prints it. Each leaf takes the value of the highest tier " +
 			"that defines it NON-EMPTY: a null, empty string, empty list, or empty map " +
-			"falls through to the tier below instead of shadowing it. Without a flag, " +
-			"prints the merged config of the environment and two FILES as YAML; " +
-			"built-in defaults are NOT materialized here — they apply at point-of-use " +
-			"and are only surfaced explicitly by --origin. With --origin, prints each " +
-			"field's effective value and its provenance (environment variable / system " +
-			"path / project path / default), composing the built-in defaults into the " +
-			"listing and drilling down per-key for map-valued fields (agent.profiles, " +
-			"providers). With a KEY and --origin, prints the key's full stack instead — " +
+			"falls through to the tier below instead of shadowing it. Without --origin, " +
+			"prints the fully composed config as YAML, or the selected scalar, list, or " +
+			"map when a key is supplied. With --origin, prints each field's effective " +
+			"value and its provenance (environment variable / system path / project " +
+			"path / default), drilling down per-key for map-valued fields " +
+			"(agent.profiles, providers). With a KEY and --origin, prints the key's " +
+			"full stack instead — " +
 			"one line per tier that defines it, the winner marked (effective) and the " +
 			"rest (shadowed). Pure query — writes no file.",
-		Example: `  # Print the effective (post-cascade) config
+		Example: `  # Print the fully composed effective config (built-in defaults included)
   fab config show
 
   # Annotate each field with its provenance (environment / system / project / default)
@@ -237,13 +236,9 @@ func configShowCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			// Bare `show` prints the file+environment merge and never consults the
-			// defaults tier, so it does not pay for the projection either.
-			var defaults map[string]any
-			if withOrigin || len(args) == 1 {
-				if defaults, err = readModelDefaults(layers); err != nil {
-					return err
-				}
+			defaults, err := readModelDefaults(layers)
+			if err != nil {
+				return err
 			}
 			if len(args) == 1 {
 				out, err := renderShowKey(layers, defaults, args[0], withOrigin)
@@ -384,14 +379,13 @@ func flowStyle(node *yaml.Node) {
 	}
 }
 
-// renderShow renders the effective config, plain (merged YAML) or with per-field
-// provenance. It is factored out of the cobra RunE so it is unit-testable.
+// renderShow renders the fully composed effective config, plain (merged YAML) or
+// with per-field provenance. It is factored out of the cobra RunE so it is
+// unit-testable.
 func renderShow(layers *config.Layers, defaults map[string]any, withOrigin bool) (string, error) {
 	if !withOrigin {
-		if len(layers.Effective) == 0 {
-			return "# (no effective config — no project or system config.yaml found)\n", nil
-		}
-		data, err := yaml.Marshal(layers.Effective)
+		effective := config.MergeLayers(defaults, layers.Effective)
+		data, err := yaml.Marshal(effective)
 		if err != nil {
 			return "", err
 		}
