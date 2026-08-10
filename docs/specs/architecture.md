@@ -236,10 +236,8 @@ checklist:
 # against kit-release refreshes — prefer a single-field override.
 # Non-claude fills are refreshed at kit-release cadence and pass through unvalidated —
 # pin a newer model with providers.<name>.profiles.<role>.model. Claude ships
-# session, native, and headless capabilities; codex and kimi ship both command fields
-# without native capability; agy ships headless capability ONLY (no
-# interactive_command — its interactive first-run behavior is unprobed against the
-# pane readiness gate; backlog [agik]). Under the default mode, claude resolves native
+# session, native, and headless capabilities; codex, agy, and kimi ship both command
+# fields without native capability. Under the default mode, claude resolves native
 # while the non-claude built-ins descend to headless.
 # (Automated PR reviewer toggles moved to code-review.md § Review Tools — absent = enabled.)
 # Per-provider notes (kept out of the blocks below so uncommenting a whole block
@@ -250,15 +248,12 @@ checklist:
 # approvals. kimi's dispatch form carries no approval flag at all: kimi -p already
 # auto-approves tools and errors when combined with --yolo/--auto, so its full-auto
 # flag rides its interactive_command instead.
-# claude, codex and kimi ship an interactive_command — agy is the one DISPATCH-ONLY
-# built-in. An interactive_command also confers PANE-mode eligibility, and it is pure
-# launch grammar: fab appends nothing to it, and a pane worker's prompt is typed in
-# afterwards by `fab dispatch deliver`. What is unprobed for agy is FIRST-RUN behavior
-# — it trust-prompts a fresh workspace even under --dangerously-skip-permissions, and
-# worktree-per-change makes every dispatch one — so with none, automatic resolution
-# skips the pane rung and descends to headless and an explicit `fab dispatch open`
-# hard-errors. Add providers.agy.interactive_command yourself to opt in ahead of
-# backlog [agik]'s probe. kimi's probe is done (2026-08-10): its trust wall is one
+# All four built-ins ship an interactive_command and are PANE-mode eligible. agy's is
+# `agy --dangerously-skip-permissions --model {model}`. Its fresh-workspace trust
+# prompt is an ordinary readiness-gate judgment round whose exact workspace path may
+# be pre-seeded in `trustedWorkspaces` in ~/.gemini/antigravity-cli/settings.json;
+# fab never writes the trust store. Backlog [agik] retains the live open → ready →
+# deliver verification after quota reset. kimi's probe is done (2026-08-10): its wall is one
 # readiness-gate judgment round and its side-bordered input box verifies under
 # delivery's box-drawing-tolerant echo check, so it ships one and is pane-capable.
 # Codex's -m takes a concrete model SLUG, so its shipped fills are pinned IDs.
@@ -281,7 +276,8 @@ providers:
     headless_command: codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
     profiles:                            # sparse — run `fab config explain` for the live values
       default: { model: <model-id>, effort: <effort> }   # example: shape only
-  agy:                                   # dispatch-only: no interactive_command (see below)
+  agy:
+    interactive_command: agy --dangerously-skip-permissions --model {model}   # no {effort}: reasoning rides the model suffix
     headless_command: sh -c 'agy … --model {model} -p "$(cat)"'   # no {effort} flag; nested shell so $(cat) reads the piped prompt
     profiles:                            # model-only: the reasoning level rides the ID suffix
       default: { model: <model-id> }     # example: shape only

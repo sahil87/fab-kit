@@ -204,8 +204,8 @@ agent:
 	if err != nil {
 		t.Fatalf("agent --print: %v", err)
 	}
-	// The command grammar comes from the codex BUILT-IN (no interactive_command
-	// configured), the fill from the provider entry.
+	// The command grammar is inherited from the codex BUILT-IN; the project row
+	// overrides only its deprecated flat fill.
 	want := "codex --dangerously-bypass-approvals-and-sandbox -m gpt-5.3-codex -c model_reasoning_effort=high\n"
 	if out != want {
 		t.Errorf("output = %q, want the built-in codex grammar filled from providers.codex %q", out, want)
@@ -269,9 +269,9 @@ func TestAgentPrintUnknownRoleErrors(t *testing.T) {
 }
 
 // TestAgentPrintNoInteractiveCommandErrors: a resolved provider with no
-// interactive_command errors with a config-key hint. The fixture uses a project-only
-// provider (`myagent`); the built-in agy half of the same rule is
-// TestAgentProviderDispatchOnlyBuiltInsError.
+// interactive_command errors with a config-key hint. The fixture is a project-defined
+// headless-only provider (`myagent`); every built-in ships interactive launch grammar.
+// TestAgentProviderNoInteractiveCommandErrors covers the provider-addressed path.
 func TestAgentPrintNoInteractiveCommandErrors(t *testing.T) {
 	agentTestRepo(t, `providers:
   myagent:
@@ -524,9 +524,8 @@ func TestAgentUnknownProviderNamesAvailable(t *testing.T) {
 
 // TestAgentProviderNoInteractiveCommandErrors: a provider that resolves but carries no
 // interactive_command errors with the config-key hint (the provider-path counterpart of
-// TestAgentPrintNoInteractiveCommandErrors). Uses a project-defined dispatch-only
-// provider; the built-in agy half of the same rule is
-// TestAgentProviderDispatchOnlyBuiltInsError.
+// TestAgentPrintNoInteractiveCommandErrors). Uses a project-defined headless-only
+// provider; every built-in ships interactive launch grammar.
 func TestAgentProviderNoInteractiveCommandErrors(t *testing.T) {
 	agentTestRepo(t, `providers:
   myagent:
@@ -559,28 +558,19 @@ func TestAgentProviderBuiltinCodexNoConfig(t *testing.T) {
 	}
 }
 
-// TestAgentProviderDispatchOnlyBuiltInsError: `fab agent` opens an interactive
-// SESSION, so the one dispatch-only built-in cannot serve it and says so with the
-// config-key hint — the same actionable error a user-defined dispatch-only provider
-// gets (TestAgentProviderNoInteractiveCommandErrors), reached here from the SHIPPED
-// table rather than project config.
-//
-// agy ships no interactive_command on purpose (260808-rpsr) — not because of prompt
-// grammar (fab appends nothing to the command and types a pane worker's pointer in
-// afterwards) but because its interactive FIRST-RUN behavior is unprobed against the
-// delivery choreography: it trust-prompts a fresh workspace even under
-// --dangerously-skip-permissions. Backlog [agik] owns that probe. The error is the
-// documented path to an interactive session: add providers.agy.interactive_command
-// yourself, accepting the unprobed-provider caveat.
-func TestAgentProviderDispatchOnlyBuiltInsError(t *testing.T) {
+// TestAgentProviderBuiltinAgyNoConfig: agy ships pane launch grammar, so the direct
+// provider path works with no providers: block. With no --model the composition
+// drops the model pair while preserving the fixed full-auto flag. A fresh
+// workspace's trust wall is handled after launch by the generic readiness gate.
+func TestAgentProviderBuiltinAgyNoConfig(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 
-	_, err := runAgentPrint(t, "--provider", "agy")
-	if err == nil {
-		t.Fatal("fab agent --provider agy must error — it is a dispatch-only built-in")
+	out, err := runAgentPrint(t, "--provider", "agy")
+	if err != nil {
+		t.Fatalf("agent --provider agy --print: %v", err)
 	}
-	if !strings.Contains(err.Error(), "providers.agy.interactive_command") {
-		t.Errorf("agy error = %q, want the interactive_command config-key hint", err.Error())
+	if out != "agy --dangerously-skip-permissions\n" {
+		t.Errorf("output = %q, want the model-free built-in agy grammar with its full-auto flag", out)
 	}
 }
 

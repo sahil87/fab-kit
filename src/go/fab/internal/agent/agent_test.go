@@ -1044,24 +1044,12 @@ func TestResolveProvider(t *testing.T) {
 // codex and agy ship per-role fills so a knob pointed at them resolves a real model
 // per role, while kimi ships none on purpose (its -m takes a user-config alias).
 //
-// An empty `session` likewise ASSERTS the absence of an interactive_command. agy is
-// the one DISPATCH-ONLY built-in: an interactive_command makes a provider eligible
-// for pane-mode dispatch, and what is unprobed for agy is its interactive FIRST-RUN
-// behavior — not its prompt grammar, since fab appends nothing to the command and
-// types a pane worker's pointer in afterwards. agy gates a fresh workspace behind a
-// trust prompt even under --dangerously-skip-permissions (and worktree-per-change
-// makes every dispatch a fresh workspace), which parks a worker before the readiness
-// gate can deliver to it. Backlog [agik] owns that probe and agy's roster flip. With
-// none, mode resolution descends to headless instead of parking a pane worker.
-//
-// kimi's probe is done (2026-08-10, kimi 0.34.0): its trust wall is an ordinary
-// readiness-gate judgment round and its side-bordered input box verifies under the
-// gate's box-drawing-tolerant squeeze, so it ships a session command and is
-// pane-capable.
+// Every built-in carries interactive launch grammar. Provider first-run walls do
+// not remove pane capability: the generic readiness gate classifies them and gives
+// the dispatcher bounded judgment rounds before prompt delivery.
 func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 	cases := []struct {
-		name string
-		// An empty `session` means the built-in must ship NO interactive_command.
+		name              string
 		session, dispatch string
 		// sessionBypass / dispatchBypass are the full-auto grammar each FORM must
 		// carry, checked only when that form exists. kimi's dispatch form is
@@ -1078,7 +1066,8 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 			wantFills:      true,
 		},
 		{
-			name: "agy", session: "", dispatch: DefaultAgyHeadlessCommand,
+			name: "agy", session: DefaultAgyInteractiveCommand, dispatch: DefaultAgyHeadlessCommand,
+			sessionBypass:  "--dangerously-skip-permissions",
 			dispatchBypass: "--dangerously-skip-permissions",
 			wantFills:      true,
 		},
@@ -1097,11 +1086,7 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 			t.Fatalf("built-in %s provider must resolve with no config", c.name)
 		}
 		if prov.InteractiveCommand != c.session {
-			if c.session == "" {
-				t.Errorf("%s.InteractiveCommand = %q, want absent — %s's interactive first run is unprobed against the pane-delivery choreography, so shipping one would select pane dispatch and park the stage (backlog [agik])", c.name, prov.InteractiveCommand, c.name)
-			} else {
-				t.Errorf("%s.InteractiveCommand = %q, want %q", c.name, prov.InteractiveCommand, c.session)
-			}
+			t.Errorf("%s.InteractiveCommand = %q, want %q", c.name, prov.InteractiveCommand, c.session)
 		}
 		if prov.HeadlessCommand != c.dispatch {
 			t.Errorf("%s.HeadlessCommand = %q, want %q", c.name, prov.HeadlessCommand, c.dispatch)
@@ -1127,10 +1112,12 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 		}
 	}
 
-	// The agy grammar deliberately omits {effort}: its model IDs embed the reasoning
+	// Both agy grammars deliberately omit {effort}: its model IDs embed the reasoning
 	// level as an ID suffix, so a separate effort flag would fight the suffix.
-	if strings.Contains(DefaultAgyHeadlessCommand, "{effort}") {
-		t.Error("the agy built-in must carry no {effort} placeholder (its model IDs embed the reasoning level)")
+	for _, command := range []string{DefaultAgyInteractiveCommand, DefaultAgyHeadlessCommand} {
+		if strings.Contains(command, "{effort}") {
+			t.Errorf("the agy built-in command %q must carry no {effort} placeholder (its model IDs embed the reasoning level)", command)
+		}
 	}
 
 	// Both new dispatch commands NEST a shell around `-p "$(cat)"`. Neither CLI
@@ -1157,17 +1144,15 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 		}
 	}
 
-	// The dispatch-only posture at the seam that consumes it: a provider with no
-	// interactive_command is INELIGIBLE for pane-mode dispatch, which is what makes
-	// auto-mode soft-fall back to headless instead of spawning a pane worker that
-	// never receives its prompt. Asserting it here — over the same resolved
-	// providers the dispatcher reads — keeps the two in step.
+	// agy is pane-eligible at the same resolved-provider seam the dispatcher reads.
+	// Its trust prompt is a readiness-gate concern, not a reason to remove launch
+	// grammar from the provider.
 	agy, ok := ResolveProvider(nil, "agy")
 	if !ok {
 		t.Fatalf("built-in agy provider must resolve with no config")
 	}
-	if agy.InteractiveCommand != "" {
-		t.Errorf("agy must stay ineligible for pane dispatch (interactive_command = %q); with one, auto mode inside tmux selects pane instead of soft-falling back to headless", agy.InteractiveCommand)
+	if agy.InteractiveCommand != DefaultAgyInteractiveCommand {
+		t.Errorf("agy.InteractiveCommand = %q, want pane-capable grammar %q", agy.InteractiveCommand, DefaultAgyInteractiveCommand)
 	}
 
 	// kimi is the same seam read the other way: shipping an interactive_command is

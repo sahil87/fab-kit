@@ -104,8 +104,8 @@ func TestPaneOpenCmd(t *testing.T) {
 // unknown provider is the shared lookup failure naming the available providers,
 // and a provider with no interactive_command is a hard error naming the
 // provider. Both are RunE errors raised BEFORE any tmux call, so neither needs
-// a server — and both run outside a fab repo, where the empty config still
-// yields the built-in provider table.
+// a server. The unknown-provider case runs outside a fab repo; the
+// missing-interactive case creates a project-defined headless-only provider.
 func TestPaneOpen_ResolutionErrors(t *testing.T) {
 	t.Run("unknown provider names the available providers", func(t *testing.T) {
 		chdirTestEnv(t, t.TempDir(), nil)
@@ -119,16 +119,41 @@ func TestPaneOpen_ResolutionErrors(t *testing.T) {
 	})
 
 	t.Run("provider without interactive_command is a hard error", func(t *testing.T) {
-		chdirTestEnv(t, t.TempDir(), nil)
-		_, _, err := runPaneCmd(t, "open", "--provider", "agy")
+		agentTestRepo(t, `project:
+  name: test
+providers:
+  myagent:
+    headless_command: "myagent run"
+`)
+		_, _, err := runPaneCmd(t, "open", "--provider", "myagent")
 		if err == nil {
 			t.Fatal("a provider without interactive_command must fail")
 		}
-		want := `provider "agy" has no interactive_command; configure providers.agy.interactive_command`
+		want := `provider "myagent" has no interactive_command; configure providers.myagent.interactive_command`
 		if err.Error() != want {
 			t.Errorf("error = %q, want exactly %q", err, want)
 		}
 	})
+}
+
+func TestPaneOpen_BuiltInAgyIsPaneCapable(t *testing.T) {
+	argLog := paneOpenStubTmux(t)
+	chdirTestEnv(t, t.TempDir(), map[string]string{"TMUX": "", "TMUX_PANE": ""})
+
+	out, _, err := runPaneCmd(t, "open", "--provider", "agy")
+	if err != nil {
+		t.Fatalf("pane open --provider agy: %v", err)
+	}
+	if out != "opened pane %42 (provider agy)\n" {
+		t.Errorf("output = %q, want built-in agy pane-open success", out)
+	}
+	data, err := os.ReadFile(argLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "agy --dangerously-skip-permissions --model gemini-3.1-pro-high") {
+		t.Errorf("tmux argv = %q, want resolved built-in agy interactive grammar", data)
+	}
 }
 
 // TestPaneOpen_SpawnShapes drives the spawn end to end against a stub tmux:

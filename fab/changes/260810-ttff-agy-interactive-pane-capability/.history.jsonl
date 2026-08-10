@@ -1,3 +1,21 @@
 {"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-10T05:42:46Z"}
 {"args":"Ship agy interactive_command (pane capability) and reframe memory: interactive mode is universal, headless is the per-provider variable","cmd":"fab-new","event":"command","ts":"2026-08-10T05:42:46Z"}
 {"delta":"+4.8","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-08-10T05:45:11Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-10T05:56:35Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-10T05:57:01Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-10T05:59:32Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-10T06:25:48Z"}
+{"cmd":"_review","event":"command","ts":"2026-08-10T06:27:28Z"}
+{"event":"review","result":"failed","ts":"2026-08-10T06:34:15Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-10T06:34:15Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-10T06:37:04Z"}
+{"event":"review","result":"failed","ts":"2026-08-10T06:46:04Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-10T06:46:04Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-10T06:49:42Z"}
+{"cmd":"_review","event":"command","ts":"2026-08-10T06:51:17Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-10T06:57:52Z"}
+{"event":"review","result":"passed","ts":"2026-08-10T06:57:52Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-08-10T06:59:16Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-10T07:03:22Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-10T07:06:56Z"}
+{"event":"review","result":"passed","ts":"2026-08-10T07:11:20Z"}
