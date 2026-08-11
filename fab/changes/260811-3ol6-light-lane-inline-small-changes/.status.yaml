@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 8
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-08-11T11:33:53Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-11T11:38:58Z"}
     hydrate: {started_at: "2026-08-11T11:38:58Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-11T11:52:14Z"}
     ship: {started_at: "2026-08-11T11:52:14Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-11T11:58:34Z"}
-    review-pr: {started_at: "2026-08-11T11:58:34Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-08-11T11:58:34Z", driver: git-pr, iterations: 1, completed_at: "2026-08-11T12:11:36Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/587
 change_type_source: explicit
@@ -54,4 +54,4 @@ true_impact:
     computed_at_stage: ship
 summary: 'light lane: plan-time ≤5-task fork to inline execution for small changes in ff/fff; review stays dispatched; state machines unchanged'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-11T11:58:34Z
+last_updated: 2026-08-11T12:11:36Z
