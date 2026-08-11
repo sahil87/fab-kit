@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "The /fab-setup skill — structural bootstrap (doctor → config → constitution → fab sync), subcommands, config create-mode, and delegation to fab-kit sync's resolved kit source. Covers the seven-check doctor gate, fail-loud scaffold merge, gitignore-aware .gitignore dedup, and the read-only fab setup check setup-state doctor (probe set, exit contract, coexistence with fab doctor)."
+description: "The /fab-setup skill — structural bootstrap (doctor → config → constitution → fab sync), subcommands, config create-mode, and delegation to fab-kit sync's resolved kit source. Covers the seven-check doctor gate, fail-loud scaffold merge, gitignore-aware .gitignore dedup, the bare-fab-setup interactive wizard (probe-driven interview, --defaults/--project, surgical config-set writes), and the read-only fab setup check doctor (probe set, exit contract, coexistence with fab doctor)."
 ---
 # Setup
 
@@ -8,7 +8,7 @@ description: "The /fab-setup skill — structural bootstrap (doctor → config �
 
 ## Overview
 
-`/fab-setup` is the structural bootstrap skill that creates the `fab/` directory layout. It also provides subcommands for managing `config.yaml` and `constitution.md` (with built-in validation), and for running version migrations. It delegates structural setup to `fab-kit sync`, which reads from `FAB_KIT_PATH` when set and otherwise from the version cache. It does not handle memory hydration — that responsibility belongs to `/docs-hydrate-memory`. The fab-go binary separately ships a `fab setup check` setup-state doctor (§ Setup-State Doctor) — a distinct surface from this skill despite the shared `setup` name.
+`/fab-setup` is the structural bootstrap skill that creates the `fab/` directory layout. It also provides subcommands for managing `config.yaml` and `constitution.md` (with built-in validation), and for running version migrations. It delegates structural setup to `fab-kit sync`, which reads from `FAB_KIT_PATH` when set and otherwise from the version cache. It does not handle memory hydration — that responsibility belongs to `/docs-hydrate-memory`. The fab-go binary separately ships the `fab setup` command family — bare `fab setup` runs the interactive setup wizard (§ Interactive Setup Wizard) and `fab setup check` is the read-only setup-state doctor (§ Setup-State Doctor) — distinct surfaces from this skill despite the shared `setup` name.
 
 ## Requirements
 
@@ -16,9 +16,21 @@ description: "The /fab-setup skill — structural bootstrap (doctor → config �
 
 `/fab-setup` (bare bootstrap only) runs `fab doctor` as an early gate before creating any project artifacts. If doctor exits non-zero, setup stops immediately and surfaces the doctor output with fix hints. `FAB_KIT_PATH` provenance in normal doctor output is informational and does not alter the seven-check result or gate. This gate does not apply to subcommands (`config`, `constitution`, `migrations`).
 
+### Interactive Setup Wizard (bare `fab setup`)
+
+Bare `fab setup` runs an interactive interview layered over the setup-check probe. All detection comes from one `setupcheck.Run(setupCheckInput())` call — the same call `fab setup check` makes; the wizard adds no probing of its own and never asks a capability question, only preference questions over options pre-filtered to what the probe found. Flow: non-TTY guard → scope banner → 4-question default path → opt-in advanced section → diff-before-write summary → surgical writes.
+
+- **Scope targeting** — the banner names the write target before any question. The default target is the system tier (`~/.fab-kit/config.yaml`, machine-wide preferences); `--project` retargets to `fab/project/config.yaml` and errors outside a fab repo.
+- **Default path (4 questions)** — `agent.session` and `agent.workers` offer the probe roster filtered to detected providers (`ProviderProbe.Found()` — undetected providers are dropped, not annotated as missing), each annotated with its declared capabilities (e.g. `claude (interactive, headless, native)`); `dispatch.mode` offers rungs filtered by viability (`pane` only when the probe's tmux signal is present, `native`/`headless` only when a detected provider declares the capability) and states the ladder-ceiling semantics (resolution descends from the setting and never ascends, so an unreachable setting degrades softly); Q4 is the advanced-section opt-in (default no). Every question defaults to the current effective value with its origin shown, and its footer points at `fab config explain <key>` (owner-or-pointer — the wizard never restates the reference prose).
+- **Advanced section** — covers `agent.profiles.operator.provider`, `agent.profiles.review.provider`, `dispatch.column_width`, and `dispatch.reap_done`, skipping any key whose winning tier is the built-in defaults (at-default and never overridden — the section reviews existing customizations). When every advanced question skips, a one-line note names the skipped keys with the explain pointer instead of yielding silence.
+- **Writes** — a diff summary (one `<key>: <old> → <new>` line per changed answer plus the target tier) and a `[Y/n]` confirmation precede any write. Zero changed answers (the all-Enter run) prints "nothing to change" and exits 0 touching no file — repeated all-Enter runs are byte-identical no-ops (Constitution III). Confirmed writes go through the existing `fab config set` path in-process — `configupgrade.SetSystem` for the system tier, `configupgrade.Set` for the project tier, with the target path from `configMutationPath` — never a whole-file rewrite, never a child-process exec, with `warnIfShadowed` firing per written key so a write shadowed by a higher tier says so.
+- **`--defaults` / non-TTY** — `--defaults` runs the full flow non-interactively accepting every default (banner, resolved answers, and the zero-write summary), composable with `--project`. Non-TTY stdin without `--defaults` fails with a usage hint naming the flag (stdlib-only `os.ModeCharDevice` detection, the `batch_archive.go` pattern); EOF on stdin falls back to a question's default, so the interview can never hang on an exhausted reader.
+
+Prompts are bare stdin line reads against the command's `InOrStdin()` — no TUI dependency (Constitution I). The interview loop lives in `src/go/fab/cmd/fab/setup_wizard.go` in package main (sibling of `setup.go`), reusing that package's unexported seams — the cmd-owns-wiring / internal-owns-probing split is preserved: the wizard is wiring/rendering over `internal/setupcheck`'s probe. `fab setup check` is a sibling behavior the wizard does not touch; its no-writes invariant holds (§ Setup-State Doctor). The `/fab-setup` skill's config flow delegates the wizard-covered preference keys here (§ Delegation Pattern).
+
 ### Setup-State Doctor (`fab setup check`)
 
-The fab-go binary ships a read-only environment doctor as the `fab setup check` subcommand. Bare `fab setup` prints a "Yet to be implemented" placeholder — the seat reserved for the interactive setup wizard (backlog [stpw]) — and exits 0 without running checks; `fab setup bogus` is a usage error (exit 2). The doctor's hard invariant is **no writes**: no config mutation, no trust-store seeding, no agent/pane launches, no `.fab-*` state files, no prompts — repeated runs are byte-identical (Constitution III). All probing lives in the reusable `internal/setupcheck` package, which returns structured results (`Finding`/`ProviderProbe`/`Report`) with its environment seams injected (lookPath, `$TMUX`, kit-cache dir, config layers); the cobra command owns only input wiring, rendering, and exit-code mapping, so the future wizard consumes the same `Report` to filter its interview options without shelling out. Source: `src/go/fab/cmd/fab/setup.go`, `src/go/fab/internal/setupcheck/`.
+The fab-go binary ships a read-only environment doctor as the `fab setup check` subcommand. Bare `fab setup` runs the interactive setup wizard (§ Interactive Setup Wizard); `fab setup bogus` is a usage error (exit 2). The doctor's hard invariant is **no writes**: no config mutation, no trust-store seeding, no agent/pane launches, no `.fab-*` state files, no prompts — repeated runs are byte-identical (Constitution III). All probing lives in the reusable `internal/setupcheck` package, which returns structured results (`Finding`/`ProviderProbe`/`Report`) with its environment seams injected (lookPath, `$TMUX`, kit-cache dir, config layers); the cobra command owns only input wiring, rendering, and exit-code mapping, so the wizard consumes the same `Report` to filter its interview options without shelling out. Source: `src/go/fab/cmd/fab/setup.go`, `src/go/fab/cmd/fab/setup_wizard.go`, `src/go/fab/internal/setupcheck/`.
 
 Probe set:
 
@@ -137,6 +149,8 @@ Each subcommand operates independently — they can be invoked directly without 
 | `config.yaml` | `/fab-setup config` (delegated by `/fab-setup`) | Shells out to `fab config init --project` with the detected identity seed (j0qm) — there is no scaffold `config.yaml` template and no placeholder substitution. Refines the fab-init-seeded live values + adds the description; fails closed with an upgrade-fab-go error if the binary predates the subcommand |
 | `constitution.md` | `/fab-setup constitution` (delegated by `/fab-setup`) | Reads `scaffold/constitution.md` skeleton, generates principles from project context |
 
+`/fab-setup config` delegates the agent/dispatch preference keys — `agent.session`, `agent.workers`, `dispatch.mode`, and the advanced `agent.profiles.*` / `dispatch.*` knobs — to the bare-`fab setup` wizard (§ Interactive Setup Wizard), which interviews with detected-capability filtering and writes via the surgical `fab config set` path; the skill's own config flow covers the identity/structural fields (name, description, `source_paths`, `test_paths`) — a disjoint set.
+
 `/fab-setup` invokes `fab sync` as bootstrap step **1c — immediately after the interactive config (1a) and constitution (1b) steps** (szxd) (sync requires the project's pinned version, read from `fab/.fab-version`, which `fab init` stamps (j0qm); on the bare `/fab-setup` path 1a's config-create is what guarantees a usable project state), with a **sync-failure guard**: non-zero exit → STOP and surface sync's output, do not continue the bootstrap. The skill hand-scaffolds nothing: sync's `scaffoldTreeWalk` copy-if-absent installs, `scaffoldDirectories`, and the `.gitignore` fragment line-ensure merge (`.fab-*`, which subsumes `.fab-status.yaml`) own all non-interactive structural setup (see the Sync-First DD below). Bootstrap order: doctor → 1a config → 1b constitution → 1c `fab sync` → 1d version note; the Bootstrap Output section surfaces sync's report.
 
 **Scaffold writes fail loudly (jznd).** The line-ensuring merge (`lineEnsureMerge` in `src/go/fab-kit/internal/scaffold.go`, behind the `.envrc`/`.gitignore` fragment rows above) **propagates its `os.WriteFile` errors** up the `scaffoldTreeWalk` chain — a failed fragment write (disk full, read-only mount, permissions) surfaces as a non-zero sync, never a silent half-scaffold that looks successful.
@@ -194,13 +208,37 @@ Each subcommand operates independently — they can be invoked directly without 
 *Introduced by*: 260216-tk7a-DEV-1037-consolidate-setup-upgrade-flow
 
 ### Setup-State Doctor as a `fab setup check` Subcommand, Coexisting with `fab doctor`
-**Decision**: The setup-state doctor ships as the `fab setup check` subcommand; bare `fab setup` prints a "Yet to be implemented" placeholder reserving the seat for the interactive wizard. It coexists with fab-kit's seven-check `fab doctor` by distinct job — doctor checks system prerequisites, `setup check` checks fab's own setup state.
-**Why**: A subcommand reads as a distinct read-only operation and reserves the `fab setup` seat without shipping the wizard; the read-only probe layer is safe to ship alone (it writes nothing, so it is trivially idempotent) and gives the wizard a detection layer to build its provider-filtered interview on. Splitting by job keeps each doctor in the binary that owns its domain (fab-kit system prerequisites vs fab-go setup state).
-**Rejected**: A `--check` flag on `fab setup` — couples the doctor to the wizard's eventual flag surface. Subsuming `fab doctor` into the new command or vice versa — different binaries with different jobs; the gh/yq presence overlap is cheaper than a cross-binary dependency.
-*Introduced by*: 260811-pgbq-setup-check-doctor
+**Decision**: The setup-state doctor ships as the `fab setup check` subcommand, leaving bare `fab setup` to the interactive setup wizard. It coexists with fab-kit's seven-check `fab doctor` by distinct job — doctor checks system prerequisites, `setup check` checks fab's own setup state.
+**Why**: A subcommand reads as a distinct read-only operation beside the wizard's interactive bare command; the read-only probe layer is safe on its own (it writes nothing, so it is trivially idempotent) and gives the wizard a detection layer to build its provider-filtered interview on. Splitting by job keeps each doctor in the binary that owns its domain (fab-kit system prerequisites vs fab-go setup state).
+**Rejected**: A `--check` flag on `fab setup` — couples the doctor to the wizard's flag surface. Subsuming `fab doctor` into the new command or vice versa — different binaries with different jobs; the gh/yq presence overlap is cheaper than a cross-binary dependency.
+*Introduced by*: 260811-pgbq-setup-check-doctor; *Updated by*: 260811-stpw-setup-interactive-wizard
 
 ### Doctor Exit Contract — Only Failures Exit 1
 **Decision**: `fab setup check` exits 0 on a healthy or warnings-only report, 1 only when at least one failure-severity finding exists, and 2 on usage errors via the existing `run()`/`markRunReached` seam — no distinct in-handler warnings tier.
 **Why**: Keeps the doctor CI-able as a "real problems" gate without crying wolf on advisory findings (version skew, load-bearing overrides, descending dispatch modes, absent optional tooling).
 **Rejected**: A third exit code for warnings-only reports — an undocumented extra runtime code would complicate the CI contract and the binary-wide 0/1/2 classification.
 *Introduced by*: 260811-pgbq-setup-check-doctor
+
+### Wizard Consumes the Setup-Check Report — Capability Detected, Never Asked
+**Decision**: All detection comes from one `setupcheck.Run` call; the interview only asks preference questions over options pre-filtered to what the probe found.
+**Why**: The probe package returns its structured `Report` for exactly this consumer; options filtered to detected providers and viable rungs mean the wizard cannot configure something the machine can't run.
+**Rejected**: Wizard-owned probing or shelling out to `fab setup check` — duplicated detection logic, parse coupling to human-readable output.
+*Introduced by*: 260811-stpw-setup-interactive-wizard
+
+### Wizard Lives in package main Beside the Set/Origin Seams
+**Decision**: The interview loop lands in `src/go/fab/cmd/fab/setup_wizard.go` in package main (sibling of `setup.go`), not a new internal package.
+**Why**: The seams it needs — `configMutationPath`, `effectiveTierFor`, `warnIfShadowed`, the stdin-TTY helper, `version` — are unexported members of package main; an internal package would force exporting write-path plumbing for one consumer. The cmd-owns-wiring / internal-owns-probing split is preserved: the wizard IS wiring/rendering.
+**Rejected**: A new `internal/setupwizard` package — export churn for no reuse; nothing else consumes an interview loop.
+*Introduced by*: 260811-stpw-setup-interactive-wizard
+
+### Advanced Section Reviews Existing Customizations (Skip Rule)
+**Decision**: Advanced questions whose winning tier is the built-in defaults (at-default and never overridden) are skipped; the all-skipped case prints a one-line note naming the keys with the `fab config explain` pointer.
+**Why**: Keeps the opt-in section short on typical machines while never yielding silence; first-time advanced setup remains a `fab config set` away.
+**Rejected**: Asking every advanced key each time (noise on machines that never customized them); the inverted reading (ask only at-default keys) — contradicts the section's review-existing-customizations intent.
+*Introduced by*: 260811-stpw-setup-interactive-wizard
+
+### Non-TTY Without `--defaults` Errors
+**Decision**: When stdin is not a TTY and `--defaults` was not passed, the wizard fails with a usage hint naming the flag.
+**Why**: Predictable failure beats hanging on a read or silently pretending to be interactive; `--defaults` is the sanctioned non-interactive path.
+**Rejected**: Auto-degrading to `--defaults` — makes CI invocations silently succeed in a mode the caller didn't choose.
+*Introduced by*: 260811-stpw-setup-interactive-wizard

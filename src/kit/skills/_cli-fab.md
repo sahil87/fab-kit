@@ -867,13 +867,15 @@ Prints the absolute resolved kit directory. A non-empty `FAB_KIT_PATH` wins over
 ## fab setup
 
 ```
-fab setup          # placeholder — the interactive wizard is yet to be implemented
-fab setup check    # read-only environment doctor
+fab setup              # interactive setup wizard (interview over the setup-check probe)
+fab setup --defaults   # non-interactive: accept every default — banner + resolved answers + zero writes
+fab setup --project    # write fab/project/config.yaml instead of the system tier
+fab setup check        # read-only environment doctor
 ```
 
-Bare `fab setup` prints a "Yet to be implemented" placeholder (the interactive wizard's reserved seat) and exits 0 without running checks. `setup` is a fab-go command — NOT in the router's workspace allowlist, so the shim's default route forwards it.
+Bare `fab setup` runs the **interactive setup wizard**: it probes once via `internal/setupcheck` (the same call `check` makes — capability is detected, never asked), prints a scope banner (write target is the **system tier** `~/.fab-kit/config.yaml` by default; `--project` retargets the repo's config and errors outside a fab repo), then walks a 4-question default path — `agent.session`, `agent.workers` (options filtered to detected providers, annotated with capabilities), `dispatch.mode` (options filtered by $TMUX/capability viability, ladder-ceiling semantics stated), and an opt-in advanced section (`agent.profiles.operator/review.provider`, `dispatch.column_width`, `dispatch.reap_done`; keys sitting at the built-in default and never overridden are skipped, with an all-skipped note naming them). Every question defaults to the current effective value with its origin and points at `fab config explain <key>`; an all-Enter run is a zero-write no-op ("nothing to change"). Changed answers get a diff-before-write summary (`<key>: <old> → <new>` + target tier) and a confirmation; writes go through the surgical `fab config set` path in-process (never a whole-file rewrite), with the shared shadow warning per key. Prompts are bare stdin line reads — no TUI. Non-TTY stdin without `--defaults` fails with a hint naming the flag. `setup` is a fab-go command — NOT in the router's workspace allowlist, so the shim's default route forwards it.
 
-`fab setup check` is the **read-only setup-state doctor**: it writes nothing (no config mutation, no trust-store seeding, no agent/pane launches, no prompts) and is safe to re-run identically. It **coexists with `fab doctor` by distinct job** — `doctor` (fab-kit binary) checks system prerequisites ("is this machine good enough to use fab-kit"); `setup check` diagnoses fab's own setup state. Probes (all in `internal/setupcheck`, reusable by the future wizard):
+`fab setup check` is the **read-only setup-state doctor**: it writes nothing (no config mutation, no trust-store seeding, no agent/pane launches, no prompts) and is safe to re-run identically. It **coexists with `fab doctor` by distinct job** — `doctor` (fab-kit binary) checks system prerequisites ("is this machine good enough to use fab-kit"); `setup check` diagnoses fab's own setup state. Probes (all in `internal/setupcheck`, the same probe layer the wizard consumes):
 
 - **Provider roster** — every resolvable provider (built-ins ∪ user-defined) with binary presence (leading executable of each command; nested `sh -c '...'` wrappers unwrap to the provider's own binary, e.g. `agy`/`kimi`) and declared interactive/headless/native capabilities. A provider a role actually resolves to (depth knob or `agent.profiles.<role>.provider`) with no binary on PATH is a **failure**; an unconfigured provider's absence is informational.
 - **Environment** — `$TMUX` presence (the `internal/dispatch` pane-viability classification), `gh`/`yq` presence (warnings when absent), `rk` (informational only — fail-silent optional tooling).

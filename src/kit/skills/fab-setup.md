@@ -127,6 +127,8 @@ Re-run variant: report config/constitution as OK/repaired instead of `Created`, 
 
 Create a new `fab/project/config.yaml` interactively or update specific sections. Preserves YAML comments via targeted string replacement. Validates after each edit.
 
+> **Delegation**: agent/dispatch preference keys (`agent.session`, `agent.workers`, `dispatch.mode`, and the advanced `agent.profiles.*` / `dispatch.*` knobs) are owned by the `fab setup` interactive wizard — when the user wants to set those, point them at `fab setup` (the binary interviews with detected-capability filtering and writes via the surgical `fab config set` path) instead of hand-editing them here. This skill's config flow covers the identity/structural fields below — a disjoint set.
+
 **Context loading**: Loads `fab/project/config.yaml` only (the file being edited). Does NOT load constitution, memory, or specs.
 
 ### Config Arguments
