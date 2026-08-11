@@ -17,7 +17,7 @@ func paneSendCmd() *cobra.Command {
 	}
 	cmd.Flags().Bool("no-enter", false, "Don't append Enter keystroke")
 	cmd.Flags().Bool("answer", false, "Answer mode: permit sending to a waiting agent (still refuses active)")
-	cmd.Flags().Bool("force", false, "Skip idle validation (still validates pane existence)")
+	cmd.Flags().Bool("force", false, "Skip the agent-state check entirely (still validates pane existence)")
 	return cmd
 }
 
