@@ -691,7 +691,8 @@ inherited session model now resolve a role like every other:
 - **`/fab-continue`'s ship and review-pr rows.** These delegate to `/git-pr` and `/git-pr-review`, and
   resolve `fab resolve-agent ship --alias` / `fab resolve-agent review-pr --alias` before
   dispatching that sub-agent — surfacing `model=/effort=` and applying the two seams — **mirroring
-  `/fab-fff` Steps 4–5 exactly**. This closes the caller asymmetry where `/fab-fff` resolved a role for
+  `/fab-fff`'s full-lane Steps 4–5 exactly** (in the light lane those steps run inline with no
+  `fab resolve-agent`). This closes the caller asymmetry where `/fab-fff` resolved a role for
   ship/review-pr but plain `/fab-continue` did not. `/git-pr` and `/git-pr-review` still self-manage their own
   `fab status` transitions — only the model/effort seam is added.
 - **`/fab-proceed`'s prefix steps.** The prefix-step dispatches were previously exempt ("no
