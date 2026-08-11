@@ -49,6 +49,7 @@ type setupWizard struct {
 	layers   *config.Layers
 	defaults map[string]any
 	reader   *bufio.Reader
+	readErr  error // first non-EOF stdin read error — poisons the write step
 	answers  []wizardAnswer
 }
 
@@ -105,6 +106,17 @@ func runSetupWizard(cmd *cobra.Command, opts wizardOptions) error {
 		layers:   layers,
 		defaults: defaults,
 		reader:   bufio.NewReader(cmd.InOrStdin()),
+	}
+
+	// The interview asks preference questions over probe-filtered options; an
+	// empty option set would silently degrade a question to unvalidated
+	// free-form input, contradicting "capability is detected, never asked".
+	// Refuse up front with the read-only doctor as the remediation.
+	if len(w.providerOptions()) == 0 {
+		return fmt.Errorf("no agent providers detected on PATH — install a provider CLI first, then re-run (see `fab setup check` for the roster)")
+	}
+	if len(w.dispatchModeOptions()) == 0 {
+		return fmt.Errorf("no viable dispatch mode detected — not inside tmux, and no detected provider is native- or headless-capable (see `fab setup check`)")
 	}
 
 	w.printBanner()
@@ -220,10 +232,16 @@ func (w *setupWizard) ask(q wizardQuestion) string {
 }
 
 // readLine reads one answer line; ok=false on EOF (the caller falls back to
-// the default, so an exhausted stdin can never hang the interview).
+// the default, so an exhausted stdin can never hang the interview). A non-EOF
+// read error also reports ok=false, but is additionally recorded on w.readErr
+// so diffAndWrite can refuse: a failing stdin degrades to a read-only run,
+// never to an implicitly confirmed write.
 func (w *setupWizard) readLine() (string, bool) {
 	line, err := w.reader.ReadString('\n')
 	if err != nil && !errors.Is(err, io.EOF) {
+		if w.readErr == nil {
+			w.readErr = err
+		}
 		return "", false
 	}
 	answer := strings.TrimSpace(line)
@@ -419,6 +437,12 @@ func (w *setupWizard) diffAndWrite() error {
 	if !w.confirm("Write these changes?", true) {
 		fmt.Fprintln(out, "No changes written.")
 		return nil
+	}
+	// A non-EOF stdin failure anywhere in the interview means the answers —
+	// and the write confirmation itself, whose default is Yes — may be error
+	// fallbacks rather than choices. Refuse to write on a broken stdin.
+	if w.readErr != nil {
+		return fmt.Errorf("stdin read failed during the interview: %w — no changes written; re-run `fab setup`", w.readErr)
 	}
 	for _, c := range changes {
 		if err := w.writeOne(c); err != nil {

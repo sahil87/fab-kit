@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,14 +63,35 @@ func runFab(args ...string) (int, string, string) {
 // forceTTY(true) — the same seam batch_archive's prompt tests use.
 func runSetupWizardCmd(t *testing.T, stdin string, args ...string) (error, string, string) {
 	t.Helper()
+	return runSetupWizardCmdReader(t, strings.NewReader(stdin), args...)
+}
+
+// runSetupWizardCmdReader is runSetupWizardCmd with an arbitrary stdin reader,
+// for tests that need a failing (non-EOF) stdin.
+func runSetupWizardCmdReader(t *testing.T, stdin io.Reader, args ...string) (error, string, string) {
+	t.Helper()
 	cmd := setupCmd()
 	var out, errBuf bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&errBuf)
-	cmd.SetIn(strings.NewReader(stdin))
+	cmd.SetIn(stdin)
 	cmd.SetArgs(args)
 	err := cmd.Execute()
 	return err, out.String(), errBuf.String()
+}
+
+// errAfterReader yields r's bytes, then a non-EOF error where EOF would be.
+type errAfterReader struct {
+	r   io.Reader
+	err error
+}
+
+func (e *errAfterReader) Read(p []byte) (int, error) {
+	n, err := e.r.Read(p)
+	if errors.Is(err, io.EOF) {
+		return n, e.err
+	}
+	return n, err
 }
 
 func TestSetupWizard_AllEnterRunIsZeroWrite(t *testing.T) {
@@ -292,6 +315,58 @@ func TestSetupWizard_AdvancedAllSkippedPrintsNote(t *testing.T) {
 	}
 	if strings.Contains(out, "agent.profiles.operator.provider [") {
 		t.Errorf("at-default advanced questions must be SKIPPED, got:\n%s", out)
+	}
+}
+
+func TestSetupWizard_StdinReadErrorAbortsWrite(t *testing.T) {
+	// The interview produces a change, then stdin fails with a non-EOF error
+	// at the write confirmation (whose default is Yes): the run must abort
+	// without writing — a failing stdin is never an implicit confirmation.
+	setupCheckFixture(t, "", "claude", "codex")
+	forceTTY(t, true)
+
+	stdin := &errAfterReader{r: strings.NewReader("\ncodex\n\nn\n"), err: errors.New("input/output error")}
+	err, out, _ := runSetupWizardCmdReader(t, stdin)
+	if err == nil {
+		t.Fatalf("a stdin read error must abort the run, output:\n%s", out)
+	}
+	if !strings.Contains(err.Error(), "stdin read failed") || !strings.Contains(err.Error(), "input/output error") {
+		t.Errorf("error must name the stdin failure and wrap its cause, got: %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(os.Getenv("HOME"), ".fab-kit", "config.yaml")); !os.IsNotExist(statErr) {
+		t.Errorf("a read-error run must write NO file, stat err = %v", statErr)
+	}
+}
+
+func TestSetupWizard_NoDetectedProvidersFailsFast(t *testing.T) {
+	// No provider executable on PATH: Q1/Q2's option set would be empty and
+	// the questions would degrade to unvalidated free-form input — the wizard
+	// must refuse up front instead, pointing at the read-only doctor.
+	setupCheckFixture(t, "")
+	forceTTY(t, true)
+
+	err, _, _ := runSetupWizardCmd(t, "")
+	if err == nil {
+		t.Fatal("zero detected providers must fail fast")
+	}
+	if !strings.Contains(err.Error(), "no agent providers detected") || !strings.Contains(err.Error(), "fab setup check") {
+		t.Errorf("error must state the cause and point at the doctor, got: %v", err)
+	}
+}
+
+func TestSetupWizard_NoViableDispatchModeFailsFast(t *testing.T) {
+	// Only an interactive-only custom provider is detected and the fixture
+	// scrubs $TMUX: pane, native, and headless are all unviable, so Q3's
+	// option set would be empty — the wizard must refuse up front.
+	setupCheckFixture(t, "providers:\n  soloui:\n    interactive_command: soloui\n", "soloui")
+	forceTTY(t, true)
+
+	err, _, _ := runSetupWizardCmd(t, "")
+	if err == nil {
+		t.Fatal("zero viable dispatch modes must fail fast")
+	}
+	if !strings.Contains(err.Error(), "no viable dispatch mode") || !strings.Contains(err.Error(), "fab setup check") {
+		t.Errorf("error must name the dispatch-mode gap and point at the doctor, got: %v", err)
 	}
 }
 
