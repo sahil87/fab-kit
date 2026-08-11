@@ -19,7 +19,6 @@ func TestScopeFor(t *testing.T) {
 		"agent":               ScopeBoth,
 		"dispatch":            ScopeBoth,
 		"stage_hooks":         ScopeProject,
-		"branch_prefix":       ScopeProject,
 	}
 	for key, wantScope := range want {
 		got, ok := ScopeFor(key)
@@ -60,7 +59,6 @@ func TestDottedKeys(t *testing.T) {
 		"agent.profiles",
 		"providers",
 		"stage_hooks",
-		"branch_prefix",
 	}
 	got := DottedKeys()
 	if len(got) != len(want) {

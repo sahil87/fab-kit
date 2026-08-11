@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/shellquote"
@@ -97,8 +96,6 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag, quietF
 	configPath := filepath.Join(fabRoot, "project", "config.yaml")
 	spawnCmd := defaultRoleSpawnCommand(configPath)
 	workers, workersSet := workersOverride(cmd)
-	cfg, _ := config.Load(fabRoot)
-	branchPrefix := cfg.GetBranchPrefix()
 
 	// Process each change
 	for _, change := range changes {
@@ -115,8 +112,10 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag, quietF
 			fmt.Fprintf(w, "  %s\n", match)
 		}
 
-		// Construct branch name
-		branchName := branchPrefix + match
+		// The branch name IS the change folder name — the one branch-naming
+		// convention `/git-branch`, `/fab-new`, and naming.md all follow, so a
+		// worktree opened here attaches to the change's real branch.
+		branchName := match
 
 		// Create worktree. Route per wt's 2af2 contract: the positional is
 		// new-branch-only (exits 2 on an existing local/remote branch), and

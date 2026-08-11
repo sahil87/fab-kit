@@ -89,12 +89,9 @@ func TestConfigReferenceRoundTrips(t *testing.T) {
 	if _, ok := cfg.GetAgentProfile("doing"); ok {
 		t.Error("agent.profiles must be commented-out in the reference (parsed as live)")
 	}
-	// The opt-in override blocks must stay commented-out (uncommenting = opting in).
+	// The opt-in override block must stay commented-out (uncommenting = opting in).
 	if len(cfg.StageHooks) != 0 {
 		t.Error("stage_hooks must be commented-out in the reference (parsed as live)")
-	}
-	if cfg.GetBranchPrefix() != "" {
-		t.Error("branch_prefix must be commented-out in the reference (parsed as live)")
 	}
 }
 
@@ -1117,14 +1114,16 @@ func TestConfigReferenceProvidersDefaultTracksAgentTable(t *testing.T) {
 }
 
 // TestConfigReferenceRetiresLegacyKeys guards that the removed keys no longer
-// appear in the reference: review_tools (retired to code-review.md § Review Tools)
-// and agent.spawn_command (relocated to providers.claude.interactive_command).
+// appear in the reference: review_tools (retired to code-review.md § Review Tools),
+// agent.spawn_command (relocated to providers.claude.interactive_command), and
+// branch_prefix (retired outright — `fab batch switch` names branches by the
+// change folder name, the one convention /git-branch and naming.md share).
 func TestConfigReferenceRetiresLegacyKeys(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
 	}
-	for _, gone := range []string{"review_tools", "spawn_command"} {
+	for _, gone := range []string{"review_tools", "spawn_command", "branch_prefix"} {
 		if containsKeyToken(out, gone) {
 			t.Errorf("retired key %q must not appear in the reference", gone)
 		}
@@ -1321,10 +1320,10 @@ var wantRenamedFrom = map[string]string{
 
 // TestConfigReferenceScopeAssignments pins the decision-6 scope taxonomy: the
 // preference-class fields (agent.profiles, providers) are `both`; the
-// semantics-class fields and the two unenumerated fields (stage_hooks,
-// branch_prefix) are `project`. (fab_version left config.yaml in 260708-j0qm and
-// no longer carries a scope.) Enforcement landed in Change 2; the assignments are
-// consumed as data, so they are pinned.
+// semantics-class fields and the one unenumerated field (stage_hooks) are
+// `project`. (fab_version left config.yaml in 260708-j0qm and no longer carries a
+// scope.) Enforcement landed in Change 2; the assignments are consumed as data, so
+// they are pinned.
 func TestConfigReferenceScopeAssignments(t *testing.T) {
 	fields, err := configref.Fields()
 	if err != nil {
@@ -1351,7 +1350,6 @@ func TestConfigReferenceScopeAssignments(t *testing.T) {
 		"dispatch.column_width":      configref.ScopeBoth,
 		"dispatch.reap_done":         configref.ScopeBoth,
 		"stage_hooks":                configref.ScopeProject,
-		"branch_prefix":              configref.ScopeProject,
 	}
 	for key, wantScope := range want {
 		gotScope, ok := got[key]

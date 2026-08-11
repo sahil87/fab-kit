@@ -121,8 +121,7 @@ func TestLoad_WidenedKeys(t *testing.T) {
 	dir := t.TempDir()
 	fabRoot := filepath.Join(dir, "fab")
 	os.MkdirAll(filepath.Join(fabRoot, "project"), 0o755)
-	content := `branch_prefix: "feature/"
-providers:
+	content := `providers:
   claude:
     interactive_command: "claude --effort high"
 project:
@@ -140,9 +139,6 @@ project:
 	}
 	if got := cfg.GetFabVersion(); got != "1.2.3" {
 		t.Errorf("GetFabVersion = %q, want %q", got, "1.2.3")
-	}
-	if got := cfg.GetBranchPrefix(); got != "feature/" {
-		t.Errorf("GetBranchPrefix = %q, want %q", got, "feature/")
 	}
 	prov, ok := cfg.GetProvider("claude")
 	if !ok {
@@ -568,8 +564,7 @@ func TestGetAgentProfile_NilAndEmptyConfig(t *testing.T) {
 
 func TestAccessors_NilConfig(t *testing.T) {
 	var cfg *Config
-	if cfg.GetBranchPrefix() != "" || cfg.GetFabVersion() != "" ||
-		cfg.GetLinearWorkspace() != "" {
+	if cfg.GetFabVersion() != "" || cfg.GetLinearWorkspace() != "" {
 		t.Error("nil-config accessors must all return empty strings")
 	}
 	if _, ok := cfg.GetProvider("claude"); ok {
@@ -579,8 +574,7 @@ func TestAccessors_NilConfig(t *testing.T) {
 
 func TestAccessors_EmptyConfig(t *testing.T) {
 	cfg := &Config{}
-	if cfg.GetBranchPrefix() != "" || cfg.GetFabVersion() != "" ||
-		cfg.GetLinearWorkspace() != "" {
+	if cfg.GetFabVersion() != "" || cfg.GetLinearWorkspace() != "" {
 		t.Error("empty-config accessors must all return empty strings")
 	}
 	if _, ok := cfg.GetProvider("claude"); ok {
@@ -607,9 +601,9 @@ func TestLoadPath_MalformedCoupledFailure(t *testing.T) {
 	isolateSystemConfig(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
-	// branch_prefix has a type error (mapping where a scalar is expected);
+	// test_paths has a type error (mapping where a sequence is expected);
 	// providers is perfectly fine — but the single Unmarshal fails.
-	content := `branch_prefix:
+	content := `test_paths:
   oops: true
 providers:
   claude:
@@ -868,7 +862,8 @@ func TestCascade_AbsentSystemFile(t *testing.T) {
 	isolateSystemConfig(t) // empty fake home ⇒ no system file
 	warnings := captureWarnings(t)
 	fabRoot := writeProjectConfig(t, `
-branch_prefix: "feature/"
+true_impact_exclude:
+  - docs/
 providers:
   claude:
     interactive_command: only-project
@@ -877,8 +872,8 @@ providers:
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.GetBranchPrefix() != "feature/" {
-		t.Errorf("branch_prefix = %q, want feature/", cfg.GetBranchPrefix())
+	if len(cfg.TrueImpactExclude) != 1 || cfg.TrueImpactExclude[0] != "docs/" {
+		t.Errorf("true_impact_exclude = %v, want [docs/]", cfg.TrueImpactExclude)
 	}
 	if claude, ok := cfg.GetProvider("claude"); !ok || claude.InteractiveCommand != "only-project" {
 		t.Errorf("claude.interactive_command = %+v ok=%v, want only-project", claude, ok)
@@ -918,7 +913,7 @@ providers:
 func TestCascade_MalformedProjectFileStillErrors(t *testing.T) {
 	isolateSystemConfig(t)
 	// A type error on a modeled key surfaces at the final unmarshal into Config.
-	fabRoot := writeProjectConfig(t, "branch_prefix:\n  oops: true\n")
+	fabRoot := writeProjectConfig(t, "test_paths:\n  oops: true\n")
 	if _, err := Load(fabRoot); err == nil {
 		t.Fatal("a malformed project file must still return an error (not fail-open)")
 	}
@@ -1351,14 +1346,13 @@ func TestScope_PruneAllProjectScopedFields(t *testing.T) {
 		"checklist":           map[string]any{"extra_categories": []any{"d"}},
 		"consolidate":         map[string]any{"detectors": []any{"jscpd {paths}"}},
 		"stage_hooks":         map[string]any{"apply": map[string]any{"pre": "x"}},
-		"branch_prefix":       "p/",
 		"fab_version":         "1.0.0", // not a config key — an inert unknown key
 		"agent":               map[string]any{"tiers": map[string]any{}},
 		"providers":           map[string]any{"claude": map[string]any{}},
 	}
 	pruneProjectScoped(m, "/fake/system.yaml")
 
-	for _, gone := range []string{"project", "source_paths", "test_paths", "true_impact_exclude", "checklist", "consolidate", "stage_hooks", "branch_prefix"} {
+	for _, gone := range []string{"project", "source_paths", "test_paths", "true_impact_exclude", "checklist", "consolidate", "stage_hooks"} {
 		if _, ok := m[gone]; ok {
 			t.Errorf("project-scoped key %q must be pruned from the system layer", gone)
 		}
@@ -1381,8 +1375,8 @@ func TestScope_PruneAllProjectScopedFields(t *testing.T) {
 	if strings.Contains(warnings(), "fab_version") {
 		t.Errorf("an unknown key must be ignored silently (no warning), got %q", warnings())
 	}
-	if c := strings.Count(warnings(), "fab: warning:"); c != 8 {
-		t.Errorf("expected 8 pruning warnings (one per project-scoped key), got %d", c)
+	if c := strings.Count(warnings(), "fab: warning:"); c != 7 {
+		t.Errorf("expected 7 pruning warnings (one per project-scoped key), got %d", c)
 	}
 }
 

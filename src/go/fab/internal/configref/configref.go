@@ -650,23 +650,6 @@ checklist:
 			Segment:      stageHooksSegment(),
 			ShortSegment: stageHooksShortSegment(),
 		},
-		{
-			Key:         "branch_prefix",
-			Default:     nil,
-			Kind:        configvalue.KindString,
-			Description: "Optional prefix applied by fab batch switch when creating worktree branches (branch name = {branch_prefix}{folder_name}). Empty when absent.",
-			Scope:       ScopeProject,
-			Advertise:   true,
-			Segment: "# branch_prefix — optional prefix applied by `fab batch switch` when creating\n" +
-				"# worktree branches (branch name = `{branch_prefix}{folder_name}`). Empty when\n" +
-				"# absent.\n" +
-				`# branch_prefix: ""`,
-			ShortSegment: shortAdvert(ScopeProject,
-				"branch_prefix — optional prefix `fab batch switch` applies to worktree\n"+
-					"branch names ({branch_prefix}{folder_name}). Empty when absent.",
-				"branch_prefix") +
-				`# branch_prefix: ""`,
-		},
 	}
 
 	if err := lintFields(fields); err != nil {
@@ -682,7 +665,7 @@ const referenceHeader = `# Full reference of all available options: fab config e
 #
 # This is the canonical, generated reference for fab/project/config.yaml. Every
 # key below is documented — baseline keys appear live with example values;
-# optional override blocks (agent.profiles, stage_hooks, branch_prefix) are shown
+# optional override blocks (agent.profiles, stage_hooks) are shown
 # commented-out with fab-kit's built-in defaults. Uncomment a block to opt in.
 # Values here are examples/defaults, not your project's settings.
 #

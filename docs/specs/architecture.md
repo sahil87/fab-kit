@@ -338,9 +338,6 @@ dispatch:
   column_width: 35
   reap_done: true
 
-# Optional branch prefix applied by fab batch switch when creating worktree branches.
-branch_prefix: ""
-
 # Optional pre/post shell commands honored by `fab status` (pre gates `start`,
 # post runs after `finish` saves — see _cli-fab.md § stage_hooks). Not seeded
 # by the scaffold — add by hand.

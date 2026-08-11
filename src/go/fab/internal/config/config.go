@@ -293,14 +293,13 @@ var (
 //
 // Known coupled-failure caveat: a yaml type error on ANY modeled key fails
 // the single Unmarshal, sending every accessor to its documented fallback
-// (default spawn command, empty branch prefix, empty workspace, silent
-// staleness skip). The documented per-caller fallbacks make this safe for
+// (default spawn command, empty workspace, silent staleness skip). The
+// documented per-caller fallbacks make this safe for
 // malformed configs — a deliberate, recorded semantic for the consolidation.
 type Config struct {
 	StageHooks        map[string]StageHook `yaml:"stage_hooks"`
 	TrueImpactExclude []string             `yaml:"true_impact_exclude"`
 	TestPaths         []string             `yaml:"test_paths"`
-	BranchPrefix      string               `yaml:"branch_prefix"`
 	// FabVersion is NOT parsed from config.yaml — the version pin lives in the
 	// plain-text sibling fab/.fab-version (260708-j0qm). The explicit `yaml:"-"`
 	// (not a bare untagged field) stops yaml.v3 from matching the lowercased field
@@ -778,14 +777,6 @@ func (c *Config) GetStageHook(stage string) StageHook {
 		return StageHook{}
 	}
 	return c.StageHooks[stage]
-}
-
-// GetBranchPrefix returns branch_prefix, or "" when unset (nil-safe).
-func (c *Config) GetBranchPrefix() string {
-	if c == nil {
-		return ""
-	}
-	return c.BranchPrefix
 }
 
 // GetFabVersion returns fab_version, or "" when unset (nil-safe).

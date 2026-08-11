@@ -154,7 +154,8 @@ key of the block), and every advert carries `# Full prose: fab config explain <k
 field's YAML lines, interpolating the same canonical symbols the `default` reads. The registry lint
 pins the scope tag and both pointers against the row's metadata, so the annotations are sourced from
 the row rather than re-typed. Shape (from the full-document golden tests, over a small synthetic field
-set):
+set — `branch_prefix` there is a synthetic field name in the tests' own local table, not a live
+registry key):
 
 ```
 # branch_prefix — worktree branch prefix. [project]
@@ -189,10 +190,10 @@ repo's suggestion" is the intended answer.
 | scope | Meaning | Fields |
 |-------|---------|--------|
 | `both` | Overridable in either the project or the system layer (preference-class). | `agent.session`, `agent.workers`, `agent.profiles`, `providers`, `dispatch.mode`, `dispatch.column_width`, `dispatch.reap_done` |
-| `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `consolidate.detectors`, and (conservative default) `stage_hooks`, `branch_prefix` |
+| `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `consolidate.detectors`, and (conservative default) `stage_hooks` |
 | `system` | Overridable only in the system layer. | *(none today; the value exists for completeness and [Change 2])* |
 
-Fields the decision-6 taxonomy does not enumerate (`stage_hooks`, `branch_prefix`) default to `project`
+The one field the decision-6 taxonomy does not enumerate (`stage_hooks`) defaults to `project`
 — the conservative choice, since system-visibility is opt-in per the same rationale. `dispatch`
 (`dispatch.mode`, the pane/native/headless preference ceiling; `dispatch.column_width`, the pane-worker column's
 width; `dispatch.reap_done`, whether a finished worker's pane is reclaimed) is `both` by the same
@@ -263,7 +264,7 @@ model, at [Change 3]'s `fab config upgrade` time, every field is one of:
 `advertise: true` marks the C-eligible fields — the optional override surfaces a project has typically
 *not* set live: `agent.session`, `agent.workers`, `dispatch.mode`, `dispatch.column_width`,
 `dispatch.reap_done`, `checklist.extra_categories`,
-`consolidate.detectors`, `true_impact_exclude`, `stage_hooks`, `branch_prefix`, `test_paths`. `advertise: false` marks the init-seeded identity fields
+`consolidate.detectors`, `true_impact_exclude`, `stage_hooks`, `test_paths`. `advertise: false` marks the init-seeded identity fields
 (`project.*`, `source_paths`), which are written live at `fab config init --project` time and not
 re-advertised in the fence. (`fab_version` is no longer a config-file field — it left `config.yaml` for
 `fab/.fab-version` in [Change 3 — landed], so it is neither advertised nor init-seeded.)

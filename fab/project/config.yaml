@@ -64,9 +64,4 @@ true_impact_exclude:
 #   apply:
 #     pre: ./scripts/check-clean-tree.sh
 #     post: make test
-#
-# branch_prefix — optional prefix `fab batch switch` applies to worktree
-# branch names ({branch_prefix}{folder_name}). Empty when absent. [project]
-# Full prose: fab config explain branch_prefix
-# branch_prefix: ""
 # <<< end fab reference <<< ------------------------------------------------
