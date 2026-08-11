@@ -149,6 +149,67 @@ func TestRefreshCmd_HealsStaleStatus(t *testing.T) {
 	assertHealed(t, reloadHealStatus(t, changeDir))
 }
 
+// TestRefreshCmd_BareResolvesActiveChange covers the optional-argument form:
+// bare `fab status refresh` resolves the active change via the
+// .fab-status.yaml symlink (the same resolution bare `fab preflight` uses).
+// A second change folder defeats resolveFromCurrent's single-change guess, so
+// a pass proves the resolution came from the symlink.
+func TestRefreshCmd_BareResolvesActiveChange(t *testing.T) {
+	changeDir := setupSelfHealFixture(t, "active")
+	repoRoot := filepath.Dir(filepath.Dir(filepath.Dir(changeDir)))
+
+	// Second, non-active change so the single-change fallback cannot resolve.
+	otherDir := filepath.Join(repoRoot, "fab", "changes", "260702-efgh-other-change")
+	if err := os.MkdirAll(otherDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(otherDir, ".status.yaml"), []byte(strings.Replace(selfHealStatusYAML, "%s", "active", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Point the active-change symlink at the fixture change.
+	if err := os.Symlink("fab/changes/260702-abcd-refresh-heal/.status.yaml", filepath.Join(repoRoot, ".fab-status.yaml")); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := statusRefreshCmd()
+	cmd.SetArgs([]string{})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("bare fab status refresh: %v", err)
+	}
+	assertHealed(t, reloadHealStatus(t, changeDir))
+	// The non-active change must be untouched (its fixture has no artifacts,
+	// but the proof is its stale change_type survives).
+	if st := reloadHealStatus(t, otherDir); st.ChangeType != "feat" {
+		t.Errorf("non-active change_type = %q, want feat (bare refresh must touch only the active change)", st.ChangeType)
+	}
+}
+
+// TestRefreshCmd_BareNoActiveChangeErrors: with no argument and no active
+// change, refresh exits non-zero with resolveFromCurrent's existing
+// no-active-change error — no new error text, no silent no-op.
+func TestRefreshCmd_BareNoActiveChangeErrors(t *testing.T) {
+	root := t.TempDir()
+	// An empty fab/changes tree: no symlink, no candidates → resolution error.
+	if err := os.MkdirAll(filepath.Join(root, "fab", "changes"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	chdirTestEnv(t, root, map[string]string{})
+
+	cmd := statusRefreshCmd()
+	cmd.SetArgs([]string{})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("bare fab status refresh with no active change should fail")
+	}
+	if !strings.Contains(err.Error(), "No active change") {
+		t.Errorf("error = %q, want the existing resolveFromCurrent no-active-change message", err)
+	}
+}
+
 func TestAdvance_SelfHeals(t *testing.T) {
 	changeDir := setupSelfHealFixture(t, "active")
 
