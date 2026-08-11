@@ -90,7 +90,7 @@ When operating on an active change, skills selectively load relevant memory file
 5. If a referenced domain, sub-domain, or file doesn't exist yet, note this and proceed without error (it will be created during hydrate)
 6. Do not load unrelated domains — keeps context focused and efficient
 
-A flat domain is just the degenerate 2-hop case (domain index → file); the sub-domain index hop is taken only when the Affected Memory entry carries the 3-part form. This matches `_preamble.md` § Memory File Lookup and `SPEC-_preamble.md` (partial SPECs keep the leading underscore) (uliv). The always-load layer loads root + domain indexes; its description acknowledges that a domain may contain sub-domains.
+A flat domain is just the degenerate 2-hop case (domain index → file); the sub-domain index hop is taken only when the Affected Memory entry carries the 3-part form. This matches `_preamble.md` § Memory File Lookup (uliv). The always-load layer loads root + domain indexes; its description acknowledges that a domain may contain sub-domains.
 
 This applies to all skills operating on an active change, not just spec-writing skills.
 

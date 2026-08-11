@@ -16,7 +16,7 @@ Structurally it is `/fab-draft` with a cluster-analysis front end and a **fan-ou
 
 ### Requirement: Identity, pre-flight, and read-only-until-accept
 
-The canonical source is `src/kit/skills/fab-dedupe.md`, frontmatter `name: fab-dedupe` with `helpers: [_generation, _srad, _intake]` — the triple `/fab-draft` declares — and one optional `[scope]` argument. Its mirror is `docs/specs/skills/SPEC-fab-dedupe.md`, updated when a change alters the skill's flow, tool usage, or sub-agent structure; `fab fab-help` groups it under **Planning** via `fabhelp.go`'s `skillToGroupMap`.
+The canonical source is `src/kit/skills/fab-dedupe.md`, frontmatter `name: fab-dedupe` with `helpers: [_generation, _srad, _intake]` — the triple `/fab-draft` declares — and one optional `[scope]` argument. `fab fab-help` groups it under **Planning** via `fabhelp.go`'s `skillToGroupMap`.
 
 Pre-flight verifies `config.yaml` and `constitution.md`, STOPping with the standard uninitialized message when either is missing. It MUST NOT run `fab preflight` — the skill operates with no active change and must not resolve or disturb one. Logging is `fab log command "fab-dedupe"`, no change ID.
 

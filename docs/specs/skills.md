@@ -55,6 +55,87 @@ helpers: [_generation, _review, _srad, _pipeline]
 
 Validation is **convention-only** — `fab sync` does not reject skills with unknown helper values. Drift surfaces as runtime behavior (agent loads an unexpected file or fails to find a needed one).
 
+
+### Partial Flow Skeletons
+
+The behavioral partials carry their condensed flow skeletons here; the pure-reference partials (`_cli-fab`, `_cli-external`, `_cli-agents`) carry no flow.
+
+`_preamble` — shared context preamble loaded by every skill (path/context/helper conventions, per-stage profile resolution, cross-adapter dispatch, worker continuation, pane readiness gate, confidence scoring):
+
+```text
+Skill reads _preamble.md
+├─ Context Loading (4 layers): always-load → change context (fab preflight, fab log command) → memory lookup (≤3-hop) → source code
+├─ Conventions: helpers: frontmatter, naming, rk reference, common fab commands, next steps
+├─ Subagent Dispatch
+│  ├─ Dispatch pattern + Standard Subagent Context
+│  ├─ Per-stage model resolution: fab resolve-agent <stage> --alias → branch on dispatch= (absent ⇒ native Agent / present ⇒ fab dispatch CLI adapter)
+│  ├─ Worker continuation (apply rework only): native SendMessage / pane deliver / else fresh
+│  ├─ CLI-adapter dispatch: fab dispatch start → wait; pane open → ready gate → deliver; stage-aware reap
+│  └─ Dispatch-prompt obligations (all adapters): {stage}-result.yaml, context files, terminal fab status refresh, no status TRANSITIONs
+├─ SRAD Autonomy Framework (pointer → _srad.md)
+└─ Confidence scoring — fab score <change>
+```
+
+`_generation` — shared artifact generation procedures (Intake Generation, Plan Generation, and the diff-based adoption variants):
+
+```text
+Consumer reads _generation.md (via helpers: declaration)
+├─ Intake Generation: read intake template → fill every section substantively → append ## Assumptions per _srad → write intake.md
+├─ Plan Generation: read plan template → ## Requirements (RFC-2119, stable R#) → Task + Acceptance entry per requirement (traceability R# → T# → test → A#) → ## Tasks / ## Acceptance / ## Assumptions → write plan.md
+└─ Adoption variants (fab-adopt only, diff read once): Intake-from-Diff / Plan-from-Diff (headings only; no R#/T#/A# ceremony)
+```
+
+`_intake` — shared pre-boundary Create-Intake Procedure (Steps 0–9) for /fab-new, /fab-draft, /fab-dedupe, and /fab-proceed's create-new dispatch:
+
+```text
+├─ 0 Parse input: Linear ID → MCP fetch / backlog ID → read fab/backlog.md / natural language as-is
+├─ 1 Generate slug (2–6 word kebab)
+├─ 2 Gap analysis
+├─ 3 Create change: collision pre-checks → [existing] route to resume, STOP / else fab change new [--change-id] (+ fab status add-issue if Linear)
+├─ 4 Mine conversation context → Certain/Confident assumption rows
+├─ 5 Generate intake.md → _generation.md § Intake Generation
+├─ 6 Verify change type — [if wrong] fab status set-change-type
+├─ 7 Confidence — fab score --stage intake <change>
+├─ 8 SRAD question selection: interactive → ask via SRAD / promptless-defer → "Deferred" rows returned to the dispatcher
+└─ 9 Advance — fab status advance <change> intake
+```
+
+`_pipeline` — shared pipeline bracket for /fab-ff and /fab-fff (/fab-adopt partially consumes the rework loop + hydrate dispatch):
+
+```text
+Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
+├─ Pre-flight: fab preflight; gate (skip if --force) fab score --check-gate --stage intake → STOP if < 3.0
+├─ Resumability: skip done stages; per-stage dispatch via fab resolve-agent <stage> --alias (dispatch= absent ⇒ native Agent / present ⇒ CLI adapter)
+├─ Step 1 Apply → subagent /fab-continue Apply → fab status finish intake/apply
+├─ Step 2 Review → subagent /fab-continue Review (_review.md)
+│  ├─ Pass: finish review → Step 3
+│  └─ Fail: auto-rework loop ≤{max_cycles} (resume apply worker when reachable, fresh review each cycle); exhaustion: fab status fail review → STOP
+├─ Step 3 Hydrate → subagent /fab-continue Hydrate → fab status finish hydrate
+└─ {terminal} = hydrate → complete / review-pr → driver Steps 4–5
+```
+
+`_review` — shared review logic run by the dispatched review worker (a `mode` parameter — full | diff-only — selects whether plan-conformance steps run):
+
+```text
+Review worker reads _review.md at entry, runs the whole review inline
+├─ Mode: full (default) / diff-only (holistic diff only)
+├─ Preconditions [full]: plan.md tasks all [x], acceptance present
+├─ Context: full diff (git diff <base>...HEAD), full repo access; full mode also plan.md + touched sources + memory
+├─ Plan conformance [full]: acceptance items → run affected tests → spot-check requirements → memory drift → code quality → parsimony pass → deletion-candidate prompt
+├─ Holistic-diff focus [both]: contract violations, pattern inconsistencies, missing cross-references, regressions, structural issues
+└─ Verdict: one three-tier list (must/should/nice); any must-fix → fail, else pass
+```
+
+`_srad` — SRAD autonomy framework helper (four-dimension scoring, indicative grades, the Critical Rule, per-skill autonomy levels, artifact markers, Assumptions Summary format):
+
+```text
+Planning skill declares helpers: [..., _srad] → reads _srad.md before its body
+├─ SRAD scoring: 4 dimensions 0–100 → composite → grade (Certain/Confident/Tentative/Unresolved)
+├─ Critical Rule: genuine unknowns MUST be asked (promptless dispatch → "Deferred" rows)
+├─ Skill-specific autonomy levels; worked examples
+└─ Artifact markers (<!-- assumed --> / <!-- clarified -->) + ## Assumptions block (Scores column required)
+```
+
 ---
 
 ## Context Loading Convention
@@ -123,7 +204,7 @@ Adding a skill to the kit touches eight integration points. Work through all of 
 3. **`helpers:` declaration** — list any additional partials the skill needs (`_generation`, `_review`, `_cli-fab`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`) in frontmatter; skills without the list load only `_preamble`. See § Skill Helpers.
 4. **`Next:` line** — the skill's output ends with a state-derived `Next:` line per `_preamble.md` § Next Steps Convention (or documents an explicit opt-out, as `fab-discuss` and `fab-operator` do).
 5. **Error Handling + Key Properties tables** — the body closes with the two standard tables (skill-specific errors only; idempotency, write surface, stage effects).
-6. **SPEC mirror file** — create `docs/specs/skills/SPEC-{name}.md` as a structural quick-reference: title, a ≤2–3-sentence header, the Flow diagram, the Tools section (a table, or a one-line summary where a table adds nothing), and the Sub-agents section — nothing else. Partials keep their leading underscore in the SPEC filename (`SPEC-_review.md`, `SPEC-_preamble.md`, `SPEC-_generation.md`, `SPEC-_srad.md`, `SPEC-_pipeline.md`, `SPEC-_intake.md`, `SPEC-_cli-agents.md`). **Coverage is complete**: every `src/kit/skills/*.md` file — every user-invocable skill and every partial, including the pure-reference `_cli-fab.md` and `_cli-external.md` — carries a `SPEC-*.md` mirror. There is no exclusion. The constitution requires updating a skill's SPEC only when a change alters the skill's flow, tool usage, or sub-agent structure — prose-only edits do not trigger a mirror update.
+6. **Flow skeleton in skills.md** — add the skill's Flow skeleton to its `skills.md` section: the Flow diagram, plus the Tools and Sub-agents one-liners where they add information beyond the section's prose. Behavioral partials carry theirs in § Skill Helpers (§ Partial Flow Skeletons); pure-reference partials carry none.
 7. **skills.md row** — add the skill's section to this file (and its `helpers:` row to § Skill Helpers when it declares any).
 8. **Help grouping** — add the skill to `skillToGroupMap` in `src/go/fab/cmd/fab/fabhelp.go` so `/fab-help` lists it under the right group (unmapped skills fall into the "Other" bucket).
 
@@ -183,6 +264,29 @@ constitution work, while `fab sync` remains independently re-runnable.
 → "Applying migration 0.2.0-to-0.3.0... done."
 ```
 
+
+**Flow**:
+
+```text
+User invokes /fab-setup [subcommand]
+├─ Pre-flight: src/kit/ + VERSION exist; Bash: fab log command "fab-setup"
+├─── No argument: Bootstrap
+│  ├─ Bash: fab doctor → [non-zero] STOP
+│  ├─ config.yaml: fab init --project seeds identity; refine in place
+│  ├─ Read scaffold + project context → Write constitution.md
+│  └─ Bash: fab sync (files, skill deploy, .gitignore) → [non-zero] STOP
+├─── config: Read → interactive menu → Edit: fab/project/config.yaml
+├─── constitution: Read → amendment menu → Edit: constitution.md
+└─── migrations
+   ├─ Bash: fab migrations-status --json (binary discovers; skill applies each file)
+   ├─ [overlaps non-empty] STOP
+   └─ Per applicable file: Read migration → execute → Write: fab/.kit-migration-version
+```
+
+**Tools**: Read (scaffolds, project files, migration files), Write (project files, migration version), Edit (config, constitution), Bash (`fab doctor`, `fab sync`, `fab log command`, `fab migrations-status --json`).
+
+**Sub-agents**: None.
+
 ---
 
 ## `/docs-hydrate-memory [sources...]`
@@ -235,6 +339,22 @@ constitution work, while `fab sync` remains independently re-runnable.
 6. **Update top-level index** — update `docs/memory/index.md` with new domains and expanded file lists
 7. **Report** what was created and updated
 
+
+**Flow**:
+
+```text
+User invokes /docs-hydrate-memory [sources...|folders...|backfill]
+├─ Read: _preamble.md; Pre-flight: docs/memory/ + index.md exist
+├─ Ingest (URLs/.md): WebFetch/Read sources → Write topic files from template + index stubs → self-check → regen
+├─ Generate (folders/none): Glob/Read codebase → gap report → Write from template + index stubs → self-check → regen
+└─ Backfill (keyword / reorg dispatch): re-scan for missing description: → Edit: prepend frontmatter (body preserved, idempotent); regen deferred when reorg-dispatched
+   (regen = Bash: fab memory-index --check refuse-guard → fab memory-index)
+```
+
+**Tools**: Read/Glob/Grep/WebFetch (sources, codebase scan, memory re-scan, `templates/memory.md` shape), Write/Edit (new memory files + index stubs; backfilled frontmatter), Bash (`fab memory-index --check` refuse-guard; `fab memory-index` regen).
+
+**Sub-agents**: None — backfill mode is dispatched by `/docs-reorg-memory`; this skill spawns none.
+
 ---
 
 ## `/fab-new <description>`
@@ -271,6 +391,21 @@ constitution work, while `fab sync` remains independently re-runnable.
 
 > **Create without activating**: Use `/fab-draft` to queue a change for later without switching context.
 
+
+**Flow**:
+
+```text
+User invokes /fab-new <description>
+├─ Read: _preamble.md, .claude/skills/_intake/SKILL.md (+helpers)
+├─ Create-Intake Procedure Steps 0–9 (interactive — see `_intake.md`)
+├─ Bash: fab change switch "{name}"
+└─ Create Git Branch (same cases as git-branch): probe repo/branch/dirty/target-exists/rename-guard → checkout, checkout --track, checkout -b, or branch -m; dirty tree on create/rename → non-blocking note
+```
+
+**Tools**: Steps 0–9 per `_intake.md`; own tail: Read (`_intake` skill + helpers), Bash (`fab change switch`, `fab resolve`, `git`).
+
+**Sub-agents**: None.
+
 ---
 
 ## `/fab-draft <description>`
@@ -295,6 +430,19 @@ constitution work, while `fab sync` remains independently re-runnable.
 ```
 
 **Behavior**: A thin delta over `/fab-new` — reads its deployed skill file and executes its Pre-flight, Arguments, and Steps 0–9 with the documented deltas, skipping Steps 10–11 entirely (no activation, no git branch). The user must run `/fab-switch {name}` to make it active before proceeding.
+
+
+**Flow**:
+
+```text
+User invokes /fab-draft <description>
+├─ Read: _preamble.md, .claude/skills/_intake/SKILL.md (+helpers)
+└─ Create-Intake Procedure Steps 0–9 (interactive — see `_intake.md`); STOP after Step 9 (no activation, no branch)
+```
+
+**Tools**: Per the Create-Intake Procedure (see `_intake.md`). No `fab change switch`, no git.
+
+**Sub-agents**: None.
 
 ---
 
@@ -333,6 +481,29 @@ constitution work, while `fab sync` remains independently re-runnable.
 4. Downstream artifacts are invalidated only by re-running apply: `plan.md` persists across resets (deleting it forces regeneration); task checkboxes are NOT auto-cleared.
 5. For an intake reset, advance intake to `ready` (not `done`) to preserve the `/fab-clarify` opportunity.
 
+
+**Flow**:
+
+```text
+User invokes /fab-continue [change-name] [stage]
+├─ Read: _preamble.md; Bash: fab preflight
+├─ [reset arg] Bash: fab status reset <change> <stage>
+├─ [review-failed] reset apply + rework menu, stop; [review-pr-failed] re-run /git-pr-review
+├─ Dispatch on current stage:
+│  INTAKE (main session): Read templates/memory → Write intake.md (SRAD) → advance; finish intake
+│  APPLY (dispatched): no plan.md → Write plan.md; per unchecked task: Edit/Write sources → Bash: tests → check off plan.md → finish apply
+│  REVIEW (dispatched; worker reads _review.md, runs review inline): read diff/plan/source/memory → tests → unified findings
+│    pass → finish review + set-acceptance / fail → fail review + reset apply (rework options)
+│  HYDRATE (dispatched): Write/Edit docs/memory/** → set-summary → fab memory-index → finish hydrate
+│  SHIP: delegate to /git-pr <change>
+│  REVIEW-PR: delegate to /git-pr-review <change> (timeout → stage left active)
+└─ Output: summary + Next: line
+```
+
+**Tools**: Read (preamble, templates, artifacts, source, memory), Write (`plan.md`, memory files), Edit (plan checkboxes, memory), Bash (`fab status` transitions, `fab preflight`, `fab memory-index`, tests), Agent (review sub-agent).
+
+**Sub-agents**: Single review sub-agent (reads `_review.md`, runs the review inline; returns one unified findings set).
+
 ---
 
 ## `/fab-ff` (Fast Forward)
@@ -365,6 +536,19 @@ skeleton, Steps 1–3, and Stage Dispatch Procedure. `fab-ff.md` binds only the
 4. **On pass** — advance to hydrate
 5. **On fail** — auto-rework loop (up to `{max_cycles}` cycles, default 3): triage findings by priority, autonomously select rework path (fix code, revise plan, revise requirements), re-apply (resume-first: continue the named `apply-{id}` worker on the native arm when reachable, else dispatch fresh), spawn fresh sub-agent for re-review. Escalation after 2 consecutive fix-code attempts. Stop after `{max_cycles}` failed cycles with summary.
 6. Hydrate into `docs/memory/`
+
+
+**Flow**:
+
+```text
+User invokes /fab-ff [change-name] [--force]
+├─ Read: _preamble.md, helpers incl. _pipeline.md
+└─ Execute the _pipeline.md bracket ({driver}=fab-ff, {terminal}=hydrate) — see `_pipeline.md`
+```
+
+**Tools**: Read (`_preamble.md`, helpers); all other tool use lives in the bracket (see `_pipeline.md`).
+
+**Sub-agents**: Per the bracket: `/fab-continue` Apply, Review (via `_review.md`), Hydrate.
 
 ---
 
@@ -406,6 +590,23 @@ skeleton, Steps 1–3, and Stage Dispatch Procedure. `fab-ff.md` binds only the
 
 **Key difference from `/fab-ff`**: The difference is scope only. `/fab-fff` extends through ship and review-pr; `/fab-ff` stops at hydrate. Both have the identical single intake gate, no in-bracket clarify, and identical auto-rework (`{max_cycles}`-cycle cap with escalation, default 3). Both accept `--force` to bypass the gate.
 
+
+**Flow**:
+
+```text
+User invokes /fab-fff [change-name] [--force]
+├─ Read: _preamble.md, helpers incl. _pipeline.md
+├─ Execute the _pipeline.md bracket ({driver}=fab-fff, {terminal}=review-pr)
+├─ Ship: dispatch /git-pr {name} (own ship transitions)
+└─ Review-PR: dispatch /git-pr-review {name}
+   ├─ [success / no-reviews] stage done; [failure] STOP with the error
+   └─ [timeout] stage left active; report pending + re-run guidance
+```
+
+**Tools**: Read (`_preamble.md`, helpers); all other tool use lives in the bracket and the dispatched skills.
+
+**Sub-agents**: Bracket sub-agents per `_pipeline.md` (`/fab-continue` Apply, Review, Hydrate) plus `/git-pr` and `/git-pr-review`.
+
 ---
 
 ## `/fab-proceed`
@@ -440,6 +641,23 @@ skeleton, Steps 1–3, and Stage Dispatch Procedure. `fab-ff.md` binds only the
 - Does not run preflight or load `_preamble.md` context — delegates to `/fab-fff`
 - Errors on empty context + no intake: "Nothing to proceed with — start a discussion or run /fab-new (or /fab-draft) first."
 
+
+**Flow**:
+
+```text
+User invokes /fab-proceed
+├─ Bash: fab resolve --folder --or-none
+│  ├─ folder → branch check: matches → dispatch /fab-fff only / mismatch → dispatch /git-branch → /fab-fff
+│  └─ "(none)" → classify conversation substantive vs empty/thin
+├─ Scan unactivated intakes; substantive + candidates → relevance assessment (clearly-relevant wins; ambiguous → not relevant; date-descending tiebreak)
+├─ Prefix dispatch (subagents): _intake Steps 0–9 in promptless-defer mode (no questions; unresolved decisions deferred, surfaced before /fab-fff) → /fab-switch → /git-branch
+└─ Terminal delegation: Skill: /fab-fff (main context, NOT subagent)
+```
+
+**Tools**: Bash (`fab resolve --folder --or-none`, `git branch --show-current`, intake scan), Agent (prefix dispatches), Skill (`/fab-fff`).
+
+**Sub-agents**: `_intake` (Create-Intake, promptless-defer — stops at `ready`), `/fab-switch` (activate), `/git-branch` (branch) — dispatched per the dispatch table.
+
 ---
 
 ## `/fab-adopt`
@@ -464,6 +682,24 @@ skeleton, Steps 1–3, and Stage Dispatch Procedure. `fab-ff.md` binds only the
 - Diff-only review via the general `mode` parameter on `_review.md` — not an adopt-specific branch
 - State composed from existing `skip`/`reset` transitions; PR Meta retrofit reuses `fab pr-meta` + `gh pr edit` — **no Go change**
 - Idempotent guards: re-run after the change is created routes to `/fab-continue` via the collision guard; the Meta retrofit is body-gated
+
+
+**Flow**:
+
+```text
+User invokes /fab-adopt [<slug>]
+├─ Guards (STOP before any mutation): detached/default branch, MERGED PR, already in pipeline, or empty diff vs base
+├─ Intake (one main-session pass): fab change new + activate; reconstruct intake.md from the diff; human confirmation; write MINIMAL all-[x] plan.md
+├─ Bash: fab status skip apply / reset review / set-summary
+├─ Review (dispatched, mode: diff-only): pass → finish review / fail → auto-rework or hand back
+├─ Hydrate (dispatched) → finish hydrate
+├─ Ship: dispatch /git-pr {name} (retrofit existing PR or fresh PR)
+└─ Land in review-pr → summary + Next: /git-pr-review
+```
+
+**Tools**: Bash (`git`, `gh pr view`, `fab change new`, `fab status`, `fab score`), Read (diff, PR body, templates), Write (`intake.md`, `plan.md`), Agent (review + hydrate, `/git-pr`).
+
+**Sub-agents**: `/fab-continue` Review (`mode: diff-only`), `/fab-continue` Hydrate, `/git-pr {name}` (ship).
 
 ---
 
@@ -497,6 +733,28 @@ skeleton, Steps 1–3, and Stage Dispatch Procedure. `fab-ff.md` binds only the
 
 **Key property**: Idempotent and non-advancing. Calling `/fab-clarify` multiple times is safe — it refines further each time. It never transitions to the next stage. Use `/fab-continue` when satisfied.
 
+
+**Flow**:
+
+```text
+User invokes /fab-clarify [change-name]  — or —  [AUTO-MODE] invocation
+├─ Read: _preamble.md; Bash: fab preflight
+├─ Target is intake.md; at apply or later → STOP (→ /fab-continue rework)
+├─── SUGGEST MODE (interactive)
+│  ├─ Read intake.md → taxonomy scan (gaps, markers)
+│  ├─ Bulk-confirm confident items → Edit: intake.md
+│  ├─ Ask questions, process answers → Edit: intake.md (append ## Clarifications)
+│  └─ Coverage summary → Bash: fab score --stage intake
+├─── AUTO MODE (machine-readable)
+│  ├─ Scan + resolve contextual gaps; mark blocking user-input gaps
+│  └─ Return {resolved, blocking, non_blocking, blocking_issues?} → Bash: fab score
+└─ Does NOT advance stage
+```
+
+**Tools**: Read (preamble, artifacts, memory), Edit (intake.md in place), Bash (`fab preflight`, `fab score`).
+
+**Sub-agents**: None.
+
 ---
 
 ## `/fab-dedupe [scope]`
@@ -528,6 +786,22 @@ skeleton, Steps 1–3, and Stage Dispatch Procedure. `fab-ff.md` binds only the
 **Configuration**: one registry key, `consolidate.detectors` (project scope, advertised, no built-in default). The utilities memory home is **hardcoded** to `docs/memory/_shared/utilities.md` — there is no override key, and the skill never writes the file (hydrate does, on the normal pipeline path).
 
 **Key property**: read-only until Step 5; the sweep is idempotent but drafting is not (natural-language input creates a fresh change each run) — Step 2's gap analysis is the duplicate-work guard.
+
+
+**Flow**:
+
+```text
+User invokes /fab-dedupe [scope]
+├─ Pre-flight: config.yaml + constitution.md exist (no fab preflight); Read: _preamble.md
+├─ Bash: fab log command "fab-dedupe"
+├─ Resolve scope → paths; probe + run configured detectors (fail-silent)
+├─ Cluster by behavioral shape; rank → report → ASK (all / 1,3 / none)
+└─ Per accepted group → Create-Intake Procedure Steps 0–9 (see `_intake.md`); STOP after Step 9 (no activation)
+```
+
+**Tools**: Read (memory, source), Bash (`fab log command`, detector probes), Write (`intake.md` via the shared procedure). No `fab preflight`, no `fab change switch`, no git.
+
+**Sub-agents**: None.
 
 ---
 
@@ -659,6 +933,21 @@ The applying agent triages review comments by priority — not all comments need
 
 **Restore mode** (`/fab-archive restore <change-name> [--switch]`): Moves an archived change back to `fab/changes/`. Preserves all artifacts and `.status.yaml` without modification. Optionally activates via `--switch` flag.
 
+
+**Flow**:
+
+```text
+User invokes /fab-archive [change-name | restore <name> [--switch]]
+├─ Read: _preamble.md
+├─ Archive: Bash: fab preflight → [hydrate not done] STOP → Bash: fab change archive <change>
+├─ Restore: Bash: fab change restore <name> [--switch] (preflight + hydrate guard waived)
+└─ Format report (index/pointer results; failed = op done, exit non-zero)
+```
+
+**Tools**: Read (preamble), Bash (`fab preflight`, `fab change archive`, `fab change restore`, `fab change archive-list`).
+
+**Sub-agents**: None.
+
 ---
 
 ## `/fab-switch <change-name>`
@@ -677,6 +966,20 @@ The applying agent triages review comments by priority — not all comments need
 3. **No match** — if nothing matches, list available changes and ask
 4. Create the `.fab-status.yaml` symlink pointing to the change's `.status.yaml`
 5. Display the switched change's status summary
+
+
+**Flow**:
+
+```text
+User invokes /fab-switch [change-name] [--none]
+├─ Read: _preamble.md (§1 always-load exception)
+├─ No argument → Bash: fab change list → user selects; --none → fab change switch --none
+└─ change-name → Bash: fab change switch "<name>" ([multi-match] ask; [no match] list) → Bash: fab log command
+```
+
+**Tools**: Bash (`fab change switch`, `fab change list`, `fab log command`).
+
+**Sub-agents**: None.
 
 ---
 
@@ -707,6 +1010,21 @@ The applying agent triages review comments by priority — not all comments need
 - Idempotent — checking out an already-active branch is a no-op
 - Always enabled if in a git repo
 
+
+**Flow**:
+
+```text
+User invokes /git-branch [change-name]
+├─ Bash: git rev-parse --is-inside-work-tree; fab change resolve "<name>" → [multi-match] STOP with candidates / [no match, explicit arg] standalone fallback
+├─ Probes (current branch, dirty count, local + origin existence) → [on target] no-op / [local] checkout / [origin-only] checkout --track / [on main] checkout -b
+├─ [other branch, no upstream] rename guard: resolve current branch → branch -m (same/no change) or checkout -b (different change)
+└─ Report; create/rename with dirty tree → carried-over note
+```
+
+**Tools**: Bash — `fab change resolve` (resolution + rename guard; strict exit-code form kept deliberately); all git operations.
+
+**Sub-agents**: None.
+
 ---
 
 ## `/fab-status`
@@ -732,6 +1050,19 @@ Plan: not yet generated (created at apply entry)
 Next: Complete intake.md, then /fab-continue
 ```
 
+
+**Flow**:
+
+```text
+User invokes /fab-status [change-name]
+├─ Bash: fab preflight; Read: kit VERSION + fab/.kit-migration-version; Bash: git branch --show-current
+└─ Render: stage progress table, plan counts, confidence, impact line (⚠️+bold over threshold), refactor-growth warning
+```
+
+**Tools**: Bash (`fab preflight`, `git branch --show-current`), Read (VERSION, migration-version).
+
+**Sub-agents**: None.
+
 ---
 
 ## `/fab-discuss`
@@ -749,6 +1080,21 @@ Next: Complete intake.md, then /fab-continue
 
 **Output**: Structured orientation summary with project identity, memory domains (with file counts), specs landscape, optional file status, active change name/stage (if any), and a ready signal.
 
+
+**Flow**:
+
+```text
+User invokes /fab-discuss
+├─ Read: always-load layer (per _preamble.md §1)
+├─ Bash: fab resolve --folder --or-none; Read: .status.yaml if a change is active
+├─ Bash: fab log command "fab-discuss"
+└─ Output: orientation summary
+```
+
+**Tools**: Read (always-load files, `.status.yaml`), Bash (`fab resolve --folder --or-none`, `fab log command`).
+
+**Sub-agents**: None.
+
 ---
 
 ## `/fab-help`
@@ -760,6 +1106,19 @@ Next: Complete intake.md, then /fab-continue
 **Behavior**: Log the invocation (`fab log command "fab-help"`), then shell out to `fab fab-help`. The subcommand reads the kit version from the cache (falling back to `unknown` when absent), scans skill frontmatter for command descriptions, and prints the complete help text. **The subcommand is the single source of truth for help content** — the skill does not restate it, so a newly added skill surfaces automatically once it is mapped in `skillToGroupMap` (§ New Skill Checklist item 8).
 
 **Key properties**: Read-only — creates and modifies nothing. Idempotent. Requires no active change, no config, and no constitution.
+
+
+**Flow**:
+
+```text
+User invokes /fab-help
+├─ Bash: fab log command "fab-help"
+└─ Bash: fab fab-help (scans skill frontmatter, prints grouped help)
+```
+
+**Tools**: Bash (`fab log command`, `fab fab-help`).
+
+**Sub-agents**: None.
 
 ---
 
@@ -775,7 +1134,21 @@ Next: Complete intake.md, then /fab-continue
 - **State is re-derived, never remembered** — live state is re-queried before every action; continuity across `/clear` comes from the server-keyed operator state file.
 - Ends with its own status frame rather than a `Next:` line.
 
-**Full spec**: [operator.md](operator.md) (the top-level behavioral spec) and [skills/SPEC-fab-operator.md](skills/SPEC-fab-operator.md) (the flow mirror). The agent-CLI mechanics it builds on — spawn composition, pre-send validation, delivery probe, peek, await — live in `_cli-agents.md`; this skill owns *when and whether* to use them (confirmation tiers, retry budgets, repo targeting, enrollment, dependency resolution, autopilot).
+**Full spec**: [operator.md](operator.md) (the top-level behavioral spec). The agent-CLI mechanics it builds on — spawn composition, pre-send validation, delivery probe, peek, await — live in `_cli-agents.md`; this skill owns *when and whether* to use them (confirmation tiers, retry budgets, repo targeting, enrollment, dependency resolution, autopilot).
+
+
+**Flow**:
+
+```text
+Started via `fab operator`; runs a continuous /loop cycle
+├─ Re-derive state each cycle: Bash: fab pane map --all-sessions (never trust cached values)
+├─ Auto-answer routine agent questions; nudge stalled agents; route commands via tmux send-keys
+└─ Drive autopilot queues (/fab-new → /fab-fff); spawn each task in a fresh worktree
+```
+
+**Tools**: Bash (`fab pane map`, `tmux send-keys`, `wt create`), Skill (`/loop`); helpers `_cli-agents`, `_cli-fab`, `_cli-external`.
+
+**Sub-agents**: None (spawns agent sessions, not sub-agents).
 
 ---
 
@@ -807,6 +1180,20 @@ Next: Complete intake.md, then /fab-continue
 
 **Key properties**: No active change required. No git operations. Idempotent. Specs modified only with user confirmation.
 
+
+**Flow**:
+
+```text
+User invokes /docs-hydrate-specs [domain]
+├─ Read: _preamble.md; pre-flight: memory + specs indexes exist
+├─ Read: all memory + spec files → identify gaps, rank top 3
+└─ Per gap: preview → yes/no/done → Edit: existing spec, or Write: new file + Edit: specs/index.md row; summary {N} of {M} applied
+```
+
+**Tools**: Read (memory files, spec files, indexes), Edit/Write (approved spec edits; new spec file + index row for no-target gaps).
+
+**Sub-agents**: None.
+
 ---
 
 ## `/docs-reorg-memory`
@@ -826,6 +1213,21 @@ Next: Complete intake.md, then /fab-continue
 6. **Completion chain → `/docs-distill-memory`**: at completion (whether or not any migration ran), emit `Next: /docs-distill-memory (N files flagged across M domains)` (listed first) when N ≥ 1 — the fixed *structure-then-prose* order made self-guiding. The chain **reuses the Step 1 `--check --json` call's `warnings[]`** (no second call) and aggregates with distill's four-kind rule (dedupe by path, sub-domain roll-up, exclusion set). N = 0 → the normal completion `Next:`; older-binary (no `warnings[]`) → a plain pointer without counts. Distill points back at reorg in its own `Next:` line (the bidirectional chain).
 
 **Key properties**: No active change required. No git operations. Idempotent (a well-shaped tree with no over-size files, duplicate coverage, or `_unsorted/` staging proposes nothing). Memory files modified only with explicit confirmation. Owns structure at **file** granularity (`split-file`/`merge-file`) as well as folder; body-prose restyling belongs to `/docs-distill-memory`. Completion chains to `/docs-distill-memory` (reusing the Step 1 `--check --json` call, no second call) so the fixed reorg → distill composition order is self-guiding.
+
+
+**Flow**:
+
+```text
+User invokes /docs-reorg-memory
+├─ Pre-flight; Read: all memory files + one Bash: fab memory-index --check --json (feeds compatibility, shape, _unsorted/, completion chain)
+├─ Diagnose: Shape Report + compatibility + duplicate coverage + _unsorted/ triage → propose reorg → approval gate
+├─ [compat approved] Write: _shared/removed-domains.md; dispatch /docs-hydrate-memory backfill
+└─ [approved] per migration: Write/Edit moves/splits/merges + link rewrites → Bash: fab memory-index → verify (no lost headings/dangling links) → Next: /docs-distill-memory with flagged counts
+```
+
+**Tools**: Read (all memory files and indexes), Write/Edit (approved moves/splits/merges, link rewrites, tombstone file, `_unsorted/` triage), Bash (one `fab memory-index --check --json` — four consumers; `fab memory-index` regen), Agent (dispatch `/docs-hydrate-memory` backfill during compatibility orchestration).
+
+**Sub-agents**: `/docs-hydrate-memory` (backfill mode) — synthesizes `description:` frontmatter; defer-regen so reorg owns the single regen.
 
 ---
 
@@ -849,6 +1251,22 @@ Next: Complete intake.md, then /fab-continue
 
 **Key properties**: No active change required. `<domain>` optional (named = single-domain full-read override, no loop; omitted = survey mode + all-domains loop). One domain per **approval/apply unit**, iterated within a single invocation — a property of the analysis+apply/approval unit, not the invocation (each domain is read-in-full, reported, approved, and rewritten as its own unit; a no-arg invocation loops that unit over every flagged domain, an explicit `<domain>` runs it once; the per-domain approval gate is retained, no bulk approval). Idempotent (an already-distilled domain proposes nothing; a fully-distilled tree surveys clean so the no-arg loop's worklist is empty; `fab memory-index` is byte-stable). Rationale is relocated, never deleted; deletion is confined to narration recorded elsewhere (log.md/git/archive), and **never fabricated** when rewriting a DD bullet. `_shared/removed-domains.md` is exempt (§3.3 tombstone carve-out). The generated files `index.md`/`log.md` are never hand-edited; `log.seed.md` is a curated read-only seed input (never written by the generator) that distillation excludes like a ledger. Writes one file outside `docs/memory/` — `fab/backlog.md` (operational-TODO relocation). Moves no files, auto-merges no near-/cross-file duplicates (structural moves + cross-file merges belong to `/docs-reorg-memory`).
 
+
+**Flow**:
+
+```text
+User invokes /docs-distill-memory [<domain>]
+├─ [omitted] Survey: Bash: fab memory-index --check --json → flagged-domain worklist → per-domain loop in main session; [none flagged] STOP
+├─ [given] skip survey, full read of that one domain (no loop); Pre-flight: index.md + ≥1 topic file
+├─ Read: domain files + $(fab kit-path)/reference/fkf.md → classify (narration / superseded prose / description: defects / duplicates / DD changelog bullets / TODOs / rationale)
+├─ Report → approval gate → [declined] stop, no mutation
+└─ [approved] Edit rewrites; relocate TODOs → fab/backlog.md; then once: Bash: fab memory-index --check → fab memory-index; Next: remaining flagged domains
+```
+
+**Tools**: Read (domain files + fkf.md reference; survey JSON output), Edit/Write (approved present-truth rewrites; TODO relocation into `fab/backlog.md`), Bash (`fab memory-index --check --json` survey; refuse-guarded `--check` + `fab memory-index` regen).
+
+**Sub-agents**: None — runs inline, including the no-arg all-domains loop.
+
 ---
 
 ## `/docs-reorg-specs`
@@ -867,6 +1285,20 @@ Next: Complete intake.md, then /fab-continue
 5. User confirmation — apply all, cherry-pick specific migrations, or skip
 
 **Key properties**: No active change required. No git operations. Idempotent. Spec files modified only with explicit confirmation.
+
+
+**Flow**:
+
+```text
+User invokes /docs-reorg-specs
+├─ Pre-flight; Read: all spec files (recursing subfolders)
+├─ Propose reorganization → approval gate
+└─ [approved] Write/Edit: moved files (bytes verbatim) + Edit: docs/specs/index.md (hand-rewritten)
+```
+
+**Tools**: Read (all spec files and index), Write/Edit (approved reorganizations).
+
+**Sub-agents**: None.
 
 ---
 
@@ -905,6 +1337,26 @@ Next: Complete intake.md, then /fab-continue
 
 **Context**: Does not require an active fab change — works as a standalone git tool. With an active change, reads `intake.md` for PR title/summary.
 
+
+**Flow**:
+
+```text
+/git-pr [<change>] [<type>]
+├─ Resolve: Bash: fab change resolve → {has_fab}, {name} (explicit-arg failure STOPs); branch-matches-change guard → STOP on mismatch/detached
+├─ Bash: fab status start {name} ship git-pr (if {has_fab}); PR type: status.yaml → intake keywords → git diff fallback
+├─ Gather: branch/status/log, gh pr view → {pr_state}, default branch, fab status get-issues
+├─ Guards: detached HEAD / on default branch / {pr_state} MERGED → STOP
+├─ 3a Commit: expected-area guard for untracked files → git add -u + in-area untracked → commit
+├─ 3a-bis (if {has_fab} + committed): Bash: fab memory-index → commit docs/memory drift (no --amend)
+├─ 3b Push; 3c Create PR (no OPEN PR): Read intake → Bash: fab pr-meta → ## Meta block → gh pr create --draft (--fill fallback)
+├─ 3d Retrofit ## Meta onto existing OPEN PR (idempotent prepend)
+└─ 4a–4c: fab status add-pr + finish ship stage; commit + push .status.yaml/.history.jsonl
+```
+
+**Tools**: Read (intake — PR title, Summary, Changes), Bash (git, gh, fab status; `fab pr-meta` renders the entire `## Meta` block — self-contained; non-zero/empty → Meta omitted).
+
+**Sub-agents**: None.
+
 ---
 
 ## `/git-pr-review [<change>] [--tool <name>]`
@@ -940,6 +1392,24 @@ Next: Complete intake.md, then /fab-continue
 - Idempotent — re-running after fixes finds no new modifications; re-running after replies skips already-replied comments
 - The Copilot request honors the Copilot toggle in `fab/project/code-review.md` § Review Tools (absent = enabled)
 
+
+**Flow**:
+
+```text
+/git-pr-review [<change>] [--tool <name>]
+├─ Start: Bash: fab change resolve → {name}; branch-matches-change guard → STOP on mismatch/detached; fab status start review-pr
+├─ Resolve PR (gh pr view, gh repo view); validate --tool (copilot only) or STOP
+├─ Detect: [comments exist] → triage / [none] → request Copilot review, poll gh pr view 30s×20 synchronously → [timeout] Step 6 timeout (stage stays active)
+├─ Fetch: Bash: gh api --paginate pulls/{n}/comments (reply comments skipped)
+├─ Triage fix/defer/skip/informational → Read + Edit fixes → commit + push ([commit fails] reset + STOP; [push fails] keep commit, no replies)
+├─ Post disposition replies (dedup existing, best-effort POSTs); Step 6: fab status finish / fail / timeout-left-active
+└─ Step 6.5 (success only, idempotent): commit + best-effort push .status.yaml/.history.jsonl; yq phase tracking on .status.yaml
+```
+
+**Tools**: Read/Edit (source files for review fixes), Bash (gh API — REST only; git incl. Step 6.5 status commit; fab status; yq phase tracking).
+
+**Sub-agents**: None.
+
 ---
 
 ## `/internal-consistency-check`
@@ -954,6 +1424,16 @@ Next: Complete intake.md, then /fab-continue
 
 **Key properties**: Read-only — reports findings, applies no fixes. No active change required.
 
+
+**Flow**:
+
+```text
+User invokes /internal-consistency-check
+├─ Pre-flight: Read config.yaml source_paths (missing → STOP)
+├─ Parallel dispatch: 3 Explore agents — Specs↔Impl, Memory↔Impl, Specs↔Memory
+└─ Synthesis (no writes): summary table → critical findings → minor findings → suggested actions
+```
+
 ---
 
 ## `/internal-retrospect`
@@ -965,6 +1445,18 @@ Next: Complete intake.md, then /fab-continue
 **Output**: Per area, either **Findings** with citations and suggested actions or **Clean**. Ends with a consolidated **Suggested Actions** list of concrete next steps (e.g. `Run /internal-skill-optimize {skill}`, `Add {X} to docs/memory/{domain}/{name}.md`). A session with no findings in any area reports `Clean session — no actions needed.`
 
 **Key properties**: Read-only — writes no files. No active change required.
+
+
+**Flow**:
+
+```text
+User invokes /internal-retrospect (agent reasoning over conversation history; no tool calls required)
+└─ Output: per-area Findings (citations + suggested actions) or Clean → Suggested Actions, or "Clean session — no actions needed."
+```
+
+**Tools**: None — pure conversation analysis (may Read cited files to verify a claim).
+
+**Sub-agents**: None.
 
 ---
 
@@ -983,3 +1475,17 @@ Next: Complete intake.md, then /fab-continue
 **Behavior**: Analyze, then report a before/after line count, a one-line-per-change content summary, the TOC action (added / already present / not needed), and any duplication or depth findings. Confirm with the user before writing. Batch mode sorts by line count descending, skips content optimization for files under 80 lines (`Already lean — skipped`) and for partials, runs structural checks on everything, compares the analyzed skills for cross-skill/twin clusters after per-file analysis, and presents one consolidated table plus report-only duplication and depth findings.
 
 **Constraints**: Never removes functionality, error handling, or edge-case coverage; preserves frontmatter, the H1, and the preamble blockquote exactly; keeps the imperative tone; keeps a TOC in sync when a trim changes a `##` heading; never merges skills or moves content between them.
+
+
+**Flow**:
+
+```text
+User invokes /internal-skill-optimize [<skill-name>]
+├─ Pre-flight: Read _*.md partials; [named skill missing] STOP
+├─ Single: Read target → content + structural analysis → AskUserQuestion → [approved] Write optimized file
+└─ Batch: Read all skills → content trim skips <80-line files + partials (structural checks on all) → summary table → approval → Write approved files
+```
+
+**Tools**: Read (partials as read-only reference context + target files), Write (approved optimized files — a partial only in a dedicated partial-optimization pass), AskUserQuestion (approval gate before any write).
+
+**Sub-agents**: None.
