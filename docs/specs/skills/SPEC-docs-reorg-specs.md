@@ -1,5 +1,5 @@
 # docs-reorg-specs
-Analyzes spec files for themes and suggests reorganization; read-only until approval. `docs/specs/skills/SPEC-*.md` mirrors are reserved paths — read for theme analysis only, never moved or merged.
+Analyzes spec files for themes and suggests reorganization; read-only until approval. `docs/specs/skills/SPEC-*.md` mirrors are reserved paths — read for theme analysis only, never renamed, moved, merged, or split.
 ## Flow
 ```
 User invokes /docs-reorg-specs

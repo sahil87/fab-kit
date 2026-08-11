@@ -10,7 +10,8 @@ User invokes /internal-skill-optimize [<skill-name>]
 ### Tools used
 | Tool | Purpose |
 |------|---------|
-| Read/Write | Partials + target files; approved optimized files |
+| Read | Partials (read-only reference context) + target files |
+| Write | Approved optimized files (a partial only in a dedicated partial-optimization pass) |
 | AskUserQuestion | Approval gate before any write |
 ### Sub-agents
 None.
