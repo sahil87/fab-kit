@@ -1,0 +1,15 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-11T08:49:01Z"}
+{"args":"Condense the docs/specs/skills/ SPEC mirrors to structural quick-reference and narrow the constitution's mirror rule","cmd":"fab-new","event":"command","ts":"2026-08-11T08:49:01Z"}
+{"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-08-11T08:51:28Z"}
+{"delta":"+0.0","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-08-11T08:52:06Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-08-11T08:53:31Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-11T08:55:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-11T08:55:29Z"}
+{"cmd":"fab-continue-apply","event":"command","ts":"2026-08-11T09:05:51Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-11T09:55:08Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-11T10:02:49Z"}
+{"event":"review","result":"passed","ts":"2026-08-11T10:02:49Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-11T10:10:41Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-11T10:15:44Z"}
+{"cmd":"git-pr-review","event":"command","ts":"2026-08-11T10:17:19Z"}
+{"event":"review","result":"passed","ts":"2026-08-11T10:34:54Z"}

@@ -495,3 +495,9 @@ Steps execute 1→3 for safety. If interrupted, re-run detects folder already in
 **Why**: The orchestrators and ship-pipeline skills advertise `<change-name>` overrides — a stop/failure message printed mid-override that suggests an argless command silently re-targets the ACTIVE change, the same wrong-change class the explicit-argument work closed. Naming the change makes every printed recovery route executable as written against the change the run was actually driving.
 **Rejected**: Argless-everywhere with a "re-add the override" footnote (relies on the user reconstructing override state at the exact moment they are recovering from a failure).
 *Introduced by*: 260612-w7dp-orchestrator-dispatch-review-pr-recovery (pattern capture)
+
+### Ship/PR Skills Pre-Approve Only Their Mutation Tools
+**Decision**: `/git-pr` and `/git-pr-review` list only their mutation commands in frontmatter `allowed-tools` — `Bash(git:*)` and `Bash(gh:*)` (git-pr-review also `Bash(command:*)`).
+**Why**: Under the Claude Code skills contract, `allowed-tools` pre-approves the listed tools without restricting other tools, so the Read/Edit operations the skill bodies require remain callable under normal permission settings; a minimal list is the whole contract.
+**Rejected**: Enumerating every tool the body uses — longer frontmatter with no semantic gain.
+*Introduced by*: 260811-xy7a-condense-spec-skill-mirrors (migrated from the condensed SPEC mirrors)
