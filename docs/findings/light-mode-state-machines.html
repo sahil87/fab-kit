@@ -312,10 +312,10 @@
 <div class="container">
 
   <h1 class="animate" style="--i:0">fab state machines — today vs. light mode</h1>
-  <p class="subtitle animate" style="--i:1">discussion mock &middot; 2026-08-11 &middot; sources: internal/status/status.go &middot; _pipeline.md &middot; change-lifecycle.md &middot; NOT implemented</p>
+  <p class="subtitle animate" style="--i:1">discussion mock &middot; 2026-08-11 &middot; sources: internal/status/status.go &middot; _pipeline.md &middot; change-lifecycle.md &middot; adopted &mdash; implemented by 260811-3ol6</p>
 
   <div class="verdict animate" style="--i:2">
-    <p><strong>The proposal changes neither state machine.</strong> Machine&nbsp;1 (the stage graph) and Machine&nbsp;2 (the per-stage state vocabulary and its event transitions) are byte-identical before and after. What changes is the <strong>execution locus</strong> — <em>who</em> runs each stage's behavior — routed by a single <strong>plan-size check</strong> that rides an existing seam: <code>plan.md</code> is co-generated inline at apply entry in <em>both</em> modes, and the resulting task count decides the lane. No entry heuristic, no guessing from the intake — the decision point is a fact, not a forecast. Validated against loom's archive: <strong>21% of 972 completed changes</strong> (195/927 measurable; 137 with PRs) would have run light end-to-end, and only ~7% of light runs would see any rework — handled inline, no mode switch. The change-type entry heuristic from the first draft is <em>rejected</em> — loom shows 68% of type-eligible changes blow past the size threshold while 154 small feat/fix changes slip through it.</p>
+    <p><strong>The adopted design changes neither state machine.</strong> Machine&nbsp;1 (the stage graph) and Machine&nbsp;2 (the per-stage state vocabulary and its event transitions) are byte-identical before and after. What changes is the <strong>execution locus</strong> — <em>who</em> runs each stage's behavior — routed by a single <strong>plan-size check</strong> that rides an existing seam: <code>plan.md</code> is co-generated inline at apply entry in <em>both</em> modes, and the resulting task count decides the lane. No entry heuristic, no guessing from the intake — the decision point is a fact, not a forecast. Validated against loom's archive: <strong>21% of 972 completed changes</strong> (195/927 measurable; 137 with PRs) would have run light end-to-end, and only ~7% of light runs would see any rework — handled inline, no mode switch. The change-type entry heuristic from the first draft is <em>rejected</em> — loom shows 68% of type-eligible changes blow past the size threshold while 154 small feat/fix changes slip through it.</p>
     <div class="verdict-pills">
       <span class="pill pill--same">machine 1 · stage graph — UNCHANGED</span>
       <span class="pill pill--same">machine 2 · per-stage states — UNCHANGED</span>
@@ -336,7 +336,7 @@
     back-edge (review fail → reset apply, bounded at <code>max_cycles</code>, default 3), and two
     special paths: <code>/fab-adopt</code> enters late with <code>apply: skipped</code>, and a
     Copilot-timeout leaves review-pr deliberately <code>active</code>. Node color shows the
-    <strong>execution locus</strong> — that's the only thing the proposal touches.
+    <strong>execution locus</strong> — that's the only thing the adopted design touches.
   </p>
 
   <div class="frame-title animate" style="--i:5"><span class="tag tag--today">TODAY</span> every post-intake stage runs in a dispatched worker (native subagent / tmux pane / headless CLI)</div>
@@ -688,7 +688,7 @@ flowchart TD
     <script type="text/plain" class="diagram-source">
 flowchart LR
   PG["plan.md co-generated<br/><small>inline &middot; apply entry &middot; both lanes</small>"]:::session
-  Q{"task count &le; 5?<br/><small>project knob, e.g. light_max_tasks</small>"}:::decision
+  Q{"task count &le; 5?<br/><small>hardcoded at 5 in v1 &middot; light_max_tasks knob is a follow-up</small>"}:::decision
   L["LIGHT<br/><small>execute + hydrate + ship + review-pr inline<br/>review stays a fresh worker</small>"]:::inline
   FU["FULL<br/><small>today's bracket — worker receives<br/>the pre-generated plan</small>"]:::dispatched
 

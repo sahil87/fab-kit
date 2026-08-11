@@ -8,7 +8,7 @@
 > `src/go/fab/internal/status/status.go` (transitions, `AllowedStates`),
 > `docs/memory/pipeline/change-lifecycle.md`, `src/kit/skills/_pipeline.md`.
 
-**The proposal changes neither state machine.** The stage graph (Machine 1) and the per-stage
+**The adopted design changes neither state machine.** The stage graph (Machine 1) and the per-stage
 state vocabulary/transitions (Machine 2) are byte-identical before and after. What changes is the
 **execution locus** — who runs each stage's behavior — routed by a single **plan-size check** that
 rides an existing seam: `plan.md` is co-generated inline at apply entry in *both* lanes, and the
