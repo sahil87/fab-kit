@@ -1,63 +1,16 @@
 # git-branch
-
-## Summary
-
-**Source organization:** Step 5 is the single owner of the branch report; no duplicate Output section follows it.
-
-Creates or switches to the git branch matching the active or specified change. Falls back to creating a standalone branch if the argument doesn't match any change — but an *ambiguous* multi-match STOPs with the candidate list instead of creating a junk branch (260612-g8st). Remote-only target branches are checked out with `--track` rather than recreated as divergent locals; a dirty tree adds a non-blocking carried-over note to create/rename reports. Does not modify fab state.
-
-**Prose optimization** (260620-skop): a `## Contents` TOC added to the skill file (>100 lines, per the mechanical structural rule); no content trimmed (the skill is already lean) and no behavioral change (Flow / Tools / Sub-agents unchanged).
-
+Creates or switches to the branch matching the active or specified change; unmatched explicit names fall back to a standalone branch, ambiguous matches STOP with candidates. Does not modify fab state.
 ## Flow
-
 ```
 User invokes /git-branch [change-name]
-│
-├─ Step 1: Bash: git rev-parse --is-inside-work-tree
-│
-├─ Step 2: Resolve Change Name
-│  ├─ Bash: fab change resolve "<change-name>"
-│  └─ [if fails with explicit arg] branch on stderr (260612-g8st):
-│     ├─ ["Multiple changes match"] → STOP with candidate list
-│     │  (no branch created)
-│     └─ ["No change matches" / other] → standalone fallback
-│
-├─ Step 3: Derive Branch Name
-│  └─ (resolved name or raw argument)
-│
-├─ Step 4: Context-Dependent Action
-│  │  (kept in sync with fab-new.md Step 11 via in-file comments)
-│  ├─ Bash: git branch --show-current
-│  ├─ Bash: git status --porcelain | wc -l → {dirty_count}
-│  ├─ Bash: git rev-parse --verify "<branch>"
-│  ├─ Bash: git rev-parse --verify "origin/<branch>"
-│  │
-│  ├─ [already on target] → no-op
-│  ├─ [target exists locally] → git checkout "<branch>"
-│  ├─ [target exists only on origin] → git checkout --track "origin/<branch>"
-│  │  (never recreate a divergent local — 260612-g8st)
-│  ├─ [on main/master] → git checkout -b "<branch>"
-│  └─ [on other branch]
-│     ├─ [no upstream] → rename guard:
-│     │  Bash: fab change resolve "$(git branch --show-current)"
-│     │  ├─ [resolves to no change OR to the SAME change being
-│     │  │   branched (worktree placeholder)] → git branch -m "<branch>"
-│     │  └─ [matches a different change] → git checkout -b "<branch>"
-│     │     (other change's branch left intact; caveat: new
-│     │      branch inherits the old change's HEAD)
-│     └─ [has upstream] → git checkout -b "<branch>"
-│
-└─ Step 5: Report
-   └─ create/rename rows with {dirty_count} > 0 append the non-blocking
-      note: " — note: {N} uncommitted change(s) carried over from {old}"
+├─ Bash: git rev-parse --is-inside-work-tree; fab change resolve "<name>" → [multi-match] STOP with candidates / [no match, explicit arg] standalone fallback
+├─ Probes (current branch, dirty count, local + origin existence) → [on target] no-op / [local] checkout / [origin-only] checkout --track / [on main] checkout -b
+├─ [other branch, no upstream] rename guard: resolve current branch → branch -m (same/no change) or checkout -b (different change)
+└─ Report; create/rename with dirty tree → carried-over note
 ```
-
 ### Tools used
-
 | Tool | Purpose |
 |------|---------|
-| Bash | `fab change resolve` (argument resolution — stderr-keyed multi-match STOP vs no-match fallback — plus the Step 4 rename guard on the current branch; deliberately kept on the strict exit-code form when the five probe sites migrated to `fab resolve … --or-none` — absence is a genuine STOP here, divergence recorded in the fab-new.md/git-branch.md twin sync comments, 260720-dow0), all git operations |
-
+| Bash | `fab change resolve` (resolution + rename guard; strict exit-code form kept deliberately); all git operations |
 ### Sub-agents
-
 None.

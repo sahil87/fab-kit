@@ -16,7 +16,7 @@ Structurally it is `/fab-draft` with a cluster-analysis front end and a **fan-ou
 
 ### Requirement: Identity, pre-flight, and read-only-until-accept
 
-The canonical source is `src/kit/skills/fab-dedupe.md`, frontmatter `name: fab-dedupe` with `helpers: [_generation, _srad, _intake]` — the triple `/fab-draft` declares — and one optional `[scope]` argument. The constitution-required mirror is `docs/specs/skills/SPEC-fab-dedupe.md`; `fab fab-help` groups it under **Planning** via `fabhelp.go`'s `skillToGroupMap`.
+The canonical source is `src/kit/skills/fab-dedupe.md`, frontmatter `name: fab-dedupe` with `helpers: [_generation, _srad, _intake]` — the triple `/fab-draft` declares — and one optional `[scope]` argument. Its mirror is `docs/specs/skills/SPEC-fab-dedupe.md`, updated when a change alters the skill's flow, tool usage, or sub-agent structure; `fab fab-help` groups it under **Planning** via `fabhelp.go`'s `skillToGroupMap`.
 
 Pre-flight verifies `config.yaml` and `constitution.md`, STOPping with the standard uninitialized message when either is missing. It MUST NOT run `fab preflight` — the skill operates with no active change and must not resolve or disturb one. Logging is `fab log command "fab-dedupe"`, no change ID.
 
@@ -24,7 +24,7 @@ Everything before Step 5 SHALL be read-only: the skill SHALL NOT refactor code, 
 
 ### Requirement: Scope filters where clusters are FOUND, not where members LIVE
 
-Step 1 resolves `[scope]` to a concrete path set: an existing path or glob directly; natural language against `source_paths`/`test_paths`, confirmed with the user first; a bare invocation defaults to `source_paths` with a warning that a full-repo sweep produces a long cluster list. The resolved set and file count are echoed before sweeping.
+Step 1 resolves `[scope]` to a concrete path set: an existing path or glob directly; natural language against `source_paths`/`test_paths`, confirmed with the user first; a bare invocation defaults to `source_paths` with a warning that a full-repo sweep produces a long cluster list. The resolved set and file count are echoed before sweeping. The sweep is intra-repo only — duplication across separate repos is out of scope.
 
 A cluster seeded inside the scope MAY include members outside it, and those members MUST be reported and flagged as out-of-scope — consolidating half a cluster is worse than not consolidating it.
 

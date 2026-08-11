@@ -48,7 +48,7 @@
 <!-- These are must-fix unless noted. They encode the constitution's Additional
      Constraints and the recurring rework causes for this repo. -->
 
-- **SPEC-mirror sync** — a `src/kit/skills/*.md` change MUST carry the matching `docs/specs/skills/SPEC-*.md` update. Treat the *whole* mirror class as in-scope, not just files with the literal changed phrase (reviewers read this strictly). See code-quality.md § Sibling & Mirror Sweeps.
+- **SPEC-mirror sync** — a `src/kit/skills/*.md` change that alters a skill's flow, tool usage, or sub-agent structure MUST carry the matching `docs/specs/skills/SPEC-*.md` update; prose-only skill edits do not trigger a mirror update. Treat the *whole* mirror class as in-scope when the trigger fires, not just files with the literal changed phrase. See code-quality.md § Sibling & Mirror Sweeps.
 - **CLI ⇒ docs + tests** — a change to the `fab` Go binary's command signatures MUST update `src/kit/skills/_cli-fab.md` and include corresponding test updates.
 - **Canonical source only** — flag any edit under `.claude/skills/` (gitignored deployed copies); kit changes belong in `src/kit/`.
 - **Migrations for user-data restructuring** — changes touching config/`.status.yaml`/archive layout MUST ship a `src/kit/migrations/` file, not an ad-hoc script.

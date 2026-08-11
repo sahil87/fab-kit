@@ -1,100 +1,19 @@
 # _intake
-
-## Summary
-
-Shared pre-boundary **Create-Intake Procedure** (fab-new Steps 0–9) used by four skills: `/fab-new`, `/fab-draft`, `/fab-dedupe` (added in 260728-4v91 — the first *fan-out* consumer: it runs the procedure once per accepted cluster group, N times per invocation), and `/fab-proceed`'s create-new dispatch (added in 260613-3xaj — extract-intake-helper). It completes the helper symmetry: the pre-boundary skill family (intake creation, which runs in the main session context because it needs the live conversation) now has a single shared body, mirroring the post-boundary `_pipeline.md`. Single authoritative source for Steps 0 (parse input) · 1 (generate slug) · 2 (gap analysis) · 3 (create change, incl. backlog/Linear collision pre-checks and `fab change new` flags) · 4 (conversation context mining — the load-bearing context-flush at the boundary) · 5 (generate `intake.md`, delegating to `_generation.md` § Intake Generation Procedure) · 6 (verify `change_type` — recomputed by `fab status refresh`, self-healed at the transition seams) · 7 (confidence, `fab score --stage intake`) · 8 (SRAD-based question selection — *the parameterized step*) · 9 (advance intake to `ready`).
-
-**Parameter** (bound by each consumer's own file):
-
-| Parameter | `/fab-new` | `/fab-draft` | `/fab-dedupe` | `/fab-proceed` dispatch |
-|-----------|-----------|--------------|---------------|-------------------------|
-| `{questioning-mode}` — how Step 8 resolves ambiguity | `interactive` | `interactive` | `interactive` | `promptless-defer` |
-
-- **`interactive`** — Step 8 asks the user via SRAD (no fixed cap; conversational mode when 5+ Unresolved). The `/fab-new`/`/fab-draft`/`/fab-dedupe` behavior.
-- **`promptless-defer`** — Step 8 records each would-be-asked Unresolved decision as an Unresolved row with Rationale `Deferred — promptless dispatch` instead of asking, by pointing to `_srad.md` § Critical Rule's canonical promptless-dispatch carve-out. The intake gate is the structural backstop: a deferred decision blocks by itself only when its composite is below 20 (a composite ≥ 20 row still adds penalty and can help fail the gate alongside other weak rows; emergent from the demerit curve, no special gate) — so a genuine unknown must be scored with honestly-low dimensions to land it there.
-
-This is the **only** behavioral fork in intake creation, and it is legitimately invocation-level (who resolves ambiguity: human-now vs. defer-and-surface) — exactly parallel to the post-boundary autonomy fork.
-
-**Extraction boundary** (do NOT over-extract — the procedure is purely "given I've decided to create an intake, do it, Steps 0–9"):
-- **Activate (Step 10) + branch (Step 11)** stay as a tail in `fab-new.md` — a different responsibility (make the change active + checked out vs. queue it), not a questioning-mode parameter.
-- **`/fab-proceed`'s state detection + relevance assessment** stay in `fab-proceed.md` — they decide *whether* to call `_intake`, not how to create one.
-
-**Self-name genericization** (260613-3xaj): the lifted Step 4 refers to "the invoking skill" / "this invocation" rather than "this `/fab-new` invocation", structurally retiring `fab-draft`'s former "read self-name mentions as `/fab-draft`" prose instruction. No `{self-name}` parameter — the text is invocation-agnostic, not invocation-named.
-
-**Helpers**: carries NO `helpers:` frontmatter. It references `_generation` (Step 5) and `_srad` (Step 8) in-body and relies on the consumer having loaded them — the consumer-declared model, matching `_pipeline`/`_review`/`_generation` (none of which carry `helpers:`). `/fab-new`, `/fab-draft`, and `/fab-dedupe` declare `helpers: [_generation, _srad, _intake]`; `/fab-proceed` declares none and dispatches `_intake` to a subagent that loads them.
-
-This is an internal partial (`user-invocable: false`, `disable-model-invocation: true`, `metadata: internal: true`) — never invoked directly. Canonical source is the flat `src/kit/skills/_intake.md`; `fab sync` deploys it to `.claude/skills/_intake/SKILL.md`.
-
-**Prose optimization** (260620-skop): a single-entry `## Contents` TOC added to `_intake.md` (structural check, file >100 lines, applied mechanically though the file has one `##` section); no prose trimmed and no behavioral change (Flow unchanged).
-
-**Prose packaging** (260808-s2sz): the helper header now binds `{questioning-mode}` in one consumer table, Step 7 states score/persistence/output in three lines, and Step 8 points to SRAD's canonical promptless carve-out while retaining the dispatcher-specific return contract. Steps 0–9 and every call-site boundary are unchanged.
-
+Shared pre-boundary Create-Intake Procedure (Steps 0–9) for /fab-new, /fab-draft, /fab-dedupe, and /fab-proceed's create-new dispatch — the pre-boundary counterpart to `_pipeline.md`. Parameterized by `{questioning-mode}` (interactive | promptless-defer); consumers must have loaded `_generation` and `_srad`.
 ## Flow
-
 ```
-Consumer (fab-new / fab-draft / fab-dedupe / fab-proceed dispatch) reads _intake.md with {questioning-mode} bound
-  (fab-dedupe re-enters here once per accepted cluster group — N runs per invocation)
-│
-├─ Step 0: Parse Input
-│  ├─ Linear ID? ──► MCP: mcp__claude_ai_Linear__get_issue
-│  ├─ Backlog ID? ──► Read: fab/backlog.md (optional [ISSUE_ID] bracket)
-│  └─ Natural language ──► use as-is
-│
-├─ Step 1: Generate Slug (2-6 word kebab; SHALL NOT include Linear issue ID)
-│
-├─ Step 2: Gap Analysis (existing mechanisms / scope concerns)
-│
-├─ Step 3: Create Change
-│  ├─ [backlog ID] collision pre-check: fab resolve --id {id} --or-none → EQUALITY with {id}
-│  │  ("(none)" ⇒ no existing change — never equals a 4-char ID; 260720-dow0);
-│  │  on match, fab resolve --folder {id} names the existing change → route to resume
-│  ├─ [Linear ID] collision pre-check: grep -lw "{ISSUE_ID}" fab/changes/*/.status.yaml
-│  ├─ [existing non-archived change] → route to resume (/fab-switch + /fab-continue), STOP
-│  │  (NL re-run intentionally creates a new change each run)
-│  ├─ Bash: fab change new --slug <slug> --log-args <desc> [--change-id <4char> if backlog]
-│  └─ [if Linear] Bash: fab status add-issue <change> <id>
-│
-├─ Step 4: Conversation Context Mining (context-flush at the boundary)
-│  └─ Extract decisions / rejected alternatives / constraints / specific values
-│     → encode as Certain/Confident assumptions in the intake table
-│     (genericized: "the invoking skill", not "this /fab-new invocation")
-│
-├─ Step 5: Generate intake.md
-│  └─ Delegate to _generation.md § Intake Generation Procedure
-│
-├─ Step 6: Verify Change Type (recomputed by `fab status refresh`, self-healed at the transition seams)
-│  ├─ Bash: grep '^change_type:' fab/changes/{name}/.status.yaml
-│  └─ [only if wrong] Bash: fab status set-change-type <change> <type>
-│
-├─ Step 7: Confidence (authoritative — intake is the sole scoring source; no `indicative` flag is written)
-│  └─ Bash: fab score --stage intake <change>             ◄── bookkeeping
-│
-├─ Step 8: SRAD-Based Question Selection  *(THE PARAMETERIZED STEP)*
-│  ├─ {questioning-mode} = interactive → ask via SRAD (no cap; conversational at 5+ Unresolved)
-│  └─ {questioning-mode} = promptless-defer → record each Unresolved as
-│     "Deferred — promptless dispatch" row; return them for the dispatcher to surface
-│
-└─ Step 9: Advance Intake to Ready
-   └─ Bash: fab status advance <change> intake   (then control returns to the call site)
+├─ 0 Parse input: Linear ID → MCP fetch / backlog ID → read fab/backlog.md / natural language as-is
+├─ 1 Generate slug (2–6 word kebab)
+├─ 2 Gap analysis
+├─ 3 Create change: collision pre-checks → [existing] route to resume, STOP / else fab change new [--change-id] (+ fab status add-issue if Linear)
+├─ 4 Mine conversation context → Certain/Confident assumption rows
+├─ 5 Generate intake.md → _generation.md § Intake Generation
+├─ 6 Verify change type — [if wrong] fab status set-change-type
+├─ 7 Confidence — fab score --stage intake <change>
+├─ 8 SRAD question selection: interactive → ask via SRAD / promptless-defer → "Deferred" rows returned to the dispatcher
+└─ 9 Advance — fab status advance <change> intake
 ```
-
 ### Tools used
-
-| Tool | Purpose |
-|------|---------|
-| Read | `_generation.md` (Step 5), `_srad.md` (Step 8 — both questioning modes), templates, backlog, project files |
-| Write | `intake.md` (via the Intake Generation Procedure) |
-| Bash | `fab change new`, `fab resolve --id {id} --or-none`/`--folder` (collision pre-check — `(none)` ⇒ no existing change), `fab status set-change-type` (override only), `fab score`, `fab status advance`, `fab status add-issue` |
-| MCP (Linear) | Fetch issue details (optional path) |
-
+Read `_generation.md`/`_srad.md`/templates/backlog; Write `intake.md`; Bash `fab change new`, `fab resolve`, `fab status *`, `fab score`; MCP (Linear) optional.
 ### Sub-agents
-
-None — the procedure runs inside the consuming skill's (or dispatched subagent's) context. Under `/fab-proceed` the *procedure itself* is what is dispatched as a subagent (per `fab-proceed.md` § Create-Intake Dispatch); it spawns no further sub-agents.
-
-### Bookkeeping commands (hook candidates)
-
-| Step | Command | Trigger |
-|------|---------|---------|
-| 6 | `fab status set-change-type` | Only if the inferred type is wrong (`fab status refresh` recomputes `change_type`, self-healed at the transition seams) |
-| 7 | `fab score --stage intake` | After intake.md write |
-| 9 | `fab status advance` | After all intake work complete |
+None.

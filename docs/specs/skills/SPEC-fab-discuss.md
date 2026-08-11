@@ -1,36 +1,14 @@
 # fab-discuss
-
-## Summary
-
-**Source organization:** Command logging is the bare command plus timing; best-effort semantics are owned by `_preamble`.
-
-Read-only context priming for exploratory discussion. Loads the always-load layer, shows orientation summary, signals readiness. No artifact generation, no stage advancement.
-
+Read-only context priming for exploratory discussion — loads the always-load layer, shows an orientation summary, and signals readiness. No artifact generation, no stage advancement.
 ## Flow
-
 ```
 User invokes /fab-discuss
-│
-├─ Read: always-load layer per _preamble.md §1 (full 7 files —
-│        config, constitution, context, code-quality,
-│        code-review, memory index, specs index)
-├─ Bash: fab resolve --folder --or-none (active-change probe —
-│        "(none)" ⇒ no active change; non-zero exit = real error)
-├─ Read: fab/changes/{name}/.status.yaml (if active — derive current stage from
-│        the progress map: the stage holding active or ready, or failed for a
-│        parked review/review-pr; all done/skipped = change complete)
+├─ Read: always-load layer (per _preamble.md §1)
+├─ Bash: fab resolve --folder --or-none; Read: .status.yaml if a change is active
 ├─ Bash: fab log command "fab-discuss"
-│
 └─ Output: orientation summary
 ```
-
 ### Tools used
-
-| Tool | Purpose |
-|------|---------|
-| Read | 7 always-load files; active change's `.status.yaml` for stage derivation |
-| Bash | `fab resolve --folder --or-none` (active-change probe, 260720-dow0), `fab log command` |
-
+Read (always-load files, `.status.yaml`), Bash (`fab resolve --folder --or-none`, `fab log command`).
 ### Sub-agents
-
 None.
