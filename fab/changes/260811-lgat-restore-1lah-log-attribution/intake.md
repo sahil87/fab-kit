@@ -58,7 +58,7 @@ The file's existing header comment ("Edit only to correct a preserved historical
 
 ### 2. `docs/memory/runtime/log.md` — regenerated (not hand-edited)
 
-Run the installed `fab memory-index` (2.19.4, matches project version) after editing the seed. Expected diff: exactly the three rows appear in the existing `## 2026-08-10` section, interleaved per the generator's deterministic file-base → change-id sort (each 1lah row immediately before its file's ki9v row, since "1lah" < "ki9v"). No other log or index file should change; if the regen produces unrelated churn, inspect before committing.
+Run the installed `fab memory-index` (2.19.4, matches project version) after editing the seed. Expected diff: exactly the three rows appear in the existing `## 2026-08-10` section, interleaved per the generator's deterministic file-base → change-id sort (each 1lah row immediately before its file's ki9v row, since "1lah" < "ki9v"). No other log or index file should change at this step — this expectation applies to the first regen immediately after the `log.seed.md` edit; the later `schemas.md` edit (§3) legitimately regenerates `docs/memory/pipeline/log.md` once its commit lands. If this first regen produces unrelated churn, inspect before committing.
 
 ### 3. `docs/memory/pipeline/schemas.md` — record the recovery-entry usage (hydrate)
 
@@ -71,7 +71,7 @@ The § log.seed.md Seed-Merge section currently frames the seed only as the pre-
 
 ## Impact
 
-- **Files**: `docs/memory/runtime/log.seed.md` (hand-curated edit), `docs/memory/runtime/log.md` (regenerated), `docs/memory/pipeline/schemas.md` (hydrate note). Zero Go/source changes — `attributeCommit`'s subject-only contract and the freeze-on-write drop are working as designed (FKF §6.4 documents the squash-dropped-token class explicitly); this is a data restoration, not a code fix.
+- **Files**: `docs/memory/runtime/log.seed.md` (hand-curated edit), `docs/memory/runtime/log.md` (regenerated), `docs/memory/pipeline/schemas.md` (hydrate note), `docs/memory/pipeline/log.md` (regenerated — gains the schemas.md edit's own entry once that commit lands). Zero Go/source changes — `attributeCommit`'s subject-only contract and the freeze-on-write drop are working as designed (FKF §6.4 documents the squash-dropped-token class explicitly); this is a data restoration, not a code fix.
 - **Tests**: none — no code changes. Verification is behavioral: regen is idempotent (second `fab memory-index` run is a byte-for-byte no-op) and `fab memory-index --check` stays green.
 - **Risk**: low; every edit is reversible text, and the seed-merge dedup guarantees re-runs are no-ops.
 
