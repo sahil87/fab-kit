@@ -1009,7 +1009,7 @@ func TestConfigInitSystem_WritesScaffoldAndRefusesOverwrite(t *testing.T) {
 			t.Errorf("scaffold must document the system-overridable field %q", want)
 		}
 	}
-	for _, absent := range []string{"source_paths:", "test_paths:", "true_impact_exclude:", "fab_version:", "branch_prefix:"} {
+	for _, absent := range []string{"source_paths:", "test_paths:", "true_impact_exclude:", "fab_version:"} {
 		if strings.Contains(scaffold, absent) {
 			t.Errorf("scaffold must NOT document project-scoped field %q (only system/both)", absent)
 		}

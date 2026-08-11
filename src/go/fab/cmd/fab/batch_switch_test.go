@@ -35,8 +35,8 @@ func TestAllChangeNames_EmptyDir(t *testing.T) {
 	}
 }
 
-// (getBranchPrefix was retired in 260612-ye8r — branch_prefix now comes from
-// the shared internal/config accessor, tested in internal/config.)
+// (Branch naming carries no config input at all: the branch name IS the change
+// folder name — see TestRunBatchSwitch_BranchNameIsFolderName.)
 
 // TestRunBatchSwitch_NoTmuxReturnsError verifies the $TMUX guard returns an
 // error through RunE (previously os.Exit(1)) — stderr becomes
@@ -289,8 +289,8 @@ func runBatchSwitchOnce(t *testing.T, change string) (stderr string, err error) 
 // TestRunBatchSwitch_Routing verifies branchExists probe-and-route per wt's 2af2
 // contract: existing local branch → --checkout form; remote-only branch → --checkout
 // form; missing branch (both probes fail) → positional form; offline ls-remote →
-// positional form. The default tier's branch is the change folder name (no prefix
-// configured in the fixture).
+// positional form. On every arm the branch is the change folder name — batch
+// switch applies no prefix (see TestRunBatchSwitch_BranchNameIsFolderName).
 func TestRunBatchSwitch_Routing(t *testing.T) {
 	t.Run("existing local branch routes through --checkout", func(t *testing.T) {
 		_, change := batchSwitchFixture(t, "claude")
@@ -370,6 +370,48 @@ func TestRunBatchSwitch_Routing(t *testing.T) {
 			t.Errorf("offline ls-remote must degrade to positional, got:\n%s", string(args))
 		}
 	})
+}
+
+// TestRunBatchSwitch_BranchNameIsFolderName pins the single branch-naming
+// convention: the branch IS the resolved change folder name, the same name
+// `/git-branch` and `/fab-new` create, so a worktree opened here attaches to the
+// change's real branch. A `branch_prefix:` key left in a project's config.yaml is
+// a retired, inert key and must never reach the branch name — batch switch used
+// to prepend it, which probed for a branch nobody had created and then created an
+// orphan one carrying none of the change's commits.
+func TestRunBatchSwitch_BranchNameIsFolderName(t *testing.T) {
+	root, change := batchSwitchFixture(t, "claude")
+	cfgPath := filepath.Join(root, "fab", "project", "config.yaml")
+	body, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfgPath, append(body, []byte("branch_prefix: \"feature/\"\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Branch missing locally and on origin → the positional (new-branch) arm, so
+	// the branch name is wt's trailing argument.
+	capture := stubBatchSwitchRouting(t, 1, 0, "", 0)
+
+	if stderr, err := runBatchSwitchOnce(t, change); err != nil {
+		t.Fatalf("expected nil error, got %v\nstderr: %s", err, stderr)
+	}
+	args, readErr := os.ReadFile(capture)
+	if readErr != nil {
+		t.Fatalf("reading wt capture: %v", readErr)
+	}
+	got := strings.TrimRight(string(args), "\n")
+	if !strings.HasSuffix(got, "\n"+change) {
+		t.Errorf("branch name must be the bare change folder name %q, got wt argv:\n%s", change, got)
+	}
+	if strings.Contains(got, "feature/") {
+		t.Errorf("a retired branch_prefix must never reach the branch name, got wt argv:\n%s", got)
+	}
+	// --worktree-name carries the same bare folder name, so worktree and branch
+	// stay aligned.
+	if !strings.Contains(got, "--worktree-name\n"+change) {
+		t.Errorf("expected --worktree-name %s, got wt argv:\n%s", change, got)
+	}
 }
 
 // TestRunBatchSwitch_LsRemoteProbeIsNonInteractive verifies the ls-remote probe

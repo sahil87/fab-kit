@@ -288,23 +288,24 @@ func TestRender_EmptyFileWritesFenceOnly(t *testing.T) {
 
 // TestRender_BelowFenceLiveOverrideHoisted (R2.1 regression, the review's must-fix
 // #1): a live override the user appends BELOW the fence is HOISTED above it and
-// preserved — never silently dropped. The exact empirical scenario the review
-// confirmed (branch_prefix appended below the fence vanished on re-render).
+// preserved — never silently dropped. This runs against the REAL registry, so the
+// subject must be a currently-registered advertised field (`true_impact_exclude`);
+// an unregistered key would be parked rather than hoisted and would test nothing.
 func TestRender_BelowFenceLiveOverrideHoisted(t *testing.T) {
 	fields := fieldsForTest(t)
 	first, _ := render("project:\n    name: t\n", fields, "2.15.0")
-	withBelow := first + "\nbranch_prefix: feature/\n"
+	withBelow := first + "\ntrue_impact_exclude:\n    - docs/\n"
 
 	out, _ := render(withBelow, fields, "2.15.0")
-	if !strings.Contains(out, "branch_prefix: feature/") {
+	if !strings.Contains(out, "true_impact_exclude:\n    - docs/") {
 		t.Fatalf("a live override appended below the fence must NOT be dropped.\n--- got ---\n%s", out)
 	}
 	preamble, fenceBody, _ := sliceFence(t, out)
-	if !strings.Contains(preamble, "branch_prefix: feature/") {
+	if !strings.Contains(preamble, "true_impact_exclude:\n    - docs/") {
 		t.Errorf("below-fence override must be hoisted ABOVE the fence (live A field).\n--- preamble ---\n%s", preamble)
 	}
-	if strings.Contains(fenceBody, "branch_prefix") {
-		t.Errorf("the now-live branch_prefix must be omitted from the regenerated fence.\n--- fence ---\n%s", fenceBody)
+	if strings.Contains(fenceBody, "true_impact_exclude") {
+		t.Errorf("the now-live true_impact_exclude must be omitted from the regenerated fence.\n--- fence ---\n%s", fenceBody)
 	}
 	// Idempotent: a third run over the hoisted document is byte-identical.
 	third, _ := render(out, fields, "2.15.0")

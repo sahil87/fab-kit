@@ -75,9 +75,8 @@ var keyScopes = map[string]Scope{
 	// OPERATOR prefers to launch stage workers on THIS machine, not what the repo's
 	// pipeline means, so it must be settable once machine-wide in
 	// ~/.fab-kit/config.yaml — the same reasoning that puts agent/providers here.
-	"dispatch":      ScopeBoth,
-	"stage_hooks":   ScopeProject,
-	"branch_prefix": ScopeProject,
+	"dispatch":    ScopeBoth,
+	"stage_hooks": ScopeProject,
 }
 
 // dottedKeys is the ordered set of configref registry keys. The config loader
@@ -107,7 +106,6 @@ var dottedKeys = []string{
 	"agent.profiles",
 	"providers",
 	"stage_hooks",
-	"branch_prefix",
 }
 
 // ScopeFor returns the scope of a top-level config key and whether the key is

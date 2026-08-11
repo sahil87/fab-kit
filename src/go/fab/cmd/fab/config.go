@@ -136,8 +136,8 @@ func configReferenceCmd() *cobra.Command {
 		Long: "Prints a fully-commented reference fab/project/config.yaml to " +
 			"stdout, documenting every available option (both binary-consumed " +
 			"and skill-consumed keys). Baseline keys appear live with example " +
-			"values; optional override blocks (agent.profiles, stage_hooks, " +
-			"branch_prefix) appear commented-out with fab-kit's built-in " +
+			"values; optional override blocks (agent.profiles, stage_hooks) " +
+			"appear commented-out with fab-kit's built-in " +
 			"defaults. The output is generated from a per-field metadata table " +
 			"(never hand-written; defaults sourced from the binary's own " +
 			"canonical symbols) and is byte-stable for a given version. Pass one known dotted " +
