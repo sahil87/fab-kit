@@ -30,8 +30,8 @@ type Input struct {
 }
 
 // Run executes every probe against the given environment and aggregates the
-// structured report. It is the C2 wizard's future entry point as much as the
-// command's. Config load failures surface as a Fail finding (a malformed
+// structured report. It is the interactive wizard's entry point as much as the
+// command's (bare `fab setup` runs the wizard on this same call). Config load failures surface as a Fail finding (a malformed
 // project config IS a real problem) with the probes continuing against the
 // empty config — the doctor reports as much as it can rather than dying on
 // the first bad read.

@@ -55,18 +55,264 @@ func runFab(args ...string) (int, string, string) {
 	return code, out.String(), errBuf.String()
 }
 
-func TestSetupCmd_BarePrintsPlaceholder(t *testing.T) {
-	setupCheckFixture(t, "", "claude")
+// runSetupWizard executes the bare setup command directly (bypassing run()'s
+// exit-code mapping) with injected stdin, capturing both streams. cobra's
+// SetIn buffer is never a TTY, so interactive-path tests pair it with
+// forceTTY(true) — the same seam batch_archive's prompt tests use.
+func runSetupWizardCmd(t *testing.T, stdin string, args ...string) (error, string, string) {
+	t.Helper()
+	cmd := setupCmd()
+	var out, errBuf bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errBuf)
+	cmd.SetIn(strings.NewReader(stdin))
+	cmd.SetArgs(args)
+	err := cmd.Execute()
+	return err, out.String(), errBuf.String()
+}
 
-	code, out, _ := runFab("setup")
-	if code != 0 {
-		t.Errorf("bare `fab setup` exit = %d, want 0", code)
+func TestSetupWizard_AllEnterRunIsZeroWrite(t *testing.T) {
+	setupCheckFixture(t, "", "claude")
+	forceTTY(t, true)
+
+	err, out, _ := runSetupWizardCmd(t, "\n\n\n\n\n")
+	if err != nil {
+		t.Fatalf("all-Enter run error = %v; output:\n%s", err, out)
 	}
-	if !strings.Contains(out, "Yet to be implemented") {
-		t.Errorf("bare `fab setup` must print the wizard placeholder, got:\n%s", out)
+	for _, want := range []string{"Configuring the system tier", "agent.session", "agent.workers", "dispatch.mode", "nothing to change"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("all-Enter run output missing %q, got:\n%s", want, out)
+		}
 	}
-	if strings.Contains(out, "Checks:") {
-		t.Errorf("bare `fab setup` must NOT run the doctor, got:\n%s", out)
+	if strings.Contains(out, "Yet to be implemented") {
+		t.Errorf("the placeholder string must be gone, got:\n%s", out)
+	}
+	if _, statErr := os.Stat(filepath.Join(os.Getenv("HOME"), ".fab-kit", "config.yaml")); !os.IsNotExist(statErr) {
+		t.Errorf("all-Enter run must write NO file, stat err = %v", statErr)
+	}
+}
+
+func TestSetupWizard_ChangedAnswerDiffsAndWritesSystemTier(t *testing.T) {
+	setupCheckFixture(t, "", "claude", "codex")
+	forceTTY(t, true)
+
+	// Q1 Enter, Q2 codex, Q3 Enter, Q4 n, confirm y.
+	err, out, _ := runSetupWizardCmd(t, "\ncodex\n\nn\ny\n")
+	if err != nil {
+		t.Fatalf("changed-answer run error = %v; output:\n%s", err, out)
+	}
+	if !strings.Contains(out, "agent.workers: claude → codex") {
+		t.Errorf("diff summary missing the agent.workers change, got:\n%s", out)
+	}
+	data, readErr := os.ReadFile(filepath.Join(os.Getenv("HOME"), ".fab-kit", "config.yaml"))
+	if readErr != nil {
+		t.Fatalf("confirmed write must land in the system tier: %v\noutput:\n%s", readErr, out)
+	}
+	if !strings.Contains(string(data), "workers: codex") {
+		t.Errorf("system config must carry the surgical write, got:\n%s", string(data))
+	}
+}
+
+func TestSetupWizard_DeclinedConfirmationWritesNothing(t *testing.T) {
+	setupCheckFixture(t, "", "claude", "codex")
+	forceTTY(t, true)
+
+	// Q2 changed to codex, but the write confirmation is declined.
+	err, out, _ := runSetupWizardCmd(t, "\ncodex\n\nn\nn\n")
+	if err != nil {
+		t.Fatalf("declined-confirmation run error = %v; output:\n%s", err, out)
+	}
+	if !strings.Contains(out, "No changes written.") {
+		t.Errorf("declined confirmation must say so, got:\n%s", out)
+	}
+	if _, statErr := os.Stat(filepath.Join(os.Getenv("HOME"), ".fab-kit", "config.yaml")); !os.IsNotExist(statErr) {
+		t.Errorf("a declined confirmation must write NO file, stat err = %v", statErr)
+	}
+}
+
+func TestSetupWizard_ProjectFlagWritesProjectConfig(t *testing.T) {
+	repo := setupCheckFixture(t, "", "claude", "codex")
+	forceTTY(t, true)
+
+	err, out, _ := runSetupWizardCmd(t, "\ncodex\n\nn\ny\n", "--project")
+	if err != nil {
+		t.Fatalf("--project run error = %v; output:\n%s", err, out)
+	}
+	if !strings.Contains(out, "Configuring the project tier") {
+		t.Errorf("--project banner must name the project tier, got:\n%s", out)
+	}
+	data, readErr := os.ReadFile(filepath.Join(repo, "fab", "project", "config.yaml"))
+	if readErr != nil {
+		t.Fatalf("project config unreadable after --project write: %v", readErr)
+	}
+	if !strings.Contains(string(data), "workers: codex") {
+		t.Errorf("--project write must land in fab/project/config.yaml, got:\n%s", string(data))
+	}
+	if _, statErr := os.Stat(filepath.Join(os.Getenv("HOME"), ".fab-kit", "config.yaml")); !os.IsNotExist(statErr) {
+		t.Errorf("--project must not touch the system tier, stat err = %v", statErr)
+	}
+}
+
+func TestSetupWizard_ProjectFlagOutsideRepoErrors(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "claude"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PATH", bin)
+	t.Setenv("FAB_KIT_PATH", t.TempDir())
+	chdirTestEnv(t, t.TempDir(), map[string]string{"TMUX": ""})
+	forceTTY(t, true)
+
+	err, _, _ := runSetupWizardCmd(t, "", "--project")
+	if err == nil {
+		t.Fatal("--project outside a fab repo must fail")
+	}
+	if !strings.Contains(err.Error(), "--project") {
+		t.Errorf("error should name --project, got: %v", err)
+	}
+}
+
+func TestSetupWizard_DefaultsRunIsNonInteractiveAndZeroWrite(t *testing.T) {
+	setupCheckFixture(t, "", "claude")
+	forceTTY(t, false) // a non-TTY run MUST complete under --defaults without reading stdin
+
+	err, out, _ := runSetupWizardCmd(t, "", "--defaults")
+	if err != nil {
+		t.Fatalf("--defaults run error = %v; output:\n%s", err, out)
+	}
+	for _, want := range []string{"Configuring the system tier", "accepted by --defaults", "nothing to change"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("--defaults output missing %q, got:\n%s", want, out)
+		}
+	}
+	if _, statErr := os.Stat(filepath.Join(os.Getenv("HOME"), ".fab-kit", "config.yaml")); !os.IsNotExist(statErr) {
+		t.Errorf("--defaults must be a zero-write run, stat err = %v", statErr)
+	}
+}
+
+func TestSetupWizard_DefaultsComposesWithProject(t *testing.T) {
+	setupCheckFixture(t, "", "claude")
+	forceTTY(t, false)
+
+	err, out, _ := runSetupWizardCmd(t, "", "--defaults", "--project")
+	if err != nil {
+		t.Fatalf("--defaults --project run error = %v; output:\n%s", err, out)
+	}
+	if !strings.Contains(out, "Configuring the project tier") {
+		t.Errorf("composed run must target the project tier, got:\n%s", out)
+	}
+	if !strings.Contains(out, "nothing to change") {
+		t.Errorf("composed run must stay zero-write, got:\n%s", out)
+	}
+}
+
+func TestSetupWizard_NonTTYWithoutDefaultsFails(t *testing.T) {
+	setupCheckFixture(t, "", "claude")
+	forceTTY(t, false)
+
+	// Direct: the RunE error names the non-interactive escape hatch.
+	err, _, _ := runSetupWizardCmd(t, "")
+	if err == nil {
+		t.Fatal("non-TTY without --defaults must fail")
+	}
+	if !strings.Contains(err.Error(), "--defaults") {
+		t.Errorf("error must name --defaults, got: %v", err)
+	}
+
+	// Through the real run() seam: an in-RunE failure is operational (exit 1).
+	code, _, errOut := runFab("setup")
+	if code != 1 {
+		t.Errorf("non-TTY bare `fab setup` exit = %d, want 1 (operational)", code)
+	}
+	if !strings.Contains(errOut, "--defaults") {
+		t.Errorf("stderr must carry the --defaults hint, got %q", errOut)
+	}
+}
+
+func TestSetupWizard_ProviderOptionsFilterToDetected(t *testing.T) {
+	// Only claude's binary is on PATH: codex/agy/kimi are dropped outright,
+	// and claude carries its capability annotation.
+	setupCheckFixture(t, "", "claude")
+	forceTTY(t, true)
+
+	err, out, _ := runSetupWizardCmd(t, "\n\n\n\n\n")
+	if err != nil {
+		t.Fatalf("run error = %v; output:\n%s", err, out)
+	}
+	q1 := out[strings.Index(out, "Q1:"):strings.Index(out, "Q2:")]
+	if !strings.Contains(q1, "claude (interactive, headless, native)") {
+		t.Errorf("Q1 must annotate claude's capabilities, got:\n%s", q1)
+	}
+	for _, absent := range []string{"codex", "agy", "kimi"} {
+		if strings.Contains(q1, absent) {
+			t.Errorf("Q1 must drop undetected provider %q, got:\n%s", absent, q1)
+		}
+	}
+}
+
+func TestSetupWizard_DispatchModeFiltersWithoutTmux(t *testing.T) {
+	// The fixture scrubs $TMUX: pane is not viable, and the ladder semantics
+	// must be stated in the question text.
+	setupCheckFixture(t, "", "claude")
+	forceTTY(t, true)
+
+	err, out, _ := runSetupWizardCmd(t, "\n\n\n\n\n")
+	if err != nil {
+		t.Fatalf("run error = %v; output:\n%s", err, out)
+	}
+	q3 := out[strings.Index(out, "Q3:"):strings.Index(out, "Q4:")]
+	if strings.Contains(q3, "pane") && !strings.Contains(q3, "pane →") {
+		t.Errorf("Q3 must not OFFER pane without tmux, got:\n%s", q3)
+	}
+	for _, want := range []string{"native", "headless", "never ascends"} {
+		if !strings.Contains(q3, want) {
+			t.Errorf("Q3 missing %q, got:\n%s", want, q3)
+		}
+	}
+}
+
+func TestSetupWizard_AdvancedAllSkippedPrintsNote(t *testing.T) {
+	// Fresh machine (empty config): every advanced key sits at the built-in
+	// default, so opting in yields the note, never silence.
+	setupCheckFixture(t, "", "claude")
+	forceTTY(t, true)
+
+	err, out, _ := runSetupWizardCmd(t, "\n\n\ny\n")
+	if err != nil {
+		t.Fatalf("run error = %v; output:\n%s", err, out)
+	}
+	if !strings.Contains(out, "No advanced overrides in effect") {
+		t.Errorf("all-skipped advanced section must print the note, got:\n%s", out)
+	}
+	for _, key := range []string{"agent.profiles.operator.provider", "agent.profiles.review.provider", "dispatch.column_width", "dispatch.reap_done"} {
+		if !strings.Contains(out, key) {
+			t.Errorf("the note must name skipped key %q, got:\n%s", key, out)
+		}
+	}
+	if strings.Contains(out, "agent.profiles.operator.provider [") {
+		t.Errorf("at-default advanced questions must be SKIPPED, got:\n%s", out)
+	}
+}
+
+func TestSetupWizard_AdvancedOverriddenKeyIsAsked(t *testing.T) {
+	// dispatch.column_width overridden at the project tier: its question is
+	// asked (default = current value + origin) while the other three skip.
+	setupCheckFixture(t, "dispatch:\n  column_width: 42\n", "claude")
+	forceTTY(t, true)
+
+	err, out, _ := runSetupWizardCmd(t, "\n\n\ny\n\n")
+	if err != nil {
+		t.Fatalf("run error = %v; output:\n%s", err, out)
+	}
+	if !strings.Contains(out, "dispatch.column_width [42]:") {
+		t.Errorf("the overridden key must be asked with its current value as default, got:\n%s", out)
+	}
+	if strings.Contains(out, "dispatch.reap_done [") {
+		t.Errorf("at-default keys must still skip when one key is overridden, got:\n%s", out)
+	}
+	if strings.Contains(out, "No advanced overrides in effect") {
+		t.Errorf("the all-skipped note must not print when a question was asked, got:\n%s", out)
 	}
 }
 

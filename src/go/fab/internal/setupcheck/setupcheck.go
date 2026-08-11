@@ -10,7 +10,7 @@
 // plus roster rows) with its environment seams injected — lookPath, $TMUX, the
 // kit-cache dir, and the config layers are all parameters (the
 // internal/dispatch.SelectMode purity precedent) — so the whole package is
-// table-testable and the future interactive `fab setup` wizard (C2) can consume
+// table-testable and the interactive `fab setup` wizard consumes
 // the same structs to filter its interview options without shelling out. The
 // cobra command (cmd/fab/setup.go) owns only input wiring, rendering, and
 // exit-code mapping.
@@ -98,8 +98,8 @@ type ProviderProbe struct {
 func (p ProviderProbe) Found() bool { return len(p.Missing) == 0 }
 
 // Report is the aggregated doctor output the command renders. Producers are
-// the Probe* functions and Run; consumers are the renderer (today) and the C2
-// wizard's option filtering (later).
+// the Probe* functions and Run; consumers are the doctor's renderer and the
+// wizard's option filtering.
 type Report struct {
 	Providers []ProviderProbe
 	Findings  []Finding

@@ -244,6 +244,10 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 fragments). It does not register hooks or write `.claude/settings.local.json`;
 migrations clean legacy hook entries. `/fab-setup` adds interactive config and
 constitution work, while `fab sync` remains independently re-runnable.
+Agent/dispatch preference keys (`agent.session`, `agent.workers`,
+`dispatch.mode`, advanced `agent.profiles.*`/`dispatch.*` knobs) are delegated
+to the `fab setup` interactive wizard (the fab-go binary); `/fab-setup config`
+keeps the identity/structural fields.
 
 **Examples**:
 ```

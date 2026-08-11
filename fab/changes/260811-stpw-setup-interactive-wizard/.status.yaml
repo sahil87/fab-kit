@@ -1,0 +1,54 @@
+id: stpw
+name: 260811-stpw-setup-interactive-wizard
+created: 2026-08-11T19:22:42Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 10
+    acceptance_count: 19
+    acceptance_completed: 19
+confidence:
+    certain: 4
+    confident: 7
+    tentative: 0
+    unresolved: 0
+    score: 3.4
+    fuzzy: true
+    dimensions:
+        signal: 69.1
+        reversibility: 81.4
+        competence: 73.6
+        disambiguation: 69.5
+stage_metrics:
+    intake: {started_at: "2026-08-11T19:22:42Z", driver: fab-new, iterations: 1, completed_at: "2026-08-11T19:38:34Z"}
+    apply: {started_at: "2026-08-11T19:38:34Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-11T19:56:49Z"}
+    review: {started_at: "2026-08-11T19:56:49Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-11T20:02:50Z"}
+    hydrate: {started_at: "2026-08-11T20:02:50Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-11T20:09:48Z"}
+    ship: {started_at: "2026-08-11T20:09:48Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-08-11T20:09:48Z"
+    computed_at_stage: hydrate
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-11T20:09:48Z

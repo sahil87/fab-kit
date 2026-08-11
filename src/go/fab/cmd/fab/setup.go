@@ -12,21 +12,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// setupCmd is the `fab setup` family seat. C1 ships only the read-only `check`
-// doctor; the bare command is the C2 interactive wizard's reserved seat and
-// prints a placeholder instead of running anything. The router needs no
-// allowlist change: `setup` is not a lifecycle command, so the shim's default
-// route forwards it to fab-go.
+// setupCmd is the `fab setup` family seat: the bare command runs the
+// interactive setup wizard (see setup_wizard.go), and `check` is the read-only
+// doctor. The router needs no allowlist change: `setup` is not a lifecycle
+// command, so the shim's default route forwards it to fab-go.
 func setupCmd() *cobra.Command {
+	var opts wizardOptions
 	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Set up and diagnose the fab environment",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(cmd.OutOrStdout(), "fab setup: Yet to be implemented — the interactive setup wizard is planned. Run 'fab setup check' for the read-only environment doctor.")
-			return nil
+			return runSetupWizard(cmd, opts)
 		},
 	}
+	cmd.Flags().BoolVar(&opts.defaults, "defaults", false, "Accept every question's default (the current effective value) non-interactively")
+	cmd.Flags().BoolVar(&opts.project, "project", false, "Write to fab/project/config.yaml instead of the system tier (~/.fab-kit/config.yaml)")
 	cmd.AddCommand(setupCheckCmd())
 	return cmd
 }

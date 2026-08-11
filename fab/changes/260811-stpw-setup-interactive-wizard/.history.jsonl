@@ -1,0 +1,9 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-11T19:22:42Z"}
+{"args":"fab setup interactive wizard — C2 of the setup series (backlog [stpw])","cmd":"fab-new","event":"command","ts":"2026-08-11T19:22:42Z"}
+{"delta":"+3.4","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-08-11T19:24:48Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-11T19:37:28Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-11T19:38:34Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-11T19:56:49Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-11T20:02:50Z"}
+{"event":"review","result":"passed","ts":"2026-08-11T20:02:50Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-11T20:09:48Z"}
