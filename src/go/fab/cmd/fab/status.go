@@ -402,13 +402,18 @@ func statusFinishCmd() *cobra.Command {
 // hook-bypassing edit (sed, direct write) or a non-Claude agent that never
 // fires the hook can no longer leave these fields stale. Respects
 // change_type_source: explicit; a missing artifact is a safe no-op.
+// The change argument is optional: omitted, it resolves the active change
+// via the .fab-status.yaml symlink (withStatusLock("") →
+// resolve.ToAbsStatus(fabRoot, "") → resolveFromCurrent) — the same
+// resolution bare `fab preflight` uses; with no active change the existing
+// resolution error propagates.
 func statusRefreshCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "refresh <change>",
+		Use:   "refresh [<change>]",
 		Short: "Recompute change_type/confidence (intake.md) + plan counts (plan.md) from artifacts",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, fabRoot string) error {
+			return withStatusLock(optArg(args, 0), func(st *sf.StatusFile, statusPath, fabRoot string) error {
 				changeDir := filepath.Dir(statusPath)
 				dirty, err := refresh.Refresh(fabRoot, changeDir, st)
 				if err != nil {

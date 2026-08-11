@@ -1,0 +1,10 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-11T10:55:52Z"}
+{"args":"Make fab status refresh change argument optional (active-change fallback) and patch the dispatch-epilogue canon to spell the change token","cmd":"fab-new","event":"command","ts":"2026-08-11T10:55:52Z"}
+{"delta":"+0.0","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-08-11T10:59:23Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-08-11T11:00:39Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-11T11:02:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-11T11:02:32Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-11T11:13:45Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-11T11:24:17Z"}
+{"event":"review","result":"passed","ts":"2026-08-11T11:24:17Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-11T11:26:37Z"}

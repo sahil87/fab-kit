@@ -92,7 +92,7 @@ dispatch and, on a later rework cycle, sends the triaged findings and chosen rew
 instead of paying a cold start, and instructs the worker to RE-READ from disk every artifact the
 orchestrator edited at that item — always plan.md — because its in-context copy predates those edits.
 The continued worker is bound by the **same** dispatch-prompt obligations as a fresh one (result,
-block-contract carve-out, terminal `fab status refresh`); only the standard **context files** are not
+block-contract carve-out, terminal `fab status refresh <change>`); only the standard **context files** are not
 re-carried, because the worker still holds them. **Continuation is an optimization with a mandatory
 fallback**: an unreachable handle — the orchestrator session was resumed or restarted, the harness has
 no named-agent/message capability, the send errors, or the worker was never named — falls back to an
@@ -358,7 +358,7 @@ Whatever adapter dispatches a stage, the prompt handed to the worker MUST:
    message to an already-running named worker (§ 1, native adapter only) carries obligations 1 and 3
    only — the worker already holds the context files, which is the point of continuing it;
    `_preamble.md` § Worker Continuation owns the mechanics.
-3. **End with a post-stage `fab status refresh` epilogue** so the worker recomputes state from
+3. **End with a post-stage `fab status refresh <change>` epilogue** so the worker recomputes state from
    artifacts after finishing (the pull-based state-recompute surface change 3a lands — `fab status
    refresh`, replacing the removed artifact-write hook). This keeps a dispatched stage's `.status.yaml`
    consistent with the artifacts it just wrote, regardless of which harness ran it.
@@ -519,7 +519,7 @@ states; it does not extend them.**
 The pane mode's reason for existing is that a human MAY converse with the worker mid-stage. This is
 **contract-neutral by construction** and is documented here rather than enforced in code:
 
-- The worker still owes `{stage}-result.yaml`, still ends with the terminal `fab status refresh`
+- The worker still owes `{stage}-result.yaml`, still ends with the terminal `fab status refresh <change>`
   epilogue, and still runs **no `fab status` transition command** — the orchestrator owns every
   transition, exactly as for the other two adapters.
 - Steering is human input into a worker's context, no different in kind from answering a native
