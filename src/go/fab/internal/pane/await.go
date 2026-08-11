@@ -74,7 +74,8 @@ type AwaitObserver func() (AwaitReport, error)
 //
 // tick is a parameter rather than a direct read of AwaitTick so tests can
 // drive the loop in milliseconds — the same injectability every other
-// derivation in this package has. Callers pass AwaitTick.
+// derivation in this package has. Callers pass AwaitTick. A non-positive tick
+// normalizes to AwaitTick rather than panicking.
 func Await(ctx context.Context, observe AwaitObserver, tick, timeout time.Duration) (AwaitReport, error) {
 	report, err := observe()
 	if err != nil {
@@ -91,6 +92,12 @@ func Await(ctx context.Context, observe AwaitObserver, tick, timeout time.Durati
 		deadline = timer.C
 	}
 
+	// time.NewTicker panics on a non-positive interval, and tick is caller-
+	// supplied; fall back to the package cadence instead of taking the process
+	// down over a bad argument.
+	if tick <= 0 {
+		tick = AwaitTick
+	}
 	ticker := time.NewTicker(tick)
 	defer ticker.Stop()
 

@@ -127,6 +127,26 @@ func TestAwaitUnbounded(t *testing.T) {
 	}
 }
 
+// TestAwaitNonPositiveTick: tick is caller-supplied, and time.NewTicker panics
+// on a non-positive interval — a bad argument must normalize to AwaitTick, not
+// take the process down. Bounded by a short timeout so the normalized (2s)
+// cadence never has to fire for the test to conclude.
+func TestAwaitNonPositiveTick(t *testing.T) {
+	for _, tick := range []time.Duration{0, -time.Second} {
+		t.Run(tick.String(), func(t *testing.T) {
+			calls := 0
+			got, err := Await(context.Background(), scriptedAwaitObserver([]AwaitReport{""}, &calls),
+				tick, 20*time.Millisecond)
+			if err != nil {
+				t.Fatalf("Await: %v", err)
+			}
+			if got != AwaitRunning {
+				t.Errorf("report = %q, want %q", got, AwaitRunning)
+			}
+		})
+	}
+}
+
 // TestAwaitObserveError: a genuine read failure aborts the wait and surfaces
 // — it is never re-polled forever.
 func TestAwaitObserveError(t *testing.T) {

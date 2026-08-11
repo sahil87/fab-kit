@@ -130,6 +130,35 @@ func TestPaneAwait_Unwaitable(t *testing.T) {
 	}
 }
 
+// TestPaneAwait_FileUnreadable: a --file path that cannot be STATTED at all is
+// a read failure, not an unfired signal. The fixture points --file below a
+// regular file so the stat fails ENOTDIR rather than ENOENT (portable, and no
+// permission fixture that a root test runner would defeat). The wait must abort
+// at the first observation instead of re-polling to the bound and then reporting
+// `running` about a signal this observer can never see.
+func TestPaneAwait_FileUnreadable(t *testing.T) {
+	server := "fabtest-paneawait-statfail"
+	_, paneID := newTmuxPane(t, server, "", 80)
+
+	regular := filepath.Join(t.TempDir(), "regular")
+	if err := os.WriteFile(regular, []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	unreadable := filepath.Join(regular, "result.yaml")
+
+	start := time.Now()
+	_, _, err := runPaneCmd(t, "await", paneID, "-L", server, "--file", unreadable, "--timeout", "60")
+	if err == nil {
+		t.Fatal("an unstattable --file must fail rather than read as absent")
+	}
+	if !strings.Contains(err.Error(), "stat --file") {
+		t.Errorf("error = %q, want the stat-failure message", err)
+	}
+	if elapsed := time.Since(start); elapsed > pane.AwaitTick {
+		t.Errorf("took %v — a read failure must abort at the first observation", elapsed)
+	}
+}
+
 // TestPaneAwait_BothSignalsArmed pins the OR composition: with --file AND an
 // instrumented pane both armed, whichever fires first wins — here the file
 // appears while the state stays active, and the report is `file`.

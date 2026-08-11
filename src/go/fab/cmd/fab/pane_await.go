@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -30,8 +31,8 @@ func paneAwaitCmd() *cobra.Command {
 			"is an immediate error — there is nothing observable to wait on.\n\n" +
 			"The report string is the sole discriminator; the first check runs before any\n" +
 			"sleep, so an already-fired signal returns immediately.\n\n" +
-			"Exit codes: 0 idle/file/running; 1 nothing to wait on; 2 pane missing or\n" +
-			"died mid-wait; 3 other tmux failure.",
+			"Exit codes: 0 idle/file/running; 1 nothing to wait on, or a signal could\n" +
+			"not be read; 2 pane missing or died mid-wait; 3 other tmux failure.",
 		Example: `  fab pane await %12
   fab pane await %12 --file .fab-dispatch/b91h/apply-result.yaml
   fab pane await %3 --timeout 60 --server work`,
@@ -72,8 +73,16 @@ func runPaneAwait(cmd *cobra.Command, paneID, file string, timeoutSecs int) erro
 
 	observe := func() (pane.AwaitReport, error) {
 		if file != "" {
-			if _, err := os.Stat(file); err == nil {
+			_, err := os.Stat(file)
+			switch {
+			case err == nil:
 				return pane.AwaitFile, nil
+			case !errors.Is(err, os.ErrNotExist):
+				// "Absent" is a signal that has not fired; anything else means
+				// the signal could not be READ. Swallowing it would re-poll a
+				// permission/IO failure to the bound and then report `running`
+				// — a claim about a signal this observer can never see.
+				return "", fmt.Errorf("stat --file %s: %w", file, err)
 			}
 		}
 		if watchState {
@@ -81,6 +90,13 @@ func runPaneAwait(cmd *cobra.Command, paneID, file string, timeoutSecs int) erro
 				return pane.AwaitIdle, nil
 			}
 		}
+		// PaneAlive's conflation of "pane gone" with "tmux unreachable" is
+		// deliberate HERE: a dispatch pane is routinely the last pane on its
+		// socket, so its death takes the server down with it and the probe then
+		// fails with `no server running` rather than a missing-pane error.
+		// Mid-wait, either way the wait cannot complete, which is what `gone`
+		// means. Exit 3 stays reserved for the ENTRY validation above — a
+		// tmux failure before there was ever anything to observe.
 		if !pane.PaneAlive(paneID, server) {
 			return pane.AwaitGone, nil
 		}

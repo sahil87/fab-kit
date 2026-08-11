@@ -193,7 +193,9 @@ Per attempt: readiness probe → `C-u` → capture the cleared baseline → type
 
 **Cadence/bounds**: an internal ~2s re-derive tick (`pane.AwaitTick`, no flag, no config) and `--timeout` default 300 (0 or negative = unbounded), mirroring `dispatch wait`'s observer conventions; the first observation happens before any sleep. The control loop lives in `internal/pane` as the pure, observer-injected `Await(ctx, observe, tick, timeout)` (see §Shared Pane Package).
 
-**Error behavior**: pane missing at entry → **exit 2**; other tmux failure → **exit 3**; unwaitable pane (above) → exit 1 via RunE.
+**Error behavior**: pane missing at entry → **exit 2**; other tmux failure → **exit 3**; unwaitable pane (above) → exit 1 via RunE; a `--file` path that cannot be **statted** (any error other than "does not exist" — ENOTDIR, EACCES, IO) → exit 1 via RunE, because a signal that cannot be *read* is not the same as one that has not *fired*, and swallowing it would re-poll to the bound and then report `running`.
+
+Exit **3** is reserved for the **entry** validation: mid-wait the liveness probe deliberately keeps `PaneAlive`'s conflation of "pane gone" with "tmux unreachable", since a dispatch pane is routinely the last pane on its socket and its death takes the tmux server down with it (the probe then fails with `no server running`, which `IsPaneMissing` does not match). Either way the wait cannot complete, which is what `gone`/exit 2 means; re-validating per tick would misreport that ordinary case as a tmux failure.
 
 ### Usage-Error Coexistence with the Binary-Wide Exit-2 Convention (swon)
 
