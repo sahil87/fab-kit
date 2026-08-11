@@ -18,7 +18,7 @@ import (
 	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
 )
 
-var slugRegex = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$`)
+var slugRegex = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+){1,5}$`)
 var idRegex = regexp.MustCompile(`^[a-z0-9]{4}$`)
 var idChars = "abcdefghijklmnopqrstuvwxyz0123456789"
 
@@ -28,7 +28,7 @@ func New(fabRoot, slug, changeID, logArgs string) (string, error) {
 		return "", fmt.Errorf("--slug is required")
 	}
 	if !slugRegex.MatchString(slug) {
-		return "", fmt.Errorf("Invalid slug format '%s' (expected alphanumeric and hyphens, no leading/trailing hyphen)", slug)
+		return "", fmt.Errorf("Invalid slug format '%s' (expected 2-6 lowercase kebab-case words, e.g. 'add-oauth-support')", slug)
 	}
 
 	idProvided := changeID != ""
@@ -111,7 +111,7 @@ func Rename(fabRoot, currentFolder, newSlug string) (string, error) {
 		return "", fmt.Errorf("--slug is required")
 	}
 	if !slugRegex.MatchString(newSlug) {
-		return "", fmt.Errorf("Invalid slug format '%s' (expected alphanumeric and hyphens, no leading/trailing hyphen)", newSlug)
+		return "", fmt.Errorf("Invalid slug format '%s' (expected 2-6 lowercase kebab-case words, e.g. 'add-oauth-support')", newSlug)
 	}
 
 	changesDir := filepath.Join(fabRoot, "changes")

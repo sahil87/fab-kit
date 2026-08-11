@@ -161,6 +161,57 @@ func TestNew_InvalidSlugLeadingHyphen(t *testing.T) {
 	}
 }
 
+func TestNew_InvalidSlugFormats(t *testing.T) {
+	cases := []struct {
+		name string
+		slug string
+	}{
+		{"uppercase", "MyFeature"},
+		{"mixed case word", "my-Feature"},
+		{"single word", "cleanup"},
+		{"seven words", "a-b-c-d-e-f-g"},
+		{"consecutive hyphens", "my--feature"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fabRoot := setupChangeFixture(t)
+
+			_, err := New(fabRoot, c.slug, "", "")
+			if err == nil {
+				t.Fatalf("expected error for slug %q", c.slug)
+			}
+			if !strings.Contains(err.Error(), "expected 2-6 lowercase kebab-case words") {
+				t.Errorf("error should state the enforced rule, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestNew_SlugBoundariesAccepted(t *testing.T) {
+	cases := []struct {
+		name string
+		slug string
+	}{
+		{"six words", "one-two-three-four-five-six"},
+		{"digits", "fix-v2-parser"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fabRoot := setupChangeFixture(t)
+
+			folder, err := New(fabRoot, c.slug, "", "")
+			if err != nil {
+				t.Fatalf("New failed for slug %q: %v", c.slug, err)
+			}
+			if !strings.HasSuffix(folder, "-"+c.slug) {
+				t.Errorf("folder %q should end with -%s", folder, c.slug)
+			}
+		})
+	}
+}
+
 func TestNew_IDCollision(t *testing.T) {
 	fabRoot := setupChangeFixture(t)
 
@@ -239,6 +290,22 @@ func TestRename_SameName(t *testing.T) {
 	_, err := Rename(fabRoot, folder, "old-name")
 	if err == nil {
 		t.Fatal("expected error when renaming to same name")
+	}
+}
+
+func TestRename_InvalidSlug(t *testing.T) {
+	fabRoot := setupChangeFixture(t)
+	folder := "260310-abcd-old-name"
+	changeDir := filepath.Join(fabRoot, "changes", folder)
+	os.MkdirAll(changeDir, 0755)
+	os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte(existingStatusYAML), 0644)
+
+	_, err := Rename(fabRoot, folder, "New-Name")
+	if err == nil {
+		t.Fatal("expected error for invalid new slug")
+	}
+	if !strings.Contains(err.Error(), "expected 2-6 lowercase kebab-case words") {
+		t.Errorf("error should state the enforced rule, got: %v", err)
 	}
 }
 
