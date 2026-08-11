@@ -104,7 +104,7 @@ stateDiagram-v2
     apply --> review: /fab-continue
 
     review --> hydrate: pass (all checks ✓)
-    review --> apply: auto-rework (sub-agent, fab-ff/fab-fff)
+    review --> apply: auto-rework (fab-ff/fab-fff — sub-agent in full lane, inline in light lane)
     review --> earlier_stage: /fab-continue apply (manual)
 
     state "apply (revise requirements)" as earlier_stage
