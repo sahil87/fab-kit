@@ -117,8 +117,7 @@ two-state active/idle vocabulary; consider tightening cadence on `waiting` direc
    land only after the writer exists on Sahil's machines.
 3. fab-kit change (this doc): rewrite the three readers, delete the pipeline, migrate
    settings, update `docs/memory/runtime/runtime-agents.md` (describes the deleted
-   system — hydrate will rewrite it to document the convention-reader model instead) and
-   `SPEC-hooks.md`.
+   system — hydrate will rewrite it to document the convention-reader model instead).
 
 ## Acceptance
 

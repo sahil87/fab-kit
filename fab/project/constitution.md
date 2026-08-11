@@ -29,7 +29,6 @@ Tests MUST conform to the implementation spec — never the other way around. Wh
 - Cross-cutting findings SHOULD reference the specific analyses they synthesize
 - All markdown MUST use standard CommonMark syntax for maximum compatibility
 - Changes to the `fab` CLI (Go binary) MUST include corresponding test updates and MUST update `src/kit/skills/_cli-fab.md` with any new or changed command signatures
-- Changes to skill files (`src/kit/skills/*.md`) MUST update the corresponding `docs/specs/skills/SPEC-*.md` file only when the change alters the skill's flow, tool usage, or sub-agent structure; prose-only skill edits do not trigger a mirror update
 - `src/kit/` is the canonical source for all kit content (skills, templates, migrations). `.claude/skills/` contains deployed copies produced by `fab sync` and is gitignored — never edit files there directly
 - The core pipeline is six stages (`intake → apply → review → hydrate → ship → review-pr`). All human judgment is frontloaded to intake (the sole confidence gate); everything after intake runs unattended unless review-rework exhausts or PR feedback arrives. Requirement capture is co-generated into `plan.md`'s `## Requirements` section at apply entry — there is no separate `spec` stage or `spec.md` artifact
 
@@ -39,7 +38,7 @@ This tool is part of the shll toolkit and MUST conform to the toolkit's publishe
 
 ## Governance
 
-**Version**: 1.5.0 | **Ratified**: 2026-02-06 | **Last Amended**: 2026-08-11
+**Version**: 1.6.0 | **Ratified**: 2026-02-06 | **Last Amended**: 2026-08-11
 
 <!-- 2026-06-01 (260601-j6cs): Merged the `spec` stage into `apply` and frontloaded
      SRAD scoring to intake — pipeline 7→6 stages, single intake gate, spec.md absorbed
@@ -75,4 +74,15 @@ This tool is part of the shll toolkit and MUST conform to the toolkit's publishe
      (title + header + Flow + Tools + Sub-agents) in the same change, with
      load-bearing Summary content migrated into `docs/memory/` as present truth.
      Narrows/rewords a normative MUST rule → minor version bump 1.4.0 → 1.5.0. -->
+
+<!-- 2026-08-11 (260811-rehi): Removed the SPEC-mirror rule from Additional
+     Constraints outright and deleted the `docs/specs/skills/` mirror tree (36
+     `SPEC-*.md` files) — the mirrors' main output had become work about themselves
+     (meta-consistency review load, unread drift). The condensed Flow skeletons were
+     folded into the per-skill sections of `docs/specs/skills.md` (behavioral partials
+     under § Skill Helpers § Partial Flow Skeletons) before deletion, and the
+     enforcement/sweep machinery (code-review must-fix rule, code-quality
+     anti-pattern + sweep class, skills.md checklist item 6, docs-reorg-specs
+     reserved-path carve-outs) was stripped with them. Removes a normative MUST rule
+     → minor version bump 1.5.0 → 1.6.0. -->
 

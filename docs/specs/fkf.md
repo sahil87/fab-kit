@@ -201,8 +201,6 @@ FKF governs `docs/memory/` only. `docs/specs/` is **out of scope** and unchanged
 - Specs remain **human-curated** and MUST NOT be auto-generated or overwritten by tooling
   (a fab-kit design principle).
 - Specs carry **no frontmatter** and are deliberately flat and free-form.
-- The `docs/specs/skills/SPEC-*.md` mirrors stay constitution-pinned (names derive mechanically
-  from `src/kit/skills/` sources).
 
 The one idea FKF's neighbours may borrow independently is **generated index files** — a
 `fab specs-index` style generator for `docs/specs/index.md` would be a separate, optional
@@ -226,7 +224,7 @@ Moving the existing `docs/memory/` tree onto FKF is a data migration with these 
 5. **Add the `.status.yaml` `summary:` field** + its migration file (`src/kit/migrations/`).
 6. **Update the doc skills** (`docs-hydrate-memory`, `docs-reorg-*`, and the `/fab-continue`
    hydrate path) to author FKF frontmatter, stop writing per-file changelogs, and rely on the
-   generated `log.md` — with the corresponding `SPEC-*.md` mirror updates per the constitution.
+   generated `log.md`.
 
 Per OKF's permissive model, a partially-migrated tree still functions: a file missing `type` or
 a folder missing `log.md` degrades gracefully rather than breaking consumers.

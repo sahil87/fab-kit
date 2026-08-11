@@ -1,0 +1,13 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-11T10:42:56Z"}
+{"args":"Delete the SPEC mirror tree (docs/specs/skills/) and retire the mirror rule — fold flow skeletons into docs/specs/skills.md, remove the constitution clause and all enforcement/sweep machinery, sweep live references; follow-up to 260811-xy7a (PR #581)","cmd":"fab-new","event":"command","ts":"2026-08-11T10:42:56Z"}
+{"delta":"+4.3","event":"confidence","score":4.3,"trigger":"calc-score","ts":"2026-08-11T10:44:54Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-11T10:45:52Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-11T10:45:52Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-11T11:12:50Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-11T11:17:59Z"}
+{"event":"review","result":"passed","ts":"2026-08-11T11:17:59Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-11T11:22:05Z"}
+{"cmd":"git-pr","event":"command","ts":"2026-08-11T11:23:14Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-11T11:26:19Z"}
+{"cmd":"git-pr-review","event":"command","ts":"2026-08-11T11:27:48Z"}
+{"event":"review","result":"passed","ts":"2026-08-11T11:40:06Z"}

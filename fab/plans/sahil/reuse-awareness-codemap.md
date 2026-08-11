@@ -116,9 +116,8 @@ index is complete by construction.)
 ### Surfaces
 
 `src/kit/skills/` (hydrate + apply behavior in `fab-continue`/`_generation`, plan
-template, `docs-hydrate-memory`) with the full SPEC-mirror sweep per constitution;
-project config for the acceptance category. Phases 1+2 can be one change; 3 is
-separable.
+template, `docs-hydrate-memory`); project config for the acceptance category.
+Phases 1+2 can be one change; 3 is separable.
 
 ---
 
