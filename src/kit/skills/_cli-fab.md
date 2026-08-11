@@ -96,8 +96,8 @@ See `_preamble.md` § Common fab Commands for the headline. Full subcommand tabl
 
 | Subcommand | Usage | Purpose |
 |------------|-------|---------|
-| `new` | `new --slug <slug> [--change-id <4char>] [--log-args <desc>]` | Create new change |
-| `rename` | `rename --folder <current-folder> --slug <new-slug>` | Rename slug (prefix immutable) |
+| `new` | `new --slug <slug> [--change-id <4char>] [--log-args <desc>]` | Create new change — `<slug>` must be 2-6 lowercase kebab-case words |
+| `rename` | `rename --folder <current-folder> --slug <new-slug>` | Rename slug (prefix immutable) — `<new-slug>` must be 2-6 lowercase kebab-case words |
 | `resolve` | `resolve [<override>]` | Thin wrapper over `fab resolve --folder` — the same shared implementation, identical output and error strings |
 | `switch` | `switch <name> \| --none` | Switch active change (writes `.fab-status.yaml` symlink) |
 | `list` | `list [--archive] [--show-stats]` | List changes with stage info; `--show-stats` appends the `true_impact` net column |

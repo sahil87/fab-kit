@@ -22,7 +22,7 @@ Change folders SHALL use the format `{YYMMDD}-{XXXX}-{slug}`:
 | `XXXX` | Agent (4 random lowercase alphanumeric) | Uniqueness guarantee | `a7k2` |
 | `slug` | Agent (2-6 words from description) | Human readability | `add-oauth` |
 
-All components MUST be lowercase. The name is unique by construction (date + random token), requires no collision scanning, and sorts chronologically in `ls`. The `{YYMMDD}-{XXXX}` prefix is immutable — only the slug can be changed via `fab change rename`. When the change originates from a Linear ticket, issue IDs are stored in the `issues` array in `.status.yaml` (via `fab status add-issue`) — not embedded in the folder name.
+All components MUST be lowercase. `fab change new` and `fab change rename` validate the slug against `^[a-z0-9]+(-[a-z0-9]+){1,5}$` — 2-6 lowercase kebab-case words with no leading, trailing, or consecutive hyphens — and reject non-conforming slugs with a descriptive error naming the expected format. The name is unique by construction (date + random token), requires no collision scanning, and sorts chronologically in `ls`. The `{YYMMDD}-{XXXX}` prefix is immutable — only the slug can be changed via `fab change rename`. When the change originates from a Linear ticket, issue IDs are stored in the `issues` array in `.status.yaml` (via `fab status add-issue`) — not embedded in the folder name.
 
 **Example**: `260115-a7k2-add-oauth`
 
@@ -364,3 +364,9 @@ Skills will tolerate old-format files — the preflight script infers `intake: d
 **Why**: Sparse files are legitimate (restored pre-0.24.0 archives, hand-edits; migrations never touch `fab/changes/archive/**`), and skills rely on exit-0 semantics (`git-pr-review` commits bookkeeping assuming `finish` persisted) — silent drops propagate into autonomous pipelines, violating constitution Principle III. Insertion matches the established posture (`TestLegacyChecklistFileSavesPlanBlock` fixed this exact bug class for `plan:`), while Load-refusal would conflict with the documented tolerance for un-migrated/archived files (1.9.7-to-1.10.0 migration notes).
 **Rejected**: Validate-at-Load schema refusal (breaks legacy tolerance). Warn-but-continue (still reports success on a dropped write).
 *Introduced by*: 260612-mz4q-shared-state-concurrency-hook-hot-path
+
+### Slug Regex Enforces the Documented Naming Contract
+**Decision**: `slugRegex` is `^[a-z0-9]+(-[a-z0-9]+){1,5}$` — 2-6 lowercase kebab-case words, digits allowed, no leading/trailing/consecutive hyphens — shared identically by `change.New` and `change.Rename`, whose error strings state the expected format with an example.
+**Why**: The documented rule (lowercase to avoid collisions on case-insensitive filesystems; 2-6 words) was consistent across specs, memory, and skills, and all historical slugs conformed — but the prior regex accepted uppercase, unbounded word counts, and consecutive hyphens, minting identities that contradicted the docs and risked filesystem collisions.
+**Rejected**: Loosening the docs to match the permissive regex (abandons the case-insensitive-filesystem rationale, a technical constraint). Lowercase-only tightening without the word bound (unbounded words were part of the reported bug; easy to loosen later if the 6-word cap proves too strict).
+*Introduced by*: 260811-nztj-tighten-slug-validation-regex

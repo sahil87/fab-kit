@@ -1,0 +1,57 @@
+id: nztj
+name: 260811-nztj-tighten-slug-validation-regex
+created: 2026-08-11T11:06:55Z
+created_by: Sahil Ahuja
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 4
+    acceptance_count: 10
+    acceptance_completed: 10
+confidence:
+    certain: 3
+    confident: 3
+    tentative: 0
+    unresolved: 0
+    score: 4.8
+    fuzzy: true
+    dimensions:
+        signal: 72.5
+        reversibility: 90.0
+        competence: 85.8
+        disambiguation: 76.7
+stage_metrics:
+    intake: {started_at: "2026-08-11T11:06:55Z", driver: fab-new, iterations: 1, completed_at: "2026-08-11T11:10:12Z"}
+    apply: {started_at: "2026-08-11T11:10:12Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-11T11:34:24Z"}
+    review: {started_at: "2026-08-11T11:34:24Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-11T11:40:51Z"}
+    hydrate: {started_at: "2026-08-11T11:40:51Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-11T11:45:08Z"}
+    ship: {started_at: "2026-08-11T11:45:08Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-11T11:48:09Z"}
+    review-pr: {started_at: "2026-08-11T11:48:09Z", driver: git-pr, iterations: 1, completed_at: "2026-08-11T11:53:07Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/585
+change_type_source: explicit
+true_impact:
+    added: 365
+    deleted: 6
+    net: 359
+    excluding:
+        added: 72
+        deleted: 5
+        net: 67
+    tests:
+        added: 67
+        deleted: 0
+        net: 67
+    computed_at: "2026-08-11T11:48:09Z"
+    computed_at_stage: ship
+summary: Slug validation enforces 2-6 lowercase kebab-case words at change new/rename
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-11T11:53:07Z
