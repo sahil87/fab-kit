@@ -1,0 +1,9 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-11T19:09:22Z"}
+{"args":"fab pane send --answer mode — permit waiting, still refuse active; rewire operator send paths onto the gated binary","cmd":"fab-new","event":"command","ts":"2026-08-11T19:09:22Z"}
+{"delta":"+4.7","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-08-11T19:12:11Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-11T19:14:17Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-11T19:14:30Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-11T19:23:11Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-11T19:29:06Z"}
+{"event":"review","result":"passed","ts":"2026-08-11T19:29:06Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-11T19:32:35Z"}

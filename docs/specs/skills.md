@@ -1128,7 +1128,7 @@ User invokes /fab-help
 
 ## `/fab-operator`
 
-**Purpose**: Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across every session on its tmux server via `fab pane map --all-sessions`, routes commands via `tmux send-keys`, auto-answers routine prompts, drives autopilot queues, and spawns dependency-aware agents. Started via `fab operator` (a singleton tmux tab named `operator`, one per tmux server).
+**Purpose**: Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across every session on its tmux server via `fab pane map --all-sessions`, routes commands and prompt answers via `fab pane send` (plain / `--answer`), auto-answers routine prompts, drives autopilot queues, and spawns dependency-aware agents. Started via `fab operator` (a singleton tmux tab named `operator`, one per tmux server).
 
 **Context**: A deliberate exception to the always-load layer — loads only `config.yaml`, `constitution.md`, and `context.md` (optional). It runs no `fab preflight` and never reads change artifacts, keeping a long-lived context window reserved for coordination state. Declares `helpers: [_cli-agents, _cli-fab, _cli-external]`.
 
@@ -1146,11 +1146,11 @@ User invokes /fab-help
 ```text
 Started via `fab operator`; runs a continuous /loop cycle
 ├─ Re-derive state each cycle: Bash: fab pane map --all-sessions (never trust cached values)
-├─ Auto-answer routine agent questions; nudge stalled agents; route commands via tmux send-keys
+├─ Auto-answer routine agent questions (fab pane send --answer); nudge stalled agents; route commands via fab pane send
 └─ Drive autopilot queues (/fab-new → /fab-fff); spawn each task in a fresh worktree
 ```
 
-**Tools**: Bash (`fab pane map`, `tmux send-keys`, `wt create`), Skill (`/loop`); helpers `_cli-agents`, `_cli-fab`, `_cli-external`.
+**Tools**: Bash (`fab pane map`, `fab pane send`, `wt create`; raw `tmux send-keys` for key-name input only), Skill (`/loop`); helpers `_cli-agents`, `_cli-fab`, `_cli-external`.
 
 **Sub-agents**: None (spawns agent sessions, not sub-agents).
 

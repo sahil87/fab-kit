@@ -179,7 +179,7 @@ Terminal multiplexer commands used by the operator for agent observation and int
 
 - **Pane mapping across sessions**: The operator's tick snapshots **all** sessions on its tmux server via `fab pane map --all-sessions --json` (see `_cli-fab.md`), not just the operator's own session. The `--json` output carries a per-row `repo` field (the pane's absolute main-worktree root, `null` when unresolved) used to group the status frame by repo then session.
 - **Pane capture**: Use `fab pane capture` instead of raw `tmux capture-pane`. It provides fab context enrichment, validation, and structured output.
-- **Send keys**: Use `fab pane send` instead of raw `tmux send-keys`. It includes built-in pane existence and agent idle validation.
+- **Send keys**: Use `fab pane send` instead of raw `tmux send-keys`. It includes built-in pane-existence and agent-state validation (plain send for command routing; `--answer` for answering a `waiting` agent's prompt — mode matrix in `_cli-fab.md` § fab pane send).
 - **`new-window`** is also how an agent session is spawned — the command form, quoting, and the one-prompt/no-`&&`-chaining rule are owned by `_cli-agents.md` § Spawn Composition ("Open it in a pane"); the operator's `»<wt>` window-marker name is its own policy, in `fab-operator.md` §6
 
 ---

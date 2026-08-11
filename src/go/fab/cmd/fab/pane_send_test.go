@@ -49,12 +49,25 @@ func TestPaneSendCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("answer flag defaults to false", func(t *testing.T) {
+		cmd := paneSendCmd()
+		answer, _ := cmd.Flags().GetBool("answer")
+		if answer {
+			t.Error("expected answer to default to false")
+		}
+	})
+
 	t.Run("flag existence", func(t *testing.T) {
 		cmd := paneSendCmd()
 
 		noEnterFlag := cmd.Flags().Lookup("no-enter")
 		if noEnterFlag == nil {
 			t.Error("expected 'no-enter' flag to exist")
+		}
+
+		answerFlag := cmd.Flags().Lookup("answer")
+		if answerFlag == nil {
+			t.Error("expected 'answer' flag to exist")
 		}
 
 		forceFlag := cmd.Flags().Lookup("force")
@@ -114,15 +127,16 @@ func TestSendEnterArgs(t *testing.T) {
 	})
 }
 
-// TestIdleGate exercises the pure three-state send gate extracted from
-// runPaneSend. It pins BOTH contracts — the "not idle (state: <state>)" refusal
-// and the unknown-state warn-and-proceed warning — so a future reword of either
-// trips this test. This is the unit half of the coverage;
-// TestPaneSendGate_Integration is the end-to-end half against a real tmux
-// server.
+// TestIdleGate exercises the pure send-gate matrix extracted from runPaneSend
+// (four states × plain/--answer; --force never reaches the gate). It pins ALL
+// message contracts — the plain "not idle (state: <state>)" refusal, the
+// --answer active refusal, and the unknown-state warn-and-proceed warning — so
+// a future reword of any trips this test. This is the unit half of the
+// coverage; TestPaneSendGate_Integration is the end-to-end half against a real
+// tmux server.
 func TestIdleGate(t *testing.T) {
 	t.Run("idle permits the send without a warning", func(t *testing.T) {
-		warning, err := idleGate("%5", strPtr(pane.AgentStateIdle))
+		warning, err := idleGate("%5", strPtr(pane.AgentStateIdle), false)
 		if err != nil {
 			t.Errorf("idle should permit send, got error: %v", err)
 		}
@@ -132,7 +146,7 @@ func TestIdleGate(t *testing.T) {
 	})
 
 	t.Run("active refuses with three-state-aware message", func(t *testing.T) {
-		_, err := idleGate("%5", strPtr(pane.AgentStateActive))
+		_, err := idleGate("%5", strPtr(pane.AgentStateActive), false)
 		if err == nil {
 			t.Fatal("active must refuse")
 		}
@@ -142,7 +156,7 @@ func TestIdleGate(t *testing.T) {
 	})
 
 	t.Run("waiting refuses with the same not-idle shape", func(t *testing.T) {
-		_, err := idleGate("%5", strPtr(pane.AgentStateWaiting))
+		_, err := idleGate("%5", strPtr(pane.AgentStateWaiting), false)
 		if err == nil {
 			t.Fatal("waiting must refuse")
 		}
@@ -152,12 +166,52 @@ func TestIdleGate(t *testing.T) {
 	})
 
 	t.Run("unknown warns and proceeds", func(t *testing.T) {
-		warning, err := idleGate("%5", nil)
+		warning, err := idleGate("%5", nil, false)
 		if err != nil {
 			t.Fatalf("unknown must not refuse: %v", err)
 		}
 		if warning != "agent state unknown — sending anyway" {
 			t.Errorf("unknown warning drifted: %q", warning)
+		}
+	})
+
+	t.Run("answer: idle permits the send without a warning", func(t *testing.T) {
+		warning, err := idleGate("%5", strPtr(pane.AgentStateIdle), true)
+		if err != nil {
+			t.Errorf("idle should permit send under --answer, got error: %v", err)
+		}
+		if warning != "" {
+			t.Errorf("idle should not warn under --answer, got %q", warning)
+		}
+	})
+
+	t.Run("answer: waiting permits the send — the primary --answer case", func(t *testing.T) {
+		warning, err := idleGate("%5", strPtr(pane.AgentStateWaiting), true)
+		if err != nil {
+			t.Errorf("waiting must send under --answer, got error: %v", err)
+		}
+		if warning != "" {
+			t.Errorf("waiting should not warn under --answer, got %q", warning)
+		}
+	})
+
+	t.Run("answer: active still refuses, state-naming message", func(t *testing.T) {
+		_, err := idleGate("%5", strPtr(pane.AgentStateActive), true)
+		if err == nil {
+			t.Fatal("active must refuse under --answer")
+		}
+		if err.Error() != "agent in pane %5 is active (--answer permits idle and waiting only)" {
+			t.Errorf("--answer active refusal message drifted: %q", err.Error())
+		}
+	})
+
+	t.Run("answer: unknown warns and proceeds (same posture as plain send)", func(t *testing.T) {
+		warning, err := idleGate("%5", nil, true)
+		if err != nil {
+			t.Fatalf("unknown must not refuse under --answer: %v", err)
+		}
+		if warning != "agent state unknown — sending anyway" {
+			t.Errorf("unknown warning drifted under --answer: %q", warning)
 		}
 	})
 }
@@ -335,6 +389,46 @@ func TestPaneSendGate_Integration(t *testing.T) {
 		setState(t, pane.AgentStateActive, 1751800000)
 		if _, err := runSend("--force", paneID, "true"); err != nil {
 			t.Errorf("--force should bypass the active gate, got error: %v", err)
+		}
+	})
+
+	t.Run("--answer sends to a waiting pane (the operator auto-answer case)", func(t *testing.T) {
+		setState(t, pane.AgentStateWaiting, 1751800000)
+		stderr, err := runSend("--answer", paneID, "true")
+		if err != nil {
+			t.Errorf("--answer should send to waiting, got error: %v", err)
+		}
+		if stderr != "" {
+			t.Errorf("--answer to waiting should not warn, got stderr %q", stderr)
+		}
+	})
+
+	t.Run("--answer still refuses an active pane", func(t *testing.T) {
+		setState(t, pane.AgentStateActive, 1751800000)
+		_, err := runSend("--answer", paneID, "hi")
+		if err == nil {
+			t.Fatal("expected refusal for active state under --answer")
+		}
+		if err.Error() != "agent in pane "+paneID+" is active (--answer permits idle and waiting only)" {
+			t.Errorf("--answer active refusal message drifted: %q", err.Error())
+		}
+	})
+
+	t.Run("--answer on unknown state warns and sends (posture parity with plain send)", func(t *testing.T) {
+		unsetState(t)
+		stderr, err := runSend("--answer", paneID, "true")
+		if err != nil {
+			t.Fatalf("--answer on unknown must warn and send, got error: %v", err)
+		}
+		if !strings.Contains(stderr, "warning: agent state unknown — sending anyway") {
+			t.Errorf("stderr = %q, want the unknown-state warning", stderr)
+		}
+	})
+
+	t.Run("--answer --force together behaves as --force (state check skipped)", func(t *testing.T) {
+		setState(t, pane.AgentStateActive, 1751800000)
+		if _, err := runSend("--answer", "--force", paneID, "true"); err != nil {
+			t.Errorf("--force must win over --answer on an active pane, got error: %v", err)
 		}
 	})
 }

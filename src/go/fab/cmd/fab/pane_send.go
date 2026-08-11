@@ -16,6 +16,7 @@ func paneSendCmd() *cobra.Command {
 		RunE:  runPaneSend,
 	}
 	cmd.Flags().Bool("no-enter", false, "Don't append Enter keystroke")
+	cmd.Flags().Bool("answer", false, "Answer mode: permit sending to a waiting agent (still refuses active)")
 	cmd.Flags().Bool("force", false, "Skip idle validation (still validates pane existence)")
 	return cmd
 }
@@ -24,6 +25,7 @@ func runPaneSend(cmd *cobra.Command, args []string) error {
 	paneID := args[0]
 	text := args[1]
 	noEnter, _ := cmd.Flags().GetBool("no-enter")
+	answer, _ := cmd.Flags().GetBool("answer")
 	force, _ := cmd.Flags().GetBool("force")
 	server, _ := cmd.Flags().GetString("server")
 
@@ -35,19 +37,24 @@ func runPaneSend(cmd *cobra.Command, args []string) error {
 		os.Exit(paneValidationExitCode(err))
 	}
 
-	// Step 2: Validate agent state (unless --force). Reads @rk_agent_state
-	// via the shared reader. Three known states plus unknown:
+	// Step 2: Validate agent state (unless --force — the skip-everything
+	// override, which wins over --answer when both are given). Reads
+	// @rk_agent_state via the shared reader. Three known states plus unknown:
 	//   idle           → send.
-	//   active/waiting → refuse, three-state-aware (state name in message).
-	//   unknown        → warn and send anyway (a foreign-agent pane — an
-	//                    absent option / unparseable value / a pane with no
-	//                    instrumented agent — carries no state to gate on).
+	//   waiting        → refuse (plain); send under --answer — this send IS
+	//                    the answer the blocked agent is waiting for.
+	//   active         → refuse in both modes (never interrupt a working
+	//                    agent unattended).
+	//   unknown        → warn and send anyway, both modes (a foreign-agent
+	//                    pane — an absent option / unparseable value / a pane
+	//                    with no instrumented agent — carries no state to
+	//                    gate on).
 	if !force {
 		ctx, err := pane.ResolvePaneContext(paneID, "", server)
 		if err != nil {
 			return fmt.Errorf("resolve context: %w", err)
 		}
-		warning, err := idleGate(paneID, ctx.AgentState)
+		warning, err := idleGate(paneID, ctx.AgentState, answer)
 		if err != nil {
 			return err
 		}
@@ -77,22 +84,34 @@ func runPaneSend(cmd *cobra.Command, args []string) error {
 }
 
 // idleGate is the pure decision half of the pane-send state gate: given the
-// resolved agent state (nil = unknown), it reports whether a send is allowed —
-// a non-empty warning for the warn-and-proceed case, an error carrying the
-// exact refusal contract when refused. Extracted from runPaneSend so the
-// three-state gate is unit-testable without the cobra/tmux plumbing.
+// resolved agent state (nil = unknown) and the send mode, it reports whether
+// a send is allowed — a non-empty warning for the warn-and-proceed case, an
+// error carrying the exact refusal contract when refused. Extracted from
+// runPaneSend so the gate matrix is unit-testable without the cobra/tmux
+// plumbing. (--force never reaches this function — runPaneSend skips the
+// state check entirely, which is also why --force wins over --answer.)
 //
-//	nil (unknown)        → warn "agent state unknown — sending anyway", no error
-//	active / waiting     → "not idle (state: <state>)" refusal (three-state aware)
-//	idle                 → no warning, no error (send permitted)
-func idleGate(paneID string, agentState *string) (warning string, err error) {
+//	                     plain                --answer
+//	nil (unknown)        warn + send          warn + send (same posture)
+//	idle                 send                 send
+//	waiting              refuse               send (the answer it waits for)
+//	active               refuse               refuse
+//
+// Refusals are three-state aware (state name in message) and exit 1 via the
+// returned error; pane existence is validated before the gate either way.
+func idleGate(paneID string, agentState *string, answer bool) (warning string, err error) {
 	switch {
 	case agentState == nil:
 		return "agent state unknown — sending anyway", nil
-	case *agentState != pane.AgentStateIdle:
+	case *agentState == pane.AgentStateIdle:
+		return "", nil
+	case answer && *agentState == pane.AgentStateWaiting:
+		return "", nil
+	case answer:
+		return "", fmt.Errorf("agent in pane %s is %s (--answer permits idle and waiting only)", paneID, *agentState)
+	default:
 		return "", fmt.Errorf("agent in pane %s is not idle (state: %s)", paneID, *agentState)
 	}
-	return "", nil
 }
 
 // sendTextArgs builds the tmux argv for literal-text send-keys.
