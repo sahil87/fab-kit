@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`fab pane {map,capture,send,process,window-name,open,ready,deliver,kill,await}` reference: provider-generic `open --provider` spawn + `ready`/`deliver` primitives with `--json`, generic `kill` + blocking `await` (idle/file/running/gone), `send`'s warn-and-proceed unknown-state posture, `--server`/`-L`, pane-family exit-code scheme (2 = pane missing / 3 = other tmux failure), shared `internal/pane` helpers + `display-message` validation probe, pane-ID-per-server semantics, window-name rewrites."
+description: "`fab pane {map,capture,send,process,window-name,open,ready,deliver,kill,await}` reference: provider-generic `open --provider` spawn + `ready`/`deliver` primitives with `--json`, generic `kill` + blocking `await` (idle/file/running/gone), `send`'s mode-aware state gate (plain / `--answer` / `--force`; unknown warns-and-sends), `--server`/`-L`, pane-family exit codes (2 = pane missing / 3 = other tmux failure), shared `internal/pane` helpers, pane-ID-per-server semantics, window-name rewrites."
 ---
 # Pane Commands
 
@@ -81,19 +81,28 @@ This doc covers the ten subcommands, the `--server` / `-L` persistent flag, and 
 
 ### Subcommand: `fab pane send`
 
-`fab pane send <pane> <text> [--no-enter] [--force]` sends keystrokes to a tmux pane with built-in pane-existence and agent-idle validation. Source: `src/go/fab/cmd/fab/pane_send.go`.
+`fab pane send <pane> <text> [--no-enter] [--answer] [--force]` sends keystrokes to a tmux pane with built-in pane-existence and agent-state validation. Source: `src/go/fab/cmd/fab/pane_send.go`.
 
-**Flags**: `<pane>` (required); `<text>` (required); `--no-enter` (don't append Enter); `--force` (skip idle validation — still validates pane existence).
+**Flags**: `<pane>` (required); `<text>` (required); `--no-enter` (don't append Enter); `--answer` (answer mode — permit sending to a `waiting` agent, still refuse `active`); `--force` (skip the state check entirely — still validates pane existence).
 
 **Validation pipeline**:
 
 1. Pane exists: a single targeted probe — `tmux display-message -t <pane> -p '#{pane_id}'`, output compared to the argument for ID-exactness (see §Shared Pane Package `ValidatePane`). If not found → **exit 2** with `Error: pane <id> not found` (even with `--force`); any other tmux validation failure → **exit 3** — the `window-name` scheme, unified across the family in 260612-ye8r.
-2. Agent idle (three-state gate) (ioku): reads `@rk_agent_state` and gates on the resolved state. `idle` → send. `active`/`waiting` → refuse with `ERROR: agent in pane <id> is not idle (state: <state>)` (exit 1, returned through RunE — three-state-aware, the state name appears in the message). Absent/unparseable (**unknown**) → warn and send anyway: `warning: agent state unknown — sending anyway` on stderr, exit 0 — an unknown state carries nothing to gate on, so refusal is reserved for a *parseable* non-idle state. `--force` bypasses **only** this check (pane existence in step 1 is still enforced, so a missing pane exits 2 even with `--force`). The gate is a pure decision helper (`idleGate`), unit-tested for all five cases + both pinned message contracts, with an integration test driving the full command against a real tmux server via the `tmux set-option -p` writer simulation.
+2. Agent-state gate (unless `--force`): reads `@rk_agent_state` and applies the mode matrix (answ):
+
+   | Agent state | plain send | `--answer` |
+   |-------------|-----------|------------|
+   | `idle` | send | send |
+   | `waiting` | refuse — `ERROR: agent in pane <id> is not idle (state: waiting)` (exit 1) | **send** — the send IS the answer the blocked agent waits for |
+   | `active` | refuse — `ERROR: agent in pane <id> is not idle (state: active)` (exit 1) | refuse — `ERROR: agent in pane <id> is active (--answer permits idle and waiting only)` (exit 1) |
+   | unknown (absent/unparseable) | warn and send — `warning: agent state unknown — sending anyway` on stderr, exit 0 | same — warn and send (posture parity) |
+
+   Refusals return through RunE (exit 1) and name the state. `--force` bypasses **only** this gate — the whole state check is skipped, so it wins over `--answer` when both are given; pane existence in step 1 is still enforced (a missing pane exits 2 even with `--force`). The gate is a pure decision helper (`idleGate`, mode-aware), unit-tested for the full state × mode matrix + the pinned message contracts, with an integration test driving the full command against a real tmux server via the `tmux set-option -p` writer simulation.
 3. Send keys: `tmux send-keys -t <pane> -l <text>` (literal text), optionally followed by a separate `tmux send-keys -t <pane> Enter`. A failed send surfaces tmux's trimmed stderr and names the pane (e.g. `tmux send-keys to %5: exit status 1: can't find pane: %5`).
 
-**Why two send-keys invocations**: The `-l` flag sends `<text>` literally so tmux does not interpret key names like `"Enter"`, `"Space"`, `"C-c"` embedded in the text itself. The trailing Enter keystroke is sent as a separate non-literal command.
+**Why two send-keys invocations**: The `-l` flag sends `<text>` literally so tmux does not interpret key names like `"Enter"`, `"Space"`, `"C-c"` embedded in the text itself. The trailing Enter keystroke is sent as a separate non-literal command. Consequently key-name *input* (bare Enter, arrows, `C-c`) cannot ride `fab pane send` at all — consumers use raw `tmux send-keys` for that one case.
 
-**Unknown state**: A pane with no `@rk_agent_state` option — or a value with an unknown token or a missing/bad epoch — resolves to **unknown** and sends with the stderr warning above (no `--force` needed). The convention's only writer is run-kit's `rk agent-setup` harness hooks (Claude, codex, copilot, gemini, opencode), so a foreign-agent or uninstrumented pane always reads unknown — refusing there would force `--force` on precisely the multi-provider panes the gate exists for. An instrumented agent that has flipped to `idle` is accepted without ceremony; `active`/`waiting` refuse with the three-state-aware message. `--force` remains the skip-everything override. See [runtime-agents.md](/runtime/runtime-agents.md) for the read contract.
+**Unknown state**: A pane with no `@rk_agent_state` option — or a value with an unknown token or a missing/bad epoch — resolves to **unknown** and sends with the stderr warning above (no `--force` needed, in both non-force modes). The convention's only writer is run-kit's `rk agent-setup` harness hooks (Claude, codex, copilot, gemini, opencode), so a foreign-agent or uninstrumented pane always reads unknown — refusing there would force `--force` on precisely the multi-provider panes the gate exists for (and, under `--answer`, on precisely the uninstrumented panes the operator's capture-based prompt detection serves). An instrumented agent that has flipped to `idle` is accepted without ceremony. See [runtime-agents.md](/runtime/runtime-agents.md) for the read contract.
 
 ### Subcommand: `fab pane process`
 
@@ -304,11 +313,17 @@ All tmux-invoking functions accept a trailing `server string` parameter and buil
 **Rejected**: Reusing `fab agent --provider`'s bypass semantics (contradicts the probe use case).
 *Introduced by*: 260810-1lah-provider-generic-pane-verbs
 
-### Unknown Agent State Warns and Proceeds; Refusal Is Reserved for a Parseable Non-Idle State
-**Decision**: `fab pane send` treats an absent/unparseable `@rk_agent_state` as warn-and-send (`warning: agent state unknown — sending anyway`, exit 0); only a parseable `active`/`waiting` state refuses. `--force` retains its skip-everything meaning.
+### Unknown Agent State Warns and Proceeds; Refusal Is Reserved for a Parseable Non-Permitted State
+**Decision**: `fab pane send` treats an absent/unparseable `@rk_agent_state` as warn-and-send (`warning: agent state unknown — sending anyway`, exit 0) in both non-force modes; only a parseable state the active mode does not permit refuses. `--force` retains its skip-everything meaning.
 **Why**: Only run-kit-instrumented panes set the option, so against any foreign-agent pane (kimi, agy, codex) the unknown case fired unconditionally and every send needed `--force` — the validation never validated in precisely the multi-provider scenarios where validation matters. Reserving refusal for a parseable non-idle state keeps the guard where the convention actually reports state.
 **Rejected**: Keeping unknown as a refusal (the always-`--force` ritual); auto-force on unknown (silently drops the one signal an instrumented pane might still carry).
 *Introduced by*: 260810-1lah-provider-generic-pane-verbs
+
+### `--answer` Splits the Gate's Two Refusal Cases
+**Decision**: `fab pane send --answer` permits `waiting` (and `idle`) while still refusing `active`; unknown keeps the warn-and-send posture; `--force` stays the skip-everything override and wins when both flags are given.
+**Why**: The plain gate's refusal conflated "never interrupt a working agent" (`active`) with "don't cut across a pending human answer" (`waiting`) — but `waiting` is the operator auto-answer's primary target, so the only lever was `--force`, which also drops the `active` protection; callers routed around the binary with raw `tmux send-keys` and the gate never actually gated its main legitimate use case.
+**Rejected**: Loosening the default gate to permit `waiting` (ordinary command routing would cut across pending prompts); softening `--force` (removes the only skip-everything escape); refusing unknown under `--answer` (punishes precisely the uninstrumented panes the operator's capture-based prompt detection serves); erroring on `--answer --force` (the flags are not contradictory — one strictly contains the other).
+*Introduced by*: 260811-answ-pane-send-answer-mode
 
 ### Await's Control Loop Mirrors `dispatch.Wait`
 **Decision**: `fab pane await`'s tick loop lives in `internal/pane` as a pure, observer-injected control structure (`Await(ctx, observe, tick, timeout)`) with a package `AwaitTick` constant — the same shape as `internal/dispatch`'s `Wait`/`TickInterval`.
