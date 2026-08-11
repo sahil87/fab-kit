@@ -4,6 +4,16 @@
      git-projected entries on every regen; this file is curated input, not generated
      output. Edit only to correct a preserved historical entry. -->
 
+<!-- 2026-08-10 (backlog lgat): recovery entries for change 1lah (PR #568) — the squash
+     subject carried no change token, so the git projection can never attribute these
+     memory edits (FKF §6.4 unattributable-drop). Summary text is 1lah's .status.yaml
+     summary verbatim. -->
+
+## 2026-08-10
+- **Update** [agent-primitives](/runtime/agent-primitives.md) — New provider-generic fab pane open/ready/deliver primitives in internal/pane; dispatch open/ready/deliver become thin record-keeping bindings; fab pane send warns and proceeds on unknown agent state (1lah)
+- **Update** [dispatch](/runtime/dispatch.md) — New provider-generic fab pane open/ready/deliver primitives in internal/pane; dispatch open/ready/deliver become thin record-keeping bindings; fab pane send warns and proceeds on unknown agent state (1lah)
+- **Update** [pane-commands](/runtime/pane-commands.md) — New provider-generic fab pane open/ready/deliver primitives in internal/pane; dispatch open/ready/deliver become thin record-keeping bindings; fab pane send warns and proceeds on unknown agent state (1lah)
+
 ## 2026-06-13
 - **Update** [operator](/runtime/operator.md) — **`fab operator` launch is git-optional, `fab/`-optional, and doing-tiered.** `runOperator` (`src/go/fab/cmd/fab/operator.go`) no longer hard-fails outside a git repo or without a `fab/` project: window cwd resolves via `gitRepoRoot()` → `os.Getwd()` fallback (errors only if both fail; the `cannot determine repo root` hard-fail is gone), and `resolve.FabRoot()` failure is non-fatal — spawn command is the project's `agent.spawn_command` when resolvable, else `spawn.DefaultSpawnCommand`. The operator now launches its coordinating agent on the **doing tier**: it shells `fab resolve-agent apply` (canonical doing-tier stage in the FIXED stage→tier mapping, flagged with a prominent WHY-apply call-site comment), parses `model=`/`effort=` via the new pure `resolveDoingProfile(stdout) agent.Profile`, and appends `--model`/`--effort` to the spawn command via the new reusable `spawn.WithProfile(spawnCmd, model, effort)` helper (last-wins, empty ⇒ omit). On ANY failure (installed `fab` lacking `resolve-agent`, no resolvable fab project, or unparseable output) it falls back to the built-in `agent.DefaultTier(agent.TierDoing)` = `{claude-opus-4-8, high}`. This makes the operator the **first non-orchestrator (non-pipeline) consumer** of the `l3ja` agent-tier system. State stays socket-keyed under `XDG_STATE_HOME` — no migration. New design decision "Operator Launch Is Git-Optional, `fab/`-Optional, and Doing-Tiered". `fab-operator.md`, `SPEC-fab-operator.md`, and `_cli-fab.md` `## fab operator` updated in lockstep; `_shared/configuration.md` records the non-pipeline doing-tier consumption. (2sdj)
 
