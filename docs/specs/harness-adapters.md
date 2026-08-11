@@ -42,7 +42,8 @@ Fab runs a six-stage pipeline (`intake → apply → review → hydrate → ship
 post-intake stage is executed by **dispatching a worker** in a fresh context that returns a structured
 result (see [`stage-models.md`](stage-models.md) § Why this is possible now, and `_preamble.md`
 § Subagent Dispatch) — except a **continued** native apply worker, which is deliberately *not* fresh
-(§ 1). Historically there was one way to dispatch a worker — the Claude Code **Agent
+(§ 1), and the `/fab-ff`/`/fab-fff` **light lane**, whose non-review stages run inline in the
+orchestrator's context with no dispatch at all (`_pipeline.md` § Light Lane). Historically there was one way to dispatch a worker — the Claude Code **Agent
 tool** (an in-harness sub-agent). Cross-harness dispatch (e.g. a codex orchestrator running `apply` on
 claude, or a claude orchestrator handing a stage to codex) added a second: a **detached CLI process**
 observed via files. A third recovers what that detached process cannot offer — **watch and steer**: an

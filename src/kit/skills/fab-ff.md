@@ -1,10 +1,10 @@
 ---
 name: fab-ff
-description: "Fast-forward through hydrate — confidence-gated pipeline from intake through hydrate, with sub-agent review, auto-rework loop, and stop on exhaustion."
+description: "Fast-forward through hydrate — confidence-gated pipeline from intake through hydrate, with the one-time light/full lane fork on plan task count (--light/--full override; light lane runs task execution and hydrate inline), sub-agent review in both lanes, auto-rework loop, and stop on exhaustion."
 helpers: [_generation, _review, _srad, _pipeline]
 ---
 
-# /fab-ff [<change-name>] [--force]
+# /fab-ff [<change-name>] [--force] [--light|--full]
 
 > Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
@@ -31,9 +31,11 @@ Execute the **shared pipeline bracket** (`_pipeline.md`, loaded via `helpers:`) 
 | `{driver}` | `fab-ff` |
 | `{terminal}` | `hydrate` — the pipeline ends after the bracket's Step 3; there are no ship/review-pr steps |
 
-The bracket defines everything else: pre-flight (intake prerequisite + intake gate), context loading, resumability, Steps 1–3 (apply → review → hydrate), the auto-rework loop with its per-cycle choreography, and the exhaustion stop.
+The bracket defines everything else: pre-flight (intake prerequisite + intake gate), context loading, resumability, Steps 1–3 (apply → review → hydrate) with the inline plan co-gen and one-time light/full lane fork, the auto-rework loop with its per-cycle choreography, and the exhaustion stop.
 
-Stage dispatch uses `_pipeline.md` § Stage Dispatch Procedure and the current canon at `_preamble.md` § CLI-Adapter Dispatch.
+The lane mechanics (fork, inline loci, rework locus, review-always-dispatched) are owned by `_pipeline.md` § Light Lane — in the **light lane** this driver's run covers task execution and hydrate inline and ends there (its terminal).
+
+Stage dispatch (full lane, and review in both lanes) uses `_pipeline.md` § Stage Dispatch Procedure and the current canon at `_preamble.md` § CLI-Adapter Dispatch.
 
 ---
 

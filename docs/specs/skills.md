@@ -100,18 +100,22 @@ Consumer reads _generation.md (via helpers: declaration)
 └─ 9 Advance — fab status advance <change> intake
 ```
 
-`_pipeline` — shared pipeline bracket for /fab-ff and /fab-fff (/fab-adopt partially consumes the rework loop + hydrate dispatch):
+`_pipeline` — shared pipeline bracket for /fab-ff and /fab-fff (/fab-adopt partially consumes the rework loop + hydrate dispatch), with the inline plan co-gen + one-time light/full lane fork at apply entry (≤ 5 tasks → light):
 
 ```text
 Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
 ├─ Pre-flight: fab preflight; gate (skip if --force) fab score --check-gate --stage intake → STOP if < 3.0
-├─ Resumability: skip done stages; per-stage dispatch via fab resolve-agent <stage> --alias (dispatch= absent ⇒ native Agent / present ⇒ CLI adapter)
-├─ Step 1 Apply → subagent /fab-continue Apply → fab status finish intake/apply
-├─ Step 2 Review → subagent /fab-continue Review (_review.md)
+├─ Resumability: skip done stages (lane re-derived from plan.md task count on resume)
+├─ Step 1 Apply — plan.md co-generated INLINE at entry (both lanes; obviously-large scope MAY dispatch apply-with-co-gen)
+│  ├─ Fork once on plan task count (≤5 → LIGHT / >5 → FULL; --light/--full override, mutually exclusive)
+│  ├─ LIGHT: tasks executed inline (no dispatch, no fab resolve-agent, session model)
+│  ├─ FULL: apply worker dispatched with plan pre-existing (task execution only) via fab resolve-agent apply --alias (dispatch= absent ⇒ native Agent / present ⇒ CLI adapter)
+│  └─ fab status finish intake/apply
+├─ Step 2 Review → subagent /fab-continue Review (_review.md) — ALWAYS a fresh dispatched worker, both lanes
 │  ├─ Pass: finish review → Step 3
-│  └─ Fail: auto-rework loop ≤{max_cycles} (resume apply worker when reachable, fresh review each cycle); exhaustion: fab status fail review → STOP
-├─ Step 3 Hydrate → subagent /fab-continue Hydrate → fab status finish hydrate
-└─ {terminal} = hydrate → complete / review-pr → driver Steps 4–5
+│  └─ Fail: auto-rework loop ≤{max_cycles} (light: rework inline; full: resume apply worker when reachable; fresh review each cycle); exhaustion: fab status fail review → STOP
+├─ Step 3 Hydrate — LIGHT: inline / FULL: subagent /fab-continue Hydrate → fab status finish hydrate
+└─ {terminal} = hydrate → complete / review-pr → driver Steps 4–5 (light lane: inline)
 ```
 
 `_review` — shared review logic run by the dispatched review worker (a `mode` parameter — full | diff-only — selects whether plan-conformance steps run):
@@ -508,7 +512,7 @@ User invokes /fab-continue [change-name] [stage]
 
 ## `/fab-ff` (Fast Forward)
 
-**Purpose**: Fast-forward apply → review → hydrate (everything after intake). Gated on the single intake confidence gate (flat 3.0), with sub-agent review, auto-rework loop (up to `{max_cycles}` cycles — the code-review.md Rework Budget knob, default 3 — with prioritized findings), and stop on exhaustion. Accepts `--force` to bypass the gate. No `/fab-clarify` runs inside the bracket.
+**Purpose**: Fast-forward apply → review → hydrate (everything after intake). Gated on the single intake confidence gate (flat 3.0), with sub-agent review (dispatched in both lanes), auto-rework loop (up to `{max_cycles}` cycles — the code-review.md Rework Budget knob, default 3 — with prioritized findings), and stop on exhaustion. Accepts `--force` to bypass the gate and `--light`/`--full` to force the lane. No `/fab-clarify` runs inside the bracket.
 
 **Source ownership**: `_pipeline.md` owns the shared arguments, framing, output
 skeleton, Steps 1–3, and Stage Dispatch Procedure. `fab-ff.md` binds only the
@@ -516,7 +520,7 @@ skeleton, Steps 1–3, and Stage Dispatch Procedure. `fab-ff.md` binds only the
 
 **Context**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/` (loaded once for the apply → hydrate run)
 
-**Flow**: apply (co-generates `plan.md`, executes tasks) → review → hydrate
+**Flow**: `plan.md` co-generated inline at apply entry (both lanes) → one-time lane fork on task count (≤ 5 → light: task execution + hydrate inline; > 5 → full: dispatched workers) → review (fresh dispatched worker in both lanes) → hydrate
 
 **When to use**:
 - Small, well-understood changes
@@ -531,11 +535,11 @@ skeleton, Steps 1–3, and Stage Dispatch Procedure. `fab-ff.md` binds only the
 
 **Behavior**:
 1. Check the intake gate (confidence >= 3.0, flat). Abort if below threshold. Skip if `--force`.
-2. Run apply (single subagent invocation): co-generate `plan.md` (## Requirements from `intake.md` + ## Tasks + ## Acceptance), then execute unchecked tasks under `## Tasks` in dependency order, running tests after each. Under-specified requirements are resolved inline as graded SRAD assumptions in `plan.md` — no clarify step.
-3. **Review** — dispatch to a single sub-agent (fresh context). The sub-agent returns prioritized findings (must-fix / should-fix / nice-to-have); it inspects items under `plan.md` `## Acceptance` against `## Requirements` and judges the diff on its own merits
+2. **Apply entry** — co-generate `plan.md` (## Requirements from `intake.md` + ## Tasks + ## Acceptance) INLINE in the orchestrator's context (both lanes; an obviously-large intake scope MAY instead dispatch apply-with-co-gen), then fork once on task count: ≤ 5 → light lane (task execution runs inline — no dispatch, no `fab resolve-agent`), > 5 → full lane (a single apply subagent receives the finished plan via the plan-exists seam and executes unchecked tasks under `## Tasks` in dependency order, running tests after each). Under-specified requirements are resolved inline as graded SRAD assumptions in `plan.md` — no clarify step.
+3. **Review** — dispatch to a single sub-agent (fresh context, in BOTH lanes). The sub-agent returns prioritized findings (must-fix / should-fix / nice-to-have); it inspects items under `plan.md` `## Acceptance` against `## Requirements` and judges the diff on its own merits
 4. **On pass** — advance to hydrate
-5. **On fail** — auto-rework loop (up to `{max_cycles}` cycles, default 3): triage findings by priority, autonomously select rework path (fix code, revise plan, revise requirements), re-apply (resume-first: continue the named `apply-{id}` worker on the native arm when reachable, else dispatch fresh), spawn fresh sub-agent for re-review. Escalation after 2 consecutive fix-code attempts. Stop after `{max_cycles}` failed cycles with summary.
-6. Hydrate into `docs/memory/`
+5. **On fail** — auto-rework loop (up to `{max_cycles}` cycles, default 3): triage findings by priority, autonomously select rework path (fix code, revise plan, revise requirements), re-apply (light lane: inline; full lane — resume-first: continue the named `apply-{id}` worker on the native arm when reachable, else dispatch fresh), spawn fresh sub-agent for re-review. Escalation after 2 consecutive fix-code attempts. Stop after `{max_cycles}` failed cycles with summary.
+6. Hydrate into `docs/memory/` (inline in the light lane, dispatched in the full lane)
 
 
 **Flow**:
@@ -554,7 +558,7 @@ User invokes /fab-ff [change-name] [--force]
 
 ## `/fab-fff` (Full Autonomous Pipeline)
 
-**Purpose**: Run the entire automated Fab pipeline — apply → review → hydrate → ship → review-pr — in a single invocation (everything after intake). Gated on the single intake confidence gate (flat 3.0, same as `/fab-ff`). No `/fab-clarify` runs inside the bracket. Autonomously reworks on review failure using sub-agent review with prioritized findings (`{max_cycles}`-cycle retry cap — code-review.md Rework Budget knob, default 3 — escalation after 2 consecutive fix-code failures). Accepts `--force` to bypass the gate.
+**Purpose**: Run the entire automated Fab pipeline — apply → review → hydrate → ship → review-pr — in a single invocation (everything after intake). Gated on the single intake confidence gate (flat 3.0, same as `/fab-ff`). No `/fab-clarify` runs inside the bracket. Autonomously reworks on review failure using sub-agent review with prioritized findings (`{max_cycles}`-cycle retry cap — code-review.md Rework Budget knob, default 3 — escalation after 2 consecutive fix-code failures). Accepts `--force` to bypass the gate and `--light`/`--full` to force the lane.
 
 **Source ownership**: `_pipeline.md` owns shared framing and Steps 1–3;
 `fab-fff.md` owns only the `fab-fff`/`review-pr` binding plus ship and PR review.
@@ -567,7 +571,7 @@ User invokes /fab-ff [change-name] [--force]
 ```
 /fab-fff
 → --- Implementation ---
-→ ... (apply: plan.md co-generated — requirements + tasks + acceptance — then tasks executed)
+→ ... (apply entry: plan.md co-generated inline — requirements + tasks + acceptance — then the lane fork and tasks executed)
 → --- Review ---
 → ... (validation passed)
 → --- Hydrate ---
@@ -582,13 +586,13 @@ User invokes /fab-ff [change-name] [--force]
 **Behavior**:
 1. **Intake gate** (skip if `--force`): Check confidence >= 3.0 (flat). Abort if below threshold.
 2. **Resumability**: Check `progress` map — skip any stage already marked `done` or `skipped`. Re-invoking after interruption picks up from the first incomplete stage.
-3. **Step 1 — Implementation**: Run apply (one subagent call) — co-generate `plan.md` (## Requirements from `intake.md` + ## Tasks + ## Acceptance), then execute unchecked tasks under `## Tasks` in dependency order, running tests after each. Under-specified requirements are resolved inline as graded SRAD assumptions — no clarify step.
-4. **Step 2 — Review**: Dispatch to review sub-agent (fresh context, prioritized findings). On failure, triage findings by priority and autonomously select rework path (fix code, revise plan, revise requirements), then re-apply resume-first (continue the named `apply-{id}` worker on the native arm when reachable, else dispatch fresh). Re-review via fresh sub-agent. Retry up to `{max_cycles}` cycles (default 3; escalation after 2 consecutive fix-code). Bail with summary after `{max_cycles}` failed cycles.
-5. **Step 3 — Hydrate**: Hydrate into memory.
-6. **Step 4 — Ship**: Dispatch `/git-pr` to commit, push, and create PR.
-7. **Step 5 — Review-PR**: Dispatch `/git-pr-review` to process PR review comments.
+3. **Step 1 — Implementation**: Co-generate `plan.md` (## Requirements from `intake.md` + ## Tasks + ## Acceptance) INLINE in the orchestrator's context (both lanes; an obviously-large intake scope MAY instead dispatch apply-with-co-gen), then fork once on task count: ≤ 5 → light lane (tasks executed inline), > 5 → full lane (one apply subagent, plan pre-existing, executes unchecked tasks under `## Tasks` in dependency order, running tests after each). Under-specified requirements are resolved inline as graded SRAD assumptions — no clarify step.
+4. **Step 2 — Review**: Dispatch to review sub-agent (fresh context, prioritized findings — dispatched in BOTH lanes). On failure, triage findings by priority and autonomously select rework path (fix code, revise plan, revise requirements), then re-apply (light lane: inline; full lane — resume-first: continue the named `apply-{id}` worker on the native arm when reachable, else dispatch fresh). Re-review via fresh sub-agent. Retry up to `{max_cycles}` cycles (default 3; escalation after 2 consecutive fix-code). Bail with summary after `{max_cycles}` failed cycles.
+5. **Step 3 — Hydrate**: Hydrate into memory (inline in the light lane, dispatched in the full lane).
+6. **Step 4 — Ship**: Run `/git-pr` to commit, push, and create PR (dispatched in the full lane, inline in the light lane).
+7. **Step 5 — Review-PR**: Run `/git-pr-review` to process PR review comments (dispatched in the full lane, inline in the light lane).
 
-**Key difference from `/fab-ff`**: The difference is scope only. `/fab-fff` extends through ship and review-pr; `/fab-ff` stops at hydrate. Both have the identical single intake gate, no in-bracket clarify, and identical auto-rework (`{max_cycles}`-cycle cap with escalation, default 3). Both accept `--force` to bypass the gate.
+**Key difference from `/fab-ff`**: The difference is scope only. `/fab-fff` extends through ship and review-pr; `/fab-ff` stops at hydrate. Both have the identical single intake gate, no in-bracket clarify, and identical auto-rework (`{max_cycles}`-cycle cap with escalation, default 3). Both accept `--force` to bypass the gate, and both fork once at apply entry into the light/full lane on plan task count (≤ 5 → light), with `--light`/`--full` overrides.
 
 
 **Flow**:
@@ -597,8 +601,8 @@ User invokes /fab-ff [change-name] [--force]
 User invokes /fab-fff [change-name] [--force]
 ├─ Read: _preamble.md, helpers incl. _pipeline.md
 ├─ Execute the _pipeline.md bracket ({driver}=fab-fff, {terminal}=review-pr)
-├─ Ship: dispatch /git-pr {name} (own ship transitions)
-└─ Review-PR: dispatch /git-pr-review {name}
+├─ Ship: /git-pr {name} (own ship transitions) — full lane: dispatched; light lane: inline
+└─ Review-PR: /git-pr-review {name} — full lane: dispatched (sync-poll directive); light lane: inline (directive moot)
    ├─ [success / no-reviews] stage done; [failure] STOP with the error
    └─ [timeout] stage left active; report pending + re-run guidance
 ```

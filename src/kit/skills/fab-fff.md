@@ -1,10 +1,10 @@
 ---
 name: fab-fff
-description: "Full pipeline — implementation, sub-agent review, hydrate, ship, and PR review — gated on the single intake confidence gate, with autonomous rework with bounded retry."
+description: "Full pipeline — implementation, sub-agent review, hydrate, ship, and PR review — gated on the single intake confidence gate, with the one-time light/full lane fork on plan task count (--light/--full override; light lane runs everything but review inline) and autonomous rework with bounded retry."
 helpers: [_generation, _review, _srad, _pipeline]
 ---
 
-# /fab-fff [<change-name>] [--force]
+# /fab-fff [<change-name>] [--force] [--light|--full]
 
 > Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
@@ -41,15 +41,17 @@ Execute the **shared pipeline bracket** (`_pipeline.md`, loaded via `helpers:`) 
 | `{driver}` | `fab-fff` |
 | `{terminal}` | `review-pr` — after the bracket's Step 3 (hydrate), continue with Steps 4–5 below |
 
-The bracket defines pre-flight (intake prerequisite + intake gate), context loading, resumability, Steps 1–3 (apply → review → hydrate), the auto-rework loop with its per-cycle choreography, and the exhaustion stop. The two steps below are fff-only.
+The bracket defines pre-flight (intake prerequisite + intake gate), context loading, resumability, Steps 1–3 (apply → review → hydrate) with the inline plan co-gen and one-time light/full lane fork, the auto-rework loop with its per-cycle choreography, and the exhaustion stop. The two steps below are fff-only.
 
 Steps 1–3 use `_pipeline.md` § Stage Dispatch Procedure and the current canon at `_preamble.md` § CLI-Adapter Dispatch. The fff-only delta is that Steps 4–5 dispatch full `/git-pr` and `/git-pr-review` behaviors through the native model/effort seams; those skills manage their own stage transitions, so their prompts do not carry the block-contract transition prohibition.
+
+**Light lane** (`_pipeline.md` § Light Lane owns the mechanics): Steps 4–5 run inline in the orchestrator's context, and the Step 5 synchronous-poll directive is moot there. In the full lane Steps 4–5 dispatch exactly as written below.
 
 > **`{name}`** — the change's **folder name** from the preflight YAML (`name` field). Steps 4–5 pass `{name}`, never the 4-char `{id}`: git-pr classifies any argument matching one of the 7 PR type words as a `<type>`, and a 4-char id can collide with `feat`, `docs`, or `test` — a folder name (`{YYMMDD}-{XXXX}-{slug}`) never matches a type token.
 
 ### Step 4: Ship
 
-*(Skip if `progress.ship` is `done`.)*
+*(Skip if `progress.ship` is `done`.)* *(**Light lane**: run `/git-pr {name}` inline per the Behavior note above.)*
 
 Run `fab resolve-agent ship --alias`, surface `model=/effort=`, and dispatch via both seams; then dispatch `/git-pr` as subagent — the prompt instructs it to invoke `/git-pr {name}` (the **explicit change argument**, using the folder name per the `{name}` note above: git-pr resolves it as a transient override, so the subagent targets this pipeline's change rather than self-resolving the active one, and its branch-matches-change guard verifies the checked-out branch before mutating anything). The subagent commits, pushes, and creates a GitHub PR. Handles `fab status` integration internally (start/finish ship stage). Returns PR URL or error.
 
@@ -59,7 +61,7 @@ On success: `progress.ship` becomes `done`, `progress.review-pr` auto-activates.
 
 ### Step 5: Review-PR
 
-*(Skip if `progress.review-pr` is `done`.)*
+*(Skip if `progress.review-pr` is `done`.)* *(**Light lane**: run `/git-pr-review {name}` inline per the Behavior note above; the synchronous-poll directive below is moot inline.)*
 
 Run `fab resolve-agent review-pr --alias`, surface `model=/effort=`, and dispatch via both seams; then dispatch `/git-pr-review` as subagent — the prompt instructs it to invoke `/git-pr-review {name}` (the **explicit change argument**, same transient-override + branch-guard contract as Step 4). The subagent detects existing reviews, triages comments, applies fixes, and pushes. If no reviews exist, it requests a Copilot review and polls up to 10 minutes — see the timeout outcome below. Handles `fab status` integration internally (start/finish/fail review-pr stage). Returns completion status.
 
