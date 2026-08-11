@@ -46,17 +46,24 @@ func Run(in Input) *Report {
 	cfg := &config.Config{}
 	var systemLayer, projectLayer map[string]any
 	if in.ProjectConfigPath != "" {
-		loaded, err := config.LoadPath(in.ProjectConfigPath)
+		// One cascade run serves both views: LoadLayers supplies the per-layer
+		// maps the masking probe needs, and FromMap derives the typed config
+		// from the same Effective tree — running config.LoadPath as well would
+		// re-read the layers and duplicate the fail-open stderr warnings (the
+		// double load FromMap's contract exists to avoid).
+		layers, err := config.LoadLayers(in.ProjectConfigPath)
+		if err == nil {
+			systemLayer, projectLayer = layers.System, layers.Project
+			var loaded *config.Config
+			if loaded, err = config.FromMap(layers.Effective); err == nil {
+				cfg = loaded
+			}
+		}
 		if err != nil {
 			report.Findings = append(report.Findings, Finding{
 				Check: "config", Severity: Fail, Subject: in.ProjectConfigPath,
 				Detail: "project config is unreadable — fix or remove it: " + err.Error(),
 			})
-		} else {
-			cfg = loaded
-		}
-		if layers, err := config.LoadLayers(in.ProjectConfigPath); err == nil {
-			systemLayer, projectLayer = layers.System, layers.Project
 		}
 	} else {
 		// No repo: still honor the system+env tiers so the doctor diagnoses a

@@ -250,12 +250,20 @@ func ProbeProviders(cfg *config.Config, lookPath LookPathFunc) ([]ProviderProbe,
 					name, strings.Join(p.Missing, ", ")),
 			})
 		case p.Configured:
+			detail := fmt.Sprintf("provider %q (named by %s): %s on PATH",
+				name, configured[name], strings.Join(p.Executables, ", "))
+			if len(p.Executables) == 0 {
+				// Native-only provider: no commands declared, so there is
+				// nothing to resolve on PATH — say so instead of rendering an
+				// empty executable list.
+				detail = fmt.Sprintf("provider %q (named by %s): no commands declared — nothing to check on PATH",
+					name, configured[name])
+			}
 			findings = append(findings, Finding{
 				Check:    "providers",
 				Severity: OK,
 				Subject:  name,
-				Detail: fmt.Sprintf("provider %q (named by %s): %s on PATH",
-					name, configured[name], strings.Join(p.Executables, ", ")),
+				Detail:   detail,
 			})
 		}
 	}

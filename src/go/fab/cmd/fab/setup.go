@@ -91,8 +91,8 @@ func readProjectPin(fabRoot string) (string, error) {
 }
 
 // renderSetupCheck writes the report: the provider roster as a table, then the
-// findings grouped by severity marker (✓ ok / ! warning / i info / ✗ failure),
-// then a summary line. All of it goes to stdout — it IS the data the caller
+// findings in probe order, each prefixed with its severity marker (✓ ok /
+// ! warning / i info / ✗ failure), then a summary line. All of it goes to stdout — it IS the data the caller
 // asked for (toolkit principle №2); stderr carries only the run() ERROR line
 // when the exit is non-zero.
 func renderSetupCheck(w io.Writer, report *setupcheck.Report) {

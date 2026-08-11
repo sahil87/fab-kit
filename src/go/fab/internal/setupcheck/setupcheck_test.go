@@ -118,6 +118,31 @@ func TestProbeProviders_UserDefinedProviderInRoster(t *testing.T) {
 	}
 }
 
+func TestProbeProviders_ConfiguredNativeOnlyProviderOKDetail(t *testing.T) {
+	// A configured provider with no commands (native-only) has no executables
+	// to resolve; its OK finding must say so rather than render an empty list
+	// ("…:  on PATH").
+	cfg := &config.Config{
+		Agent: config.AgentConfig{Workers: "mytool"},
+		Providers: map[string]config.ProviderConfig{
+			"mytool": {Native: true},
+		},
+	}
+	_, findings := ProbeProviders(cfg, stubLookPath("claude"))
+	var ok *Finding
+	for i, f := range findings {
+		if f.Subject == "mytool" && f.Check == "providers" {
+			ok = &findings[i]
+		}
+	}
+	if ok == nil || ok.Severity != OK {
+		t.Fatalf("configured native-only provider should earn an OK finding, got %+v", findings)
+	}
+	if !strings.Contains(ok.Detail, "no commands declared") || strings.Contains(ok.Detail, ":  on PATH") {
+		t.Errorf("no-commands OK detail must not render an empty executable list, got %q", ok.Detail)
+	}
+}
+
 func TestProbeEnvironment(t *testing.T) {
 	findings := ProbeEnvironment(stubLookPath("gh"), "")
 
