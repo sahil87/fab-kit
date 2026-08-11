@@ -319,7 +319,7 @@ User-directed overrides are per invocation and ride the same single `fab resolve
 
 Every dispatch site MUST surface the resolved `model=`/`effort=`/`provider=`/`dispatch=` lines; an all-empty resolution is a signal to flag, not a reason to dispatch blind. `--alias` emits the Agent-tool-valid short alias directly. The operator launcher is the deliberate exception: it resolves without `--alias`; `WithProfile` substitutes `{model}`/`{effort}` in templated `interactive_command` values (dropping an empty placeholder and its preceding flag) or appends `--model <full-id> --effort <level>` to plain commands. See `docs/specs/stage-models.md` § Skill wiring.
 
-Every post-intake stage uses this resolution before its dispatched sub-agent, including plain `/fab-continue`; intake remains in the main session. A stage skill genuinely run without dispatch MAY report the configured profile but MUST NOT attempt to switch the session model.
+Every post-intake stage uses this resolution before its dispatched sub-agent, including plain `/fab-continue` (the one by-design no-dispatch exception: the `/fab-ff`/`/fab-fff` light lane runs non-review stages inline — `_pipeline.md` § Light Lane); intake remains in the main session. A stage skill genuinely run without dispatch MAY report the configured profile but MUST NOT attempt to switch the session model.
 
 ### Worker Continuation (native and pane arms)
 

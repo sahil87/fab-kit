@@ -31,7 +31,7 @@ helpers: [_srad]
 
 Advance through the 6-stage Fab pipeline one step at a time. Each invocation handles the current stage's work and transitions to the next. When called with a stage argument, resets to that stage and re-runs from there.
 
-> **Per-stage model (one-stage sequencer)**: post-intake `/fab-continue` is a **one-stage sequencer** — it dispatches its stage as a sub-agent (see Normal Flow Step 1) and resolves that stage's model once immediately before the dispatch. Mechanics in Step 1's dispatch contract; selection rules in `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution. Every post-intake stage runs dispatched, so the resolved profile applies uniformly and is never merely advisory. (Intake is pre-boundary — it runs in the main session and resolves no role via `/fab-continue`.)
+> **Per-stage model (one-stage sequencer)**: post-intake `/fab-continue` is a **one-stage sequencer** — it dispatches its stage as a sub-agent (see Normal Flow Step 1) and resolves that stage's model once immediately before the dispatch. Mechanics in Step 1's dispatch contract; selection rules in `_preamble.md` § Subagent Dispatch → Per-Stage Model Resolution. Every post-intake stage `/fab-continue` runs is dispatched, so the resolved profile applies uniformly and is never merely advisory. (Intake is pre-boundary — it runs in the main session and resolves no role via `/fab-continue`. The `/fab-ff`/`/fab-fff` light lane — inline stages with no dispatch — is the bracket's carve-out, owned by `_pipeline.md` § Light Lane, not this skill's.)
 
 ---
 
@@ -58,7 +58,7 @@ Both may be provided in any order. Stage names are treated as reset targets; all
 
 Dispatch on preflight's derived `stage` and `display_state`. If progress is `pending`, run `fab status start <change> <stage> fab-continue` before dispatching. **Review-failed dispatch**: if `progress.review` is `failed` (an exhausted `/fab-ff`/`/fab-fff` rework loop, or an interrupted fail→reset sequence), do NOT re-run review — use the `review`/`failed` row below: present the rework menu directly. (Orchestrator re-runs of `/fab-ff`/`/fab-fff` instead recover via `fab status start <change> review` per `_pipeline.md` Resumability — that autonomous path is theirs, not this skill's.) **Review-pr-failed dispatch**: if `progress.review-pr` is `failed` (a failed PR-review run — `gh` missing, no PR found, or a processing error), use the `review-pr`/`failed` row below: re-execute `/git-pr-review` behavior — a FAILED PR review MUST NOT fall through to the "all `done`" row and read as complete.
 
-**State-based dispatch**: Intake is the only planning stage, and the only stage `/fab-continue` runs in the main session. **Every post-intake stage (apply / review / hydrate) is dispatched as a sub-agent** — `/fab-continue` is a one-stage sequencer for those stages (full contract below). (Ship/review-pr delegate to `/git-pr` / `/git-pr-review`, which self-manage their transitions — see their rows.) The dispatch is the SAME one the orchestrators (`_pipeline.md`) perform; the sequencer/block split is identical whether the caller is manual `/fab-continue` or an orchestrator.
+**State-based dispatch**: Intake is the only planning stage, and the only stage `/fab-continue` runs in the main session. **Every post-intake stage (apply / review / hydrate) that `/fab-continue` runs is dispatched as a sub-agent** — `/fab-continue` is a one-stage sequencer for those stages (full contract below). (Ship/review-pr delegate to `/git-pr` / `/git-pr-review`, which self-manage their transitions — see their rows.) The dispatch is the SAME one the orchestrators (`_pipeline.md`) perform; the sequencer/block split is identical whether the caller is manual `/fab-continue` or an orchestrator — whose **light lane** runs apply/hydrate inline instead (`_pipeline.md` § Light Lane).
 
 - **`ready`** (intake) → Finish intake (auto-activates apply), then run the apply sequencer (resolve + dispatch the apply sub-agent — its entry sub-step generates `plan.md`, then runs tasks — then finish apply)
 - **`active`** (intake) → Generate intake if missing and advance to `ready` (backward compat for interrupted generations) — main session, no dispatch
@@ -117,7 +117,7 @@ Display summary. Include Assumptions summary for planning stages. End with `Next
 
 ## Apply Behavior
 
-> **This section is the apply block — it always runs in a dispatched sub-agent** per the sub-agent dispatch contract in Normal Flow Step 1: the block runs no `fab status` command and returns results only; the sequencer owns the `finish`/`fail`/`reset` transitions. The `finish` steps below are the sequencer's, shown for the end-to-end picture.
+> **This section is the apply block — it runs in a dispatched sub-agent** per the sub-agent dispatch contract in Normal Flow Step 1 (the one exception: in the `/fab-ff`/`/fab-fff` **light lane** the orchestrator runs it inline in its own context — `_pipeline.md` § Light Lane): the block runs no `fab status` command and returns results only; the sequencer owns the `finish`/`fail`/`reset` transitions. The `finish` steps below are the sequencer's, shown for the end-to-end picture.
 
 Apply runs as **two sub-steps in a single dispatch**: a Plan Generation entry sub-step that produces `plan.md`, followed by the Task Execution main sub-step.
 
@@ -195,7 +195,7 @@ The applying agent triages review comments by priority — not all comments need
 
 ## Hydrate Behavior
 
-> **This section is the hydrate block — it always runs in a dispatched sub-agent** per the sub-agent dispatch contract in Normal Flow Step 1: the block runs no `fab status` command and returns completion status only; the sequencer runs the `finish` transition. Step 7 below (Return completion status) is the sequencer's, shown for the end-to-end picture.
+> **This section is the hydrate block — it runs in a dispatched sub-agent** per the sub-agent dispatch contract in Normal Flow Step 1 (the one exception: the `/fab-ff`/`/fab-fff` **light lane**, where the orchestrator runs it inline in its own context — `_pipeline.md` § Light Lane): the block runs no `fab status` command and returns completion status only; the sequencer runs the `finish` transition. Step 7 below (Return completion status) is the sequencer's, shown for the end-to-end picture.
 
 ### Preconditions
 

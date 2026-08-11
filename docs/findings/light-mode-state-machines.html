@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>fab State Machines — Today vs. the Light Lane</title>
+<!--
+  Companion to docs/findings/light-mode-state-machines.md (2026-08-11 discussion, adopted by
+  260811-3ol6-light-lane-inline-small-changes). This page contrasts the two unchanged state
+  machines with the lane fork's execution-locus change. Sources of truth: src/go/fab/internal/status/status.go (transitions, AllowedStates),
+  docs/memory/pipeline/change-lifecycle.md, src/kit/skills/_pipeline.md.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+
+    --bg: #f2f5f9;
+    --surface: #ffffff;
+    --surface-2: #eaeff5;
+    --border: rgba(15, 40, 70, 0.10);
+    --text: #16283c;
+    --text-dim: #5b6b7e;
+
+    --blue: #0f4c81;          /* dispatched worker */
+    --blue-dim: rgba(15, 76, 129, 0.08);
+    --gold: #b45309;          /* inline (orchestrator) */
+    --gold-dim: rgba(180, 83, 9, 0.10);
+    --slate: #64748b;         /* main session / neutral */
+    --teal: #0f766e;          /* settled states */
+    --danger: #b91c1c;        /* failed / parked */
+    --danger-dim: rgba(185, 28, 28, 0.08);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1726;
+      --surface: #13223a;
+      --surface-2: #1a2c47;
+      --border: rgba(190, 215, 245, 0.12);
+      --text: #dce8f7;
+      --text-dim: #8fa5c0;
+
+      --blue: #6aaede;
+      --blue-dim: rgba(106, 174, 222, 0.12);
+      --gold: #e0a04a;
+      --gold-dim: rgba(224, 160, 74, 0.12);
+      --slate: #8fa5c0;
+      --teal: #5ecdb8;
+      --danger: #e08585;
+      --danger-dim: rgba(224, 133, 133, 0.10);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 32px 32px;
+    color: var(--text);
+    font-family: var(--font-body);
+    padding: 48px 40px;
+    min-height: 100vh;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate { animation: fadeUp 0.4s ease-out both; animation-delay: calc(var(--i, 0) * 0.06s); }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  .container { max-width: 1060px; margin: 0 auto; }
+
+  h1 {
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -0.8px;
+    margin-bottom: 6px;
+    text-wrap: balance;
+  }
+  .subtitle {
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    margin-bottom: 28px;
+  }
+
+  /* hero verdict */
+  .verdict {
+    background: linear-gradient(135deg, var(--blue-dim), transparent 60%), var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--blue);
+    border-radius: 0 12px 12px 0;
+    padding: 22px 26px;
+    margin-bottom: 40px;
+    box-shadow: 0 8px 24px rgba(10, 30, 60, 0.07);
+  }
+  .verdict p { font-size: 15px; line-height: 1.65; max-width: 860px; }
+  .verdict strong { font-weight: 600; }
+  .verdict-pills { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .pill {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid;
+  }
+  .pill--same { color: var(--teal); border-color: var(--teal); background: transparent; }
+  .pill--new { color: var(--gold); border-color: var(--gold); background: var(--gold-dim); }
+
+  /* section headers */
+  .section-label {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 44px 0 8px;
+  }
+  .section-label .num {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--blue);
+    border: 1px solid var(--blue);
+    border-radius: 4px;
+    padding: 2px 7px;
+  }
+  .section-label h2 { font-size: 23px; font-weight: 600; letter-spacing: -0.4px; }
+  .section-sub {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-dim);
+    margin-bottom: 18px;
+  }
+
+  .description {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-dim);
+    margin-bottom: 18px;
+    max-width: 820px;
+  }
+  .description code, td code, .callout code, li code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--blue-dim);
+    color: var(--blue);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* diagram frame titles */
+  .frame-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text);
+    margin: 22px 0 8px;
+  }
+  .frame-title .tag {
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.06em;
+  }
+  .tag--today { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue); }
+  .tag--after { background: var(--gold-dim); color: var(--gold); border: 1px solid var(--gold); }
+  .tag--unchanged { background: transparent; color: var(--teal); border: 1px dashed var(--teal); }
+
+  /* mermaid shell */
+  .mermaid-wrap {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 24px;
+    overflow: auto;
+    margin-bottom: 14px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 380px;
+  }
+  .zoom-controls {
+    position: absolute; top: 8px; right: 8px;
+    display: flex; gap: 2px; z-index: 10;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 2px;
+  }
+  .zoom-controls button {
+    width: 28px; height: 28px; border: none; background: transparent;
+    color: var(--text-dim); font-family: var(--font-mono); font-size: 14px;
+    cursor: pointer; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .zoom-controls button:hover { background: var(--border); color: var(--text); }
+  .mermaid-wrap { cursor: grab; }
+  .mermaid-wrap.is-panning { cursor: grabbing; user-select: none; }
+  .diagram-shell { position: relative; }
+  .diagram-shell__hint {
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--text-dim); margin-bottom: 8px; opacity: 0.7;
+  }
+  .mermaid-viewport { position: relative; overflow: hidden; width: 100%; height: 100%; min-height: 300px; }
+  .mermaid-canvas { position: absolute; top: 0; left: 0; }
+  .zoom-label { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); padding: 0 6px; white-space: nowrap; }
+
+  .mermaid .nodeLabel { font-family: var(--font-body) !important; font-size: 16px !important; line-height: 1.35 !important; }
+  .mermaid .nodeLabel small { font-size: 11.5px; font-family: var(--font-mono); opacity: 0.75; font-weight: 400; }
+  .mermaid .edgeLabel { font-family: var(--font-mono) !important; font-size: 12px !important; }
+  .mermaid .edgeLabel small { font-size: 10px; opacity: 0.8; }
+  .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon { stroke-width: 1.5px !important; }
+  .mermaid .edge-pattern-solid { stroke-width: 1.5px !important; }
+
+  /* legend */
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 8px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid; }
+
+  /* callouts */
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--gold);
+    border-radius: 0 10px 10px 0;
+    padding: 15px 20px;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--text-dim);
+    margin: 14px 0 6px;
+  }
+  .callout strong { color: var(--text); }
+  .callout--blue { border-left-color: var(--blue); }
+  .callout--teal { border-left-color: var(--teal); }
+
+  /* tables */
+  .table-wrap {
+    overflow-x: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin: 16px 0 8px;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  thead th {
+    position: sticky; top: 0;
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    background: var(--surface-2);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-2) 45%, transparent); }
+  tbody tr:hover { background: var(--blue-dim); }
+  td small { color: var(--text-dim); font-size: 12px; display: block; margin-top: 2px; }
+
+  .chip {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+  .chip--session { color: var(--slate); border-color: var(--slate); }
+  .chip--worker { color: var(--blue); border-color: var(--blue); background: var(--blue-dim); }
+  .chip--inline { color: var(--gold); border-color: var(--gold); background: var(--gold-dim); }
+  .chip--kept { color: var(--teal); border-color: var(--teal); }
+  .chip--rvw { color: var(--danger); border-color: var(--danger); background: var(--danger-dim); }
+
+  footer {
+    margin-top: 48px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.8;
+  }
+
+  @media (max-width: 768px) {
+    body { padding: 20px 14px; }
+    h1 { font-size: 24px; }
+    .mermaid-wrap { padding: 16px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <h1 class="animate" style="--i:0">fab state machines — today vs. light mode</h1>
+  <p class="subtitle animate" style="--i:1">discussion mock &middot; 2026-08-11 &middot; sources: internal/status/status.go &middot; _pipeline.md &middot; change-lifecycle.md &middot; adopted &mdash; implemented by 260811-3ol6</p>
+
+  <div class="verdict animate" style="--i:2">
+    <p><strong>The adopted design changes neither state machine.</strong> Machine&nbsp;1 (the stage graph) and Machine&nbsp;2 (the per-stage state vocabulary and its event transitions) are byte-identical before and after. What changes is the <strong>execution locus</strong> — <em>who</em> runs each stage's behavior — routed by a single <strong>plan-size check</strong> that rides an existing seam: <code>plan.md</code> is co-generated inline at apply entry in <em>both</em> modes, and the resulting task count decides the lane. No entry heuristic, no guessing from the intake — the decision point is a fact, not a forecast. Validated against loom's archive: <strong>21% of 972 completed changes</strong> (195/927 measurable; 137 with PRs) would have run light end-to-end, and only ~7% of light runs would see any rework — handled inline, no mode switch. The change-type entry heuristic from the first draft is <em>rejected</em> — loom shows 68% of type-eligible changes blow past the size threshold while 154 small feat/fix changes slip through it.</p>
+    <div class="verdict-pills">
+      <span class="pill pill--same">machine 1 · stage graph — UNCHANGED</span>
+      <span class="pill pill--same">machine 2 · per-stage states — UNCHANGED</span>
+      <span class="pill pill--new">NEW · one plan-time fork, no mid-run mode machinery</span>
+      <span class="pill pill--new">loom-validated · 195 of 927 stayed light (21%)</span>
+    </div>
+  </div>
+
+  <!-- ============ SECTION 1 ============ -->
+  <div class="section-label animate" style="--i:3">
+    <span class="num">01</span>
+    <h2>Machine 1 — the stage pipeline</h2>
+  </div>
+  <p class="section-sub">intake → apply → review → hydrate → ship → review-pr &middot; forward via <code>finish</code> (auto-activates next) &middot; one backward edge (review rework)</p>
+
+  <p class="description animate" style="--i:4">
+    Six stages, one manual gate (intake, where all human judgment is frontloaded), one rework
+    back-edge (review fail → reset apply, bounded at <code>max_cycles</code>, default 3), and two
+    special paths: <code>/fab-adopt</code> enters late with <code>apply: skipped</code>, and a
+    Copilot-timeout leaves review-pr deliberately <code>active</code>. Node color shows the
+    <strong>execution locus</strong> — that's the only thing the adopted design touches.
+  </p>
+
+  <div class="frame-title animate" style="--i:5"><span class="tag tag--today">TODAY</span> every post-intake stage runs in a dispatched worker (native subagent / tmux pane / headless CLI)</div>
+  <section class="diagram-shell animate" style="--i:5">
+    <p class="diagram-shell__hint">Ctrl/Cmd + wheel to zoom &middot; drag to pan &middot; double-click to fit &middot; &#x26F6; opens full size</p>
+    <div class="mermaid-wrap">
+      <div class="zoom-controls">
+        <button type="button" data-action="zoom-in" title="Zoom in">+</button>
+        <button type="button" data-action="zoom-out" title="Zoom out">&minus;</button>
+        <button type="button" data-action="zoom-fit" title="Smart fit">&#8634;</button>
+        <button type="button" data-action="zoom-one" title="1:1 zoom">1:1</button>
+        <button type="button" data-action="zoom-expand" title="Open full size">&#x26F6;</button>
+        <span class="zoom-label">Loading...</span>
+      </div>
+      <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+    </div>
+    <script type="text/plain" class="diagram-source">
+flowchart TD
+  NEW(["/fab-new<br/><small>intake created, left ready</small>"]):::external
+  INTAKE["intake<br/><small>sole confidence gate &middot; MAIN SESSION</small>"]:::session
+  APPLY["apply<br/><small>plan.md co-gen + tasks &middot; WORKER</small>"]:::dispatched
+  REVIEW["review<br/><small>fresh critic &middot; WORKER</small>"]:::dispatched
+  HYDRATE["hydrate<br/><small>memory writer &middot; WORKER</small>"]:::dispatched
+  SHIP["ship<br/><small>/git-pr &middot; SUBAGENT</small>"]:::dispatched
+  RPR["review-pr<br/><small>/git-pr-review &middot; SUBAGENT</small>"]:::dispatched
+  PARKED["review: failed<br/><small>parked at exhaustion &middot; /fab-continue rework menu</small>"]:::parked
+  WAIT["stays active<br/><small>Copilot timeout &middot; re-run /git-pr-review</small>"]:::note
+  ARCH(["/fab-archive<br/><small>housekeeping — not a stage</small>"]):::external
+  ADOPT(["/fab-adopt<br/><small>off-pipeline entry</small>"]):::external
+
+  NEW --> INTAKE
+  INTAKE -->|"finish"| APPLY
+  APPLY -->|"finish"| REVIEW
+  REVIEW -->|"pass &middot; finish"| HYDRATE
+  REVIEW -->|"fail + reset apply<br/><small>&le; max_cycles, default 3</small>"| APPLY
+  REVIEW -.->|"exhaustion &middot; fail only"| PARKED
+  HYDRATE -->|"finish"| SHIP
+  SHIP -->|"finish"| RPR
+  RPR -->|"finish"| ARCH
+  RPR -.-> WAIT
+  ADOPT -.->|"apply: skipped"| REVIEW
+
+  classDef session fill:@@sessionFill,stroke:@@sessionBorder,color:@@txt
+  classDef dispatched fill:@@dispFill,stroke:@@dispBorder,color:@@txt
+  classDef inline fill:@@inlineFill,stroke:@@inlineBorder,color:@@txt
+  classDef parked fill:@@parkedFill,stroke:@@parkedBorder,color:@@txt
+  classDef note fill:@@noteFill,stroke:@@noteBorder,stroke-dasharray:4 3,color:@@txt
+  classDef external fill:@@noteFill,stroke:@@sessionBorder,stroke-dasharray:5 4,color:@@txtDim
+    </script>
+  </section>
+
+  <div class="frame-title animate" style="--i:6"><span class="tag tag--after">AFTER · COMBINED LIGHT + FULL</span> two fully parallel lanes, zero crossings — the size check is the only decision, made once. Review appears in each lane but is the <em>same</em> fresh-worker dispatch in both — drawn twice for legibility, never inline. (Adopt entry and the Copilot-timeout edge are unchanged — omitted.)</div>
+  <section class="diagram-shell animate" style="--i:6">
+    <p class="diagram-shell__hint">Ctrl/Cmd + wheel to zoom &middot; drag to pan &middot; double-click to fit &middot; &#x26F6; opens full size</p>
+    <div class="mermaid-wrap">
+      <div class="zoom-controls">
+        <button type="button" data-action="zoom-in" title="Zoom in">+</button>
+        <button type="button" data-action="zoom-out" title="Zoom out">&minus;</button>
+        <button type="button" data-action="zoom-fit" title="Smart fit">&#8634;</button>
+        <button type="button" data-action="zoom-one" title="1:1 zoom">1:1</button>
+        <button type="button" data-action="zoom-expand" title="Open full size">&#x26F6;</button>
+        <span class="zoom-label">Loading...</span>
+      </div>
+      <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+    </div>
+    <script type="text/plain" class="diagram-source">
+flowchart TD
+  NEW(["/fab-new<br/><small>intake created, left ready</small>"]):::external
+  INTAKE["intake<br/><small>sole confidence gate &ge; 3.0 &middot; MAIN SESSION</small>"]:::session
+  PLANGEN["plan.md co-generation<br/><small>INLINE, always &middot; apply-stage entry, both lanes</small>"]:::inline
+  SIZE{"&le; 5 tasks?<br/><small>--light / --full override</small>"}:::decision
+
+  subgraph LANE_L["LIGHT lane — inline (23% of loom history)"]
+    direction TB
+    LEXEC["task execution<br/><small>INLINE &middot; apply stage continues</small>"]:::inline
+    LREV["review<br/><small>fresh critic WORKER<br/>(same dispatch as full — never inline)</small>"]:::dispatched
+    LHYD["hydrate<br/><small>INLINE</small>"]:::inline
+    LSHIP["ship<br/><small>INLINE</small>"]:::inline
+    LRPR["review-pr<br/><small>INLINE &middot; poll has no yield seam</small>"]:::inline
+  end
+
+  subgraph LANE_F["FULL lane — delegated (today's bracket)"]
+    direction TB
+    FAPPLY["apply worker<br/><small>native / pane / headless &middot; plan exists, co-gen skipped</small>"]:::dispatched
+    FREV["review<br/><small>fresh critic WORKER</small>"]:::dispatched
+    FHYD["hydrate<br/><small>WORKER</small>"]:::dispatched
+    FSHIP["ship<br/><small>/git-pr SUBAGENT</small>"]:::dispatched
+    FRPR["review-pr<br/><small>/git-pr-review SUBAGENT</small>"]:::dispatched
+  end
+
+  PARKED["review: failed<br/><small>parked at exhaustion &middot; /fab-continue rework menu</small>"]:::parked
+  ARCH(["/fab-archive<br/><small>housekeeping — not a stage</small>"]):::external
+
+  NEW --> INTAKE
+  INTAKE -->|"finish intake"| PLANGEN
+  PLANGEN --> SIZE
+  SIZE -->|"yes &middot; LIGHT"| LEXEC
+  SIZE -->|"no &middot; FULL"| FAPPLY
+
+  LEXEC -->|"finish apply"| LREV
+  LREV -->|"pass"| LHYD
+  LREV -->|"fail &middot; rework INLINE &le; max_cycles (3)<br/><small>author context free &middot; ~7% of light runs</small>"| LEXEC
+  LREV -.->|"exhaustion &middot; fail only"| PARKED
+  LHYD -->|"finish"| LSHIP
+  LSHIP -->|"finish"| LRPR
+  LRPR -->|"finish"| ARCH
+
+  FAPPLY -->|"finish apply"| FREV
+  FREV -->|"pass"| FHYD
+  FREV -->|"fail &middot; &le; max_cycles (3)"| FAPPLY
+  FREV -.->|"exhaustion &middot; fail only"| PARKED
+  FHYD -->|"finish"| FSHIP
+  FSHIP -->|"finish"| FRPR
+  FRPR -->|"finish"| ARCH
+
+  classDef session fill:@@sessionFill,stroke:@@sessionBorder,color:@@txt
+  classDef dispatched fill:@@dispFill,stroke:@@dispBorder,color:@@txt
+  classDef inline fill:@@inlineFill,stroke:@@inlineBorder,color:@@txt
+  classDef parked fill:@@parkedFill,stroke:@@parkedBorder,color:@@txt
+  classDef external fill:@@noteFill,stroke:@@sessionBorder,stroke-dasharray:5 4,color:@@txtDim
+  classDef decision fill:@@noteFill,stroke:@@inlineBorder,stroke-width:2px,color:@@txt
+  classDef laneL fill:@@laneLFill,stroke:@@inlineBorder,stroke-dasharray:6 4,color:@@txtDim
+  classDef laneF fill:@@laneFFill,stroke:@@dispBorder,stroke-dasharray:6 4,color:@@txtDim
+  class LANE_L laneL
+  class LANE_F laneF
+    </script>
+  </section>
+
+  <div class="legend animate" style="--i:7">
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--blue-dim); border-color:var(--blue)"></div> dispatched worker / subagent</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--gold-dim); border-color:var(--gold)"></div> inline — orchestrator's own context</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:transparent; border-color:var(--slate)"></div> main session (intake — both modes)</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--danger-dim); border-color:var(--danger)"></div> parked failure</div>
+  </div>
+
+  <div class="table-wrap animate" style="--i:8">
+    <table>
+      <thead>
+        <tr><th>stage / step</th><th>today (all changes)</th><th>after — light lane</th><th>after — full lane</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>intake</code></td>
+          <td><span class="chip chip--session">main session</span></td>
+          <td><span class="chip chip--session">main session</span></td>
+          <td><span class="chip chip--session">main session</span></td>
+        </tr>
+        <tr>
+          <td>plan co-generation <small>(apply entry)</small></td>
+          <td><span class="chip chip--worker">inside the apply worker</span></td>
+          <td><span class="chip chip--inline">inline</span> <small>this is where the lane decision reads its input</small></td>
+          <td><span class="chip chip--inline">inline</span> <small>new for full too — the worker receives the finished plan (the plan-exists seam already in the contract)</small></td>
+        </tr>
+        <tr>
+          <td>task execution <small>(apply)</small></td>
+          <td><span class="chip chip--worker">worker</span> <small>native / pane / headless, resumable across rework</small></td>
+          <td><span class="chip chip--inline">inline</span> <small>orchestrator already holds the always-load layer + intake + memory</small></td>
+          <td><span class="chip chip--worker">worker</span> <small>co-gen skipped; dispatch prompt can carry the task list</small></td>
+        </tr>
+        <tr>
+          <td><code>review</code></td>
+          <td><span class="chip chip--worker">fresh worker</span></td>
+          <td><span class="chip chip--kept">fresh worker — kept</span> <small>reviewer independence is the pipeline's highest-value dispatch; tiny diff &rArr; cheap anyway</small></td>
+          <td><span class="chip chip--worker">fresh worker</span></td>
+        </tr>
+        <tr>
+          <td><code>hydrate</code></td>
+          <td><span class="chip chip--worker">worker</span></td>
+          <td><span class="chip chip--inline">inline</span> <small>often near-no-op for small changes (empty Affected Memory)</small></td>
+          <td><span class="chip chip--worker">worker</span></td>
+        </tr>
+        <tr>
+          <td><code>ship</code></td>
+          <td><span class="chip chip--worker">/git-pr subagent</span></td>
+          <td><span class="chip chip--inline">inline</span> <small>mechanical: commit, push, draft PR</small></td>
+          <td><span class="chip chip--worker">/git-pr subagent</span></td>
+        </tr>
+        <tr>
+          <td><code>review-pr</code></td>
+          <td><span class="chip chip--worker">/git-pr-review subagent</span></td>
+          <td><span class="chip chip--inline">inline</span> <small>eliminates the yield-seam hazard the synchronous-poll directive exists to fight; the 10-min Copilot poll is wall-clock either way</small></td>
+          <td><span class="chip chip--worker">/git-pr-review subagent</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout animate" style="--i:9">
+    <strong>Why the graph is untouched.</strong> The bracket stays the pure sequencer: the same
+    <code>fab status finish / fail / reset</code> choreography fires in the same order, the same
+    artifacts (<code>intake.md</code>, <code>plan.md</code>, result contract) are produced, and the
+    review-iteration counter invariant (<code>finish apply</code> is the only counted re-entry) holds
+    verbatim. Inline stages run on the session model and skip <code>fab resolve-agent</code> —
+    consistent with the existing rule that an undispatched stage never switches the session model.
+  </div>
+
+  <!-- ============ SECTION 2 ============ -->
+  <div class="section-label animate" style="--i:10">
+    <span class="num">02</span>
+    <h2>Machine 2 — states within a stage</h2>
+  </div>
+  <p class="section-sub">internal/status/status.go &middot; defaultTransitions + review/review-pr overrides &middot; validated against AllowedStates per stage</p>
+
+  <div class="frame-title animate" style="--i:11">
+    <span class="tag tag--today">TODAY</span>
+    <span class="tag tag--unchanged">AFTER: IDENTICAL — zero new states, zero new transitions</span>
+  </div>
+
+  <section class="diagram-shell animate" style="--i:11">
+    <p class="diagram-shell__hint">Ctrl/Cmd + wheel to zoom &middot; drag to pan &middot; double-click to fit &middot; &#x26F6; opens full size &middot; &reg; = review / review-pr only</p>
+    <div class="mermaid-wrap">
+      <div class="zoom-controls">
+        <button type="button" data-action="zoom-in" title="Zoom in">+</button>
+        <button type="button" data-action="zoom-out" title="Zoom out">&minus;</button>
+        <button type="button" data-action="zoom-fit" title="Smart fit">&#8634;</button>
+        <button type="button" data-action="zoom-one" title="1:1 zoom">1:1</button>
+        <button type="button" data-action="zoom-expand" title="Open full size">&#x26F6;</button>
+        <span class="zoom-label">Loading...</span>
+      </div>
+      <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+    </div>
+    <script type="text/plain" class="diagram-source">
+flowchart TD
+  P["pending"]:::plainS
+  A["active"]:::activeS
+  R["ready"]:::readyS
+  D["done"]:::doneS
+  F["failed &reg;"]:::failedS
+  S["skipped"]:::skippedS
+
+  P -->|"start<br/><small>pre hook may block</small>"| A
+  F -->|"start &reg;"| A
+  A -->|"advance"| R
+  A -->|"finish<br/><small>+ auto-activate next pending &middot; post hook</small>"| D
+  R -->|"finish"| D
+  R -->|"reset<br/><small>cascade &darr; pending</small>"| A
+  D -->|"reset<br/><small>cascade &darr; pending</small>"| A
+  S -->|"reset"| A
+  A -->|"fail &reg;"| F
+  P -->|"skip<br/><small>cascade &darr; pending&rarr;skipped</small>"| S
+  A -->|"skip"| S
+
+  classDef plainS fill:@@noteFill,stroke:@@sessionBorder,color:@@txt
+  classDef activeS fill:@@dispFill,stroke:@@dispBorder,color:@@txt
+  classDef readyS fill:@@noteFill,stroke:@@inlineBorder,color:@@txt
+  classDef doneS fill:@@doneFill,stroke:@@doneBorder,color:@@txt
+  classDef skippedS fill:@@doneFill,stroke:@@doneBorder,stroke-dasharray:4 3,color:@@txt
+  classDef failedS fill:@@parkedFill,stroke:@@parkedBorder,color:@@txt
+    </script>
+  </section>
+
+  <div class="table-wrap animate" style="--i:12">
+    <table>
+      <thead>
+        <tr><th>event</th><th>from</th><th>to</th><th>scope</th><th>side effects</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>start</code></td>
+          <td>pending</td><td>active</td><td>all stages</td>
+          <td>pre hook runs first — non-zero exit blocks the start</td>
+        </tr>
+        <tr>
+          <td><code>start</code></td>
+          <td>failed</td><td>active</td><td><span class="chip chip--rvw">review, review-pr</span></td>
+          <td>recovery re-entry from a parked failure</td>
+        </tr>
+        <tr>
+          <td><code>advance</code></td>
+          <td>active</td><td>ready</td><td>all whose schema allows <code>ready</code> <small>(not ship / review-pr)</small></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><code>finish</code></td>
+          <td>active, ready</td><td>done</td><td>all stages</td>
+          <td>auto-activates next pending stage (the <em>only</em> counted review re-entry); post hook after save; auto-logs review/review-pr "passed"</td>
+        </tr>
+        <tr>
+          <td><code>reset</code></td>
+          <td>done, ready, skipped</td><td>active</td><td>all stages</td>
+          <td>cascades all downstream stages &rarr; pending; preserves <code>iterations</code></td>
+        </tr>
+        <tr>
+          <td><code>skip</code></td>
+          <td>pending, active</td><td>skipped</td><td>all except intake <small>(schema forbids the target)</small></td>
+          <td>forward-cascades downstream <em>pending</em> &rarr; skipped (adopt's entry mechanism)</td>
+        </tr>
+        <tr>
+          <td><code>fail</code></td>
+          <td>active</td><td>failed</td><td><span class="chip chip--rvw">review, review-pr</span></td>
+          <td>auto-logs review/review-pr "failed"</td>
+        </tr>
+        <tr>
+          <td><code>refresh</code></td>
+          <td colspan="2"><em>not a transition</em></td><td>all stages</td>
+          <td>pull-based recompute of derived fields (change type, plan counts, confidence) — the one <code>fab status</code> command dispatched workers may run</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="description animate" style="--i:13">
+    Per-stage nuances from <code>AllowedStates</code>: <code>intake</code> can only hold
+    <code>active / ready / done</code> (never pending, skipped, or failed); <code>ship</code> and
+    <code>review-pr</code> can never hold <code>ready</code>; only <code>review</code> and
+    <code>review-pr</code> can hold <code>failed</code>.
+  </p>
+
+  <div class="callout callout--teal animate" style="--i:14">
+    <strong>After light mode: this machine is untouched.</strong> Light mode deliberately adds no
+    state and no transition. The full existing event surface is how the light bracket keeps
+    resumability for free — an interrupted light run resumes through the same <code>progress</code>
+    map, and a promoted run continues from whatever stage state it reached. (An earlier idea worth
+    <em>not</em> pursuing: a <code>light-done</code> or merged-stage state would fork every consumer
+    of this table — pr-meta, display glyphs, preflight routing.)
+  </div>
+
+  <!-- ============ SECTION 3 ============ -->
+  <div class="section-label animate" style="--i:15">
+    <span class="num">03</span>
+    <h2>The lane decision — a one-time fork, not a machine</h2>
+  </div>
+  <p class="section-sub">proposed &middot; orchestrator-level, orthogonal to both machines above &middot; decided at PLAN time, once, with no mid-run mode changes</p>
+
+  <p class="description animate" style="--i:16">
+    Decided once, immediately after the inline plan co-generation at apply entry — the earliest
+    moment the strongest size signal (the actual task list) is a <em>fact</em>. No intake-keyword
+    inference: the first draft's change-type heuristic was rejected on loom's data (68% of
+    type-eligible changes outgrow the threshold; 154 small feat/fix changes escape it).
+    <code>--light</code> / <code>--full</code> skip the check. There is no promotion valve — light
+    rework stays inline under the same <code>max_cycles</code> budget, and exhaustion parks to the
+    manual menu identically in both lanes. A parked light run re-enters however the user chooses,
+    including <code>--full</code>.
+  </p>
+
+  <section class="diagram-shell animate" style="--i:17">
+    <p class="diagram-shell__hint">Ctrl/Cmd + wheel to zoom &middot; drag to pan &middot; double-click to fit &middot; &#x26F6; opens full size</p>
+    <div class="mermaid-wrap" style="min-height: 300px;">
+      <div class="zoom-controls">
+        <button type="button" data-action="zoom-in" title="Zoom in">+</button>
+        <button type="button" data-action="zoom-out" title="Zoom out">&minus;</button>
+        <button type="button" data-action="zoom-fit" title="Smart fit">&#8634;</button>
+        <button type="button" data-action="zoom-one" title="1:1 zoom">1:1</button>
+        <button type="button" data-action="zoom-expand" title="Open full size">&#x26F6;</button>
+        <span class="zoom-label">Loading...</span>
+      </div>
+      <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+    </div>
+    <script type="text/plain" class="diagram-source">
+flowchart LR
+  PG["plan.md co-generated<br/><small>inline &middot; apply entry &middot; both lanes</small>"]:::session
+  Q{"task count &le; 5?<br/><small>hardcoded at 5 in v1 &middot; light_max_tasks knob is a follow-up</small>"}:::decision
+  L["LIGHT<br/><small>execute + hydrate + ship + review-pr inline<br/>review stays a fresh worker</small>"]:::inline
+  FU["FULL<br/><small>today's bracket — worker receives<br/>the pre-generated plan</small>"]:::dispatched
+
+  PG --> Q
+  Q -->|"yes<br/><small>23% of loom history lands here</small>"| L
+  Q -->|"no, or --full"| FU
+
+  classDef session fill:@@sessionFill,stroke:@@sessionBorder,color:@@txt
+  classDef dispatched fill:@@dispFill,stroke:@@dispBorder,color:@@txt
+  classDef inline fill:@@inlineFill,stroke:@@inlineBorder,color:@@txt
+  classDef decision fill:@@noteFill,stroke:@@inlineBorder,stroke-width:2px,color:@@txt
+    </script>
+  </section>
+
+  <div class="callout callout--teal animate" style="--i:18">
+    <strong>The loom evidence (972 archived changes, 927 with a recoverable task count).</strong>
+    Rework risk is a clean gradient over plan size: 7–8% for &le;5-task changes, 11% at 6–8, 16% at
+    9–12, 29% at 13+. The &le;5 cut leaves 210 changes light-eligible at plan time; 195 (21% of all)
+    finish with zero rework, 137 of them with recorded PRs. Only ~7% of light runs would see any
+    rework at all — handled inline, bounded by the same cycle budget as full. Analysis:
+    <code>loom_light_analysis.py</code> over <code>fab/changes/archive/**/.status.yaml</code> +
+    <code>.history.jsonl</code> review-failed events.
+  </div>
+
+  <div class="callout animate" style="--i:19">
+    <strong>Why no valve is safe.</strong> Every diff — light or full — passes the same independent
+    review, so a misclassified "small" change can waste inline rework cycles but never ship
+    unreviewed. The bounded cycle budget and the parked <code>review: failed</code> state are the
+    backstop, and because Machines 1 and 2 are identical in both lanes, a parked light run re-enters
+    cleanly as full. Scope discovered mid-rework (a plan revision adding tasks) rides the same
+    backstop rather than any automatic promotion. V1 keeps the lane in the orchestrator's context
+    only (no <code>.status.yaml</code> field); a <code>weight</code> event in
+    <code>.history.jsonl</code> (see 04) covers both resume-consistency and measurement.
+  </div>
+
+  <div class="callout callout--blue animate" style="--i:20">
+    <strong>What the light lane gives up, explicitly.</strong> Inline stages consume the
+    orchestrator's context window (the reason full stays the default for real features), run on the
+    session model ignoring per-stage <code>agent.profiles</code>, and skip pane/headless adapters
+    entirely. The reviewer stays independent in both lanes — the one dispatch whose value survives
+    at every change size.
+  </div>
+
+  <!-- ============ SECTION 4 ============ -->
+  <div class="section-label animate" style="--i:21">
+    <span class="num">04</span>
+    <h2>Adjacent optimizations the data surfaced</h2>
+  </div>
+  <p class="section-sub">side effects of the plan-time decision — each independently adoptable</p>
+
+  <div class="table-wrap animate" style="--i:22">
+    <table>
+      <thead>
+        <tr><th>#</th><th>optimization</th><th>why it falls out of this design</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><strong>Full mode gets faster too</strong></td>
+          <td>Inline plan co-gen means the dispatched apply worker starts with the plan in hand (the
+          <em>plan-exists</em> seam already in the apply contract) — its cold start does task
+          execution only, and the dispatch prompt can carry the task list.</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><strong>Light rework = worker continuation for free</strong></td>
+          <td>In the light lane the orchestrator <em>is</em> the apply author — it remembers what the
+          reviewer rejected with zero SendMessage / pane-delivery machinery. The entire § Worker
+          Continuation apparatus is the full lane's problem only.</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><strong>Guard the inline co-gen worst case</strong></td>
+          <td>If the intake's affected scope is obviously large, skip inline co-gen and dispatch
+          apply with co-gen exactly as today — graceful degradation to the shipped path bounds the
+          orchestrator-context cost of planning a big change inline.</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><strong>Threshold as a project knob</strong></td>
+          <td>Loom's risk gradient is smooth — no magic knee at 5. A config leaf (e.g.
+          <code>pipeline.light_max_tasks</code>, default 5) lets a repo with different change
+          anatomy cut bolder (6–8 tasks = another 21% coverage at 11% rework).</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><strong>Stamp the lane into history</strong></td>
+          <td>A <code>weight</code> event in <code>.history.jsonl</code> makes
+          realized savings measurable later — this page's loom analysis was only possible because
+          review outcomes were logged. It doubles as the resume-consistency record.</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td><strong>Attack the last wall-clock: the Copilot poll</strong></td>
+          <td>For a light run, the external 10-minute review-pr poll now dominates end-to-end time.
+          Requesting the Copilot review during <em>ship</em> (at PR creation) lets the wait overlap
+          hydrate-index regen and PR bookkeeping instead of starting cold at review-pr entry.
+          Independent of light mode — benefits every run.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer class="animate" style="--i:23">
+    machine 1 &middot; docs/memory/pipeline/change-lifecycle.md § The 6 Stages + § Review failure backward movement<br>
+    machine 2 &middot; src/go/fab/internal/status/status.go:17-61 (ValidStates, AllowedStates, defaultTransitions, stageTransitions)<br>
+    execution locus today &middot; src/kit/skills/_pipeline.md § Stage Dispatch Procedure, _preamble.md § CLI-Adapter Dispatch<br>
+    lane decision &middot; adopted (260811-3ol6) — src/kit/skills/_pipeline.md § Light Lane &middot; validated on loom archive (972 changes, hop where loom)
+  </footer>
+
+</div>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  import elkLayouts from 'https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk/dist/mermaid-layout-elk.esm.min.mjs';
+
+  const config = {
+    fitPadding: 28,
+    minHeight: 360,
+    maxHeightPx: 960,
+    maxHeightVh: 0.84,
+    maxInitialZoom: 1.6,
+    minZoom: 0.08,
+    maxZoom: 6.5,
+    zoomStep: 0.14,
+    readabilityFloor: 0.58
+  };
+
+  const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+
+  let activeDrag = null;
+  addEventListener('mousemove', (e) => activeDrag?.onMove(e));
+  addEventListener('mouseup', () => { activeDrag?.onEnd(); activeDrag = null; });
+
+  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+
+  // Semantic palette tokens substituted into diagram sources before render.
+  const PALETTE = {
+    '@@txtDim':       isDark ? '#8fa5c0' : '#5b6b7e',
+    '@@txt':          isDark ? '#dce8f7' : '#16283c',
+    '@@sessionFill':  isDark ? '#253750' : '#e6ebf2',
+    '@@sessionBorder':isDark ? '#8fa5c0' : '#64748b',
+    '@@dispFill':     isDark ? '#14324e' : '#dcebfa',
+    '@@dispBorder':   isDark ? '#6aaede' : '#0f4c81',
+    '@@inlineFill':   isDark ? '#3b2d10' : '#fdf1d7',
+    '@@inlineBorder': isDark ? '#e0a04a' : '#b45309',
+    '@@parkedFill':   isDark ? '#421c1c' : '#fae1e1',
+    '@@parkedBorder': isDark ? '#e08585' : '#b91c1c',
+    '@@noteFill':     isDark ? '#1d2b40' : '#f2f4f7',
+    '@@noteBorder':   isDark ? '#5b7290' : '#9aa8b8',
+    '@@doneFill':     isDark ? '#123b33' : '#d9efe9',
+    '@@doneBorder':   isDark ? '#5ecdb8' : '#0f766e',
+    '@@laneLFill':    isDark ? '#1c170d' : '#faf6ea',
+    '@@laneFFill':    isDark ? '#101d30' : '#edf3fa'
+  };
+
+  mermaid.registerLayoutLoaders(elkLayouts);
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'base',
+    look: 'classic',
+    layout: 'elk',
+    themeVariables: {
+      fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+      fontSize: '16px',
+      primaryColor: isDark ? '#14324e' : '#dcebfa',
+      primaryBorderColor: isDark ? '#6aaede' : '#0f4c81',
+      primaryTextColor: isDark ? '#dce8f7' : '#16283c',
+      secondaryColor: isDark ? '#253750' : '#e6ebf2',
+      secondaryBorderColor: isDark ? '#8fa5c0' : '#64748b',
+      secondaryTextColor: isDark ? '#dce8f7' : '#16283c',
+      tertiaryColor: isDark ? '#3b2d10' : '#fdf1d7',
+      tertiaryBorderColor: isDark ? '#e0a04a' : '#b45309',
+      tertiaryTextColor: isDark ? '#dce8f7' : '#16283c',
+      lineColor: isDark ? '#8fa5c0' : '#64748b',
+      edgeLabelBackground: isDark ? '#13223a' : '#ffffff',
+      noteBkgColor: isDark ? '#1d2b40' : '#f2f4f7',
+      noteTextColor: isDark ? '#dce8f7' : '#16283c',
+      noteBorderColor: isDark ? '#e0a04a' : '#b45309'
+    }
+  });
+
+  function initDiagram(shell) {
+    const wrap = shell.querySelector('.mermaid-wrap');
+    const viewport = shell.querySelector('.mermaid-viewport');
+    const canvas = shell.querySelector('.mermaid-canvas');
+    const source = shell.querySelector('.diagram-source');
+    const label = shell.querySelector('.zoom-label');
+
+    if (!wrap || !viewport || !canvas || !source || !label) {
+      console.error('initDiagram: missing required elements in', shell);
+      return;
+    }
+
+    let zoom = 1, fitMode = 'contain', panX = 0, panY = 0, svgW = 0, svgH = 0;
+    let sx = 0, sy = 0, spx = 0, spy = 0;
+    let touchDist = 0, touchCx = 0, touchCy = 0;
+
+    function constrainPan() {
+      const vpW = viewport.clientWidth, vpH = viewport.clientHeight;
+      const rW = svgW * zoom, rH = svgH * zoom;
+      const pad = config.fitPadding;
+      panX = (rW + pad * 2 <= vpW) ? (vpW - rW) / 2 : clamp(panX, vpW - rW - pad, pad);
+      panY = (rH + pad * 2 <= vpH) ? (vpH - rH) / 2 : clamp(panY, vpH - rH - pad, pad);
+    }
+
+    function applyTransform() {
+      const svg = canvas.querySelector('svg');
+      if (!svg || !svgW) return;
+      constrainPan();
+      svg.style.width = (svgW * zoom) + 'px';
+      svg.style.height = (svgH * zoom) + 'px';
+      canvas.style.transform = `translate(${panX}px, ${panY}px)`;
+      label.textContent = Math.round(zoom * 100) + '% — ' + fitMode;
+    }
+
+    function canPan() {
+      const rW = svgW * zoom, rH = svgH * zoom;
+      return rW + config.fitPadding * 2 > viewport.clientWidth
+          || rH + config.fitPadding * 2 > viewport.clientHeight;
+    }
+
+    function computeSmartFit() {
+      const vpW = viewport.clientWidth, vpH = viewport.clientHeight;
+      const aW = Math.max(80, vpW - config.fitPadding * 2);
+      const aH = Math.max(80, vpH - config.fitPadding * 2);
+      const contain = Math.min(aW / svgW, aH / svgH);
+      let z = contain, mode = 'contain';
+      if (contain < config.readabilityFloor) {
+        const chartR = svgH / svgW, vpR = vpH / Math.max(vpW, 1);
+        if (chartR >= vpR) { z = aW / svgW; mode = 'width-priority'; }
+        else { z = aH / svgH; mode = 'height-priority'; }
+      }
+      return { zoom: clamp(z, config.minZoom, config.maxInitialZoom), mode };
+    }
+
+    function fitDiagram() {
+      if (!svgW) return;
+      const fit = computeSmartFit();
+      zoom = fit.zoom;
+      fitMode = fit.mode;
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = (viewport.clientHeight - svgH * zoom) / 2;
+      applyTransform();
+    }
+
+    function setOneToOne() {
+      zoom = clamp(1, config.minZoom, config.maxZoom);
+      fitMode = '1:1';
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = (viewport.clientHeight - svgH * zoom) / 2;
+      applyTransform();
+    }
+
+    function zoomAround(factor, cx, cy) {
+      const next = clamp(zoom * factor, config.minZoom, config.maxZoom);
+      const ratio = next / zoom;
+      panX = cx - ratio * (cx - panX);
+      panY = cy - ratio * (cy - panY);
+      zoom = next;
+      fitMode = 'custom';
+      applyTransform();
+    }
+
+    function readSvgNaturalSize(svg) {
+      let w = 0, h = 0;
+      if (svg.viewBox?.baseVal?.width > 0) { w = svg.viewBox.baseVal.width; h = svg.viewBox.baseVal.height; }
+      if (!w) { w = parseFloat(svg.getAttribute('width')) || 0; h = parseFloat(svg.getAttribute('height')) || 0; }
+      if (!w) { const b = svg.getBBox(); w = b.width; h = b.height; }
+      if (!w) { const r = svg.getBoundingClientRect(); w = r.width || 1000; h = r.height || 700; }
+      if (!svg.getAttribute('viewBox')) svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      return { w, h };
+    }
+
+    function setAdaptiveHeight() {
+      if (!svgW) return;
+      const usableW = Math.max(280, wrap.getBoundingClientRect().width - 2);
+      const idealH = (svgH / svgW) * usableW + config.fitPadding * 2;
+      const maxVp = Math.floor(innerHeight * config.maxHeightVh);
+      const hardMax = Math.min(config.maxHeightPx, Math.max(config.minHeight + 40, maxVp));
+      wrap.style.height = Math.round(clamp(idealH, config.minHeight, hardMax)) + 'px';
+    }
+
+    function openInNewTab() {
+      const svg = canvas.querySelector('svg');
+      if (!svg) return;
+      const clone = svg.cloneNode(true);
+      clone.style.width = '';
+      clone.style.height = '';
+      const bg = isDark ? '#0d1726' : '#f2f5f9';
+      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Diagram</title><style>
+      body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+      background:${bg};padding:40px;box-sizing:border-box}
+      svg{max-width:100%;max-height:90vh;height:auto}
+      </style></head><body>${clone.outerHTML}</body></html>`;
+      open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+    }
+
+    async function render() {
+      try {
+        let code = source.textContent.trim();
+        if (!code) { label.textContent = 'Error: Empty source'; return; }
+        for (const [token, value] of Object.entries(PALETTE)) {
+          code = code.replaceAll(token, value);
+        }
+        const id = 'diagram-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        const { svg } = await mermaid.render(id, code);
+        canvas.innerHTML = svg;
+
+        const svgNode = canvas.querySelector('svg');
+        if (!svgNode) { label.textContent = 'Error: No SVG'; return; }
+
+        const size = readSvgNaturalSize(svgNode);
+        svgW = size.w;
+        svgH = size.h;
+
+        svgNode.removeAttribute('width');
+        svgNode.removeAttribute('height');
+        svgNode.style.maxWidth = 'none';
+        svgNode.style.display = 'block';
+
+        setAdaptiveHeight();
+        fitDiagram();
+      } catch (err) {
+        console.error('Mermaid render failed:', err);
+        label.textContent = 'Error: ' + (err.message || 'Render failed');
+      }
+    }
+
+    const actions = {
+      'zoom-in': () => zoomAround(1 + config.zoomStep, viewport.clientWidth / 2, viewport.clientHeight / 2),
+      'zoom-out': () => zoomAround(1 / (1 + config.zoomStep), viewport.clientWidth / 2, viewport.clientHeight / 2),
+      'zoom-fit': fitDiagram,
+      'zoom-one': setOneToOne,
+      'zoom-expand': openInNewTab
+    };
+
+    Object.entries(actions).forEach(([action, handler]) => {
+      wrap.querySelector(`[data-action="${action}"]`)?.addEventListener('click', handler);
+    });
+
+    viewport.addEventListener('dblclick', fitDiagram);
+
+    viewport.addEventListener('wheel', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        const factor = e.deltaY < 0 ? 1 + config.zoomStep : 1 / (1 + config.zoomStep);
+        zoomAround(factor, e.clientX - rect.left, e.clientY - rect.top);
+        return;
+      }
+      if (canPan()) {
+        e.preventDefault();
+        panX -= e.deltaX;
+        panY -= e.deltaY;
+        applyTransform();
+      }
+    }, { passive: false });
+
+    viewport.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.zoom-controls') || !canPan()) return;
+      wrap.classList.add('is-panning');
+      sx = e.clientX; sy = e.clientY; spx = panX; spy = panY;
+      e.preventDefault();
+      activeDrag = {
+        onMove: (ev) => {
+          panX = spx + (ev.clientX - sx);
+          panY = spy + (ev.clientY - sy);
+          applyTransform();
+        },
+        onEnd: () => { wrap.classList.remove('is-panning'); }
+      };
+    });
+
+    viewport.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        sx = e.touches[0].clientX; sy = e.touches[0].clientY; spx = panX; spy = panY;
+      } else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        touchDist = Math.sqrt(dx * dx + dy * dy);
+        const r = viewport.getBoundingClientRect();
+        touchCx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
+        touchCy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+      }
+    }, { passive: true });
+
+    viewport.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && canPan()) {
+        if (touchDist > 0) {
+          sx = e.touches[0].clientX; sy = e.touches[0].clientY; spx = panX; spy = panY;
+          touchDist = 0;
+        }
+        e.preventDefault();
+        panX = spx + (e.touches[0].clientX - sx);
+        panY = spy + (e.touches[0].clientY - sy);
+        applyTransform();
+      } else if (e.touches.length === 2 && touchDist > 0) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        zoomAround(d / touchDist, touchCx, touchCy);
+        touchDist = d;
+      }
+    }, { passive: false });
+
+    new ResizeObserver(() => {
+      if (svgW) { setAdaptiveHeight(); fitDiagram(); }
+    }).observe(wrap);
+
+    render();
+  }
+
+  document.querySelectorAll('.diagram-shell').forEach(initDiagram);
+</script>
+
+</body>
+</html>

@@ -41,16 +41,20 @@ is "owes a result artifact and owns no transitions", not "never spoken to".
 The pipeline already dispatches most post-intake stages as **sub-agents** (see `_preamble.md`
 § Subagent Dispatch). The move to sub-agents was driven by context isolation — a six-stage autonomous
 pipeline cannot fit in one context window, so each stage runs in a fresh context and returns a
-structured result (the one exception, a *continued* native apply worker across rework cycles, is
-[`harness-adapters.md`](harness-adapters.md) § 1's amendment and changes nothing here — the profile is
-still injected at the stage's first dispatch). That same dispatch seam is the natural injection point
+structured result (the exceptions — a *continued* native apply worker across rework cycles, and the
+`/fab-ff`/`/fab-fff` **light lane**, which runs non-review stages inline in the orchestrator's context
+with no dispatch at all (`_pipeline.md` § Light Lane) — change nothing here: the continued worker's
+profile is still injected at the stage's first dispatch, and an inline stage never leaves the session
+model). That same dispatch seam is the natural injection point
 for a per-stage model: the orchestrator sets the sub-agent's model **at dispatch time**.
 
 This makes per-stage model selection fundamentally a property of **dispatched sub-agent runs**. Since
 260613-fgxx collapsed the post-intake dual execution mode, **every** post-intake stage dispatches a
 sub-agent — including plain `/fab-continue`, which is now a one-stage sequencer that resolves the role
-and dispatches its stage's block (`/fab-ff`, `/fab-fff`, `/fab-proceed` orchestrate the same way). So
-per-stage selection applies uniformly to apply/review/hydrate regardless of which command drove them.
+and dispatches its stage's block (`/fab-ff`, `/fab-fff`, `/fab-proceed` orchestrate the same way).
+The one carve-out is the light lane above: review stays dispatched in both lanes, so per-stage
+selection applies uniformly to apply/review/hydrate regardless of which command drove them, wherever
+a dispatch exists.
 See § Foreground limitation for the narrow case (a stage skill run with no dispatch at all) it cannot
 cover.
 
