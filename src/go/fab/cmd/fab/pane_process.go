@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 
@@ -101,10 +102,12 @@ func runPaneProcess(cmd *cobra.Command, args []string) error {
 	jsonFlag, _ := cmd.Flags().GetBool("json")
 	server, _ := cmd.Flags().GetString("server")
 
-	// Validate pane exists — a plain failure path, funneled through RunE so it
-	// flows through the single main.go ERROR formatter (exit 1).
+	// Validate pane exists — the pane-family in-handler exit scheme (2 = pane
+	// missing, 3 = any other tmux failure), so operator scripts branch on cause
+	// uniformly across the family.
 	if err := pane.ValidatePane(paneID, server); err != nil {
-		return err
+		fmt.Fprintf(cmd.ErrOrStderr(), "Error: %s\n", err)
+		os.Exit(paneValidationExitCode(err))
 	}
 
 	// Get pane PID

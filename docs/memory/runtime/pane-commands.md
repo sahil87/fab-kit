@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`fab pane {map,capture,send,process,window-name,open,ready,deliver}` reference: provider-generic `open --provider` spawn, pane-addressed `ready` classifier + verified `deliver`, `send`'s warn-and-proceed unknown-state posture, `--server`/`-L`, the pane-family exit-code scheme (2 = pane missing / 3 = other tmux failure), shared `internal/pane` helpers + the `display-message` validation probe, map `display_state`/`window_id` JSON fields, pane-ID-per-server semantics, guarded window-name rewrites."
+description: "`fab pane {map,capture,send,process,window-name,open,ready,deliver,kill,await}` reference: provider-generic `open --provider` spawn + `ready`/`deliver` primitives with `--json`, generic `kill` + blocking `await` (idle/file/running/gone), `send`'s warn-and-proceed unknown-state posture, `--server`/`-L`, pane-family exit-code scheme (2 = pane missing / 3 = other tmux failure), shared `internal/pane` helpers + `display-message` validation probe, pane-ID-per-server semantics, window-name rewrites."
 ---
 # Pane Commands
 
@@ -8,17 +8,17 @@ description: "`fab pane {map,capture,send,process,window-name,open,ready,deliver
 
 ## Overview
 
-`fab pane` is the parent command grouping eight tmux-pane operations. Five query or manipulate existing panes: `map`, `capture`, `send`, and `process` shell out to `tmux` to query or manipulate panes, combining raw tmux output with fab-specific enrichment (worktree, change, stage, agent state resolved from per-pane CWD), and `window-name` is a primitive set for idempotent / guarded rewrites of the tmux window name — used by `/fab-operator` to mark enrolled and done-monitoring windows. The other three — `open`, `ready`, `deliver` — are the provider-generic spawn / readiness-probe / verified-delivery primitives, addressed by pane id (or provider name) with no fab context required; `fab dispatch open`/`ready`/`deliver` are thin record-keeping bindings over them (see [dispatch.md](/runtime/dispatch.md)).
+`fab pane` is the parent command grouping ten tmux-pane operations. Six query or manipulate existing panes: `map`, `capture`, `send`, and `process` shell out to `tmux` to query or manipulate panes, combining raw tmux output with fab-specific enrichment (worktree, change, stage, agent state resolved from per-pane CWD), `window-name` is a primitive set for idempotent / guarded rewrites of the tmux window name — used by `/fab-operator` to mark enrolled and done-monitoring windows — and `kill` is the generic pane-removal verb. The other three — `open`, `ready`, `deliver` — are the provider-generic spawn / readiness-probe / verified-delivery primitives, addressed by pane id (or provider name) with no fab context required; `fab dispatch open`/`ready`/`deliver` are thin record-keeping bindings over them (see [dispatch.md](/runtime/dispatch.md)). `await` is the record-free blocking wait over the pane's completion signals (idle state, a contract file).
 
 The command group runs from any directory — including outside a fab-managed repo (scratch tmux tabs, cross-repo orchestration, non-fab daemons). The router routes every non-fab-kit command to `fab-go` regardless of `config.yaml` presence, and `pane` subcommands carry no `resolve.FabRoot()` guard because they resolve state from target pane IDs rather than from the invoker's CWD. See `kit-architecture.md` for the router's always-route policy.
 
-This doc covers the eight subcommands, the `--server` / `-L` persistent flag, and the semantic invariants that govern how pane IDs and server selection interact with tmux's own socket model.
+This doc covers the ten subcommands, the `--server` / `-L` persistent flag, and the semantic invariants that govern how pane IDs and server selection interact with tmux's own socket model.
 
 ## Requirements
 
 ### Parent Command: `fab pane`
 
-`fab pane` is a cobra command group with eight subcommands (`map`, `capture`, `send`, `process`, `window-name`, `open`, `ready`, `deliver`) and one persistent flag (`--server` / `-L`). Invoking `fab pane` with no subcommand prints the standard cobra help listing the eight subcommands. Source: `src/go/fab/cmd/fab/pane.go`.
+`fab pane` is a cobra command group with ten subcommands (`map`, `capture`, `send`, `process`, `window-name`, `open`, `ready`, `deliver`, `kill`, `await`) and one persistent flag (`--server` / `-L`). Invoking `fab pane` with no subcommand prints the standard cobra help listing the ten subcommands. Source: `src/go/fab/cmd/fab/pane.go`.
 
 ### Subcommand: `fab pane map`
 
@@ -109,7 +109,7 @@ This doc covers the eight subcommands, the `--server` / `-L` persistent flag, an
 
 Platform-specific process discovery is tmux-server-independent — once the pane's shell PID has been resolved via `GetPanePID`, the `/proc` walk or `ps` traversal operates on the OS process table, not tmux.
 
-**Error behavior**: Pane not found → `ERROR: pane <id> not found` (exit 1, returned through RunE — `process` does not adopt the capture/send 2/3 scheme; it is not an operator branch-on-cause surface).
+**Error behavior**: Pane not found → `Error: pane <id> not found` (**exit 2**, in-handler via the typed `*PaneNotFoundError` branch); any other tmux validation failure (dead server, bad socket) → **exit 3** — the pane-family scheme, shared with `capture`/`send`/`ready`/`deliver`.
 
 ### Subcommand: `fab pane window-name`
 
@@ -140,11 +140,11 @@ The primitives do not gate on `$TMUX`; they rely on tmux's own exec failure to s
 
 ### Subcommand: `fab pane open`
 
-`fab pane open --provider <name> [--role <role>] [-c <dir>]` resolves the named provider's `interactive_command` — project config per-field merged over the built-in table, exactly as `fab agent` resolves it; outside a fab repo the built-in table alone applies — substitutes the `{model}`/`{effort}` fills via the standard precedence with the **provider pinned at invocation time** (`agent.ResolveRoleWith` with the provider override; `--role` selects whose fills apply, the `default` role otherwise — the opposite of `fab agent --provider`'s deliberate fill bypass), and spawns the composed command in a tmux pane. It writes **no dispatch record and no `.fab-dispatch/` state**. Source: `src/go/fab/cmd/fab/pane_open.go`.
+`fab pane open --provider <name> [--role <role>] [-c <dir>] [--json]` resolves the named provider's `interactive_command` — project config per-field merged over the built-in table, exactly as `fab agent` resolves it; outside a fab repo the built-in table alone applies — substitutes the `{model}`/`{effort}` fills via the standard precedence with the **provider pinned at invocation time** (`agent.ResolveRoleWith` with the provider override; `--role` selects whose fills apply, the `default` role otherwise — the opposite of `fab agent --provider`'s deliberate fill bypass), and spawns the composed command in a tmux pane. It writes **no dispatch record and no `.fab-dispatch/` state**. Source: `src/go/fab/cmd/fab/pane_open.go`.
 
 **Spawn shape**: a **plain split** of the current window when the invoker is itself a tmux pane on the target server (`$TMUX_PANE` set, no `--server`), an **unnamed new window** otherwise — no size, no title, no worker-column placement (placement and the `fab-{id}-{stage}` identity are dispatch policy — see [dispatch.md](/runtime/dispatch.md)).
 
-**Output**: `opened pane %N (provider <name>)`, plus a `server: <name>` line when the socket is non-default.
+**Output**: `opened pane %N (provider <name>)`, plus a `server: <name>` line when the socket is non-default. `--json` instead emits a single JSON object `{"pane": "%N", "provider": "<name>", "server": null}` — `server` is `null` for the default socket via the `toNullable` contract. Plain-text output is byte-identical without `--json`.
 
 **Error behavior**: unknown provider → the shared lookup error naming the available providers (exit 1); a provider with no `interactive_command` → a hard error naming it (`configure providers.<name>.interactive_command`, exit 1 — the explicit-pane posture: no descent); unreachable tmux server or a failed spawn → **exit 3** (reachability is probed via `pane.ServerReachable` before anything is spawned).
 
@@ -152,7 +152,7 @@ The primitives do not gate on `$TMUX`; they rely on tmux's own exec failure to s
 
 `fab pane ready <pane>` runs the readiness classifier against the named pane id — the same gate `fab dispatch ready` binds over, with no dispatch record to load. Source: `src/go/fab/cmd/fab/pane_ready.go`.
 
-The probe types the `FAB-READY-PROBE` sentinel literally (never submitted), checks the echo against two screen-stability captures, clears with `C-u`, and reports exactly one of `ready` / `booting` / `parked` — the classification table the two verbs share is documented under [dispatch.md](/runtime/dispatch.md) § `fab dispatch ready`. Non-`ready` reports add `pane: %N`, a `server: <name>` line when set, and the trailing capture snippet under `--- last 20 lines ---` (no header over an empty snippet). **All three classifications exit 0** — the report string is the sole discriminator.
+The probe types the `FAB-READY-PROBE` sentinel literally (never submitted), checks the echo against two screen-stability captures, clears with `C-u`, and reports exactly one of `ready` / `booting` / `parked` — the classification table the two verbs share is documented under [dispatch.md](/runtime/dispatch.md) § `fab dispatch ready`. Non-`ready` reports add `pane: %N`, a `server: <name>` line when set, and the trailing capture snippet under `--- last 20 lines ---` (no header over an empty snippet). **All three classifications exit 0** — the report string is the sole discriminator. `--json` instead emits a single JSON object `{"state": "<ready|booting|parked>", "pane": "%N", "server": null, "snippet": "…"}` — `snippet` is the same trailing-blank-trimmed 20-line capture the text report carries (`""` when empty), `server` is `null` when empty, and all three classifications still exit 0. Plain-text output is byte-identical without `--json`.
 
 **Side effect**: the probe TYPES into the target pane (the sentinel, `C-u`-cleared before return), so run it only against panes you own — never one an agent or a human is actively working in.
 
@@ -164,15 +164,42 @@ The probe types the `FAB-READY-PROBE` sentinel literally (never submitted), chec
 
 Per attempt: readiness probe → `C-u` → capture the cleared baseline → type the payload literally → wrap-tolerant echo-verify (`countWrapped`, whitespace + box-drawing runes dropped) → `Enter` → confirm the screen advanced, with exactly **one retry** (a retry warns on stderr even when it succeeds; a second failure prints the pane's last 20 lines to stderr and exits 1). `--prompt-file` checks the file exists first (missing → exit 1, nothing typed) and types the dispatch-parity pointer line `Read <path> and execute it.` (`pane.PointerPrompt`) — the path is typed **as supplied** (a generic pane's cwd is unknown to fab), so make it meaningful from the pane's own cwd; `--text` types its argument literally. The two flags are mutually exclusive and exactly one is required (usage error otherwise).
 
-**Output**: `delivered <pane> (prompt <path>)` or `delivered <pane> (text)`.
+**Output**: `delivered <pane> (prompt <path>)` or `delivered <pane> (text)`. `--json` instead emits a single JSON object on verified delivery — `{"pane": "%N", "source": "prompt", "path": "<path>"}` or `{"pane": "%N", "source": "text"}` (`path` is present only for `prompt`). Failures keep the stderr + non-zero contract and emit no JSON. Plain-text output is byte-identical without `--json`.
 
 **Error behavior**: pane missing → **exit 2**; other tmux failure → **exit 3**; verification exhausted or a missing prompt file → exit 1 through RunE.
 
+### Subcommand: `fab pane kill`
+
+`fab pane kill <pane>` kills a tmux pane — the generic, record-free exposure of the `pane.KillPane` helper, giving removal paths and probe cleanups the family's validated exit-code contract instead of raw `tmux kill-pane`. Source: `src/go/fab/cmd/fab/pane_kill.go`.
+
+**Validation**: `pane.ValidatePane` first (the targeted `display-message` probe) — a missing pane prints `Error: pane <id> not found` and exits **2** in-handler via the `*PaneNotFoundError` branch; any other tmux failure (dead server, bad socket) exits **3** — the family scheme.
+
+**Output**: `killed <pane>` on success, plus a `server: <name>` line when the socket is non-default (matching `open`'s form).
+
+**Scope**: generic and record-free — no dispatch-record interaction, no `.fab-dispatch/` state. `fab dispatch kill` (record-keyed, ungated recovery) is unaffected and remains the pipeline's kill.
+
+### Subcommand: `fab pane await`
+
+`fab pane await <pane> [--file <path>] [--timeout <secs>]` is the record-free blocking wait — the completion primitive for the provider-generic layer. It blocks until **any** waitable signal fires, prints a one-word report, and (except for `gone`) exits 0 — the report string is the discriminator (the `fab dispatch wait` precedent). Source: `src/go/fab/cmd/fab/pane_await.go`.
+
+| Report | Fired by | Exit |
+|--------|----------|------|
+| `idle` | the pane's `@rk_agent_state` resolves to `idle` (the shared parser, same read as `map`/`send`/`capture`) | 0 |
+| `file` | the `--file <path>` file exists | 0 |
+| `running` | `--timeout` expired with neither signal — the timeout bounds the observer, not the worker | 0 |
+| `gone` | the pane died mid-wait — the wait cannot complete; the caller branches on cause | 2 |
+
+**Signals compose as OR**: with both `--file` and an instrumented pane, whichever fires first wins. An uninstrumented pane (agent state unknown/absent) with **no `--file`** is an immediate error (exit 1 via RunE) — there is nothing observable to wait on, and blocking to timeout would report `running` while meaning "never watching anything".
+
+**Cadence/bounds**: an internal ~2s re-derive tick (`pane.AwaitTick`, no flag, no config) and `--timeout` default 300 (0 or negative = unbounded), mirroring `dispatch wait`'s observer conventions; the first observation happens before any sleep. The control loop lives in `internal/pane` as the pure, observer-injected `Await(ctx, observe, tick, timeout)` (see §Shared Pane Package).
+
+**Error behavior**: pane missing at entry → **exit 2**; other tmux failure → **exit 3**; unwaitable pane (above) → exit 1 via RunE.
+
 ### Usage-Error Coexistence with the Binary-Wide Exit-2 Convention (swon)
 
-The pane-family 2/3 scheme above (`2` = pane missing, `3` = other tmux failure, across `capture`/`send`/`window-name`/`ready`/`deliver`) is set via an **in-handler `os.Exit`** from inside each verb's `RunE`. The `fab`/`fab-go` binary also has (swon) a **binary-wide usage-error convention** — `0` success / `1` operational failure / **`2` usage error** — where a *usage* error (an unknown/malformed flag, or a cobra arg-count violation on any pane verb) is caught at **parse/validation time, before the handler runs**, and exits `2` via the classifier in `main()`'s testable `run()` helper (execution-phase classification, no string matching — see [kit-architecture.md](/distribution/kit-architecture.md) § Binary-Wide Exit-Code Convention).
+The pane-family 2/3 scheme above (`2` = pane missing, `3` = other tmux failure, across `capture`/`send`/`process`/`window-name`/`ready`/`deliver`/`kill`/`await`) is set via an **in-handler `os.Exit`** from inside each verb's `RunE`. The `fab`/`fab-go` binary also has (swon) a **binary-wide usage-error convention** — `0` success / `1` operational failure / **`2` usage error** — where a *usage* error (an unknown/malformed flag, or a cobra arg-count violation on any pane verb) is caught at **parse/validation time, before the handler runs**, and exits `2` via the classifier in `main()`'s testable `run()` helper (execution-phase classification, no string matching — see [kit-architecture.md](/distribution/kit-architecture.md) § Binary-Wide Exit-Code Convention).
 
-The two `2`s **coexist without renumbering**: the in-handler pane `os.Exit(2|3)` calls **bypass `run()`'s usage/operational mapping entirely**, so the pane 2/3 scheme is **unchanged** — a missing pane still exits `2` in-handler, any other tmux failure still exits `3`, and `pane_exitcode_test.go` stays green unmodified. On a pane verb, exit `2` is therefore intentionally ambiguous between "usage error" (at parse time) and "pane missing" (in-handler); the codes are not renumbered because downstream consumers (operator/run-kit scripts) branch on the pane codes. Disambiguate on stderr wording (`Error: pane <id> not found` for the in-handler case vs. cobra's usage/flag error text for the parse-time case). `map` and `process` use plain `ERROR:`-formatted exit `1` for their in-handler errors and are unaffected — a *usage* error on them likewise exits `2` at parse time under the binary-wide convention.
+The two `2`s **coexist without renumbering**: the in-handler pane `os.Exit(2|3)` calls **bypass `run()`'s usage/operational mapping entirely**, so the pane 2/3 scheme is **unchanged** — a missing pane still exits `2` in-handler, any other tmux failure still exits `3`, and `pane_exitcode_test.go` stays green unmodified. On a pane verb, exit `2` is therefore intentionally ambiguous between "usage error" (at parse time) and "pane missing" (in-handler); the codes are not renumbered because downstream consumers (operator/run-kit scripts) branch on the pane codes. Disambiguate on stderr wording (`Error: pane <id> not found` for the in-handler case vs. cobra's usage/flag error text for the parse-time case). `map` is the sole pane verb using plain `ERROR:`-formatted exit `1` for its in-handler errors (multi-pane discovery has no single target pane to be "missing") and is unaffected — a *usage* error on it likewise exits `2` at parse time under the binary-wide convention.
 
 #### Output modes
 
@@ -184,7 +211,7 @@ Plain text is the default: `renamed: <old> -> <new>\n` on a rename, empty stdout
 
 ### `--server` / `-L` Flag
 
-**Registration**: `paneCmd` registers a persistent string flag `--server` (short `-L`) with default `""`. Because it is a persistent flag on the parent, it is automatically visible on all eight subcommands' `--help`. Source: `src/go/fab/cmd/fab/pane.go:14`.
+**Registration**: `paneCmd` registers a persistent string flag `--server` (short `-L`) with default `""`. Because it is a persistent flag on the parent, it is automatically visible on all ten subcommands' `--help`. Source: `src/go/fab/cmd/fab/pane.go:14`.
 
 **Help text**: `Target tmux socket label (passed as 'tmux -L <name>'). Defaults to $TMUX / tmux default socket.`
 
@@ -222,6 +249,7 @@ Shared pane machinery lives in `src/go/fab/internal/pane/` — the pane-resoluti
 - `WithServer(server string, args ...string) []string` — the canonical argv-building helper (see Design Decisions)
 - The **readiness gate and verified-delivery choreography** (`gate.go`): `Gate`/`NewGate`, `Probe`, `Deliver`, `DeriveReadiness`, the `Readiness` constants (`ReadyReady`/`ReadyBooting`/`ReadyParked` — the exact report strings `fab pane ready` and `fab dispatch ready` print), `ReadySentinel`, `SnippetLines`, `Snippet`, `PaneIO`, the wrap-tolerant echo counter (`countWrapped`/`squeeze`, dropping whitespace and U+2500–U+257F box-drawing runes), and `Tail`. One copy of the classifier and choreography serves both the `fab pane` primitives and the `fab dispatch` bindings
 - The **pane creators and lifecycle mechanics** (`create.go`): `OpenWindow`, `OpenSplitPane`, `OpenPlainPane` (the unsized, untitled split/window behind `fab pane open`), `SplitPlacement` (+`Describe`) with its package-scope `splitArgs` argv renderer, `ServerReachable`, `PaneAlive`, `KillPane`, and `PointerPrompt` (the `Read <path> and execute it.` pointer-line composer `fab pane deliver --prompt-file` and `fab dispatch deliver` share). The placement *decision* half (`SplitTarget`/`SelectPaneShape`/`SiblingDispatchPane`) stays in `internal/dispatch` — it reads dispatch records and config
+- The **blocking-wait control loop** (`await.go`): `Await(ctx, observe, tick, timeout)` plus the `AwaitReport` constants (`idle`/`file`/`running`/`gone`) and the `AwaitTick` (2s) cadence constant — a pure, observer-injected loop mirroring `internal/dispatch`'s `Wait`/`TickInterval` semantics (first observation before any sleep; timeout bounds the observer, not the worker), so it is unit-testable without tmux. The cobra layer (`fab pane await`) fills the observer with pane liveness, `--file` existence, and the `@rk_agent_state` idle read
 
 All tmux-invoking functions accept a trailing `server string` parameter and build their argv via `WithServer`. Callers in `cmd/fab/pane*.go` read the flag via `cmd.Flags().GetString("server")` and thread the value through. The `RunCmd`/`StderrError` pair is applied at the capture (`capturePaneContent`), send (both `send-keys` sites), operator (`tmux new-window`, `gitRepoRoot`), batch-new (`wt create`, `tmux new-window`), and batch-switch (`wt create` — added by 260717-otol when `batch switch` moved off `.Output()` to surface wt's typed exit-2 error in its warn-and-skip line) subprocess sites — errors include the trimmed child stderr and the relevant identifier (pane ID / target).
 
@@ -234,7 +262,7 @@ All tmux-invoking functions accept a trailing `server string` parameter and buil
 *Introduced by*: 260612-pw3k-operator-pane-perf-error-surfacing
 
 ### Persistent Flag on the Parent, Not Per-Subcommand
-**Decision**: `--server` is registered as a persistent flag on `paneCmd` via `cmd.PersistentFlags().StringP("server", "L", "", "...")`, visible on all eight subcommands. Each subcommand reads the value via `cmd.Flags().GetString("server")`.
+**Decision**: `--server` is registered as a persistent flag on `paneCmd` via `cmd.PersistentFlags().StringP("server", "L", "", "...")`, visible on all ten subcommands. Each subcommand reads the value via `cmd.Flags().GetString("server")`.
 **Why**: Cobra idiom for a flag that applies uniformly across a command group. Single registration point, single help-text location, zero chance of per-subcommand drift.
 **Rejected**: Per-subcommand registration — one copy of the same flag per subcommand, as many places to update if the description changes.
 *Introduced by*: 260417-2fbb-pane-server-flag
@@ -279,3 +307,9 @@ All tmux-invoking functions accept a trailing `server string` parameter and buil
 **Why**: Only run-kit-instrumented panes set the option, so against any foreign-agent pane (kimi, agy, codex) the unknown case fired unconditionally and every send needed `--force` — the validation never validated in precisely the multi-provider scenarios where validation matters. Reserving refusal for a parseable non-idle state keeps the guard where the convention actually reports state.
 **Rejected**: Keeping unknown as a refusal (the always-`--force` ritual); auto-force on unknown (silently drops the one signal an instrumented pane might still carry).
 *Introduced by*: 260810-1lah-provider-generic-pane-verbs
+
+### Await's Control Loop Mirrors `dispatch.Wait`
+**Decision**: `fab pane await`'s tick loop lives in `internal/pane` as a pure, observer-injected control structure (`Await(ctx, observe, tick, timeout)`) with a package `AwaitTick` constant — the same shape as `internal/dispatch`'s `Wait`/`TickInterval`.
+**Why**: The observer conventions (first observation before any sleep, timeout bounds the observer not the worker, observe-once-more at the bound) are already the family's documented blocking-wait contract; reusing the shape keeps the two waits incapable of drifting on semantics, and observer injection makes the loop unit-testable without tmux.
+**Rejected**: A hand-rolled `for`/`sleep` poll in the cobra layer (untestable, re-derives solved edge cases); a filesystem watcher (cannot see a pane die — liveness needs a periodic probe regardless).
+*Introduced by*: 260811-yxyi-pane-dispatch-surface-completion

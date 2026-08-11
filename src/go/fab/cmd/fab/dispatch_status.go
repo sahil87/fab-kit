@@ -37,6 +37,10 @@ func dispatchStatusCmd() *cobra.Command {
 // is opened and delivered to in two steps, and "opened but not yet delivered" is
 // exactly the case a consumer needs to see. A plain bool with omitempty would
 // erase it. It is bookkeeping, never a state — `state` is derived without it.
+// Server is pane-only and omitempty: a socket-scoped pane dispatch carries it so
+// a consumer can assemble a socket-scoped `fab pane capture -L <server> <pane>`
+// from --json alone; a default-socket or headless dispatch omits the key
+// (additive evolution — the repo/window_id/pr_url precedent).
 type dispatchStatusJSON struct {
 	Change    string `json:"change"`
 	Stage     string `json:"stage"`
@@ -46,6 +50,7 @@ type dispatchStatusJSON struct {
 	PGID      int    `json:"pgid,omitempty"`
 	Pane      string `json:"pane,omitempty"`
 	Window    string `json:"window,omitempty"`
+	Server    string `json:"server,omitempty"`
 	Delivered *bool  `json:"delivered,omitempty"`
 	Exit      *int   `json:"exit,omitempty"`
 }
@@ -108,6 +113,7 @@ func observeDispatch(dir, id, stage string, rec *dispatch.Dispatch) (dispatchSta
 		)
 		out.Pane = rec.Pane
 		out.Window = rec.Window
+		out.Server = rec.Server
 		delivered := rec.Delivered
 		out.Delivered = &delivered
 	} else {

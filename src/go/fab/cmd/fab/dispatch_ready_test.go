@@ -71,7 +71,7 @@ func TestDispatchReady_RefusesAMidStageWorker(t *testing.T) {
 
 // TestDispatchReady_NonReadyReports pins both non-`ready` answers end to end: the
 // classification line, the pane/socket lines the judgment rounds need to send raw
-// `tmux send-keys` (`status --json` carries the pane but not the socket), the
+// `tmux send-keys` (the socket also rides `status --json` as `server`), the
 // capture snippet that lets the orchestrator see WHAT is holding the input, and
 // exit 0 — an observed answer is a success however inconvenient it is, exactly as
 // with `fab dispatch wait`'s timeout.

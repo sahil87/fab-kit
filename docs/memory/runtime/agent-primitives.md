@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "The `_cli-agents` helper — opt-in agent-CLI primitives for profile-resolved spawn composition, `fab pane open`/`ready`/`deliver`, the pane-exists/agent-idle send gate, printed-prompt recovery, capture plus agent-state peek, artifact-oriented await, and a built-in-provider grammar/discovery dictionary covering agy/kimi pane launch and readiness-gate trust walls plus `codex mcp-server`."
+description: "The `_cli-agents` helper — opt-in agent-CLI primitives for profile-resolved spawn composition, `fab pane open`/`ready`/`deliver`, the pane-exists/agent-idle send gate, printed-prompt recovery, capture plus agent-state peek, artifact-oriented await (mechanized as `fab pane await`), and a built-in-provider grammar/discovery dictionary covering agy/kimi pane launch and readiness-gate trust walls plus `codex mcp-server`."
 ---
 # Agent Primitives (`_cli-agents`)
 
@@ -34,7 +34,7 @@ The helper SHALL carry exactly five procedural sections, each stated once and re
 2. **Pre-send validation** — a two-step gate before sending keys into an existing pane: the pane exists (refreshed pane map — a dead pane swallows keys silently, so a stale pane ID is a silent-failure hazard, not a visible error), and the agent is `idle` per the three-state `@rk_agent_state` read. `fab pane send` enforces the same gate (refusing a parseable `active`/`waiting` state without `--force`; an **unknown** state — a foreign-agent or uninstrumented pane — warns `agent state unknown — sending anyway` and sends), so consumers prefer it over raw `tmux send-keys` and let the binary hold the gate. Everything beyond the two mechanics — whether to ask the user, how many times to retry, whether the pane is on the right change or branch — is consumer policy.
 3. **Delivery probe** — the recovery for the printed-prompt trap (below).
 4. **Peek** — output and agent state read as two independent axes, with capture as the universal fallback (below).
-5. **Await** — a poll loop or a worker-announced signal (below).
+5. **Await** — a poll loop, a worker-announced signal, or the first-class `fab pane await` blocking wait (below).
 
 #### Scenario: the operator sends to a non-idle pane
 
@@ -79,6 +79,8 @@ Peeking SHALL read output and agent state as separate axes: output via `fab pane
 ### Requirement: Await has no completion callback — poll or have the worker announce
 
 There SHALL be no cross-provider equivalent of the Agent-tool "sub-agent finished, here is its result" callback when driving a CLI in a pane. The two available signals are (1) **poll** — loop capture (plus the state read, where instrumented) on a fixed unhurried cadence until a completion signal the consumer *defined* appears, and (2) **worker announcement** — instruct the worker in its prompt to run a notification as its last act (e.g. `rk notify`, `command -v rk`-gated and fail-silent), converting polling into an event at the cost of depending on the worker honoring the instruction. Asking for an **artifact** (a file at a named path) is preferred over a screen pattern: a file's presence is unambiguous, survives scrollback, and is readable without the pane.
+
+`fab pane await <pane> [--file <path>] [--timeout <secs>]` mechanizes the wait over exactly these signals: it blocks until the pane's `@rk_agent_state` resolves to `idle` **or** the `--file` artifact exists (the signals compose as OR), then prints a one-word report — `idle` / `file` / `running` (timeout expired; still exit 0) / `gone` (the pane died mid-wait; exit 2). A consumer that can use the binary runs it instead of hand-rolling a poll loop — see [pane-commands.md](/runtime/pane-commands.md) § `fab pane await`.
 
 ### Requirement: The provider dictionary carries stable grammar and discovery recipes, never catalogs
 
