@@ -541,6 +541,19 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+// BuiltinProvider returns the built-in provider table entry for name EXACTLY as
+// parsed from the embedded defaults.yaml — BEFORE any user-override merge — and
+// whether the provider is built in at all. It exists for introspection surfaces
+// that need to compare user config against what the running binary actually
+// shipped (the `fab setup check` override-masking skew check): ResolveProvider
+// cannot serve that, since its output already has the overrides folded in.
+// The returned value carries the embedded table's own Profiles map; callers
+// MUST NOT mutate it (copy via mergeProviderProfiles if mutation is needed).
+func BuiltinProvider(name string) (config.ProviderConfig, bool) {
+	p, ok := defaultProviders[name]
+	return p, ok
+}
+
 // ProviderNames returns the provider names ResolveProvider can resolve for cfg:
 // the union of fab-kit's built-in provider table and the project's own providers:
 // block, sorted (stable for error messages and tests). Exposed so a lookup failure

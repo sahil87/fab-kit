@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "The /fab-setup skill — structural bootstrap (doctor → config → constitution → fab sync), subcommands, config create-mode, and delegation to fab-kit sync's resolved kit source. Covers the seven-check doctor gate, fail-loud scaffold merge, and gitignore-aware .gitignore dedup."
+description: "The /fab-setup skill — structural bootstrap (doctor → config → constitution → fab sync), subcommands, config create-mode, and delegation to fab-kit sync's resolved kit source. Covers the seven-check doctor gate, fail-loud scaffold merge, gitignore-aware .gitignore dedup, and the read-only fab setup check setup-state doctor (probe set, exit contract, coexistence with fab doctor)."
 ---
 # Setup
 
@@ -8,13 +8,28 @@ description: "The /fab-setup skill — structural bootstrap (doctor → config �
 
 ## Overview
 
-`/fab-setup` is the structural bootstrap skill that creates the `fab/` directory layout. It also provides subcommands for managing `config.yaml` and `constitution.md` (with built-in validation), and for running version migrations. It delegates structural setup to `fab-kit sync`, which reads from `FAB_KIT_PATH` when set and otherwise from the version cache. It does not handle memory hydration — that responsibility belongs to `/docs-hydrate-memory`.
+`/fab-setup` is the structural bootstrap skill that creates the `fab/` directory layout. It also provides subcommands for managing `config.yaml` and `constitution.md` (with built-in validation), and for running version migrations. It delegates structural setup to `fab-kit sync`, which reads from `FAB_KIT_PATH` when set and otherwise from the version cache. It does not handle memory hydration — that responsibility belongs to `/docs-hydrate-memory`. The fab-go binary separately ships a `fab setup check` setup-state doctor (§ Setup-State Doctor) — a distinct surface from this skill despite the shared `setup` name.
 
 ## Requirements
 
 ### Prerequisite Check (Phase 0)
 
 `/fab-setup` (bare bootstrap only) runs `fab doctor` as an early gate before creating any project artifacts. If doctor exits non-zero, setup stops immediately and surfaces the doctor output with fix hints. `FAB_KIT_PATH` provenance in normal doctor output is informational and does not alter the seven-check result or gate. This gate does not apply to subcommands (`config`, `constitution`, `migrations`).
+
+### Setup-State Doctor (`fab setup check`)
+
+The fab-go binary ships a read-only environment doctor as the `fab setup check` subcommand. Bare `fab setup` prints a "Yet to be implemented" placeholder — the seat reserved for the interactive setup wizard (backlog [stpw]) — and exits 0 without running checks; `fab setup bogus` is a usage error (exit 2). The doctor's hard invariant is **no writes**: no config mutation, no trust-store seeding, no agent/pane launches, no `.fab-*` state files, no prompts — repeated runs are byte-identical (Constitution III). All probing lives in the reusable `internal/setupcheck` package, which returns structured results (`Finding`/`ProviderProbe`/`Report`) with its environment seams injected (lookPath, `$TMUX`, kit-cache dir, config layers); the cobra command owns only input wiring, rendering, and exit-code mapping, so the future wizard consumes the same `Report` to filter its interview options without shelling out. Source: `src/go/fab/cmd/fab/setup.go`, `src/go/fab/internal/setupcheck/`.
+
+Probe set:
+
+- **Provider roster** — every resolvable provider (the built-ins from the embedded `defaults.yaml` ∪ user-defined providers merged by the config cascade) with declared capabilities (`interactive_command`/`headless_command`/`native` — presence grammar, "here is how", never "select this mode") and binary presence on PATH. The leading executable token is resolved through nested `sh -c '...'` wrappers, so agy/kimi resolve to `agy`/`kimi`, never `sh`. A provider a role resolves to (depth knob or `agent.profiles.<role>.provider`) whose executables are missing is **failure-severity**; an unconfigured provider's absence is informational only.
+- **Environment facts** — `$TMUX` presence (pane-rung viability, classified with `internal/dispatch`'s tmux signal) and PATH presence of `gh`/`yq` (warning when absent — pipeline tooling) and `rk` (informational — fail-silent optional tooling, never a problem).
+- **Version triplet and skew** — the running binary's version, the kit cache's `VERSION`, and the project pin `fab/.fab-version`, with mismatches reported as warnings; plus the override-masking bottle-skew check (see [distribution.md](/distribution/distribution.md) § Version Skew Detection).
+- **Config sanity** — an unviable `dispatch.mode` is reported with the exact descent-reason strings `internal/dispatch.SelectMode` produces (`pane unavailable: no tmux`, `pane unavailable: no interactive_command`, `native unavailable`): a working descent is warning-severity, no reachable rung is failure-severity. An unreadable project config is failure-severity, with the remaining probes still running against the empty config. Outside a fab repo the doctor degrades to the system+env tiers instead of erroring.
+
+Exit contract: **0** healthy or warnings-only, **1** when any failure-severity finding exists (returned as an operational error through the existing `run()` classification, with a stderr summary line), **2** usage errors via the binary-wide `markRunReached` seam. Informational findings never affect the exit code.
+
+**Coexistence with `fab doctor`**: the two doctors have distinct jobs; neither subsumes nor invokes the other. fab-kit's seven-check `fab doctor` covers **system prerequisites** ("is this machine good enough to use fab-kit" — git, fab, bash, yq, jq, gh, direnv) and is untouched, including its `/fab-setup` Phase 0 gate above. `fab setup check` covers **setup-state diagnostics** — config viability, provider roster, dispatch-mode viability, version skew. The gh/yq presence overlap is accepted duplication across two binaries with different jobs.
 
 ### Structural Bootstrap Only
 
@@ -177,3 +192,15 @@ Each subcommand operates independently — they can be invoked directly without 
 **Why**: Reduces the dropped-ball two-step flow where users had to remember a separate `/fab-update` command after upgrading the kit. Makes migrations discoverable from the same command namespace as config and constitution management.
 **Rejected**: Keeping `/fab-update` as a separate top-level skill — created a discoverability gap and a two-step flow that was easy to forget.
 *Introduced by*: 260216-tk7a-DEV-1037-consolidate-setup-upgrade-flow
+
+### Setup-State Doctor as a `fab setup check` Subcommand, Coexisting with `fab doctor`
+**Decision**: The setup-state doctor ships as the `fab setup check` subcommand; bare `fab setup` prints a "Yet to be implemented" placeholder reserving the seat for the interactive wizard. It coexists with fab-kit's seven-check `fab doctor` by distinct job — doctor checks system prerequisites, `setup check` checks fab's own setup state.
+**Why**: A subcommand reads as a distinct read-only operation and reserves the `fab setup` seat without shipping the wizard; the read-only probe layer is safe to ship alone (it writes nothing, so it is trivially idempotent) and gives the wizard a detection layer to build its provider-filtered interview on. Splitting by job keeps each doctor in the binary that owns its domain (fab-kit system prerequisites vs fab-go setup state).
+**Rejected**: A `--check` flag on `fab setup` — couples the doctor to the wizard's eventual flag surface. Subsuming `fab doctor` into the new command or vice versa — different binaries with different jobs; the gh/yq presence overlap is cheaper than a cross-binary dependency.
+*Introduced by*: 260811-pgbq-setup-check-doctor
+
+### Doctor Exit Contract — Only Failures Exit 1
+**Decision**: `fab setup check` exits 0 on a healthy or warnings-only report, 1 only when at least one failure-severity finding exists, and 2 on usage errors via the existing `run()`/`markRunReached` seam — no distinct in-handler warnings tier.
+**Why**: Keeps the doctor CI-able as a "real problems" gate without crying wolf on advisory findings (version skew, load-bearing overrides, descending dispatch modes, absent optional tooling).
+**Rejected**: A third exit code for warnings-only reports — an undocumented extra runtime code would complicate the CI contract and the binary-wide 0/1/2 classification.
+*Introduced by*: 260811-pgbq-setup-check-doctor

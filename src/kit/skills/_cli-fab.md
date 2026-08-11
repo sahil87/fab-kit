@@ -26,6 +26,7 @@ metadata:
 - fab doctor
 - fab migrations-status
 - fab kit-path
+- fab setup
 - fab shell-init
 - fab skill
 - fab impact
@@ -86,7 +87,7 @@ All commands accept the unified `<change>`: 4-char ID (`yobi`), folder substring
 
 ### Commands covered in `_preamble` Common fab Commands
 
-`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab pane`, `fab doctor`, `fab migrations-status`, `fab kit-path`, `fab shell-init`, `fab skill`, `fab impact`, `fab pr-meta`, `fab memory-index`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab agent`, `fab batch`) and extended flag details for the above.
+`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab pane`, `fab doctor`, `fab migrations-status`, `fab kit-path`, `fab setup`, `fab shell-init`, `fab skill`, `fab impact`, `fab pr-meta`, `fab memory-index`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab agent`, `fab batch`) and extended flag details for the above.
 
 ---
 
@@ -851,6 +852,26 @@ fab kit-path
 ```
 
 Prints the absolute resolved kit directory. A non-empty `FAB_KIT_PATH` wins over the normal exe-sibling `kit/` next to `fab-go`; relative values are absolutized and a missing/non-directory value errors loudly naming the variable, with no exe-sibling fallback. No trailing newline or decoration. Exit 0 on success; non-zero with stderr error on failure. Used by skills to reference kit content: `$(fab kit-path)/templates/`, `$(fab kit-path)/migrations/`, etc. The same per-process variable is honored by fab-kit's reader paths (`sync`, `migrations-status`), so every kit-content reader follows one source; binary resolution remains version-pinned and unchanged.
+
+---
+
+## fab setup
+
+```
+fab setup          # placeholder — the interactive wizard is yet to be implemented
+fab setup check    # read-only environment doctor
+```
+
+Bare `fab setup` prints a "Yet to be implemented" placeholder (the interactive wizard's reserved seat) and exits 0 without running checks. `setup` is a fab-go command — NOT in the router's workspace allowlist, so the shim's default route forwards it.
+
+`fab setup check` is the **read-only setup-state doctor**: it writes nothing (no config mutation, no trust-store seeding, no agent/pane launches, no prompts) and is safe to re-run identically. It **coexists with `fab doctor` by distinct job** — `doctor` (fab-kit binary) checks system prerequisites ("is this machine good enough to use fab-kit"); `setup check` diagnoses fab's own setup state. Probes (all in `internal/setupcheck`, reusable by the future wizard):
+
+- **Provider roster** — every resolvable provider (built-ins ∪ user-defined) with binary presence (leading executable of each command; nested `sh -c '...'` wrappers unwrap to the provider's own binary, e.g. `agy`/`kimi`) and declared interactive/headless/native capabilities. A provider a role actually resolves to (depth knob or `agent.profiles.<role>.provider`) with no binary on PATH is a **failure**; an unconfigured provider's absence is informational.
+- **Environment** — `$TMUX` presence (the `internal/dispatch` pane-viability classification), `gh`/`yq` presence (warnings when absent), `rk` (informational only — fail-silent optional tooling).
+- **Version triplet + skew** — binary version vs kit-cache `VERSION` vs the `fab/.fab-version` project pin; mismatches warn (a `dev` binary is reported, never compared). Plus the **override-masking** bottle-skew check: a system/project-tier `providers.<name>.{interactive_command,headless_command,native}` override on a key the binary's own embedded defaults do not define is flagged *load-bearing against your installed binary* (the #573 incident shape — unsetting it silently changes behavior). User-defined providers are skipped (a definition is not a mask).
+- **Config sanity** — `dispatch.mode` viability via `internal/dispatch.SelectMode` itself, echoing the exact descent reasons (`pane unavailable: no tmux`, …): a working descent warns, no reachable rung fails.
+
+**Exit code**: `0` healthy or warnings-only, `1` when any failure-severity finding exists (CI-able), `2` usage error via the standard `run()` seam. Works outside a fab repo (degrades to the system+env config tiers, no project pin).
 
 ---
 

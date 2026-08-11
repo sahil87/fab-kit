@@ -1341,3 +1341,35 @@ func TestStageRoleCollisionsAreFixedPoints(t *testing.T) {
 		t.Fatal("expected at least one stage/role name collision (review, hydrate); found none")
 	}
 }
+
+// TestBuiltinProvider pins the unmerged-table contract of BuiltinProvider: it
+// returns the embedded defaults.yaml entry BEFORE user-override merge (so an
+// override present in cfg must NOT leak in), and reports ok=false for names the
+// embedded table does not define. This is the lookup the `fab setup check`
+// override-masking skew check compares user tiers against — returning merged
+// data instead would make a load-bearing override invisible (the #573 shape).
+func TestBuiltinProvider(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderConfig{
+			// A user override that MUST NOT appear in BuiltinProvider's answer.
+			"claude": {InteractiveCommand: "user-claude-override"},
+		},
+	}
+	_ = cfg // BuiltinProvider takes no config — the override cannot leak by construction.
+
+	builtIn, ok := BuiltinProvider("claude")
+	if !ok {
+		t.Fatal("BuiltinProvider(claude) ok = false, want true (claude is a built-in)")
+	}
+	if builtIn.InteractiveCommand != DefaultInteractiveCommand {
+		t.Errorf("BuiltinProvider(claude).InteractiveCommand = %q, want the embedded default %q (unmerged)",
+			builtIn.InteractiveCommand, DefaultInteractiveCommand)
+	}
+	if !builtIn.Native {
+		t.Error("BuiltinProvider(claude).Native = false, want true (embedded defaults declare it)")
+	}
+
+	if _, ok := BuiltinProvider("not-a-provider"); ok {
+		t.Error("BuiltinProvider(not-a-provider) ok = true, want false")
+	}
+}

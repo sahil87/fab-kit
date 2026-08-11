@@ -54,7 +54,8 @@ One line per capability, keyed to its command:
 - **Workspace lifecycle** — `fab {init,sync,upgrade-repo,update,doctor,migrations-status}`
   (these route to the `fab-kit` binary — see Gotchas).
 - **Introspection** — `fab kit-path`, `fab impact <base> <head>`, `fab fab-help`,
-  `fab shell-init <shell>`, and this bundle via `fab skill`.
+  `fab shell-init <shell>`, the read-only setup-state doctor `fab setup check`
+  (exit 1 only on real problems — CI-able), and this bundle via `fab skill`.
 
 ## Composition patterns
 

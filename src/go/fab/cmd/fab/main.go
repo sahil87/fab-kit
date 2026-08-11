@@ -45,6 +45,7 @@ func newRootCmd() *cobra.Command {
 		shellInitCmd(),
 		skillCmd(),
 		helpDumpCmd(),
+		setupCmd(),
 	)
 
 	return root
