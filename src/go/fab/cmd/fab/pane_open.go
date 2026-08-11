@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 
 func paneOpenCmd() *cobra.Command {
 	var provider, role, dir string
+	var jsonFlag bool
 	cmd := &cobra.Command{
 		Use:   "open --provider <name>",
 		Short: "Spawn a provider's interactive command in a tmux pane (no dispatch record)",
@@ -28,21 +30,23 @@ func paneOpenCmd() *cobra.Command {
 			"worker-column placement, no title, no dispatch record, no .fab-dispatch/ state —\n" +
 			"this is the provider-generic primitive; `fab dispatch open` is the record-keeping\n" +
 			"binding for pipeline workers.\n\n" +
-			"Probe the pane with `fab pane ready`, then hand it a prompt with\n" +
-			"`fab pane deliver`.\n\n" +
+			"--json emits a single {\"pane\",\"provider\",\"server\"} object instead of the text\n" +
+			"report (server is null for the default socket). Probe the pane with\n" +
+			"`fab pane ready`, then hand it a prompt with `fab pane deliver`.\n\n" +
 			"Exit codes: 0 spawned; 1 resolution/operational failure (unknown provider, no\n" +
 			"interactive_command); 3 tmux failure (unreachable server, failed spawn).",
 		Example: `  fab pane open --provider kimi
   fab pane open --provider claude --role fast -c /path/to/repo
-  fab pane open --provider kimi --server work`,
+  fab pane open --provider kimi --server work --json`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPaneOpen(cmd, provider, role, dir)
+			return runPaneOpen(cmd, provider, role, dir, jsonFlag)
 		},
 	}
 	cmd.Flags().StringVar(&provider, "provider", "", "provider whose interactive_command is spawned (required)")
 	cmd.Flags().StringVar(&role, "role", agent.RoleDefault, "role whose {model}/{effort} fills apply")
 	cmd.Flags().StringVarP(&dir, "cwd", "c", "", "working directory for the new pane (default: current directory)")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Emit structured JSON output")
 	_ = cmd.MarkFlagRequired("provider")
 	return cmd
 }
@@ -59,7 +63,7 @@ func paneOpenCmd() *cobra.Command {
 // failures — an unreachable server and a refused spawn — exit 3 via the
 // pane-family in-handler os.Exit pattern, because nothing was spawned and the
 // caller should not confuse them with a resolution problem.
-func runPaneOpen(cmd *cobra.Command, provider, role, dir string) error {
+func runPaneOpen(cmd *cobra.Command, provider, role, dir string, jsonFlag bool) error {
 	server, _ := cmd.Flags().GetString("server")
 	serverSet := cmd.Flags().Changed("server")
 
@@ -115,9 +119,25 @@ func runPaneOpen(cmd *cobra.Command, provider, role, dir string) error {
 	}
 
 	out := cmd.OutOrStdout()
+	if jsonFlag {
+		return json.NewEncoder(out).Encode(paneOpenJSON{
+			Pane:     paneID,
+			Provider: provider,
+			Server:   toNullable(server),
+		})
+	}
 	fmt.Fprintf(out, "opened pane %s (provider %s)\n", paneID, provider)
 	if server != "" {
 		fmt.Fprintf(out, "server: %s\n", server)
 	}
 	return nil
+}
+
+// paneOpenJSON is the --json output shape for `fab pane open`. Server is
+// nullable via the shared toNullable contract: the default socket reports
+// null rather than "".
+type paneOpenJSON struct {
+	Pane     string  `json:"pane"`
+	Provider string  `json:"provider"`
+	Server   *string `json:"server"`
 }

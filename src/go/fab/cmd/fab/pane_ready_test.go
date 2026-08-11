@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -73,4 +75,109 @@ func TestPaneReady_NonReadyReports(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestPaneReady_JSON pins the --json shape for all three classifications —
+// always exactly one object (the window-name precedent), state/pane/server/
+// snippet, snippet "" on a blank screen, server null on the default socket —
+// and that every classification still exits 0 (the report object is the sole
+// discriminator).
+func TestPaneReady_JSON(t *testing.T) {
+	t.Run("ready", func(t *testing.T) {
+		server := "fabtest-paneready-json-ok"
+		_, paneID := newTmuxPane(t, server, "", 80)
+
+		stdout, _, err := runPaneCmd(t, "ready", paneID, "-L", server, "--json")
+		if err != nil {
+			t.Fatalf("a classification is never an error: %v", err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("unmarshal: %v\n%s", err, stdout)
+		}
+		if got["state"] != string(pane.ReadyReady) || got["pane"] != paneID || got["snippet"] != "" {
+			t.Errorf("json = %v", got)
+		}
+		if got["server"] != server {
+			t.Errorf("server = %v, want %q", got["server"], server)
+		}
+	})
+
+	t.Run("parked carries the snippet", func(t *testing.T) {
+		server := "fabtest-paneready-json-parked"
+		_, paneID := newTmuxPane(t, server, parkedPaneCommand, 80)
+
+		stdout, _, err := runPaneCmd(t, "ready", paneID, "-L", server, "--json")
+		if err != nil {
+			t.Fatalf("a classification is never an error: %v", err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("unmarshal: %v\n%s", err, stdout)
+		}
+		if got["state"] != string(pane.ReadyParked) {
+			t.Errorf("state = %v, want parked", got["state"])
+		}
+		snippet, _ := got["snippet"].(string)
+		if !strings.Contains(snippet, "TRUST-THIS-FOLDER-WALL") {
+			t.Errorf("snippet = %q, want the refusing screen", snippet)
+		}
+	})
+
+	t.Run("booting carries a blank snippet", func(t *testing.T) {
+		server := "fabtest-paneready-json-boot"
+		_, paneID := newTmuxPane(t, server, bootingPaneCommand, 80)
+
+		stdout, _, err := runPaneCmd(t, "ready", paneID, "-L", server, "--json")
+		if err != nil {
+			t.Fatalf("a classification is never an error: %v", err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("unmarshal: %v\n%s", err, stdout)
+		}
+		if got["state"] != string(pane.ReadyBooting) {
+			t.Errorf("state = %v, want booting", got["state"])
+		}
+		if got["pane"] != paneID || got["server"] != server {
+			t.Errorf("json = %v", got)
+		}
+		if got["snippet"] != "" {
+			t.Errorf("snippet = %q, want \"\" on a blank booting screen", got["snippet"])
+		}
+	})
+
+	t.Run("server null on the default socket", func(t *testing.T) {
+		// No -L anywhere: the server lives on the DEFAULT socket under a private
+		// TMUX_TMPDIR, so the empty --server value exercises the toNullable null
+		// mapping instead of the socket-label path.
+		if _, err := exec.LookPath("tmux"); err != nil {
+			t.Skip("tmux not available")
+		}
+		t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, "default"))
+		tmux := func(args ...string) (string, error) {
+			out, err := exec.Command("tmux", args...).CombinedOutput()
+			return strings.TrimSpace(string(out)), err
+		}
+		if out, err := tmux("new-session", "-d", "-s", "s", "-x", "80", "-y", "24"); err != nil {
+			t.Skipf("could not start tmux server (%v): %s", err, out)
+		}
+		t.Cleanup(func() { _, _ = tmux("kill-server") })
+		paneID, err := tmux("display-message", "-p", "-t", "s", "#{pane_id}")
+		if err != nil || paneID == "" {
+			t.Fatalf("resolve pane id: %v (%q)", err, paneID)
+		}
+
+		stdout, _, err := runPaneCmd(t, "ready", paneID, "--json")
+		if err != nil {
+			t.Fatalf("a classification is never an error: %v", err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("unmarshal: %v\n%s", err, stdout)
+		}
+		if s, ok := got["server"]; !ok || s != nil {
+			t.Errorf("server = %v (present %v), want JSON null", s, ok)
+		}
+	})
 }

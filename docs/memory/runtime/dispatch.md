@@ -164,7 +164,7 @@ Output is `opened <id>/<stage> (pane %N, split, title fab-<id>-<stage>)` or `ope
 
 The classification is the pure `DeriveReadiness(echoed, first, second)`, matching the package's `SelectMode`/`DerivePaneState` precedent; the blank-screen case precedes the difference check because two identical *empty* captures are stable by the letter of the rule while meaning the opposite of parked. **Both stability captures are taken BEFORE the sentinel is cleared**: `C-u` is itself a keystroke, and a TUI that repaints its input line in response would make every straddling capture pair differ, so a genuinely parked pane would read `booting` forever.
 
-Every non-`ready` report SHALL carry the pane ID, the record's socket when non-empty, and a trailing capture snippet — everything a judgment round needs to answer the wall with `tmux [-L <server>] send-keys` without a second lookup (`status --json` carries the pane but not the socket). The snippet is the last 20 lines counted **after** the pane's trailing blank padding is dropped, so a dialog drawn near the top of a tall pane is what a reader sees; an empty snippet prints no header at all.
+Every non-`ready` report SHALL carry the pane ID, the record's socket when non-empty, and a trailing capture snippet — everything a judgment round needs to answer the wall with `tmux [-L <server>] send-keys` without a second lookup. The snippet is the last 20 lines counted **after** the pane's trailing blank padding is dropped, so a dialog drawn near the top of a tall pane is what a reader sees; an empty snippet prints no header at all.
 
 All three classifications exit **0** — the report string is the sole discriminator, the `fab dispatch wait` precedent. Non-zero is reserved for real errors: no record, a headless record, a dead pane, a mid-stage worker (§ `deliver` refuses a mid-stage worker — the guard is shared because the probe is a sender too), or a tmux failure. The probe is idempotent and safe to re-run (Constitution III).
 
@@ -452,9 +452,9 @@ The `failed (no-result)` state is the crux: a clean exit is necessary but **not 
 
 ### Requirement: `status --json` carries a `mode` discriminator plus the mode's identity
 
-`--json` SHALL emit `{change, stage, state, mode, …}` where `mode` is `headless` or `pane`, followed by that mode's identity keys — `pid`, `pgid`, `exit?` (headless) or `pane`, `window`, `delivered` (pane). The other mode's keys are **omitted**, so a headless object is unchanged apart from the added `mode`, and `exit` stays absent for a pane dispatch (no exit file exists). `delivered` is reported **even when `false`** — a pane is opened and delivered to in two steps, so "opened but holding no prompt yet" is a case a consumer must be able to see — and it is bookkeeping, never a state: `state` is derived without it. The `mode` discriminator is what tells a consumer which state subset to expect. Keys evolve additively with no `schema_version`.
+`--json` SHALL emit `{change, stage, state, mode, …}` where `mode` is `headless` or `pane`, followed by that mode's identity keys — `pid`, `pgid`, `exit?` (headless) or `pane`, `window`, `server?`, `delivered` (pane). The other mode's keys are **omitted**, so a headless object is unchanged apart from the added `mode`, and `exit` stays absent for a pane dispatch (no exit file exists). `delivered` is reported **even when `false`** — a pane is opened and delivered to in two steps, so "opened but holding no prompt yet" is a case a consumer must be able to see — and it is bookkeeping, never a state: `state` is derived without it. The `mode` discriminator is what tells a consumer which state subset to expect. Keys evolve additively with no `schema_version`.
 
-**`server` is deliberately absent from the JSON surface**, so `--json` alone is not enough to assemble a socket-scoped `fab pane capture` command; `fab dispatch logs` prints the complete command instead (below).
+`server` (`omitempty`) carries the record's tmux socket label for a socket-scoped pane dispatch, so a consumer assembles `fab pane capture -L <server> <pane>` from `--json` alone; `fab dispatch logs` still prints the complete command (below). The key is absent for default-socket and headless dispatches.
 
 #### Scenario: the JSON shape names its mode
 
@@ -500,7 +500,7 @@ Both modes are observed identically: a pane dispatch's state comes from the same
 
 `logs` SHALL print `.fab-dispatch/{id}/{stage}.log`; `--tail N` prints the last N lines (implemented in Go via the `Tail` helper, no external `tail`). A missing log SHALL produce a clear "no dispatch log" message rather than erroring opaquely.
 
-**A pane dispatch keeps no log file** — an interactive worker's output is tmux scrollback, not a redirected stream — so `logs` SHALL report that fact and name the equivalent read (`fab pane capture <pane>`) instead of the generic missing-log message. When the record carries a `server`, the printed command SHALL carry the socket too (`fab pane capture -L <server> <pane>`), since a socket-scoped pane is unreachable from a default-socket capture. This report is therefore the **copy-pasteable source** for the capture command, and the reason readers are pointed at it rather than at `status --json`.
+**A pane dispatch keeps no log file** — an interactive worker's output is tmux scrollback, not a redirected stream — so `logs` SHALL report that fact and name the equivalent read (`fab pane capture <pane>`) instead of the generic missing-log message. When the record carries a `server`, the printed command SHALL carry the socket too (`fab pane capture -L <server> <pane>`), since a socket-scoped pane is unreachable from a default-socket capture. This report remains one copy-pasteable source for the capture command; the other is `status --json`, whose `server` key carries the same socket.
 
 #### Scenario: pane-mode logs points at the pane
 
@@ -844,8 +844,8 @@ Steering by a *human* is unrestricted; the *pipeline*'s access to a worker's key
 **Rejected**: Accepting and ignoring `--timeout` on the pane path (a false guarantee). Implementing a pane-side timer (re-introduces the supervisor process the dispatch design deliberately has none of).
 *Introduced by*: 260805-zxe0-interactive-pane-stage-dispatch; *Updated by*: 260809-3oz7-pane-readiness-gate-sendkeys-delivery
 
-### `status --json` omits `server`; `logs` is the copy-pasteable capture source
-**Decision**: The `--json` surface carries `mode` plus `pane`/`window`, but **not** `server`. The complete, socket-aware `fab pane capture [-L <server>] <pane>` command is printed by `fab dispatch logs` on a pane dispatch, and readers are pointed there rather than at `--json`.
-**Why**: `logs` is where a reader lands when they want to see a pane worker's output, so printing the exact command — socket included when the record carries one — is the actionable answer at the moment of need, and it cannot be assembled wrong. Adding `server` to the JSON is an additive, backward-compatible change available whenever a programmatic consumer needs it; documenting the gap is cheaper than shipping a field with no consumer.
-**Rejected**: Telling readers to hand-assemble the capture command from `--json` (they would silently omit `-L` and get an empty capture against the wrong socket). Adding `server` to the JSON speculatively (a surface with no consumer).
-*Introduced by*: 260805-zxe0-interactive-pane-stage-dispatch
+### `status --json` carries `server` (omitempty); `logs` remains the copy-pasteable capture source
+**Decision**: The `--json` surface carries `mode` plus `pane`/`window`/`server`/`delivered` for pane dispatches — `server` sourced from the record, omitted when empty. The complete, socket-aware `fab pane capture [-L <server>] <pane>` command is ALSO printed by `fab dispatch logs` on a pane dispatch.
+**Why**: The socket is now first-class in the JSON surface (the additive-field precedent — existing consumers ignore unknown keys), so programmatic consumers assemble a socket-scoped capture from `--json` alone; `logs` keeps printing the exact command because it is where a reader lands at the moment of need, and it cannot be assembled wrong.
+**Rejected**: Omitting `server` and pointing readers at `logs` (the original shape — it forced every programmatic consumer through a second command for a value the record already holds). Telling readers to hand-assemble the capture command from `--json` without the socket (they would silently omit `-L` and get an empty capture against the wrong socket).
+*Introduced by*: 260805-zxe0-interactive-pane-stage-dispatch; *Updated by*: 260811-yxyi-pane-dispatch-surface-completion

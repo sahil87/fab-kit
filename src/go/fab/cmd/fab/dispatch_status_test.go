@@ -178,6 +178,12 @@ func TestDispatchStatus_PaneJSON(t *testing.T) {
 			t.Errorf("pane json must not contain %s:\n%s", key, out)
 		}
 	}
+	// A socket-scoped pane record carries `server` — the additive field that
+	// lets a consumer assemble `fab pane capture -L <server> <pane>` from
+	// --json alone.
+	if got.Server != server {
+		t.Errorf("server = %q, want %q", got.Server, server)
+	}
 
 	// Headless dispatch on the same change: mode=headless, pid/pgid present.
 	dir := seedDispatch(t, repoRoot, id, "apply", os.Getpid())
@@ -199,6 +205,28 @@ func TestDispatchStatus_PaneJSON(t *testing.T) {
 	}
 	if hl.Pane != "" || hl.Window != "" {
 		t.Errorf("headless json must omit pane identity, got %+v", hl)
+	}
+	if strings.Contains(out, `"server"`) {
+		t.Errorf("headless json must omit server (omitempty):\n%s", out)
+	}
+}
+
+// TestDispatchStatus_ServerOmittedForDefaultSocket pins the omitempty half of
+// the contract: a pane record with an EMPTY server (a default-socket dispatch)
+// produces no `server` key at all, so the field is strictly additive and
+// byte-stable for the common case.
+func TestDispatchStatus_ServerOmittedForDefaultSocket(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
+	server := "fabtest-nosrv-nosrv"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+
+	seedPaneDispatch(t, repoRoot, id, "apply", "%99", "")
+	out, err := runStatus(t, "abcd", "apply", "--json")
+	if err != nil {
+		t.Fatalf("status --json: %v", err)
+	}
+	if strings.Contains(out, `"server"`) {
+		t.Errorf("default-socket pane json must omit server:\n%s", out)
 	}
 }
 
@@ -292,6 +320,8 @@ func TestDispatchStatus_GoldenOutput(t *testing.T) {
 		// and delivered to in two steps, so "opened but holding no prompt yet" is a
 		// case a consumer must be able to see. It is bookkeeping — `state` above is
 		// derived without it — and it is absent from the headless object entirely.
+		// `server` is likewise pane-only (omitempty): this record was seeded with a
+		// socket, so the key is present.
 		{"pane json", []string{"abcd", "review", "--json"}, `{
   "change": "abcd",
   "stage": "review",
@@ -299,6 +329,7 @@ func TestDispatchStatus_GoldenOutput(t *testing.T) {
   "mode": "pane",
   "pane": "%99",
   "window": "fab-abcd-review",
+  "server": "fabtest-nosrv-golden",
   "delivered": false
 }
 `},

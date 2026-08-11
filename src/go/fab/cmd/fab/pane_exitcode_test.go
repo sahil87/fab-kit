@@ -85,6 +85,12 @@ func TestPaneVerbExitCodes(t *testing.T) {
 		{"deliver missing pane exits 2", []string{"deliver", "%999", "-L", server, "--text", "hi"}, 2},
 		{"deliver dead socket exits 3", []string{"deliver", "%1", "-L", "nosuch-dead-sock", "--text", "hi"}, 3},
 		{"open dead socket exits 3", []string{"open", "--provider", "kimi", "-L", "nosuch-dead-sock"}, 3},
+		{"kill missing pane exits 2", []string{"kill", "%999", "-L", server}, 2},
+		{"kill dead socket exits 3", []string{"kill", "%1", "-L", "nosuch-dead-sock"}, 3},
+		{"await missing pane exits 2", []string{"await", "%999", "-L", server, "--file", "x"}, 2},
+		{"await dead socket exits 3", []string{"await", "%1", "-L", "nosuch-dead-sock", "--file", "x"}, 3},
+		{"process missing pane exits 2", []string{"process", "%999", "-L", server}, 2},
+		{"process dead socket exits 3", []string{"process", "%1", "-L", "nosuch-dead-sock"}, 3},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			child := exec.Command(os.Args[0], append([]string{"-test.run=^TestPaneVerbExitCodes$", "--"}, tc.args...)...)

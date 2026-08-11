@@ -68,7 +68,7 @@ func runDispatchReady(cmd *cobra.Command, changeArg, stage string) error {
 	}
 	// The pane and socket are printed for the judgment rounds that follow a
 	// non-ready answer: answering a wall means `tmux [-L <server>] send-keys -t
-	// <pane> …`, and `status --json` carries the pane but not the socket.
+	// <pane> …` (the socket also rides `status --json` as `server`).
 	fmt.Fprintf(out, "pane: %s\n", rec.Pane)
 	if rec.Server != "" {
 		fmt.Fprintf(out, "server: %s\n", rec.Server)

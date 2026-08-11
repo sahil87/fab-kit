@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -9,7 +10,8 @@ import (
 )
 
 func paneReadyCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+	cmd := &cobra.Command{
 		Use:   "ready <pane>",
 		Short: "Probe whether a tmux pane can accept typed input (ready / booting / parked)",
 		Long: "Answer one question about a tmux pane: can it accept typed input right now?\n\n" +
@@ -28,14 +30,29 @@ func paneReadyCmd() *cobra.Command {
 			"Deciding what a parked screen wants is the caller's judgment, which is why every\n" +
 			"non-ready report carries the pane, its socket, and a capture snippet. All three\n" +
 			"answers exit 0 — the report string is the sole discriminator.\n\n" +
+			"--json emits a single {\"state\",\"pane\",\"server\",\"snippet\"} object (snippet is\n" +
+			"\"\" when the screen is blank; server is null for the default socket).\n\n" +
 			"Exit codes: 0 classified (any of the three); 2 pane missing; 3 other tmux failure.",
 		Example: `  fab pane ready %12
-  fab pane ready %3 --server work`,
+  fab pane ready %3 --server work --json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPaneReady(cmd, args[0])
+			return runPaneReady(cmd, args[0], jsonFlag)
 		},
 	}
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Emit structured JSON output")
+	return cmd
+}
+
+// paneReadyJSON is the --json output shape for `fab pane ready` — always an
+// object, for every classification (the window-name precedent). Snippet is
+// the same trailing-blank-trimmed capture the text report carries ("" when
+// the screen is blank); Server is null for the default socket (toNullable).
+type paneReadyJSON struct {
+	State   string  `json:"state"`
+	Pane    string  `json:"pane"`
+	Server  *string `json:"server"`
+	Snippet string  `json:"snippet"`
 }
 
 // runPaneReady validates the pane and reports the gate's classification — the
@@ -45,7 +62,7 @@ func paneReadyCmd() *cobra.Command {
 // Non-zero exit is reserved for REAL errors — a missing pane (2), any other
 // tmux failure (3) — never for a classification: an observed answer is a
 // success however inconvenient the answer is.
-func runPaneReady(cmd *cobra.Command, paneID string) error {
+func runPaneReady(cmd *cobra.Command, paneID string, jsonFlag bool) error {
 	server, _ := cmd.Flags().GetString("server")
 
 	if err := pane.ValidatePane(paneID, server); err != nil {
@@ -60,6 +77,14 @@ func runPaneReady(cmd *cobra.Command, paneID string) error {
 	}
 
 	out := cmd.OutOrStdout()
+	if jsonFlag {
+		return json.NewEncoder(out).Encode(paneReadyJSON{
+			State:   string(state),
+			Pane:    paneID,
+			Server:  toNullable(server),
+			Snippet: snippet,
+		})
+	}
 	fmt.Fprintln(out, state)
 	if state == pane.ReadyReady {
 		return nil

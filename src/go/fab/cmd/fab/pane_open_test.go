@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -241,6 +242,48 @@ func TestPaneOpen_SpawnShapes(t *testing.T) {
 		spawn := calls[len(calls)-1]
 		if !strings.HasPrefix(spawn, "-L work new-window ") {
 			t.Errorf("spawn = %q, want a socket-scoped unnamed window even from inside tmux", spawn)
+		}
+	})
+}
+
+// TestPaneOpen_JSON pins the --json success shape — {"pane","provider","server"}
+// with server null on the default socket and the label under --server — against
+// the stub tmux (the spawn path's in-process harness).
+func TestPaneOpen_JSON(t *testing.T) {
+	t.Run("default socket reports null server", func(t *testing.T) {
+		paneOpenStubTmux(t)
+		chdirTestEnv(t, t.TempDir(), map[string]string{"TMUX": "", "TMUX_PANE": ""})
+
+		stdout, _, err := runPaneCmd(t, "open", "--provider", "kimi", "--json")
+		if err != nil {
+			t.Fatalf("open --json: %v", err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("unmarshal: %v\n%s", err, stdout)
+		}
+		if got["pane"] != "%42" || got["provider"] != "kimi" {
+			t.Errorf("json = %v", got)
+		}
+		if s, ok := got["server"]; !ok || s != nil {
+			t.Errorf("server = %v (present %v), want JSON null", s, ok)
+		}
+	})
+
+	t.Run("--server carries the label", func(t *testing.T) {
+		paneOpenStubTmux(t)
+		chdirTestEnv(t, t.TempDir(), map[string]string{"TMUX": "", "TMUX_PANE": ""})
+
+		stdout, _, err := runPaneCmd(t, "open", "--provider", "kimi", "--server", "work", "--json")
+		if err != nil {
+			t.Fatalf("open --json: %v", err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("unmarshal: %v\n%s", err, stdout)
+		}
+		if got["server"] != "work" {
+			t.Errorf("server = %v, want %q", got["server"], "work")
 		}
 	})
 }

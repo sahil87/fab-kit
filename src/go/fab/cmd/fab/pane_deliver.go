@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -10,6 +11,7 @@ import (
 
 func paneDeliverCmd() *cobra.Command {
 	var promptFile, text string
+	var jsonFlag bool
 	cmd := &cobra.Command{
 		Use:   "deliver <pane> (--prompt-file <path> | --text <string>)",
 		Short: "Type a prompt into a tmux pane, verifying every step",
@@ -24,21 +26,34 @@ func paneDeliverCmd() *cobra.Command {
 			"parity) after checking the file exists — the path is typed as supplied, so make\n" +
 			"it meaningful from the pane's own cwd. --text types its argument literally.\n" +
 			"Exactly one of the two is required.\n\n" +
+			"--json emits a single {\"pane\",\"source\",\"path\"} object on VERIFIED delivery\n" +
+			"(source is \"prompt\" or \"text\"; path is present only for \"prompt\"). Failures\n" +
+			"keep the stderr + non-zero contract — no JSON on error.\n\n" +
 			"Exit codes: 0 delivered; 1 operational failure (missing prompt file, delivery\n" +
 			"that never verified); 2 pane missing; 3 other tmux failure.",
 		Example: `  fab pane deliver %12 --text "echo hi"
   fab pane deliver %12 --prompt-file .fab-dispatch/b91h/apply-prompt.md
-  fab pane deliver %3 --prompt-file prompt.md --server work`,
+  fab pane deliver %3 --prompt-file prompt.md --server work --json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPaneDeliver(cmd, args[0], promptFile, text)
+			return runPaneDeliver(cmd, args[0], promptFile, text, jsonFlag)
 		},
 	}
 	cmd.Flags().StringVar(&promptFile, "prompt-file", "", "type the pointer line naming this prompt file (Read <path> and execute it.)")
 	cmd.Flags().StringVar(&text, "text", "", "type this text literally")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Emit structured JSON output on verified delivery")
 	cmd.MarkFlagsMutuallyExclusive("prompt-file", "text")
 	cmd.MarkFlagsOneRequired("prompt-file", "text")
 	return cmd
+}
+
+// paneDeliverJSON is the --json output shape for `fab pane deliver`, emitted
+// only after a VERIFIED delivery. Path is present only for the prompt-file
+// source.
+type paneDeliverJSON struct {
+	Pane   string `json:"pane"`
+	Source string `json:"source"`
+	Path   string `json:"path,omitempty"`
 }
 
 // runPaneDeliver resolves the payload and runs the verified send-keys
@@ -50,7 +65,7 @@ func paneDeliverCmd() *cobra.Command {
 // that is not there would type cleanly, verify cleanly, and leave the pane
 // reading nothing — the silent failure this whole choreography exists to
 // prevent.
-func runPaneDeliver(cmd *cobra.Command, paneID, promptFile, text string) error {
+func runPaneDeliver(cmd *cobra.Command, paneID, promptFile, text string, jsonFlag bool) error {
 	server, _ := cmd.Flags().GetString("server")
 
 	if err := pane.ValidatePane(paneID, server); err != nil {
@@ -59,6 +74,7 @@ func runPaneDeliver(cmd *cobra.Command, paneID, promptFile, text string) error {
 	}
 
 	payload, source := text, "(text)"
+	sourceJSON := "text"
 	if promptFile != "" {
 		if _, err := os.Stat(promptFile); err != nil {
 			if os.IsNotExist(err) {
@@ -68,6 +84,7 @@ func runPaneDeliver(cmd *cobra.Command, paneID, promptFile, text string) error {
 		}
 		payload = pane.PointerPrompt(promptFile)
 		source = fmt.Sprintf("(prompt %s)", promptFile)
+		sourceJSON = "prompt"
 	}
 
 	warnings, snippet, err := pane.NewGate(server).Deliver(paneID, payload)
@@ -82,6 +99,14 @@ func runPaneDeliver(cmd *cobra.Command, paneID, promptFile, text string) error {
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "delivered %s %s\n", paneID, source)
+	out := cmd.OutOrStdout()
+	if jsonFlag {
+		result := paneDeliverJSON{Pane: paneID, Source: sourceJSON}
+		if promptFile != "" {
+			result.Path = promptFile
+		}
+		return json.NewEncoder(out).Encode(result)
+	}
+	fmt.Fprintf(out, "delivered %s %s\n", paneID, source)
 	return nil
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -169,4 +170,63 @@ func TestPaneDeliver_ParkedPaneFailsWithSnippet(t *testing.T) {
 	if !strings.Contains(stderr, header) || !strings.Contains(stderr, "TRUST-THIS-FOLDER-WALL") {
 		t.Errorf("stderr = %q, want the snippet header %q over the refusing screen", stderr, header)
 	}
+}
+
+// TestPaneDeliver_JSON pins the --json success shape — {"pane","source","path"}
+// with path present only for the prompt-file source — and that a refused
+// delivery emits NO JSON (failures keep the stderr + non-zero contract).
+func TestPaneDeliver_JSON(t *testing.T) {
+	t.Run("text source", func(t *testing.T) {
+		server := "fabtest-panedeliver-jsontext"
+		_, paneID := newTmuxPane(t, server, "", 80)
+
+		stdout, _, err := runPaneCmd(t, "deliver", paneID, "-L", server, "--text", "echo hi", "--json")
+		if err != nil {
+			t.Fatalf("deliver --json: %v", err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("unmarshal: %v\n%s", err, stdout)
+		}
+		if got["pane"] != paneID || got["source"] != "text" {
+			t.Errorf("json = %v", got)
+		}
+		if _, ok := got["path"]; ok {
+			t.Errorf("text delivery must omit path: %v", got)
+		}
+	})
+
+	t.Run("prompt source carries path", func(t *testing.T) {
+		server := "fabtest-panedeliver-jsonfile"
+		_, paneID := newTmuxPane(t, server, "", 120)
+
+		promptPath := filepath.Join(t.TempDir(), "prompt.md")
+		if err := os.WriteFile(promptPath, []byte("# do the thing\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		stdout, _, err := runPaneCmd(t, "deliver", paneID, "-L", server, "--prompt-file", promptPath, "--json")
+		if err != nil {
+			t.Fatalf("deliver --json: %v", err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("unmarshal: %v\n%s", err, stdout)
+		}
+		if got["pane"] != paneID || got["source"] != "prompt" || got["path"] != promptPath {
+			t.Errorf("json = %v", got)
+		}
+	})
+
+	t.Run("refusal emits no JSON", func(t *testing.T) {
+		server := "fabtest-panedeliver-jsonno"
+		_, paneID := newTmuxPane(t, server, parkedPaneCommand, 80)
+
+		stdout, _, err := runPaneCmd(t, "deliver", paneID, "-L", server, "--text", "echo hi", "--json")
+		if err == nil {
+			t.Fatal("a parked pane must refuse the delivery")
+		}
+		if stdout != "" {
+			t.Errorf("stdout = %q, want no JSON on failure", stdout)
+		}
+	})
 }
