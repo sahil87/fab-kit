@@ -120,7 +120,7 @@ func TestFabHelp_GroupMapping(t *testing.T) {
 	expectedMapped := []string{
 		"fab-new", "fab-draft", "fab-switch", "fab-status", "fab-discuss", "git-branch",
 		"fab-continue", "fab-ff", "fab-fff", "fab-proceed", "fab-clarify", "fab-dedupe",
-		"fab-archive", "git-pr", "git-pr-review",
+		"fab-archive", "fab-issue", "git-pr", "git-pr-review",
 		"docs-hydrate-specs", "docs-reorg-specs", "docs-reorg-memory", "docs-distill-memory", "fab-operator",
 		"fab-setup", "fab-help", "docs-hydrate-memory",
 	}

@@ -36,6 +36,7 @@ var skillToGroupMap = map[string]string{
 	"fab-adopt":           "Planning",
 	"fab-dedupe":          "Planning",
 	"fab-archive":         "Completion",
+	"fab-issue":           "Completion",
 	"git-pr":              "Completion",
 	"git-pr-review":       "Completion",
 	"docs-hydrate-specs":  "Maintenance",

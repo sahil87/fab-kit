@@ -131,7 +131,7 @@ The `2.14.0-to-2.15.0` migration moves the value and deletes the key for a pre-2
 #### `project`
 - `name` — Project name (string)
 - `description` — Project description (string)
-- `linear_workspace` — Linear workspace slug (string, optional). When present, `/git-pr` constructs issue hyperlinks using `https://linear.app/{linear_workspace}/issue/{ISSUE_ID}`. When absent, issue IDs are rendered as bare text. Set once per project. Used exclusively by `/git-pr` for URL construction in the PR body's Change section.
+- `linear_workspace` — Linear workspace slug (string, optional). When present, `/git-pr` constructs issue hyperlinks using `https://linear.app/{linear_workspace}/issue/{ISSUE_ID}`. When absent, issue IDs are rendered as bare text. Set once per project. Also the config gate for `/fab-issue` (see [issue-linking](/pipeline/issue-linking.md)) — when unset/null, the skill skips Linear linking entirely.
 
 #### `checklist`
 - `extra_categories` — Project-specific quality categories added to the default checklist categories (functional_completeness, behavioral_correctness, scenario_coverage, edge_cases, code_quality, security)

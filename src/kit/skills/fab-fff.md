@@ -39,15 +39,21 @@ Execute the **shared pipeline bracket** (`_pipeline.md`, loaded via `helpers:`) 
 | Parameter | Value |
 |-----------|-------|
 | `{driver}` | `fab-fff` |
-| `{terminal}` | `review-pr` — after the bracket's Step 3 (hydrate), continue with Steps 4–5 below |
+| `{terminal}` | `review-pr` — after the bracket's Step 3 (hydrate), continue with Steps 3.5–5 below |
 
-The bracket defines pre-flight (intake prerequisite + intake gate), context loading, resumability, Steps 1–3 (apply → review → hydrate) with the inline plan co-gen and one-time light/full lane fork, the auto-rework loop with its per-cycle choreography, and the exhaustion stop. The two steps below are fff-only.
+The bracket defines pre-flight (intake prerequisite + intake gate), context loading, resumability, Steps 1–3 (apply → review → hydrate) with the inline plan co-gen and one-time light/full lane fork, the auto-rework loop with its per-cycle choreography, and the exhaustion stop. The three steps below (3.5–5) are fff-only.
 
 Steps 1–3 use `_pipeline.md` § Stage Dispatch Procedure and the current canon at `_preamble.md` § CLI-Adapter Dispatch. The fff-only delta is that Steps 4–5 dispatch full `/git-pr` and `/git-pr-review` behaviors through the native model/effort seams; those skills manage their own stage transitions, so their prompts do not carry the block-contract transition prohibition.
 
 **Light lane** (`_pipeline.md` § Light Lane owns the mechanics): Steps 4–5 run inline in the orchestrator's context, and the Step 5 synchronous-poll directive is moot there. In the full lane Steps 4–5 dispatch exactly as written below.
 
 > **`{name}`** — the change's **folder name** from the preflight YAML (`name` field). Steps 4–5 pass `{name}`, never the 4-char `{id}`: git-pr classifies any argument matching one of the 7 PR type words as a `<type>`, and a 4-char id can collide with `feat`, `docs`, or `test` — a folder name (`{YYMMDD}-{XXXX}-{slug}`) never matches a type token.
+
+### Step 3.5: Link Linear Issue (optional)
+
+*(Skip if `progress.ship` is `done` — the PR title has already shipped.)*
+
+Read `fab-issue.md` and run the `/fab-issue` behavior for `{name}` **inline in this orchestrator's context, in both lanes** — no dispatch, no `fab resolve-agent`. It is an optional linking action, not a pipeline stage: it carries no `.status.yaml` progress entry and fires no transition, so a gate skip or deferral never blocks Step 4 (Ship). The gate chain, three-branch outcome, and promptless deferral are owned by `fab-issue.md` — all gates skip gracefully with a one-line report (an unconfigured project sees zero behavior change), and the autonomous carve-out applies in this promptless context. This step runs before ship so `/git-pr` picks up the linked ID in the PR title.
 
 ### Step 4: Ship
 
@@ -88,7 +94,8 @@ render:
 {table with Artifact column — apply-recorded assumptions from plan.md}
 ```
 
-After Hydrate, append Ship and Review-PR output sections. On the Step 5 timeout
+After Hydrate, append the Step 3.5 Linear-link report (one line), then the Ship
+and Review-PR output sections. On the Step 5 timeout
 outcome, replace `Pipeline complete.` with the exact pending message in Error
 Handling.
 

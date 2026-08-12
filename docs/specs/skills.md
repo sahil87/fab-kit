@@ -115,7 +115,7 @@ Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
 │  ├─ Pass: finish review → Step 3
 │  └─ Fail: auto-rework loop ≤{max_cycles} (light: rework inline; full: resume apply worker when reachable; fresh review each cycle); exhaustion: fab status fail review → STOP
 ├─ Step 3 Hydrate — LIGHT: inline / FULL: subagent /fab-continue Hydrate → fab status finish hydrate
-└─ {terminal} = hydrate → complete / review-pr → driver Steps 4–5 (light lane: inline)
+└─ {terminal} = hydrate → complete / review-pr → driver Steps 3.5–5 (link Linear issue — optional, inline both lanes / ship / review-pr; light lane: 4–5 inline)
 ```
 
 `_review` — shared review logic run by the dispatched review worker (a `mode` parameter — full | diff-only — selects whether plan-conformance steps run):
@@ -565,7 +565,7 @@ User invokes /fab-ff [change-name] [--force]
 **Purpose**: Run the entire automated Fab pipeline — apply → review → hydrate → ship → review-pr — in a single invocation (everything after intake). Gated on the single intake confidence gate (flat 3.0, same as `/fab-ff`). No `/fab-clarify` runs inside the bracket. Autonomously reworks on review failure using sub-agent review with prioritized findings (`{max_cycles}`-cycle retry cap — code-review.md Rework Budget knob, default 3 — escalation after 2 consecutive fix-code failures). Accepts `--force` to bypass the gate and `--light`/`--full` to force the lane.
 
 **Source ownership**: `_pipeline.md` owns shared framing and Steps 1–3;
-`fab-fff.md` owns only the `fab-fff`/`review-pr` binding plus ship and PR review.
+`fab-fff.md` owns only the `fab-fff`/`review-pr` binding plus the optional Linear link step, ship, and PR review.
 
 **Prerequisite**: Active change with completed `intake.md`.
 
@@ -593,10 +593,11 @@ User invokes /fab-ff [change-name] [--force]
 3. **Step 1 — Implementation**: Co-generate `plan.md` (## Requirements from `intake.md` + ## Tasks + ## Acceptance) INLINE in the orchestrator's context (both lanes; an obviously-large intake scope MAY instead dispatch apply-with-co-gen), then fork once on task count: ≤ 5 → light lane (tasks executed inline), > 5 → full lane (one apply subagent, plan pre-existing, executes unchecked tasks under `## Tasks` in dependency order, running tests after each). Under-specified requirements are resolved inline as graded SRAD assumptions — no clarify step.
 4. **Step 2 — Review**: Dispatch to review sub-agent (fresh context, prioritized findings — dispatched in BOTH lanes). On failure, triage findings by priority and autonomously select rework path (fix code, revise plan, revise requirements), then re-apply (light lane: inline; full lane — resume-first: continue the named `apply-{id}` worker on the native arm when reachable, else dispatch fresh). Re-review via fresh sub-agent. Retry up to `{max_cycles}` cycles (default 3; escalation after 2 consecutive fix-code). Bail with summary after `{max_cycles}` failed cycles.
 5. **Step 3 — Hydrate**: Hydrate into memory (inline in the light lane, dispatched in the full lane).
-6. **Step 4 — Ship**: Run `/git-pr` to commit, push, and create PR (dispatched in the full lane, inline in the light lane).
-7. **Step 5 — Review-PR**: Run `/git-pr-review` to process PR review comments (dispatched in the full lane, inline in the light lane).
+6. **Step 3.5 — Link Linear Issue (optional)**: Run the `/fab-issue` behavior inline in BOTH lanes (no dispatch, no `fab resolve-agent`) — its gate chain skips gracefully (an unconfigured project sees zero behavior change), the promptless deferral applies, and a skip never blocks ship.
+7. **Step 4 — Ship**: Run `/git-pr` to commit, push, and create PR (dispatched in the full lane, inline in the light lane).
+8. **Step 5 — Review-PR**: Run `/git-pr-review` to process PR review comments (dispatched in the full lane, inline in the light lane).
 
-**Key difference from `/fab-ff`**: The difference is scope only. `/fab-fff` extends through ship and review-pr; `/fab-ff` stops at hydrate. Both have the identical single intake gate, no in-bracket clarify, and identical auto-rework (`{max_cycles}`-cycle cap with escalation, default 3). Both accept `--force` to bypass the gate, and both fork once at apply entry into the light/full lane on plan task count (≤ 5 → light), with `--light`/`--full` overrides.
+**Key difference from `/fab-ff`**: The difference is scope only. `/fab-fff` extends through ship and review-pr (with the optional `/fab-issue` Linear link step before ship); `/fab-ff` stops at hydrate — it is deliberately NOT wired with the link step (no ship stage follows), so `/fab-ff` users run `/fab-issue` manually. Both have the identical single intake gate, no in-bracket clarify, and identical auto-rework (`{max_cycles}`-cycle cap with escalation, default 3). Both accept `--force` to bypass the gate, and both fork once at apply entry into the light/full lane on plan task count (≤ 5 → light), with `--light`/`--full` overrides.
 
 
 **Flow**:
@@ -605,6 +606,7 @@ User invokes /fab-ff [change-name] [--force]
 User invokes /fab-fff [change-name] [--force]
 ├─ Read: _preamble.md, helpers incl. _pipeline.md
 ├─ Execute the _pipeline.md bracket ({driver}=fab-fff, {terminal}=review-pr)
+├─ Link Linear Issue: /fab-issue {name} (optional, inline both lanes; gate skips never block ship)
 ├─ Ship: /git-pr {name} (own ship transitions) — full lane: dispatched; light lane: inline
 └─ Review-PR: /git-pr-review {name} — full lane: dispatched (sync-poll directive); light lane: inline (directive moot)
    ├─ [success / no-reviews] stage done; [failure] STOP with the error
@@ -1305,6 +1307,50 @@ User invokes /docs-reorg-specs
 ```
 
 **Tools**: Read (all spec files and index), Write/Edit (approved reorganizations).
+
+**Sub-agents**: None.
+
+---
+
+## `/fab-issue [<change>] [<issue-id>]`
+
+**Purpose**: Link a change to Linear post-intake — find-or-create. Search the user's Linear issues and projects for a semantic match against the intake; link an existing issue, create one in a matching project, or (with user confirmation) create a user-assigned issue with no project. This is the push/search direction of Linear linking; the pull direction (an explicit Linear ID handed to `/fab-new`/`/fab-draft`) stays in `_intake.md` Step 0. Run before ship so `/git-pr` renders the linked ID into the PR title (Linear's PR-lifecycle auto-transitions); late links are valid but skip title-based automation. Advances no stage. Declares no `helpers:`.
+
+**Arguments** (both optional, in any order — classified by value):
+- `[<issue-id>]` — matches `[A-Z]+-\d+`: force-link that issue (MCP fetch validates existence first), skipping search.
+- `[<change>]` — any other argument: target a change instead of the active one (transient override).
+
+**Gate chain** (in order; each failed gate reports one line and stops cleanly — never an error):
+1. Idempotency guard — `fab status get-issues {name} --json` non-empty → `Already linked: {ids}`, STOP
+2. Config gate — `project.linear_workspace` unset/null → `Linear not configured (project.linear_workspace) — skipping`, STOP
+3. MCP gate — Linear MCP tools unavailable → `Linear MCP unavailable — skipping`, STOP
+
+**Behavior** (past the gates, no explicit ID):
+1. Build the match query from the intake (H1 change name + `## Why` + `## What Changes`)
+2. Search Linear issues (scoped to the user's teams) and projects via MCP; only non-completed, non-canceled issues qualify
+3. Three-branch outcome — (a) issue match → link (`fab status add-issue`); (b) project match only → create an issue in that project (title = intake H1, description = condensed Why + `fab change: {folder-name}` line, assignee = MCP viewer, team = project's team), then link; (c) no match → present the proposed issue and confirm with the user before creating (no project, user-assigned; team = sole team, else asked at confirmation), then link. Multiple candidates → user picks or declines
+4. Promptless contexts (e.g., `/fab-fff` Step 3.5): branch (c) never prompts — reports `No Linear match — issue creation deferred (run /fab-issue to create one)` and exits cleanly; (a)/(b) proceed unprompted
+
+**Key properties**:
+- Idempotent — the get-issues guard makes re-runs report-and-stop (Constitution III)
+- Read-only except `fab status add-issue` and the Linear-side issue create
+- Runs no `fab status` transition command — advances no stage
+- Wired into `/fab-fff` as the optional pre-ship Step 3.5 (inline in both lanes); `/fab-ff` users run it manually
+
+**Flow**:
+
+```text
+/fab-issue [<change>] [<issue-id>]
+├─ Bash: fab preflight [change] → {name}
+├─ Gates (in order): get-issues --json non-empty → STOP linked / linear_workspace unset → STOP / Linear MCP absent → STOP
+├─ [explicit ID] MCP get_issue → [fetch fails] STOP not-linked / else fab status add-issue → report Linked
+└─ [no arg] Read intake → MCP issue+project search
+   ├─ (a) issue match → add-issue → "Linked: {ID} — {title}"
+   ├─ (b) project match → MCP create issue in project → add-issue → "Created + linked: {ID} in project {project}"
+   └─ (c) no match → confirm (interactive) / defer (promptless) → create user-assigned, no project → add-issue
+```
+
+**Tools**: Read (intake), Bash (`fab preflight`, `fab status get-issues`/`add-issue`), Linear MCP (`mcp__claude_ai_Linear__*` — get/list issues, list projects, create issue, viewer).
 
 **Sub-agents**: None.
 

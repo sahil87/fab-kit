@@ -35,7 +35,7 @@ flowchart TD
 
 ## 2. The Same Flow, With Fab
 
-Each transition is now a `/fab-*` command. `/fab-ff` fast-forwards from intake through hydrate; `/fab-fff` fast-forwards further through ship and PR review. `/fab-archive` is a separate housekeeping step after the pipeline completes. `/fab-adopt` is the **alternate entry point** for work that bypassed the pipeline: a branch authored without fab (with an OPEN or not-yet-created PR) enters *late* — intake is reconstructed from the diff, **apply is `skipped`**, and review (diff-only) → hydrate → ship → review-pr run for real.
+Each transition is now a `/fab-*` command. `/fab-ff` fast-forwards from intake through hydrate; `/fab-fff` fast-forwards further through ship and PR review. `/fab-archive` is a separate housekeeping step after the pipeline completes. `/fab-adopt` is the **alternate entry point** for work that bypassed the pipeline: a branch authored without fab (with an OPEN or not-yet-created PR) enters *late* — intake is reconstructed from the diff, **apply is `skipped`**, and review (diff-only) → hydrate → ship → review-pr run for real. `/fab-issue` is an optional side step — it links the change to a Linear issue (find-or-create) any time before ship so `/git-pr` renders the issue ID into the PR title; `/fab-fff` runs it automatically as its pre-ship Step 3.5.
 
 ```mermaid
 flowchart TD
@@ -46,6 +46,10 @@ flowchart TD
     R -->|"/fab-continue"| H[hydrate]
     H -->|"/git-pr"| SH[ship]
     SH -->|"/git-pr-review"| RP[review-pr]
+
+    %% Optional Linear linking (any time before ship; automatic in /fab-fff Step 3.5)
+    H -.->|"/fab-issue
+    (optional — find-or-create Linear issue)"| SH
 
     %% Post-pipeline housekeeping
     RP -->|"/fab-archive"| AR[archive]
