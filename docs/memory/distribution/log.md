@@ -3,6 +3,7 @@
 
 ## 2026-08-12
 - **Update** [kit-architecture](/distribution/kit-architecture.md) — setup-interactive-wizard (stpw)
+- **Update** [setup](/distribution/setup.md) — fab setup wizard Q4 now asks all four advanced questions when opted in (skip rule removed); never-set profile keys render depth-correct inherit indications with explicit-pin writes (nwdn)
 - **Update** [setup](/distribution/setup.md) — setup-interactive-wizard (stpw)
 
 ## 2026-08-11
