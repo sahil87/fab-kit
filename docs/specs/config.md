@@ -501,8 +501,15 @@ environment walk cannot drift from the reference schema.
   knobs and the provider fills rather than stored, so composing them against the registry's nil-config
   `Default` made every role's provider row read `claude # default` even when a knob named another
   provider. They now compose against the LIVE config (`configref.DefaultsMapFor`), so the reported
-  provider (and its fills) is what the role would actually dispatch to. Resolution stays
-  provider-neutral: a knob naming a provider fab ships nothing for is reported verbatim.
+  provider (and its fills) is what the role would actually dispatch to. Only the user's per-role
+  **model/effort** overrides are stripped before resolving (a defaults tier never echoes a tier above
+  it); a per-role **provider** override is KEPT for the model/effort derivation — the built-in fill is
+  a function of the provider the role actually dispatches to, so stripping it composed a chimera row
+  (the override's provider beside the knob provider's fills) that disagreed with `fab resolve-agent`.
+  The provider leaf's own default stays knob-resolved, so keyed `--origin` shows the override
+  shadowing the knob's provider while the model/effort leaves report the overridden provider's fill as
+  `default (effective)`. Resolution stays provider-neutral: a knob or override naming a provider fab
+  ships nothing for is reported verbatim, with empty fills falling through under empty-skip.
 - `fab config explain [<key>] [--json]` — the registry documentation query. Bare forms render the
   full commented YAML or JSON table; keyed forms render the owning segment or its row(s).
   `reference` is an invisible compatibility alias.

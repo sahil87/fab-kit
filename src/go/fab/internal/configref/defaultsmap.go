@@ -37,11 +37,16 @@ func DefaultsMap() (map[string]any, error) {
 // every role's provider row reads `claude` even when a depth knob names another
 // provider; composing against cfg reports the provider (and its fills) honestly.
 //
-// The composition reads the DEPTH KNOBS and the provider fills only: the user's
-// own agent.profiles/agent.tiers entries are stripped first, because this map is
-// the DEFAULTS tier and a tier must never echo back the value of a tier above it
-// (an `agent.profiles.review.model` override would otherwise be reported as its
-// own built-in, on the `default (shadowed)` line as well as the project one).
+// The composition never echoes a tier above it — this map is the DEFAULTS tier,
+// so a user's per-role model/effort overrides are stripped before resolving (an
+// `agent.profiles.review.model` override would otherwise be reported as its own
+// built-in, on the `default (shadowed)` line as well as the project one). A
+// per-role PROVIDER override is different: it is KEPT for the model/effort
+// derivation, because the built-in fill for a role is a function of the provider
+// the role actually dispatches to — the same honesty argument as the depth knobs,
+// and no echo, since the derived values come from that provider's own fill map,
+// which no higher tier states. The provider leaf's own default stays knobs-only
+// so keyed --origin still shows the override shadowing the knob's provider.
 //
 // Resolution stays provider-neutral: a knob naming a provider fab knows nothing
 // about passes through verbatim (Constitution Principle I — fab validates no
@@ -70,30 +75,39 @@ func DefaultsMapFor(cfg *config.Config) (map[string]any, error) {
 // one row DefaultsMapFor recomposes.
 const agentProfilesKey = "agent.profiles"
 
-// liveRoleProfiles resolves every role through agent.ResolveRole against the live
-// config MINUS its per-role overrides (see knobsOnly), so the row it produces is
-// the built-in the user's own agent.profiles entry SHADOWS rather than a copy of
-// that entry. Like roleRows it fails loud on role-map drift: a role
-// agent.RoleNames reports must resolve (an unknown role name is ResolveRole's
-// only error).
+// liveRoleProfiles resolves every role through agent.ResolveRole twice — the two
+// leaves have different honesty requirements. The PROVIDER leaf resolves against
+// knobsOnly (per-role overrides fully stripped): it must report the built-in a
+// user's provider override SHADOWS. The MODEL/EFFORT leaves resolve against
+// fillsOnly (per-role provider overrides kept, model/effort cleared): the
+// built-in fill is a function of the provider the role actually dispatches to,
+// so deriving it from the knob's provider when an override redirects the role
+// composes a chimera row no resolution path produces. Like roleRows it fails
+// loud on role-map drift: a role agent.RoleNames reports must resolve (an
+// unknown role name is ResolveRole's only error).
 func liveRoleProfiles(cfg *config.Config) (map[string]roleProfileDefault, error) {
 	names := agent.RoleNames()
-	base := knobsOnly(cfg)
+	knobs := knobsOnly(cfg)
+	fills := fillsOnly(cfg)
 	out := make(map[string]roleProfileDefault, len(names))
 	for _, name := range names {
-		p, err := agent.ResolveRole(base, name)
+		kp, err := agent.ResolveRole(knobs, name)
 		if err != nil {
 			return nil, err
 		}
-		out[name] = roleProfileDefault{Provider: p.Provider, Model: p.Model, Effort: p.Effort}
+		fp, err := agent.ResolveRole(fills, name)
+		if err != nil {
+			return nil, err
+		}
+		out[name] = roleProfileDefault{Provider: kp.Provider, Model: fp.Model, Effort: fp.Effort}
 	}
 	return out, nil
 }
 
 // knobsOnly copies cfg with the per-role override maps (agent.profiles and its
 // pre-2.17.0 spelling agent.tiers) CLEARED, leaving the depth knobs and the
-// providers table — the two inputs the derived default legitimately depends on.
-// The copy is shallow, and neither the original nor its remaining maps are
+// providers table — the inputs the derived PROVIDER leaf legitimately depends
+// on. The copy is shallow, and neither the original nor its remaining maps are
 // mutated.
 func knobsOnly(cfg *config.Config) *config.Config {
 	if cfg == nil {
@@ -103,6 +117,35 @@ func knobsOnly(cfg *config.Config) *config.Config {
 	stripped.Agent.Profiles = nil
 	stripped.Agent.Tiers = nil
 	return &stripped
+}
+
+// fillsOnly copies cfg with each per-role override reduced to its {provider}
+// field (model/effort cleared, both the agent.profiles and legacy agent.tiers
+// spellings) — the input set the derived MODEL/EFFORT leaves depend on: the
+// provider selection (knob or per-role override) and the providers table, never
+// the user's own pinned fills. The per-role maps are copied entry-by-entry;
+// neither the original config nor its maps are mutated.
+func fillsOnly(cfg *config.Config) *config.Config {
+	if cfg == nil {
+		return nil
+	}
+	stripped := *cfg
+	stripped.Agent.Profiles = providerOnlyRoles(cfg.Agent.Profiles)
+	stripped.Agent.Tiers = providerOnlyRoles(cfg.Agent.Tiers)
+	return &stripped
+}
+
+// providerOnlyRoles maps each role entry to {Provider: entry.Provider} — the
+// reduction fillsOnly applies to one per-role override map.
+func providerOnlyRoles(m map[string]config.RoleProfile) map[string]config.RoleProfile {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]config.RoleProfile, len(m))
+	for role, p := range m {
+		out[role] = config.RoleProfile{Provider: p.Provider}
+	}
+	return out
 }
 
 // defaultsMapFromFields nests each non-nil Default under its dotted key and

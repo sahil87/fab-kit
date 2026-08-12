@@ -81,11 +81,14 @@ func TestDefaultsMapFor_UnknownProviderPassesThrough(t *testing.T) {
 }
 
 // TestDefaultsMapFor_IgnoresUserRoleOverrides: this projection IS the defaults
-// tier, so it must report the built-in a user's own agent.profiles entry SHADOWS —
-// never echo that entry back. Resolving the live config through agent.ResolveRole
-// unfiltered folds the override in, which made `fab config show
-// agent.profiles.review.model --origin` print the user's pinned model on the
-// `default  (shadowed)` line as well as the project one.
+// tier, so it must never echo a user's own agent.profiles entry back. Resolving
+// the live config through agent.ResolveRole unfiltered folds the override in,
+// which made `fab config show agent.profiles.review.model --origin` print the
+// user's pinned model on the `default  (shadowed)` line as well as the project
+// one. The pinned PROVIDER is kept for the model/effort derivation (see
+// TestDefaultsMapFor_RoleProviderOverrideDrivesFills) — here that provider has no
+// fills, so the derived model/effort are empty, and in particular never the
+// pinned values. The provider leaf itself stays knobs-only-resolved.
 func TestDefaultsMapFor_IgnoresUserRoleOverrides(t *testing.T) {
 	builtin, err := DefaultsMapFor(nil)
 	if err != nil {
@@ -106,11 +109,19 @@ func TestDefaultsMapFor_IgnoresUserRoleOverrides(t *testing.T) {
 			if err != nil {
 				t.Fatalf("DefaultsMapFor: %v", err)
 			}
-			for _, field := range []string{"provider", "model", "effort"} {
-				want := roleField(t, builtin, "review", field)
-				if have := roleField(t, got, "review", field); have != want {
-					t.Errorf("default tier agent.profiles.review.%s = %q, want the built-in %q "+
-						"(the user's override belongs to its own tier, not this one)", field, have, want)
+			if want := roleField(t, builtin, "review", "provider"); roleField(t, got, "review", "provider") != want {
+				t.Errorf("default tier agent.profiles.review.provider = %q, want the built-in %q "+
+					"(the provider leaf stays knobs-only-resolved)", roleField(t, got, "review", "provider"), want)
+			}
+			for field, pinnedValue := range map[string]string{"model": pinned.Model, "effort": pinned.Effort} {
+				have := roleField(t, got, "review", field)
+				if have == pinnedValue {
+					t.Errorf("default tier agent.profiles.review.%s = %q — echoes the user's pinned override "+
+						"(that value belongs to its own tier, not this one)", field, have)
+				}
+				if have != "" {
+					t.Errorf("default tier agent.profiles.review.%s = %q, want empty "+
+						"(pinned-provider ships no fills to derive from)", field, have)
 				}
 			}
 		})
@@ -128,6 +139,50 @@ func TestDefaultsMapFor_IgnoresUserRoleOverrides(t *testing.T) {
 	}
 	if have := roleField(t, got, "review", "provider"); have != "codex" {
 		t.Errorf("review provider = %q, want codex (the workers knob still governs the derived row)", have)
+	}
+}
+
+// TestDefaultsMapFor_RoleProviderOverrideDrivesFills: the chimera regression. A
+// per-role provider override (agent.profiles.operator.provider: codex under a
+// claude session knob) used to be stripped with the rest of the entry, so the
+// derived model/effort came from CLAUDE's operator fill while the provider leaf
+// merged to codex — a composed row no resolution path produces. The override must
+// drive the fills derivation (same values the knob naming that provider would
+// derive — the oracle below), while the provider leaf itself stays knobs-only.
+func TestDefaultsMapFor_RoleProviderOverrideDrivesFills(t *testing.T) {
+	knobbed, err := DefaultsMapFor(&config.Config{Agent: config.AgentConfig{Session: "codex"}})
+	if err != nil {
+		t.Fatalf("DefaultsMapFor(session knob): %v", err)
+	}
+	wantModel := roleField(t, knobbed, "operator", "model")
+	wantEffort := roleField(t, knobbed, "operator", "effort")
+	if wantModel == "" || wantEffort == "" {
+		t.Fatalf("oracle broke: codex ships no operator fill (model %q, effort %q)", wantModel, wantEffort)
+	}
+
+	override := map[string]config.RoleProfile{"operator": {Provider: "codex"}}
+	for _, tc := range []struct {
+		name string
+		cfg  *config.Config
+	}{
+		{"agent.profiles", &config.Config{Agent: config.AgentConfig{Session: "claude", Profiles: override}}},
+		{"agent.tiers (the pre-2.17.0 spelling)", &config.Config{Agent: config.AgentConfig{Session: "claude", Tiers: override}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := DefaultsMapFor(tc.cfg)
+			if err != nil {
+				t.Fatalf("DefaultsMapFor: %v", err)
+			}
+			if have := roleProvider(t, got, "operator"); have != "claude" {
+				t.Errorf("provider leaf = %q, want claude (knobs-only — the override's codex belongs to its own tier)", have)
+			}
+			if have := roleField(t, got, "operator", "model"); have != wantModel {
+				t.Errorf("model = %q, want %q (the overridden provider's fill, not the knob provider's)", have, wantModel)
+			}
+			if have := roleField(t, got, "operator", "effort"); have != wantEffort {
+				t.Errorf("effort = %q, want %q (the overridden provider's fill, not the knob provider's)", have, wantEffort)
+			}
+		})
 	}
 }
 
