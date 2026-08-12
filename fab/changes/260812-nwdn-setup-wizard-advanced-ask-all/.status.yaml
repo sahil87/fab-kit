@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 4
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-08-12T04:56:32Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-12T06:24:18Z"}
     review: {started_at: "2026-08-12T06:24:18Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-12T06:29:56Z"}
     hydrate: {started_at: "2026-08-12T06:29:56Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-12T06:31:01Z"}
-    ship: {started_at: "2026-08-12T06:31:01Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-12T06:31:01Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-12T06:33:05Z"}
+    review-pr: {started_at: "2026-08-12T06:33:05Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/594
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 426
+    deleted: 62
+    net: 364
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 106
+        deleted: 56
+        net: 50
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-08-12T06:31:01Z"
-    computed_at_stage: hydrate
+        added: 56
+        deleted: 19
+        net: 37
+    computed_at: "2026-08-12T06:33:05Z"
+    computed_at_stage: ship
 summary: fab setup wizard Q4 now asks all four advanced questions when opted in (skip rule removed); never-set profile keys render depth-correct inherit indications with explicit-pin writes
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-12T06:31:01Z
+last_updated: 2026-08-12T06:33:05Z
