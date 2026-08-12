@@ -512,9 +512,11 @@ func TestDispatchStart_PanePreferenceDescendsWithoutInteractiveCommand(t *testin
 // SAFETY: this test issues UNSCOPED (no `-L`) tmux calls on purpose, because
 // pane-preferred mode passes no `-L` and must reach the server through tmux's
 // own default-socket resolution. Neither isolation mechanism may be removed:
-// a private TMUX_TMPDIR relocates the default socket, and $TMUX must be EMPTY while
-// the server is created (a set $TMUX makes a client target ITS socket and ignore
-// TMUX_TMPDIR, which would put the session on — and later kill — the real server).
+// a private TMUX_TMPDIR relocates the default socket, and $TMUX must be absent
+// while the server is created (a set $TMUX makes a client target ITS socket and
+// ignore TMUX_TMPDIR, which would put the session on — and later kill — the real
+// server) — tmuxSocketDir scrubs $TMUX/$TMUX_PANE, which is also what lets this
+// test run safely from inside a tmux pane instead of refusing (change kgam).
 // Every destructive call, kill-server included, is scoped by a VERIFIED `-S` path.
 func TestDispatchStart_PanePreferenceNoInteractiveCommand_Integration(t *testing.T) {
 	if _, err := exec.LookPath("tmux"); err != nil {
@@ -526,10 +528,6 @@ func TestDispatchStart_PanePreferenceNoInteractiveCommand_Integration(t *testing
 
 	socketDir := tmuxSocketDir(t, "default")
 	t.Setenv("TMUX_TMPDIR", socketDir)
-	if v := os.Getenv("TMUX"); v != "" {
-		t.Fatalf("refusing to run: $TMUX = %q must be empty so TMUX_TMPDIR isolates "+
-			"this test's unscoped tmux calls from the real server", v)
-	}
 	if out, err := exec.Command("tmux", "new-session", "-d", "-s", "s", "-x", "80", "-y", "24").CombinedOutput(); err != nil {
 		t.Skipf("could not start tmux server (%v): %s", err, strings.TrimSpace(string(out)))
 	}
@@ -706,10 +704,11 @@ func TestDispatchStart_RefusesAnAutomaticPaneLanding(t *testing.T) {
 // tmux runner pinned to the verified socket path and the dispatcher's pane ID.
 //
 // SAFETY (the recorded repo discipline — none of these steps is optional):
-//  1. $TMUX must be EMPTY on entry. A set $TMUX makes every tmux client target
-//     ITS socket and ignore TMUX_TMPDIR entirely, which would put this test's
-//     session on — and later KILL — the developer's real server. Hard-fail, never
-//     skip: skipping would silently stop covering the split path.
+//  1. $TMUX/$TMUX_PANE are scrubbed by tmuxSocketDir. A set $TMUX makes every
+//     tmux client target ITS socket and ignore TMUX_TMPDIR entirely, which would
+//     put this test's session on — and later KILL — the developer's real server.
+//     Scrubbing (rather than the former refuse-if-set hard-fail) keeps the split
+//     path covered when the suite itself runs inside a tmux pane (change kgam).
 //  2. TMUX_TMPDIR points at a private per-test dir, relocating tmux's default
 //     socket out of the shared /tmp/tmux-$UID.
 //  3. The server's binding of that private socket is VERIFIED (os.Stat) before any
@@ -729,10 +728,6 @@ func startPrivateTmuxWithPane(t *testing.T) (tmuxScoped func(args ...string) (st
 	}
 	socketDir := tmuxSocketDir(t, "default")
 	t.Setenv("TMUX_TMPDIR", socketDir)
-	if v := os.Getenv("TMUX"); v != "" {
-		t.Fatalf("refusing to run: $TMUX = %q must be empty so TMUX_TMPDIR isolates "+
-			"this test's unscoped tmux calls from the real server", v)
-	}
 	if out, err := exec.Command("tmux", "new-session", "-d", "-s", "s", "-x", "200", "-y", "50").CombinedOutput(); err != nil {
 		t.Skipf("could not start tmux server (%v): %s", err, strings.TrimSpace(string(out)))
 	}
