@@ -3,6 +3,9 @@
 
 ## 2026-08-12
 - **Update** [execution-skills](/pipeline/execution-skills.md) — Lane-accuracy polish from the light-lane review: scoped /fab-adopt's rework-loop consumption to the FULL branch in _pipeline.md item 3, qualified every 'mirrors fab-fff Steps 4-5' claim to the full lane (stage-models.md, pipeline/execution-skills.md x2, _shared/context-loading.md), made user-flow.md's rework edge label lane-accurate, and trimmed the glossary Light-lane entry to definition + pointer. (3olp)
+- **Update** [execution-skills](/pipeline/execution-skills.md) — Added pipeline/issue-linking.md (/fab-issue gates, find-or-create, carve-out, end-to-end Linear linking model); updated planning-skills.md + execution-skills.md for fab-fff Step 3.5 and pull/push cross-refs (z5qt)
+- **Creation** [issue-linking](/pipeline/issue-linking.md) — Added pipeline/issue-linking.md (/fab-issue gates, find-or-create, carve-out, end-to-end Linear linking model); updated planning-skills.md + execution-skills.md for fab-fff Step 3.5 and pull/push cross-refs (z5qt)
+- **Update** [planning-skills](/pipeline/planning-skills.md) — Added pipeline/issue-linking.md (/fab-issue gates, find-or-create, carve-out, end-to-end Linear linking model); updated planning-skills.md + execution-skills.md for fab-fff Step 3.5 and pull/push cross-refs (z5qt)
 
 ## 2026-08-11
 - **Update** [change-lifecycle](/pipeline/change-lifecycle.md) — Slug validation enforces 2-6 lowercase kebab-case words at change new/rename (nztj)
