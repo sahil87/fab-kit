@@ -115,7 +115,7 @@ Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
 │  ├─ Pass: finish review → Step 3
 │  └─ Fail: auto-rework loop ≤{max_cycles} (light: rework inline; full: resume apply worker when reachable; fresh review each cycle); exhaustion: fab status fail review → STOP
 ├─ Step 3 Hydrate — LIGHT: inline / FULL: subagent /fab-continue Hydrate → fab status finish hydrate
-└─ {terminal} = hydrate → complete / review-pr → driver Steps 3.5–5 (link Linear issue — optional, inline both lanes / ship / review-pr; light lane: 4–5 inline)
+└─ {terminal} = hydrate → complete / review-pr → driver Steps 3.5–5 (3.5 link Linear issue — optional, inline in BOTH lanes / 4 ship / 5 review-pr — inline in the light lane, dispatched in the full lane)
 ```
 
 `_review` — shared review logic run by the dispatched review worker (a `mode` parameter — full | diff-only — selects whether plan-conformance steps run):
