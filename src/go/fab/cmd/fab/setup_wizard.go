@@ -197,9 +197,11 @@ func (w *setupWizard) ask(q wizardQuestion) string {
 	display := current
 	if q.inheritAs != "" && (tier == tierDefault || current == "") {
 		// Not explicitly set anywhere — the winning row is the derived
-		// built-in default. Present the inherit indication over an empty
-		// baseline: Enter records "" (== current, no write), while any typed
-		// provider — including the currently-inherited one — is a real change.
+		// built-in default, or the key resolves to no value at all (a knob
+		// the derivation could not fill). Present the inherit indication over
+		// an empty baseline: Enter records "" (== current, no write), while
+		// any typed provider — including the currently-inherited one — is a
+		// real change.
 		current = ""
 		origin = ""
 		display = q.inheritAs
