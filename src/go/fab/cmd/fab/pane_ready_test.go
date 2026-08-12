@@ -3,7 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -154,7 +157,19 @@ func TestPaneReady_JSON(t *testing.T) {
 		if _, err := exec.LookPath("tmux"); err != nil {
 			t.Skip("tmux not available")
 		}
-		t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, "default"))
+		socketDir := tmuxSocketDir(t, "default")
+		t.Setenv("TMUX_TMPDIR", socketDir)
+		// $TMUX outranks TMUX_TMPDIR in tmux's socket resolution (-L/-S > $TMUX
+		// > TMUX_TMPDIR): run from inside a tmux pane, an inherited $TMUX would
+		// land the bare new-session below on the HOST server — and the
+		// kill-server cleanup would kill the host. Scrub it at process level so
+		// both this test's tmux calls and the command under test (which shells
+		// out to tmux itself) resolve through the private TMUX_TMPDIR.
+		// Empirically (tmux 3.6a) an empty $TMUX is treated as unset, so
+		// t.Setenv suffices. tmuxSocketDir also scrubs — this restates the
+		// guard at the one site that starts a bare default-socket server.
+		t.Setenv("TMUX", "")
+		t.Setenv("TMUX_PANE", "")
 		tmux := func(args ...string) (string, error) {
 			out, err := exec.Command("tmux", args...).CombinedOutput()
 			return strings.TrimSpace(string(out)), err
@@ -162,7 +177,16 @@ func TestPaneReady_JSON(t *testing.T) {
 		if out, err := tmux("new-session", "-d", "-s", "s", "-x", "80", "-y", "24"); err != nil {
 			t.Skipf("could not start tmux server (%v): %s", err, out)
 		}
-		t.Cleanup(func() { _, _ = tmux("kill-server") })
+		// Prove the server bound the PRIVATE socket before registering a
+		// destructive cleanup, and scope that cleanup to the verified path with
+		// an explicit -S — never a bare kill-server (the recorded repo
+		// discipline; see startPrivateTmuxWithPane in dispatch_start_test.go).
+		privateSocket := filepath.Join(socketDir, "tmux-"+strconv.Itoa(os.Getuid()), "default")
+		if _, err := os.Stat(privateSocket); err != nil {
+			t.Fatalf("refusing to continue: tmux did not bind the private socket %s (%v) — "+
+				"the server may be the real one, and killing it is unsafe", privateSocket, err)
+		}
+		t.Cleanup(func() { _, _ = tmux("-S", privateSocket, "kill-server") })
 		paneID, err := tmux("display-message", "-p", "-t", "s", "#{pane_id}")
 		if err != nil || paneID == "" {
 			t.Fatalf("resolve pane id: %v (%q)", err, paneID)

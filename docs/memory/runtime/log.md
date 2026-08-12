@@ -3,6 +3,7 @@
 
 ## 2026-08-12
 - **Update** [agent-primitives](/runtime/agent-primitives.md) — fab pane send gains --answer mode (waiting permitted, active refused, unknown warns-and-sends); operator and _cli-agents send paths rewired onto the gated binary (answ)
+- **Update** [dispatch](/runtime/dispatch.md) — Scrubbed $TMUX/$TMUX_PANE in tmux-backed tests (tmuxSocketDir contract + pane_ready default-socket subtest) with stat-verified -S-scoped cleanups, replacing per-test refuse-if-$TMUX guards — the unfixed subtest killed the host tmux server when run from a pane (kgam)
 - **Update** [operator](/runtime/operator.md) — fab pane send gains --answer mode (waiting permitted, active refused, unknown warns-and-sends); operator and _cli-agents send paths rewired onto the gated binary (answ)
 - **Update** [pane-commands](/runtime/pane-commands.md) — fab pane send gains --answer mode (waiting permitted, active refused, unknown warns-and-sends); operator and _cli-agents send paths rewired onto the gated binary (answ)
 

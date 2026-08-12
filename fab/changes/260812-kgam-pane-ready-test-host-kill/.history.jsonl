@@ -1,0 +1,11 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-12T05:26:21Z"}
+{"args":"Fix: pane_ready_test.go kills the host tmux server when run inside a tmux pane — scrub $TMUX/$TMUX_PANE in the default-socket subtest, audit the test tree, add defense-in-depth","cmd":"fab-new","event":"command","ts":"2026-08-12T05:26:21Z"}
+{"delta":"+4.5","event":"confidence","score":4.5,"trigger":"calc-score","ts":"2026-08-12T05:28:49Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-12T05:30:13Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-12T05:30:43Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-12T05:44:29Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-12T05:49:37Z"}
+{"event":"review","result":"passed","ts":"2026-08-12T05:49:37Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-12T05:51:45Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-12T05:54:17Z"}
+{"event":"review","result":"passed","ts":"2026-08-12T06:00:59Z"}

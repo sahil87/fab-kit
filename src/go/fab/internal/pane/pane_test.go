@@ -450,8 +450,18 @@ func tmuxSocketPathLen(dir, name string) int {
 // run (change 0j0t). Prefers t.TempDir(); when the resulting socket path
 // would exceed the sun_path budget (long $TMPDIR bases on macOS), it falls
 // back to a short /tmp dir removed via t.Cleanup — never a skip.
+//
+// It also scrubs $TMUX/$TMUX_PANE: $TMUX outranks TMUX_TMPDIR in tmux's
+// socket resolution (-L/-S > $TMUX > TMUX_TMPDIR), so for any test run from
+// inside a tmux pane an inherited $TMUX would silently redirect unscoped
+// tmux calls onto the HOST server — a destructive cleanup then kills the
+// host (change kgam). Empirically (tmux 3.6a) an empty $TMUX is treated as
+// unset, so t.Setenv suffices. Tests that need $TMUX set (simulating a
+// dispatcher inside a pane) set it themselves after this call.
 func tmuxSocketDir(t *testing.T, name string) string {
 	t.Helper()
+	t.Setenv("TMUX", "")
+	t.Setenv("TMUX_PANE", "")
 	dir := t.TempDir()
 	if tmuxSocketPathLen(dir, name) > tmuxSocketPathBudget {
 		short, err := os.MkdirTemp("/tmp", "fabtest-")
