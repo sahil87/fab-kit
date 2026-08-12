@@ -1,0 +1,13 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-12T04:50:54Z"}
+{"args":"fab setup wizard: invert the Q4 advanced-section skip rule so opting in asks all four advanced questions (first-time setting of agent.profiles.operator/review.provider, dispatch.column_width, dispatch.reap_done), with inherit rendering for the sparse profile keys","cmd":"fab-new","event":"command","ts":"2026-08-12T04:50:54Z"}
+{"delta":"+4.5","event":"confidence","score":4.5,"trigger":"calc-score","ts":"2026-08-12T04:53:33Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-08-12T04:54:33Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-12T04:56:06Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-12T04:56:32Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-12T06:24:18Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-12T06:29:56Z"}
+{"event":"review","result":"passed","ts":"2026-08-12T06:29:56Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-12T06:31:01Z"}
+{"cmd":"git-pr","event":"command","ts":"2026-08-12T06:31:01Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-12T06:33:05Z"}
+{"event":"review","result":"passed","ts":"2026-08-12T06:40:42Z"}

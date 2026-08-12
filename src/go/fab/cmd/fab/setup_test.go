@@ -295,26 +295,32 @@ func TestSetupWizard_DispatchModeFiltersWithoutTmux(t *testing.T) {
 	}
 }
 
-func TestSetupWizard_AdvancedAllSkippedPrintsNote(t *testing.T) {
-	// Fresh machine (empty config): every advanced key sits at the built-in
-	// default, so opting in yields the note, never silence.
+func TestSetupWizard_AdvancedOptInAsksAllKeys(t *testing.T) {
+	// Fresh machine (empty config): opting in asks all four advanced questions
+	// anyway — the sparse profile keys render their depth-correct inherit
+	// indication — and an all-Enter pass through them still writes nothing.
 	setupCheckFixture(t, "", "claude")
 	forceTTY(t, true)
 
-	err, out, _ := runSetupWizardCmd(t, "\n\n\ny\n")
+	err, out, _ := runSetupWizardCmd(t, "\n\n\ny\n\n\n\n\n")
 	if err != nil {
 		t.Fatalf("run error = %v; output:\n%s", err, out)
 	}
-	if !strings.Contains(out, "No advanced overrides in effect") {
-		t.Errorf("all-skipped advanced section must print the note, got:\n%s", out)
-	}
-	for _, key := range []string{"agent.profiles.operator.provider", "agent.profiles.review.provider", "dispatch.column_width", "dispatch.reap_done"} {
-		if !strings.Contains(out, key) {
-			t.Errorf("the note must name skipped key %q, got:\n%s", key, out)
+	for _, prompt := range []string{
+		"agent.profiles.operator.provider [(inherit agent.session)]:",
+		"agent.profiles.review.provider [(inherit agent.workers)]:",
+		"dispatch.column_width [35]:",
+		"dispatch.reap_done [true]:",
+	} {
+		if !strings.Contains(out, prompt) {
+			t.Errorf("opted-in advanced section must ask %q, got:\n%s", prompt, out)
 		}
 	}
-	if strings.Contains(out, "agent.profiles.operator.provider [") {
-		t.Errorf("at-default advanced questions must be SKIPPED, got:\n%s", out)
+	if !strings.Contains(out, "nothing to change") {
+		t.Errorf("an all-Enter advanced pass must record zero changes, got:\n%s", out)
+	}
+	if _, statErr := os.Stat(filepath.Join(os.Getenv("HOME"), ".fab-kit", "config.yaml")); !os.IsNotExist(statErr) {
+		t.Errorf("an all-Enter advanced pass must write NO file, stat err = %v", statErr)
 	}
 }
 
@@ -371,23 +377,54 @@ func TestSetupWizard_NoViableDispatchModeFailsFast(t *testing.T) {
 }
 
 func TestSetupWizard_AdvancedOverriddenKeyIsAsked(t *testing.T) {
-	// dispatch.column_width overridden at the project tier: its question is
-	// asked (default = current value + origin) while the other three skip.
+	// dispatch.column_width overridden at the project tier: its question
+	// defaults to the override with its origin, and the other three keys are
+	// asked too (at their built-in default / inherit indication).
 	setupCheckFixture(t, "dispatch:\n  column_width: 42\n", "claude")
 	forceTTY(t, true)
 
-	err, out, _ := runSetupWizardCmd(t, "\n\n\ny\n\n")
+	err, out, _ := runSetupWizardCmd(t, "\n\n\ny\n\n\n\n\n")
 	if err != nil {
 		t.Fatalf("run error = %v; output:\n%s", err, out)
 	}
 	if !strings.Contains(out, "dispatch.column_width [42]:") {
 		t.Errorf("the overridden key must be asked with its current value as default, got:\n%s", out)
 	}
-	if strings.Contains(out, "dispatch.reap_done [") {
-		t.Errorf("at-default keys must still skip when one key is overridden, got:\n%s", out)
+	for _, prompt := range []string{
+		"agent.profiles.operator.provider [(inherit agent.session)]:",
+		"agent.profiles.review.provider [(inherit agent.workers)]:",
+		"dispatch.reap_done [true]:",
+	} {
+		if !strings.Contains(out, prompt) {
+			t.Errorf("at-default keys must be asked alongside the overridden one, want %q, got:\n%s", prompt, out)
+		}
 	}
-	if strings.Contains(out, "No advanced overrides in effect") {
-		t.Errorf("the all-skipped note must not print when a question was asked, got:\n%s", out)
+}
+
+func TestSetupWizard_AdvancedFirstTimeProfileWriteLandsSystemTier(t *testing.T) {
+	// A never-set profile key answered with a detected provider: the diff
+	// summary renders the inherit indication as the old side, and the
+	// confirmed write lands exactly that key in the system tier.
+	setupCheckFixture(t, "", "claude", "codex")
+	forceTTY(t, true)
+
+	// Q1-Q3 Enter, Q4 y, operator=codex, review/width/reap Enter, confirm y.
+	err, out, _ := runSetupWizardCmd(t, "\n\n\ny\ncodex\n\n\n\ny\n")
+	if err != nil {
+		t.Fatalf("run error = %v; output:\n%s", err, out)
+	}
+	if !strings.Contains(out, "agent.profiles.operator.provider: (inherit agent.session) → codex") {
+		t.Errorf("diff summary must render the inherit indication as the old side, got:\n%s", out)
+	}
+	data, readErr := os.ReadFile(filepath.Join(os.Getenv("HOME"), ".fab-kit", "config.yaml"))
+	if readErr != nil {
+		t.Fatalf("confirmed write must land in the system tier: %v\noutput:\n%s", readErr, out)
+	}
+	if !strings.Contains(string(data), "operator") || !strings.Contains(string(data), "provider: codex") {
+		t.Errorf("system config must carry the operator profile write, got:\n%s", string(data))
+	}
+	if strings.Contains(string(data), "review") {
+		t.Errorf("only the answered key may be written — review profile must be absent, got:\n%s", string(data))
 	}
 }
 
