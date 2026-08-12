@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-12T09:33:06Z"}
+{"args":"New /fab-issue skill — Linear find-or-create linking step between intake and pipeline","cmd":"fab-new","event":"command","ts":"2026-08-12T09:33:06Z"}
+{"delta":"+3.9","event":"confidence","score":3.9,"trigger":"calc-score","ts":"2026-08-12T09:36:05Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-12T09:46:50Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-12T09:47:14Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-12T09:58:40Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-12T10:03:56Z"}
+{"event":"review","result":"passed","ts":"2026-08-12T10:03:56Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-12T10:11:38Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-12T10:15:25Z"}
+{"cmd":"git-pr-review","event":"command","ts":"2026-08-12T10:17:28Z"}
+{"event":"review","result":"passed","ts":"2026-08-12T10:26:15Z"}

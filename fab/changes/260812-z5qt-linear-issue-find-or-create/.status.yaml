@@ -1,0 +1,57 @@
+id: z5qt
+name: 260812-z5qt-linear-issue-find-or-create
+created: 2026-08-12T09:33:06Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 8
+    acceptance_count: 18
+    acceptance_completed: 18
+confidence:
+    certain: 4
+    confident: 6
+    tentative: 0
+    unresolved: 0
+    score: 3.9
+    fuzzy: true
+    dimensions:
+        signal: 68.5
+        reversibility: 78.8
+        competence: 76.5
+        disambiguation: 74.0
+stage_metrics:
+    intake: {started_at: "2026-08-12T09:33:06Z", driver: fab-new, iterations: 1, completed_at: "2026-08-12T09:47:14Z"}
+    apply: {started_at: "2026-08-12T09:47:14Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-12T09:58:40Z"}
+    review: {started_at: "2026-08-12T09:58:40Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-12T10:03:56Z"}
+    hydrate: {started_at: "2026-08-12T10:03:56Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-12T10:11:38Z"}
+    ship: {started_at: "2026-08-12T10:11:38Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-12T10:15:25Z"}
+    review-pr: {started_at: "2026-08-12T10:15:25Z", driver: git-pr, iterations: 1, completed_at: "2026-08-12T10:26:15Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/595
+change_type_source: explicit
+true_impact:
+    added: 665
+    deleted: 22
+    net: 643
+    excluding:
+        added: 164
+        deleted: 6
+        net: 158
+    tests:
+        added: 1
+        deleted: 1
+        net: 0
+    computed_at: "2026-08-12T10:15:25Z"
+    computed_at_stage: ship
+summary: Added pipeline/issue-linking.md (/fab-issue gates, find-or-create, carve-out, end-to-end Linear linking model); updated planning-skills.md + execution-skills.md for fab-fff Step 3.5 and pull/push cross-refs
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-12T10:26:15Z

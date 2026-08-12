@@ -126,7 +126,7 @@ On success (either lane): run `fab status finish <change> apply {driver}`.
 
 The lane decision is Step 1's one-time fork; this section owns the light-lane execution-locus rules. v1 is skill-prose only: the lane lives in the orchestrator's context for the run — zero new states, transitions, `.status.yaml` schema fields, or config knobs, and both lanes fire the same `finish`/`fail`/`reset` choreography in the same order (the review cycle-count invariant in § Auto-Rework Loop holds verbatim).
 
-- **Inline**: apply task execution (Step 1) and hydrate (Step 3), plus — for `{terminal} = review-pr` only — ship and review-pr (the driver's Steps 4–5). An inline stage runs the same `/fab-continue` Behavior section (or `/git-pr` / `/git-pr-review` behavior) a dispatched worker would, in the orchestrator's own context: no dispatch, no `fab resolve-agent`, session model throughout (per `_preamble.md` § Per-Stage Model Resolution, an undispatched stage MAY report the configured profile but MUST NOT switch the session model). Inline ship/review-pr are today's standalone path — those skills keep managing their own stage transitions exactly as standalone. Inline review-pr also removes the yield-seam hazard `fab-fff.md` Step 5's synchronous-poll directive exists to fight: the Copilot poll runs in the main context with no subagent yield risk.
+- **Inline**: apply task execution (Step 1) and hydrate (Step 3), plus — for `{terminal} = review-pr` only — ship and review-pr (the driver's Steps 4–5; its Step 3.5 Linear link is inline in BOTH lanes — see `fab-fff.md`). An inline stage runs the same `/fab-continue` Behavior section (or `/git-pr` / `/git-pr-review` behavior) a dispatched worker would, in the orchestrator's own context: no dispatch, no `fab resolve-agent`, session model throughout (per `_preamble.md` § Per-Stage Model Resolution, an undispatched stage MAY report the configured profile but MUST NOT switch the session model). Inline ship/review-pr are today's standalone path — those skills keep managing their own stage transitions exactly as standalone. Inline review-pr also removes the yield-seam hazard `fab-fff.md` Step 5's synchronous-poll directive exists to fight: the Copilot poll runs in the main context with no subagent yield risk.
 - **Dispatched**: review (Step 2 and every re-review) stays a fresh dispatched worker in BOTH lanes — reviewer independence is the pipeline's highest-value dispatch; author self-review would share the author's blind spots, and a fresh reviewer over a tiny diff is cheap anyway.
 - **Rework**: light-lane rework stays inline under the same `{max_cycles}` budget and the same per-cycle fail+reset choreography (§ Auto-Rework Loop item 3 runs the rework inline instead of re-dispatching); exhaustion parks `review: failed` exactly as in the full lane, and a parked light run re-enters however the user chooses, including `--full`. Worker continuation (`_preamble.md` § Worker Continuation) is a FULL-lane-only concern — in the light lane the orchestrator IS the apply author and remembers what the reviewer rejected.
 
@@ -189,7 +189,7 @@ Run /fab-continue <change> for manual rework options.
 
 On success: run `fab status finish <change> hydrate {driver}`.
 
-When `{terminal}` is `hydrate`, the pipeline is complete here. When `{terminal}` is `review-pr`, continue with the driver's own Steps 4–5 (`fab-fff.md`).
+When `{terminal}` is `hydrate`, the pipeline is complete here. When `{terminal}` is `review-pr`, continue with the driver's own Steps 3.5–5 (`fab-fff.md`).
 
 ---
 
