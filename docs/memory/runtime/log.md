@@ -6,6 +6,7 @@
 - **Update** [dispatch](/runtime/dispatch.md) — Scrubbed $TMUX/$TMUX_PANE in tmux-backed tests (tmuxSocketDir contract + pane_ready default-socket subtest) with stat-verified -S-scoped cleanups, replacing per-test refuse-if-$TMUX guards — the unfixed subtest killed the host tmux server when run from a pane (kgam)
 - **Update** [operator](/runtime/operator.md) — fab pane send gains --answer mode (waiting permitted, active refused, unknown warns-and-sends); operator and _cli-agents send paths rewired onto the gated binary (answ)
 - **Update** [pane-commands](/runtime/pane-commands.md) — fab pane send gains --answer mode (waiting permitted, active refused, unknown warns-and-sends); operator and _cli-agents send paths rewired onto the gated binary (answ)
+- **Update** [providers-and-profiles](/runtime/providers-and-profiles.md) — fab config show derived agent.profiles rows: per-role provider overrides now drive the model/effort fills derivation (fillsOnly split in configref.DefaultsMapFor); provider leaf stays knobs-only for --origin provenance (05wy)
 
 ## 2026-08-10
 - **Update** [agent-primitives](/runtime/agent-primitives.md) — New provider-generic fab pane open/ready/deliver primitives in internal/pane; dispatch open/ready/deliver become thin record-keeping bindings; fab pane send warns and proceeds on unknown agent state (1lah)
