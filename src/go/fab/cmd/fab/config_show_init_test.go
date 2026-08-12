@@ -557,6 +557,84 @@ func TestConfigShowOrigin_DrillDownIsKnobAware(t *testing.T) {
 	}
 }
 
+// TestConfigShow_RoleProviderOverrideComposesThatProvidersFills: the chimera
+// regression, end to end. A per-role provider override (system config
+// `agent.profiles.operator.provider: codex`) used to compose with claude's
+// operator fill on the model/effort leaves — a row no resolution path produces
+// and one that disagrees with `fab resolve-agent operator`. The derived fills
+// must come from the overridden provider, while keyed --origin keeps the
+// provider leaf's provenance split: the override (effective) over the
+// knob-derived built-in (shadowed).
+func TestConfigShow_RoleProviderOverrideComposesThatProvidersFills(t *testing.T) {
+	_, home := setupConfigRepo(t, "")
+	writeSystemConfig(t, home, "agent:\n    profiles:\n        operator:\n            provider: codex\n")
+
+	// Derive codex's operator fill rather than restating model strings (a model
+	// bump must not have to touch this test).
+	knobbed, err := configref.DefaultsMapFor(&config.Config{Agent: config.AgentConfig{Session: "codex"}})
+	if err != nil {
+		t.Fatalf("DefaultsMapFor(session knob): %v", err)
+	}
+	oracle := knobbed["agent"].(map[string]any)["profiles"].(map[string]any)["operator"].(map[string]any)
+	wantModel, _ := oracle["model"].(string)
+	wantEffort, _ := oracle["effort"].(string)
+	if wantModel == "" || wantEffort == "" {
+		t.Fatalf("oracle broke: codex ships no operator fill (model %q, effort %q)", wantModel, wantEffort)
+	}
+
+	out, err := runConfig(t, "show")
+	if err != nil {
+		t.Fatalf("config show: %v", err)
+	}
+	var effective map[string]any
+	if err := yaml.Unmarshal([]byte(out), &effective); err != nil {
+		t.Fatalf("config show output is not YAML: %v\n%s", err, out)
+	}
+	agentMap, ok := effective["agent"].(map[string]any)
+	if !ok {
+		t.Fatalf("config show output missing the agent map:\n%s", out)
+	}
+	profiles, ok := agentMap["profiles"].(map[string]any)
+	if !ok {
+		t.Fatalf("config show output missing derived agent profiles:\n%s", out)
+	}
+	operator, ok := profiles["operator"].(map[string]any)
+	if !ok {
+		t.Fatalf("config show output missing the composed operator profile:\n%s", out)
+	}
+	if got := operator["provider"]; got != "codex" {
+		t.Errorf("agent.profiles.operator.provider = %#v, want the override codex\n%s", got, out)
+	}
+	if got := operator["model"]; got != wantModel {
+		t.Errorf("agent.profiles.operator.model = %#v, want the overridden provider's fill %q (the chimera regression)\n%s", got, wantModel, out)
+	}
+	if got := operator["effort"]; got != wantEffort {
+		t.Errorf("agent.profiles.operator.effort = %#v, want the overridden provider's fill %q\n%s", got, wantEffort, out)
+	}
+
+	providerStack, err := runConfig(t, "show", "agent.profiles.operator.provider", "--origin")
+	if err != nil {
+		t.Fatalf("keyed show --origin (provider): %v", err)
+	}
+	for _, want := range []string{
+		"agent.profiles.operator.provider = codex",  // the system override wins…
+		"agent.profiles.operator.provider = claude", // …shadowing the knob-derived built-in
+	} {
+		if !strings.Contains(providerStack, want) {
+			t.Errorf("provider stack missing %q:\n%s", want, providerStack)
+		}
+	}
+
+	modelStack, err := runConfig(t, "show", "agent.profiles.operator.model", "--origin")
+	if err != nil {
+		t.Fatalf("keyed show --origin (model): %v", err)
+	}
+	wantLine := "agent.profiles.operator.model = " + wantModel
+	if !strings.Contains(modelStack, wantLine) || !strings.Contains(modelStack, "default  (effective)") {
+		t.Errorf("model stack missing %q as the effective default line:\n%s", wantLine, modelStack)
+	}
+}
+
 // TestConfigShowOrigin_AllEmptyMapDoesNotClaimTheNode: a tier whose subtree is
 // entirely empty leaves defines NOTHING — the merge drops such a map wholesale, so
 // provenance must too. With the emptiness test applied shallowly the system tier's

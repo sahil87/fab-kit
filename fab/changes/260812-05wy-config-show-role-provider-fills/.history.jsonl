@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-12T15:39:59Z"}
+{"args":"Fix fab config show derived agent.profiles rows to honor per-role provider overrides when deriving model/effort fills (follow-up to 260810-rvza)","cmd":"fab-new","event":"command","ts":"2026-08-12T15:39:59Z"}
+{"delta":"+4.8","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-08-12T15:42:19Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-08-12T15:44:10Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-12T15:46:30Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-12T15:48:24Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-12T15:57:27Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-12T16:02:58Z"}
+{"event":"review","result":"passed","ts":"2026-08-12T16:02:58Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-12T16:04:25Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-12T16:07:13Z"}
+{"event":"review","result":"passed","ts":"2026-08-12T16:15:51Z"}
