@@ -54,20 +54,30 @@ type setupWizard struct {
 }
 
 // wizardAnswer is one asked question: the key it writes, the current effective
-// value as rendered, and the chosen answer.
+// value (the comparison baseline for diffAndWrite), its display form (differs
+// only when an empty current renders as an inherit indication), and the chosen
+// answer.
 type wizardAnswer struct {
-	key     string
-	current string
-	answer  string
+	key            string
+	current        string
+	currentDisplay string
+	answer         string
 }
 
 // wizardQuestion is one interview prompt. A nil options list means a
 // free-form scalar answer validated by validate (nil = no validation).
+// inheritAs, when set, marks a key whose built-in-defaults row is DERIVED
+// (the sparse agent.profiles keys — readModelDefaults resolves them from the
+// depth knobs, they are never stored): a value still at the derived default is
+// presented as this inherit indication over an empty baseline, so Enter keeps
+// the inherit and even typing the currently-inherited provider is an explicit
+// pin that writes.
 type wizardQuestion struct {
-	key      string
-	text     string
-	options  []wizardOption
-	validate func(string) bool
+	key       string
+	text      string
+	options   []wizardOption
+	validate  func(string) bool
+	inheritAs string
 }
 
 // wizardOption is one selectable answer, with an optional trailing annotation
@@ -158,9 +168,7 @@ func (w *setupWizard) printBanner() {
 
 // effectiveValue renders a key's current effective value with its provenance,
 // descending the tier stack exactly as the merge does (the same shared descent
-// the keyed --origin listing and warnIfShadowed use). The tier kind is what
-// the advanced skip rule tests: tierDefault means "at the built-in default,
-// never overridden".
+// the keyed --origin listing and warnIfShadowed use).
 func (w *setupWizard) effectiveValue(key string) (value, origin, tier string) {
 	descent := descendPath(cascadeTiers(w.defaults, w.layers, topLevelKey(key)), key)
 	switch {
@@ -185,7 +193,17 @@ func (w *setupWizard) effectiveValue(key string) (value, origin, tier string) {
 // its number and re-asks on anything else; --defaults never reads stdin.
 func (w *setupWizard) ask(q wizardQuestion) string {
 	out := w.cmd.OutOrStdout()
-	current, origin, _ := w.effectiveValue(q.key)
+	current, origin, tier := w.effectiveValue(q.key)
+	display := current
+	if q.inheritAs != "" && (tier == tierDefault || current == "") {
+		// Not explicitly set anywhere — the winning row is the derived
+		// built-in default. Present the inherit indication over an empty
+		// baseline: Enter records "" (== current, no write), while any typed
+		// provider — including the currently-inherited one — is a real change.
+		current = ""
+		origin = ""
+		display = q.inheritAs
+	}
 
 	fmt.Fprintln(out, q.text)
 	for i, opt := range q.options {
@@ -195,16 +213,20 @@ func (w *setupWizard) ask(q wizardQuestion) string {
 		}
 		fmt.Fprintf(out, "  %d) %s%s\n", i+1, opt.value, annotation)
 	}
-	fmt.Fprintf(out, "Default: %s (origin: %s)\n", current, origin)
+	if origin == "" {
+		fmt.Fprintf(out, "Default: %s\n", display)
+	} else {
+		fmt.Fprintf(out, "Default: %s (origin: %s)\n", display, origin)
+	}
 	fmt.Fprintf(out, "More: fab config explain %s\n", q.key)
 	if w.opts.defaults {
-		fmt.Fprintf(out, "%s: %s (accepted by --defaults)\n\n", q.key, current)
-		w.answers = append(w.answers, wizardAnswer{key: q.key, current: current, answer: current})
+		fmt.Fprintf(out, "%s: %s (accepted by --defaults)\n\n", q.key, display)
+		w.answers = append(w.answers, wizardAnswer{key: q.key, current: current, currentDisplay: display, answer: current})
 		return current
 	}
 
 	for {
-		fmt.Fprintf(out, "%s [%s]: ", q.key, current)
+		fmt.Fprintf(out, "%s [%s]: ", q.key, display)
 		answer, ok := w.readLine()
 		if !ok || answer == "" {
 			answer = current // Enter or EOF keeps the current effective value
@@ -226,7 +248,7 @@ func (w *setupWizard) ask(q wizardQuestion) string {
 			continue
 		}
 		fmt.Fprintln(out)
-		w.answers = append(w.answers, wizardAnswer{key: q.key, current: current, answer: answer})
+		w.answers = append(w.answers, wizardAnswer{key: q.key, current: current, currentDisplay: display, answer: answer})
 		return answer
 	}
 }
@@ -376,20 +398,21 @@ func (w *setupWizard) askDefaultPath() {
 	})
 }
 
-// askAdvanced runs the opt-in advanced section (Q4). The section REVIEWS
-// existing customizations: a question whose winning tier is the built-in
-// defaults (at-default and never overridden) is skipped, and when every
-// advanced question skips, a one-line note names the skipped keys with the
-// explain pointer instead of yielding silence.
+// askAdvanced runs the opt-in advanced section (Q4). Opting in asks every
+// advanced question — including keys sitting at their built-in default or
+// never set at all — so first-time overrides are settable through the wizard.
+// Enter keeps each key's current effective value, so an all-Enter pass writes
+// nothing. The sparse agent.profiles keys have no built-in value; their empty
+// current renders as the role's depth-correct inherit indication (operator is
+// a session-depth role, review a workers-depth role).
 func (w *setupWizard) askAdvanced() {
 	if !w.confirm("Q4: Configure advanced options (agent.profiles.operator/review, dispatch.column_width, dispatch.reap_done)?", false) {
 		return
 	}
-	out := w.cmd.OutOrStdout()
 	providers := w.providerOptions()
 	questions := []wizardQuestion{
-		{key: "agent.profiles.operator.provider", text: "agent.profiles.operator.provider — provider override for the operator role.", options: providers},
-		{key: "agent.profiles.review.provider", text: "agent.profiles.review.provider — provider override for the review role.", options: providers},
+		{key: "agent.profiles.operator.provider", text: "agent.profiles.operator.provider — provider override for the operator role.", options: providers, inheritAs: "(inherit agent.session)"},
+		{key: "agent.profiles.review.provider", text: "agent.profiles.review.provider — provider override for the review role.", options: providers, inheritAs: "(inherit agent.workers)"},
 		{key: "dispatch.column_width", text: "dispatch.column_width — pane-worker column width, in percent of the window.", validate: func(s string) bool {
 			n, err := strconv.Atoi(s)
 			return err == nil && n > 0 && n < 100
@@ -399,18 +422,8 @@ func (w *setupWizard) askAdvanced() {
 			return err == nil
 		}},
 	}
-	var skipped []string
-	asked := false
 	for _, q := range questions {
-		if _, _, tier := w.effectiveValue(q.key); tier == tierDefault {
-			skipped = append(skipped, q.key)
-			continue
-		}
-		asked = true
 		w.ask(q)
-	}
-	if !asked {
-		fmt.Fprintf(out, "No advanced overrides in effect — skipping %s. See: fab config explain <key>.\n\n", strings.Join(skipped, ", "))
 	}
 }
 
@@ -432,7 +445,7 @@ func (w *setupWizard) diffAndWrite() error {
 
 	fmt.Fprintf(out, "Change summary (target: %s tier — %s):\n", mutationTier(!w.opts.project), w.path)
 	for _, c := range changes {
-		fmt.Fprintf(out, "  %s: %s → %s\n", c.key, c.current, c.answer)
+		fmt.Fprintf(out, "  %s: %s → %s\n", c.key, c.currentDisplay, c.answer)
 	}
 	if !w.confirm("Write these changes?", true) {
 		fmt.Fprintln(out, "No changes written.")
