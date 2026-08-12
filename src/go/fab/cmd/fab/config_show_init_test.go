@@ -590,7 +590,15 @@ func TestConfigShow_RoleProviderOverrideComposesThatProvidersFills(t *testing.T)
 	if err := yaml.Unmarshal([]byte(out), &effective); err != nil {
 		t.Fatalf("config show output is not YAML: %v\n%s", err, out)
 	}
-	operator, ok := effective["agent"].(map[string]any)["profiles"].(map[string]any)["operator"].(map[string]any)
+	agentMap, ok := effective["agent"].(map[string]any)
+	if !ok {
+		t.Fatalf("config show output missing the agent map:\n%s", out)
+	}
+	profiles, ok := agentMap["profiles"].(map[string]any)
+	if !ok {
+		t.Fatalf("config show output missing derived agent profiles:\n%s", out)
+	}
+	operator, ok := profiles["operator"].(map[string]any)
 	if !ok {
 		t.Fatalf("config show output missing the composed operator profile:\n%s", out)
 	}
