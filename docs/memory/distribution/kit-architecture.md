@@ -23,7 +23,7 @@ src/kit/
 ├── skills/                 # 27 user-facing skills + the 9 underscore partials below
 │   ├── _preamble.md         # Shared context loading convention (always-loaded)
 │   ├── _cli-fab.md          # Fab CLI command reference (selective via `helpers:`)
-│   ├── _cli-external.md     # Fab-owned external-tool content (operator spawning choreography, escalation rk-notify usage, tmux/fab pane, /loop); wt/idea/rk/hop usage delegated to `<tool> skill` (selective via `helpers:`)
+│   ├── _cli-external.md     # Fab-owned external-tool content (operator spawning choreography, escalation rk-notify usage + role self-mark pointer, tmux/fab pane, /loop); wt/idea/rk/hop usage delegated to `<tool> skill` (selective via `helpers:`)
 │   ├── _cli-agents.md       # Agent-orchestration reference (selective via `helpers:`)
 │   ├── _generation.md       # Spec/tasks generation procedures (selective via `helpers:`)
 │   ├── _review.md           # Review procedures (selective via `helpers:`)
@@ -335,7 +335,7 @@ The `_` (underscore) prefix denotes internal partial files that are loaded by sk
 | `_pipeline.md` | Selective (via `helpers: [_pipeline]`) | Shared ff/fff pipeline bracket — intake gate, apply → review → hydrate, the auto-rework loop and its exhaustion stop. Used by `fab-ff`, `fab-fff` (full bracket) and `fab-adopt` (partial consumer — the rework loop + hydrate dispatch only) |
 | `_intake.md` | Selective (via `helpers: [_intake]`) | Shared pre-boundary Create-Intake Procedure, parameterized by a `{questioning-mode}` knob. Used by `fab-new`, `fab-draft`, `fab-dedupe` |
 | `_cli-agents.md` | Selective (via `helpers: [_cli-agents]`) | Agent-CLI interaction reference — generic spawn / pre-send-validation / peek / await procedures for driving another agent CLI in a tmux pane, plus a four-provider operational dictionary (claude, codex, agy, kimi). Used only by `fab-operator` |
-| `_cli-external.md` | Selective (via `helpers: [_cli-external]`) | **Fab-owned** external-tool content only (clix): the operator spawning choreography, the escalation `rk notify` usage, the absent-binary discipline, `tmux` (reduced — `capture-pane`/`send-keys` internalized as `fab pane capture`/`fab pane send`; only `new-window` remains), and `/loop`. Each owned binary's *usage knowledge* — `wt`/`idea` (bare) and `rk`/`hop` (`command -v`-gated fail-silent) — is delegated at use-time to `<tool> skill` (with a silent `https://shll.ai/<tool>/skill` version-skew fallback), its command tree to `<tool> help-dump`. Used only by `fab-operator` |
+| `_cli-external.md` | Selective (via `helpers: [_cli-external]`) | **Fab-owned** external-tool content only (clix): the operator spawning choreography, the escalation `rk notify` usage and the pointer to the operator's startup role self-mark, the absent-binary discipline, `tmux` (reduced — `capture-pane`/`send-keys` internalized as `fab pane capture`/`fab pane send`; only `new-window` remains), and `/loop`. Each owned binary's *usage knowledge* — `wt`/`idea` (bare) and `rk`/`hop` (`command -v`-gated fail-silent) — is delegated at use-time to `<tool> skill` (with a silent `https://shll.ai/<tool>/skill` version-skew fallback), its command tree to `<tool> help-dump`. Used only by `fab-operator` |
 
 Only `_preamble.md` is always-loaded. All other helpers are opt-in via the `helpers:` frontmatter field on each skill. `_naming.md` and `_cli-rk.md` do not exist as separate files — their content is inlined into `_preamble.md` (`## Naming Conventions`, `## Run-Kit (rk) Reference`).
 

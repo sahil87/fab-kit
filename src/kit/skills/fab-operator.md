@@ -68,6 +68,16 @@ If `$TMUX` is unset, STOP:
 Error: operator requires tmux. Start a tmux session first.
 ```
 
+### Role Mark
+
+Mark this tmux window as the operator for run-kit's dashboard (the `@rk_role` window option — rk owns the option contract, the pinned rendering, and the one-operator-per-server radio semantics; fab is only the producer):
+
+```bash
+command -v rk >/dev/null 2>&1 && rk role operator >/dev/null 2>&1 || true
+```
+
+Fail-silent by contract (`_preamble.md` § Run-Kit (rk) Reference), extended to version skew: an absent rk, or an installed rk predating the `role` subcommand, degrades to a silent no-op — never an error, never a blocked startup. Idempotent: a restarted operator re-marks the same window harmlessly. There is no unmark step — the operator has no clean exit hook, and staleness and radio conflicts are rk's to resolve.
+
 ### wt Gate
 
 `wt create` is the operator's first action for any new request (§1 Spawn-in-worktree), so probe it **once here** — not at each call site. `wt` ships as a standalone formula (not a `fab-kit` Homebrew dependency), so it may legitimately be absent. If `command -v wt >/dev/null 2>&1` fails, STOP:
