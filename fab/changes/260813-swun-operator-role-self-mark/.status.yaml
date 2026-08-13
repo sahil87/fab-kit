@@ -1,0 +1,55 @@
+id: swun
+name: 260813-swun-operator-role-self-mark
+created: 2026-08-13T03:58:40Z
+created_by: Sahil Ahuja
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 3
+    acceptance_count: 9
+    acceptance_completed: 9
+confidence:
+    certain: 2
+    confident: 4
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    fuzzy: true
+    dimensions:
+        signal: 72.5
+        reversibility: 90.8
+        competence: 77.5
+        disambiguation: 72.5
+stage_metrics:
+    intake: {started_at: "2026-08-13T03:58:40Z", driver: fab-new, iterations: 1, completed_at: "2026-08-13T04:04:58Z"}
+    apply: {started_at: "2026-08-13T04:04:58Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-13T04:07:48Z"}
+    review: {started_at: "2026-08-13T04:07:48Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-13T04:12:20Z"}
+    hydrate: {started_at: "2026-08-13T04:12:20Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-13T04:14:10Z"}
+    ship: {started_at: "2026-08-13T04:14:10Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-08-13T04:14:10Z"
+    computed_at_stage: hydrate
+summary: Operator startup gains a fail-silent rk role operator self-mark (@rk_role window option) after the Tmux Gate; _cli-external § rk carries the pointer; _preamble's fab-owned-rk-usage sentence pluralized
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-13T04:14:10Z

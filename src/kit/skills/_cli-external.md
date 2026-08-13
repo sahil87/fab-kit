@@ -1,6 +1,6 @@
 ---
 name: _cli-external
-description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, rk (run-kit), and /loop. Carries only fab-owned content (operator spawning choreography, the escalation rk-notify usage, the tmux/pane and /loop notes); each owned tool's usage knowledge is delegated to `<tool> skill` at use-time (`command -v`-gated fail-silent for all four owned binaries, with a version-skew fallback to the shll.ai bundle page), and its exhaustive command tree to `<tool> help-dump`. Loaded by operator skills only."
+description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, rk (run-kit), and /loop. Carries only fab-owned content (operator spawning choreography, the escalation rk-notify usage plus a pointer to the operator's startup role self-mark, the tmux/pane and /loop notes); each owned tool's usage knowledge is delegated to `<tool> skill` at use-time (`command -v`-gated fail-silent for all four owned binaries, with a version-skew fallback to the shll.ai bundle page), and its exhaustive command tree to `<tool> help-dump`. Loaded by operator skills only."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -26,8 +26,9 @@ metadata:
 
 This file documents only **fab-owned** content — what each tool *is* in one line,
 and the fab-specific integration choreography that no tool's own documentation
-carries (the operator's spawning sequence, the escalation `rk notify` usage, the
-`fab pane` internalization notes). It deliberately does **not** restate any
+carries (the operator's spawning sequence, the escalation `rk notify` usage and
+the pointer to the operator's startup role self-mark, the `fab pane`
+internalization notes). It deliberately does **not** restate any
 tool-owned usage knowledge: that is delegated to each owned tool's own bundle at
 use-time, so this file never goes stale against a tool's release cadence.
 
@@ -205,6 +206,10 @@ command -v rk >/dev/null 2>&1 && rk notify "{change}: {summary} ({repo})" --titl
 ```
 
 This is the operator's *usage* of the tool, not the `rk notify` contract itself (that is tool-owned — see `rk skill`). When `rk` is absent, the operator falls back to a documented alternative channel per `fab-operator.md` §5 Notification Send.
+
+### Operator role self-mark (fab-owned — pointer)
+
+The second fab-owned rk usage — the fail-silent `rk role operator` self-mark that pins the operator window in run-kit's dashboard — is owned by `fab-operator.md` §2 Startup (§ Role Mark). The `@rk_role` option contract and its one-operator-per-server radio semantics are tool-owned; see `rk skill`.
 
 ---
 
