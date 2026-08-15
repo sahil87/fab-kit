@@ -20,7 +20,7 @@ helpers: [_cli-agents, _cli-fab, _cli-external]
 - 8. Configuration
 - 9. Key Properties
 
-Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across all sessions on its tmux server via `fab pane map --all-sessions`, routes commands and answers via `fab pane send` (the gated binary — plain for command routing, `--answer` for prompt answers; raw `tmux send-keys` only for key-name input the literal-text send cannot express), monitors progress via `/loop`. Spans multiple repos and sessions on one server. The loop is the heart of the operator.
+Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across all sessions on its tmux server via `fab pane map --all-sessions`, routes commands and answers via `rk mux send` when rk is installed (`command -v rk`-gated — plain for command routing, `--answer` for prompt answers, `--key` for key-name input), degrading to raw `tmux send-keys` behind its own §3 state gate when rk is absent — never an error, and monitors progress via `/loop`. Spans multiple repos and sessions on one server. The loop is the heart of the operator.
 
 Start via `fab operator` (singleton tmux tab named `operator`). The launcher requires **neither a git repo nor a resolvable `fab/` project** — matching the per-server, cross-repo singleton model, whose natural launch point is a neutral parent directory (e.g. `~/code`). Its exact degraded behavior (window cwd, session command, `operator`-role model resolution and built-in defaults) is documented in `_cli-fab.md` § fab operator and is the canonical §9 Key Properties rows below.
 
@@ -110,10 +110,10 @@ This single preflight probe covers every later `wt create` call site; none is in
 
 ### Pre-Send Validation
 
-Before sending keys to any pane, run the two-step gate in **`_cli-agents.md` § Pre-Send Validation** (pane exists via a refreshed pane map → agent state fits the send intent per the three-state `@rk_agent_state` read — the same mode-aware gate `fab pane send` enforces), then apply the operator's own policy on its outcome plus the two operator-specific checks:
+Before sending keys to any pane, run the two-step gate in **`_cli-agents.md` § Pre-Send Validation** (pane exists via a refreshed pane map → agent state fits the send intent per the three-state `@rk_agent_state` read — the same mode-aware gate `rk mux send` enforces), then apply the operator's own policy on its outcome plus the two operator-specific checks:
 
 1. **Pane gone** (gate step 1 fails) — report "Pane for {change} is gone." Do not send.
-2. **Agent not `idle`** (gate step 2) — the operator does **not** silently proceed. If `active` or `waiting`: "{change} is {state}. Sending may corrupt its work / cut across a pending human answer. Send anyway?" — send only on explicit confirmation, and keep the confirmed send on the gated binary: a `waiting` target rides `fab pane send --answer`, an `active` target requires `--force` (the deliberate skip-everything override). If unknown (`—`, no `@rk_agent_state` on the pane): the agent isn't instrumented; confirm before sending (plain send then warns-and-sends — no override needed). Only `idle` sends unattended. *(This routed-command confirm policy is unchanged by `--answer` — the flag swaps the mechanism after confirmation, not the ask; the auto-answer flow in §5 is the unattended `--answer` consumer.)*
+2. **Agent not `idle`** (gate step 2) — the operator does **not** silently proceed. If `active` or `waiting`: "{change} is {state}. Sending may corrupt its work / cut across a pending human answer. Send anyway?" — send only on explicit confirmation, and keep the confirmed send gated: with rk installed (`command -v rk`), a `waiting` target rides `rk mux send --answer`, an `active` target requires `rk mux send --force` (the deliberate skip-everything override); with rk absent, the confirmed send is raw `tmux send-keys` behind the operator's own state gate just performed. If unknown (`—`, no `@rk_agent_state` on the pane): the agent isn't instrumented; confirm before sending (plain send then warns-and-sends — no override needed). Only `idle` sends unattended. *(This routed-command confirm policy is unchanged by `--answer` — the flag swaps the mechanism after confirmation, not the ask; the auto-answer flow in §5 is the unattended `--answer` consumer.)*
 3. **Check change is active** — if the target change isn't the active change in that tab, send `/fab-switch <change>` first.
 4. **Check branch alignment** — if the tab's git branch doesn't match the change folder name, send `/git-branch` to align it.
 
@@ -382,9 +382,9 @@ leaves open a Strategic prompt. Use the default `rk notify` command and gate in
 
 ### Sending Auto-Answers
 
-Deliver text answers via `fab pane send --answer <pane> <text>` — the answer-mode gate permits `waiting` (the auto-answer's primary target) and `idle`, still refuses `active`, and validates pane existence (`_cli-fab.md` § fab pane send). Answers that are key names rather than literal text (bare Enter, arrows, `C-c`) cannot ride the literal-text send and remain raw `tmux send-keys` — the one remaining raw path.
+Deliver text answers via `rk mux send <pane> "<text>" --answer` when rk is installed (`command -v rk`-gated) — the answer-mode gate permits `waiting` (the auto-answer's primary target) and `idle`, still refuses `active`, and validates pane existence (full contract is tool-owned via `rk skill`; the usage summary lives in `_cli-agents.md` § Pre-Send Validation). Key-name answers (bare Enter, arrows, `C-c`) ride `rk mux send --key` on the same path. When rk is absent, the answer is raw `tmux send-keys` (keys and literal text alike) behind the same gate — never an error.
 
-Before the send: run the §3 pre-send gate (`_cli-agents.md` § Pre-Send Validation — pane exists; state read per its step 2, expecting `waiting` or the idle fallback), then re-capture the terminal. If output changed since detection, abort — agent is no longer waiting. If the answer appears to land but the agent does not resume, apply the delivery probe (`_cli-agents.md` § Delivery Probe) instead of re-sending blind.
+Before the send: run the §3 pre-send gate (`_cli-agents.md` § Pre-Send Validation — pane exists; state read per its step 2, expecting `waiting` or the idle fallback), then re-capture the terminal. If output changed since detection, abort — agent is no longer waiting. If the answer appears to land but the agent does not resume: on the rk path the send's delivery verification is built in — a probe failure surfaces as staged text + a stderr warning + exit 1, so re-capture and decide; never blind-resend. On the rk-absent raw path, apply the delivery probe (`_cli-agents.md` § Delivery Probe) instead of re-sending blind.
 
 ### Idle Auto-Default on Strategic Escalations
 
@@ -660,7 +660,7 @@ When a watch-spawned agent reaches its `stop_stage`, move the item ID from `know
 The isolation unit is the **tmux server**. There is exactly **one operator per tmux server** — it spans every session and every repo on that server, coordinating all of them through a single server-keyed state file (§4, §9). This matches the server-wide singleton already enforced by the `operator` window (`fab operator` switches to the existing window rather than creating a second one).
 
 - **Multiple sessions, same server** share one operator and one state file. The operator addresses their agents by the `(session, repo, pane)` tuple (§1); there is no per-session or per-repo operator.
-- **A second operator means a second tmux server** — start one on a separate socket (`tmux -L <label>`). Its state file is keyed by that socket, so the two operators never collide. There is no `--name` dimension; the server boundary is the only isolation knob.
+- **A second operator means a second tmux server** — start one on a separate socket (`tmux -L <label>`). Its state file is keyed by that socket, so the two operators never collide. There is no `--name` dimension; the server boundary is the only isolation knob. Sends on a non-default socket carry the matching flag: `rk mux -L <label>` (or `tmux -L <label> send-keys …` on the rk-absent raw path).
 
 ### Settings
 

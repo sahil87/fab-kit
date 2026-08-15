@@ -546,16 +546,16 @@ func TestAgentColumn(t *testing.T) {
 	})
 }
 
-// TestMapSendAgentAgreement_NonFabPane pins the invariant that ALL three
-// readers (pane map's resolvePane, and pane send/capture's ResolvePaneContext)
+// TestMapCaptureAgentAgreement_NonFabPane pins the invariant that ALL the
+// readers (pane map's resolvePane, and pane capture's ResolvePaneContext)
 // resolve the SAME agent state for a non-fab pane carrying @rk_agent_state.
 // The regression it guards: before the rework, resolvePane's non-git branch
 // hardcoded the em-dash while ResolvePaneContext read the option before its
 // git/fab early returns — so `pane map` could show `idle (…)` for a pane
-// `pane send` refused as unknown (and vice versa). Both readers now feed the
-// same parseAgentState grammar, so the agent column and the send-gate state
+// `pane capture` reported as unknown (and vice versa). Both readers now feed
+// the same parseAgentState grammar, so the agent column and the capture state
 // must agree for every raw option value.
-func TestMapSendAgentAgreement_NonFabPane(t *testing.T) {
+func TestMapCaptureAgentAgreement_NonFabPane(t *testing.T) {
 	// A non-git pane cwd — no worktree root, no fab/ dir. This is the class the
 	// old resolvePane branch hardcoded to em-dash.
 	nonGitCWD := t.TempDir()
@@ -585,30 +585,30 @@ func TestMapSendAgentAgreement_NonFabPane(t *testing.T) {
 			}
 			mapState, mapDur := pane.AgentDisplayFromOption(row.agentOption)
 
-			// SEND/CAPTURE path: the shared display helper both consume via
+			// CAPTURE path: the shared display helper consumed via
 			// ResolvePaneContext. (ResolvePaneContext's own tmux read is covered
 			// by TestReadAgentStateOption_Integration in internal/pane; here we
 			// assert the two readers agree on the SAME raw value, which is the
 			// invariant the rework restored.)
-			sendState, sendDur := pane.AgentDisplayFromOption(raw)
+			captureState, captureDur := pane.AgentDisplayFromOption(raw)
 
-			if mapState != sendState {
-				t.Errorf("state disagreement for %q: map=%q send=%q", raw, mapState, sendState)
+			if mapState != captureState {
+				t.Errorf("state disagreement for %q: map=%q capture=%q", raw, mapState, captureState)
 			}
-			if mapDur != sendDur {
-				t.Errorf("duration disagreement for %q: map=%q send=%q", raw, mapDur, sendDur)
+			if mapDur != captureDur {
+				t.Errorf("duration disagreement for %q: map=%q capture=%q", raw, mapDur, captureDur)
 			}
 		})
 	}
 }
 
-// TestMapSendAgentAgreement_Integration drives BOTH readers against a real
+// TestMapCaptureAgentAgreement_Integration drives BOTH readers against a real
 // tmux pane whose cwd is a NON-FAB (non-git) directory, simulating the writer
 // via `tmux set-option -p`. It proves the map column (resolvePane) and the
-// send-gate state (ResolvePaneContext) agree end-to-end for a non-fab pane —
+// capture state (ResolvePaneContext) agree end-to-end for a non-fab pane —
 // the exact cross-reader divergence the rework fixed. Skipped when tmux is
 // unavailable.
-func TestMapSendAgentAgreement_Integration(t *testing.T) {
+func TestMapCaptureAgentAgreement_Integration(t *testing.T) {
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("tmux not available")
 	}
@@ -618,7 +618,7 @@ func TestMapSendAgentAgreement_Integration(t *testing.T) {
 	// Private TMUX_TMPDIR (process env — both readers under test shell out to
 	// `tmux -L` themselves and must resolve the same socket dir) makes the
 	// socket die with the test; a short fixed name keeps the path in budget.
-	// Helper shared from pane_send_test.go (same package).
+	// Helper shared from tmuxsocket_test.go (same package).
 	server := "fabtest-agree"
 	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
 	tmux := func(args ...string) (string, error) {
@@ -640,13 +640,13 @@ func TestMapSendAgentAgreement_Integration(t *testing.T) {
 		t.Fatalf("set-option: %v: %s", err, out)
 	}
 
-	// SEND/CAPTURE reader.
+	// CAPTURE reader.
 	ctx, err := pane.ResolvePaneContext(paneID, "", server)
 	if err != nil {
 		t.Fatalf("ResolvePaneContext: %v", err)
 	}
 	if ctx.AgentState == nil || *ctx.AgentState != pane.AgentStateWaiting {
-		t.Fatalf("ResolvePaneContext AgentState = %v, want waiting (send/capture must see the option on a non-fab pane)", ctx.AgentState)
+		t.Fatalf("ResolvePaneContext AgentState = %v, want waiting (capture must see the option on a non-fab pane)", ctx.AgentState)
 	}
 
 	// MAP reader — resolve the option off the pane, then run the non-git branch.
@@ -656,7 +656,7 @@ func TestMapSendAgentAgreement_Integration(t *testing.T) {
 		t.Fatal("resolvePane returned ok=false")
 	}
 	if row.agent != pane.AgentStateWaiting {
-		t.Errorf("pane map Agent column = %q, want waiting — map must agree with send on a non-fab pane", row.agent)
+		t.Errorf("pane map Agent column = %q, want waiting — map must agree with capture on a non-fab pane", row.agent)
 	}
 }
 

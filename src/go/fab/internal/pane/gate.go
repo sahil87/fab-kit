@@ -99,7 +99,7 @@ type PaneIO interface {
 }
 
 // tmuxPaneIO is the real implementation, delegating to this package's shared
-// helpers so the gate, `fab pane capture`, and `fab pane send` all go through
+// helpers so the gate and `fab pane capture` both go through
 // one tmux argv builder and one stderr-enrichment convention.
 type tmuxPaneIO struct{ server string }
 

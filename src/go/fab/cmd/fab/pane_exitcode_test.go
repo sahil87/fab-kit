@@ -87,8 +87,6 @@ func TestPaneVerbExitCodes(t *testing.T) {
 		{"open dead socket exits 3", []string{"open", "--provider", "kimi", "-L", "nosuch-dead-sock"}, 3},
 		{"kill missing pane exits 2", []string{"kill", "%999", "-L", server}, 2},
 		{"kill dead socket exits 3", []string{"kill", "%1", "-L", "nosuch-dead-sock"}, 3},
-		{"await missing pane exits 2", []string{"await", "%999", "-L", server, "--file", "x"}, 2},
-		{"await dead socket exits 3", []string{"await", "%1", "-L", "nosuch-dead-sock", "--file", "x"}, 3},
 		{"process missing pane exits 2", []string{"process", "%999", "-L", server}, 2},
 		{"process dead socket exits 3", []string{"process", "%1", "-L", "nosuch-dead-sock"}, 3},
 	} {

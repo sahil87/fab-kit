@@ -258,7 +258,7 @@ const malformedRemediation = "→ fix the file(s) above — restore the closing 
 // but the malformed files are enumerated in either case so they are never
 // silently swallowed by a co-occurring loss. main() exits 1 on any returned
 // error, so a non-1 code must be set in-handler via os.Exit (the established
-// pane_capture / pane_send pattern). With --json the report is emitted as a
+// pane_capture pattern). With --json the report is emitted as a
 // single object on stdout and human-readable text is suppressed; the exit
 // dispatch is identical so machine consumers branch on the code, not the text.
 func emitCheckReport(cmd *cobra.Command, report memoryindex.LossReport, jsonOut bool) error {

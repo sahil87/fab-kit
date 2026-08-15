@@ -269,7 +269,7 @@ func GetPanePID(paneID, server string) (int, error) {
 // without a fab/ directory, or a non-git directory still populates AgentState
 // when the pane carries the @rk_agent_state option. It is resolved before the
 // git/fab early returns for exactly that reason (see the resolution block), so
-// send/map/capture agree on every pane class.
+// map/capture agree on every pane class.
 func ResolvePaneContext(paneID, mainRoot, server string) (*PaneContext, error) {
 	// Get pane CWD
 	out, err := exec.Command("tmux", WithServer(server, "display-message", "-t", paneID, "-p", "#{pane_current_path}")...).Output()
@@ -288,9 +288,9 @@ func ResolvePaneContext(paneID, mainRoot, server string) (*PaneContext, error) {
 	// early returns below. Otherwise a non-fab pane carrying @rk_agent_state
 	// would resolve to unknown here while `pane map` (which reads the option
 	// off every pane's list-panes row) shows its real state — the two readers
-	// would disagree, and `pane send` would refuse (as unknown) a pane the map
-	// reports as idle. Reading the option first keeps all three readers
-	// (send/map/capture) in agreement for every pane class: non-git, git but
+	// would disagree, and `pane capture` would report unknown for a pane the
+	// map shows as idle. Reading the option first keeps both readers
+	// (map/capture) in agreement for every pane class: non-git, git but
 	// no fab/, and fab. Reads the @rk_agent_state pane option (written by
 	// run-kit's rk agent-setup), so discussion-mode panes and non-Claude
 	// agents (codex/copilot/gemini) are covered uniformly; an absent or
@@ -456,7 +456,7 @@ func AgentDisplayFromOption(raw string) (state, idleDuration string) {
 // a non-zero exit, handled by the error branch below (which also absorbs a
 // missing pane or dead server). The error branch therefore exists to map ALL
 // of these — unset option, missing pane, dead server — to the unknown state:
-// send/capture validate pane existence separately, so an option-read failure
+// capture validates pane existence separately, so an option-read failure
 // degrades to unknown rather than erroring out.
 // If server is non-empty, the invocation is scoped via `-L <server>`.
 //
