@@ -367,7 +367,7 @@ User invokes /docs-hydrate-memory [sources...|folders...|backfill]
 
 ## `/fab-new <description>`
 
-**Purpose**: Start a new change — creates the intake and activates it. Not for micro changes — the Micro-Change Backstop below confirms before creating anything.
+**Purpose**: Start a new change — creates the intake, activates it, and creates the git branch. Not for micro changes — the Micro-Change Backstop below confirms before creating anything.
 
 **Context**: config, constitution, `docs/memory/index.md` (to understand existing memory landscape)
 
