@@ -367,7 +367,7 @@ User invokes /docs-hydrate-memory [sources...|folders...|backfill]
 
 ## `/fab-new <description>`
 
-**Purpose**: Start a new change — creates the intake and activates it.
+**Purpose**: Start a new change — creates the intake and activates it. Not for micro changes — the Micro-Change Backstop below confirms before creating anything.
 
 **Context**: config, constitution, `docs/memory/index.md` (to understand existing memory landscape)
 
@@ -388,6 +388,7 @@ User invokes /docs-hydrate-memory [sources...|folders...|backfill]
 ```
 
 **Behavior**:
+0. **Micro-change backstop** (Step -1 — `fab-new.md` owns the criteria text): if the described change meets all three micro criteria (no memory/spec impact, no behavior-contract change, single-spot ~1-task edit; tie-breaker default-closed — when unsure, use fab), confirm inline before creating anything; a decline STOPs with nothing created (make the edit directly and commit, outside fab)
 1. Generate folder name: today's date (`YYMMDD`) + 4 random alphanumeric chars + 2-6 word slug from description
 2. Create `fab/changes/{name}/`
 3. Initialize `.status.yaml` with all stages `pending`, then make the intake stage active
@@ -405,6 +406,7 @@ User invokes /docs-hydrate-memory [sources...|folders...|backfill]
 ```text
 User invokes /fab-new <description>
 ├─ Read: _preamble.md, .claude/skills/_intake/SKILL.md (+helpers)
+├─ Micro-Change Backstop (Step -1): all three micro criteria hold → inline confirm; decline → STOP (nothing created)
 ├─ Create-Intake Procedure Steps 0–9 (interactive — see `_intake.md`)
 ├─ Bash: fab change switch "{name}"
 └─ Create Git Branch (same cases as git-branch): probe repo/branch/dirty/target-exists/rename-guard → checkout, checkout --track, checkout -b, or branch -m; dirty tree on create/rename → non-blocking note
@@ -640,13 +642,15 @@ User invokes /fab-fff [change-name] [--force]
 **Behavior**:
 1. **State detection** — 5-step pipeline: (1) active change check (`fab resolve --folder --or-none` — branch on the output token: a folder name = active change, `(none)` = none; a non-zero exit is a real error, not the no-active-change state), (2) branch check (`git branch --show-current`, runs only if active change found), (3) conversation classification as substantive/empty-thin, (4) unactivated intake scan (`fab/changes/`, retain full candidate list), (5) dispatch decision combining Steps 1–4 via the 7-row dispatch table. Steps 3 and 4 are order-independent and both run whenever no active change was found.
 2. **Relevance assessment** — when substantive conversation AND ≥1 unactivated intake exist, score each candidate by reading its title + Origin + Why + What Changes sections; clearly relevant requires shared topic + overlapping terminology + consistent scope (no partial/vague overlap); asymmetric-bias rule: ambiguous → not clearly relevant → fall through to `/fab-new`; date-descending tiebreak used only among equally-relevant candidates.
-3. **Prefix dispatch** — subagent dispatch for prefix steps (fab-new, fab-switch, git-branch) per `_preamble.md` § Subagent Dispatch
-4. **Terminal delegation** — invoke `/fab-fff` via the Skill tool (not subagent) for full user visibility
-5. **Bypass notes** — when `/fab-new` runs despite ≥1 unactivated intake being present, emit `Note: unactivated draft {name} exists — not relevant to current conversation, left untouched.` for each scanned draft (date-descending order, before any step reports)
+3. **Micro-change backstop** — create-new (`_intake`) rows only, before the dispatch: if the change meets the micro criteria (owned by `fab-new.md` § Step -1 — pointer, not restated) and the conversation carries no explicit go-ahead ("use fab anyway"), STOP with the direct-fix message — zero-prompt, no state created, fix not performed
+4. **Prefix dispatch** — subagent dispatch for prefix steps (fab-new, fab-switch, git-branch) per `_preamble.md` § Subagent Dispatch
+5. **Terminal delegation** — invoke `/fab-fff` via the Skill tool (not subagent) for full user visibility
+6. **Bypass notes** — when `/fab-new` runs despite ≥1 unactivated intake being present, emit `Note: unactivated draft {name} exists — not relevant to current conversation, left untouched.` for each scanned draft (date-descending order, before any step reports)
 
 **Key properties**:
 - No arguments, no flags — infers everything from context
 - Zero-prompt — ambiguous relevance resolved by asymmetric-bias rule, never by asking
+- Micro-change backstop on the create-new rows — stop-with-message ("use fab anyway" to proceed); criteria owned by `fab-new.md` § Step -1
 - Idempotent — re-running detects completed steps and skips them
 - Does not run preflight or load `_preamble.md` context — delegates to `/fab-fff`
 - Errors on empty context + no intake: "Nothing to proceed with — start a discussion or run /fab-new (or /fab-draft) first."
@@ -660,6 +664,7 @@ User invokes /fab-proceed
 │  ├─ folder → branch check: matches → dispatch /fab-fff only / mismatch → dispatch /git-branch → /fab-fff
 │  └─ "(none)" → classify conversation substantive vs empty/thin
 ├─ Scan unactivated intakes; substantive + candidates → relevance assessment (clearly-relevant wins; ambiguous → not relevant; date-descending tiebreak)
+├─ Create-new row → Micro-Change Backstop (criteria per fab-new.md § Step -1): micro + no go-ahead → STOP (direct-fix message)
 ├─ Prefix dispatch (subagents): _intake Steps 0–9 in promptless-defer mode (no questions; unresolved decisions deferred, surfaced before /fab-fff) → /fab-switch → /git-branch
 └─ Terminal delegation: Skill: /fab-fff (main context, NOT subagent)
 ```

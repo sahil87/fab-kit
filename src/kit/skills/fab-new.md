@@ -1,6 +1,6 @@
 ---
 name: fab-new
-description: "Start a new change — creates the intake, activates it, and creates the git branch."
+description: "Start a new change — creates the intake, activates it, and creates the git branch. Not for micro changes: a single-spot edit with no memory/spec impact and no behavior-contract change — make it directly and commit, no fab (when unsure, use fab); a follow-up tweak to a change still in flight is not new work — amend that change."
 helpers: [_generation, _srad, _intake]
 ---
 
@@ -35,6 +35,29 @@ If no description: ask *"What change do you want to make?"*
 ---
 
 ## Behavior
+
+### Step -1: Micro-Change Backstop
+
+> This section is the **canonical owner** of the micro-change criteria and backstop text — `fab-proceed.md` § Micro-Change Backstop points here rather than restating it (owner-or-pointer, `fab/project/code-quality.md`).
+
+Before executing Steps 0–9, evaluate the described change against the **micro criteria**. A change is **micro** when ALL THREE hold:
+
+1. **No memory/spec impact** — it would touch nothing that `docs/memory/` or `docs/specs/` documents (an empty Affected Memory list)
+2. **No behavior-contract change** — no user-visible contract, command surface, or documented behavior changes
+3. **Single-spot edit** — it would be a ~1-task plan: one focused edit in one place
+
+**Tie-breaker (default-closed): when unsure, use fab.** The backstop must not become a hydrate-skipping loophole — memory drift is the expensive failure fab exists to prevent.
+
+When all three hold, do NOT create anything yet — confirm inline (`/fab-new` is interactive by posture):
+
+> This looks like a direct fix — handle it without fab, or continue with a tracked change?
+
+- **Direct fix** (or no explicit continue): STOP. Nothing was created — the right move is to make the edit directly and commit, outside fab. No `Next:` line is shown (mirroring the gap-analysis no-folder outcome).
+- **Continue**: the inline answer IS the explicit go-ahead — proceed to Steps 0–9 unchanged.
+
+When any criterion fails or is uncertain, skip the confirm and proceed to Steps 0–9 directly.
+
+Two cases the criteria deliberately separate: a **follow-up tweak to a change still in flight** belongs to that change — amend it (not `/fab-new` at all); a **standalone micro fix** (the prior change already shipped/archived) is the direct-edit case above.
 
 ### Steps 0–9: Create the Intake
 
@@ -153,6 +176,7 @@ Next: {per state table — intake state (no activation preamble)}
 | Property | Value |
 |----------|-------|
 | Idempotent? | Partially — re-running with the same backlog/Linear ID routes to resume (`/fab-switch {name}` + `/fab-continue`) instead of creating a duplicate; a natural-language re-run intentionally creates a new change each run |
+| Micro-change backstop? | Yes — Step -1 confirms inline before creating anything when all three micro criteria hold (this file owns the criteria text) |
 | Advances stage? | Yes — intake to `ready` |
 | Modifies `.fab-status.yaml`? | Yes — activates the new change (Step 10) |
 | Modifies git state? | Yes — creates/checks out the change branch (Step 11, non-fatal) |

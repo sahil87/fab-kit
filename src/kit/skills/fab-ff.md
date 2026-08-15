@@ -1,6 +1,6 @@
 ---
 name: fab-ff
-description: "Fast-forward through hydrate — confidence-gated pipeline from intake through hydrate, with the one-time light/full lane fork on plan task count (--light/--full override; light lane runs task execution and hydrate inline), sub-agent review in both lanes, auto-rework loop, and stop on exhaustion."
+description: "Fast-forward through hydrate — confidence-gated pipeline from intake through hydrate, with the one-time light/full lane fork on plan task count (--light/--full override; light lane runs task execution and hydrate inline), sub-agent review in both lanes, auto-rework loop, and stop on exhaustion. Not for micro changes: a single-spot edit with no memory/spec impact and no behavior-contract change — make it directly and commit, no fab (when unsure, use fab); a follow-up tweak to a change still in flight is not new work — amend that change."
 helpers: [_generation, _review, _srad, _pipeline]
 ---
 
