@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 13
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-08-15T15:48:23Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-15T15:50:06Z"}
     review: {started_at: "2026-08-15T15:50:06Z", driver: fab-fff, iterations: 2, completed_at: "2026-08-15T15:55:11Z"}
     hydrate: {started_at: "2026-08-15T15:55:11Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-15T16:11:18Z"}
-    ship: {started_at: "2026-08-15T16:11:18Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-15T16:11:18Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-15T16:14:12Z"}
+    review-pr: {started_at: "2026-08-15T16:14:12Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/600
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 588
+    deleted: 1465
+    net: -877
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 129
+        deleted: 1354
+        net: -1225
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-08-15T16:11:18Z"
-    computed_at_stage: hydrate
+        added: 99
+        deleted: 922
+        net: -823
+    computed_at: "2026-08-15T16:14:12Z"
+    computed_at_stage: ship
 summary: Retired fab pane send/await (cli-layering Part 5) — agent messaging rides rk mux send/await (command -v rk-gated, fail-open to raw tmux); internal send builders + deliver stack stay; internal/pane/await.go deleted as dead code; pane family now map|capture|process|window-name|open|ready|deliver|kill
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-15T16:11:18Z
+last_updated: 2026-08-15T16:14:12Z
