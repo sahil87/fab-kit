@@ -1,6 +1,6 @@
 ---
 name: _cli-external
-description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, rk (run-kit), and /loop. Carries only fab-owned content (operator spawning choreography, the escalation rk-notify usage plus a pointer to the operator's startup role self-mark, the tmux/pane and /loop notes); each owned tool's usage knowledge is delegated to `<tool> skill` at use-time (`command -v`-gated fail-silent for all four owned binaries, with a version-skew fallback to the shll.ai bundle page), and its exhaustive command tree to `<tool> help-dump`. Loaded by operator skills only."
+description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, rk (run-kit), and /loop. Carries only fab-owned content (operator spawning choreography, the escalation rk-notify usage plus pointers to the operator's startup role self-mark and the rk-mux agent-messaging usage, the tmux/pane and /loop notes); each owned tool's usage knowledge is delegated to `<tool> skill` at use-time (`command -v`-gated fail-silent for all four owned binaries, with a version-skew fallback to the shll.ai bundle page), and its exhaustive command tree to `<tool> help-dump`. Loaded by operator skills only."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -180,7 +180,7 @@ Terminal multiplexer commands used by the operator for agent observation and int
 
 - **Pane mapping across sessions**: The operator's tick snapshots **all** sessions on its tmux server via `fab pane map --all-sessions --json` (see `_cli-fab.md`), not just the operator's own session. The `--json` output carries a per-row `repo` field (the pane's absolute main-worktree root, `null` when unresolved) used to group the status frame by repo then session.
 - **Pane capture**: Use `fab pane capture` instead of raw `tmux capture-pane`. It provides fab context enrichment, validation, and structured output.
-- **Send keys**: Use `fab pane send` instead of raw `tmux send-keys`. It includes built-in pane-existence and agent-state validation (plain send for command routing; `--answer` for answering a `waiting` agent's prompt — mode matrix in `_cli-fab.md` § fab pane send).
+- **Send keys**: Prefer `rk mux send` when rk is present (`command -v rk`-gated; it carries built-in pane-existence and agent-state validation with probe-verified delivery). When rk is absent, fail open to raw `tmux send-keys` behind the caller's own state read (`fab pane map`/`fab pane capture --json`) plus the manual delivery probe — never an error. Usage ownership for both paths is in `_cli-agents.md` § Pre-Send Validation and `fab-operator.md` §3/§5.
 - **`new-window`** is also how an agent session is spawned — the command form, quoting, and the one-prompt/no-`&&`-chaining rule are owned by `_cli-agents.md` § Spawn Composition ("Open it in a pane"); the operator's `»<wt>` window-marker name is its own policy, in `fab-operator.md` §6
 
 ---
@@ -210,6 +210,10 @@ This is the operator's *usage* of the tool, not the `rk notify` contract itself 
 ### Operator role self-mark (fab-owned — pointer)
 
 The second fab-owned rk usage — the fail-silent `rk role operator` self-mark that pins the operator window in run-kit's dashboard — is owned by `fab-operator.md` §2 Startup (§ Role Mark). The `@rk_role` option contract and its one-operator-per-server radio semantics are tool-owned; see `rk skill`.
+
+### Agent messaging (fab-owned — pointer)
+
+The third fab-owned rk usage — agent messaging via `rk mux send`/`rk mux await`, `command -v rk`-gated and fail-open to the raw-tmux path when rk is absent — is owned by `_cli-agents.md` § Pre-Send Validation / § Await and `fab-operator.md` §3/§5. The verbs' full contract (gate matrix, probe-verified delivery, report words) is tool-owned; see `rk skill`.
 
 ---
 

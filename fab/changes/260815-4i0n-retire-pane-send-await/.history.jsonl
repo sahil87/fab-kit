@@ -1,0 +1,15 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-15T15:19:32Z"}
+{"args":"Part 5 of cli-layering: retire fab pane send/await CLI verbs, migrate operator + helper skill guidance to rk mux send/await with raw-tmux fallback; internal builders stay","cmd":"fab-new","event":"command","ts":"2026-08-15T15:19:32Z"}
+{"delta":"+4.8","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-08-15T15:22:03Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-15T15:25:50Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-15T15:26:00Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-15T15:39:04Z"}
+{"event":"review","result":"failed","ts":"2026-08-15T15:48:23Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-15T15:48:23Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-15T15:50:06Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-15T15:55:11Z"}
+{"event":"review","result":"passed","ts":"2026-08-15T15:55:11Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-15T16:11:18Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-15T16:14:12Z"}
+{"cmd":"git-pr-review","event":"command","ts":"2026-08-15T16:15:50Z"}
+{"event":"review","result":"passed","ts":"2026-08-15T16:24:14Z"}

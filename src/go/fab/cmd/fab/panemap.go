@@ -325,7 +325,7 @@ func resolvePane(p paneEntry, wtRoot, mainRoot string) (paneRow, bool) {
 		// Non-git pane: the CHANGE axis is em-dash (no fab context), but the
 		// AGENT axis still comes from the pane's @rk_agent_state option — a
 		// non-git pane can run an instrumented agent. Hardcoding em-dash here
-		// would make `pane map` disagree with `pane send`/`capture` (which
+		// would make `pane map` disagree with `pane capture` (which
 		// resolve the option regardless of git/fab context), so resolve it via
 		// the same agentColumn helper the git branch below uses.
 		return paneRow{

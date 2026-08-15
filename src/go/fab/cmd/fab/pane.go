@@ -23,7 +23,7 @@ func paneCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pane",
 		Short: "Tmux pane operations",
-		Long:  "Tmux pane operations: map, capture, send, process, window-name, open, ready, deliver, kill, await",
+		Long:  "Tmux pane operations: map, capture, process, window-name, open, ready, deliver, kill",
 	}
 
 	cmd.PersistentFlags().StringP("server", "L", "", "Target tmux socket label (passed as 'tmux -L <name>'). Defaults to $TMUX / tmux default socket.")
@@ -31,14 +31,12 @@ func paneCmd() *cobra.Command {
 	cmd.AddCommand(
 		paneMapCmd(),
 		paneCaptureCmd(),
-		paneSendCmd(),
 		paneProcessCmd(),
 		paneWindowNameCmd(),
 		paneOpenCmd(),
 		paneReadyCmd(),
 		paneDeliverCmd(),
 		paneKillCmd(),
-		paneAwaitCmd(),
 	)
 
 	return cmd
