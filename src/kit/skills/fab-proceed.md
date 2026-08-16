@@ -1,6 +1,6 @@
 ---
 name: fab-proceed
-description: "Context-aware orchestrator — detects state, runs prefix steps (fab-new, fab-switch, git-branch as needed), then delegates to fab-fff. Takes no arguments — infers everything from conversation; use /fab-fff <change> to target a named change."
+description: "Context-aware orchestrator — detects state, runs prefix steps (fab-new, fab-switch, git-branch as needed), then delegates to fab-fff. Takes no arguments — infers everything from conversation; use /fab-fff <change> to target a named change. Not for micro changes: a single-spot edit with no memory/spec impact and no behavior-contract change — make it directly and commit, no fab (when unsure, use fab); a follow-up tweak to a change still in flight is not new work — amend that change."
 ---
 
 # /fab-proceed
@@ -150,9 +150,24 @@ Each prefix step SHALL dispatch a `general-purpose` subagent with the standard c
 
 The final `/fab-fff` invocation owns pipeline-stage dispatch under `_preamble.md` § CLI-Adapter Dispatch.
 
+#### Micro-Change Backstop (create-new rows only)
+
+Runs immediately before the Create-Intake Dispatch below — only when the dispatch table selected a create-new (`_intake`) row. Resume and active-change paths never evaluate it (a follow-up to a change in flight is an amend, handled by the anti-trigger description text, not this check).
+
+Evaluate the conversation's described change against the micro criteria owned by `fab-new.md` § Step -1: Micro-Change Backstop — read that section; the criteria are deliberately not restated here (owner-or-pointer, `fab/project/code-quality.md`).
+
+- **Suppressed** when the conversation already carries an explicit user go-ahead (e.g., "use fab anyway", or the user explicitly asked to run the pipeline for this work) — conversation is this skill's inference surface; no argument or flag exists or is added.
+- **Triggered** (all three criteria hold, no go-ahead): STOP with exactly:
+
+  ```
+  This looks like a direct fix — handle it without fab unless you want a tracked change. Say "use fab anyway" to proceed.
+  ```
+
+  This is a gate-failure-style stop, preserving the zero-prompt posture: no interactive prompt, no state created, and the skill does NOT perform the fix itself. A re-invocation after an explicit go-ahead dispatches the create-new path normally.
+
 #### Create-Intake Dispatch
 
-Runs when the dispatch table selects the create-new path (`_intake`): either substantive conversation + no intake, or substantive conversation + ≥1 intake but none clearly relevant. The create-an-intake sub-operation is routed through the shared `_intake` Create-Intake Procedure (the same Steps 0–9 `/fab-new` runs) in its `promptless-defer` mode — `/fab-proceed` decides *whether* to create an intake; `_intake` performs it. After it returns (intake at `ready`, not activated), the dispatch table chains `/fab-switch` → `/git-branch` to activate and branch.
+Runs when the dispatch table selects the create-new path (`_intake`): either substantive conversation + no intake, or substantive conversation + ≥1 intake but none clearly relevant — and the Micro-Change Backstop above did not stop the run. The create-an-intake sub-operation is routed through the shared `_intake` Create-Intake Procedure (the same Steps 0–9 `/fab-new` runs) in its `promptless-defer` mode — `/fab-proceed` decides *whether* to create an intake; `_intake` performs it. After it returns (intake at `ready`, not activated), the dispatch table chains `/fab-switch` → `/git-branch` to activate and branch.
 
 1. Synthesize a description from the conversation (see Conversation Context Synthesis below). The synthesis MUST NOT pull from bypassed drafts — only the live conversation is the source.
 2. **Resolve and dispatch** per the prefix-step role table above.
@@ -200,6 +215,7 @@ The skill SHALL NOT pass `--force` or any other flags to `/fab-fff`. If `/fab-ff
 | Condition | Action |
 |-----------|--------|
 | Empty/thin conversation and no intake | Output: `Nothing to proceed with — start a discussion or run /fab-new (or /fab-draft) first.` Stop. |
+| Micro-change backstop triggered (create-new row, all criteria hold, no go-ahead) | Stop with the direct-fix message (§ Micro-Change Backstop); no state created. Re-invoke after an explicit go-ahead ("use fab anyway") to proceed. |
 | `_intake` (create-intake) subagent fails | Surface the error from the Create-Intake Procedure and stop. Do not proceed to further steps. |
 | fab-switch subagent fails | Surface the error from fab-switch and stop. |
 | git-branch subagent fails | Surface the error from git-branch and stop. |
@@ -259,3 +275,4 @@ When only `/fab-fff` is needed (active change + matching branch), output shows o
 | Idempotent? | Yes — re-running detects completed steps and skips them |
 | Advances stage? | No directly — `/fab-fff` handles stage advancement |
 | Outputs Next line? | Inherits from `/fab-fff` |
+| Micro-change backstop? | Create-new rows only — stop-with-message, zero-prompt preserved (criteria owned by `fab-new.md` § Step -1) |
