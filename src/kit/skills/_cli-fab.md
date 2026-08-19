@@ -546,7 +546,7 @@ Without `--session`/`--all-sessions` → current session only (`-s` scope, requi
 
 ### capture — `fab pane capture <pane> [-l N] [--json] [--raw] [--server <name>]`
 
-`<pane>` required (e.g., `%5`). `-l/--lines N` (default 50). `--json` = content + metadata (`worktree`/`change`/`stage`/`agent_state`/`agent_idle_duration` — `agent_state` ∈ `active`/`waiting`/`idle`/`null`, read from the pane's `@rk_agent_state` option; see § agent state above). `--raw` = plain `tmux capture-pane -p`, no enrichment. `--json`/`--raw` mutually exclusive. Pane not found → exit 2 (`Error: pane <id> not found`); other tmux validation failure → exit 3. `--lines < 1` → exit 1 (`ERROR: --lines must be >= 1`).
+`<pane>` required (e.g., `%5`). `-l/--lines N` (default 50) = the **last N lines** of the pane's content: the raw tmux fetch is tailed internally — trailing blank screen-padding stripped, then the last N taken — so no `| tail -N` is needed; interior blank lines and every byte within the window are preserved. `--json` = content + metadata (`worktree`/`change`/`stage`/`agent_state`/`agent_idle_duration` — `agent_state` ∈ `active`/`waiting`/`idle`/`null`, read from the pane's `@rk_agent_state` option; see § agent state above). `--raw` = the captured text only, no enrichment header (byte-identical to tmux's output within the returned window). `--json`/`--raw` mutually exclusive. Pane not found → exit 2 (`Error: pane <id> not found`); other tmux validation failure → exit 3. `--lines < 1` → exit 1 (`ERROR: --lines must be >= 1`).
 
 ### process — `fab pane process <pane> [--json] [--server <name>]`
 

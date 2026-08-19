@@ -115,7 +115,7 @@ Treat "the send call succeeded" and "the agent received the command" as independ
 
 Two independent axes, read separately:
 
-- **Output** — `fab pane capture <pane> [-l N] [--json]` for enriched capture, `--raw` for a plain `tmux capture-pane -p`. A wide window (`-l 50`+, or `capture-pane -S -20` for the last 20 lines) compensates for line wrapping when scanning for a prompt.
+- **Output** — `fab pane capture <pane> [-l N] [--json]` for enriched capture, `--raw` for the bare captured text. `-l N` returns the last N lines (blank screen-padding stripped, tailed internally). A wide window (`-l 50`+) compensates for line wrapping when scanning for a prompt.
 - **Agent state** — the pane's `@rk_agent_state` option (surfaced by `fab pane map`'s Agent column and by `fab pane capture --json`'s `agent_state`/`agent_idle_duration` fields).
 
 > **State-writer caveat — uninstrumented panes read unknown.** fab is a pure *consumer* of `@rk_agent_state`; the writer is run-kit's `rk agent-setup` global agent-harness hooks, which cover **Claude Code, Codex, Copilot, Gemini, and OpenCode** — not just Claude (see `_cli-fab.md` § fab pane → § agent state). The unknown case is therefore an **uninstrumented pane**, not a non-claude one: no `rk agent-setup` was ever run in that environment, or the pane runs a harness those hooks do not cover. Such a pane reports `—` (unknown) — indistinguishable from "no state". So **capture is the universal fallback**: state reads are an optimization on instrumented panes, not a portable signal. Never gate a flow on a non-unknown state read.

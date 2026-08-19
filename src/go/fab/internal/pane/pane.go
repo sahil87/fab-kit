@@ -166,7 +166,11 @@ const (
 )
 
 // CaptureArgs returns the tmux capture-pane argv for the given pane and line
-// count, using `-S -N` to take the last N lines of the pane's scrollback. When
+// count. `-S -N` sets only the START of the capture window — N lines above the
+// top of the visible screen — so the raw output is N scrollback lines PLUS the
+// entire visible screen (blank-padded to the pane height). It is the
+// raw-material fetch: it guarantees at least N lines of material whenever the
+// pane has that much history; Capture tails the result to the last N. When
 // server is non-empty the argv is prefixed with `-L <server>`.
 //
 // The argv builder and its runner (Capture) live HERE rather than in the cobra
@@ -177,9 +181,41 @@ func CaptureArgs(server, paneID string, lines int) []string {
 	return WithServer(server, "capture-pane", "-t", paneID, "-p", "-S", fmt.Sprintf("-%d", lines))
 }
 
-// Capture runs tmux capture-pane and returns the captured text RAW — never
-// trimmed, so a caller rendering it verbatim stays byte-identical to tmux's own
-// output. On failure the error names the pane and carries tmux's stderr
+// TailLines returns the last n lines of s after stripping TRAILING blank
+// lines — tmux pads the visible screen with empty rows up to the pane height,
+// and a whitespace-only trailing row is indistinguishable from that padding.
+// Blank lines interior to the content are preserved, and every LINE within
+// the returned window is byte-untouched (no per-line trimming). A non-empty
+// result is normalized to end with "\n" — tmux capture output already
+// terminates every line, so for tmux input the window stays byte-identical
+// to tmux's own output; only input lacking a final newline gains one. When
+// nothing remains the result is the empty string. n is
+// assumed >= 1 (the CLI validates --lines >= 1 and the gate passes a
+// constant); it is deliberately distinct from gate.go's Tail, which is the
+// log-file tailer ([]byte, no padding strip) — do not consolidate them.
+func TailLines(s string, n int) string {
+	lines := strings.Split(s, "\n")
+	// strings.Split leaves a trailing "" element when s ends with "\n";
+	// dropping it folds into the padding strip below.
+	end := len(lines)
+	for end > 0 && strings.TrimSpace(lines[end-1]) == "" {
+		end--
+	}
+	if end == 0 {
+		return ""
+	}
+	start := end - n
+	if start < 0 {
+		start = 0
+	}
+	return strings.Join(lines[start:end], "\n") + "\n"
+}
+
+// Capture runs tmux capture-pane and returns the LAST `lines` lines of the
+// pane's content: the raw `-S -N` fetch (see CaptureArgs) is tailed through
+// TailLines, stripping the visible screen's trailing blank padding and taking
+// the last N of what remains. Within that window the bytes are tmux's own,
+// untrimmed. On failure the error names the pane and carries tmux's stderr
 // diagnostic via StderrError.
 //
 // Argument order matches CaptureArgs (and WithServer): server first, then the
@@ -190,7 +226,7 @@ func Capture(server, paneID string, lines int) (string, error) {
 	if err != nil {
 		return "", StderrError(fmt.Errorf("pane %s: %w", paneID, err), stderr)
 	}
-	return out, nil
+	return TailLines(out, lines), nil
 }
 
 // SendLiteralArgs returns the tmux argv for a LITERAL send-keys (`-l`), which
