@@ -3,6 +3,7 @@
 
 ## 2026-08-20
 - **Update** [runtime-agents](/runtime/runtime-agents.md) — Deleted the orphaned hooklib hook-payload parsers (ParsePayload, MatchArtifactPath/ArtifactMatch) and their 15 tests; artifact.go now holds only the live plan-parsing helpers (hk7p)
+- **Update** [operator](/runtime/operator.md) — operator state file: full mediation via fab operator mutation verbs (enroll/update/remove, watch/autopilot verbs, branch-map rm, state) — memory updated in runtime/operator + distribution/kit-architecture (m7kq)
 
 ## 2026-08-13
 - **Update** [operator](/runtime/operator.md) — Operator startup gains a fail-silent rk role operator self-mark (@rk_role window option) after the Tmux Gate; _cli-external § rk carries the pointer; _preamble's fab-owned-rk-usage sentence pluralized (swun)
