@@ -388,7 +388,8 @@ func squeeze(s string) string {
 // Tail returns the last n lines of data (Go-side, no external `tail`). n <= 0
 // returns the whole content unchanged. A trailing newline is treated as a line
 // terminator, not an empty final line, so `Tail(data, 1)` on "a\nb\n" yields
-// "b\n".
+// "b\n". Deliberately distinct from pane.go's TailLines, the pane-capture
+// tailer (string, strips trailing blank screen-padding) — do not consolidate.
 func Tail(data []byte, n int) []byte {
 	if n <= 0 || len(data) == 0 {
 		return data

@@ -200,6 +200,36 @@ func TestValidatePaneResult(t *testing.T) {
 	})
 }
 
+func TestTailLines(t *testing.T) {
+	tests := []struct {
+		name string
+		s    string
+		n    int
+		want string
+	}{
+		{"trailing blank padding stripped", "a\nb\nc\n\n\n\n", 5, "a\nb\nc\n"},
+		{"tails to last n", "a\nb\nc\nd\ne\n", 2, "d\ne\n"},
+		{"padding stripped then tailed", "a\nb\nc\nd\n\n\n\n\n", 2, "c\nd\n"},
+		{"interior blank lines preserved", "a\n\nb\n\n\n", 5, "a\n\nb\n"},
+		{"fewer lines than n returns all", "a\nb\n", 50, "a\nb\n"},
+		{"exactly n lines", "a\nb\nc\n", 3, "a\nb\nc\n"},
+		{"whitespace-only trailing rows are padding", "a\nb\n   \n\t\n", 5, "a\nb\n"},
+		{"bytes within window untouched", "a  \nb\t \n", 2, "a  \nb\t \n"},
+		{"all blank returns empty", "\n\n  \n", 3, ""},
+		{"empty input", "", 3, ""},
+		{"no trailing newline gains one", "a\nb", 2, "a\nb\n"},
+		{"n of one", "a\nb\nc\n", 1, "c\n"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := TailLines(tc.s, tc.n)
+			if got != tc.want {
+				t.Errorf("TailLines(%q, %d) = %q, want %q", tc.s, tc.n, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestFormatIdleDuration(t *testing.T) {
 	tests := []struct {
 		name     string
