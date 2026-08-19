@@ -184,11 +184,12 @@ func CaptureArgs(server, paneID string, lines int) []string {
 // TailLines returns the last n lines of s after stripping TRAILING blank
 // lines — tmux pads the visible screen with empty rows up to the pane height,
 // and a whitespace-only trailing row is indistinguishable from that padding.
-// Blank lines interior to the content are preserved, and every byte within
-// the returned window is untouched (no per-line trimming), so a caller
-// rendering the window verbatim stays byte-identical to tmux's own output for
-// those lines. A non-empty result keeps tmux's per-line termination (ends
-// with "\n"); when nothing remains the result is the empty string. n is
+// Blank lines interior to the content are preserved, and every LINE within
+// the returned window is byte-untouched (no per-line trimming). A non-empty
+// result is normalized to end with "\n" — tmux capture output already
+// terminates every line, so for tmux input the window stays byte-identical
+// to tmux's own output; only input lacking a final newline gains one. When
+// nothing remains the result is the empty string. n is
 // assumed >= 1 (the CLI validates --lines >= 1 and the gate passes a
 // constant); it is deliberately distinct from gate.go's Tail, which is the
 // log-file tailer ([]byte, no padding strip) — do not consolidate them.
