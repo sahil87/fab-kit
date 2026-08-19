@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 4
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-08-19T19:17:00Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T19:22:07Z"}
     review: {started_at: "2026-08-19T19:22:07Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T19:28:32Z"}
     hydrate: {started_at: "2026-08-19T19:28:32Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T19:31:16Z"}
-    ship: {started_at: "2026-08-19T19:31:16Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-19T19:31:16Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T19:33:38Z"}
+    review-pr: {started_at: "2026-08-19T19:33:38Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/604
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 357
+    deleted: 16
+    net: 341
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 82
+        deleted: 13
+        net: 69
     tests:
-        added: 0
+        added: 30
         deleted: 0
-        net: 0
-    computed_at: "2026-08-19T19:31:16Z"
-    computed_at_stage: hydrate
+        net: 30
+    computed_at: "2026-08-19T19:33:38Z"
+    computed_at_stage: ship
 summary: 'fab pane capture -l N now returns the last N lines: shared pane.TailLines strips trailing blank screen-padding and tails inside pane.Capture (argv unchanged, all three consumers inherit; --raw byte-identical within the window)'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-19T19:31:16Z
+last_updated: 2026-08-19T19:33:38Z
