@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 4
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-08-19T19:55:51Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T19:57:56Z"}
     review: {started_at: "2026-08-19T19:57:56Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T20:00:55Z"}
     hydrate: {started_at: "2026-08-19T20:00:55Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T20:01:46Z"}
-    ship: {started_at: "2026-08-19T20:01:46Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-19T20:01:46Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T20:04:00Z"}
+    review-pr: {started_at: "2026-08-19T20:04:00Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/605
 change_type_source: explicit
 true_impact:
-    added: 362
-    deleted: 16
-    net: 346
+    added: 619
+    deleted: 20
+    net: 599
     excluding:
-        added: 83
-        deleted: 13
+        added: 85
+        deleted: 15
         net: 70
     tests:
         added: 30
         deleted: 0
         net: 30
-    computed_at: "2026-08-19T20:01:46Z"
-    computed_at_stage: hydrate
+    computed_at: "2026-08-19T20:04:00Z"
+    computed_at_stage: ship
 summary: Operator §5 question-detection capture and the re-capture-before-send guard now use canonical fab pane capture --raw -l 20 [-L <server>] (raw tmux capture-pane instruction removed from the skill and memory mirror)
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-19T20:01:46Z
+last_updated: 2026-08-19T20:04:00Z
