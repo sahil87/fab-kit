@@ -210,7 +210,7 @@ Atomicity lives in the cache install, not in any in-repo copy (kit content is ne
 
 #### Skill Deployment Repair After Update
 
-After caching the new version, `fab upgrade-repo` SHALL call `Sync()` directly (the same logic as `fab-kit sync`, before stamping `fab/.fab-version`) to ensure all skill deployments are up to date: copies refreshed (`.claude/skills/`, `.agents/skills/`), symlinks valid (`.opencode/commands/`), and stale agent files cleaned up (`.claude/agents/`).
+After caching the new version, `fab upgrade-repo` SHALL call `Sync()` directly (the same logic as `fab-kit sync`, before stamping `fab/.fab-version`) to ensure all skill deployments are up to date: copies refreshed on every target (`.claude/skills/`, `.opencode/commands/`, `.agents/skills/`), and stale agent files cleaned up (`.claude/agents/`).
 
 ### wt Shell Setup
 
