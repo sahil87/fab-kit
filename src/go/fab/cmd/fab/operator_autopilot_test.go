@@ -1,0 +1,241 @@
+package main
+
+import (
+	"bytes"
+	"os"
+	"strings"
+	"testing"
+)
+
+// readAutopilot decodes the autopilot section (nil when the block is absent).
+func readAutopilot(t *testing.T, path string) *autopilotState {
+	t.Helper()
+	data := readStateFile(t, path)
+	if data["autopilot"] == nil {
+		return nil
+	}
+	ap := &autopilotState{}
+	if err := operatorSection(data, "autopilot", ap); err != nil {
+		t.Fatalf("decode autopilot: %v", err)
+	}
+	return ap
+}
+
+func autopilotSub(t *testing.T, name string, args ...string) error {
+	t.Helper()
+	cmd := operatorAutopilotCmd()
+	return runOperatorCmd(t, cmd, append([]string{name}, args...)...)
+}
+
+func TestOperatorAutopilot_StartLifecycle(t *testing.T) {
+	path := withOperatorState(t, "")
+
+	if err := autopilotSub(t, "start", "--queue", "ab12,cd34"); err != nil {
+		t.Fatalf("autopilot start: %v", err)
+	}
+	ap := readAutopilot(t, path)
+	if ap == nil {
+		t.Fatal("autopilot block missing after start")
+	}
+	if len(ap.Queue) != 2 || ap.Queue[0] != "ab12" || ap.Queue[1] != "cd34" {
+		t.Errorf("queue = %v", ap.Queue)
+	}
+	if ap.Current == nil || *ap.Current != "ab12" {
+		t.Errorf("current = %v, want ab12", ap.Current)
+	}
+	if ap.State == nil || *ap.State != "running" {
+		t.Errorf("state = %v, want running", ap.State)
+	}
+	if ap.Completed == nil || len(ap.Completed) != 0 {
+		t.Errorf("completed = %v, want empty non-nil", ap.Completed)
+	}
+}
+
+func TestOperatorAutopilot_PauseResume(t *testing.T) {
+	path := withOperatorState(t, "")
+	if err := autopilotSub(t, "start", "--queue", "ab12,cd34"); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if err := autopilotSub(t, "pause"); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	if ap := readAutopilot(t, path); ap.State == nil || *ap.State != "paused" {
+		t.Errorf("state after pause = %v", ap.State)
+	}
+	if err := autopilotSub(t, "resume"); err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	if ap := readAutopilot(t, path); ap.State == nil || *ap.State != "running" {
+		t.Errorf("state after resume = %v", ap.State)
+	}
+}
+
+func TestOperatorAutopilot_AdvanceAndExhaustion(t *testing.T) {
+	path := withOperatorState(t, "")
+	if err := autopilotSub(t, "start", "--queue", "ab12,cd34"); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+
+	if err := autopilotSub(t, "advance"); err != nil {
+		t.Fatalf("advance 1: %v", err)
+	}
+	ap := readAutopilot(t, path)
+	if ap.Current == nil || *ap.Current != "cd34" {
+		t.Errorf("after advance 1 current = %v, want cd34", ap.Current)
+	}
+	if len(ap.Completed) != 1 || ap.Completed[0] != "ab12" {
+		t.Errorf("after advance 1 completed = %v", ap.Completed)
+	}
+
+	// Exhaustion: current/state null, queue/completed retained for the summary.
+	if err := autopilotSub(t, "advance"); err != nil {
+		t.Fatalf("advance 2: %v", err)
+	}
+	ap = readAutopilot(t, path)
+	if ap == nil {
+		t.Fatal("autopilot block must survive exhaustion (queue/completed retained)")
+	}
+	if ap.Current != nil || ap.State != nil {
+		t.Errorf("exhausted: current/state = %v/%v, want null", ap.Current, ap.State)
+	}
+	if len(ap.Queue) != 2 || len(ap.Completed) != 2 || ap.Completed[1] != "cd34" {
+		t.Errorf("exhausted: queue/completed = %v/%v", ap.Queue, ap.Completed)
+	}
+
+	// stop clears the retained block.
+	if err := autopilotSub(t, "stop"); err != nil {
+		t.Fatalf("stop after exhaustion: %v", err)
+	}
+	if ap := readAutopilot(t, path); ap != nil {
+		t.Errorf("autopilot = %+v after stop, want nil", ap)
+	}
+}
+
+func TestOperatorAutopilot_AdvanceSkip(t *testing.T) {
+	path := withOperatorState(t, "")
+	if err := autopilotSub(t, "start", "--queue", "ab12,cd34"); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if err := autopilotSub(t, "advance", "--skip"); err != nil {
+		t.Fatalf("advance --skip: %v", err)
+	}
+	ap := readAutopilot(t, path)
+	if len(ap.Completed) != 0 {
+		t.Errorf("completed = %v, want empty after --skip", ap.Completed)
+	}
+	if ap.Current == nil || *ap.Current != "cd34" {
+		t.Errorf("current = %v, want cd34", ap.Current)
+	}
+}
+
+func TestOperatorAutopilot_NoActiveQueueErrors(t *testing.T) {
+	withOperatorState(t, "")
+	for _, sub := range []string{"pause", "resume", "advance", "stop"} {
+		if err := autopilotSub(t, sub); err == nil {
+			t.Errorf("autopilot %s with no active queue must error", sub)
+		}
+	}
+}
+
+func TestOperatorBranchMapRm(t *testing.T) {
+	path := withOperatorState(t, "")
+	for _, id := range []string{"ab12", "cd34"} {
+		if err := runOperatorCmd(t, operatorEnrollCmd(), enrollArgs(id)...); err != nil {
+			t.Fatalf("enroll %s: %v", id, err)
+		}
+	}
+
+	rm := func(args ...string) error {
+		t.Helper()
+		return runOperatorCmd(t, operatorBranchMapCmd(), append([]string{"rm"}, args...)...)
+	}
+
+	if err := rm("ab12"); err != nil {
+		t.Fatalf("branch-map rm ab12: %v", err)
+	}
+	bm := map[string]branchMapEntry{}
+	if err := operatorSection(readStateFile(t, path), "branch_map", &bm); err != nil {
+		t.Fatalf("decode branch_map: %v", err)
+	}
+	if _, ok := bm["ab12"]; ok {
+		t.Error("branch_map.ab12 still present after rm")
+	}
+	if _, ok := bm["cd34"]; !ok {
+		t.Error("branch_map.cd34 must survive rm ab12")
+	}
+
+	if err := rm("ghost"); err == nil {
+		t.Error("rm of unknown id must error")
+	}
+	if err := rm("--all"); err != nil {
+		t.Fatalf("branch-map rm --all: %v", err)
+	}
+	bm = map[string]branchMapEntry{}
+	if err := operatorSection(readStateFile(t, path), "branch_map", &bm); err != nil {
+		t.Fatalf("decode branch_map: %v", err)
+	}
+	if len(bm) != 0 {
+		t.Errorf("branch_map = %v after --all, want empty", bm)
+	}
+	if err := rm(); err == nil {
+		t.Error("rm with no id and no --all must error")
+	}
+	if err := rm("ab12", "--all"); err == nil {
+		t.Error("rm with both id and --all must error")
+	}
+}
+
+func TestOperatorState_SkeletonOnMissingAndJSON(t *testing.T) {
+	path := withOperatorState(t, "")
+
+	var out bytes.Buffer
+	cmd := operatorStateCmd()
+	cmd.SetOut(&out)
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("state --json: %v", err)
+	}
+
+	// Skeleton persisted to disk.
+	data := readStateFile(t, path)
+	for _, key := range []string{"monitored", "autopilot", "branch_map", "watches"} {
+		if _, ok := data[key]; !ok {
+			t.Errorf("persisted skeleton missing key %q: %v", key, data)
+		}
+	}
+	if data["autopilot"] != nil {
+		t.Errorf("skeleton autopilot = %v, want null", data["autopilot"])
+	}
+
+	got := out.String()
+	if !strings.Contains(got, `"monitored"`) || !strings.Contains(got, `"autopilot": null`) || !strings.Contains(got, `"watches"`) {
+		t.Errorf("--json output missing skeleton keys:\n%s", got)
+	}
+}
+
+func TestOperatorState_PrintsExistingVerbatim(t *testing.T) {
+	content := "tick_count: 9\nmonitored: {}\nbranch_map: {}\nwatches: {}\ncustom_top: keep-me\n"
+	path := withOperatorState(t, content)
+
+	var out bytes.Buffer
+	cmd := operatorStateCmd()
+	cmd.SetOut(&out)
+	cmd.SetErr(&bytes.Buffer{})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	if out.String() != content {
+		t.Errorf("state output =\n%s\nwant verbatim:\n%s", out.String(), content)
+	}
+	// A pure read must not rewrite the file.
+	raw, _ := readFileBytes(t, path)
+	if string(raw) != content {
+		t.Error("state verb must not modify an existing file")
+	}
+}
+
+func readFileBytes(t *testing.T, path string) ([]byte, error) {
+	t.Helper()
+	return os.ReadFile(path)
+}

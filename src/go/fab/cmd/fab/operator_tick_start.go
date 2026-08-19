@@ -2,12 +2,9 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"time"
 
-	"github.com/sahil87/fab-kit/src/go/fab/internal/atomicfile"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 // operatorStatePathOverride is used in tests to redirect operator state-file
@@ -25,28 +22,16 @@ func operatorTickStartCmd() *cobra.Command {
 }
 
 func runOperatorTickStart(cmd *cobra.Command, args []string) error {
-	var yamlPath string
-	if operatorStatePathOverride != "" {
-		yamlPath = operatorStatePathOverride
-	} else {
-		var err error
-		// server "" → query the operator's own (current) tmux server socket.
-		yamlPath, err = StatePath("")
-		if err != nil {
-			return fmt.Errorf("cannot determine operator state path: %w", err)
-		}
+	yamlPath, err := operatorStatePath()
+	if err != nil {
+		return err
 	}
 
-	// Read existing file, or start with empty map if missing
-	data := make(map[string]interface{})
-	raw, err := os.ReadFile(yamlPath)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot read %s: %w", yamlPath, err)
-	}
-	if err == nil && len(raw) > 0 {
-		if parseErr := yaml.Unmarshal(raw, &data); parseErr != nil {
-			return fmt.Errorf("cannot parse %s: %w", yamlPath, parseErr)
-		}
+	// Tolerant whole-file read (missing → empty map); unknown top-level keys
+	// (and the owned sections, untouched here) survive the write-back.
+	data, err := loadOperatorState(yamlPath)
+	if err != nil {
+		return err
 	}
 
 	// Increment tick_count
@@ -69,15 +54,9 @@ func runOperatorTickStart(cmd *cobra.Command, args []string) error {
 	data["tick_count"] = tickCount
 	data["last_tick_at"] = now.UTC().Format(time.RFC3339)
 
-	// Write back atomically via temp+rename (shared atomicfile helper — the
-	// operator state file is a cold path, so the always-fsync variant is fine;
-	// replaces the deleted runtime.SaveFile now that internal/runtime is gone).
-	out, err := yaml.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("cannot marshal %s: %w", yamlPath, err)
-	}
-	if err := atomicfile.WriteFile(yamlPath, out, 0o644); err != nil {
-		return fmt.Errorf("cannot write %s: %w", yamlPath, err)
+	// Write back atomically via temp+rename (shared helper).
+	if err := saveOperatorState(yamlPath, data); err != nil {
+		return err
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "tick: %d\nnow: %s\n", tickCount, now.Format("15:04"))

@@ -1,0 +1,57 @@
+id: m7kq
+name: 260819-m7kq-operator-state-binary-subcommands
+created: 2026-08-19T17:56:33Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: active
+plan:
+    generated: true
+    task_count: 13
+    acceptance_count: 19
+    acceptance_completed: 19
+confidence:
+    certain: 2
+    confident: 9
+    tentative: 0
+    unresolved: 0
+    score: 4.1
+    fuzzy: true
+    dimensions:
+        signal: 64.5
+        reversibility: 79.1
+        competence: 80.9
+        disambiguation: 74.5
+stage_metrics:
+    intake: {started_at: "2026-08-19T17:56:33Z", driver: fab-new, iterations: 1, completed_at: "2026-08-19T18:08:01Z"}
+    apply: {started_at: "2026-08-19T18:08:01Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T18:27:45Z"}
+    review: {started_at: "2026-08-19T18:27:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T18:32:48Z"}
+    hydrate: {started_at: "2026-08-19T18:32:48Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T18:39:07Z"}
+    ship: {started_at: "2026-08-19T18:39:07Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T18:43:55Z"}
+    review-pr: {started_at: "2026-08-19T18:43:55Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/603
+change_type_source: explicit
+true_impact:
+    added: 2367
+    deleted: 80
+    net: 2287
+    excluding:
+        added: 1894
+        deleted: 66
+        net: 1828
+    tests:
+        added: 832
+        deleted: 0
+        net: 832
+    computed_at: "2026-08-19T18:43:55Z"
+    computed_at_stage: ship
+summary: 'operator state file: full mediation via fab operator mutation verbs (enroll/update/remove, watch/autopilot verbs, branch-map rm, state) — memory updated in runtime/operator + distribution/kit-architecture'
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-19T18:43:55Z

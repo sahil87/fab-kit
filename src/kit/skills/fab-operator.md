@@ -90,7 +90,7 @@ This single preflight probe covers every later `wt create` call site; none is in
 
 ### Init
 
-1. Read the server-keyed operator state file (`$XDG_STATE_HOME/fab/operator/<server-slug>.yaml`, fallback `~/.local/state/...`; the binary derives the path via `fab operator tick-start` — the operator does not compute it). If missing, it is created with empty `monitored: {}`, `autopilot: null`, and `branch_map: {}`. Old repo-rooted `.fab-operator.yaml` files are not read or migrated
+1. Run `fab operator state` to read (or create, on first run) the server-keyed operator state file — the binary derives the path and persists the empty skeleton when missing; the operator never computes the path or hand-creates the file (`_cli-fab.md` § fab operator state). Old repo-rooted `.fab-operator.yaml` files are not read or migrated
 2. Restore monitored set, autopilot queue, and branch_map from the file (supports `/clear` recovery)
 3. Run `fab pane map --all-sessions` and display the output (all sessions on this server, not just the operator's own)
 4. If any tracked items exist, start the single loop per §4 Adaptive cadence
@@ -153,7 +153,9 @@ The loop is the operator's heartbeat — a `/loop "operator tick"` that runs as 
 
 ### Operator State File
 
-Persistent state, read on startup and every tick, written after every state change. The term **operator state file** used throughout this skill refers to the server-keyed file from §2 Init step 1 — one per tmux server spanning every repo it coordinates.
+Persistent state, read on startup and every tick via `fab operator state`. The term **operator state file** used throughout this skill refers to the server-keyed file from §2 Init step 1 — one per tmux server spanning every repo it coordinates.
+
+**The operator never hand-writes this file.** Every mutation goes through a `fab operator` subcommand (`enroll`/`update`/`remove`, the `watch` verbs, the `autopilot` verbs, `branch-map rm`) — agents state intent through flags; the binary owns the schema, the timestamps, the list-cap pruning, and the atomic write (same doctrine as `fab score`: agents never compute what the binary can own). The schema block below is *reference* documentation of what the binary maintains; the command contracts live in `_cli-fab.md` § fab operator.
 
 ```yaml
 tick_count: 47
@@ -198,9 +200,9 @@ watches:
 
 Each entry tracks: change ID, pane, **repo** (absolute main-worktree root), **session** (tmux session name), last-known stage, last-known agent state, stop_stage, spawned_by (watch name or null), depends_on (change IDs — same-repo cherry-pick, cross-repo ordering-only per §6), branch (this change's branch name), enrolled-at, last-transition-at. The pane ID is the server-global primary key; `repo` and `session` are the `(session, repo, pane)` addressing dimensions (§1).
 
-**Enrollment**: operator sends a command to a change, user requests monitoring, or operator triggers an automatic action (including autopilot and watch spawns). Read-only actions do not enroll. On enrollment, the change's `{ branch, repo }` pair is also recorded in the top-level `branch_map`.
+**Enrollment**: operator sends a command to a change, user requests monitoring, or operator triggers an automatic action (including autopilot and watch spawns). Read-only actions do not enroll. Enrollment is `fab operator enroll <change-id> --pane … --repo … --session … --branch … [--stage …] [--agent …] [--stop-stage …] [--spawned-by …] [--depends-on …]` (contract in `_cli-fab.md` § fab operator) — one command writes both the monitored entry and the `{ branch, repo }` pair in the top-level `branch_map`.
 
-After writing the monitored entry to the server-keyed state file (§4), the operator MUST prefix `»` (U+00BB) to the target tmux window's name via the `fab pane window-name ensure-prefix` primitive. The primitive enforces the idempotent literal-prefix check internally, so the rename applies to every enrollment path without the caller needing to guard:
+After the enroll call, the operator MUST prefix `»` (U+00BB) to the target tmux window's name via the `fab pane window-name ensure-prefix` primitive. The primitive enforces the idempotent literal-prefix check internally, so the rename applies to every enrollment path without the caller needing to guard:
 
 ```sh
 fab pane window-name ensure-prefix <pane> »
@@ -212,7 +214,7 @@ Windows that already carry `»` (operator-spawned windows from §6, `/clear`-res
 {change}: window rename skipped ({error}).
 ```
 
-**Removal**: change reaches its stop stage (or a terminal stage if `stop_stage` is null), pane dies, user explicitly stops. The `branch_map` entry is **not** removed — it persists for downstream dependency resolution. On every removal path, the operator MUST swap the active-monitoring `»` prefix for the done-marker `›` (U+203A, SINGLE RIGHT-POINTING ANGLE QUOTATION MARK) via the `replace-prefix` primitive:
+**Removal**: change reaches its stop stage (or a terminal stage if `stop_stage` is null), pane dies, user explicitly stops. Removal is `fab operator remove <change-id>` — the `branch_map` entry is **not** removed by it; it persists for downstream dependency resolution. On every removal path, the operator MUST swap the active-monitoring `»` prefix for the done-marker `›` (U+203A, SINGLE RIGHT-POINTING ANGLE QUOTATION MARK) via the `replace-prefix` primitive:
 
 ```sh
 fab pane window-name replace-prefix <pane> » ›
@@ -224,19 +226,19 @@ The primitive's literal-prefix guard protects user-renamed windows (if the user 
 
 ### Branch Map
 
-The top-level `branch_map` persists change ID → `{ branch, repo }` mappings. Entries are added when changes are enrolled in the monitored set. Entries persist after changes leave the monitored set (merged, archived, pane died) — this is necessary so downstream changes can still look up dependency branches for cherry-picking. The `repo` is required to disambiguate a dependency's branch across repos and to decide same-repo (cherry-pick) vs. cross-repo (ordering-only) resolution per §6. Entries persist until the user explicitly clears them — the server-keyed state file survives operator sessions, so there is no session-end expiry.
+The top-level `branch_map` persists change ID → `{ branch, repo }` mappings. Entries are added by `fab operator enroll` when changes are enrolled in the monitored set. Entries persist after changes leave the monitored set (merged, archived, pane died) — this is necessary so downstream changes can still look up dependency branches for cherry-picking. The `repo` is required to disambiguate a dependency's branch across repos and to decide same-repo (cherry-pick) vs. cross-repo (ordering-only) resolution per §6. Entries persist until the user explicitly clears them (`fab operator branch-map rm <change-id>` or `--all`) — the server-keyed state file survives operator sessions, so there is no session-end expiry.
 
 ### Tick Behavior
 
 On each tick:
 
-1. **Snapshot** — run `fab operator tick-start` (increments `tick_count`, writes `last_tick_at`, outputs `tick: N` and `now: HH:MM`). Parse stdout for the tick number and current time. Then run `fab pane map --all-sessions --json` (flag/field semantics — `--all-sessions`, the per-row `repo` and nullable `display_state` fields — in `_cli-fab.md` § fab pane map) and read the server-keyed state file. **Group the rows first by `repo`, then by `session`** within each repo. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, and watch statuses from the last persisted check (`last_checked` / `last_error` / last counts). Output the status frame — see **Status Frame Format** below.
+1. **Snapshot** — run `fab operator tick-start` (increments `tick_count`, writes `last_tick_at`, outputs `tick: N` and `now: HH:MM`). Parse stdout for the tick number and current time. Then run `fab pane map --all-sessions --json` (flag/field semantics — `--all-sessions`, the per-row `repo` and nullable `display_state` fields — in `_cli-fab.md` § fab pane map) and read the state via `fab operator state`. **Group the rows first by `repo`, then by `session`** within each repo. Compute status for all tracked items: stage advances, completions, review failures, pane deaths, and watch statuses from the last persisted check (`last_checked` / `last_error` / last counts). Output the status frame — see **Status Frame Format** below.
 
 2. **Auto-nudge** — for each `waiting` agent (and each idle agent as fallback), run question detection (§5 — `waiting` is the primary signal). (No post-intake `/git-branch` nudge — `/fab-new` Step 11 creates or renames the branch inline; only a detected branch/change mismatch warrants a `/git-branch` send, per §3 pre-send validation item 4.)
 3. **Watches** — for each watch, query the source, compare against `known` + `completed` (§7 step 2's dedupe rule), spawn on new matches (§7).
 4. **Autopilot dispatch** — if an autopilot queue is active, run the next autopilot action (§6). Autopilot-driven changes are visible in the frame via `▶`.
-5. **Removals** — remove completed changes (reached stop stage or terminal stage) and dead panes from the monitored set.
-6. **Persist** — write updated state to the operator state file
+5. **Removals** — remove completed changes (reached stop stage or terminal stage) and dead panes from the monitored set via `fab operator remove`.
+6. **Observed-field updates** — per-tick changes to a monitored entry's `stage`/`agent`/`stop_stage` ride `fab operator update <change-id>` (the binary touches `last_transition` on a stage change). There is no whole-file persist step — every action above already persisted through its own verb.
 7. **Loop lifecycle** — stop when no tracked state remains; otherwise apply §4 Adaptive cadence (autopilot uses §6's cadence)
 
 Actions (nudges, removals, autopilot progress) render as an *italic* footnote line below the frame as they happen, `·`-separated, keeping them visually subordinate to the table frame:
@@ -444,7 +446,7 @@ The spawn sequence is:
 4. **Resolve dependencies** — if the change has a non-empty `depends_on` list, resolve it per repo: same-repo deps cherry-pick into the worktree, cross-repo deps are ordering-only barriers (see Dependency Resolution below)
 5. **Read the target repo's session command** — compose it per `_cli-agents.md` § Spawn Composition, in the **role-addressed** form with the target repo named: `fab agent --print --repo <target-repo>`. The operator-specific rule: **always pass `--repo <target-repo>`** — do NOT use the operator's own `config.yaml`, since each repo may configure a different provider/session command. (The provider-addressed form documented there is for ad-hoc cross-provider sessions, not operator worker spawns, which must carry the target repo's `default`-role profile.)
 6. **Open agent tab** — open the composed command per `_cli-agents.md` § Spawn Composition ("Open it in a pane", incl. the one-prompt/no-`&&`-chaining rule), with the operator's window-marker name: `tmux new-window -n "»<wt>" -c <worktree-path> "<spawn_cmd> '<command>'"` (where `<wt>` is the worktree name from step 2 and `<spawn_cmd>` is the target repo's command from step 5)
-7. **Enroll in monitored set** — unconditionally and silently record pane, repo, session, stage, branch, and dependencies; apply §4 Enrollment (including `branch_map` and window prefix); never ask whether to monitor
+7. **Enroll in monitored set** — unconditionally and silently via `fab operator enroll` (records pane, repo, session, stage, branch, and dependencies, plus the `branch_map` pair — contract in `_cli-fab.md` § fab operator); then apply §4 Enrollment's window prefix; never ask whether to monitor
 
 Window markers (`»` / `›`) key on server-global pane IDs.
 
@@ -513,7 +515,7 @@ Dependency resolution is **two-tier**, split by repo. Each entry in `depends_on`
 
 Dependencies are declared through three conversational paths, all of which coexist:
 
-1. **Explicit**: "cd34 depends on ab12" — operator sets `depends_on: [ab12]` on the monitored entry
+1. **Explicit**: "cd34 depends on ab12" — operator records it through enrollment: `fab operator enroll cd34 … --depends-on ab12` (at spawn this is step 7; mid-flight it re-enrolls, which replaces the entry wholesale — carry the current stage/agent along)
 2. **Autopilot queue (implicit)**: resolve ordering per § Autopilot → Queue ordering
 3. **`--base` flag (explicit)**: autopilot `--base <prev-change>` explicitly sets `depends_on: [<prev-change-id>]` for the subsequent change (matches path 2's pick when the previous entry is same-repo; available for ad-hoc overrides)
 
@@ -537,6 +539,8 @@ User provides a queue of changes. Confirmation prompt reflects the active mode:
 
 A queue **may span repos**, with mixed dependency semantics: implicit `--base` chaining (and explicit `depends_on`) cherry-picks **within a repo** and **degrades to an ordering-only barrier across repo boundaries** (per Dependency Resolution above; the nearest-same-repo-predecessor rule is defined in Queue ordering below). Worked example — a chain `ab12 → cd34 → ef56` where `cd34` lives in a different repo: `cd34` gets `depends_on: [ab12]` (cross-repo — waits for `ab12` to reach its stop/terminal stage, no code), and `ef56` (back in `ab12`'s repo) gets `depends_on: [ab12]` — its nearest same-repo predecessor — and cherry-picks from it; queue order still runs `ef56` after `cd34`.
 
+Once the user confirms, persist the queue via `fab operator autopilot start --queue <id,id,...>`; every later progression (completion or skip) is `fab operator autopilot advance [--skip]`, and the interrupts below ride `pause`/`resume`/`stop` (contracts in `_cli-fab.md` § fab operator autopilot).
+
 Queue ordering:
 
 | Strategy | Description |
@@ -553,7 +557,7 @@ The operator works each change through the pipeline. Pre-send validation (§3) a
 2. **Spawn** — run the §6 spawn sequence steps 1–2 (establish the change's target repo, create worktree in it; `--reuse` for respawns)
 3. **Resolve dependencies + open tab + enroll** — §6 spawn sequence steps 3–7 (existence-guarded pointer activation, same-repo cherry-pick / cross-repo ordering-only barriers per Dependency Resolution). Step 6's `<command>` is the change's pipeline command — `/fab-fff <change>` (or the appropriate command for its current stage) — so the dispatch happens **once, at spawn**; do NOT send the command again after the tab opens
 4. **Monitor** — normal tick detection handles progress
-5. **Record** — on completion, record `{ branch, repo }` in `branch_map`, collect PR URL
+5. **Record** — on completion, run `fab operator autopilot advance` (the binary moves `current` to `completed` and promotes the next entry) and collect the PR URL. The `{ branch, repo }` pair is already in `branch_map` — `enroll` recorded it at spawn
 6. **Spawn next** — repeat from item 1 using § Queue ordering and § Dependency Resolution; embed its command at spawn
 7. **Report** — `"ab12: PR ready. 1 of 3 complete. Starting cd34."`
 8. **(After all complete) Summary** — list all PR links with per-repo dependency annotations and per-repo merge order suggestion (see Queue Completion Summary below)
@@ -592,11 +596,11 @@ Report each merge with its repo: `"ab12: merged (foo 1/2)"`, `"cd34: merged (bar
 ab12: CI failed (~/code/foo). Halted: foo sub-sequence; bar (cross-repo dep into foo). Completed: baz sub-sequence (2 PRs merged). Fix foo and retry.
 ```
 
-Autopilot state (queue, current, completed) persists in the operator state file.
+Autopilot state (queue, current, completed) persists in the operator state file — written by the `fab operator autopilot` verbs, never hand-edited; on queue exhaustion the binary retains `queue`/`completed` with `current: null, state: null` so the summary below can still read them, and `fab operator autopilot stop` clears the block after the summary renders.
 
 **Failures**: review exhausted → skip. Rebase conflict → skip (`--merge-on-complete` only; does not apply in default stack-then-review mode since there are no rebase steps). Cherry-pick conflict → escalate (do not skip). Pane dies → 1 respawn (`--reuse`), then skip. Stage timeout (>30m) → flag. Total timeout (>2h) → flag.
 
-**Interrupts**: "stop after current", "skip <change>", "pause", "resume" — acknowledged immediately.
+**Interrupts**: "stop after current", "skip <change>", "pause", "resume" — acknowledged immediately, and persisted through the matching verb: `fab operator autopilot stop` once the current change lands (or immediately to abandon the queue), `advance --skip` (drop current without recording it completed), `pause`, `resume`.
 
 ---
 
@@ -606,7 +610,7 @@ Watches are standing instructions to monitor an external source and take action 
 
 ### Schema
 
-Each watch in the operator state file has:
+Each watch in the operator state file has the fields below (reference documentation of what the binary maintains — watches are created and mutated only through the `fab operator watch` verbs; contracts in `_cli-fab.md` § fab operator watch):
 
 | Field | Description |
 |-------|-------------|
@@ -615,7 +619,7 @@ Each watch in the operator state file has:
 | `query` | Source-specific API filter (project, status, assignee, channel) — passed to MCP |
 | `target_repo` | Absolute main-worktree root the watch's spawned changes land in. Required for a spawning watch — the spawn sequence (§6) uses it as the target repo. A watch with no `target_repo` cannot spawn |
 | `stop_stage` | How far to go: `intake`, `apply`, `hydrate`, or `null` (full pipeline) |
-| `known` | Already-handled item IDs — managed automatically, capped at 200 (oldest pruned first) |
+| `known` | Already-handled item IDs — appended by `fab operator watch seen`; the binary enforces the 200-entry cap (oldest pruned first) |
 | `completed` | Items that reached `stop_stage` — lets users query "what did this watch produce?" |
 | `last_checked` | ISO timestamp of last successful query |
 | `last_error` | Last error message, or `null`. Shown in status frame when set |
@@ -627,29 +631,30 @@ Structured fields handle machine-readable concerns; `instructions` handles every
 
 On each tick (step 3), for each enabled watch:
 
-1. **Query source** — Linear via MCP (`mcp__claude_ai_Linear__list_issues`), Slack via MCP (`mcp__claude_ai_Slack__slack_read_channel`), using `query` as the API filter. On failure: set `last_error`, skip this watch for this tick. After 3 consecutive failures: disable the watch, alert user.
-2. **Deduplicate** — skip items in `known` **plus** `completed` lists (an item that reached `stop_stage` moves from `known` to `completed` but may still match the query — it MUST NOT be respawned). Update `last_checked`.
+1. **Query source** — Linear via MCP (`mcp__claude_ai_Linear__list_issues`), Slack via MCP (`mcp__claude_ai_Slack__slack_read_channel`), using `query` as the API filter. On failure: `fab operator watch checked <name> --error "<msg>"`, skip this watch for this tick. After 3 consecutive failures: `fab operator watch toggle <name> --off`, alert user.
+2. **Deduplicate** — skip items in `known` **plus** `completed` lists (an item that reached `stop_stage` moves from `known` to `completed` but may still match the query — it MUST NOT be respawned). On success: `fab operator watch checked <name>` (sets `last_checked`, clears `last_error`).
 3. **Evaluate instructions** — apply trigger conditions, label filters, concurrency limits (count monitored entries with `spawned_by: <watch-name>`), and any other criteria from `instructions`
 4. **Act** — for each item that passes:
    - Run the §6 spawn sequence with the watch's `target_repo` as the target repo, sending the appropriate initial command (e.g., `/fab-new DEV-123`)
-   - Enroll in monitored set with `repo` (= `target_repo`), `session`, `stop_stage`, and `spawned_by` from the watch
-   - Add item ID to `known` (only after successful spawn)
-   - Prune `known` if over 200 entries (drop oldest)
+   - Enroll via `fab operator enroll` with `repo` (= `target_repo`), `session`, `stop_stage`, and `spawned_by` from the watch
+   - `fab operator watch seen <name> <item-id>` (only after successful spawn — the binary appends idempotently and enforces the 200-cap)
 5. **Report** — `"Watch linear-bugs: DEV-1024 — Fix auth redirect (72m old). Spawning."`
 
-When a watch-spawned agent reaches its `stop_stage`, move the item ID from `known` to `completed` and report: `"Watch linear-bugs: DEV-1024 completed intake."`
+When a watch-spawned agent reaches its `stop_stage`, `fab operator watch complete <name> <item-id>` (moves the item from `known` to `completed`) and report: `"Watch linear-bugs: DEV-1024 completed intake."`
 
 ### Conversational Management
 
-- "Watch Linear project DEV for bugs older than 1 hour, **spawn into ~/code/foo**, stop at intake" → creates watch with `target_repo: ~/code/foo`
-- "Pause the Linear watch" / "Resume the Linear watch" → toggles `enabled`
-- "Stop watching Linear" → removes watch
-- "Spawn the Linear watch's changes into ~/code/bar instead" → updates `target_repo`
-- "What are you watching?" → lists active watches with their `target_repo`, instructions, and completed items
-- "What did linear-bugs produce?" → lists `completed` items
-- "Test watch linear-bugs" → dry-run: query, deduplicate, evaluate instructions, report what *would* happen without spawning or updating state
-- "Change the Linear watch to go through full pipeline" → updates `stop_stage` to null
-- "Also limit to 2 concurrent agents" → appends to `instructions`
+Every utterance maps to a `fab operator watch` verb (contracts in `_cli-fab.md` § fab operator watch) — the operator composes flags, never YAML:
+
+- "Watch Linear project DEV for bugs older than 1 hour, **spawn into ~/code/foo**, stop at intake" → `watch add <name> --source linear --target-repo ~/code/foo --stop-stage intake --query '<json>' --instructions '…'`
+- "Pause the Linear watch" / "Resume the Linear watch" → `watch toggle <name> --off` / `--on`
+- "Stop watching Linear" → `watch rm <name>`
+- "Spawn the Linear watch's changes into ~/code/bar instead" → `watch update <name> --target-repo ~/code/bar`
+- "What are you watching?" → read via `fab operator state`; list active watches with their `target_repo`, instructions, and completed items
+- "What did linear-bugs produce?" → lists `completed` items (from `fab operator state`)
+- "Test watch linear-bugs" → dry-run: query, deduplicate, evaluate instructions, report what *would* happen without spawning and without running any mutation verb
+- "Change the Linear watch to go through full pipeline" → `watch update <name> --stop-stage ""` (clears to null)
+- "Also limit to 2 concurrent agents" → `watch update <name> --instructions '<merged text>'` (the operator appends to the existing instructions and passes the merged text)
 
 ---
 
@@ -681,7 +686,7 @@ These settings are session-scoped and reset on `/clear` or session restart; they
 |----------|-------|
 | Requires active change? | No |
 | Runs `fab preflight`? | No |
-| Read-only? | No — sends commands, auto-answers, writes the operator state file |
+| Read-only? | No — sends commands, auto-answers, mutates the operator state file (only via `fab operator` subcommands) |
 | Idempotent? | Yes — state re-derived every tick |
 | Advances stage? | No |
 | Outputs `Next:` line? | No — ends with ready signal |
@@ -691,5 +696,5 @@ These settings are session-scoped and reset on `/clear` or session restart; they
 | Requires a `fab/` project? | No — session command comes from the project's `providers.claude.interactive_command` when `fab/` is resolvable, else `spawn.DefaultSpawnCommand` (the template `claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`). No project `providers`/`agent:` block is read on a `fab/`-less launch |
 | Coordinating-agent model | Operator role — `fab operator` resolves the `operator` role (`agent.ResolveRole`; a Tier-1 role, so the `agent.session` knob picks its provider), reads that provider's `interactive_command`, injects the profile via `spawn.WithProfile` (**substitutes** into a `{model}`/`{effort}` template — the built-in claude default is templated — or **appends** `--model`/`--effort` to a plain command carrying no placeholder); falls back to the built-in operator profile + built-in claude provider on any failure (incl. no resolvable `fab/` project) |
 | Uses `/loop`? | Yes — adaptive heartbeat: `3m` normally, tightens to `90s` (§8) when any monitored agent is `waiting` (`@rk_agent_state`) or menu-waiting (capture fallback), relaxes back to `3m`; one loop at a time |
-| Uses the operator state file? | Yes — monitored set + autopilot queue + branch map persistence in the server-keyed path defined by §2 Init step 1 |
+| Uses the operator state file? | Yes — monitored set + autopilot queue + branch map persistence in the server-keyed path (§2 Init step 1); reads via `fab operator state`, every mutation through a `fab operator` verb — never a hand-write (§4 doctrine) |
 | Multi-repo / multi-session? | Yes — one operator per tmux server spans all its sessions and repos via the `(session, repo, pane)` addressing tuple |

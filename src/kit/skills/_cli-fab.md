@@ -1216,6 +1216,73 @@ now: HH:MM
 
 **State path** (server-keyed, XDG): `<XDG_STATE_HOME>/fab/operator/<server-slug>.yaml`, where the base is `$XDG_STATE_HOME` (when set and absolute) else `$HOME/.local/state` — uniform on Linux and macOS (never `~/Library/...`). `<server-slug>` is derived from the tmux socket path (`#{socket_path}`) by escaping literal `-` to `--` then mapping separators to a single `-` (e.g. `/tmp/tmux-1000/default` → `tmp-tmux--1000-default`); the escape keeps the mapping collision-free so distinct sockets never share a state file. One operator-per-tmux-server gets one state file that survives a server restart (same `-L` label → same socket path). Falls back to slug `default` when tmux can't be queried. No migration of old repo-rooted `.fab-operator.yaml` files — they are abandoned in place.
 
+**Shared state-verb mechanics** (apply to every `fab operator` state verb below): the same server-keyed path derivation; atomic temp+rename writes; a tolerant-read/typed-write posture — unknown **top-level** keys survive any read-modify-write, while the four owned sections (`monitored`, `autopilot`, `branch_map`, `watches`) are re-marshaled from typed structs on mutation, so an invented field inside an owned section can neither be introduced nor survive a mutation of that section. All timestamps (`enrolled_at`, `last_transition`, `last_checked`) are computed by the binary (RFC3339 UTC) — no verb accepts a timestamp flag. Stage-valued flags validate against the six stage names; unknown change-ids/watch-names and no-active-queue calls exit non-zero with a one-line error. Schema is byte-compatible with the `fab-operator.md` §4 shape; no migration.
+
+### fab operator state
+
+```
+fab operator state [--json]
+```
+
+Prints the server-keyed state file — YAML verbatim by default, JSON conversion with `--json`. When the file is missing it first persists the empty skeleton (`monitored: {}`, `autopilot: null`, `branch_map: {}`, `watches: {}`), then prints it — the binary owns the "create if missing" init step, and a pure read of an existing file never rewrites it.
+
+### fab operator enroll / update / remove
+
+```
+fab operator enroll <change-id> --pane <pane-id> --repo <abs-path> --session <name> --branch <branch> \
+    [--stage <stage>] [--agent <state>] [--stop-stage <stage>] [--spawned-by <watch>] [--depends-on <id,id,...>]
+fab operator update <change-id> [--stage <stage>] [--agent <state>] [--stop-stage <stage>]
+fab operator remove <change-id>
+```
+
+- `enroll` creates (or wholesale-replaces, with a fresh `enrolled_at`) the monitored entry, sets `enrolled_at` + `last_transition` to now, defaults `stop_stage: null` / `spawned_by: null` / `depends_on: []`, **and** records the `branch_map` entry `{ branch, repo }` — enrollment is the documented moment `branch_map` gains its pair, so one command owns both writes. `--pane`, `--repo`, `--session`, `--branch` are required. The `»` window-name rename stays a separate `fab pane window-name ensure-prefix` call.
+- `update` mutates only the passed fields of an existing entry, touching `last_transition` **iff** `--stage` changes the stored value. `--agent` passes through verbatim (fab is a consumer of run-kit's `@rk_agent_state` convention and does not enumerate its states). `--stop-stage ""` clears to null. Unknown change-id → exit non-zero.
+- `remove` deletes the monitored entry and **retains** the `branch_map` entry (the documented persistence policy — downstream dependency resolution needs it; the explicit clear is `branch-map rm`). Unknown change-id → exit non-zero. The `»`→`›` rename stays a separate `fab pane window-name replace-prefix` call.
+
+### fab operator watch
+
+```
+fab operator watch add <name> --source <linear|slack> --target-repo <abs-path> \
+    [--query <json>] [--stop-stage <stage>] [--instructions <text>]
+fab operator watch rm <name>
+fab operator watch toggle <name> [--on|--off]
+fab operator watch update <name> [--target-repo <path>] [--stop-stage <stage>] [--instructions <text>] [--query <json>]
+fab operator watch checked <name> [--error <msg>]
+fab operator watch seen <name> <item-id>
+fab operator watch complete <name> <item-id>
+```
+
+- `add` creates the watch with `enabled: true`, empty `known`/`completed`, null `last_checked`/`last_error`. `--query` takes a JSON object string (nested lists/maps like `{"status":["Backlog","Todo"]}` need it) stored as the YAML `query` map; invalid JSON or a non-object → exit non-zero. Duplicate name → exit non-zero.
+- `rm` deletes the watch; `toggle` flips `enabled` (or forces with `--on`/`--off`, mutually exclusive); `update` mutates only the passed fields (`--stop-stage ""` clears to null). Unknown name → exit non-zero.
+- `checked` sets `last_checked` to now and sets `last_error` to `--error` (flag present) or clears it to null (flag absent) — the per-tick query bookkeeping.
+- `seen` appends the item to `known` (idempotent — no duplicates) and enforces the **200-entry cap, oldest pruned first, in the binary**.
+- `complete` moves the item from `known` to `completed` (an item absent from `known` is still added to `completed` — a late completion is never lost — and never duplicated).
+
+### fab operator autopilot
+
+```
+fab operator autopilot start --queue <id,id,...>
+fab operator autopilot pause
+fab operator autopilot resume
+fab operator autopilot advance [--skip]
+fab operator autopilot stop
+```
+
+- `start` sets `{ queue, current: <first>, completed: [], state: running }`.
+- `pause`/`resume` flip `state` between `paused`/`running`.
+- `advance` appends `current` to `completed` (unless `--skip`) and promotes the next queue entry; on exhaustion it sets `current: null, state: null` **while retaining `queue`/`completed`** so the queue-completion summary can still read them.
+- `stop` clears the whole block to `autopilot: null`.
+- Verbs other than `start` exit non-zero when no queue is active (`stop` tolerates an exhausted-but-retained block).
+
+### fab operator branch-map rm
+
+```
+fab operator branch-map rm <change-id>
+fab operator branch-map rm --all
+```
+
+Entries are *written* by `enroll` and retained by `remove`; this verb is the documented "user explicitly clears them" path — one entry, or the whole map with `--all`. Unknown change-id → exit non-zero.
+
 ### fab operator time
 
 ```
