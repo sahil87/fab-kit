@@ -1,0 +1,9 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-19T19:50:24Z"}
+{"args":"Operator skill drift: operators bypass 'fab pane capture' and run raw 'tmux capture-pane' because fab-operator.md §5 hardcodes it; rewrite §5 step 1 + re-capture guard to 'fab pane capture --raw -l 20 [-L \u003cserver\u003e] \u003cpane\u003e' [zs1u]","cmd":"fab-new","event":"command","ts":"2026-08-19T19:50:24Z"}
+{"delta":"+4.9","event":"confidence","score":4.9,"trigger":"calc-score","ts":"2026-08-19T19:51:41Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-19T19:55:31Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-19T19:55:51Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-19T19:57:56Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-19T20:00:55Z"}
+{"event":"review","result":"passed","ts":"2026-08-19T20:00:55Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-19T20:01:46Z"}
