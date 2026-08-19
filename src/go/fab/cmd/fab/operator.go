@@ -22,7 +22,17 @@ func operatorCmd() *cobra.Command {
 		RunE:  runOperator,
 	}
 	cmd.Flags().String("workers", "", "set FAB_AGENT_WORKERS in the launched operator tab")
-	cmd.AddCommand(operatorTickStartCmd(), operatorTimeCmd())
+	cmd.AddCommand(
+		operatorTickStartCmd(),
+		operatorTimeCmd(),
+		operatorStateCmd(),
+		operatorEnrollCmd(),
+		operatorUpdateCmd(),
+		operatorRemoveCmd(),
+		operatorWatchCmd(),
+		operatorAutopilotCmd(),
+		operatorBranchMapCmd(),
+	)
 	return cmd
 }
 
