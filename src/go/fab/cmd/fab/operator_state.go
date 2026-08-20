@@ -43,6 +43,7 @@ type autopilotState struct {
 	Current   *string  `yaml:"current"`
 	Completed []string `yaml:"completed"`
 	State     *string  `yaml:"state"`
+	Mode      string   `yaml:"mode"`
 }
 
 // branchMapEntry is one `branch_map` value ({ branch, repo }).

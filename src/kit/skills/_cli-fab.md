@@ -1269,17 +1269,18 @@ fab operator watch complete <name> <item-id>
 ### fab operator autopilot
 
 ```
-fab operator autopilot start --queue <id,id,...>
+fab operator autopilot start --queue <id,id,...> [--mode <cherry-pick-ladder|merge-auto|stacked-prs>]
 fab operator autopilot pause
 fab operator autopilot resume
 fab operator autopilot advance [--skip]
 fab operator autopilot stop
 ```
 
-- `start` sets `{ queue, current: <first>, completed: [], state: running }`.
-- `pause`/`resume` flip `state` between `paused`/`running`.
-- `advance` appends `current` to `completed` (unless `--skip`) and promotes the next queue entry; on exhaustion it sets `current: null, state: null` **while retaining `queue`/`completed`** so the queue-completion summary can still read them.
+- `start` sets `{ queue, current: <first>, completed: [], state: running, mode: <flag> }`. `--mode` defaults to `cherry-pick-ladder`; an unknown value exits non-zero with a one-line error naming the valid modes and writes no state.
+- `pause`/`resume` flip `state` between `paused`/`running`; `mode` is retained.
+- `advance` appends `current` to `completed` (unless `--skip`) and promotes the next queue entry; on exhaustion it sets `current: null, state: null` **while retaining `queue`/`completed`/`mode`** so the queue-completion summary can still read them.
 - `stop` clears the whole block to `autopilot: null`.
+- An `autopilot` block lacking `mode` (a pre-existing state file) reads as `cherry-pick-ladder`; the typed re-marshal writes the field on the next mutation. The binary only stores/validates/prints the mode (via `fab operator state`) — all merge choreography stays in `fab-operator.md` prose.
 - Verbs other than `start` exit non-zero when no queue is active (`stop` tolerates an exhausted-but-retained block).
 
 ### fab operator branch-map rm
