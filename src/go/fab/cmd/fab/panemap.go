@@ -31,16 +31,20 @@ func paneMapCmd() *cobra.Command {
 }
 
 // paneEntry holds a single tmux pane's ID, tab (window) name, current working directory,
-// session name, window index, the raw @rk_agent_state pane option value, and the
-// tmux window ID.
+// session name, window index, the pane's resolved agent state, and the tmux window ID.
+// Agent state is RESOLVED at discovery time — the internal path parses the raw
+// @rk_agent_state option via pane.AgentDisplayFromOption; the delegated rk path
+// takes rk's reconciled agent_state/agent_state_duration verbatim (rk rows carry
+// no raw option, so the resolved pair is the shared representation).
 type paneEntry struct {
-	id         string
-	tab        string
-	cwd        string
-	session    string
-	index      int
-	agentState string // raw @rk_agent_state option ("<state>:<epoch>"), "" when unset
-	windowID   string // raw tmux #{window_id} (e.g. "@5"); "" when absent (legacy line)
+	id           string
+	tab          string
+	cwd          string
+	session      string
+	index        int
+	agentState   string // resolved state: active|waiting|idle, "" = unknown
+	agentIdleDur string // formatted idle duration, populated only for idle
+	windowID     string // raw tmux #{window_id} (e.g. "@5"); "" when absent (legacy line)
 }
 
 // paneRow holds the resolved data for a single output row.
@@ -56,7 +60,8 @@ type paneRow struct {
 	stage        string
 	displayState string // state half of status.DisplayStage (em dash when unresolved)
 	agent        string // Agent-column DISPLAY string (agentColumn output); table-only
-	agentOption  string // raw @rk_agent_state option ("<state>:<epoch>", "" when unset); the JSON source of truth
+	agentState   string // resolved state (active|waiting|idle, "" = unknown); the JSON source of truth
+	agentIdleDur string // formatted idle duration, "" unless agentState is idle
 	prURL        string // last entry in .status.yaml prs:, "" when absent/empty/unresolved
 }
 
@@ -79,10 +84,19 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not inside a tmux session")
 	}
 
-	// Discover tmux panes
-	panes, err := discoverPanes(mode, sessionFlag, server)
-	if err != nil {
-		return err
+	// Discover tmux panes. Enumeration prefers run-kit's native substrate view
+	// (`rk mux panes --json` — reconciled agent state, internal sessions
+	// excluded, pinned windows listed once; cli-layering Part 8); ANY failure
+	// of that path — rk absent, a pre-`mux panes` rk, non-zero exit, bad JSON —
+	// falls back SILENTLY to fab's own tmux enumeration. The attempt is the
+	// capability probe; there is no version check and never an error.
+	panes, ok := discoverPanesViaRK(mode, sessionFlag, server)
+	if !ok {
+		var err error
+		panes, err = discoverPanes(mode, sessionFlag, server)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Resolve each pane to a row. The main worktree root used for relative
@@ -154,6 +168,139 @@ func mainRootForPane(cwd, wtRoot string, cache map[string]string) string {
 	mr := pane.FindMainWorktreeRoot([]string{cwd})
 	cache[wtRoot] = mr
 	return mr
+}
+
+// rkPaneRow is the subset of an `rk mux panes --json` row that pane map
+// consumes (run-kit ≥ 3.17.18). rk-only fields (session_id, window_active,
+// pane_index, pane_active, command) are deliberately ignored — fab adds no new
+// output fields from the delegation.
+type rkPaneRow struct {
+	Session            string  `json:"session"`
+	WindowIndex        int     `json:"window_index"`
+	WindowID           string  `json:"window_id"`
+	WindowName         string  `json:"window_name"`
+	Pane               string  `json:"pane"`
+	Cwd                string  `json:"cwd"`
+	AgentState         *string `json:"agent_state"`
+	AgentStateDuration *string `json:"agent_state_duration"`
+}
+
+// rkPanesArgs builds the rk argv for the delegated enumeration. When server is
+// non-empty it appends rk's own `-L <server>` (the mux family takes the same
+// socket flag as fab pane). Extracted for unit-testability of argv construction.
+func rkPanesArgs(server string) []string {
+	args := []string{"mux", "panes", "--json"}
+	if server != "" {
+		args = append(args, "-L", server)
+	}
+	return args
+}
+
+// rkPanesRunner locates rk on PATH and runs `rk mux panes --json`, returning
+// its stdout. Package-level var so fallback-trigger tests can stub the seam
+// without a live rk or tmux (the setupcheck LookPathFunc precedent).
+var rkPanesRunner = func(server string) ([]byte, error) {
+	if _, err := exec.LookPath("rk"); err != nil {
+		return nil, err
+	}
+	return exec.Command("rk", rkPanesArgs(server)...).Output()
+}
+
+// parseRKPanes maps `rk mux panes --json` output to pane entries: pane←pane,
+// tab←window_name, cwd←cwd, session←session, index←window_index,
+// windowID←window_id. Agent state is rk's RECONCILED value taken structurally —
+// never re-read from the @rk_agent_state option. Two contract adaptations:
+// a state outside {active, waiting, idle} maps to unknown (""), and a duration
+// on a non-idle row is DROPPED — rk reports agent_state_duration for waiting
+// too, but fab's agent_idle_duration field keeps its published idle-only
+// semantics.
+func parseRKPanes(data []byte) ([]paneEntry, error) {
+	var rows []rkPaneRow
+	if err := json.Unmarshal(data, &rows); err != nil {
+		return nil, err
+	}
+	panes := make([]paneEntry, 0, len(rows))
+	for _, r := range rows {
+		state, dur := "", ""
+		if r.AgentState != nil {
+			switch *r.AgentState {
+			case pane.AgentStateActive, pane.AgentStateWaiting, pane.AgentStateIdle:
+				state = *r.AgentState
+			}
+		}
+		if state == pane.AgentStateIdle && r.AgentStateDuration != nil {
+			dur = *r.AgentStateDuration
+		}
+		panes = append(panes, paneEntry{
+			id:           r.Pane,
+			tab:          r.WindowName,
+			cwd:          r.Cwd,
+			session:      r.Session,
+			index:        r.WindowIndex,
+			agentState:   state,
+			agentIdleDur: dur,
+			windowID:     r.WindowID,
+		})
+	}
+	return panes, nil
+}
+
+// filterPanesBySession keeps only the entries whose session equals name.
+func filterPanesBySession(panes []paneEntry, name string) []paneEntry {
+	var out []paneEntry
+	for _, p := range panes {
+		if p.session == name {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// currentSessionName resolves the invoking client's tmux session name via
+// `tmux display-message -p '#{session_name}'`, honoring --server. Used by the
+// delegated path's default (current-session) mode — rk enumerates the whole
+// server, so session scoping is fab's own row filter. Package-level var so
+// default-mode filter tests can stub it alongside rkPanesRunner.
+var currentSessionName = func(server string) (string, error) {
+	out, err := exec.Command("tmux", pane.WithServer(server, "display-message", "-p", "#{session_name}")...).Output()
+	if err != nil {
+		return "", err
+	}
+	name := strings.TrimSpace(string(out))
+	if name == "" {
+		return "", fmt.Errorf("empty session name")
+	}
+	return name, nil
+}
+
+// discoverPanesViaRK attempts the delegated enumeration and applies fab's
+// session scoping as a row filter. ok=false means "use the internal path" —
+// callers fall back silently, never error (rk absence or failure degrades,
+// delegation rule 2). A failed current-session resolution in default mode is
+// the same degradation. Note one deliberate delta vs the internal path: an
+// unknown --session name filters to zero rows ("No tmux panes found.", exit 0)
+// rather than surfacing tmux's unknown-target error.
+func discoverPanesViaRK(mode sessionMode, sessionName, server string) ([]paneEntry, bool) {
+	out, err := rkPanesRunner(server)
+	if err != nil {
+		return nil, false
+	}
+	panes, err := parseRKPanes(out)
+	if err != nil {
+		return nil, false
+	}
+	switch mode {
+	case sessionAll:
+		return panes, true
+	case sessionNamed:
+		return filterPanesBySession(panes, sessionName), true
+	default:
+		cur, err := currentSessionName(server)
+		if err != nil {
+			return nil, false
+		}
+		return filterPanesBySession(panes, cur), true
+	}
 }
 
 // sessionMode controls how discoverPanes selects tmux sessions.
@@ -240,9 +387,12 @@ func discoverAllSessions(server string) ([]paneEntry, error) {
 // per-line and newline-only (never TrimSpace), which stays load-bearing for
 // legacy SIX-field lines whose empty agent-state field left the line ending in
 // a tab. Lines are parsed with graded tolerance: seven fields yield both
-// agentState and windowID; a legacy six-field line yields agentState with an
+// agent state and windowID; a legacy six-field line yields agent state with an
 // empty windowID; a legacy five-field line yields neither; lines with fewer
-// than five fields are skipped.
+// than five fields are skipped. The raw option value is resolved to the
+// (state, idle-duration) pair here via pane.AgentDisplayFromOption — the SAME
+// helper the capture reader uses — so the internal and delegated (rk) paths
+// share one downstream representation.
 func parsePaneLines(output string) ([]paneEntry, error) {
 	var panes []paneEntry
 	for _, line := range strings.Split(output, "\n") {
@@ -255,22 +405,24 @@ func parsePaneLines(output string) ([]paneEntry, error) {
 			continue
 		}
 		idx, _ := strconv.Atoi(parts[4])
-		agentState := ""
+		rawOption := ""
 		if len(parts) >= 6 {
-			agentState = strings.TrimSpace(parts[5])
+			rawOption = strings.TrimSpace(parts[5])
 		}
+		agentState, agentIdleDur := pane.AgentDisplayFromOption(rawOption)
 		windowID := ""
 		if len(parts) == 7 {
 			windowID = parts[6]
 		}
 		panes = append(panes, paneEntry{
-			id:         parts[0],
-			tab:        parts[1],
-			cwd:        parts[2],
-			session:    parts[3],
-			index:      idx,
-			agentState: agentState,
-			windowID:   windowID,
+			id:           parts[0],
+			tab:          parts[1],
+			cwd:          parts[2],
+			session:      parts[3],
+			index:        idx,
+			agentState:   agentState,
+			agentIdleDur: agentIdleDur,
+			windowID:     windowID,
 		})
 	}
 	return panes, nil
@@ -310,11 +462,12 @@ func matchPanesByFolder(panes []paneEntry, folder string, resolveFunc func(paneE
 	return matches, warning
 }
 
-// resolvePane resolves a pane entry into a table row. Agent state comes from
-// the pane's @rk_agent_state option (carried in paneEntry.agentState from the
-// list-panes format string) — independent of whether a change is active.
-// This is the three-axis model: Change (from .fab-status.yaml), Agent (from
-// the pane option), and (not shown here) Process (opt-in via `fab pane process`).
+// resolvePane resolves a pane entry into a table row. Agent state arrives
+// pre-resolved on the entry (the internal path parses the @rk_agent_state
+// option at discovery; the delegated path carries rk's reconciled value) —
+// independent of whether a change is active. This is the three-axis model:
+// Change (from .fab-status.yaml), Agent (from the entry's resolved state), and
+// (not shown here) Process (opt-in via `fab pane process`).
 // wtRoot is the pane's pre-resolved git worktree root from
 // worktreeRootForPane ("" = not a git repo) — threaded in, like mainRoot,
 // so resolvePane never re-spawns `git rev-parse`.
@@ -323,11 +476,11 @@ func resolvePane(p paneEntry, wtRoot, mainRoot string) (paneRow, bool) {
 
 	if wtRoot == "" {
 		// Non-git pane: the CHANGE axis is em-dash (no fab context), but the
-		// AGENT axis still comes from the pane's @rk_agent_state option — a
-		// non-git pane can run an instrumented agent. Hardcoding em-dash here
-		// would make `pane map` disagree with `pane capture` (which
-		// resolve the option regardless of git/fab context), so resolve it via
-		// the same agentColumn helper the git branch below uses.
+		// AGENT axis still carries the entry's resolved state — a non-git pane
+		// can run an instrumented agent. Hardcoding em-dash here would make
+		// `pane map` disagree with `pane capture` (which resolves agent state
+		// regardless of git/fab context), so render it via the same
+		// agentColumn helper the git branch below uses.
 		return paneRow{
 			session:      p.session,
 			windowIndex:  p.index,
@@ -339,8 +492,9 @@ func resolvePane(p paneEntry, wtRoot, mainRoot string) (paneRow, bool) {
 			change:       emDash,
 			stage:        emDash,
 			displayState: emDash,
-			agent:        agentColumn(p.agentState),
-			agentOption:  p.agentState,
+			agent:        agentColumn(p.agentState, p.agentIdleDur),
+			agentState:   p.agentState,
+			agentIdleDur: p.agentIdleDur,
 		}, true
 	}
 
@@ -379,11 +533,9 @@ func resolvePane(p paneEntry, wtRoot, mainRoot string) (paneRow, bool) {
 		}
 	}
 
-	// Agent resolution runs regardless of fabDir presence — the pane
-	// option describes the agent in this pane whether or not a change is
-	// active. active/waiting/idle-with-duration, em dash when unknown.
-	agentState := agentColumn(p.agentState)
-
+	// Agent rendering runs regardless of fabDir presence — the entry's
+	// resolved state describes the agent in this pane whether or not a change
+	// is active. active/waiting/idle-with-duration, em dash when unknown.
 	return paneRow{
 		session:      p.session,
 		windowIndex:  p.index,
@@ -395,18 +547,17 @@ func resolvePane(p paneEntry, wtRoot, mainRoot string) (paneRow, bool) {
 		change:       changeName,
 		stage:        stageName,
 		displayState: stageState,
-		agent:        agentState,
-		agentOption:  p.agentState,
+		agent:        agentColumn(p.agentState, p.agentIdleDur),
+		agentState:   p.agentState,
+		agentIdleDur: p.agentIdleDur,
 		prURL:        prURL,
 	}, true
 }
 
-// agentColumn renders the raw @rk_agent_state option value into the Agent
+// agentColumn renders the resolved (state, idle-duration) pair into the Agent
 // column display string: "active" / "waiting" / "idle (<dur>)" / "—" (em dash
-// for the unknown case — absent option, unparseable value, or unknown token).
-// Idle carries the epoch-derived duration; active/waiting do not.
-func agentColumn(rawOption string) string {
-	state, idleDur := pane.AgentDisplayFromOption(rawOption)
+// for the unknown case). Idle carries a duration; active/waiting do not.
+func agentColumn(state, idleDur string) string {
 	switch {
 	case state == "":
 		return "—"
@@ -472,27 +623,28 @@ func parsePRNumber(url string) (int, bool) {
 }
 
 // agentJSONFields derives the JSON agent_state / agent_idle_duration pair
-// DIRECTLY from the raw @rk_agent_state option, NOT from the Agent-column
-// display string. This keeps the run-kit-consumed JSON contract independent of
+// from the entry's STRUCTURED (state, idle-duration) pair, NOT from the
+// Agent-column display string. This keeps the JSON contract independent of
 // the human display format: agent_state \u2208 {active, waiting, idle, null} and
-// agent_idle_duration is non-null only for idle. Unknown (unparseable / absent
-// / unknown token) maps both to null.
-func agentJSONFields(rawOption string) (state *string, idleDuration *string) {
-	st, dur := pane.AgentDisplayFromOption(rawOption)
-	if st == "" {
+// agent_idle_duration is non-null only for idle (both discovery paths enforce
+// the idle-only rule upstream \u2014 AgentDisplayFromOption internally, the rk
+// mapping's waiting-duration drop on the delegated path). Unknown maps both
+// to null.
+func agentJSONFields(state, idleDur string) (*string, *string) {
+	if state == "" {
 		return nil, nil
 	}
-	if dur == "" {
-		return &st, nil
+	if idleDur == "" {
+		return &state, nil
 	}
-	return &st, &dur
+	return &state, &idleDur
 }
 
 // printPaneJSON marshals rows to a JSON array and writes to cmd's stdout.
 func printPaneJSON(cmd *cobra.Command, rows []paneRow) error {
 	out := make([]paneJSON, len(rows))
 	for i, r := range rows {
-		agentState, idleDur := agentJSONFields(r.agentOption)
+		agentState, idleDur := agentJSONFields(r.agentState, r.agentIdleDur)
 		var prNum *int
 		if n, ok := parsePRNumber(r.prURL); ok {
 			prNum = &n

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -405,7 +406,7 @@ func TestParsePaneLines(t *testing.T) {
 		}
 	})
 
-	t.Run("sixth field carries the agent-state option", func(t *testing.T) {
+	t.Run("sixth field resolves the agent-state option", func(t *testing.T) {
 		input := "%3\talpha\t/home/user/repo\trunK\t2\tidle:1751800000\n"
 		panes, err := parsePaneLines(input)
 		if err != nil {
@@ -414,8 +415,11 @@ func TestParsePaneLines(t *testing.T) {
 		if len(panes) != 1 {
 			t.Fatalf("expected 1 pane, got %d", len(panes))
 		}
-		if panes[0].agentState != "idle:1751800000" {
-			t.Errorf("agentState = %q, want idle:1751800000", panes[0].agentState)
+		if panes[0].agentState != "idle" {
+			t.Errorf("agentState = %q, want idle (resolved from the raw option)", panes[0].agentState)
+		}
+		if panes[0].agentIdleDur == "" {
+			t.Error("agentIdleDur empty, want an epoch-derived duration for idle")
 		}
 	})
 
@@ -452,8 +456,8 @@ func TestParsePaneLines(t *testing.T) {
 		if len(panes) != 1 {
 			t.Fatalf("expected 1 pane, got %d", len(panes))
 		}
-		if panes[0].agentState != "idle:1751800000" {
-			t.Errorf("agentState = %q, want idle:1751800000", panes[0].agentState)
+		if panes[0].agentState != "idle" {
+			t.Errorf("agentState = %q, want idle (resolved from the raw option)", panes[0].agentState)
 		}
 		if panes[0].windowID != "@5" {
 			t.Errorf("windowID = %q, want @5", panes[0].windowID)
@@ -491,8 +495,11 @@ func TestParsePaneLines(t *testing.T) {
 		if len(panes) != 1 {
 			t.Fatalf("expected 1 pane, got %d", len(panes))
 		}
-		if panes[0].agentState != "active:1751800000" {
-			t.Errorf("agentState = %q, want active:1751800000", panes[0].agentState)
+		if panes[0].agentState != "active" {
+			t.Errorf("agentState = %q, want active (resolved from the raw option)", panes[0].agentState)
+		}
+		if panes[0].agentIdleDur != "" {
+			t.Errorf("agentIdleDur = %q, want empty for a non-idle state", panes[0].agentIdleDur)
 		}
 		if panes[0].windowID != "" {
 			t.Errorf("windowID = %q, want empty for legacy six-field line", panes[0].windowID)
@@ -519,31 +526,23 @@ func TestParsePaneLines(t *testing.T) {
 
 func TestAgentColumn(t *testing.T) {
 	tests := []struct {
-		name string
-		raw  string
-		want string
+		name  string
+		state string
+		dur   string
+		want  string
 	}{
-		{"active", "active:1751800000", "active"},
-		{"waiting", "waiting:1751800000", "waiting"},
-		{"unset option → em dash", "", "—"},
-		{"unparseable → em dash", "idle:notanum", "—"},
-		{"unknown token → em dash", "bogus:1", "—"},
+		{"active", "active", "", "active"},
+		{"waiting", "waiting", "", "waiting"},
+		{"idle renders with its duration", "idle", "5m", "idle (5m)"},
+		{"unknown → em dash", "", "", "—"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := agentColumn(tc.raw); got != tc.want {
-				t.Errorf("agentColumn(%q) = %q, want %q", tc.raw, got, tc.want)
+			if got := agentColumn(tc.state, tc.dur); got != tc.want {
+				t.Errorf("agentColumn(%q, %q) = %q, want %q", tc.state, tc.dur, got, tc.want)
 			}
 		})
 	}
-
-	t.Run("idle renders with a duration", func(t *testing.T) {
-		epoch := time.Now().Unix() - 300 // ~5m ago
-		got := agentColumn("idle:" + strconv.FormatInt(epoch, 10))
-		if !strings.HasPrefix(got, "idle (") || !strings.HasSuffix(got, ")") {
-			t.Errorf("agentColumn(idle:...) = %q, want idle (<dur>) form", got)
-		}
-	})
 }
 
 // TestMapCaptureAgentAgreement_NonFabPane pins the invariant that ALL the
@@ -572,18 +571,21 @@ func TestMapCaptureAgentAgreement_NonFabPane(t *testing.T) {
 
 	for _, raw := range cases {
 		t.Run("raw="+strconv.Quote(raw), func(t *testing.T) {
-			// MAP path: resolvePane's non-git branch (wtRoot == "").
-			p := paneEntry{id: "%9", tab: "scratch", cwd: nonGitCWD, session: "dev", agentState: raw}
-			row, ok := resolvePane(p, "", "")
+			// MAP path: the internal discovery seam (parsePaneLines resolves the
+			// raw option) feeding resolvePane's non-git branch (wtRoot == "").
+			line := "%9\tscratch\t" + nonGitCWD + "\tdev\t0\t" + raw + "\t@1\n"
+			panes, err := parsePaneLines(line)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(panes) != 1 {
+				t.Fatalf("expected 1 pane, got %d", len(panes))
+			}
+			row, ok := resolvePane(panes[0], "", "")
 			if !ok {
 				t.Fatal("resolvePane returned ok=false")
 			}
-			// The map path now carries the RAW option through paneRow.agentOption
-			// (the JSON source of truth) — it must equal the value the pane holds.
-			if row.agentOption != raw {
-				t.Errorf("agentOption not threaded through: got %q, want %q", row.agentOption, raw)
-			}
-			mapState, mapDur := pane.AgentDisplayFromOption(row.agentOption)
+			mapState, mapDur := row.agentState, row.agentIdleDur
 
 			// CAPTURE path: the shared display helper consumed via
 			// ResolvePaneContext. (ResolvePaneContext's own tmux read is covered
@@ -649,9 +651,11 @@ func TestMapCaptureAgentAgreement_Integration(t *testing.T) {
 		t.Fatalf("ResolvePaneContext AgentState = %v, want waiting (capture must see the option on a non-fab pane)", ctx.AgentState)
 	}
 
-	// MAP reader — resolve the option off the pane, then run the non-git branch.
+	// MAP reader — resolve the option off the pane, resolve it to the
+	// structured pair (the discovery-time seam), then run the non-git branch.
 	raw := pane.ReadAgentStateOption(paneID, server)
-	row, ok := resolvePane(paneEntry{id: paneID, cwd: nonGitCWD, agentState: raw}, "", "")
+	st, dur := pane.AgentDisplayFromOption(raw)
+	row, ok := resolvePane(paneEntry{id: paneID, cwd: nonGitCWD, agentState: st, agentIdleDur: dur}, "", "")
 	if !ok {
 		t.Fatal("resolvePane returned ok=false")
 	}
@@ -661,29 +665,27 @@ func TestMapCaptureAgentAgreement_Integration(t *testing.T) {
 }
 
 // TestAgentJSONFields verifies the JSON agent_state / agent_idle_duration pair
-// is derived DIRECTLY from the raw @rk_agent_state option \u2014 not from the
-// human display string \u2014 so a display-format tweak in agentColumn cannot break
-// the run-kit-consumed JSON contract (ioku cycle 2, T006).
+// is derived from the STRUCTURED (state, duration) pair \u2014 not from the human
+// display string \u2014 so a display-format tweak in agentColumn cannot break the
+// JSON contract (ioku cycle 2, T006; structured pair since the rk-enumeration
+// delegation, 89vn).
 func TestAgentJSONFields(t *testing.T) {
-	idleRaw := "idle:" + strconv.FormatInt(time.Now().Unix()-300, 10) // ~5m ago
 	tests := []struct {
 		name             string
-		rawOption        string
+		state            string
+		dur              string
 		wantState        *string
 		wantIdleDuration *string
 	}{
-		{"active", "active:1751800000", strPtr("active"), nil},
-		{"waiting", "waiting:1751800000", strPtr("waiting"), nil},
-		{"idle carries duration", idleRaw, strPtr("idle"), strPtr("5m")},
-		{"unset is null", "", nil, nil},
-		{"unknown token is null", "bogus:1", nil, nil},
-		{"unparseable epoch is null", "idle:notanumber", nil, nil},
-		{"missing epoch suffix is null", "idle", nil, nil},
+		{"active", "active", "", strPtr("active"), nil},
+		{"waiting", "waiting", "", strPtr("waiting"), nil},
+		{"idle carries duration", "idle", "5m", strPtr("idle"), strPtr("5m")},
+		{"unknown is null", "", "", nil, nil},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			state, dur := agentJSONFields(tc.rawOption)
+			state, dur := agentJSONFields(tc.state, tc.dur)
 			if !ptrEq(state, tc.wantState) {
 				t.Errorf("state = %v, want %v", ptrStr(state), ptrStr(tc.wantState))
 			}
@@ -701,7 +703,7 @@ func TestPrintPaneJSON(t *testing.T) {
 		cmd.SetOut(&buf)
 
 		rows := []paneRow{
-			{session: "runK", windowIndex: 2, pane: "%3", tab: "alpha", worktree: "myrepo.worktrees/alpha/", change: "260306-r3m7-add-retry-logic", stage: "apply", agent: "active", agentOption: "active:1751800000"},
+			{session: "runK", windowIndex: 2, pane: "%3", tab: "alpha", worktree: "myrepo.worktrees/alpha/", change: "260306-r3m7-add-retry-logic", stage: "apply", agent: "active", agentState: "active"},
 		}
 		if err := printPaneJSON(cmd, rows); err != nil {
 			t.Fatal(err)
@@ -744,7 +746,7 @@ func TestPrintPaneJSON(t *testing.T) {
 		cmd.SetOut(&buf)
 
 		rows := []paneRow{
-			{session: "dev", windowIndex: 0, pane: "%5", tab: "scratch", worktree: "downloads/", change: "\u2014", stage: "\u2014", agent: "\u2014", agentOption: ""},
+			{session: "dev", windowIndex: 0, pane: "%5", tab: "scratch", worktree: "downloads/", change: "\u2014", stage: "\u2014", agent: "\u2014"},
 		}
 		if err := printPaneJSON(cmd, rows); err != nil {
 			t.Fatal(err)
@@ -774,9 +776,8 @@ func TestPrintPaneJSON(t *testing.T) {
 		cmd := &cobra.Command{}
 		cmd.SetOut(&buf)
 
-		idleRaw := "idle:" + strconv.FormatInt(time.Now().Unix()-300, 10) // ~5m ago
 		rows := []paneRow{
-			{session: "runK", windowIndex: 1, pane: "%7", tab: "bravo", worktree: "(main)", change: "260306-ab12-refactor-auth", stage: "review", agent: "idle (5m)", agentOption: idleRaw},
+			{session: "runK", windowIndex: 1, pane: "%7", tab: "bravo", worktree: "(main)", change: "260306-ab12-refactor-auth", stage: "review", agent: "idle (5m)", agentState: "idle", agentIdleDur: "5m"},
 		}
 		if err := printPaneJSON(cmd, rows); err != nil {
 			t.Fatal(err)
@@ -955,9 +956,8 @@ func TestPrintPaneJSON_DiscussionMode(t *testing.T) {
 		cmd.SetOut(&buf)
 
 		// Discussion mode: change and stage are em-dash; agent is populated.
-		idleRaw := "idle:" + strconv.FormatInt(time.Now().Unix()-120, 10) // ~2m ago
 		rows := []paneRow{
-			{session: "main", windowIndex: 2, pane: "%15", tab: "scratch", worktree: "(main)", change: "(no change)", stage: "\u2014", agent: "idle (2m)", agentOption: idleRaw},
+			{session: "main", windowIndex: 2, pane: "%15", tab: "scratch", worktree: "(main)", change: "(no change)", stage: "\u2014", agent: "idle (2m)", agentState: "idle", agentIdleDur: "2m"},
 		}
 		if err := printPaneJSON(cmd, rows); err != nil {
 			t.Fatal(err)
@@ -988,7 +988,7 @@ func TestPrintPaneJSON_DiscussionMode(t *testing.T) {
 		cmd.SetOut(&buf)
 
 		rows := []paneRow{
-			{session: "main", windowIndex: 0, pane: "%15", tab: "scratch", worktree: "(main)", change: "(no change)", stage: "\u2014", agent: "active", agentOption: "active:1751800000"},
+			{session: "main", windowIndex: 0, pane: "%15", tab: "scratch", worktree: "(main)", change: "(no change)", stage: "\u2014", agent: "active", agentState: "active"},
 		}
 		if err := printPaneJSON(cmd, rows); err != nil {
 			t.Fatal(err)
@@ -1699,4 +1699,191 @@ func TestPrintPaneTableWindowIDUnchanged(t *testing.T) {
 	if strings.Contains(withID.String(), "window_id") || strings.Contains(withID.String(), "WinID") {
 		t.Errorf("table output should not contain a window_id column:\n%s", withID.String())
 	}
+}
+
+// --- rk mux panes delegation (cli-layering Part 8, 89vn) ---
+
+func TestRKPanesArgs(t *testing.T) {
+	t.Run("no server", func(t *testing.T) {
+		got := rkPanesArgs("")
+		want := []string{"mux", "panes", "--json"}
+		if strings.Join(got, " ") != strings.Join(want, " ") {
+			t.Errorf("rkPanesArgs(\"\") = %v, want %v", got, want)
+		}
+	})
+	t.Run("with server", func(t *testing.T) {
+		got := rkPanesArgs("runKit")
+		want := []string{"mux", "panes", "--json", "-L", "runKit"}
+		if strings.Join(got, " ") != strings.Join(want, " ") {
+			t.Errorf("rkPanesArgs(runKit) = %v, want %v", got, want)
+		}
+	})
+}
+
+// rkPanesFixture is a two-session `rk mux panes --json` payload covering the
+// mapping contract: reconciled agent states (idle with duration, waiting with
+// a duration fab must DROP, null), window_name→tab, window_id, and rk-only
+// fields fab ignores.
+const rkPanesFixture = `[
+  {
+    "session": "alpha", "session_id": "$1", "window_index": 2, "window_id": "@5",
+    "window_name": "worker", "window_active": true, "pane": "%3", "pane_index": 1,
+    "pane_active": true, "command": "claude", "cwd": "/home/u/repo",
+    "agent_state": "idle", "agent_state_duration": "5m"
+  },
+  {
+    "session": "alpha", "session_id": "$1", "window_index": 3, "window_id": "@6",
+    "window_name": "blocked", "window_active": false, "pane": "%4", "pane_index": 1,
+    "pane_active": true, "command": "claude", "cwd": "/home/u/repo2",
+    "agent_state": "waiting", "agent_state_duration": "3m"
+  },
+  {
+    "session": "beta", "session_id": "$2", "window_index": 1, "window_id": "@9",
+    "window_name": "scratch", "window_active": true, "pane": "%7", "pane_index": 1,
+    "pane_active": true, "command": "zsh", "cwd": "/tmp",
+    "agent_state": null, "agent_state_duration": null
+  }
+]`
+
+func TestParseRKPanes(t *testing.T) {
+	panes, err := parseRKPanes([]byte(rkPanesFixture))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(panes) != 3 {
+		t.Fatalf("expected 3 panes, got %d", len(panes))
+	}
+
+	idle := panes[0]
+	if idle.id != "%3" || idle.tab != "worker" || idle.cwd != "/home/u/repo" ||
+		idle.session != "alpha" || idle.index != 2 || idle.windowID != "@5" {
+		t.Errorf("idle row mapping wrong: %+v", idle)
+	}
+	if idle.agentState != "idle" || idle.agentIdleDur != "5m" {
+		t.Errorf("idle agent pair = (%q, %q), want (idle, 5m)", idle.agentState, idle.agentIdleDur)
+	}
+
+	// rk reports a duration for waiting; fab's idle-only contract drops it.
+	waiting := panes[1]
+	if waiting.agentState != "waiting" || waiting.agentIdleDur != "" {
+		t.Errorf("waiting agent pair = (%q, %q), want (waiting, \"\") — waiting duration must be dropped", waiting.agentState, waiting.agentIdleDur)
+	}
+
+	// null agent_state maps to unknown.
+	unknown := panes[2]
+	if unknown.agentState != "" || unknown.agentIdleDur != "" {
+		t.Errorf("null agent pair = (%q, %q), want unknown (\"\", \"\")", unknown.agentState, unknown.agentIdleDur)
+	}
+
+	t.Run("unknown state token maps to unknown", func(t *testing.T) {
+		panes, err := parseRKPanes([]byte(`[{"session":"s","window_index":1,"window_id":"@1","window_name":"w","pane":"%1","cwd":"/tmp","agent_state":"bogus","agent_state_duration":"2m"}]`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if panes[0].agentState != "" || panes[0].agentIdleDur != "" {
+			t.Errorf("bogus state pair = (%q, %q), want unknown", panes[0].agentState, panes[0].agentIdleDur)
+		}
+	})
+
+	t.Run("malformed JSON errors", func(t *testing.T) {
+		if _, err := parseRKPanes([]byte("not json")); err == nil {
+			t.Error("expected error for malformed JSON")
+		}
+	})
+
+	t.Run("empty array yields zero entries", func(t *testing.T) {
+		panes, err := parseRKPanes([]byte("[]"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(panes) != 0 {
+			t.Errorf("expected 0 panes, got %d", len(panes))
+		}
+	})
+}
+
+// stubRKSeams stubs the rk runner and the current-session resolver for the
+// duration of a test.
+func stubRKSeams(t *testing.T, runner func(string) ([]byte, error), session func(string) (string, error)) {
+	t.Helper()
+	origRunner, origSession := rkPanesRunner, currentSessionName
+	rkPanesRunner = runner
+	if session != nil {
+		currentSessionName = session
+	}
+	t.Cleanup(func() { rkPanesRunner, currentSessionName = origRunner, origSession })
+}
+
+func TestDiscoverPanesViaRK(t *testing.T) {
+	okRunner := func(string) ([]byte, error) { return []byte(rkPanesFixture), nil }
+
+	t.Run("all-sessions returns every row", func(t *testing.T) {
+		stubRKSeams(t, okRunner, nil)
+		panes, ok := discoverPanesViaRK(sessionAll, "", "")
+		if !ok {
+			t.Fatal("expected ok=true")
+		}
+		if len(panes) != 3 {
+			t.Errorf("expected 3 panes, got %d", len(panes))
+		}
+	})
+
+	t.Run("named session filters by equality", func(t *testing.T) {
+		stubRKSeams(t, okRunner, nil)
+		panes, ok := discoverPanesViaRK(sessionNamed, "alpha", "")
+		if !ok {
+			t.Fatal("expected ok=true")
+		}
+		if len(panes) != 2 {
+			t.Fatalf("expected 2 alpha panes, got %d", len(panes))
+		}
+		for _, p := range panes {
+			if p.session != "alpha" {
+				t.Errorf("row leaked from session %q", p.session)
+			}
+		}
+	})
+
+	t.Run("unknown named session filters to zero rows", func(t *testing.T) {
+		stubRKSeams(t, okRunner, nil)
+		panes, ok := discoverPanesViaRK(sessionNamed, "bogus", "")
+		if !ok {
+			t.Fatal("expected ok=true (empty result, not fallback)")
+		}
+		if len(panes) != 0 {
+			t.Errorf("expected 0 panes, got %d", len(panes))
+		}
+	})
+
+	t.Run("default mode filters to the current session", func(t *testing.T) {
+		stubRKSeams(t, okRunner, func(string) (string, error) { return "beta", nil })
+		panes, ok := discoverPanesViaRK(sessionDefault, "", "")
+		if !ok {
+			t.Fatal("expected ok=true")
+		}
+		if len(panes) != 1 || panes[0].session != "beta" {
+			t.Errorf("expected the single beta pane, got %+v", panes)
+		}
+	})
+
+	t.Run("default mode falls back when session resolution fails", func(t *testing.T) {
+		stubRKSeams(t, okRunner, func(string) (string, error) { return "", errors.New("no tmux") })
+		if _, ok := discoverPanesViaRK(sessionDefault, "", ""); ok {
+			t.Error("expected ok=false when the current session cannot be resolved")
+		}
+	})
+
+	t.Run("runner error falls back", func(t *testing.T) {
+		stubRKSeams(t, func(string) ([]byte, error) { return nil, errors.New("rk not on PATH") }, nil)
+		if _, ok := discoverPanesViaRK(sessionAll, "", ""); ok {
+			t.Error("expected ok=false on runner error (rk absent / non-zero exit)")
+		}
+	})
+
+	t.Run("malformed payload falls back", func(t *testing.T) {
+		stubRKSeams(t, func(string) ([]byte, error) { return []byte("unknown command"), nil }, nil)
+		if _, ok := discoverPanesViaRK(sessionAll, "", ""); ok {
+			t.Error("expected ok=false on unparseable payload (pre-`mux panes` rk)")
+		}
+	})
 }
