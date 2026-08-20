@@ -1,0 +1,11 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-20T18:32:51Z"}
+{"args":"Autopilot merge-mode naming symmetry (three noun modes: stack-then-review, merge-on-complete, stacked-prs; real persisted --mode flag on fab operator autopilot start) plus new stacked-prs mode with reviewer-clean stacked PR topology for same-repo chains","cmd":"fab-new","event":"command","ts":"2026-08-20T18:32:51Z"}
+{"delta":"+2.6","event":"confidence","score":2.6,"trigger":"calc-score","ts":"2026-08-20T18:35:27Z"}
+{"delta":"+0.5","event":"confidence","score":3.1,"trigger":"calc-score","ts":"2026-08-20T18:37:18Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-08-20T18:39:12Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-20T18:41:11Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-20T18:41:49Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-20T18:51:26Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-20T18:54:56Z"}
+{"event":"review","result":"passed","ts":"2026-08-20T18:54:56Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-20T18:56:29Z"}

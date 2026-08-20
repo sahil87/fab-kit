@@ -2,9 +2,24 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
+
+// validAutopilotModes are the accepted --mode values for `autopilot start`;
+// the first entry is the default and the back-compat fill for an absent
+// `mode` field in a pre-existing state file.
+var validAutopilotModes = []string{"stack-then-review", "merge-on-complete", "stacked-prs"}
+
+func validAutopilotMode(mode string) bool {
+	for _, m := range validAutopilotModes {
+		if m == mode {
+			return true
+		}
+	}
+	return false
+}
 
 // Autopilot lifecycle verbs (fab-operator.md §6 Autopilot). start sets the
 // queue running; pause/resume flip state; advance promotes the next entry
@@ -25,6 +40,7 @@ func operatorAutopilotCmd() *cobra.Command {
 	}
 	start.Flags().StringSlice("queue", nil, "comma-separated change IDs, in order (required)")
 	_ = start.MarkFlagRequired("queue")
+	start.Flags().String("mode", validAutopilotModes[0], "merge mode: "+strings.Join(validAutopilotModes, " | "))
 
 	advance := &cobra.Command{
 		Use:   "advance",
@@ -49,11 +65,16 @@ func autopilotSimpleCmd(use, short string, run func(*cobra.Command, []string) er
 }
 
 // loadAutopilot decodes the autopilot section; requireActive errors when no
-// queue is active (block absent or state cleared).
+// queue is active (block absent or state cleared). An absent `mode` field in
+// a pre-existing state file reads as the default mode (tolerant read — the
+// typed re-marshal writes the field on the next mutation).
 func loadAutopilot(data map[string]interface{}, requireActive bool) (*autopilotState, error) {
 	ap := &autopilotState{}
 	if err := operatorSection(data, "autopilot", ap); err != nil {
 		return nil, err
+	}
+	if ap.Mode == "" {
+		ap.Mode = validAutopilotModes[0]
 	}
 	if requireActive && (data["autopilot"] == nil || ap.State == nil) {
 		return nil, fmt.Errorf("no autopilot queue is active")
@@ -66,6 +87,10 @@ func runOperatorAutopilotStart(cmd *cobra.Command, args []string) error {
 	if len(queue) == 0 {
 		return fmt.Errorf("--queue must name at least one change ID")
 	}
+	mode, _ := cmd.Flags().GetString("mode")
+	if !validAutopilotMode(mode) {
+		return fmt.Errorf("unknown --mode %q (valid: %s)", mode, strings.Join(validAutopilotModes, ", "))
+	}
 	running := "running"
 	current := queue[0]
 	return mutateOperatorState(func(data map[string]interface{}) error {
@@ -74,6 +99,7 @@ func runOperatorAutopilotStart(cmd *cobra.Command, args []string) error {
 			Current:   &current,
 			Completed: []string{},
 			State:     &running,
+			Mode:      mode,
 		}
 		return nil
 	})
