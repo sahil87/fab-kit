@@ -8,7 +8,7 @@ description: "Agent-state divestment: fab reads the `@rk_agent_state` tmux pane 
 
 ## Overview
 
-fab determines an agent's lifecycle state by **reading** a tmux pane user option, `@rk_agent_state`, with plain tmux commands. It does **not** produce that state, and it does **not** depend on run-kit software being installed — the option is a data convention in tmux, read with `tmux show-options`/`list-panes`, so fab reads it whether or not run-kit is present.
+fab determines an agent's lifecycle state by **reading** a tmux pane user option, `@rk_agent_state`, with plain tmux commands. It does **not** produce that state, and it does **not** depend on run-kit software being installed — the option is a data convention in tmux, read with `tmux show-options`/`list-panes`, so fab reads it whether or not run-kit is present. (When rk *is* installed, `fab pane map` prefers rk's already-reconciled state, arriving with its delegated `rk mux panes --json` enumeration — see [pane-commands.md](/runtime/pane-commands.md); the plain-tmux read remains `map`'s fail-open fallback and `capture`'s path.)
 
 This is a divestment (ioku): fab-kit **stopped producing** agent active/idle lifecycle state and became a **pure consumer** of a shared convention. Agent-state detection was never core fab — it is a tmux-context observation feature that got bolted onto fab because no owner existed. run-kit is that owner now: its `rk agent-setup` global agent-harness hooks write `@rk_agent_state` for Claude Code, Codex, Copilot, Gemini, and OpenCode. fab reads it in two places — `fab pane map` (Agent column) and `fab pane capture` (header). See [pane-commands.md](/runtime/pane-commands.md) for those readers and [hooks-may-enhance-never-own.md](/pipeline/hooks-may-enhance-never-own.md) for the principle this strengthens.
 
@@ -34,7 +34,7 @@ fab reads the tmux **pane user option** `@rk_agent_state`, whose value is `"<sta
 
 **Schema ownership is run-kit's.** The `"<state>:<epoch_seconds>"` grammar above is the current working contract (drafted in the divestment pickup doc (ioku), recorded in run-kit constitution Principle X "Hooks Carry Only the Underivable", v1.4.0). If run-kit changes the format later, adapting fab's reader is a follow-up change — the divergence risk is accepted.
 
-**No run-kit software dependency.** fab reads the option with `tmux show-options -pv -t <pane> @rk_agent_state` (capture) and `#{@rk_agent_state}` in the `list-panes -F` format string (map). These are plain tmux commands against a pane option — a *data* convention, not a link against run-kit. fab works identically whether run-kit wrote the option or nobody did (nobody → unknown everywhere, the honest fallback). All commands behave identically **outside tmux** too: with no tmux server there is no pane to read, so there is simply no agent state — no runtime file is written or read anywhere.
+**No run-kit software dependency.** fab reads the option with `tmux show-options -pv -t <pane> @rk_agent_state` (capture) and `#{@rk_agent_state}` in the `list-panes -F` format string (map's rk-absent fallback path — map's delegated path consumes rk's reconciled state from `rk mux panes --json` instead of reading the option). These are plain tmux commands against a pane option — a *data* convention, not a link against run-kit. fab works identically whether run-kit wrote the option or nobody did (nobody → unknown everywhere, the honest fallback). All commands behave identically **outside tmux** too: with no tmux server there is no pane to read, so there is simply no agent state — no runtime file is written or read anywhere.
 
 #### Scenario: idle pane resolves to a duration
 
@@ -91,7 +91,7 @@ The entire `.fab-runtime.yaml` `_agents` producer subsystem was **deleted wholes
 *Introduced by*: 260705-ioku-divest-agent-state-production
 
 ### Single pure `parseAgentState`, reused by both readers
-**Decision**: The `"<state>:<epoch>"` parse is one pure function in `internal/pane/pane.go`, consumed by `map`/`capture`; `map` reads via the `list-panes -F` format string, `capture` via a targeted `show-options -pv`.
+**Decision**: The `"<state>:<epoch>"` parse is one pure function in `internal/pane/pane.go`, consumed by `map`/`capture`; `map`'s fallback path reads via the `list-panes -F` format string (its delegated path takes rk's reconciled state, no option read), `capture` via a targeted `show-options -pv`.
 **Why**: A single grammar authority is tmux-free unit-testable and eliminates the per-reader drifting-copies anti-pattern. `map` already runs `list-panes -F`, so adding `#{@rk_agent_state}` is zero extra subprocesses (and the tmux-server disambiguation problem evaporates — a pane option lives on exactly one server's pane); `capture` operates on a single pane it already probes, so a targeted `show-options -pv` is the minimal read.
 **Rejected**: Parsing inline at each reader (drifting copies). A `show-options` per pane in `map` (extra subprocess per pane — explicitly forbidden).
 *Introduced by*: 260705-ioku-divest-agent-state-production

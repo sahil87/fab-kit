@@ -1,0 +1,9 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-20T05:40:32Z"}
+{"args":"Part 8 of docs/specs/cli-layering.md (fab-kit half): enrich rk mux panes with change/stage — consume the newly-native rk mux panes enumeration (run-kit v3.17.18, PR #677) and enrich its output with fab change/stage data, replacing the old fab pane map cached-join role.","cmd":"fab-new","event":"command","ts":"2026-08-20T05:40:32Z"}
+{"delta":"+4.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-08-20T05:42:30Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-20T05:45:42Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-20T05:46:51Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-20T05:59:37Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-20T06:04:01Z"}
+{"event":"review","result":"passed","ts":"2026-08-20T06:04:01Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-20T06:07:41Z"}
