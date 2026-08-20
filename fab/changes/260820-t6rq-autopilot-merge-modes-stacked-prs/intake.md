@@ -5,6 +5,8 @@
 
 ## Origin
 
+> **Amendment (2026-08-21, pre-merge)**: after review-pr completed, the user renamed two of the three modes to make each name convey its mechanism and merge agency — `stack-then-review` → **`cherry-pick-ladder`** (dep code copied in by cherry-pick, chained rung-by-rung), `merge-on-complete` → **`merge-auto`** (the operator merges automatically; no user in the loop), `stacked-prs` unchanged. The rename was applied across the Go flag/state values, tests, skill prose, `_cli-fab.md`, memory, and `plan.md`. The body below is the original decision record and keeps the pre-rename names.
+
 Created via `/fab-proceed` promptless dispatch (`{questioning-mode} = promptless-defer`) from a synthesized user-conversation description. Key decisions were made in that conversation and are encoded verbatim below; no questions were asked at intake.
 
 > Autopilot merge-mode naming symmetry + new `stacked-prs` mode (fab-operator). Rename the two existing autopilot merge modes to three symmetric noun names — `stack-then-review` (default), `merge-on-complete`, `stacked-prs` — dropping the misleading `--merge-on-complete` pseudo-flag spelling from skill prose; make the mode a real, persisted flag `fab operator autopilot start --mode <name>` stored in the autopilot state block; and add the new `stacked-prs` mode: stack-then-review merge timing with true stacked-PR topology (each same-repo dependent branches off its dependency's branch and PRs against it, so each PR diff shows only its own delta). Both halves ship in ONE change, per explicit user direction.

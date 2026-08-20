@@ -10,7 +10,7 @@ import (
 // validAutopilotModes are the accepted --mode values for `autopilot start`;
 // the first entry is the default and the back-compat fill for an absent
 // `mode` field in a pre-existing state file.
-var validAutopilotModes = []string{"stack-then-review", "merge-on-complete", "stacked-prs"}
+var validAutopilotModes = []string{"cherry-pick-ladder", "merge-auto", "stacked-prs"}
 
 func validAutopilotMode(mode string) bool {
 	for _, m := range validAutopilotModes {

@@ -536,8 +536,8 @@ On completion (all three): PR ready, optionally archive. Both raw text and backl
 ### Autopilot
 
 User provides a queue of changes. Confirmation prompt reflects the active mode:
-- **Default (`stack-then-review`):** "Confirm upfront (creates PRs — merge after review)."
-- **`merge-on-complete`:** "Confirm upfront (merges PRs on completion)."
+- **Default (`cherry-pick-ladder`):** "Confirm upfront (creates PRs — merge after review)."
+- **`merge-auto`:** "Confirm upfront (merges PRs on completion)."
 - **`stacked-prs`:** "Confirm upfront (creates stacked PRs — merge after review)."
 
 A queue **may span repos**, with mixed dependency semantics: implicit `--base` chaining (and explicit `depends_on`) cherry-picks **within a repo** and **degrades to an ordering-only barrier across repo boundaries** (per Dependency Resolution above; the nearest-same-repo-predecessor rule is defined in Queue ordering below). Worked example — a chain `ab12 → cd34 → ef56` where `cd34` lives in a different repo: `cd34` gets `depends_on: [ab12]` (cross-repo — waits for `ab12` to reach its stop/terminal stage, no code), and `ef56` (back in `ab12`'s repo) gets `depends_on: [ab12]` — its nearest same-repo predecessor — and cherry-picks from it; queue order still runs `ef56` after `cd34`.
@@ -554,9 +554,9 @@ Queue ordering:
 
 **Merge modes** — three flat names, selected at queue start via `fab operator autopilot start --mode <name>` (persisted in the autopilot state block, so the mode survives `/clear`) or natural language mapping onto them:
 
-- **`stack-then-review`** (default) — PRs are created but not merged until the user explicitly requests merging; implicit `--base` chaining is active (per Queue ordering, "User-provided").
-- **`merge-on-complete`** — merge-as-you-go: merge each PR on completion, then `git fetch origin` and rebase the next change onto `origin/{default_branch}` (the default branch resolved per Dependency Resolution step 0 — never a hardcoded `origin/main`). Implicit `--base` chaining is disabled in this mode — each change rebases onto `origin/{default_branch}` independently. Natural language equivalents: "merge as you go", "merge on complete", "merge each when done".
-- **`stacked-prs`** — `stack-then-review` merge timing (PRs created up front, merged only on explicit user request) with true stacked-PR topology for same-repo chains: the dependent's branch is created off its dependency's *branch* (no cherry-pick commit) and its PR targets the dependency's branch, so each PR diff shows only its own delta. Mechanics: same-repo resolution in Dependency Resolution below; merge-all choreography in Ordered Merge. Natural language equivalents: "stacked PRs", "stack the PRs".
+- **`cherry-pick-ladder`** (default) — PRs are created but not merged until the user explicitly requests merging; implicit `--base` chaining is active (per Queue ordering, "User-provided").
+- **`merge-auto`** — merge-as-you-go: merge each PR on completion, then `git fetch origin` and rebase the next change onto `origin/{default_branch}` (the default branch resolved per Dependency Resolution step 0 — never a hardcoded `origin/main`). Implicit `--base` chaining is disabled in this mode — each change rebases onto `origin/{default_branch}` independently. Natural language equivalents: "merge as you go", "merge on complete", "merge each when done".
+- **`stacked-prs`** — `cherry-pick-ladder` merge timing (PRs created up front, merged only on explicit user request) with true stacked-PR topology for same-repo chains: the dependent's branch is created off its dependency's *branch* (no cherry-pick commit) and its PR targets the dependency's branch, so each PR diff shows only its own delta. Mechanics: same-repo resolution in Dependency Resolution below; merge-all choreography in Ordered Merge. Natural language equivalents: "stacked PRs", "stack the PRs".
 
 The operator works each change through the pipeline. Pre-send validation (§3) applies to any command sent to an existing pane; the initial pipeline command itself is **embedded at spawn** (§6 step 6) — the single dispatch point:
 
@@ -569,13 +569,13 @@ The operator works each change through the pipeline. Pre-send validation (§3) a
 7. **Report** — `"ab12: PR ready. 1 of 3 complete. Starting cd34."`
 8. **(After all complete) Summary** — list all PR links with per-repo dependency annotations and per-repo merge order suggestion (see Queue Completion Summary below)
 
-In `merge-on-complete` mode, steps 5–8 merge the PR on completion, run `git fetch origin`, rebase the next change onto `origin/{default_branch}` (resolved per Dependency Resolution step 0), and report the merge.
+In `merge-auto` mode, steps 5–8 merge the PR on completion, run `git fetch origin`, rebase the next change onto `origin/{default_branch}` (resolved per Dependency Resolution step 0), and report the merge.
 
 Autopilot-driven changes display `▶` in the status frame (§4). Queue progress is visible from the list — entries with `▶` and health `✅` are complete; the current entry shows health `🟢` while active or `🟡` while waiting.
 
 #### Queue Completion Summary
 
-When all changes in a `stack-then-review` or `stacked-prs` autopilot queue complete, the operator displays a completion summary. When the queue spans repos, each PR is **annotated with its repo**, and the suggested merge order respects **each repo's own dependency chain** (a per-repo PR sequence):
+When all changes in a `cherry-pick-ladder` or `stacked-prs` autopilot queue complete, the operator displays a completion summary. When the queue spans repos, each PR is **annotated with its repo**, and the suggested merge order respects **each repo's own dependency chain** (a per-repo PR sequence):
 
 ```
 Queue complete. 3 PRs ready for review:
@@ -589,7 +589,7 @@ For a single-item queue: `"ab12: PR ready. Queue complete."`
 
 #### Ordered Merge
 
-When the user says "merge all" or "merge the queue" after a `stack-then-review` or `stacked-prs` queue completes, the operator merges PRs respecting **per-repo PR sequences** — within each repo, base-first in dependency order; across repos, cross-repo ordering barriers are honored (a cross-repo dependent's PR is merged only after its barrier dependency reaches its target repo's main). It waits for CI to pass on each PR before proceeding to the next in that repo's sequence:
+When the user says "merge all" or "merge the queue" after a `cherry-pick-ladder` or `stacked-prs` queue completes, the operator merges PRs respecting **per-repo PR sequences** — within each repo, base-first in dependency order; across repos, cross-repo ordering barriers are honored (a cross-repo dependent's PR is merged only after its barrier dependency reaches its target repo's main). It waits for CI to pass on each PR before proceeding to the next in that repo's sequence:
 
 1. Merge `~/code/foo` PR 1 (base) — wait for CI pass
 2. Merge `~/code/bar` PR 2 (its cross-repo barrier `foo:1` is now on main) — wait for CI pass
@@ -616,7 +616,7 @@ ab12: CI failed (~/code/foo). Halted: foo sub-sequence; bar (cross-repo dep into
 
 Autopilot state (queue, current, completed, mode) persists in the operator state file — written by the `fab operator autopilot` verbs, never hand-edited; on queue exhaustion the binary retains `queue`/`completed`/`mode` with `current: null, state: null` so the summary below can still read them, and `fab operator autopilot stop` clears the block after the summary renders.
 
-**Failures**: review exhausted → skip. Rebase conflict mid-queue → skip (`merge-on-complete` only; does not apply in `stack-then-review` since there are no rebase steps). Rebase conflict during a `stacked-prs` merge-all → escalate (never skip). Cherry-pick conflict → escalate (do not skip). Pane dies → 1 respawn (`--reuse`), then skip. Stage timeout (>30m) → flag. Total timeout (>2h) → flag.
+**Failures**: review exhausted → skip. Rebase conflict mid-queue → skip (`merge-auto` only; does not apply in `cherry-pick-ladder` since there are no rebase steps). Rebase conflict during a `stacked-prs` merge-all → escalate (never skip). Cherry-pick conflict → escalate (do not skip). Pane dies → 1 respawn (`--reuse`), then skip. Stage timeout (>30m) → flag. Total timeout (>2h) → flag.
 
 **Interrupts**: "stop after current", "skip <change>", "pause", "resume" — acknowledged immediately, and persisted through the matching verb: `fab operator autopilot stop` once the current change lands (or immediately to abandon the queue), `advance --skip` (drop current without recording it completed), `pause`, `resume`.
 

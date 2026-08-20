@@ -255,8 +255,8 @@ func TestOperatorAutopilot_ModeDefaultFill(t *testing.T) {
 	if err := autopilotSub(t, "start", "--queue", "ab12"); err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	if ap := readAutopilot(t, path); ap.Mode != "stack-then-review" {
-		t.Errorf("mode = %q, want default stack-then-review", ap.Mode)
+	if ap := readAutopilot(t, path); ap.Mode != "cherry-pick-ladder" {
+		t.Errorf("mode = %q, want default cherry-pick-ladder", ap.Mode)
 	}
 }
 
@@ -266,7 +266,7 @@ func TestOperatorAutopilot_ModeValidation(t *testing.T) {
 	if err == nil {
 		t.Fatal("unknown --mode must error")
 	}
-	for _, want := range []string{"merge-everything", "stack-then-review", "merge-on-complete", "stacked-prs"} {
+	for _, want := range []string{"merge-everything", "cherry-pick-ladder", "merge-auto", "stacked-prs"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("validation error must name %q: %v", want, err)
 		}
@@ -279,13 +279,13 @@ func TestOperatorAutopilot_ModeValidation(t *testing.T) {
 
 func TestOperatorAutopilot_ModeLifecycleRetention(t *testing.T) {
 	path := withOperatorState(t, "")
-	if err := autopilotSub(t, "start", "--queue", "ab12,cd34", "--mode", "merge-on-complete"); err != nil {
+	if err := autopilotSub(t, "start", "--queue", "ab12,cd34", "--mode", "merge-auto"); err != nil {
 		t.Fatalf("start: %v", err)
 	}
 	wantMode := func(step string) {
 		t.Helper()
-		if ap := readAutopilot(t, path); ap == nil || ap.Mode != "merge-on-complete" {
-			t.Errorf("mode after %s = %v, want merge-on-complete", step, ap)
+		if ap := readAutopilot(t, path); ap == nil || ap.Mode != "merge-auto" {
+			t.Errorf("mode after %s = %v, want merge-auto", step, ap)
 		}
 	}
 	if err := autopilotSub(t, "pause"); err != nil {
@@ -305,8 +305,8 @@ func TestOperatorAutopilot_ModeLifecycleRetention(t *testing.T) {
 		t.Fatalf("advance 2: %v", err)
 	}
 	ap := readAutopilot(t, path)
-	if ap == nil || ap.Mode != "merge-on-complete" {
-		t.Errorf("mode after exhaustion = %v, want merge-on-complete retained", ap)
+	if ap == nil || ap.Mode != "merge-auto" {
+		t.Errorf("mode after exhaustion = %v, want merge-auto retained", ap)
 	}
 	if ap.Current != nil || ap.State != nil {
 		t.Errorf("exhausted: current/state = %v/%v, want null", ap.Current, ap.State)
@@ -321,7 +321,7 @@ func TestOperatorAutopilot_ModeLifecycleRetention(t *testing.T) {
 
 func TestOperatorAutopilot_ModeAbsentBackCompat(t *testing.T) {
 	// A pre-existing state file whose autopilot block lacks `mode` reads as
-	// stack-then-review; the next mutation re-marshals the field.
+	// cherry-pick-ladder; the next mutation re-marshals the field.
 	legacy := "autopilot:\n  queue: [ab12]\n  current: ab12\n  completed: []\n  state: running\n"
 	path := withOperatorState(t, legacy)
 
@@ -332,8 +332,8 @@ func TestOperatorAutopilot_ModeAbsentBackCompat(t *testing.T) {
 	if ap == nil {
 		t.Fatal("autopilot block missing after pause")
 	}
-	if ap.Mode != "stack-then-review" {
-		t.Errorf("mode = %q after legacy pause, want stack-then-review", ap.Mode)
+	if ap.Mode != "cherry-pick-ladder" {
+		t.Errorf("mode = %q after legacy pause, want cherry-pick-ladder", ap.Mode)
 	}
 	if ap.State == nil || *ap.State != "paused" {
 		t.Errorf("state = %v, want paused", ap.State)
