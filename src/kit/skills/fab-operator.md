@@ -552,11 +552,45 @@ Queue ordering:
 | Confidence-based | Sort by confidence score descending. Highest-confidence first (independent changes) |
 | Hybrid | User provides constraints (partial order); operator sorts unconstrained by confidence |
 
-**Merge modes** — three flat names, selected at queue start via `fab operator autopilot start --mode <name>` (persisted in the autopilot state block, so the mode survives `/clear`) or natural language mapping onto them:
+**Merge modes** — three flat names, selected at queue start via `fab operator autopilot start --mode <name>` (persisted in the autopilot state block, so the mode survives `/clear`) or natural language mapping onto them. At a glance: `▂▄▆` cherry-pick-ladder · `░▒▓█` merge-auto · `▄▀` stacked-prs. (The diagrams below are skill documentation — never emit them into the status frame, which stays fence-free per §4.)
 
 - **`cherry-pick-ladder`** (default) — PRs are created but not merged until the user explicitly requests merging; implicit `--base` chaining is active (per Queue ordering, "User-provided").
+
+  ```
+                      ┌───┐
+              ┌───┐   │ C │
+      ┌───┐   │ B │   ├╌╌╌┤
+      │ A │   ├╌╌╌┤   │ b'│
+      │   │   │ a'│   │ a'│
+  ────┴───┴───┴───┴───┴───┴──▶ main
+       PR1     PR2     PR3
+  ```
+
+  Every PR stands on main; each successive diff is taller because it carries cherry-picked copies of its predecessors (`a'`, `b'`) below the dotted line. All PRs held; merged base-first on "merge all".
+
 - **`merge-auto`** — merge-as-you-go: merge each PR on completion, then `git fetch origin` and rebase the next change onto `origin/{default_branch}` (the default branch resolved per Dependency Resolution step 0 — never a hardcoded `origin/main`). Implicit `--base` chaining is disabled in this mode — each change rebases onto `origin/{default_branch}` independently. Natural language equivalents: "merge as you go", "merge on complete", "merge each when done".
+
+  ```
+      ┌───┐          ┌───┐          ┌───┐
+      │ A │          │ B │          │ C │
+  ────┴─▼─┴●─────────┴─▼─┴●─────────┴─▼─┴●──▶ main
+         merged         merged         merged
+  ```
+
+  Nothing coexists and nothing is held: the operator merges each PR into main the moment it lands (▼ into ●), main advances, and the next change starts from the advanced line — no batch review, no re-stacking.
+
 - **`stacked-prs`** — `cherry-pick-ladder` merge timing (PRs created up front, merged only on explicit user request) with true stacked-PR topology for same-repo chains: the dependent's branch is created off its dependency's *branch* (no cherry-pick commit) and its PR targets the dependency's branch, so each PR diff shows only its own delta. Mechanics: same-repo resolution in Dependency Resolution below; merge-all choreography in Ordered Merge. Natural language equivalents: "stacked PRs", "stack the PRs".
+
+  ```
+                      ┌───┐
+              ┌───┐   │ C │  PR3 · base: B
+      ┌───┐   │ B │   └───┘
+      │ A │   └───┘  PR2 · base: A
+  ────┴───┴──────────────────▶ main
+      PR1 · base: main
+  ```
+
+  Uniform height: every diff shows only its own delta. The diagonal is load-bearing — each PR's base is the previous PR's branch, so merging a bottom box means re-seating the ones above it (the Ordered Merge retarget + rebase steps).
 
 The operator works each change through the pipeline. Pre-send validation (§3) applies to any command sent to an existing pane; the initial pipeline command itself is **embedded at spawn** (§6 step 6) — the single dispatch point:
 
