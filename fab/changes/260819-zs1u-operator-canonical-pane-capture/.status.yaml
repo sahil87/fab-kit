@@ -1,0 +1,57 @@
+id: zs1u
+name: 260819-zs1u-operator-canonical-pane-capture
+created: 2026-08-19T19:50:24Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 4
+    acceptance_count: 8
+    acceptance_completed: 8
+confidence:
+    certain: 3
+    confident: 3
+    tentative: 0
+    unresolved: 0
+    score: 4.9
+    fuzzy: true
+    dimensions:
+        signal: 76.7
+        reversibility: 87.5
+        competence: 87.5
+        disambiguation: 82.5
+stage_metrics:
+    intake: {started_at: "2026-08-19T19:50:24Z", driver: fab-new, iterations: 1, completed_at: "2026-08-19T19:55:51Z"}
+    apply: {started_at: "2026-08-19T19:55:51Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T19:57:56Z"}
+    review: {started_at: "2026-08-19T19:57:56Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T20:00:55Z"}
+    hydrate: {started_at: "2026-08-19T20:00:55Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T20:01:46Z"}
+    ship: {started_at: "2026-08-19T20:01:46Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-19T20:04:00Z"}
+    review-pr: {started_at: "2026-08-19T20:04:00Z", driver: git-pr, iterations: 1, completed_at: "2026-08-19T20:10:15Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/605
+change_type_source: explicit
+true_impact:
+    added: 619
+    deleted: 20
+    net: 599
+    excluding:
+        added: 85
+        deleted: 15
+        net: 70
+    tests:
+        added: 30
+        deleted: 0
+        net: 30
+    computed_at: "2026-08-19T20:04:00Z"
+    computed_at_stage: ship
+summary: Operator §5 question-detection capture and the re-capture-before-send guard now use canonical fab pane capture --raw -l 20 [-L <server>] (raw tmux capture-pane instruction removed from the skill and memory mirror)
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-19T20:10:15Z
