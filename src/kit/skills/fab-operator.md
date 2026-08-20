@@ -599,7 +599,7 @@ Report each merge with its repo: `"ab12: merged (foo 1/2)"`, `"cd34: merged (bar
 
 **`stacked-prs` merge-all adds two steps per merge**, because each PR in a same-repo chain is based on its dependency's branch:
 
-1. **Verify base retarget** — after a chain's base PR merges, GitHub auto-retargets the dependent PR's base onto the default branch when the merged base branch is deleted. Rely on this, and retarget explicitly (`gh pr edit <pr> --base origin/{default_branch}`) when the branch was not deleted.
+1. **Verify base retarget** — after a chain's base PR merges, GitHub auto-retargets the dependent PR's base onto the default branch when the merged base branch is deleted. Rely on this, and retarget explicitly (`gh pr edit <pr> --base {default_branch}` — a plain branch name, never a remote ref) when the branch was not deleted.
 2. **Rebase the next branch after a squash merge** — after a squash merge, the next branch in the chain still carries the dependency's original commits, which the default branch now contains only as a squashed commit. Before that next PR is clean/mergeable, rebase it onto the default branch, dropping the already-merged dependency commits, and force-push:
 
    ```bash
