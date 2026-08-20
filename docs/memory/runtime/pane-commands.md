@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`fab pane {map,capture,process,window-name,open,ready,deliver,kill}` reference: provider-generic `open --provider` spawn + `ready`/`deliver` primitives with `--json`, generic `kill`, `--server`/`-L`, pane-family exit codes (2 = pane missing / 3 = other tmux failure), shared `internal/pane` helpers, pane-ID-per-server semantics, window-name rewrites. Agent messaging (gated send / record-free await) rides run-kit's `rk mux send`/`rk mux await` with a raw-tmux fallback."
+description: "`fab pane {map,capture,process,window-name,open,ready,deliver,kill}` reference: provider-generic `open --provider` spawn + `ready`/`deliver` primitives with `--json`, `--server`/`-L`, pane-family exit codes (2 = pane missing / 3 = other tmux failure), shared `internal/pane` helpers, window-name rewrites. capture/process/kill are dispatch-internal (rk-less pane arm); skill-facing peek/process/removal and agent messaging ride run-kit's `rk mux` twins with a raw-tmux fallback."
 ---
 # Pane Commands
 
@@ -8,7 +8,7 @@ description: "`fab pane {map,capture,process,window-name,open,ready,deliver,kill
 
 ## Overview
 
-`fab pane` is the parent command grouping eight tmux-pane operations. Five query or manipulate existing panes: `map`, `capture`, and `process` shell out to `tmux` to query or manipulate panes, combining raw tmux output with fab-specific enrichment (worktree, change, stage, agent state resolved from per-pane CWD), `window-name` is a primitive set for idempotent / guarded rewrites of the tmux window name — used by `/fab-operator` to mark enrolled and done-monitoring windows — and `kill` is the generic pane-removal verb. The other three — `open`, `ready`, `deliver` — are the provider-generic spawn / readiness-probe / verified-delivery primitives, addressed by pane id (or provider name) with no fab context required; `fab dispatch open`/`ready`/`deliver` are thin record-keeping bindings over them (see [dispatch.md](/runtime/dispatch.md)). Sending keystrokes to an agent pane and waiting on one are not fab verbs: agent messaging rides run-kit's `rk mux send` / `rk mux await` when rk is installed (`command -v rk`-gated, fail-open to raw `tmux send-keys` plus manual probing) — see [agent-primitives.md](/runtime/agent-primitives.md).
+`fab pane` is the parent command grouping eight tmux-pane operations. Five query or manipulate existing panes: `map`, `capture`, and `process` shell out to `tmux` to query or manipulate panes, combining raw tmux output with fab-specific enrichment (worktree, change, stage, agent state resolved from per-pane CWD), `window-name` is a primitive set for idempotent / guarded rewrites of the tmux window name — used by `/fab-operator` to mark enrolled and done-monitoring windows — and `kill` is the generic pane-removal verb. The other three — `open`, `ready`, `deliver` — are the provider-generic spawn / readiness-probe / verified-delivery primitives, addressed by pane id (or provider name) with no fab context required; `fab dispatch open`/`ready`/`deliver` are thin record-keeping bindings over them (see [dispatch.md](/runtime/dispatch.md)). Sending keystrokes to an agent pane and waiting on one are not fab verbs: agent messaging rides run-kit's `rk mux send` / `rk mux await` when rk is installed (`command -v rk`-gated, fail-open to raw `tmux send-keys` plus manual probing) — see [agent-primitives.md](/runtime/agent-primitives.md). `capture`, `process`, and `kill` are fab verbs but **dispatch-internal** (cli-layering Part 7): kept for the rk-less pane arm — the dispatch orchestrator's peek/escalation path, `fab dispatch logs`' suggested capture command, and probe cleanups — while skill-facing peek, process-tree inspection, and pane removal ride run-kit's substrate twins `rk mux capture` / `rk mux process` / `rk mux kill` (rk-gated, raw-tmux fail-open; usage owned by [agent-primitives.md](/runtime/agent-primitives.md) § Peek).
 
 The command group runs from any directory — including outside a fab-managed repo (scratch tmux tabs, cross-repo orchestration, non-fab daemons). The router routes every non-fab-kit command to `fab-go` regardless of `config.yaml` presence, and `pane` subcommands carry no `resolve.FabRoot()` guard because they resolve state from target pane IDs rather than from the invoker's CWD. See `kit-architecture.md` for the router's always-route policy.
 
@@ -69,7 +69,7 @@ This doc covers the eight subcommands, the `--server` / `-L` persistent flag, an
 
 ### Subcommand: `fab pane capture`
 
-`fab pane capture <pane> [-l N] [--json] [--raw]` captures terminal content from a tmux pane with fab context enrichment. Source: `src/go/fab/cmd/fab/pane_capture.go`.
+`fab pane capture <pane> [-l N] [--json] [--raw]` captures terminal content from a tmux pane with fab context enrichment. **Dispatch-internal** — skill-facing capture rides `rk mux capture` (see the Overview's dispatch-internal note). Source: `src/go/fab/cmd/fab/pane_capture.go`.
 
 **Flags**: `<pane>` (required tmux pane ID, e.g. `%5`); `-l`/`--lines` (int, default 50) — returns the **last N lines** of the pane's content: the raw `tmux capture-pane -p -S -N` fetch (N scrollback lines + the entire visible screen) is tailed internally by the shared `pane.TailLines` helper, which strips the visible screen's trailing blank padding (empty or whitespace-only trailing rows) and takes the last N of what remains, preserving interior blank lines — so callers never need `| tail -N`; `--json` (structured output with pane metadata); `--raw` (captured text only, no header, no enrichment). `--json` and `--raw` are mutually exclusive.
 
@@ -81,7 +81,7 @@ This doc covers the eight subcommands, the `--server` / `-L` persistent flag, an
 
 ### Subcommand: `fab pane process`
 
-`fab pane process <pane> [--json]` detects the process tree running in a tmux pane via OS-level process inspection. Source: `src/go/fab/cmd/fab/pane_process.go` (plus platform-specific `pane_process_linux.go` / `pane_process_darwin.go`).
+`fab pane process <pane> [--json]` detects the process tree running in a tmux pane via OS-level process inspection. **Dispatch-internal** — skill-facing process inspection rides `rk mux process` (see the Overview's dispatch-internal note). Source: `src/go/fab/cmd/fab/pane_process.go` (plus platform-specific `pane_process_linux.go` / `pane_process_darwin.go`).
 
 **Discovery**: Linux reads `/proc/<pid>/task/<tid>/children` recursively; macOS uses `ps -o pid,ppid,comm -ax` with PPID traversal, plus ONE batched `ps -axo pid=,args=` pass parsed into a PID→args map (pure `parsePSCmdlines` parser: pid is numeric-first, remainder is args — robust against comm-with-spaces) and joined by PID for full cmdlines — exactly two `ps` spawns total, no per-node lookups. A process exiting between the two passes degrades to cmdline `""` (the same value as a per-PID failure). Platform selection via Go build tags.
 
@@ -154,7 +154,7 @@ Per attempt: readiness probe → `C-u` → capture the cleared baseline → type
 
 ### Subcommand: `fab pane kill`
 
-`fab pane kill <pane>` kills a tmux pane — the generic, record-free exposure of the `pane.KillPane` helper, giving removal paths and probe cleanups the family's validated exit-code contract instead of raw `tmux kill-pane`. Source: `src/go/fab/cmd/fab/pane_kill.go`.
+`fab pane kill <pane>` kills a tmux pane — the generic, record-free exposure of the `pane.KillPane` helper with the family's validated exit-code contract. **Dispatch-internal** — skill-facing pane removal rides the agent-state-gated `rk mux kill` (see the Overview's dispatch-internal note); this verb backs rk-less probe cleanups and the pane arm. Source: `src/go/fab/cmd/fab/pane_kill.go`.
 
 **Validation**: `pane.ValidatePane` first (the targeted `display-message` probe) — a missing pane prints `Error: pane <id> not found` and exits **2** in-handler via the `*PaneNotFoundError` branch; any other tmux failure (dead server, bad socket) exits **3** — the family scheme.
 
@@ -273,6 +273,12 @@ All tmux-invoking functions accept a trailing `server string` parameter and buil
 **Why**: A probe spawn wants the same resolved command a pipeline worker would get; `fab agent --provider`'s deliberate fill bypass composes a profile-free invocation the probe would then have to hand-tune.
 **Rejected**: Reusing `fab agent --provider`'s bypass semantics (contradicts the probe use case).
 *Introduced by*: 260810-1lah-provider-generic-pane-verbs
+
+### Capture/Process/Kill Demoted to Dispatch-Internal, Skill-Facing Use on rk's Twins
+**Decision**: `fab pane capture`, `fab pane process`, and `fab pane kill` stay as CLI verbs — behavior, flags, exit codes, and help visibility unchanged (no cobra hiding) — but are documented as **dispatch-internal**: skill-facing guidance (`_cli-agents.md` § Peek, `_cli-external.md` § tmux, `fab-operator.md` §5) rides run-kit's substrate twins `rk mux capture`/`process`/`kill` (`command -v rk`-gated), with the rk-absent skill-facing fallback being raw tmux (`capture-pane`/`kill-pane`) plus `fab pane map` for agent state — never the fab pane verbs.
+**Why**: cli-layering's two-layer model gives rk the pane substrate; the rk twins are also strictly richer for skill-facing use (`rk mux kill` is agent-state-gated, `rk mux process` classifies the agent from instrumentation, `rk mux capture` reports reconciled state). Unlike the retired `send`/`await`, these verbs are genuinely invoked by the dispatch orchestrator's rk-less pane arm (`_preamble.md` § CLI-Adapter Dispatch peek, `fab dispatch logs`' suggested command), so deletion would break a supported rk-less path; rule 2 makes rk optional. The raw-tmux skill-facing fallback (not `fab pane capture`) is what actually drops the verbs from skill-facing guidance — naming them as fallback would keep the duplicate-guidance drift alive.
+**Rejected**: Deleting the verbs (the pane arm must work rk-less); hiding them in cobra (a CLI surface change with tests + standards audit for zero layering gain — the demotion mechanism is guidance-level); `fab pane capture` as the rk-absent skill-facing fallback (contradicts "dropped from skill-facing guidance").
+*Introduced by*: 260820-4un7-guidance-repoint-rk-mux-twins
 
 ### Agent Messaging Verbs Retired to run-kit's `rk mux`
 **Decision**: `fab pane send` and `fab pane await` are retired as CLI verbs; agent messaging (gated send, record-free await) rides run-kit's `rk mux send` / `rk mux await` — every use `command -v rk`-gated and fail-open to raw `tmux send-keys` plus the manual delivery probe / poll-capture await when rk is absent (never an error). The gate matrix (`--answer` permits `waiting`, refuses `active`; unknown warns-and-sends; `--force` skips; `--key` covers key-name input) and the await contract (`--until`/`--file`/`--timeout`; report `gone` = exit 1) are rk-owned — the run-kit repo's memory (`agent-messaging.md`) carries the full contract; do not restate it here. `internal/pane`'s send builders (`SendLiteral`/`SendKey` and their argv builders) and the gate/deliver choreography stay — they back `fab pane deliver` / `fab dispatch deliver`; `fab dispatch wait` keeps its own record-keyed loop. The orphaned record-free `Await` control loop (`internal/pane/await.go`, whose only non-test consumer was the deleted verb) went with it.
