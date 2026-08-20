@@ -330,7 +330,7 @@ The operator auto-answers routine prompts from monitored agents. The per-tick qu
 
 Capture and state-read mechanics (including the uninstrumented-pane state-writer caveat that makes capture the universal fallback) are in `_cli-agents.md` § Peek; the patterns and guards below are the operator's own question-detection policy over that capture.
 
-1. **Capture**: `fab pane capture --raw -l 20 [-L <server>] <pane>` (`-L <server>` only when the operator runs on a non-default tmux socket — the §9 second-operator case)
+1. **Capture**: `rk mux capture --raw -l 20 [-L <server>] <pane>` when rk is installed (`command -v rk`-gated); raw `tmux capture-pane -p -t <pane> | tail -20` when rk is absent — never an error (`-L <server>` only when the operator runs on a non-default tmux socket — the §9 second-operator case)
 2. **Claude turn boundary guard**: `^\s*>\s*$` in last 2 lines → skip (normal human-turn boundary)
 3. **Blank capture guard**: all blank → skip (treat as "cannot determine")
 4. **Scan for indicators** (bottom-most match wins):
@@ -386,7 +386,7 @@ leaves open a Strategic prompt. Use the default `rk notify` command and gate in
 
 Deliver text answers via `rk mux send <pane> "<text>" --answer` when rk is installed (`command -v rk`-gated) — the answer-mode gate permits `waiting` (the auto-answer's primary target) and `idle`, still refuses `active`, and validates pane existence (full contract is tool-owned via `rk skill`; the usage summary lives in `_cli-agents.md` § Pre-Send Validation). Key-name answers (bare Enter, arrows, `C-c`) ride `rk mux send --key` on the same path. When rk is absent, the answer is raw `tmux send-keys` (keys and literal text alike) behind the same gate — never an error.
 
-Before the send: run the §3 pre-send gate (`_cli-agents.md` § Pre-Send Validation — pane exists; state read per its step 2, expecting `waiting` or the idle fallback), then re-capture the terminal (the same `fab pane capture --raw -l 20` capture as § Question Detection step 1). If output changed since detection, abort — agent is no longer waiting. If the answer appears to land but the agent does not resume: on the rk path the send's delivery verification is built in — a probe failure surfaces as staged text + a stderr warning + exit 1, so re-capture and decide; never blind-resend. On the rk-absent raw path, apply the delivery probe (`_cli-agents.md` § Delivery Probe) instead of re-sending blind.
+Before the send: run the §3 pre-send gate (`_cli-agents.md` § Pre-Send Validation — pane exists; state read per its step 2, expecting `waiting` or the idle fallback), then re-capture the terminal (the same rk-gated `rk mux capture --raw -l 20` capture as § Question Detection step 1, raw-tmux when rk is absent). If output changed since detection, abort — agent is no longer waiting. If the answer appears to land but the agent does not resume: on the rk path the send's delivery verification is built in — a probe failure surfaces as staged text + a stderr warning + exit 1, so re-capture and decide; never blind-resend. On the rk-absent raw path, apply the delivery probe (`_cli-agents.md` § Delivery Probe) instead of re-sending blind.
 
 ### Idle Auto-Default on Strategic Escalations
 
