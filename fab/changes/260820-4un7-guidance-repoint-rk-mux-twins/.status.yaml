@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 5
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-08-20T02:24:17Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-20T02:28:07Z"}
     hydrate: {started_at: "2026-08-20T02:28:07Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-20T02:31:24Z"}
     ship: {started_at: "2026-08-20T02:31:24Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-20T02:33:56Z"}
-    review-pr: {started_at: "2026-08-20T02:33:56Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-08-20T02:33:56Z", driver: git-pr, iterations: 1, completed_at: "2026-08-20T02:44:17Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/606
 change_type_source: explicit
@@ -54,4 +54,4 @@ true_impact:
     computed_at_stage: ship
 summary: Repointed skill-facing capture/kill/process guidance at rk mux twins; fab pane capture/process/kill demoted to dispatch-internal (kept for the rk-less pane arm)
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-20T02:33:56Z
+last_updated: 2026-08-20T02:44:17Z
