@@ -58,6 +58,7 @@ func TestDottedKeys(t *testing.T) {
 		"agent.workers",
 		"agent.profiles",
 		"providers",
+		"autopilot.merge_mode",
 		"stage_hooks",
 	}
 	got := DottedKeys()

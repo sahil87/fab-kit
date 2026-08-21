@@ -1207,6 +1207,7 @@ func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
 		"dispatch.mode":         true, // string: the built-in mode IS a real default, not "absent"
 		"dispatch.column_width": true, // int: an absent yaml int reads as unset, so the built-in width is real
 		"dispatch.reap_done":    true, // bool defaulting TRUE — modeled as *bool so absent ≠ false
+		"autopilot.merge_mode":  true, // string: the built-in merge mode IS a real default, not "absent"
 	}
 	for _, obj := range arr {
 		key, _ := obj["key"].(string)
@@ -1349,6 +1350,7 @@ func TestConfigReferenceScopeAssignments(t *testing.T) {
 		"dispatch.mode":              configref.ScopeBoth,
 		"dispatch.column_width":      configref.ScopeBoth,
 		"dispatch.reap_done":         configref.ScopeBoth,
+		"autopilot.merge_mode":       configref.ScopeBoth,
 		"stage_hooks":                configref.ScopeProject,
 	}
 	for key, wantScope := range want {
@@ -1818,6 +1820,82 @@ func TestConfigReferenceDispatchReapDone(t *testing.T) {
 	}
 	if got := cfg.GetDispatchReapDone(); got != config.DefaultDispatchReapDone {
 		t.Errorf("the reference's dispatch block must be inert, got reap_done %v", got)
+	}
+}
+
+// TestConfigReferenceAutopilotMergeMode: the `autopilot.merge_mode` row
+// (standing merge-topology preference) is present, correctly scoped, advertised,
+// sources its default from the canonical config symbol, and owns its own
+// Segment/ShortSegment — no other row renders an `autopilot:` parent (unlike
+// dispatch.column_width, which rides dispatch.mode's segment).
+func TestConfigReferenceAutopilotMergeMode(t *testing.T) {
+	// Isolate HOME so the cascade cannot merge the developer's real system config
+	// over the reference (the TestConfigReferenceRoundTrips discipline).
+	t.Setenv("HOME", t.TempDir())
+
+	fields, err := configref.Fields()
+	if err != nil {
+		t.Fatalf("Fields returned an error: %v", err)
+	}
+	var row *configref.Field
+	for i := range fields {
+		if fields[i].Key == "autopilot.merge_mode" {
+			row = &fields[i]
+		}
+	}
+	if row == nil {
+		t.Fatal("registry is missing the autopilot.merge_mode row")
+	}
+	// The canonical built-in default, sourced from the config symbol — never a
+	// copied literal.
+	if row.Default != config.DefaultAutopilotMergeMode {
+		t.Errorf("autopilot.merge_mode Default = %#v, want %q (config.DefaultAutopilotMergeMode)",
+			row.Default, config.DefaultAutopilotMergeMode)
+	}
+	// Scope `both` is load-bearing: a project-scoped field would be PRUNED out of
+	// ~/.fab-kit/config.yaml, defeating the set-once-machine-wide preference.
+	if row.Scope != configref.ScopeBoth {
+		t.Errorf("autopilot.merge_mode Scope = %q, want %q (settable machine-wide)", row.Scope, configref.ScopeBoth)
+	}
+	if !row.Advertise {
+		t.Error("autopilot.merge_mode must be advertised (it is scaffolded into the managed fence)")
+	}
+	if row.Segment == "" || row.ShortSegment == "" {
+		t.Error("autopilot.merge_mode must carry its OWN Segment and ShortSegment — no other row owns the `autopilot:` parent")
+	}
+	// The rendered segment names the resolution ladder and the valid set (the
+	// accepted values interpolate the canonical Go list).
+	for _, want := range []string{"--mode", "cherry-pick-ladder", "merge-auto", "stacked-prs"} {
+		if !strings.Contains(row.Segment, want) {
+			t.Errorf("the autopilot Segment must mention %q", want)
+		}
+	}
+
+	out, err := configref.Render()
+	if err != nil {
+		t.Fatalf("Render returned an error: %v", err)
+	}
+	// Rendered COMMENTED under its own `autopilot:` parent, exactly once.
+	wantScaffold := "#   merge_mode: " + config.DefaultAutopilotMergeMode
+	if !strings.Contains(out, wantScaffold) {
+		t.Errorf("the reference must scaffold %q commented.\n--- got ---\n%s", wantScaffold, out)
+	}
+	if n := strings.Count(out, "# autopilot:"); n != 1 {
+		t.Errorf("the reference renders %d `# autopilot:` parents, want exactly 1", n)
+	}
+
+	// The commented scaffold must parse as an inert config: the accessor still
+	// reports the built-in default.
+	tmp := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(tmp, []byte(out), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.LoadPath(tmp)
+	if err != nil {
+		t.Fatalf("the rendered reference must parse: %v", err)
+	}
+	if got := cfg.GetAutopilotMergeMode(); got != config.DefaultAutopilotMergeMode {
+		t.Errorf("the reference's autopilot block must be inert, got merge_mode %q", got)
 	}
 }
 

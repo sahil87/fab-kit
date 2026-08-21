@@ -171,13 +171,15 @@ func TestDefaultsFileProviders(t *testing.T) {
 }
 
 // TestDefaultsFileDefinesOnlyItsSurface: defaults.yaml is layer 0 of the config
-// cascade in shape, but it defines only the three blocks internal/agent owns —
-// `agent` (the two depth knobs), `providers`, and `dispatch` (the three
-// stage-dispatch defaults, 260809-wll4). Within `agent:` only the two depth
-// knobs belong: the role→depth partition and the stage→role mapping are
-// fab-owned POLICY and stay in Go. yaml.v3 ignores unknown keys, so a key
-// written at the wrong nesting level (or a block this package does not read)
-// would otherwise be silently inert.
+// cascade in shape, but it defines only the four blocks internal/agent owns —
+// `agent` (the two depth knobs), `providers`, `dispatch` (the three
+// stage-dispatch defaults, 260809-wll4), and `autopilot` (the standing
+// merge-mode default). Within `agent:` only the two depth knobs belong: the
+// role→depth partition and the stage→role mapping are fab-owned POLICY and stay
+// in Go (so does the autopilot valid-modes list — accepted values are policy,
+// not tunable data). yaml.v3 ignores unknown keys, so a key written at the
+// wrong nesting level (or a block this package does not read) would otherwise
+// be silently inert.
 func TestDefaultsFileDefinesOnlyItsSurface(t *testing.T) {
 	var raw map[string]yaml.Node
 	if err := yaml.Unmarshal(defaultsYAML, &raw); err != nil {
@@ -188,7 +190,7 @@ func TestDefaultsFileDefinesOnlyItsSurface(t *testing.T) {
 	for key := range raw {
 		top = append(top, key)
 	}
-	assertSameKeys(t, "defaults.yaml top-level", top, []string{"providers", "agent", "dispatch"})
+	assertSameKeys(t, "defaults.yaml top-level", top, []string{"providers", "agent", "dispatch", "autopilot"})
 
 	var agentBlock map[string]yaml.Node
 	node, ok := raw["agent"]
@@ -304,6 +306,14 @@ func TestConfigDispatchDefaultsMatchDefaultsFile(t *testing.T) {
 	}
 	if config.DefaultDispatchReapDone != wantReapDone {
 		t.Errorf("TestConfigDispatchDefaultsMatchDefaultsFile: config.DefaultDispatchReapDone = %v, defaults.yaml dispatch.reap_done = %v — the init() push in agent.go is broken; fix the wiring, defaults.yaml stays canonical", config.DefaultDispatchReapDone, wantReapDone)
+	}
+	if config.DefaultAutopilotMergeMode != cfg.Autopilot.MergeMode {
+		t.Errorf("TestConfigDispatchDefaultsMatchDefaultsFile: config.DefaultAutopilotMergeMode = %q, defaults.yaml autopilot.merge_mode = %q — the init() push in agent.go is broken; fix the wiring, defaults.yaml stays canonical", config.DefaultAutopilotMergeMode, cfg.Autopilot.MergeMode)
+	}
+	// The injected default must be a member of the Go-side valid-modes list — and
+	// its first entry (the documented default-is-first convention).
+	if len(config.ValidAutopilotMergeModes) == 0 || config.ValidAutopilotMergeModes[0] != config.DefaultAutopilotMergeMode {
+		t.Errorf("TestConfigDispatchDefaultsMatchDefaultsFile: config.DefaultAutopilotMergeMode = %q, want it to equal config.ValidAutopilotMergeModes[0] (%v)", config.DefaultAutopilotMergeMode, config.ValidAutopilotMergeModes)
 	}
 }
 

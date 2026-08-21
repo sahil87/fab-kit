@@ -1,0 +1,11 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-21T06:32:13Z"}
+{"args":"Add autopilot.merge_mode config key — default cherry-pick-ladder, resolved by fab operator autopilot start when --mode absent, silent skill-side mode resolution with enumerated pause-and-ask misfits","cmd":"fab-new","event":"command","ts":"2026-08-21T06:32:13Z"}
+{"delta":"+4.6","event":"confidence","score":4.6,"trigger":"calc-score","ts":"2026-08-21T06:34:52Z"}
+{"delta":"+0.0","event":"confidence","score":4.6,"trigger":"calc-score","ts":"2026-08-21T06:35:15Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-08-21T06:36:31Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-21T06:37:58Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-21T06:38:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-21T06:57:54Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-21T07:04:45Z"}
+{"event":"review","result":"passed","ts":"2026-08-21T07:04:45Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-21T07:08:43Z"}

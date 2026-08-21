@@ -89,15 +89,16 @@ func mustParseDefaults(data []byte) *config.Config {
 	return &cfg
 }
 
-// init pushes defaults.yaml's dispatch: block into internal/config's three
-// DefaultDispatch* vars (260809-wll4: defaults.yaml is the single value source
-// for the built-in dispatch defaults, so config's vars carry no literal of their
-// own). The push direction is CYCLE-FORCED: this package imports internal/config,
-// so config cannot read the values back from here — agent assigning into config
-// at init is the only direction the import graph allows. Go runs every package
-// init before any runtime use, so every binary that links this package (the fab
-// module always does) sees the injected values; a binary that never links agent
-// sees config's zero values, a hazard guarded by the blank-import link test in
+// init pushes defaults.yaml's dispatch: and autopilot: blocks into
+// internal/config's DefaultDispatch* vars and DefaultAutopilotMergeMode
+// (260809-wll4: defaults.yaml is the single value source for the built-in
+// defaults, so config's vars carry no literal of their own). The push direction
+// is CYCLE-FORCED: this package imports internal/config, so config cannot read
+// the values back from here — agent assigning into config at init is the only
+// direction the import graph allows. Go runs every package init before any
+// runtime use, so every binary that links this package (the fab module always
+// does) sees the injected values; a binary that never links agent sees config's
+// zero values, a hazard guarded by the blank-import link test in
 // internal/config and the wiring guard in defaults_test.go.
 func init() {
 	config.DefaultDispatchMode = builtinDefaults.Dispatch.Mode
@@ -109,6 +110,7 @@ func init() {
 	if builtinDefaults.Dispatch.ReapDone != nil {
 		config.DefaultDispatchReapDone = *builtinDefaults.Dispatch.ReapDone
 	}
+	config.DefaultAutopilotMergeMode = builtinDefaults.Autopilot.MergeMode
 }
 
 // Role names. Six roles with concrete referents. A role is stage-named only where
