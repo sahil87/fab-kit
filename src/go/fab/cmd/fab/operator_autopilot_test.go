@@ -371,9 +371,9 @@ func TestOperatorAutopilot_ModeResolution(t *testing.T) {
 	defaultYAML := "project:\n    name: t\n"
 	cases := []struct {
 		name       string
-		projectCfg string  // project config.yaml; "" = same as defaultYAML
-		systemCfg  string  // ~/.fab-kit/config.yaml; "" = absent
-		neutralDir bool    // chdir to a fab-less parent (only system/env tiers compose)
+		projectCfg string // project config.yaml; "" = same as defaultYAML
+		systemCfg  string // ~/.fab-kit/config.yaml; "" = absent
+		neutralDir bool   // chdir to a fab-less parent (only system/env tiers compose)
 		args       []string
 		wantMode   string
 		wantSource string // the printed `mode: <name> (<source>)` source
