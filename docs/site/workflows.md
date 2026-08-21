@@ -118,4 +118,7 @@ batch scripts and the full numbers behind parallel development, see
   [Glossary](https://github.com/sahil87/fab-kit/blob/main/docs/specs/glossary.md).
 - Want every skill's detailed behavior? See the
   [full command reference](https://github.com/sahil87/fab-kit/blob/main/docs/specs/skills.md).
+- Running `fab operator autopilot` on a multi-change queue? See
+  [Merge topologies](merge-topologies.md) for how the three merge modes
+  (`cherry-pick-ladder`, `merge-auto`, `stacked-prs`) shape the resulting PRs.
 - Setting up or upgrading? See the [Install guide](./install.md).
