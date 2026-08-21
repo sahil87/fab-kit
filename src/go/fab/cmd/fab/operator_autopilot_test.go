@@ -2,10 +2,28 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 )
+
+// autopilotSubOut executes an autopilot subcommand, capturing stdout (the
+// `mode: <name> (<source>)` line start prints) alongside the error.
+func autopilotSubOut(t *testing.T, name string, args ...string) (string, error) {
+	t.Helper()
+	var out bytes.Buffer
+	cmd := operatorAutopilotCmd()
+	cmd.SetOut(&out)
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	cmd.SetArgs(append([]string{name}, args...))
+	err := cmd.Execute()
+	return out.String(), err
+}
 
 // readAutopilot decodes the autopilot section (nil when the block is absent).
 func readAutopilot(t *testing.T, path string) *autopilotState {
@@ -251,12 +269,17 @@ func TestOperatorAutopilot_ModeFlagParsing(t *testing.T) {
 }
 
 func TestOperatorAutopilot_ModeDefaultFill(t *testing.T) {
+	setupConfigRepo(t, "project:\n    name: t\n")
 	path := withOperatorState(t, "")
-	if err := autopilotSub(t, "start", "--queue", "ab12"); err != nil {
+	out, err := autopilotSubOut(t, "start", "--queue", "ab12")
+	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
 	if ap := readAutopilot(t, path); ap.Mode != "cherry-pick-ladder" {
 		t.Errorf("mode = %q, want default cherry-pick-ladder", ap.Mode)
+	}
+	if !strings.Contains(out, "mode: cherry-pick-ladder (default)") {
+		t.Errorf("stdout must print the resolved source line, got %q", out)
 	}
 }
 
@@ -321,7 +344,11 @@ func TestOperatorAutopilot_ModeLifecycleRetention(t *testing.T) {
 
 func TestOperatorAutopilot_ModeAbsentBackCompat(t *testing.T) {
 	// A pre-existing state file whose autopilot block lacks `mode` reads as
-	// cherry-pick-ladder; the next mutation re-marshals the field.
+	// cherry-pick-ladder — the BUILT-IN default, never config-resolved, even when
+	// a config preference names another mode (the mode was fixed at queue start;
+	// re-resolving could silently retopologize a running queue). The next
+	// mutation re-marshals the field.
+	setupConfigRepo(t, "project:\n    name: t\nautopilot:\n  merge_mode: stacked-prs\n")
 	legacy := "autopilot:\n  queue: [ab12]\n  current: ab12\n  completed: []\n  state: running\n"
 	path := withOperatorState(t, legacy)
 
@@ -333,9 +360,88 @@ func TestOperatorAutopilot_ModeAbsentBackCompat(t *testing.T) {
 		t.Fatal("autopilot block missing after pause")
 	}
 	if ap.Mode != "cherry-pick-ladder" {
-		t.Errorf("mode = %q after legacy pause, want cherry-pick-ladder", ap.Mode)
+		t.Errorf("mode = %q after legacy pause, want cherry-pick-ladder (built-in, not config-resolved)", ap.Mode)
 	}
 	if ap.State == nil || *ap.State != "paused" {
 		t.Errorf("state = %v, want paused", ap.State)
+	}
+}
+
+func TestOperatorAutopilot_ModeResolution(t *testing.T) {
+	defaultYAML := "project:\n    name: t\n"
+	cases := []struct {
+		name       string
+		projectCfg string // project config.yaml; "" = same as defaultYAML
+		systemCfg  string // ~/.fab-kit/config.yaml; "" = absent
+		neutralDir bool   // chdir to a fab-less parent (only system/env tiers compose)
+		args       []string
+		wantMode   string
+		wantSource string // the printed `mode: <name> (<source>)` source
+	}{
+		{name: "flag absent, no config", args: []string{"--queue", "ab12"}, wantMode: config.DefaultAutopilotMergeMode, wantSource: "default"},
+		{name: "config resolves when flag absent", projectCfg: "project:\n    name: t\nautopilot:\n  merge_mode: stacked-prs\n", args: []string{"--queue", "ab12"}, wantMode: "stacked-prs", wantSource: "config"},
+		{name: "flag beats config", projectCfg: "project:\n    name: t\nautopilot:\n  merge_mode: stacked-prs\n", args: []string{"--queue", "ab12", "--mode", "merge-auto"}, wantMode: "merge-auto", wantSource: "flag"},
+		{name: "explicit default flag reports flag", args: []string{"--queue", "ab12", "--mode", "cherry-pick-ladder"}, wantMode: "cherry-pick-ladder", wantSource: "flag"},
+		{name: "system tier reaches a fab-less cwd", systemCfg: "autopilot:\n  merge_mode: stacked-prs\n", neutralDir: true, args: []string{"--queue", "ab12"}, wantMode: "stacked-prs", wantSource: "config"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			projectCfg := tc.projectCfg
+			if projectCfg == "" {
+				projectCfg = defaultYAML
+			}
+			_, home := setupConfigRepo(t, projectCfg)
+			if tc.systemCfg != "" {
+				writeSystemConfig(t, home, tc.systemCfg)
+			}
+			if tc.neutralDir {
+				// A fab-less parent directory: resolve.FabRoot fails, and the
+				// cwd-relative fallback finds no project file — only the system
+				// (and env) tiers compose.
+				neutral := t.TempDir()
+				if err := os.Chdir(neutral); err != nil {
+					t.Fatal(err)
+				}
+			}
+			path := withOperatorState(t, "")
+			out, err := autopilotSubOut(t, "start", tc.args...)
+			if err != nil {
+				t.Fatalf("start: %v", err)
+			}
+			if ap := readAutopilot(t, path); ap == nil || ap.Mode != tc.wantMode {
+				t.Errorf("mode = %v, want %q", ap, tc.wantMode)
+			}
+			wantLine := fmt.Sprintf("mode: %s (%s)", tc.wantMode, tc.wantSource)
+			if !strings.Contains(out, wantLine) {
+				t.Errorf("stdout = %q, want it to contain %q", out, wantLine)
+			}
+		})
+	}
+}
+
+func TestOperatorAutopilot_ModeConfigInvalid(t *testing.T) {
+	setupConfigRepo(t, "project:\n    name: t\nautopilot:\n  merge_mode: merge-everything\n")
+	path := withOperatorState(t, "")
+	_, err := autopilotSubOut(t, "start", "--queue", "ab12")
+	if err == nil {
+		t.Fatal("an invalid autopilot.merge_mode must error")
+	}
+	for _, want := range []string{"autopilot.merge_mode", "merge-everything", "cherry-pick-ladder", "merge-auto", "stacked-prs"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("config validation error must name %q: %v", want, err)
+		}
+	}
+	// Validation precedes the mutate: no state file is written.
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		t.Error("state file must not exist after a rejected config value")
+	}
+
+	// An explicit flag still wins over — and sidesteps — the invalid config value.
+	out, err := autopilotSubOut(t, "start", "--queue", "ab12", "--mode", "merge-auto")
+	if err != nil {
+		t.Fatalf("start with explicit flag over an invalid config: %v", err)
+	}
+	if !strings.Contains(out, "mode: merge-auto (flag)") {
+		t.Errorf("stdout = %q, want the flag-source line", out)
 	}
 }

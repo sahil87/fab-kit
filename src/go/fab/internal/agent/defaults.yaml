@@ -48,6 +48,18 @@ dispatch:
   column_width: 35
   reap_done: true
 
+# autopilot.merge_mode — the built-in merge-mode default for `fab operator
+# autopilot start`, and its SINGLE VALUE SOURCE: internal/agent's init() pushes
+# this parsed value into internal/config's DefaultAutopilotMergeMode var, which
+# carries no literal of its own (the dispatch-block push above, same pattern).
+# The accepted-values list is fab-owned policy and stays in Go
+# (config.ValidAutopilotMergeModes — the same split as GetDispatchMode's Go-side
+# switch); only the tunable default lives here. Scope `both`, so a user sets a
+# different standing preference once via `fab config set --system
+# autopilot.merge_mode <name>`; an explicit --mode flag outranks it.
+autopilot:
+  merge_mode: cherry-pick-ladder
+
 # providers — the built-in launch capability grammars plus each provider's per-role
 # fills. claude, codex and agy ship fills, so `agent.workers: codex` is one line
 # and every role still gets a model suited to it. Non-claude fills are refreshed at

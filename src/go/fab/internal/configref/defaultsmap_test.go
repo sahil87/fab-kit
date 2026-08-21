@@ -30,6 +30,15 @@ func TestDefaultsMap_ProjectsEveryDefaultBearingRow(t *testing.T) {
 	if _, ok := defaults["providers"].(map[string]any); !ok {
 		t.Errorf("providers default subtree missing: %#v", defaults["providers"])
 	}
+	// autopilot.merge_mode's default is sourced from the canonical config var
+	// (init-injected from defaults.yaml), never a copied literal.
+	autopilotMap, ok := defaults["autopilot"].(map[string]any)
+	if !ok {
+		t.Fatalf("autopilot subtree missing: %#v", defaults["autopilot"])
+	}
+	if autopilotMap["merge_mode"] != config.DefaultAutopilotMergeMode {
+		t.Errorf("autopilot.merge_mode default = %#v, want %q (config.DefaultAutopilotMergeMode)", autopilotMap["merge_mode"], config.DefaultAutopilotMergeMode)
+	}
 	// A row with no built-in default contributes nothing (the empty-default
 	// convention — its rendered example is not a default).
 	if _, present := defaults["source_paths"]; present {

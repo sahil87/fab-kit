@@ -2,18 +2,22 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/spf13/cobra"
 )
 
-// validAutopilotModes are the accepted --mode values for `autopilot start`;
-// the first entry is the default and the back-compat fill for an absent
-// `mode` field in a pre-existing state file.
-var validAutopilotModes = []string{"cherry-pick-ladder", "merge-auto", "stacked-prs"}
-
+// The accepted --mode values for `autopilot start` live in
+// config.ValidAutopilotMergeModes — the single exported list, shared with the
+// configref registry so no second literal exists anywhere. Its first entry is
+// the built-in default (config.DefaultAutopilotMergeMode, init-injected from
+// defaults.yaml) and the back-compat fill for an absent `mode` field in a
+// pre-existing state file.
 func validAutopilotMode(mode string) bool {
-	for _, m := range validAutopilotModes {
+	for _, m := range config.ValidAutopilotMergeModes {
 		if m == mode {
 			return true
 		}
@@ -40,7 +44,7 @@ func operatorAutopilotCmd() *cobra.Command {
 	}
 	start.Flags().StringSlice("queue", nil, "comma-separated change IDs, in order (required)")
 	_ = start.MarkFlagRequired("queue")
-	start.Flags().String("mode", validAutopilotModes[0], "merge mode: "+strings.Join(validAutopilotModes, " | "))
+	start.Flags().String("mode", config.DefaultAutopilotMergeMode, "merge mode: "+strings.Join(config.ValidAutopilotMergeModes, " | ")+" (default: autopilot.merge_mode config, else "+config.DefaultAutopilotMergeMode+")")
 
 	advance := &cobra.Command{
 		Use:   "advance",
@@ -66,15 +70,18 @@ func autopilotSimpleCmd(use, short string, run func(*cobra.Command, []string) er
 
 // loadAutopilot decodes the autopilot section; requireActive errors when no
 // queue is active (block absent or state cleared). An absent `mode` field in
-// a pre-existing state file reads as the default mode (tolerant read — the
-// typed re-marshal writes the field on the next mutation).
+// a pre-existing state file reads as the BUILT-IN default mode — never
+// config-resolved: the mode was fixed at queue start and persisted, and
+// re-resolving from config at read time could silently retopologize a running
+// queue (tolerant read — the typed re-marshal writes the field on the next
+// mutation).
 func loadAutopilot(data map[string]interface{}, requireActive bool) (*autopilotState, error) {
 	ap := &autopilotState{}
 	if err := operatorSection(data, "autopilot", ap); err != nil {
 		return nil, err
 	}
 	if ap.Mode == "" {
-		ap.Mode = validAutopilotModes[0]
+		ap.Mode = config.DefaultAutopilotMergeMode
 	}
 	if requireActive && (data["autopilot"] == nil || ap.State == nil) {
 		return nil, fmt.Errorf("no autopilot queue is active")
@@ -82,18 +89,65 @@ func loadAutopilot(data map[string]interface{}, requireActive bool) (*autopilotS
 	return ap, nil
 }
 
+// autopilotModeConfig loads the effective config for `autopilot start` mode
+// resolution from the operator's natural (possibly fab-less) cwd: when a fab
+// project is found up the tree (resolve.FabRoot) load it via config.Load;
+// otherwise load the cwd-relative fab/project/config.yaml path via
+// config.LoadPath, which tolerates the project file being absent and still
+// composes the system (~/.fab-kit/config.yaml) and env tiers — so a
+// machine-wide autopilot.merge_mode preference reaches an operator launched
+// from a neutral directory. A load error is fail-soft (nil → the built-in
+// default): a broken config must not brick queue start when no override was
+// asked for.
+func autopilotModeConfig() *config.Config {
+	if fabRoot, err := resolve.FabRoot(); err == nil {
+		cfg, _ := config.Load(fabRoot) // nil on error → nil-safe accessor resolves the default
+		return cfg
+	}
+	cfg, _ := config.LoadPath(filepath.Join("fab", "project", "config.yaml"))
+	return cfg
+}
+
+// resolveAutopilotMode resolves the merge mode for `autopilot start` by the
+// ladder: an explicitly passed --mode flag > config (autopilot.merge_mode) >
+// the built-in default. Flag-absent is detected via Flags().Changed (not value
+// comparison), so an explicit `--mode cherry-pick-ladder` still reports source
+// `flag`. The flag's own validation is unchanged (`unknown --mode …`); a
+// CONFIG-sourced value outside the valid set errors naming the config key and
+// the valid set — merging is destructive-tier, so there is no silent fallback
+// to a different topology than the one configured.
+func resolveAutopilotMode(cmd *cobra.Command) (mode, source string, err error) {
+	if cmd.Flags().Changed("mode") {
+		mode, _ = cmd.Flags().GetString("mode")
+		if !validAutopilotMode(mode) {
+			return "", "", fmt.Errorf("unknown --mode %q (valid: %s)", mode, strings.Join(config.ValidAutopilotMergeModes, ", "))
+		}
+		return mode, "flag", nil
+	}
+	cfg := autopilotModeConfig()
+	mode = cfg.GetAutopilotMergeMode()
+	source = "default"
+	if cfg != nil && cfg.Autopilot.MergeMode != "" {
+		source = "config"
+	}
+	if !validAutopilotMode(mode) {
+		return "", "", fmt.Errorf("invalid autopilot.merge_mode %q in config (valid: %s)", mode, strings.Join(config.ValidAutopilotMergeModes, ", "))
+	}
+	return mode, source, nil
+}
+
 func runOperatorAutopilotStart(cmd *cobra.Command, args []string) error {
 	queue, _ := cmd.Flags().GetStringSlice("queue")
 	if len(queue) == 0 {
 		return fmt.Errorf("--queue must name at least one change ID")
 	}
-	mode, _ := cmd.Flags().GetString("mode")
-	if !validAutopilotMode(mode) {
-		return fmt.Errorf("unknown --mode %q (valid: %s)", mode, strings.Join(validAutopilotModes, ", "))
+	mode, source, err := resolveAutopilotMode(cmd)
+	if err != nil {
+		return err
 	}
 	running := "running"
 	current := queue[0]
-	return mutateOperatorState(func(data map[string]interface{}) error {
+	if err := mutateOperatorState(func(data map[string]interface{}) error {
 		data["autopilot"] = &autopilotState{
 			Queue:     queue,
 			Current:   &current,
@@ -102,7 +156,11 @@ func runOperatorAutopilotStart(cmd *cobra.Command, args []string) error {
 			Mode:      mode,
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "mode: %s (%s)\n", mode, source)
+	return nil
 }
 
 func runOperatorAutopilotPause(cmd *cobra.Command, args []string) error {

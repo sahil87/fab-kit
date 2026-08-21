@@ -1677,3 +1677,72 @@ func TestGetDispatchReapDone_NilAndEmptyConfig(t *testing.T) {
 		t.Error("an explicitly-false ReapDone pointer must report false")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// autopilot.merge_mode — the standing autopilot merge-mode preference (scope
+// `both`). The accessor defaults absent → built-in and returns invalid values
+// RAW (validation is the consuming command's policy — a deliberate divergence
+// from GetDispatchMode's warn-and-fail-open posture).
+// ---------------------------------------------------------------------------
+
+// TestGetAutopilotMergeMode: nil-safe, absent → DefaultAutopilotMergeMode, a
+// configured value returns verbatim, and an invalid value returns raw — the
+// accessor never validates (no warn-and-fallback): `fab operator autopilot
+// start` owns validation so it can error actionably, merging being
+// destructive-tier.
+func TestGetAutopilotMergeMode(t *testing.T) {
+	var nilCfg *Config
+	if got := nilCfg.GetAutopilotMergeMode(); got != DefaultAutopilotMergeMode {
+		t.Errorf("nil-config mode = %q, want %q", got, DefaultAutopilotMergeMode)
+	}
+	if got := (&Config{}).GetAutopilotMergeMode(); got != DefaultAutopilotMergeMode {
+		t.Errorf("empty-config mode = %q, want %q", got, DefaultAutopilotMergeMode)
+	}
+	cfg := &Config{Autopilot: AutopilotConfig{MergeMode: "stacked-prs"}}
+	if got := cfg.GetAutopilotMergeMode(); got != "stacked-prs" {
+		t.Errorf("configured mode = %q, want stacked-prs", got)
+	}
+	invalid := &Config{Autopilot: AutopilotConfig{MergeMode: "merge-everything"}}
+	if got := invalid.GetAutopilotMergeMode(); got != "merge-everything" {
+		t.Errorf("invalid value must return RAW (the caller validates), got %q", got)
+	}
+}
+
+// TestLoad_AutopilotMergeMode: the key parses through the project file and the
+// system tier outranks the project file (scope both).
+func TestLoad_AutopilotMergeMode(t *testing.T) {
+	home := isolateSystemConfig(t)
+	fabRoot := writeProjectConfig(t, "project:\n  name: t\nautopilot:\n  merge_mode: stacked-prs\n")
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.GetAutopilotMergeMode(); got != "stacked-prs" {
+		t.Errorf("project merge_mode = %q, want stacked-prs", got)
+	}
+
+	writeSystemConfig(t, home, "autopilot:\n  merge_mode: merge-auto\n")
+	cfg, err = Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.GetAutopilotMergeMode(); got != "merge-auto" {
+		t.Errorf("merge_mode = %q, want system merge-auto over project stacked-prs", got)
+	}
+}
+
+// TestLoad_AutopilotMergeModeEnv: the generic env mapping yields
+// FAB_AUTOPILOT_MERGE_MODE, outranking both file tiers.
+func TestLoad_AutopilotMergeModeEnv(t *testing.T) {
+	home := isolateSystemConfig(t)
+	fabRoot := writeProjectConfig(t, "project:\n  name: t\nautopilot:\n  merge_mode: stacked-prs\n")
+	writeSystemConfig(t, home, "autopilot:\n  merge_mode: merge-auto\n")
+	t.Setenv("FAB_AUTOPILOT_MERGE_MODE", "cherry-pick-ladder")
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.GetAutopilotMergeMode(); got != "cherry-pick-ladder" {
+		t.Errorf("merge_mode = %q, want env cherry-pick-ladder over system merge-auto", got)
+	}
+}

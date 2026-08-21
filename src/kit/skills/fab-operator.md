@@ -542,7 +542,7 @@ User provides a queue of changes. Confirmation prompt reflects the active mode:
 
 A queue **may span repos**, with mixed dependency semantics: implicit `--base` chaining (and explicit `depends_on`) cherry-picks **within a repo** and **degrades to an ordering-only barrier across repo boundaries** (per Dependency Resolution above; the nearest-same-repo-predecessor rule is defined in Queue ordering below). Worked example — a chain `ab12 → cd34 → ef56` where `cd34` lives in a different repo: `cd34` gets `depends_on: [ab12]` (cross-repo — waits for `ab12` to reach its stop/terminal stage, no code), and `ef56` (back in `ab12`'s repo) gets `depends_on: [ab12]` — its nearest same-repo predecessor — and cherry-picks from it; queue order still runs `ef56` after `cd34`.
 
-Once the user confirms, persist the queue via `fab operator autopilot start --queue <id,id,...> [--mode <name>]` (the binary stores and prints the mode; contracts in `_cli-fab.md` § fab operator autopilot); every later progression (completion or skip) is `fab operator autopilot advance [--skip]`, and the interrupts below ride `pause`/`resume`/`stop`.
+Once the user confirms, persist the queue via `fab operator autopilot start --queue <id,id,...> [--mode <name>]` (the binary stores the mode and prints `mode: <name> (<source>)`; contracts in `_cli-fab.md` § fab operator autopilot); every later progression (completion or skip) is `fab operator autopilot advance [--skip]`, and the interrupts below ride `pause`/`resume`/`stop`.
 
 Queue ordering:
 
@@ -552,7 +552,16 @@ Queue ordering:
 | Confidence-based | Sort by confidence score descending. Highest-confidence first (independent changes) |
 | Hybrid | User provides constraints (partial order); operator sorts unconstrained by confidence |
 
-**Merge modes** — three flat names, selected at queue start via `fab operator autopilot start --mode <name>` (persisted in the autopilot state block, so the mode survives `/clear`) or natural language mapping onto them. At a glance: `▂▄▆` cherry-pick-ladder · `░▒▓█` merge-auto · `▄▀` stacked-prs. (The diagrams below are skill documentation — never emit them into the status frame, which stays fence-free per §4.)
+**Merge modes** — three flat names. **Mode resolution (silent by default):** when the user's queue request names no mode — explicitly or via natural language — resolve it by the ladder explicit user instruction / `--mode` flag > config `autopilot.merge_mode` > built-in `cherry-pick-ladder` and proceed WITHOUT asking. `fab operator autopilot start` prints `mode: <name> (<source>)` where source is `flag` / `config` / `default` — that line is how the operator learns the resolved mode and its source (the operator never parses config files itself). State the resolved mode inside the **existing** upfront queue-confirmation line above (which already varies by mode), so the user vetoes in the same breath — no extra round-trip.
+
+Pause and ask the mode question ONLY on one of exactly two misfits:
+
+1. The resolved mode is `merge-auto` but the queue has same-repo `depends_on` entries — implicit chaining is disabled in that mode, so the declared dependency semantics contradict it.
+2. The user's own message conflicts with the resolved mode (e.g. they say "merge as you go" while the resolved mode is a held mode like `cherry-pick-ladder` or `stacked-prs`).
+
+No other condition triggers the mode question. When the operator DOES ask, the question MUST include the at-a-glance glyphs, the three compact box diagrams below, and a one-line tradeoff per mode (an invalid config value is the binary's own actionable `start` error, not a misfit — it never reaches a question).
+
+At a glance: `▂▄▆` cherry-pick-ladder · `░▒▓█` merge-auto · `▄▀` stacked-prs. (The diagrams below are skill documentation — never emit them into the **status frame**, which stays fence-free per §4. That prohibition is status-frame-only: a mode question is an ordinary conversational message, where the fenced diagrams render fine and are REQUIRED.)
 
 - **`cherry-pick-ladder`** (default) — PRs are created but not merged until the user explicitly requests merging; implicit `--base` chaining is active (per Queue ordering, "User-provided").
 

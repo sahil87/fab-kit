@@ -189,7 +189,7 @@ repo's suggestion" is the intended answer.
 
 | scope | Meaning | Fields |
 |-------|---------|--------|
-| `both` | Overridable in either the project or the system layer (preference-class). | `agent.session`, `agent.workers`, `agent.profiles`, `providers`, `dispatch.mode`, `dispatch.column_width`, `dispatch.reap_done` |
+| `both` | Overridable in either the project or the system layer (preference-class). | `agent.session`, `agent.workers`, `agent.profiles`, `providers`, `dispatch.mode`, `dispatch.column_width`, `dispatch.reap_done`, `autopilot.merge_mode` |
 | `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `consolidate.detectors`, and (conservative default) `stage_hooks` |
 | `system` | Overridable only in the system layer. | *(none today; the value exists for completeness and [Change 2])* |
 
@@ -227,6 +227,21 @@ three; codex, agy, and kimi ship pane/headless grammar without native capability
 `watchable: false`, sweeps project and system config, and leaves commented/fence content untouched.
 There is no binary read-time alias; an unmigrated legacy key is inert.
 
+### Autopilot merge-mode preference
+
+`autopilot.merge_mode` is the standing merge-topology preference for `fab operator autopilot start`,
+accepting exactly `cherry-pick-ladder`, `merge-auto`, or `stacked-prs`; its built-in default
+(`cherry-pick-ladder`) rides `defaults.yaml` and the same init-injection pattern as the `dispatch:`
+defaults, and the accepted-values list is fab-owned policy held Go-side
+(`config.ValidAutopilotMergeModes`). Resolution at queue start descends explicit user instruction /
+`--mode` flag > this key > the built-in default. Scope `both` by the same operator-preference reasoning
+as `dispatch`: it is settable once machine-wide via `fab config set --system autopilot.merge_mode
+<name>`. It **diverges deliberately from `dispatch.mode`'s fail-open posture**: the accessor
+(`GetAutopilotMergeMode`) does absent→default only and returns an invalid value raw, and `start`
+validates it — an invalid configured value exits non-zero naming the key and the valid set, with no
+state written. Merging is destructive-tier, so silently falling back to a different topology than the
+one the user configured is the wrong failure mode.
+
 ---
 
 ## `FAB_KIT_PATH` is deliberately outside the registry (Change 6 — landed)
@@ -263,7 +278,7 @@ model, at [Change 3]'s `fab config upgrade` time, every field is one of:
 
 `advertise: true` marks the C-eligible fields — the optional override surfaces a project has typically
 *not* set live: `agent.session`, `agent.workers`, `dispatch.mode`, `dispatch.column_width`,
-`dispatch.reap_done`, `checklist.extra_categories`,
+`dispatch.reap_done`, `autopilot.merge_mode`, `checklist.extra_categories`,
 `consolidate.detectors`, `true_impact_exclude`, `stage_hooks`, `test_paths`. `advertise: false` marks the init-seeded identity fields
 (`project.*`, `source_paths`), which are written live at `fab config init --project` time and not
 re-advertised in the fence. (`fab_version` is no longer a config-file field — it left `config.yaml` for

@@ -1,6 +1,6 @@
 # Merge topologies
 
-`fab operator autopilot` runs a queue of changes through the fab pipeline and opens a PR for each. How those PRs relate to `main` — and to each other — is controlled by `--mode`. There are three:
+`fab operator autopilot` runs a queue of changes through the fab pipeline and opens a PR for each. How those PRs relate to `main` — and to each other — is controlled by the queue's merge mode (named at queue start via `--mode` or natural language, else resolved from the `autopilot.merge_mode` config preference). There are three:
 
 | Mode | Shorthand | PRs merged | Same-repo chain shape |
 |------|-----------|------------|------------------------|
@@ -51,5 +51,7 @@ Uniform height: every diff shows only its own delta, because each dependent bran
 - **`cherry-pick-ladder`** — the safe default. Every PR is independently reviewable against `main`, at the cost of restated diffs further up the chain.
 - **`merge-auto`** — for a queue of genuinely independent changes you trust to land one at a time without a batch review step.
 - **`stacked-prs`** — for a queue with real same-repo dependencies where you want each PR's diff to show only its own change, at the cost of the merge-all choreography (base retarget + rebase per PR) when the stack comes down.
+
+The default (`cherry-pick-ladder`) is settable as a standing preference — name a mode once, machine-wide, and every queue started without naming a mode adopts it: `fab config set --system autopilot.merge_mode <name>`. An explicit `--mode` flag or instruction at queue start always outranks the configured value.
 
 All three share the same underlying pipeline (`intake → apply → review → hydrate → ship → review-pr`) and queue-ordering rules — mode only changes *when* PRs merge and *how* same-repo dependents are branched. See the `fab-operator` skill's Coordination Patterns section for the full autopilot mechanics (dependency resolution, ordered merge, CI-failure handling).
