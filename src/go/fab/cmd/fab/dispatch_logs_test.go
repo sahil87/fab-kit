@@ -111,6 +111,7 @@ func TestDispatchLogs_AliasedPaneNamesNoCaptureTarget(t *testing.T) {
 		t.Errorf("error = %q, must not name a capture target for the impostor pane", msg)
 	}
 }
+
 // TestDispatchLogs_PaneModeNamesPaneCapture: a pane dispatch keeps no log file
 // (an interactive worker's output is tmux scrollback), so `logs` must report that
 // fact and name the pane-mode equivalent rather than emitting the generic
