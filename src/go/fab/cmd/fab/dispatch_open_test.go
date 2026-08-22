@@ -180,6 +180,38 @@ func TestDispatchOpen_Integration(t *testing.T) {
 	if !pane.PaneAlive(rec.Pane, server) {
 		t.Errorf("pane %s should be alive right after open", rec.Pane)
 	}
+
+	// The liveness discriminator is recorded: the pane's shell pid, matching the
+	// server's own reading, so a later observation can prove the pane this ID
+	// names is still the worker (the restart-alias guard).
+	wantPID, err := pane.GetPanePID(rec.Pane, server)
+	if err != nil {
+		t.Fatalf("read pane pid: %v", err)
+	}
+	if rec.PanePID != wantPID {
+		t.Errorf("recorded pane_pid = %d, want the pane's live #{pane_pid} %d", rec.PanePID, wantPID)
+	}
+}
+
+// TestNotePanePID_WarnNonFatalOnReadFailure is the degraded half of the
+// open-time discriminator contract: when the pid read fails, the launch's
+// outcome is untouched — the helper warns and leaves PanePID zero (absent on
+// disk via omitempty), downgrading that dispatch to existence-only liveness
+// rather than failing an already-running worker. An unreachable socket makes
+// the read fail deterministically without a tmux server.
+func TestNotePanePID_WarnNonFatalOnReadFailure(t *testing.T) {
+	server := "fabtest-nosrv-pid"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+
+	rec := &dispatch.Dispatch{Pane: "%99", Server: server}
+	var warn bytes.Buffer
+	notePanePID(&warn, rec, "%99", server)
+	if rec.PanePID != 0 {
+		t.Errorf("PanePID = %d, want 0 (absent) after a failed read", rec.PanePID)
+	}
+	if !strings.Contains(warn.String(), "could not record the pane's shell pid") {
+		t.Errorf("warning = %q, want the degraded-liveness warning", warn.String())
+	}
 }
 
 // TestDispatchOpen_RefuseIfRunningHonorsTheResultFile pins that
@@ -254,6 +286,61 @@ func TestDispatchOpen_RefuseIfRunningHonorsTheResultFile(t *testing.T) {
 	}
 	if string(promptData) != "third prompt" {
 		t.Errorf("prompt = %q, want the new attempt's prompt", string(promptData))
+	}
+}
+
+// TestDispatchOpen_AliasedPriorPaneIsOverwritten is the refuse-if-running half of
+// the restart-alias contract (its status half is
+// TestDispatchStatus_AliasedPaneDerivesOrphaned): a prior record whose pane ID
+// still EXISTS but whose pane_pid no longer matches the pane's shell pid is NOT
+// a running worker — the tmux server recycled the ID onto an impostor — so a
+// fresh open overwrites the orphaned attempt instead of refusing with "already
+// running". Skipped when tmux is unavailable.
+func TestDispatchOpen_AliasedPriorPaneIsOverwritten(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not available")
+	}
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", `sh -c 'sleep 30' _`)
+
+	server := "fabtest-alias-open"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+	tmux := func(args ...string) (string, error) {
+		out, err := exec.Command("tmux", append([]string{"-L", server}, args...)...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	if out, err := tmux("new-session", "-d", "-s", "s", "-x", "80", "-y", "24"); err != nil {
+		t.Skipf("could not start tmux server (%v): %s", err, out)
+	}
+	t.Cleanup(func() { _, _ = tmux("kill-server") })
+
+	dir := dispatch.DirFor(repoRoot, id)
+	if _, err := runOpen(t, "first prompt", "abcd", "apply", "--server", server); err != nil {
+		t.Fatalf("first open failed: %v", err)
+	}
+	first, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if first.PanePID == 0 {
+		t.Fatalf("the first record must carry a discriminator for the alias to be detectable: %+v", *first)
+	}
+
+	// Simulate the restart-alias: the same pane ID now (by the record's lights)
+	// names a pane whose pid is not the worker's.
+	first.PanePID = first.PanePID + 1
+	if err := dispatch.Save(dir, "apply", first); err != nil {
+		t.Fatalf("Save tampered record: %v", err)
+	}
+
+	if _, err := runOpen(t, "second prompt", "abcd", "apply", "--server", server); err != nil {
+		t.Fatalf("open over an aliased (impostor) pane record must overwrite, not refuse: %v", err)
+	}
+	second, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load after overwrite: %v", err)
+	}
+	if second.PanePID == first.PanePID {
+		t.Errorf("record still carries the tampered pid %d; the attempt was not overwritten", first.PanePID)
 	}
 }
 
@@ -398,6 +485,13 @@ func TestDispatchOpen_SplitPane_Integration(t *testing.T) {
 	// The pane is alive and — as in the window shape — received NOTHING.
 	if !pane.PaneAlive(rec.Pane, "") {
 		t.Errorf("pane %s should be alive right after open", rec.Pane)
+	}
+	// The discriminator is recorded in the split shape too — same record, same
+	// open-time read (a default-socket dispatch this time).
+	if wantPID, err := pane.GetPanePID(rec.Pane, ""); err != nil {
+		t.Fatalf("read pane pid: %v", err)
+	} else if rec.PanePID != wantPID {
+		t.Errorf("recorded pane_pid = %d, want the pane's live #{pane_pid} %d", rec.PanePID, wantPID)
 	}
 	captured, err := tmuxScoped("capture-pane", "-p", "-t", rec.Pane)
 	if err != nil {

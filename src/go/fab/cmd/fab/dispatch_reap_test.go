@@ -305,3 +305,55 @@ func TestDispatchReap_PaneMode_Integration(t *testing.T) {
 		t.Errorf("re-reap output = %q, want the already-gone report", out)
 	}
 }
+
+// TestDispatchReap_AliasedPaneIsNotReaped: even for a DONE dispatch, a record
+// whose pane_pid no longer matches the pane's shell pid names an impostor (the
+// restart-alias) — reap must report already-gone and send NO kill-pane at it.
+// Skipped when tmux is unavailable.
+func TestDispatchReap_AliasedPaneIsNotReaped(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not available")
+	}
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
+
+	server := "fabtest-alias-reap"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+	tmux := func(args ...string) (string, error) {
+		out, err := exec.Command("tmux", append([]string{"-L", server}, args...)...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	if out, err := tmux("new-session", "-d", "-s", "s", "-x", "80", "-y", "24"); err != nil {
+		t.Skipf("could not start tmux server (%v): %s", err, out)
+	}
+	t.Cleanup(func() { _, _ = tmux("kill-server") })
+
+	paneID, err := tmux("new-window", "-P", "-F", "#{pane_id}", "-n", dispatch.WindowName(id, "apply"), "sleep 60")
+	if err != nil || paneID == "" {
+		t.Fatalf("create dispatch window: %v (%q)", err, paneID)
+	}
+	livePID, err := pane.GetPanePID(paneID, server)
+	if err != nil {
+		t.Fatalf("read pane pid: %v", err)
+	}
+
+	dir := dispatch.DirFor(repoRoot, id)
+	mustMkdir(t, dir)
+	if err := dispatch.Save(dir, "apply", &dispatch.Dispatch{
+		Pane: paneID, Window: dispatch.WindowName(id, "apply"), Server: server,
+		PanePID: livePID + 1, SpawnCmd: "claude", StartedAt: "t",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, dispatch.ResultPath(dir, "apply"), "stage: apply\nstatus: success\n")
+
+	out, err := runReap(t, "abcd", "apply")
+	if err != nil {
+		t.Fatalf("reap of an aliased record must be a benign no-op, got: %v", err)
+	}
+	if !strings.Contains(out, "already gone") {
+		t.Errorf("output = %q, want the already-gone report", out)
+	}
+	if !pane.PaneAlive(paneID, server) {
+		t.Errorf("the impostor pane %s was reaped — reap must never target a mismatched pane", paneID)
+	}
+}

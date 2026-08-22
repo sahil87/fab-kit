@@ -40,6 +40,17 @@ func runDispatchLogs(cmd *cobra.Command, changeArg, stage string, tail int) erro
 	}
 
 	if rec, lerr := dispatch.Load(dir, stage); lerr == nil && rec.IsPane() {
+		// The capture hint names a TARGET, so it carries one identity guard: when
+		// the recorded pane ID EXISTS but its shell pid is not the recorded one
+		// (the restart-alias — the pane is an impostor), the hint must not point
+		// the reader at it; report the worker gone and name the recovery instead.
+		// A GONE pane keeps the capture hint: scrollback of a worker that just
+		// finished at its prompt can still live in a surviving pane, and a truly
+		// dead pane is capture's own "pane not found" to report.
+		if rec.PanePID != 0 && pane.PaneAlive(rec.Pane, rec.Server) && !paneWorkerAlive(rec) {
+			return fmt.Errorf("pane %s for %s/%s is not the worker anymore (the pane ID was recycled onto an unrelated pane — its shell pid no longer matches the record); run `fab dispatch restart %s %s` to open a fresh worker",
+				rec.Pane, changeArg, stage, changeArg, stage)
+		}
 		return fmt.Errorf("%s/%s is a pane dispatch and keeps no log file (an interactive worker's output is tmux scrollback); read it with `%s`",
 			changeArg, stage, paneCaptureHint(rec.Server, rec.Pane))
 	}

@@ -20,8 +20,21 @@ func paneMapCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "map",
 		Short: "Show tmux pane-to-worktree mapping with fab pipeline state",
-		Args:  cobra.NoArgs,
-		RunE:  runPaneMap,
+		Long: "Show tmux pane-to-worktree mapping with fab pipeline state.\n\n" +
+			"IDENTITY-KEY CONTRACT (how consumers may join these rows):\n" +
+			"the identity keys are `pane` (the tmux %pane_id, meaningful only with its\n" +
+			"`server` socket context) and `window_id`. The `session` and `window_index`\n" +
+			"columns are DISPLAY-ONLY: they are positional and are reassigned by\n" +
+			"`swap-window`, `move-window`, and session renames, so they MUST NOT be used\n" +
+			"as join keys. The motivating bug: run-kit once joined pane state by\n" +
+			"session:window_index and misattributed one window's fab state to whichever\n" +
+			"window slid into the old position after a swap (the StatusDot swap-lag).\n\n" +
+			"The row schema inherits run-kit's contract — `rk mux panes --json` is the\n" +
+			"primary declaration (a run-kit companion item); this command consumes and\n" +
+			"re-emits it. Consumers MUST tolerate `window_id: \"\"` — a legacy enumeration\n" +
+			"line carries none.",
+		Args: cobra.NoArgs,
+		RunE: runPaneMap,
 	}
 	cmd.Flags().Bool("json", false, "Output as JSON array")
 	cmd.Flags().String("session", "", "Target a specific tmux session by name")

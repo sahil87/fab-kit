@@ -65,7 +65,7 @@ func runDispatchReap(cmd *cobra.Command, changeArg, stage string) error {
 	if rec.IsPane() {
 		state = dispatch.DerivePaneState(
 			dispatch.ResultPresent(dir, stage),
-			pane.PaneAlive(rec.Pane, rec.Server),
+			paneWorkerAlive(rec),
 		)
 	}
 
@@ -94,9 +94,11 @@ func runDispatchReap(cmd *cobra.Command, changeArg, stage string) error {
 
 	// Idempotent, exactly like `kill`: a pane killed by hand (or lost with its tmux
 	// server) is a benign already-gone report rather than an error. The liveness probe
-	// gates the report; KillPane itself also treats a missing pane as a no-op, so a
-	// race between the two is harmless.
-	if !pane.PaneAlive(rec.Pane, rec.Server) {
+	// is identity-checked (paneWorkerAlive): a restart-aliased pane is an impostor,
+	// not the finished worker, so reap must not aim a kill-pane at it either. The
+	// probe gates the report; KillPane itself also treats a missing pane as a no-op,
+	// so a race between the two is harmless.
+	if !paneWorkerAlive(rec) {
 		fmt.Fprintf(out, "pane %s for %s/%s is already gone; nothing to reap\n", rec.Pane, changeArg, stage)
 		return nil
 	}

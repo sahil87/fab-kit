@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 )
 
 // seedDispatch writes a {stage}.yaml with the given pid so status can derive a
@@ -173,7 +174,7 @@ func TestDispatchStatus_PaneJSON(t *testing.T) {
 		t.Errorf("pane json must omit pid/pgid/exit, got %+v", got)
 	}
 	// The keys really are absent from the encoding, not merely zero-valued.
-	for _, key := range []string{`"pid"`, `"pgid"`, `"exit"`} {
+	for _, key := range []string{`"pid"`, `"pgid"`, `"exit"`, `"pane_pid"`} {
 		if strings.Contains(out, key) {
 			t.Errorf("pane json must not contain %s:\n%s", key, out)
 		}
@@ -206,8 +207,49 @@ func TestDispatchStatus_PaneJSON(t *testing.T) {
 	if hl.Pane != "" || hl.Window != "" {
 		t.Errorf("headless json must omit pane identity, got %+v", hl)
 	}
-	if strings.Contains(out, `"server"`) {
-		t.Errorf("headless json must omit server (omitempty):\n%s", out)
+	if strings.Contains(out, `"server"`) || strings.Contains(out, `"pane_pid"`) {
+		t.Errorf("headless json must omit server/pane_pid (omitempty):\n%s", out)
+	}
+}
+
+// TestDispatchStatus_PanePIDJSON pins the discriminator's --json surface: a pane
+// record opened by the new binary carries `pane_pid`, while a discriminator-less
+// pane record (older binary, or a failed open-time read) omits the key — the
+// additive-evolution contract.
+func TestDispatchStatus_PanePIDJSON(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
+	server := "fabtest-nosrv-pidjson"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+
+	// A discriminated record: the key is present with the recorded value.
+	dir := dispatch.DirFor(repoRoot, id)
+	mustMkdir(t, dir)
+	if err := dispatch.Save(dir, "apply", &dispatch.Dispatch{
+		Pane: "%99", Window: dispatch.WindowName(id, "apply"), Server: server,
+		PanePID: 4242, SpawnCmd: "claude", StartedAt: "t",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runStatus(t, "abcd", "apply", "--json")
+	if err != nil {
+		t.Fatalf("status --json: %v", err)
+	}
+	var got dispatchStatusJSON
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, out)
+	}
+	if got.PanePID != 4242 {
+		t.Errorf("pane_pid = %d, want 4242:\n%s", got.PanePID, out)
+	}
+
+	// A discriminator-less record: the key is absent outright (not zero).
+	seedPaneDispatch(t, repoRoot, id, "review", "%98", server)
+	out, err = runStatus(t, "abcd", "review", "--json")
+	if err != nil {
+		t.Fatalf("status --json: %v", err)
+	}
+	if strings.Contains(out, `"pane_pid"`) {
+		t.Errorf("a discriminator-less record must omit pane_pid:\n%s", out)
 	}
 }
 
@@ -265,6 +307,70 @@ func TestDispatchStatus_PaneRunning_Integration(t *testing.T) {
 	mustWrite(t, dispatch.ResultPath(dir, "apply"), "stage: apply\nstatus: success\n")
 	if out, err := runStatus(t, "abcd", "apply"); err != nil || strings.TrimSpace(out) != "done" {
 		t.Errorf("alive pane WITH result: got %q (err %v), want done", strings.TrimSpace(out), err)
+	}
+}
+
+// TestDispatchStatus_AliasedPaneDerivesOrphaned is the restart-alias scenario at
+// the derivation seam: the recorded pane ID EXISTS (a tmux restart recycled %N
+// onto an unrelated pane), no result file, and the pane's current shell pid does
+// NOT match the recorded pane_pid — so the pane is an impostor, the worker is
+// gone, and the state is `orphaned` rather than `running`. The matching-pid and
+// discriminator-less controls pin the two alive readings of the same seam.
+// Skipped when tmux is unavailable (a genuinely live pane is the whole point).
+func TestDispatchStatus_AliasedPaneDerivesOrphaned(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not available")
+	}
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
+
+	server := "fabtest-alias"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+	tmux := func(args ...string) (string, error) {
+		out, err := exec.Command("tmux", append([]string{"-L", server}, args...)...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	if out, err := tmux("new-session", "-d", "-s", "s", "-x", "80", "-y", "24"); err != nil {
+		t.Skipf("could not start tmux server (%v): %s", err, out)
+	}
+	t.Cleanup(func() { _, _ = tmux("kill-server") })
+
+	paneID, err := tmux("display-message", "-p", "-t", "s", "#{pane_id}")
+	if err != nil || paneID == "" {
+		t.Fatalf("resolve pane id: %v (%q)", err, paneID)
+	}
+	livePID, err := pane.GetPanePID(paneID, server)
+	if err != nil {
+		t.Fatalf("read pane pid: %v", err)
+	}
+
+	seed := func(panePID int) {
+		t.Helper()
+		dir := dispatch.DirFor(repoRoot, id)
+		mustMkdir(t, dir)
+		if err := dispatch.Save(dir, "apply", &dispatch.Dispatch{
+			Pane: paneID, Window: dispatch.WindowName(id, "apply"), Server: server,
+			PanePID: panePID, SpawnCmd: "claude", StartedAt: "t",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Control 1: matching discriminator — the pane IS the worker → running.
+	seed(livePID)
+	if out, err := runStatus(t, "abcd", "apply"); err != nil || strings.TrimSpace(out) != "running" {
+		t.Errorf("matching pid: got %q (err %v), want running", strings.TrimSpace(out), err)
+	}
+
+	// The alias: the ID names a live pane whose pid is not the recorded one.
+	seed(livePID + 1)
+	if out, err := runStatus(t, "abcd", "apply"); err != nil || strings.TrimSpace(out) != "orphaned" {
+		t.Errorf("pid mismatch (restart-alias): got %q (err %v), want orphaned", strings.TrimSpace(out), err)
+	}
+
+	// Control 2: no discriminator (a legacy record) — existence-only → running.
+	seed(0)
+	if out, err := runStatus(t, "abcd", "apply"); err != nil || strings.TrimSpace(out) != "running" {
+		t.Errorf("legacy record: got %q (err %v), want running", strings.TrimSpace(out), err)
 	}
 }
 

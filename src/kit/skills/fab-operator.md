@@ -31,7 +31,7 @@ Start via `fab operator` (singleton tmux tab named `operator`). The launcher req
 | Principle | Rule |
 |-----------|------|
 | Coordinate, don't execute | Route implementation to agents; ask when ambiguous. Perform only coordination-level maintenance such as merge, archive, and worktree deletion directly (§6). |
-| Multi-repo aware | Address every agent as `(session, repo, pane)` on one tmux server, with pane ID primary and every monitored/watch/`branch_map` entry repo-qualified; state is one server-keyed file (§4, §8, §9). |
+| Multi-repo aware | Address every agent as `(session, repo, pane)` on one tmux server, with pane ID primary and every monitored/watch/`branch_map` entry repo-qualified; state is one server-keyed file (§4, §8, §9). `session` is a **display/context dimension, never a join key** — a monitored agent's session can change mid-lifetime (`move-window` relocation), so correlation rides the pane ID (§ fab pane map's identity-key contract in `_cli-fab.md`). |
 | Spawn in a worktree | Reserve the operator pane for coordination. Every pipeline command, including a one-line change, starts with `wt create --non-interactive` and runs in a fresh agent tab (§6). |
 | Automate the routine | Auto-answer, nudge, rebase, and spawn for routine operations; PR review is the safety net. Every operator-spawned agent is monitored automatically (§4–§7). |
 | Do not enforce lifecycle | Agents self-govern pipeline transitions; report unexpected stages factually (§4). |
@@ -198,7 +198,7 @@ watches:
 
 ### Monitored Set
 
-Each entry tracks: change ID, pane, **repo** (absolute main-worktree root), **session** (tmux session name), last-known stage, last-known agent state, stop_stage, spawned_by (watch name or null), depends_on (change IDs — same-repo cherry-pick, cross-repo ordering-only per §6), branch (this change's branch name), enrolled-at, last-transition-at. The pane ID is the server-global primary key; `repo` and `session` are the `(session, repo, pane)` addressing dimensions (§1).
+Each entry tracks: change ID, pane, **repo** (absolute main-worktree root), **session** (tmux session name), last-known stage, last-known agent state, stop_stage, spawned_by (watch name or null), depends_on (change IDs — same-repo cherry-pick, cross-repo ordering-only per §6), branch (this change's branch name), enrolled-at, last-transition-at. The pane ID is the server-global primary key; `repo` and `session` are the `(session, repo, pane)` addressing dimensions (§1). The recorded `session` is **context, not identity**: never re-derive which entry a pane is from a session name or window index — they are reassigned by `swap-window`/`move-window`/rename, and a monitored agent's session can change mid-lifetime (rk's planned `_rk-operator` relocation moves the window at enrollment); re-derive per tick from `fab pane map` keyed on the pane ID (§ Re-derive state).
 
 **Enrollment**: operator sends a command to a change, user requests monitoring, or operator triggers an automatic action (including autopilot and watch spawns). Read-only actions do not enroll. Enrollment is `fab operator enroll <change-id> --pane … --repo … --session … --branch … [--stage …] [--agent …] [--stop-stage …] [--spawned-by …] [--depends-on …]` (contract in `_cli-fab.md` § fab operator) — one command writes both the monitored entry and the `{ branch, repo }` pair in the top-level `branch_map`.
 
@@ -725,7 +725,7 @@ Every utterance maps to a `fab operator watch` verb (contracts in `_cli-fab.md` 
 
 The isolation unit is the **tmux server**. There is exactly **one operator per tmux server** — it spans every session and every repo on that server, coordinating all of them through a single server-keyed state file (§4, §9). This matches the server-wide singleton already enforced by the `operator` window (`fab operator` switches to the existing window rather than creating a second one).
 
-- **Multiple sessions, same server** share one operator and one state file. The operator addresses their agents by the `(session, repo, pane)` tuple (§1); there is no per-session or per-repo operator.
+- **Multiple sessions, same server** share one operator and one state file. The operator addresses their agents by the `(session, repo, pane)` tuple (§1) — where `session` scopes the addressing/display, never the identity: the pane ID is the join key, and a session can change mid-lifetime (§1, §4); there is no per-session or per-repo operator.
 - **A second operator means a second tmux server** — start one on a separate socket (`tmux -L <label>`). Its state file is keyed by that socket, so the two operators never collide. There is no `--name` dimension; the server boundary is the only isolation knob. Sends on a non-default socket carry the matching flag: `rk mux -L <label> send` (or `tmux -L <label> send-keys …` on the rk-absent raw path).
 
 ### Settings

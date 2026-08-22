@@ -44,8 +44,11 @@ func runDispatchKill(cmd *cobra.Command, changeArg, stage string) error {
 	if rec.IsPane() {
 		// Killing the tmux pane takes the interactive worker down with it — the
 		// pane's process group is tmux's to reap, so there is no separate
-		// signalling. An already-gone pane is the benign no-op case.
-		if !pane.PaneAlive(rec.Pane, rec.Server) {
+		// signalling. An already-gone pane is the benign no-op case — and so is a
+		// restart-ALIASED one: the liveness read is identity-checked
+		// (paneWorkerAlive), so a record whose pane_pid no longer matches reports
+		// already-dead and no `kill-pane` is ever sent at the impostor.
+		if !paneWorkerAlive(rec) {
 			fmt.Fprintf(cmd.OutOrStdout(), "dispatch %s/%s already dead (pane %s); nothing to kill\n", changeArg, stage, rec.Pane)
 			return nil
 		}

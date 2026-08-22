@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "Workflow schema authority — the Go state machine (`internal/status` + `internal/statusfile`): 6-stage pipeline, states, transitions, validation, 216-cell matrix test; the `.status.yaml` block schemas (`plan:`/`confidence:`/`true_impact:`/`summary:`/`change_type_source:`); `fab score`/`impact`/`pr-meta` + the `fab status` query `--json` surface; `log.md` C-lite + seed-merge + freeze-on-write; the `fab memory-index --check` blocking content class vs advisory debt-meter asymmetry."
+description: "Workflow schema authority — the Go state machine (`internal/status{,file}`): 6-stage pipeline, states, transitions, validation, 216-cell matrix test; the `.status.yaml` block schemas (`plan:`/`confidence:`/`true_impact:`/`summary:`/`change_type_source:`) + the run-kit disk contract (`progress` map = public cross-repo API); `fab score`/`impact`/`pr-meta` + `fab status` query `--json`; `log.md` C-lite + seed-merge + freeze-on-write; `memory-index --check` blocking vs advisory asymmetry."
 ---
 # Schemas
 
@@ -307,6 +307,10 @@ The `id` field makes the change ID directly available from reading `.status.yaml
 `.fab-status.yaml` is a symlink at the repository root pointing to the active change's `.status.yaml`. It is the active change pointer — the replacement for the former `fab/current` text file. The symlink target is always a relative path: `fab/changes/{name}/.status.yaml`. See [change-lifecycle.md](/pipeline/change-lifecycle.md) for full lifecycle documentation.
 
 `.fab-status.yaml` is the sole *file*-based ephemeral per-worktree pointer at the repo root (its `.status.yaml.lock` sibling aside); agent runtime state is not a repo-root file (see below) (ioku), and the only other repo-root ephemeral-state surface is the transient `.fab-dispatch/{id}/` comms dir.
+
+## Cross-Repo Consumer Contract — run-kit reads `.status.yaml` from disk
+
+run-kit's `internal/sessions/fabstate.go` parses `.status.yaml`'s **`progress` map** — the per-stage states it derives change/stage/display-state from — **directly from disk**, a deliberate derive-at-request-time choice (no subprocess on run-kit's hot paths). That makes the `progress` map and the stage-state vocabulary above it a **public cross-repo API**, not an internal detail: schema changes to these fields are **breaking for run-kit** and MUST be coordinated with the run-kit repo before changing. The pointer half of the same contract — the `.fab-status.yaml` worktree-root symlink run-kit follows to find the file — is documented in [change-lifecycle.md](/pipeline/change-lifecycle.md) § Active Change Tracking. This follows the same cross-repo-convention posture as the `@rk_agent_state` pane option (see [runtime-agents.md](/runtime/runtime-agents.md)): disk (or tmux) is the interface, and each side owns its half.
 
 ## Ephemeral Runtime State
 

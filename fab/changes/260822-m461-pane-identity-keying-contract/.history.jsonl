@@ -1,0 +1,10 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-22T08:00:59Z"}
+{"args":"Pane identity keying — declare the identity-key contract (pane_id/window_id vs display-only session/window_index), sweep index-join consumers, close the tmux-restart %N alias hole in dispatch records, and record the .fab-status.yaml/.status.yaml cross-repo contract run-kit consumes. Source: fab/plans/sahil/pane-identity-keying.md","cmd":"fab-new","event":"command","ts":"2026-08-22T08:00:59Z"}
+{"delta":"+4.5","event":"confidence","score":4.5,"trigger":"calc-score","ts":"2026-08-22T08:03:48Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-08-22T08:04:43Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-22T08:06:02Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-22T08:12:16Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-22T08:21:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-22T08:24:26Z"}
+{"event":"review","result":"passed","ts":"2026-08-22T08:24:26Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-22T08:29:24Z"}

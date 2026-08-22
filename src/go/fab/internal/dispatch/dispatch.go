@@ -139,6 +139,16 @@ type Dispatch struct {
 	// for the default socket. Persisted so status/kill reach the same server the
 	// start reached, without the caller re-supplying --server.
 	Server string `yaml:"server,omitempty"`
+	// PanePID is the pane's shell pid (`#{pane_pid}`) recorded at open-time —
+	// the LIVENESS DISCRIMINATOR against the restart-alias hole: a tmux server's
+	// %N pane-id space resets on restart while this record persists `pane: %17`,
+	// so after a restart the recorded ID can name an unrelated new pane. A
+	// recorded pid lets every observation seam prove the pane the ID NOW names is
+	// the pane the dispatch OPENED (see PaneWorkerAlive). Pane-only; `omitempty`
+	// keeps records written by older binaries (and ones whose open-time pid read
+	// failed) byte-identical to before, where absence degrades that dispatch to
+	// existence-only liveness.
+	PanePID int `yaml:"pane_pid,omitempty"`
 	// Delivered records that a pane worker has been handed its prompt by
 	// `fab dispatch deliver`. `open` spawns the pane WITHOUT a prompt, so the two
 	// steps are separate events and the record has to carry which one has
@@ -445,4 +455,36 @@ func DerivePaneState(resultPresent, paneAlive bool) State {
 		return StateRunning
 	}
 	return StateOrphaned
+}
+
+// PaneWorkerAlive decides whether the pane a pane-dispatch record names is
+// still THE WORKER — the pure identity-liveness decision (kept free of I/O so
+// it is exhaustively table-testable, exactly like DeriveState/DerivePaneState;
+// the cmd layer composes it from pane.PaneAlive + pane.GetPanePID).
+//
+// It exists because a tmux pane ID alone is NOT an identity: a server's %N id
+// space resets on restart while the record persists `pane: %17`, so after a
+// restart the recorded ID can ALIAS onto an unrelated new pane. The open-time
+// pane_pid (see Dispatch.PanePID) is the discriminator. The decision:
+//
+//	pane gone                                   → not alive
+//	no pid recorded (legacy/degraded record)    → existence-only (alive iff the pane exists)
+//	pid read failed now                         → existence-only — an unreadable pid is
+//	                                              not a mismatch; degrading to orphaned
+//	                                              would false-orphan live workers on a
+//	                                              transient tmux error
+//	current pid == recorded pid                 → alive: the pane is the worker
+//	current pid != recorded pid                 → NOT alive: the pane is an impostor
+//
+// DerivePaneState deliberately takes no part in this: it is a documented
+// byte-stable cross-adapter contract, so the identity check lives in the
+// computation of its `paneAlive` input, one seam up.
+func PaneWorkerAlive(paneExists bool, recordedPID, currentPID int, pidReadOK bool) bool {
+	if !paneExists {
+		return false
+	}
+	if recordedPID == 0 || !pidReadOK {
+		return true
+	}
+	return currentPID == recordedPID
 }
