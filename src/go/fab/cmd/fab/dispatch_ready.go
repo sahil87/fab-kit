@@ -92,7 +92,10 @@ func runDispatchReady(cmd *cobra.Command, changeArg, stage string) error {
 // The two refusals are distinct on purpose: a headless record means the caller
 // wanted a different command entirely, while a dead pane means the worker this
 // verb would have talked to is gone — which `status` already reports as
-// `orphaned` and `restart` already knows how to recover.
+// `orphaned` and `restart` already knows how to recover. The liveness read is
+// identity-checked (paneWorkerAlive): a restart-aliased pane is an impostor, so
+// the refusal fires for it too — no sentinel or pointer is ever typed into an
+// unrelated pane.
 func loadPaneDispatch(changeArg, stage, verb string) (rec *dispatch.Dispatch, dir, id string, err error) {
 	dir, id, err = resolveDispatchDir(changeArg)
 	if err != nil {
@@ -106,7 +109,7 @@ func loadPaneDispatch(changeArg, stage, verb string) (rec *dispatch.Dispatch, di
 		return nil, "", "", fmt.Errorf("%s/%s is a headless dispatch; `fab dispatch %s` applies only to pane workers (a headless worker is handed its prompt on stdin by `fab dispatch start`)",
 			changeArg, stage, verb)
 	}
-	if !pane.PaneAlive(rec.Pane, rec.Server) {
+	if !paneWorkerAlive(rec) {
 		return nil, "", "", fmt.Errorf("pane %s for %s/%s is gone; run `fab dispatch restart %s %s` to open a fresh worker",
 			rec.Pane, changeArg, stage, changeArg, stage)
 	}

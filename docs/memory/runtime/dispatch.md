@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`fab dispatch {start,open,ready,deliver,restart,status,wait,logs,kill,reap,clean}` manages headless and pane stage workers: pane open/ready/deliver (including resume), headless start, preference-bounded pane → native → headless descent, valid user providers that omit interactive grammar, state layout, observation, recovery, placement, and reaping."
+description: "`fab dispatch {start,open,ready,deliver,restart,status,wait,logs,kill,reap,clean}` manages headless and pane stage workers: pane open/ready/deliver (including resume), headless start, preference-bounded pane → native → headless descent, valid user providers that omit interactive grammar, identity-checked pane liveness (the `pane_pid` restart-alias discriminator), state layout, observation, recovery, placement, and reaping."
 ---
 # fab dispatch
 
@@ -58,7 +58,7 @@ Per-stage files under `.fab-dispatch/{id}/`:
 |------|-----------|----------|
 | `{stage}-prompt.md` | `start` / `open` (from stdin) | the stage prompt — piped to the dispatched command's stdin (headless) or **pointed at** by the one-line prompt `deliver` types into the pane worker. Written identically in both modes; only the hand-over differs. It is also `restart`'s **input**: `restart` reads it and leaves it byte-identical, never re-writing it |
 | `{stage}-continuation.md` *(convention)* | the orchestrator | a rework-cycle continuation prompt for the pane-arm resume, handed over with `deliver --prompt-file`. fab neither writes nor requires it — the path is the wiring's convention (`_preamble.md` § Pane-arm continuation), the record walker ignores non-`.yaml` files, and it is removed with the rest of the dir by the two cleanup paths |
-| `{stage}.yaml` | `start` / `open` (via `internal/atomicfile`), plus `deliver`'s marker flip | the `Dispatch` state struct — `spawn_cmd` (resolved) + `started_at`, plus the mode's identity: `pid`/`pgid`/`timeout` (headless) or `pane`/`window`/`server`/`delivered` (pane). `window` holds the `fab-{id}-{stage}` **identity string** in both pane shapes, so its meaning is *"tmux window name (new-window shape) or tmux pane title (split shape)"* — the string is identical either way, which is why it stayed one field with no schema change and no migration. `delivered` records that the worker has been handed its prompt. Every mode-specific key is `omitempty`, and the mode is **derived** from which keys are present (no stored discriminator). File paths are **derived** from the dir convention, not stored |
+| `{stage}.yaml` | `start` / `open` (via `internal/atomicfile`), plus `deliver`'s marker flip | the `Dispatch` state struct — `spawn_cmd` (resolved) + `started_at`, plus the mode's identity: `pid`/`pgid`/`timeout` (headless) or `pane`/`window`/`server`/`pane_pid`/`delivered` (pane). `pane_pid` is the pane's shell pid recorded at open-time — the restart-alias liveness discriminator (§ Pane liveness is identity-checked). `window` holds the `fab-{id}-{stage}` **identity string** in both pane shapes, so its meaning is *"tmux window name (new-window shape) or tmux pane title (split shape)"* — the string is identical either way, which is why it stayed one field with no schema change and no migration. `delivered` records that the worker has been handed its prompt. Every mode-specific key is `omitempty`, and the mode is **derived** from which keys are present (no stored discriminator). File paths are **derived** from the dir convention, not stored |
 | `{stage}.log` | the wrapper | combined stdout+stderr of the dispatched command — **headless only** (a pane worker's output is tmux scrollback) |
 | `{stage}.exit` | the wrapper | the exit code (`echo $? > ...`) — its **presence** is the "process finished" signal; **headless only** |
 | `{stage}-result.yaml` | the **dispatched agent** (contract) | the stage result; dispatch defines only the path + consumes its presence. Presence is required for `done` in both modes and is the **sole** completion signal in pane mode. Its **content schema** is a minimal YAML envelope mirroring each native block's return — common `stage`/`status`/`summary`; apply adds `failed_task`/`reason` on failure; review adds `verdict` (pass\|fail) + `findings{must_fix,should_fix,nice_to_have}`; hydrate carries only the envelope. The **`status` (worker/infra outcome) vs `verdict` (review outcome) split is load-bearing** — a completed review with `verdict: fail` is dispatch-state `done` (result present), and the orchestrator then takes the normal review-fail path; dispatch-state `failed` is reserved for worker/infrastructure failure. Schema documented in `_preamble.md` § Dispatch-Prompt Obligations. |
@@ -67,8 +67,8 @@ Per-stage files under `.fab-dispatch/{id}/`:
 
 - **GIVEN** a headless dispatch
 - **WHEN** `{stage}.yaml` is serialized
-- **THEN** it carries `pid`/`pgid`/`spawn_cmd`/`started_at` and **none** of `pane`/`window`/`server`/`delivered`
-- **AND** GIVEN a pane dispatch, the record carries `pane`/`window`/(`server` when set)/(`delivered` once true) and no `pid`/`pgid` — every addition is additive on disk, so no migration exists or is needed
+- **THEN** it carries `pid`/`pgid`/`spawn_cmd`/`started_at` and **none** of `pane`/`window`/`server`/`pane_pid`/`delivered`
+- **AND** GIVEN a pane dispatch, the record carries `pane`/`window`/(`server` when set)/(`pane_pid` when the open-time pid read succeeded)/(`delivered` once true) and no `pid`/`pgid` — every addition is additive on disk, so no migration exists or is needed
 
 ### Requirement: `fab dispatch start <change> <stage> [--timeout <secs>] [--headless]` is HEADLESS-ONLY
 
@@ -138,7 +138,7 @@ A `--headless` boolean flag SHALL exist as the explicit opt-out from auto pane s
 
 ### Requirement: `fab dispatch open <change> <stage> [--server <name>]` spawns a pane and delivers nothing
 
-`open` SHALL be **pane mode's entry**. It runs the same shared prologue `start` runs — same resolution, same `internal/spawn.WithProfile` substitution, same refuse-if-running check, same stale exit/result/log clearing, same stdin prompt persisted to `{stage}-prompt.md` — then composes the resolved provider's **`interactive_command`** (the same string `fab agent` composes) and opens it in a tmux **pane** whose cwd is the repo root, persisting the pane's **pane ID**, the `fab-{id}-{stage}` identity string, and the tmux socket label in `{stage}.yaml`. The composed command reaches tmux **verbatim, with no prompt argument appended**: `deliver` hands the worker its prompt afterwards, which is what decouples pane capability from whether a provider's CLI accepts a positional initial prompt. (WHERE the pane opens — split into the dispatching agent's own window, or a new window — is a second decision; see § A pane worker splits the dispatching agent's window.) Shell expansions the composed command carries (e.g. `$(basename "$(pwd)")` in the built-in claude `interactive_command`) expand at invocation inside the new pane — the `_cli-agents.md` § Spawn Composition contract. The **pane ID**, not the identity string, is the recorded identity: it is server-global, stable for the pane's lifetime, and exempt from tmux's target-grammar prefix/glob resolution, so liveness probes and kills are exact where a name-based target could resolve to a window the user renamed into place. `-P -F '#{pane_id}'` on the creating verb prints it, avoiding a follow-up lookup that could race a fast-exiting worker.
+`open` SHALL be **pane mode's entry**. It runs the same shared prologue `start` runs — same resolution, same `internal/spawn.WithProfile` substitution, same refuse-if-running check, same stale exit/result/log clearing, same stdin prompt persisted to `{stage}-prompt.md` — then composes the resolved provider's **`interactive_command`** (the same string `fab agent` composes) and opens it in a tmux **pane** whose cwd is the repo root, persisting the pane's **pane ID**, the `fab-{id}-{stage}` identity string, and the tmux socket label in `{stage}.yaml`. The composed command reaches tmux **verbatim, with no prompt argument appended**: `deliver` hands the worker its prompt afterwards, which is what decouples pane capability from whether a provider's CLI accepts a positional initial prompt. (WHERE the pane opens — split into the dispatching agent's own window, or a new window — is a second decision; see § A pane worker splits the dispatching agent's window.) Shell expansions the composed command carries (e.g. `$(basename "$(pwd)")` in the built-in claude `interactive_command`) expand at invocation inside the new pane — the `_cli-agents.md` § Spawn Composition contract. The **pane ID**, not the identity string, is the recorded identity: it is server-global, stable for the pane's lifetime, and exempt from tmux's target-grammar prefix/glob resolution, so liveness probes and kills are exact where a name-based target could resolve to a window the user renamed into place. `-P -F '#{pane_id}'` on the creating verb prints it, avoiding a follow-up lookup that could race a fast-exiting worker. `open` also records the pane's shell pid (`#{pane_pid}`) as `pane_pid` in the record — the liveness discriminator against the restart-alias hole (§ Pane liveness is identity-checked); a failed pid read warns on stderr, leaves the key absent, and never fails the launch.
 
 **Pane is EXPLICIT on `open`, never a ladder result**: `open` opens a pane or it errors. An unreachable tmux server or a provider with no `interactive_command` is a hard error that launches nothing and persists nothing, rather than a silent descent to headless — which would be the opposite of what the caller asked for. `open` accepts no `--pane` (redundant), no `--headless`, and no `--timeout` (a headless-wrapper bound pane mode never constructs).
 
@@ -208,7 +208,7 @@ With no flag the pointer names `{stage}-prompt.md`; **`--prompt-file <path>` poi
 
 ### Requirement: `deliver` and `ready` refuse a worker that is mid-stage
 
-Both mechanical senders SHALL refuse when the record is headless (naming `fab dispatch start`), when the pane is dead (naming `fab dispatch restart`), and when the record is `delivered: true` **and** no result file is present — a worker executing its stage. That last refusal is the **code-level expression of the contract's no-input-injection rule**: between `open` and a successful `deliver` the pane holds no stage context and may be typed into, but a delivered worker never may. `delivered: true` **with** a result present is `done` — the worker finished and is sitting at its prompt — which is the sanctioned continuation case and SHALL proceed.
+Both mechanical senders SHALL refuse when the record is headless (naming `fab dispatch start`), when the pane is dead or restart-aliased (identity-checked liveness — naming `fab dispatch restart`, so no sentinel or pointer is ever typed into an impostor pane), and when the record is `delivered: true` **and** no result file is present — a worker executing its stage. That last refusal is the **code-level expression of the contract's no-input-injection rule**: between `open` and a successful `deliver` the pane holds no stage context and may be typed into, but a delivered worker never may. `delivered: true` **with** a result present is `done` — the worker finished and is sitting at its prompt — which is the sanctioned continuation case and SHALL proceed.
 
 #### Scenario: a mid-stage worker's keyboard is unreachable
 
@@ -347,7 +347,9 @@ Every launch verb — `start`, `open`, and `restart` — SHALL refuse if a dispa
 | Prior record's mode | Still running when | Finished when |
 |---|---|---|
 | headless | `{stage}.exit` absent **and** pid alive | `{stage}.exit` present (the shell recorded a code) |
-| pane | `{stage}-result.yaml` absent **and** pane alive | `{stage}-result.yaml` present — **result presence wins over pane liveness** |
+| pane | `{stage}-result.yaml` absent **and** pane alive (identity-checked) | `{stage}-result.yaml` present — **result presence wins over pane liveness** |
+
+The pane row's "pane alive" is the identity-checked `paneWorkerAlive` (§ Pane liveness is identity-checked): a restart-aliased prior pane — the ID exists but its shell pid is not the recorded one — is NOT the worker, so the attempt is not running and a fresh launch overwrites it rather than refusing against an impostor.
 
 The pane row's result-presence precedence mirrors `DerivePaneState` and is load-bearing: an interactive worker never exits on task completion, it sits at its prompt, so a liveness-only refusal would fire forever after a successful pane run and make a `done` attempt permanently un-overwritable — `status` reporting `done` while the launch verb insisted it was still running.
 
@@ -426,13 +428,13 @@ The observation policy that *spends* a restart (one automatic restart on `orphan
 
 The `failed (no-result)` state is the crux: a clean exit is necessary but **not sufficient** for `done`; the result file must exist. This distinguishes a well-behaved success from an agent that exited 0 without honoring the result contract.
 
-**Pane** — reads result-file presence and **pane** liveness (`PaneAlive`); no exit file is ever written or consulted. It reports a **subset of three**:
+**Pane** — reads result-file presence and **pane** liveness (identity-checked — the shared `paneWorkerAlive`, § Pane liveness is identity-checked); no exit file is ever written or consulted. It reports a **subset of three**:
 
 | State | Condition | Meaning |
 |-------|-----------|---------|
 | `done` | `{stage}-result.yaml` present | the worker honored the result contract |
 | `running` | result absent AND the pane is alive | still working (or sitting idle mid-task) |
-| `orphaned` | result absent AND the pane is dead (killed / crashed / tmux server gone) | no result will arrive |
+| `orphaned` | result absent AND the pane is dead (killed / crashed / tmux server gone) or restart-aliased | no result will arrive |
 
 **Result presence WINS over pane liveness.** An interactive worker never exits on task completion — it finishes and sits at its prompt — so a liveness-first rule would report `running` forever and never terminate. **`failed` and `failed (no-result)` are UNREACHABLE in pane mode**: there is no exit-code channel, so a crashed or killed worker collapses into `orphaned`, and a clean-exit-without-result has no pane analogue. A pane dispatch simply never emits those two strings; no string changed and no new state exists.
 
@@ -450,11 +452,29 @@ The `failed (no-result)` state is the crux: a clean exit is necessary but **not 
 - **AND** GIVEN the result file is then written while the pane still lives, it reports `done`
 - **AND** GIVEN the pane (or the whole tmux server) is gone with no result file, it reports `orphaned` rather than erroring out of `status`
 
+### Requirement: Pane liveness is identity-checked (the restart-alias discriminator)
+
+A tmux server's `%N` pane-id space resets on server restart while `{stage}.yaml` persists `pane: %17`, so after a restart the recorded ID can **alias onto an unrelated new pane** — a bare existence probe would then read a dead dispatch as `running`, and a targeting verb could aim a keystroke or a `kill-pane` at the impostor. Against that, every record-keyed liveness observation SHALL be identity-checked: the worker is alive iff the pane exists AND (no `pane_pid` was recorded — a legacy or degraded record — OR the pid read fails right now — an unreadable pid is not a mismatch, so the check degrades to existence-only — OR the pane's current `#{pane_pid}` equals the recorded one). The decision is the pure `PaneWorkerAlive(paneExists, recordedPID, currentPID, pidReadOK)` in `internal/dispatch` (no I/O, exhaustively table-testable — the `DeriveState`/`DecideReap` precedent), composed once by the cmd-layer `paneWorkerAlive` helper from `pane.PaneAlive` + `pane.GetPanePID`: the single shared liveness read for every record-keyed consumer, so the call sites cannot drift on what "the worker is alive" means.
+
+A **mismatch means the pane is an impostor and the worker is gone**, and each consumer routes that to its existing gone-worker path: `status`/`wait` (via `observeDispatch`) derive `orphaned` — the existing recovery path — instead of `running`; refuse-if-running (`priorRunning`) does not refuse, so a fresh `open`/`restart` overwrites the orphaned attempt; `kill` and `reap` report already-gone and send no `tmux kill-pane`; `ready`/`deliver` refuse naming `fab dispatch restart` and type nothing — no sentinel or pointer ever lands in an unrelated pane; and `logs` reports the gone worker instead of printing a `fab pane capture` hint aimed at the impostor.
+
+`DerivePaneState` itself is **unchanged** — it is a documented byte-stable cross-adapter contract, so the identity check lives in the computation of its `paneAlive` input, one seam up. Records written by older binaries carry no `pane_pid` (`omitempty`, zero value) and behave exactly as before (existence-only) at every consumer; the field is additive on transient per-change state (archive-time deletion + `fab dispatch clean`), so **no migration** ships.
+
+#### Scenario: a restart-aliased pane reads orphaned, not running
+
+- **GIVEN** a pane dispatch whose tmux server restarted mid-flight, so the recorded `%17` now names an unrelated pane and `{stage}-result.yaml` is absent
+- **WHEN** `fab dispatch status` or `wait` observes it
+- **THEN** the state is `orphaned`, not `running`
+- **AND** WHEN `fab dispatch open` or `restart` runs for the same pair, it overwrites the orphaned attempt rather than refusing "already running"
+- **AND** WHEN `kill` runs, it reports already-dead and sends no `kill-pane` at the impostor
+
 ### Requirement: `status --json` carries a `mode` discriminator plus the mode's identity
 
-`--json` SHALL emit `{change, stage, state, mode, …}` where `mode` is `headless` or `pane`, followed by that mode's identity keys — `pid`, `pgid`, `exit?` (headless) or `pane`, `window`, `server?`, `delivered` (pane). The other mode's keys are **omitted**, so a headless object is unchanged apart from the added `mode`, and `exit` stays absent for a pane dispatch (no exit file exists). `delivered` is reported **even when `false`** — a pane is opened and delivered to in two steps, so "opened but holding no prompt yet" is a case a consumer must be able to see — and it is bookkeeping, never a state: `state` is derived without it. The `mode` discriminator is what tells a consumer which state subset to expect. Keys evolve additively with no `schema_version`.
+`--json` SHALL emit `{change, stage, state, mode, …}` where `mode` is `headless` or `pane`, followed by that mode's identity keys — `pid`, `pgid`, `exit?` (headless) or `pane`, `window`, `server?`, `pane_pid?`, `delivered` (pane). The other mode's keys are **omitted**, so a headless object is unchanged apart from the added `mode`, and `exit` stays absent for a pane dispatch (no exit file exists). `delivered` is reported **even when `false`** — a pane is opened and delivered to in two steps, so "opened but holding no prompt yet" is a case a consumer must be able to see — and it is bookkeeping, never a state: `state` is derived without it. The `mode` discriminator is what tells a consumer which state subset to expect. Keys evolve additively with no `schema_version`.
 
 `server` (`omitempty`) carries the record's tmux socket label for a socket-scoped pane dispatch, so a consumer assembles `fab pane capture -L <server> <pane>` from `--json` alone; `fab dispatch logs` still prints the complete command (below). The key is absent for default-socket and headless dispatches.
+
+`pane_pid` (`omitempty`) mirrors the record's open-time liveness discriminator (§ Pane liveness is identity-checked) — pane-only, absent when the record has none (an older binary's record, or a failed open-time pid read).
 
 #### Scenario: the JSON shape names its mode
 
@@ -500,7 +520,7 @@ Both modes are observed identically: a pane dispatch's state comes from the same
 
 `logs` SHALL print `.fab-dispatch/{id}/{stage}.log`; `--tail N` prints the last N lines (implemented in Go via the `Tail` helper, no external `tail`). A missing log SHALL produce a clear "no dispatch log" message rather than erroring opaquely.
 
-**A pane dispatch keeps no log file** — an interactive worker's output is tmux scrollback, not a redirected stream — so `logs` SHALL report that fact and name the equivalent read (`fab pane capture <pane>`) instead of the generic missing-log message. When the record carries a `server`, the printed command SHALL carry the socket too (`fab pane capture -L <server> <pane>`), since a socket-scoped pane is unreachable from a default-socket capture. This report remains one copy-pasteable source for the capture command; the other is `status --json`, whose `server` key carries the same socket.
+**A pane dispatch keeps no log file** — an interactive worker's output is tmux scrollback, not a redirected stream — so `logs` SHALL report that fact and name the equivalent read (`fab pane capture <pane>`) instead of the generic missing-log message. When the record carries a `server`, the printed command SHALL carry the socket too (`fab pane capture -L <server> <pane>`), since a socket-scoped pane is unreachable from a default-socket capture. This report remains one copy-pasteable source for the capture command; the other is `status --json`, whose `server` key carries the same socket. The hint names a TARGET, so one identity guard applies: a record whose pane ID exists but whose `pane_pid` no longer matches (the restart-alias) gets a gone-worker report naming `fab dispatch restart`, with **no** capture command aimed at the impostor (§ Pane liveness is identity-checked).
 
 #### Scenario: pane-mode logs points at the pane
 
@@ -513,7 +533,7 @@ Both modes are observed identically: a pane dispatch's state comes from the same
 `kill` SHALL terminate the dispatch by the mechanism its **derived mode** implies, and SHALL be **idempotent** in both cases — an already-dead target is a benign no-op with a clear report, and a missing dispatch record is a clear error rather than a panic or a signal to pid 0:
 
 - **Headless** — `SIGTERM` to the **process group** (`pgid` from `{stage}.yaml`, via `syscall.Kill(-pgid, SIGTERM)`) so the detached command and its children die together. SIGTERM (graceful), not SIGKILL, matches "die together". Already dead (ESRCH) → an already-dead report.
-- **Pane** — kills the **tmux pane** (`tmux kill-pane -t <pane>`), taking the interactive worker down with it. Already gone → an already-dead report naming the pane.
+- **Pane** — kills the **tmux pane** (`tmux kill-pane -t <pane>`), taking the interactive worker down with it. Already gone → an already-dead report naming the pane. The liveness probe is identity-checked (§ Pane liveness is identity-checked): a restart-aliased pane — the ID exists but its `pane_pid` mismatches — is the SAME already-dead no-op, so no `kill-pane` is ever sent at the impostor.
 
 **No marker file is written in either mode**: with no result file present, a killed dispatch simply reads `orphaned` on the next `status`.
 
@@ -547,7 +567,7 @@ Every other case SHALL be a **no-op with a one-line report naming its reason**, 
 | record is **headless** | no-op — the detached process already exited; there is nothing visual to reclaim |
 | state is **not `done`** (`running` / `orphaned`, or any headless state) | no-op — reap is NOT kill; it must never terminate a live or failed dispatch. The report points at `fab dispatch kill` |
 | **`dispatch.reap_done: false`** | no-op — the user opted to keep done-worker panes and their scrollback |
-| **pane already gone** (killed by hand, tmux server died) | benign already-gone report — mirroring `kill`'s idempotence, so a re-reap is safe |
+| **pane already gone** (killed by hand, tmux server died) — or **restart-aliased** (pane ID exists, `pane_pid` mismatches) | benign already-gone report — mirroring `kill`'s idempotence, so a re-reap is safe, and no `kill-pane` is ever aimed at the impostor |
 | all three hold | `KillPane(rec.Pane, rec.Server)` — `tmux kill-pane` on the record's own socket, reporting `reaped pane %N for <change>/<stage>` |
 
 **Exit codes**: 0 for the reap and for every no-op above; non-zero **only** for real errors — no dispatch record for the pair, or an unresolvable change — sharing `status`/`wait`'s message surface via the same `loadDispatchRecord` loader. An **unreadable `fab/project/config.yaml` is deliberately not in that set**, because the orchestrator calls reap unconditionally after every `done` and a broken config must not turn pane hygiene into a pipeline failure: the knob is resolved **lazily**, only once the mode and state conditions already hold (a headless or non-`done` no-op reads no config at all), and where it is read an unparseable file **warns on stderr and fails open** to `DefaultDispatchReapDone` — the same value an absent key resolves to.
@@ -783,6 +803,30 @@ Steering by a *human* is unrestricted; the *pipeline*'s access to a worker's key
 **Why**: An interactive worker never exits on task completion — it finishes and sits at its prompt — so no exit-code channel exists to key on, and a liveness-first rule would report `running` forever. The result file is already the contract's success token for the other adapters, so reusing it keeps **one** success definition across all three. Leaving the two exit-code-derived states unreachable keeps the state strings byte-stable, so every existing consumer of `fab dispatch status` reads a pane dispatch without changes; a mode-specific string would have forked the cross-adapter contract.
 **Rejected**: Screen-pattern detection via `tmux capture-pane` (scrollback-dependent and ambiguous — the `_cli-agents` § Await guidance explicitly prefers an artifact over a screen pattern). Requiring the worker to exit after writing its result (throws away the steer-after-finish property that motivates the adapter). New pane-only state strings (forks the byte-stable contract).
 *Introduced by*: 260805-zxe0-interactive-pane-stage-dispatch
+
+### The liveness discriminator is the pane's shell pid, not a start time
+**Decision**: `open` records the pane's shell pid (`#{pane_pid}`) as `pane_pid` on the dispatch record at launch, and identity-checked liveness compares it against the pane's current pid at observation time.
+**Why**: tmux exposes no `pane_start_time` format variable (verified against the tmux 3.7c man page — only `pane_pid`/`pane_start_command`/`pane_start_path` exist); the shell pid is tmux-native, stable for the pane's lifetime, and already readable through the existing `pane.GetPanePID`. A recorded pid that no longer matches proves the pane the ID now names is not the pane the dispatch opened.
+**Rejected**: `pane_start_time` (does not exist in tmux). Recording the spawn timestamp fab-side (proves nothing about which pane the recycled ID currently names).
+*Introduced by*: 260822-m461-pane-identity-keying-contract
+
+### Identity checking computes the `paneAlive` input; the state machine is untouched
+**Decision**: `DerivePaneState` keeps its signature and derivation table byte-stable; identity-checked liveness replaces the bare `PaneAlive` call inside one shared cmd-layer helper (`paneWorkerAlive`) that every record-keyed consumer — `status`/`wait`, refuse-if-running, `reap`, `kill`, `ready`/`deliver`, `logs` — calls in its place.
+**Why**: The three-state derivation is a documented cross-adapter contract with in-code contract comments; changing its signature would ripple through the harness-adapters spec for zero semantic gain. One shared helper keeps the six call sites from drifting on what "the worker is alive" means.
+**Rejected**: A fourth parameter on `DerivePaneState` (couples identity into a documented byte-stable machine). Per-call-site inline checks (six sites — a drift liability).
+*Introduced by*: 260822-m461-pane-identity-keying-contract
+
+### A failed pid read degrades to existence-only, never to orphaned
+**Decision**: At record time (open) and at check time, a pid-read failure downgrades that observation to existence-only liveness — with a stderr warning at record time, and never a failed launch over it.
+**Why**: An unreadable pid is not a mismatch — treating it as one would false-orphan live workers on transient tmux errors and burn the one-restart recovery budget. The degraded mode is exactly the legacy-record mode, so it adds no new behavior class.
+**Rejected**: Conservative not-alive on read failure (false orphans). Failing the open (a cosmetic-adjacent read must not kill a launch that already succeeded).
+*Introduced by*: 260822-m461-pane-identity-keying-contract
+
+### No migration for the `pane_pid` record field
+**Decision**: `pane_pid` ships as an additive `omitempty` field with no `src/kit/migrations/` file.
+**Why**: `.fab-dispatch/` is transient per-change runtime state (archive-deleted, `clean`-able), not user data being restructured; an absent field keeps existence-only behavior by construction, so records written by older binaries behave byte-identically at every consumer.
+**Rejected**: A migration stamping pids into existing records (a stored pid for a pane opened before the migration is unverifiable and could itself alias).
+*Introduced by*: 260822-m461-pane-identity-keying-contract
 
 ### Prompt file plus a one-line pointer, typed in after spawn and verified
 **Decision**: The full stage prompt is persisted to `{stage}-prompt.md` — the path the headless launch already writes — and the pane worker receives a one-line pointer to it, **typed into the pane by `fab dispatch deliver` after the pane is open**, with every step verified against the screen (echo, then submission). The composed `interactive_command` reaches tmux verbatim, carrying no prompt argument, and one delivery engine serves both the initial dispatch and a rework-cycle continuation. Prompt *content* is composed identically for every adapter.

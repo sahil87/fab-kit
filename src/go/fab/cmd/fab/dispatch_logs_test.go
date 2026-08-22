@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"os/exec"
 	"strings"
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 )
 
 func runLogs(t *testing.T, args ...string) (string, error) {
@@ -54,6 +56,59 @@ func TestDispatchLogs_MissingLogClearMessage(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no dispatch log") {
 		t.Errorf("error = %q, want the clear no-log message", err.Error())
+	}
+}
+
+// TestDispatchLogs_AliasedPaneNamesNoCaptureTarget: the capture hint names a
+// TARGET, so a record whose pane ID EXISTS but whose pane_pid no longer matches
+// (the restart-alias — the pane is an impostor) must yield a gone-worker report
+// naming `fab dispatch restart`, with NO capture command pointing at the
+// impostor. Skipped when tmux is unavailable (the pane must genuinely exist).
+func TestDispatchLogs_AliasedPaneNamesNoCaptureTarget(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not available")
+	}
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
+
+	server := "fabtest-alias-logs"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+	tmux := func(args ...string) (string, error) {
+		out, err := exec.Command("tmux", append([]string{"-L", server}, args...)...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	if out, err := tmux("new-session", "-d", "-s", "s", "-x", "80", "-y", "24"); err != nil {
+		t.Skipf("could not start tmux server (%v): %s", err, out)
+	}
+	t.Cleanup(func() { _, _ = tmux("kill-server") })
+
+	paneID, err := tmux("display-message", "-p", "-t", "s", "#{pane_id}")
+	if err != nil || paneID == "" {
+		t.Fatalf("resolve pane id: %v (%q)", err, paneID)
+	}
+	livePID, err := pane.GetPanePID(paneID, server)
+	if err != nil {
+		t.Fatalf("read pane pid: %v", err)
+	}
+
+	dir := dispatch.DirFor(repoRoot, id)
+	mustMkdir(t, dir)
+	if err := dispatch.Save(dir, "apply", &dispatch.Dispatch{
+		Pane: paneID, Window: dispatch.WindowName(id, "apply"), Server: server,
+		PanePID: livePID + 1, SpawnCmd: "claude", StartedAt: "t",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = runLogs(t, "abcd", "apply")
+	if err == nil {
+		t.Fatal("expected the aliased-pane report")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "fab dispatch restart") {
+		t.Errorf("error = %q, want it to name the restart recovery", msg)
+	}
+	if strings.Contains(msg, "fab pane capture") {
+		t.Errorf("error = %q, must not name a capture target for the impostor pane", msg)
 	}
 }
 

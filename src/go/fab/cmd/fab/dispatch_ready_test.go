@@ -69,6 +69,44 @@ func TestDispatchReady_RefusesAMidStageWorker(t *testing.T) {
 	}
 }
 
+// TestDispatchReady_RefusesAnAliasedPane: a record whose pane ID EXISTS but
+// whose pane_pid no longer matches (the restart-alias) must hit the same
+// gone-worker refusal as a dead pane — the probe is a SENDER, so no sentinel
+// may ever be typed into the impostor. Skipped when tmux is unavailable (the
+// pane must genuinely exist for the mismatch to be real).
+func TestDispatchReady_RefusesAnAliasedPane(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
+	server := "fabtest-ready-alias"
+	tmux, paneID := newTmuxPane(t, server, "", 80)
+
+	livePID, err := pane.GetPanePID(paneID, server)
+	if err != nil {
+		t.Fatalf("read pane pid: %v", err)
+	}
+	dir := dispatch.DirFor(repoRoot, id)
+	mustMkdir(t, dir)
+	if err := dispatch.Save(dir, "apply", &dispatch.Dispatch{
+		Pane: paneID, Window: dispatch.WindowName(id, "apply"), Server: server,
+		PanePID: livePID + 1, SpawnCmd: "claude", StartedAt: "t",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	before := settledPane(t, tmux, paneID)
+	_, err = runReady(t, "abcd", "apply")
+	if err == nil {
+		t.Fatal("ready must refuse an aliased (impostor) pane")
+	}
+	for _, want := range []string{"gone", "fab dispatch restart"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want it to contain %q", err.Error(), want)
+		}
+	}
+	if after, err := tmux("capture-pane", "-p", "-t", paneID); err == nil && after != before {
+		t.Errorf("the impostor pane changed (%q → %q); a refused probe must type nothing", before, after)
+	}
+}
+
 // TestDispatchReady_NonReadyReports pins both non-`ready` answers end to end: the
 // classification line, the pane/socket lines the judgment rounds need to send raw
 // `tmux send-keys` (the socket also rides `status --json` as `server`), the

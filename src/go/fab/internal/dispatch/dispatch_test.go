@@ -75,6 +75,39 @@ func TestDerivePaneState(t *testing.T) {
 	}
 }
 
+// TestPaneWorkerAlive exhausts the identity-liveness decision: gone /
+// legacy-zero (older binary, or a failed open-time pid read) / pid-read-failed /
+// match / mismatch. The two existence-only degradations (recorded pid 0, read
+// failure) are the back-compat modes — they must read alive whenever the pane
+// exists, because an unprovable identity is not a disproven one.
+func TestPaneWorkerAlive(t *testing.T) {
+	tests := []struct {
+		name        string
+		paneExists  bool
+		recordedPID int
+		currentPID  int
+		pidReadOK   bool
+		want        bool
+	}{
+		{"pane gone, discriminator recorded", false, 100, 100, true, false},
+		{"pane gone, legacy record", false, 0, 0, false, false},
+		{"legacy record (no pane_pid): existence-only", true, 0, 0, false, true},
+		{"legacy record: current pid irrelevant", true, 0, 245, true, true},
+		{"pid read failed: degrade to existence-only", true, 100, 0, false, true},
+		{"pid match: the pane is the worker", true, 100, 100, true, true},
+		{"pid mismatch: the pane is an impostor", true, 100, 245, true, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PaneWorkerAlive(tt.paneExists, tt.recordedPID, tt.currentPID, tt.pidReadOK)
+			if got != tt.want {
+				t.Errorf("PaneWorkerAlive(%v,%d,%d,%v) = %v, want %v",
+					tt.paneExists, tt.recordedPID, tt.currentPID, tt.pidReadOK, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestSelectMode exhausts the configured descent ladder plus explicit precedence.
 func TestSelectMode(t *testing.T) {
 	tests := []struct {
@@ -586,6 +619,40 @@ func TestSaveOmitsHeadlessFieldsForPaneRecord(t *testing.T) {
 	}
 	if got.Mode() != ModePane || got.Pane != "%17" || got.Window != "fab-abcd-review" || got.Server != "work" {
 		t.Errorf("pane round-trip = %+v", *got)
+	}
+}
+
+// TestPanePIDRecordSerialization pins the discriminator's additive-omitempty
+// contract: absent when unrecorded (byte-stability for legacy and headless
+// records), present and round-tripping when recorded at open-time.
+func TestPanePIDRecordSerialization(t *testing.T) {
+	base := t.TempDir()
+
+	if err := Save(base, "apply", &Dispatch{
+		Pane: "%17", Window: "fab-abcd-apply", SpawnCmd: "claude", StartedAt: "t",
+	}); err != nil {
+		t.Fatalf("Save discriminator-less: %v", err)
+	}
+	noPID, _ := os.ReadFile(YAMLPath(base, "apply"))
+	if contains(string(noPID), "pane_pid") {
+		t.Errorf("a record with no discriminator must omit pane_pid:\n%s", noPID)
+	}
+
+	if err := Save(base, "review", &Dispatch{
+		Pane: "%18", Window: "fab-abcd-review", PanePID: 4242, SpawnCmd: "claude", StartedAt: "t",
+	}); err != nil {
+		t.Fatalf("Save discriminated: %v", err)
+	}
+	withPID, _ := os.ReadFile(YAMLPath(base, "review"))
+	if !contains(string(withPID), "pane_pid: 4242") {
+		t.Errorf("a discriminated record must carry pane_pid:\n%s", withPID)
+	}
+	got, err := Load(base, "review")
+	if err != nil {
+		t.Fatalf("Load discriminated: %v", err)
+	}
+	if got.PanePID != 4242 {
+		t.Errorf("pane_pid round-trip = %d, want 4242", got.PanePID)
 	}
 }
 

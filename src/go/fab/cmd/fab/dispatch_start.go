@@ -636,7 +636,24 @@ func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoo
 	rec.Pane = paneID
 	rec.Window = title
 	rec.Server = server
+	notePanePID(cmd.ErrOrStderr(), rec, paneID, server)
 	return report, nil
+}
+
+// notePanePID records the liveness discriminator (the pane's shell pid) so
+// observation can later prove the pane this ID names is still THE WORKER — a
+// tmux server's %N id space resets on restart, and without a discriminator a
+// persisted `pane: %17` can alias onto an unrelated new pane. A failed read
+// must NOT fail the launch: the worker is already running, so warn and leave
+// PanePID zero (absent on disk via omitempty), which downgrades this dispatch
+// to existence-only liveness — the legacy-record mode.
+func notePanePID(warn io.Writer, rec *dispatch.Dispatch, paneID, server string) {
+	pid, err := pane.GetPanePID(paneID, server)
+	if err != nil {
+		fmt.Fprintf(warn, "warning: could not record the pane's shell pid (%v); this dispatch's liveness checks fall back to pane existence only\n", err)
+		return
+	}
+	rec.PanePID = pid
 }
 
 // launchHeadless launches the detached wrapper and records the pid/pgid on rec:
@@ -666,13 +683,16 @@ func launchHeadless(rec *dispatch.Dispatch, resolvedCmd, repoRoot, dir, stage, p
 //	           over pane liveness (DerivePaneState): an interactive worker never
 //	           exits on completion, it sits at its prompt, so a liveness-only
 //	           rule would refuse forever after a successful pane run and make a
-//	           `done` attempt un-overwritable.
+//	           `done` attempt un-overwritable. Liveness is identity-checked
+//	           (paneWorkerAlive): a restart-aliased prior pane is NOT the worker,
+//	           so a fresh launch overwrites the orphaned attempt rather than
+//	           refusing against an impostor.
 func priorRunning(dir, stage string, prior *dispatch.Dispatch) (bool, error) {
 	if prior.IsPane() {
 		if dispatch.ResultPresent(dir, stage) {
 			return false, nil
 		}
-		return pane.PaneAlive(prior.Pane, prior.Server), nil
+		return paneWorkerAlive(prior), nil
 	}
 	exitPresent, _, err := dispatch.ReadExit(dir, stage)
 	if err != nil {

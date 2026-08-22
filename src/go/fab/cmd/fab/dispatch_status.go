@@ -40,7 +40,9 @@ func dispatchStatusCmd() *cobra.Command {
 // Server is pane-only and omitempty: a socket-scoped pane dispatch carries it so
 // a consumer can assemble a socket-scoped `fab pane capture -L <server> <pane>`
 // from --json alone; a default-socket or headless dispatch omits the key
-// (additive evolution — the repo/window_id/pr_url precedent).
+// (additive evolution — the repo/window_id/pr_url precedent). PanePID mirrors the
+// record's open-time liveness discriminator: pane-only, omitempty, absent for a
+// record written by an older binary (or one whose open-time pid read failed).
 type dispatchStatusJSON struct {
 	Change    string `json:"change"`
 	Stage     string `json:"stage"`
@@ -51,6 +53,7 @@ type dispatchStatusJSON struct {
 	Pane      string `json:"pane,omitempty"`
 	Window    string `json:"window,omitempty"`
 	Server    string `json:"server,omitempty"`
+	PanePID   int    `json:"pane_pid,omitempty"`
 	Delivered *bool  `json:"delivered,omitempty"`
 	Exit      *int   `json:"exit,omitempty"`
 }
@@ -87,6 +90,36 @@ func loadDispatchRecord(dir, changeArg, stage string) (*dispatch.Dispatch, error
 	return rec, nil
 }
 
+// paneWorkerAlive reports whether the pane a pane-dispatch record names is
+// still THE WORKER, composing pane.PaneAlive + pane.GetPanePID into the pure
+// identity decision (dispatch.PaneWorkerAlive). It is the ONE liveness read
+// every record-keyed consumer shares — status/wait (observeDispatch),
+// refuse-if-running (priorRunning), reap, kill, ready/deliver
+// (loadPaneDispatch), and logs — so the six sites cannot drift on what "the
+// worker is alive" means.
+//
+// The identity check guards the restart-alias hole: a tmux server's %N id
+// space resets on restart while the record persists `pane: %17`, so the ID can
+// come to name an unrelated new pane. A recorded pane_pid that no longer
+// matches the pane's current shell pid means the pane is an IMPOSTOR and the
+// worker is gone — callers route that to their existing gone-worker path
+// (orphaned / already-dead / refuse-and-restart) and must never aim a
+// keystroke, signal, or pointer at it. A record with no discriminator (older
+// binary, or a failed open-time read), or a failed read NOW, degrades to
+// existence-only: an unprovable identity is not a disproven one, and
+// false-orphaning a live worker would burn the one-restart recovery budget.
+//
+// DerivePaneState is deliberately NOT involved: it is a documented byte-stable
+// cross-adapter contract, so the identity check lives in the computation of
+// its `paneAlive` input — here.
+func paneWorkerAlive(rec *dispatch.Dispatch) bool {
+	if !pane.PaneAlive(rec.Pane, rec.Server) {
+		return false
+	}
+	currentPID, err := pane.GetPanePID(rec.Pane, rec.Server)
+	return dispatch.PaneWorkerAlive(true, rec.PanePID, currentPID, err == nil)
+}
+
 // observeDispatch derives the dispatch's current state and assembles the output
 // object, branching on the record's DERIVED mode.
 //
@@ -106,14 +139,18 @@ func observeDispatch(dir, id, stage string, rec *dispatch.Dispatch) (dispatchSta
 		// Pane mode: result-file presence + pane liveness, no exit file. An
 		// unobservable pane (killed, or its whole tmux server gone) reads as not
 		// alive, so a resultless pane dispatch degrades to `orphaned` rather than
-		// erroring out of status.
+		// erroring out of status. Liveness is identity-checked (see
+		// paneWorkerAlive): a restart-aliased pane — the ID exists but its shell
+		// pid is not the recorded one — is NOT the worker, so it derives
+		// `orphaned`, the existing recovery path, instead of `running`.
 		state = dispatch.DerivePaneState(
 			dispatch.ResultPresent(dir, stage),
-			pane.PaneAlive(rec.Pane, rec.Server),
+			paneWorkerAlive(rec),
 		)
 		out.Pane = rec.Pane
 		out.Window = rec.Window
 		out.Server = rec.Server
+		out.PanePID = rec.PanePID
 		delivered := rec.Delivered
 		out.Delivered = &delivered
 	} else {
