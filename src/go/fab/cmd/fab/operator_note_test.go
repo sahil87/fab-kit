@@ -260,13 +260,13 @@ notes:
 	if len(lines) != 2 {
 		t.Fatalf("default list lines = %d, want 2 (open only):\n%s", len(lines), out)
 	}
-	if !strings.Contains(lines[0], "n1 dependency_wait ⚠ 21d merge-gate wait") {
+	if !strings.Contains(lines[0], "n1 · dependency_wait · ⚠ 21d · merge-gate wait") {
 		t.Errorf("stale note line wrong: %q", lines[0])
 	}
 	if strings.Contains(lines[0], "second line") {
 		t.Errorf("only the text's first line may render: %q", lines[0])
 	}
-	if !strings.HasPrefix(lines[1], "n2 phase_plan ") || strings.Contains(lines[1], "⚠") {
+	if !strings.HasPrefix(lines[1], "n2 · phase_plan · ") || strings.Contains(lines[1], "⚠") {
 		t.Errorf("fresh note line wrong: %q", lines[1])
 	}
 
@@ -274,7 +274,7 @@ notes:
 	if err != nil {
 		t.Fatalf("list --all: %v", err)
 	}
-	if len(strings.Split(strings.TrimRight(out, "\n"), "\n")) != 3 || !strings.Contains(out, "n3 correction") {
+	if len(strings.Split(strings.TrimRight(out, "\n"), "\n")) != 3 || !strings.Contains(out, "n3 · correction") {
 		t.Errorf("--all must include resolved:\n%s", out)
 	}
 
@@ -385,7 +385,7 @@ notes:
 		if err != nil {
 			t.Fatalf("state: %v", err)
 		}
-		if !strings.HasPrefix(out, "# OPEN NOTES (1)\n# n1 coordination 2d merge sequence pos 1/4\n") {
+		if !strings.HasPrefix(out, "# OPEN NOTES (1)\n# n1 · coordination · 2d · merge sequence pos 1/4\n") {
 			t.Errorf("missing comment-prefixed OPEN NOTES header:\n%s", out)
 		}
 		if ids := bodyNotes(t, out); len(ids) != 1 || ids[0] != "n1" {

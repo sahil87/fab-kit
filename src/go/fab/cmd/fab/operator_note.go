@@ -128,7 +128,7 @@ func formatNoteLine(n noteEntry, now time.Time) string {
 		age = "⚠ " + age
 	}
 	first, _, _ := strings.Cut(n.Text, "\n")
-	return fmt.Sprintf("%s %s %s %s", n.ID, n.Kind, age, first)
+	return fmt.Sprintf("%s · %s · %s · %s", n.ID, n.Kind, age, first)
 }
 
 func operatorNoteCmd() *cobra.Command {
