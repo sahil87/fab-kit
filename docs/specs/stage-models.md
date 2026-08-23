@@ -2,7 +2,7 @@
 
 > **Status:** Design intent (pre-implementation, now implemented — 260613-l3ja, reshaped in
 > 260806-j9nh). This spec captures the design for letting a project run different pipeline stages
-> on different models. The canonical data is `src/go/fab/internal/agent/defaults.yaml` (the embedded
+> on different models. The canonical data is `src/go/fab/defaults.yaml` (the embedded
 > depth knobs and provider table, including claude's per-role fills) plus the `stageRoles` and
 > `roleDepth` maps in `src/go/fab/internal/agent/agent.go`; the two tables in this doc are verified
 > mirrors of them (drift-guarded — see § Drift guard).
@@ -117,7 +117,7 @@ runs wherever the interactive session runs.
 
 fab-kit ships a default `{provider, model, effort}` per role. The provider comes from the built-in
 depth knobs (both `claude`); the model and effort come from **`providers.claude.profiles.<role>`**.
-Both live in **`src/go/fab/internal/agent/defaults.yaml`** — a data file **embedded into the binary**
+Both live in **`src/go/fab/defaults.yaml`** — a data file **embedded into the binary**
 (`go:embed`, never read from the kit cache at runtime) and shaped as a config-file fragment, so it is
 versioned with the kit and is the single file to edit when a new model ships.
 
@@ -222,7 +222,7 @@ strongest model, `ship` its cheapest.
 ### Built-in providers
 
 fab-kit ships **four built-in providers** — `claude` (the default), `codex`, `agy` and `kimi` — in the
-`providers:` block of `internal/agent`'s embedded `defaults.yaml`:
+`providers:` block of the module-root embedded `defaults.yaml`:
 
 ```yaml
 providers:
@@ -867,7 +867,7 @@ skill MAY note "this stage is configured for X; you're on Y" but MUST NOT attemp
 ## Drift guard
 
 The two tables above (§ Default role profiles and § The fixed stage → role mapping) are verified
-mirrors of `src/go/fab/internal/agent/defaults.yaml` (§ Default role profiles, via the knobs and
+mirrors of `src/go/fab/defaults.yaml` (§ Default role profiles, via the knobs and
 `providers.claude.profiles` it composes) and the `stageRoles` map in
 `src/go/fab/internal/agent/agent.go` (§ The fixed stage → role mapping). The code side is canonical. A
 test in that package (`TestDocTablesMatchAgentMaps`) parses both tables from this doc and fails if
