@@ -461,6 +461,7 @@ Grades aggregate into a **confidence score** that gates `/fab-ff`. If ambiguity 
 | `/docs-reorg-memory` | Analyze memory files for themes, suggest reorganization |
 | `/docs-distill-memory [<domain>]` | Rewrite a memory domain to the FKF present-truth style — strip narration, cap descriptions, relocate rationale |
 | `/docs-reorg-specs` | Analyze spec files for themes, suggest reorganization |
+| `/code-reorg [<path>]` | Review source-tree structure — placement, naming, consolidation — and present a ranked findings report (read-only, suggestions only) |
 
 ### Multi-Agent Coordination
 

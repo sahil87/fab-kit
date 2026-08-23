@@ -12,6 +12,8 @@ description: "`/fab-dedupe` — sweeps a scoped area for duplicated utilities, c
 
 Structurally it is `/fab-draft` with a cluster-analysis front end and a **fan-out tail** — a thin `_intake` call-site running Steps 0–9 once per accepted cluster group rather than once per invocation ([planning-skills.md](/pipeline/planning-skills.md) § The `_intake` Shared Create-Intake Procedure).
 
+The boundary with `/code-reorg` ([code-reorg](/pipeline/code-reorg.md)) splits content from structure: `/code-reorg` judges where files live and what they are called — placement, naming, consolidation — and never clusters content duplication; duplication smells it encounters surface in its report's `For /fab-dedupe` section as pointers into this skill, which owns semantic-duplication judgment.
+
 ## Requirements
 
 ### Requirement: Identity, pre-flight, and read-only-until-accept
