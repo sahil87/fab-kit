@@ -1,0 +1,10 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-23T20:02:17Z"}
+{"args":"operator spawn target-session derivation — pass -t on every operator tmux new-window (fab-operator.md §6 Establish target session step + -P -F verified enroll feed + _cli-agents.md mechanical caveat + §8 setting row + sibling sweep)","cmd":"fab-new","event":"command","ts":"2026-08-23T20:02:17Z"}
+{"delta":"+0.0","event":"confidence","score":4.3,"trigger":"calc-score","ts":"2026-08-23T20:04:11Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-08-23T20:05:21Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-23T20:06:42Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-23T20:07:50Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-23T20:11:55Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-23T20:15:09Z"}
+{"event":"review","result":"passed","ts":"2026-08-23T20:15:09Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-23T20:18:10Z"}
