@@ -175,7 +175,7 @@ Terminal multiplexer commands used by the operator for agent observation and int
 
 | Command | Usage | Purpose |
 |---------|-------|---------|
-| `new-window` | `tmux new-window [-t "<session>:"] -n <name> -c <dir> "<cmd>"` | Open a new tmux tab with a command running in a specific directory. Without `-t` the window lands in the **ambient** session (`_cli-agents.md` § Spawn Composition); the operator always passes `-t` (`fab-operator.md` §6 step 2) |
+| `new-window` | `tmux new-window [-t '<session>:'] -n <name> -c <dir> "<cmd>"` | Open a new tmux tab with a command running in a specific directory. Without `-t` the window lands in the **ambient** session (`_cli-agents.md` § Spawn Composition); the operator always passes `-t` (`fab-operator.md` §6 step 2) |
 
 ### Usage Notes
 
