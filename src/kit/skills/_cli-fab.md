@@ -1218,15 +1218,52 @@ Singleton tmux-tab launcher for `/fab-operator`. Requires `$TMUX` (else exit 1, 
 ### fab operator tick-start
 
 ```
-fab operator tick-start
+fab operator tick-start [--diff]
 ```
 
-Called at start of each operator tick. Increments `tick_count`, writes `last_tick_at` (ISO 8601 UTC) to the **server-keyed** state file (not the old repo-rooted `.fab-operator.yaml`). Stdout:
+Called at start of each operator tick. Increments `tick_count`, writes `last_tick_at` (ISO 8601 UTC) to the **server-keyed** state file (not the old repo-rooted `.fab-operator.yaml`). The flagless form is unchanged — stdout:
 
 ```
 tick: N
 now: HH:MM
 ```
+
+**`--diff`** additionally snapshots the fleet internally (the same pane-map discovery+resolve pipeline `fab pane map` runs — one enumeration path), diffs it against the monitored baseline, and emits one stdout document: the `tick:`/`now:` header lines, then three YAML blocks in this order:
+
+```yaml
+deltas:
+    - kind: completion            # completion | pane_death | pane_mismatch | stage_advance | review_fail
+      change: r3m7
+      pane: "%3"
+      # kind-specific fields:
+      #   completion    → stage, display_state
+      #   pane_death    → (none)
+      #   pane_mismatch → found   (the change ID occupying the pane; null when none resolvable)
+      #   stage_advance → from, to
+      #   review_fail   → from (review), to (apply)
+candidates:
+    - pane: "%7"
+      change: k8ds
+      agent_state: waiting        # waiting | idle
+      idle_duration: null         # non-null only for idle (upstream idle-only semantics)
+fleet:
+    - change: r3m7
+      pane: "%3"
+      repo: /home/user/code/foo
+      session: work
+      stage: review-pr
+      display_state: done
+      agent_state: idle           # active | waiting | idle | null (unknown)
+      idle_duration: 8m           # null unless idle
+      pr_url: https://github.com/acme/foo/pull/412   # null when none
+fleet: []                          # empty-list form when nothing monitored (likewise deltas/candidates)
+```
+
+- **Two delivery classes.** `completion` / `pane_death` / `pane_mismatch` are **level-triggered**: stateless predicates over the current snapshot, re-emitted every tick until acted on — `fab operator remove` is the ack, so a crash between diff and action loses nothing. `stage_advance` / `review_fail` are **consumed-on-read** (baseline-diffed, consumed by the same-write baseline update); a lost one costs a missed report only. `review→apply` is the rework reset path and emits `review_fail`, not `stage_advance`.
+- **Detection semantics.** `completion` is a display-state/terminal-stage predicate (never a stage diff): with `stop_stage: null` the terminal set is {hydrate, ship, review-pr}; with a `stop_stage` it fires past the stop in stage order, or at the stop with `display_state` done/skipped. `pane_mismatch` fires when the entry's pane now resolves to a **different** change ID (or none — `found: null`): tmux recycles `%N` pane IDs across server restarts, so a recycled pane is never diffed, baseline-updated, or listed as a candidate (its fleet row falls back to baseline identity fields with null observed fields).
+- **`candidates:`** — monitored entries whose snapshot agent state is waiting or idle, waiting first then idle, sorted by change ID within each class; unknown (`—`) and active panes are excluded, so on rk-less servers the block is empty. This is the operator §5 sweep population.
+- **`fleet:`** — one row per monitored entry, ordered repo → session → enrolled_at → change ID: the status frame's data source, so the skill never re-fetches the full pane map per tick.
+- **Baseline writer.** `--diff` updates the baseline in the **same atomic mutation** as the tick bookkeeping: for each cleanly-joined entry, `stage` ← snapshot stage (touching `last_transition` **iff** the stage changed — `fab operator update`'s semantics) and `agent` ← the snapshot agent state verbatim. Dead/mismatched entries stay untouched; an unresolved (em-dash) snapshot stage fabricates no delta and leaves the baseline stage alone. With an **empty monitored set** the snapshot subprocess is skipped entirely and all three blocks emit `[]` — a no-op tick is first-class.
 
 **State path** (server-keyed, XDG): `<XDG_STATE_HOME>/fab/operator/<server-slug>.yaml`, where the base is `$XDG_STATE_HOME` (when set and absolute) else `$HOME/.local/state` — uniform on Linux and macOS (never `~/Library/...`). `<server-slug>` is derived from the tmux socket path (`#{socket_path}`) by escaping literal `-` to `--` then mapping separators to a single `-` (e.g. `/tmp/tmux-1000/default` → `tmp-tmux--1000-default`); the escape keeps the mapping collision-free so distinct sockets never share a state file. One operator-per-tmux-server gets one state file that survives a server restart (same `-L` label → same socket path). Falls back to slug `default` when tmux can't be queried. No migration of old repo-rooted `.fab-operator.yaml` files — they are abandoned in place.
 
