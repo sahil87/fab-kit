@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 9
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-08-23T15:30:16Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-23T15:41:41Z"}
     review: {started_at: "2026-08-23T15:41:41Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-23T15:46:27Z"}
     hydrate: {started_at: "2026-08-23T15:46:27Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-23T15:49:50Z"}
-    ship: {started_at: "2026-08-23T15:49:50Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-23T15:49:50Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-23T15:52:49Z"}
+    review-pr: {started_at: "2026-08-23T15:52:49Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/614
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 657
+    deleted: 1
+    net: 656
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 204
+        deleted: 1
+        net: 203
     tests:
-        added: 0
-        deleted: 0
+        added: 1
+        deleted: 1
         net: 0
-    computed_at: "2026-08-23T15:49:50Z"
-    computed_at_stage: hydrate
+    computed_at: "2026-08-23T15:52:49Z"
+    computed_at_stage: ship
 summary: Added /code-reorg skill (src/kit/skills/code-reorg.md) — read-only source-tree structure review with ranked evidence-backed proposals; fabhelp Maintenance group, skills.md/glossary/README rows; hydrated pipeline/code-reorg.md + dedupe boundary
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-23T15:49:50Z
+last_updated: 2026-08-23T15:52:49Z
