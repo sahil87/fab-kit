@@ -70,6 +70,7 @@ type paneRow struct {
 	worktree     string
 	repo         string // absolute main-worktree root for this pane's repo (em dash when unresolved)
 	change       string
+	changeID     string // 4-char change ID extracted from the resolved change folder ("" when none); internal join key — absent from table and JSON output
 	stage        string
 	displayState string // state half of status.DisplayStage (em dash when unresolved)
 	agent        string // Agent-column DISPLAY string (agentColumn output); table-only
@@ -97,18 +98,43 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not inside a tmux session")
 	}
 
+	rows, err := collectPaneRows(mode, sessionFlag, server)
+	if err != nil {
+		return err
+	}
+
+	// Output
+	if len(rows) == 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "No tmux panes found.")
+		return nil
+	}
+
+	if jsonFlag {
+		return printPaneJSON(cmd, rows)
+	}
+
+	printPaneTable(cmd, rows, allSessionsFlag)
+	return nil
+}
+
+// collectPaneRows runs the discovery+resolve pipeline: pane enumeration
+// (delegated rk path with silent internal fallback) followed by the per-pane
+// cache/resolve loop. Extracted from runPaneMap so `fab operator tick-start
+// --diff` reuses the SAME snapshot the operator used to fetch via
+// `fab pane map --all-sessions --json` — one enumeration path, no duplicate.
+func collectPaneRows(mode sessionMode, sessionName, server string) ([]paneRow, error) {
 	// Discover tmux panes. Enumeration prefers run-kit's native substrate view
 	// (`rk mux panes --json` — reconciled agent state, internal sessions
 	// excluded, pinned windows listed once; cli-layering Part 8); ANY failure
 	// of that path — rk absent, a pre-`mux panes` rk, non-zero exit, bad JSON —
 	// falls back SILENTLY to fab's own tmux enumeration. The attempt is the
 	// capability probe; there is no version check and never an error.
-	panes, ok := discoverPanesViaRK(mode, sessionFlag, server)
+	panes, ok := discoverPanesViaRK(mode, sessionName, server)
 	if !ok {
 		var err error
-		panes, err = discoverPanes(mode, sessionFlag, server)
+		panes, err = discoverPanes(mode, sessionName, server)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -134,19 +160,15 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 			rows = append(rows, row)
 		}
 	}
+	return rows, nil
+}
 
-	// Output
-	if len(rows) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "No tmux panes found.")
-		return nil
-	}
-
-	if jsonFlag {
-		return printPaneJSON(cmd, rows)
-	}
-
-	printPaneTable(cmd, rows, allSessionsFlag)
-	return nil
+// tickSnapshotRows is the `fab operator tick-start --diff` pane-snapshot
+// source: the full-server row set (all sessions, current socket). Package-level
+// var so tick-diff tests can stub the seam without a live tmux server (the
+// rkPanesRunner / operatorStatePathOverride precedent).
+var tickSnapshotRows = func() ([]paneRow, error) {
+	return collectPaneRows(sessionAll, "", "")
 }
 
 // worktreeRootForPane returns the pane's git worktree root, "" when cwd is
@@ -527,6 +549,7 @@ func resolvePane(p paneEntry, wtRoot, mainRoot string) (paneRow, bool) {
 	wtDisplay := pane.WorktreeDisplayPath(wtRoot, mainRoot)
 
 	changeName := emDash
+	changeID := ""
 	stageName := emDash
 	stageState := emDash
 	prURL := ""
@@ -534,6 +557,7 @@ func resolvePane(p paneEntry, wtRoot, mainRoot string) (paneRow, bool) {
 	if !fabDirMissing {
 		changeName, folderName = pane.ReadFabCurrent(wtRoot)
 		if folderName != "" {
+			changeID = resolve.ExtractID(folderName)
 			statusPath := filepath.Join(fabDir, "changes", folderName, ".status.yaml")
 			if statusFile, err := sf.Load(statusPath); err == nil {
 				stage, state := status.DisplayStage(statusFile)
@@ -558,6 +582,7 @@ func resolvePane(p paneEntry, wtRoot, mainRoot string) (paneRow, bool) {
 		worktree:     wtDisplay,
 		repo:         repoRoot,
 		change:       changeName,
+		changeID:     changeID,
 		stage:        stageName,
 		displayState: stageState,
 		agent:        agentColumn(p.agentState, p.agentIdleDur),
