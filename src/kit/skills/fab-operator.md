@@ -91,7 +91,7 @@ This single preflight probe covers every later `wt create` call site; none is in
 ### Init
 
 1. Run `fab operator state` to read (or create, on first run) the server-keyed operator state file — the binary derives the path and persists the empty skeleton when missing; the operator never computes the path or hand-creates the file (`_cli-fab.md` § fab operator state). Old repo-rooted `.fab-operator.yaml` files are not read or migrated
-2. Restore monitored set, autopilot queue, and branch_map from the file (supports `/clear` recovery)
+2. Restore monitored set, autopilot queue, branch_map, and notes from the file (supports `/clear` recovery)
 3. Run `fab pane map --all-sessions` and display the output (all sessions on this server, not just the operator's own)
 4. If any tracked items exist, start the single loop per §4 Adaptive cadence
 5. Output: `Operator ready.` (+ `Loop active ({interval}).` if loop started)
@@ -155,7 +155,7 @@ The loop is the operator's heartbeat — a `/loop "operator tick"` that runs as 
 
 Persistent state, read on startup and every tick via `fab operator state`. The term **operator state file** used throughout this skill refers to the server-keyed file from §2 Init step 1 — one per tmux server spanning every repo it coordinates.
 
-**The operator never hand-writes this file.** Every mutation goes through a `fab operator` subcommand (`enroll`/`update`/`remove`, the `watch` verbs, the `autopilot` verbs, `branch-map rm`) — agents state intent through flags; the binary owns the schema, the timestamps, the list-cap pruning, and the atomic write (same doctrine as `fab score`: agents never compute what the binary can own). The schema block below is *reference* documentation of what the binary maintains; the command contracts live in `_cli-fab.md` § fab operator.
+**The operator never hand-writes this file.** Every mutation goes through a `fab operator` subcommand (`enroll`/`update`/`remove`, the `note` verbs, the `watch` verbs, the `autopilot` verbs, `branch-map rm`) — agents state intent through flags; the binary owns the schema, the timestamps, the list-cap pruning, and the atomic write (same doctrine as `fab score`: agents never compute what the binary can own). The schema block below is *reference* documentation of what the binary maintains; the command contracts live in `_cli-fab.md` § fab operator.
 
 ```yaml
 tick_count: 47
@@ -194,6 +194,16 @@ watches:
     instructions: >
       Spawn agents for issues older than 1 hour with label 'bug'.
       Max 2 concurrent agents from this watch.
+notes_seq: 2             # persisted id counter — ids n<N> are never reused after prune
+notes:
+  - id: n1
+    kind: phase_plan     # dependency_wait | phase_plan | coordination | correction
+    text: Phase 2 of 4 — auto-merge armed behind s2gw
+    refs: [s2gw, fab-kit]
+    created_at: "2026-08-23T10:00:00Z"
+    updated_at: "2026-08-23T12:00:00Z"
+    resolved: false
+    resolved_at: null
 ```
 
 ### Monitored Set
@@ -227,6 +237,27 @@ The primitive's literal-prefix guard protects user-renamed windows (if the user 
 ### Branch Map
 
 The top-level `branch_map` persists change ID → `{ branch, repo }` mappings. Entries are added by `fab operator enroll` when changes are enrolled in the monitored set. Entries persist after changes leave the monitored set (merged, archived, pane died) — this is necessary so downstream changes can still look up dependency branches for cherry-picking. The `repo` is required to disambiguate a dependency's branch across repos and to decide same-repo (cherry-pick) vs. cross-repo (ordering-only) resolution per §6. Entries persist until the user explicitly clears them (`fab operator branch-map rm <change-id>` or `--all`) — the server-keyed state file survives operator sessions, so there is no session-end expiry.
+
+### Notes
+
+Notes are the operator's owned surface for cross-cutting narrative state — the entries that outlive the `monitored` set and have no other schema home. The binary owns everything mechanical: ids (`n<N>` from the persisted `notes_seq` counter — never reused after prune), timestamps, the 500-character text cap, and the resolved-history pruning. The text body is free prose evaluated by the operator as an LLM (same split as watches: structured fields are machine concerns, prose is operator judgment). Command contracts live in `_cli-fab.md` § fab operator note.
+
+**Verbs:**
+
+- `fab operator note add --kind <k> [--ref <r>]... <text>` — creates a note and prints its id.
+- `fab operator note update <id> <text>` — replaces the text in place (evolving phase-plan notes update rather than accreting near-duplicates) and refreshes `updated_at`.
+- `fab operator note resolve <id>` — marks resolved (idempotent); resolved notes past a cap of 50 are pruned oldest-first. **Open notes never auto-expire** — notes are decisions, not a dedupe cache.
+- `fab operator note list [--open|--all] [--json]` — open by default; renders id · kind · age from `updated_at` · first line of text, flags stale ones (`⚠ 21d` past 14 days, display-only), and warns on stderr above 25 open notes.
+
+`fab operator state` prints an OPEN NOTES header (one line per open note) before the dump in human mode; the lifecycle is **add → update → resolve**, with a bounded resolved history.
+
+**What belongs where** (the routing doctrine):
+
+| Content | Home |
+|---|---|
+| Passive narrative read on restart/orientation — phase progress + holds, peer scoping agreements, report-back promises, corrections to earlier conclusions, **merge-gate dependency waits** (checked by operator judgment per tick — no git/GitHub watch `source` exists today) | **note** |
+| Standing concerns a watch source can actually express today (`linear`/`slack` queries with `instructions`) | **watch** — if a git-source watch ships later, merge-gate waits migrate to it as its own change |
+| Anything still true for a different operator next month — process lessons | **not operator state** — route via an `idea` backlog entry → a fab change into docs/memory (the operator has no memory write path: 3-file context load, may run with no `fab/` project at all); deliberately **no `lesson` kind** — its absence is the guard against notes degrading into a reflexive scratchpad |
 
 ### Tick Behavior
 
@@ -757,5 +788,5 @@ These settings are session-scoped and reset on `/clear` or session restart; they
 | Requires a `fab/` project? | No — session command comes from the project's `providers.claude.interactive_command` when `fab/` is resolvable, else `spawn.DefaultSpawnCommand` (the template `claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`). No project `providers`/`agent:` block is read on a `fab/`-less launch |
 | Coordinating-agent model | Operator role — `fab operator` resolves the `operator` role (`agent.ResolveRole`; a Tier-1 role, so the `agent.session` knob picks its provider), reads that provider's `interactive_command`, injects the profile via `spawn.WithProfile` (**substitutes** into a `{model}`/`{effort}` template — the built-in claude default is templated — or **appends** `--model`/`--effort` to a plain command carrying no placeholder); falls back to the built-in operator profile + built-in claude provider on any failure (incl. no resolvable `fab/` project) |
 | Uses `/loop`? | Yes — adaptive heartbeat: `3m` normally, tightens to `90s` (§8) when any monitored agent is `waiting` (`@rk_agent_state`) or menu-waiting (capture fallback), relaxes back to `3m`; one loop at a time |
-| Uses the operator state file? | Yes — monitored set + autopilot queue + branch map persistence in the server-keyed path (§2 Init step 1); reads via `fab operator state`, every mutation through a `fab operator` verb — never a hand-write (§4 doctrine) |
+| Uses the operator state file? | Yes — monitored set + autopilot queue + branch map + notes persistence in the server-keyed path (§2 Init step 1); reads via `fab operator state`, every mutation through a `fab operator` verb — never a hand-write (§4 doctrine) |
 | Multi-repo / multi-session? | Yes — one operator per tmux server spans all its sessions and repos via the `(session, repo, pane)` addressing tuple |

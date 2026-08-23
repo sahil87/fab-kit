@@ -29,6 +29,7 @@ func operatorCmd() *cobra.Command {
 		operatorEnrollCmd(),
 		operatorUpdateCmd(),
 		operatorRemoveCmd(),
+		operatorNoteCmd(),
 		operatorWatchCmd(),
 		operatorAutopilotCmd(),
 		operatorBranchMapCmd(),

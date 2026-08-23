@@ -1230,15 +1230,15 @@ now: HH:MM
 
 **State path** (server-keyed, XDG): `<XDG_STATE_HOME>/fab/operator/<server-slug>.yaml`, where the base is `$XDG_STATE_HOME` (when set and absolute) else `$HOME/.local/state` — uniform on Linux and macOS (never `~/Library/...`). `<server-slug>` is derived from the tmux socket path (`#{socket_path}`) by escaping literal `-` to `--` then mapping separators to a single `-` (e.g. `/tmp/tmux-1000/default` → `tmp-tmux--1000-default`); the escape keeps the mapping collision-free so distinct sockets never share a state file. One operator-per-tmux-server gets one state file that survives a server restart (same `-L` label → same socket path). Falls back to slug `default` when tmux can't be queried. No migration of old repo-rooted `.fab-operator.yaml` files — they are abandoned in place.
 
-**Shared state-verb mechanics** (apply to every `fab operator` state verb below): the same server-keyed path derivation; atomic temp+rename writes; a tolerant-read/typed-write posture — unknown **top-level** keys survive any read-modify-write, while the four owned sections (`monitored`, `autopilot`, `branch_map`, `watches`) are re-marshaled from typed structs on mutation, so an invented field inside an owned section can neither be introduced nor survive a mutation of that section. All timestamps (`enrolled_at`, `last_transition`, `last_checked`) are computed by the binary (RFC3339 UTC) — no verb accepts a timestamp flag. Stage-valued flags validate against the six stage names; unknown change-ids/watch-names and no-active-queue calls exit non-zero with a one-line error. Schema is byte-compatible with the `fab-operator.md` §4 shape; no migration.
+**Shared state-verb mechanics** (apply to every `fab operator` state verb below): the same server-keyed path derivation; atomic temp+rename writes; a tolerant-read/typed-write posture — unknown **top-level** keys survive any read-modify-write, while the five owned sections (`monitored`, `autopilot`, `branch_map`, `watches`, `notes`) are re-marshaled from typed structs on mutation, so an invented field inside an owned section can neither be introduced nor survive a mutation of that section. All timestamps (`enrolled_at`, `last_transition`, `last_checked`, `created_at`, `updated_at`, `resolved_at`) are computed by the binary (RFC3339 UTC) — no verb accepts a timestamp flag. Stage-valued flags validate against the six stage names; unknown change-ids/watch-names/note-ids and no-active-queue calls exit non-zero with a one-line error. Schema is byte-compatible with the `fab-operator.md` §4 shape; no migration.
 
 ### fab operator state
 
 ```
-fab operator state [--json]
+fab operator state [--all] [--json]
 ```
 
-Prints the server-keyed state file — YAML verbatim by default, JSON conversion with `--json`. When the file is missing it first persists the empty skeleton (`monitored: {}`, `autopilot: null`, `branch_map: {}`, `watches: {}`), then prints it — the binary owns the "create if missing" init step, and a pure read of an existing file never rewrites it.
+Prints the server-keyed state file — YAML verbatim by default, JSON conversion with `--json`. When the file is missing it first persists the empty skeleton (`monitored: {}`, `autopilot: null`, `branch_map: {}`, `watches: {}`, `notes: []`), then prints it — the binary owns the "create if missing" init step, and a pure read of an existing file never rewrites it. In human mode (no `--json`) an OPEN NOTES header — one `# `-prefixed comment line per open note (`id · kind · age · first line of text`) — prints before the dump, keeping stdout parseable YAML for yq consumers; the header is omitted when there are no open notes and never appears in `--json` output. Resolved notes are excluded from the printed `notes:` list unless `--all` (the exclusion re-marshals the parsed state; with nothing to filter the raw bytes print verbatim).
 
 ### fab operator enroll / update / remove
 
@@ -1252,6 +1252,21 @@ fab operator remove <change-id>
 - `enroll` creates (or wholesale-replaces, with a fresh `enrolled_at`) the monitored entry, sets `enrolled_at` + `last_transition` to now, defaults `stop_stage: null` / `spawned_by: null` / `depends_on: []`, **and** records the `branch_map` entry `{ branch, repo }` — enrollment is the documented moment `branch_map` gains its pair, so one command owns both writes. `--pane`, `--repo`, `--session`, `--branch` are required. The `»` window-name rename stays a separate `fab pane window-name ensure-prefix` call.
 - `update` mutates only the passed fields of an existing entry, touching `last_transition` **iff** `--stage` changes the stored value. `--agent` passes through verbatim (fab is a consumer of run-kit's `@rk_agent_state` convention and does not enumerate its states). `--stop-stage ""` clears to null. Unknown change-id → exit non-zero.
 - `remove` deletes the monitored entry and **retains** the `branch_map` entry (the documented persistence policy — downstream dependency resolution needs it; the explicit clear is `branch-map rm`). Unknown change-id → exit non-zero. The `»`→`›` rename stays a separate `fab pane window-name replace-prefix` call.
+
+### fab operator note
+
+```
+fab operator note add --kind <dependency_wait|phase_plan|coordination|correction> [--ref <r>]... <text>
+fab operator note resolve <id>
+fab operator note update <id> <text>
+fab operator note list [--open|--all] [--json]
+```
+
+- Notes are the operator's narrative-state surface (routing doctrine: `fab-operator.md` §4 Notes). Each note carries `{ id, kind, text, refs?, created_at, updated_at, resolved, resolved_at }` in a top-level `notes:` **list** (creation order); ids are `n<N>` from the persisted top-level `notes_seq` counter that only increments — **ids are never reused after prune**. Unknown top-level keys (e.g. a legacy hand-written `plan_queue:`) survive every verb.
+- `add` creates the note with binary-set timestamps and `resolved: false`, then prints the id to stdout. Unknown `--kind` or text over the **500-character cap** → exit 1 with a one-line error and no state written. Repeated `--ref` flags accumulate into `refs`. Duplicate text is allowed (dedupe is operator judgment).
+- `resolve` sets `resolved: true` + `resolved_at` (re-resolving is **idempotent** — exit 0, no field changes), then prunes **resolved** notes past a **50-entry cap, oldest-first in list order**; open notes are never pruned. Unknown id → exit 1.
+- `update` replaces the text in place and refreshes `updated_at` (age/staleness render from it); the 500-cap applies. Unknown id → exit 1.
+- `list` defaults to `--open` (open notes only; `--all` includes resolved). Human output is one line per note: `id · kind · age-from-updated_at · first line of text`; a note older than **14 days** carries a display-only `⚠ <age>` staleness flag, and more than **25** open notes produces a warning on **stderr** (stdout stays clean). `--json` emits the filtered notes as JSON with no decoration.
 
 ### fab operator watch
 

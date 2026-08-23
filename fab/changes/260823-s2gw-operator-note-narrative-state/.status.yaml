@@ -1,0 +1,57 @@
+id: s2gw
+name: 260823-s2gw-operator-note-narrative-state
+created: 2026-08-23T15:25:30Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 14
+    acceptance_count: 21
+    acceptance_completed: 21
+confidence:
+    certain: 8
+    confident: 2
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    fuzzy: true
+    dimensions:
+        signal: 82.0
+        reversibility: 84.0
+        competence: 86.0
+        disambiguation: 84.0
+stage_metrics:
+    intake: {started_at: "2026-08-23T15:25:30Z", driver: fab-new, iterations: 1, completed_at: "2026-08-23T15:36:22Z"}
+    apply: {started_at: "2026-08-23T15:36:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-23T15:49:08Z"}
+    review: {started_at: "2026-08-23T15:49:08Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-23T15:52:39Z"}
+    hydrate: {started_at: "2026-08-23T15:52:39Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-23T15:58:01Z"}
+    ship: {started_at: "2026-08-23T15:58:01Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-23T16:00:41Z"}
+    review-pr: {started_at: "2026-08-23T16:00:41Z", driver: git-pr, iterations: 1, completed_at: "2026-08-23T16:28:45Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/615
+change_type_source: explicit
+true_impact:
+    added: 1750
+    deleted: 19
+    net: 1731
+    excluding:
+        added: 973
+        deleted: 14
+        net: 959
+    tests:
+        added: 531
+        deleted: 0
+        net: 531
+    computed_at: "2026-08-23T16:00:41Z"
+    computed_at_stage: ship
+summary: 'operator note narrative-state verb family: notes as fifth owned state-file section + notes-vs-watches routing decision — memory updated in runtime/operator + distribution/kit-architecture'
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-23T16:28:45Z
