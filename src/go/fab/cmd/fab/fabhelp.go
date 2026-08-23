@@ -42,6 +42,7 @@ var skillToGroupMap = map[string]string{
 	"docs-hydrate-specs":  "Maintenance",
 	"docs-reorg-specs":    "Maintenance",
 	"docs-reorg-memory":   "Maintenance",
+	"code-reorg":          "Maintenance",
 	"docs-distill-memory": "Maintenance",
 	"fab-operator":        "Maintenance",
 	"fab-setup":           "Setup",

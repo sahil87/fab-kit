@@ -1,0 +1,57 @@
+id: ekp3
+name: 260823-ekp3-code-reorg-skill
+created: 2026-08-23T15:01:33Z
+created_by: Sahil Ahuja
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 9
+    acceptance_count: 16
+    acceptance_completed: 16
+confidence:
+    certain: 4
+    confident: 8
+    tentative: 0
+    unresolved: 0
+    score: 3.6
+    fuzzy: true
+    dimensions:
+        signal: 72.1
+        reversibility: 79.2
+        competence: 75.8
+        disambiguation: 71.7
+stage_metrics:
+    intake: {started_at: "2026-08-23T15:01:33Z", driver: fab-new, iterations: 1, completed_at: "2026-08-23T15:30:16Z"}
+    apply: {started_at: "2026-08-23T15:30:16Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-23T15:41:41Z"}
+    review: {started_at: "2026-08-23T15:41:41Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-23T15:46:27Z"}
+    hydrate: {started_at: "2026-08-23T15:46:27Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-23T15:49:50Z"}
+    ship: {started_at: "2026-08-23T15:49:50Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-23T15:52:49Z"}
+    review-pr: {started_at: "2026-08-23T15:52:49Z", driver: git-pr, iterations: 1, completed_at: "2026-08-23T16:03:58Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/614
+change_type_source: explicit
+true_impact:
+    added: 657
+    deleted: 1
+    net: 656
+    excluding:
+        added: 204
+        deleted: 1
+        net: 203
+    tests:
+        added: 1
+        deleted: 1
+        net: 0
+    computed_at: "2026-08-23T15:52:49Z"
+    computed_at_stage: ship
+summary: Added /code-reorg skill (src/kit/skills/code-reorg.md) — read-only source-tree structure review with ranked evidence-backed proposals; fabhelp Maintenance group, skills.md/glossary/README rows; hydrated pipeline/code-reorg.md + dedupe boundary
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-23T16:03:58Z

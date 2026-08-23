@@ -68,6 +68,7 @@
 | `/docs-reorg-memory` | Analyzes memory files for themes and proposes reorganization. Read-only unless user approves changes. No active change required. |
 | `/docs-distill-memory` | Rewrites an existing memory domain's topic files to the FKF present-truth style — strips transition narration and superseded-state prose, caps/de-ids `description:` frontmatter, relocates rationale into Design Decisions. Named `<domain>` distills that one domain; no-arg surveys all domains and loops every flagged one sequentially. One domain per approval unit (per-domain gate retained); read-only unless user approves. No active change required. |
 | `/docs-reorg-specs` | Analyzes spec files for themes and proposes reorganization. Read-only unless user approves changes. No active change required. |
+| `/code-reorg` | Reviews source-tree structure (folder shape, file placement, naming, consolidation) as a prediction interface and presents a ranked, evidence-backed findings report. Fully read-only — suggestions only, applies nothing, drafts nothing; `docs/memory/`/`docs/specs/` paths are refused with docs-reorg-* pointers. No active change required. |
 | `/fab-switch` | Changes the active change by creating the `.fab-status.yaml` symlink. Supports partial/slug matching. |
 | `/fab-status` | Displays current change state — stage progress, plan counts (tasks + acceptance), suggested next command. |
 | `/docs-hydrate-specs` | Identifies gaps between `docs/memory/` and `docs/specs/`, proposes additions with interactive confirmation. No active change required. |
