@@ -93,7 +93,7 @@ This single preflight probe covers every later `wt create` call site; none is in
 1. Run `fab operator state` to read (or create, on first run) the server-keyed operator state file — the binary derives the path and persists the empty skeleton when missing; the operator never computes the path or hand-creates the file (`_cli-fab.md` § fab operator state). Old repo-rooted `.fab-operator.yaml` files are not read or migrated
 2. Restore monitored set, autopilot queue, branch_map, and notes from the file (supports `/clear` recovery)
 3. Run `fab pane map --all-sessions` and display the output (all sessions on this server, not just the operator's own)
-4. If any tracked items exist, start the single loop per §4 Adaptive cadence
+4. If any tracked items exist (monitored set, autopilot queue, watches, or an in-progress merge sequence — an open merge-sequence `coordination` note), start the single loop per §4 Adaptive cadence
 5. Output: `Operator ready.` (+ `Loop active ({interval}).` if loop started)
 
 ---
@@ -142,7 +142,7 @@ When `fab resolve` fails during a **user-initiated** action (not monitoring tick
 
 ## 4. The Loop
 
-The loop is the operator's heartbeat — a `/loop "operator tick"` that runs as long as the monitored set is non-empty, an autopilot queue is active, or any watch is configured. When all three are empty, stop the loop. The loop starts when the first change is enrolled, an autopilot queue begins, or a watch is created. A user prompt can also restart it.
+The loop is the operator's heartbeat — a `/loop "operator tick"` that runs as long as the monitored set is non-empty, an autopilot queue is active, any watch is configured, or a merge sequence is in progress (an open merge-sequence `coordination` note — §6 Auto-Merge Choreography rule 4). When all four are empty, stop the loop. The loop starts when the first change is enrolled, an autopilot queue begins, a watch is created, or a merge sequence starts. A user prompt can also restart it.
 
 **Adaptive cadence.** The heartbeat interval is **not fixed** — it adapts to whether any monitored agent is `waiting` (blocked on a human):
 
@@ -267,10 +267,10 @@ On each tick:
 
 2. **Auto-nudge** — for each `waiting` agent (and each idle agent as fallback), run question detection (§5 — `waiting` is the primary signal). (No post-intake `/git-branch` nudge — `/fab-new` Step 11 creates or renames the branch inline; only a detected branch/change mismatch warrants a `/git-branch` send, per §3 pre-send validation item 4.)
 3. **Watches** — for each watch, query the source, compare against `known` + `completed` (§7 step 2's dedupe rule), spawn on new matches (§7).
-4. **Autopilot dispatch** — if an autopilot queue is active, run the next autopilot action (§6). Autopilot-driven changes are visible in the frame via `▶`.
+4. **Autopilot dispatch** — if an autopilot queue is active, run the next autopilot action (§6); if a merge sequence is in progress, run its per-tick check (§6 Auto-Merge Choreography). Autopilot-driven changes are visible in the frame via `▶`.
 5. **Removals** — remove completed changes (reached stop stage or terminal stage) and dead panes from the monitored set via `fab operator remove`.
 6. **Observed-field updates** — per-tick changes to a monitored entry's `stage`/`agent`/`stop_stage` ride `fab operator update <change-id>` (the binary touches `last_transition` on a stage change). There is no whole-file persist step — every action above already persisted through its own verb.
-7. **Loop lifecycle** — stop when no tracked state remains; otherwise apply §4 Adaptive cadence (autopilot uses §6's cadence)
+7. **Loop lifecycle** — stop when no tracked state remains (monitored set, autopilot queue, watches, in-progress merge sequence); otherwise apply §4 Adaptive cadence (autopilot uses §6's cadence)
 
 Actions (nudges, removals, autopilot progress) render as an *italic* footnote line below the frame as they happen, `·`-separated, keeping them visually subordinate to the table frame:
 
@@ -608,7 +608,7 @@ At a glance: `▂▄▆` cherry-pick-ladder · `░▒▓█` merge-auto · `▄
 
   Every PR stands on main; each successive diff is taller because it carries cherry-picked copies of its predecessors (`a'`, `b'`) below the dotted line. All PRs held; merged base-first on "merge all".
 
-- **`merge-auto`** — merge-as-you-go: merge each PR on completion, then `git fetch origin` and rebase the next change onto `origin/{default_branch}` (the default branch resolved per Dependency Resolution step 0 — never a hardcoded `origin/main`). Implicit `--base` chaining is disabled in this mode — each change rebases onto `origin/{default_branch}` independently. Natural language equivalents: "merge as you go", "merge on complete", "merge each when done".
+- **`merge-auto`** — merge-as-you-go: **arm** each PR on completion (§6 Auto-Merge Choreography — a one-PR sequence position; all five rules apply) instead of merging and foreground CI-waiting; once the merge is verified on a later tick, `git fetch origin` and rebase the next change onto `origin/{default_branch}` (the default branch resolved per Dependency Resolution step 0 — never a hardcoded `origin/main`). Implicit `--base` chaining is disabled in this mode — each change rebases onto `origin/{default_branch}` independently. Natural language equivalents: "merge as you go", "merge on complete", "merge each when done".
 
   ```
       ┌───┐          ┌───┐          ┌───┐
@@ -617,7 +617,7 @@ At a glance: `▂▄▆` cherry-pick-ladder · `░▒▓█` merge-auto · `▄
          merged         merged         merged
   ```
 
-  Nothing coexists and nothing is held: the operator merges each PR into main the moment it lands (▼ into ●), main advances, and the next change starts from the advanced line — no batch review, no re-stacking.
+  Nothing coexists and nothing is held: the operator arms each PR the moment it lands and GitHub merges it into main when checks pass (▼ into ●), main advances, and the next change starts from the advanced line — no batch review, no re-stacking.
 
 - **`stacked-prs`** — `cherry-pick-ladder` merge timing (PRs created up front, merged only on explicit user request) with true stacked-PR topology for same-repo chains: the dependent's branch is created off its dependency's *branch* (no cherry-pick commit) and its PR targets the dependency's branch, so each PR diff shows only its own delta. Mechanics: same-repo resolution in Dependency Resolution below; merge-all choreography in Ordered Merge. Natural language equivalents: "stacked PRs", "stack the PRs".
 
@@ -643,7 +643,7 @@ The operator works each change through the pipeline. Pre-send validation (§3) a
 7. **Report** — `"ab12: PR ready. 1 of 3 complete. Starting cd34."`
 8. **(After all complete) Summary** — list all PR links with per-repo dependency annotations and per-repo merge order suggestion (see Queue Completion Summary below)
 
-In `merge-auto` mode, steps 5–8 merge the PR on completion, run `git fetch origin`, rebase the next change onto `origin/{default_branch}` (resolved per Dependency Resolution step 0), and report the merge.
+In `merge-auto` mode, steps 5–8 arm the just-shipped PR (§6 Auto-Merge Choreography) instead of foreground CI-waiting; once the merge is verified on a later tick, run `git fetch origin`, rebase the next change onto `origin/{default_branch}` (resolved per Dependency Resolution step 0), and report the merge.
 
 Autopilot-driven changes display `▶` in the status frame (§4). Queue progress is visible from the list — entries with `▶` and health `✅` are complete; the current entry shows health `🟢` while active or `🟡` while waiting.
 
@@ -663,11 +663,11 @@ For a single-item queue: `"ab12: PR ready. Queue complete."`
 
 #### Ordered Merge
 
-When the user says "merge all" or "merge the queue" after a `cherry-pick-ladder` or `stacked-prs` queue completes, the operator merges PRs respecting **per-repo PR sequences** — within each repo, base-first in dependency order; across repos, cross-repo ordering barriers are honored (a cross-repo dependent's PR is merged only after its barrier dependency reaches its target repo's main). It waits for CI to pass on each PR before proceeding to the next in that repo's sequence:
+When the user says "merge all" or "merge the queue" after a `cherry-pick-ladder` or `stacked-prs` queue completes, the operator merges PRs respecting **per-repo PR sequences** — within each repo, base-first in dependency order; across repos, cross-repo ordering barriers are honored (a cross-repo dependent's PR is merged only after its barrier dependency reaches its target repo's main). **The CI gate between merges depends on the mode**: in `cherry-pick-ladder`, merge-all runs the **Auto-Merge Choreography** below — arm each PR via GitHub auto-merge and verify the merge on later ticks, a passive tick check instead of a foreground wait. In `stacked-prs` — or whenever arming is unavailable (Auto-Merge Choreography rule 2) — the operator merges each PR itself and foreground-waits for CI to pass before proceeding to the next in that repo's sequence:
 
-1. Merge `~/code/foo` PR 1 (base) — wait for CI pass
-2. Merge `~/code/bar` PR 2 (its cross-repo barrier `foo:1` is now on main) — wait for CI pass
-3. Merge `~/code/foo` PR 3 — wait for CI pass
+1. Merge `~/code/foo` PR 1 (base) — CI gate per mode (arm + tick-verify, or foreground CI wait)
+2. Merge `~/code/bar` PR 2 (its cross-repo barrier `foo:1` is now on main) — CI gate per mode
+3. Merge `~/code/foo` PR 3 — CI gate per mode
 
 Report each merge with its repo: `"ab12: merged (foo 1/2)"`, `"cd34: merged (bar 1/1)"`, `"ef56: merged (foo 2/2)"`.
 
@@ -682,7 +682,7 @@ Report each merge with its repo: `"ab12: merged (foo 1/2)"`, `"cd34: merged (bar
 
    `{default_branch}` is resolved per Dependency Resolution step 0 — never a hardcoded `origin/main`. A conflict in this rebase **halts and escalates** (never silently skips), consistent with the cherry-pick-conflict policy.
 
-**CI failure during ordered merge (halt-dependents-only)**: If CI fails on a PR, the operator halts **that repo's merge sub-sequence** AND **any repo whose queued items carry a cross-repo `depends_on` into the failed chain — transitively**. "Dependent" is determined over the cross-repo `depends_on` graph: a repo halts if any of its queued items depends (directly, or via another already-halted item) on a PR in the failed chain. **Truly independent repos' sub-sequences continue merging.** The operator does not abandon the queue; it isolates the blast radius to the failure's dependency cone. On completion it reports which sub-sequences halted vs. completed and escalates the failure to the user:
+**CI failure during ordered merge (halt-dependents-only)**: If CI fails on a PR, the operator halts **that repo's merge sub-sequence** AND **any repo whose queued items carry a cross-repo `depends_on` into the failed chain — transitively**. In an armed sequence, every halt path first disarms the remaining armed PRs (Auto-Merge Choreography rule 5). "Dependent" is determined over the cross-repo `depends_on` graph: a repo halts if any of its queued items depends (directly, or via another already-halted item) on a PR in the failed chain. **Truly independent repos' sub-sequences continue merging.** The operator does not abandon the queue; it isolates the blast radius to the failure's dependency cone. On completion it reports which sub-sequences halted vs. completed and escalates the failure to the user:
 
 ```
 ab12: CI failed (~/code/foo). Halted: foo sub-sequence; bar (cross-repo dep into foo). Completed: baz sub-sequence (2 PRs merged). Fix foo and retry.
@@ -693,6 +693,22 @@ Autopilot state (queue, current, completed, mode) persists in the operator state
 **Failures**: review exhausted → skip. Rebase conflict mid-queue → skip (`merge-auto` only; does not apply in `cherry-pick-ladder` since there are no rebase steps). Rebase conflict during a `stacked-prs` merge-all → escalate (never skip). Cherry-pick conflict → escalate (do not skip). Pane dies → 1 respawn (`--reuse`), then skip. Stage timeout (>30m) → flag. Total timeout (>2h) → flag.
 
 **Interrupts**: "stop after current", "skip <change>", "pause", "resume" — acknowledged immediately, and persisted through the matching verb: `fab operator autopilot stop` once the current change lands (or immediately to abandon the queue), `advance --skip` (drop current without recording it completed), `pause`, `resume`.
+
+#### Auto-Merge Choreography
+
+The CI gate for `cherry-pick-ladder` merge-all (and `merge-auto`'s per-PR merge on completion) — the modes where PRs target main. Instead of merging and foreground-waiting for CI — the longest operator-busy stretches in the coordination lifecycle — the operator **arms** each PR with GitHub auto-merge (`gh pr merge --auto`, squash unless the user directs otherwise) and lets GitHub merge it when checks pass, verifying on later ticks. Arming is part of the user's confirmed merge-all — the "merge all" confirmation is the §3 Destructive-tier confirm for the whole sequence, so no per-PR re-confirmation is asked.
+
+**`stacked-prs` is excluded and keeps the manual merge-all above**: its inter-merge choreography (retarget-verify, `rebase --onto`, force-push) is operator-sequenced anyway, and an armed stacked PR can merge into its dependency's *branch* (destroying the stack silently) or fire on stale-green checks after GitHub's no-re-CI base retarget.
+
+All five rules are MUSTs:
+
+1. **Sequential arming.** At most one armed PR per repo-sequence. Arm PR_n only after PR_{n-1}'s merge is **verified** — a merge event on the PR's timeline, never an assumption. Never arm a PR whose base is another PR's branch.
+2. **Arming-failure shapes.** A draft PR MUST be readied first with `gh pr ready` (fab's `/git-pr` creates drafts, so this is every autopilot PR). An "already clean" rejection (the repo has no required checks, so auto-merge has nothing to wait for) → merge directly. Auto-merge disabled on the repo → fall back to the foreground CI-wait choreography above for the sequence.
+3. **Stall rule.** An armed PR still unmerged after 3 consecutive ticks → check `gh pr view --json mergeableState`; `CONFLICTING` → disarm and escalate. Auto-merge fails **silently** on conflicts — there is no event to observe, so the tick MUST poll.
+4. **Persisted sequence.** Starting a merge sequence MUST write a `kind: coordination` note (`fab operator note add --kind coordination`) recording the sequence, current position, and the armed PR — an armed PR **outlives the operator** (it survives `/clear`, crash, and abandonment), so the sequence must not live only in conversation. Update the note as the sequence advances (`fab operator note update`) and resolve it at sequence end (`fab operator note resolve`). A restarted operator re-orients from the note (§2 Init) and resumes verification/arming.
+5. **Disarm on halt.** Any halt or escalation — CI failure, stall, conflict, user "stop" — MUST run `gh pr merge --disable-auto` on the remaining armed PRs. The halt-dependents-only policy assumes unstarted merges stay unstarted, which armed auto-merge violates.
+
+**Per tick while a merge sequence is in progress** (an open merge-sequence `coordination` note): check the armed PR — merged (timeline event) → report, advance the note's position, and arm the next PR per rule 1 (readying a draft per rule 2); unmerged → count toward rule 3's stall threshold. This check rides the normal tick (§4 Tick Behavior step 4), so merge-all consumes no foreground attention between arms — and a merge sequence in progress is by itself a loop run-condition (§4): at merge-all time the autopilot queue is exhausted and the monitored set is typically empty, so without this condition the loop might not even be running to do the tick-verify work.
 
 ---
 
@@ -787,6 +803,6 @@ These settings are session-scoped and reset on `/clear` or session restart; they
 | Requires a git repo? | No — `fab operator` opens its window in the repo root inside a repo, else `os.Getwd()` (neutral parent dir). Errors only if both fail |
 | Requires a `fab/` project? | No — session command comes from the project's `providers.claude.interactive_command` when `fab/` is resolvable, else `spawn.DefaultSpawnCommand` (the template `claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`). No project `providers`/`agent:` block is read on a `fab/`-less launch |
 | Coordinating-agent model | Operator role — `fab operator` resolves the `operator` role (`agent.ResolveRole`; a Tier-1 role, so the `agent.session` knob picks its provider), reads that provider's `interactive_command`, injects the profile via `spawn.WithProfile` (**substitutes** into a `{model}`/`{effort}` template — the built-in claude default is templated — or **appends** `--model`/`--effort` to a plain command carrying no placeholder); falls back to the built-in operator profile + built-in claude provider on any failure (incl. no resolvable `fab/` project) |
-| Uses `/loop`? | Yes — adaptive heartbeat: `3m` normally, tightens to `90s` (§8) when any monitored agent is `waiting` (`@rk_agent_state`) or menu-waiting (capture fallback), relaxes back to `3m`; one loop at a time |
+| Uses `/loop`? | Yes — adaptive heartbeat: `3m` normally, tightens to `90s` (§8) when any monitored agent is `waiting` (`@rk_agent_state`) or menu-waiting (capture fallback), relaxes back to `3m`; one loop at a time; runs while any tracked state remains — monitored set, autopilot queue, watches, or an in-progress merge sequence (§4) |
 | Uses the operator state file? | Yes — monitored set + autopilot queue + branch map + notes persistence in the server-keyed path (§2 Init step 1); reads via `fab operator state`, every mutation through a `fab operator` verb — never a hand-write (§4 doctrine) |
 | Multi-repo / multi-session? | Yes — one operator per tmux server spans all its sessions and repos via the `(session, repo, pane)` addressing tuple |
