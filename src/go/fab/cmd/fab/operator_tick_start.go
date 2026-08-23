@@ -169,8 +169,10 @@ type tickDiffOutput struct {
 }
 
 func runOperatorTickStartDiff(cmd *cobra.Command) error {
-	// Capture time once so last_tick_at and stdout are consistent.
+	// Capture time once so last_tick_at, the baseline's last_transition, and
+	// stdout are consistent.
 	now := time.Now()
+	nowStr := now.UTC().Format(time.RFC3339)
 	tickCount := 0
 	out := tickDiffOutput{Deltas: []tickDelta{}, Candidates: []tickCandidate{}, Fleet: []tickFleetRow{}}
 
@@ -180,7 +182,7 @@ func runOperatorTickStartDiff(cmd *cobra.Command) error {
 	err := mutateOperatorState(func(data map[string]interface{}) error {
 		tickCount = nextTickCount(data)
 		data["tick_count"] = tickCount
-		data["last_tick_at"] = now.UTC().Format(time.RFC3339)
+		data["last_tick_at"] = nowStr
 
 		monitored := map[string]monitoredEntry{}
 		if err := operatorSection(data, "monitored", &monitored); err != nil {
@@ -198,7 +200,7 @@ func runOperatorTickStartDiff(cmd *cobra.Command) error {
 			return fmt.Errorf("tick --diff snapshot: %w", err)
 		}
 
-		diffMonitored(monitored, rows, &out)
+		diffMonitored(monitored, rows, &out, nowStr)
 		data["monitored"] = monitored
 		return nil
 	})
@@ -288,8 +290,10 @@ func joinedFleetRow(id string, e monitoredEntry, r paneRow) tickFleetRow {
 
 // diffMonitored joins the monitored baseline against the pane snapshot,
 // populates out (deltas/candidates/fleet), and applies the baseline update
-// in place (the caller writes monitored back in the same mutation).
-func diffMonitored(monitored map[string]monitoredEntry, rows []paneRow, out *tickDiffOutput) {
+// in place (the caller writes monitored back in the same mutation). now is
+// the tick's single captured timestamp (RFC 3339) so last_transition stays
+// consistent with last_tick_at.
+func diffMonitored(monitored map[string]monitoredEntry, rows []paneRow, out *tickDiffOutput, now string) {
 	byPane := make(map[string]paneRow, len(rows))
 	for _, r := range rows {
 		byPane[r.pane] = r
@@ -367,7 +371,7 @@ func diffMonitored(monitored map[string]monitoredEntry, rows []paneRow, out *tic
 			// the stage value changed (fab operator update's semantics).
 			if row.stage != entry.Stage {
 				entry.Stage = row.stage
-				entry.LastTransition = nowRFC3339()
+				entry.LastTransition = now
 			}
 		}
 		// agent ← snapshot agent state, verbatim (empty for unknown).

@@ -296,11 +296,12 @@ func TestOperatorTickDiff_BaselineUpdateSameWrite(t *testing.T) {
 	}
 
 	m := readMonitored(t, path)
-	// Stage changed → baseline advanced and last_transition refreshed.
+	// Stage changed → baseline advanced and last_transition refreshed to the
+	// tick's single captured timestamp (consistent with last_tick_at).
 	if e := m["a005"]; e.Stage != "review" || e.Agent != "waiting" {
 		t.Errorf("a005 = %+v, want stage review / agent waiting", e)
-	} else if e.LastTransition == "2026-01-01T00:00:00Z" {
-		t.Error("a005 last_transition not refreshed on stage change")
+	} else if e.LastTransition != state["last_tick_at"] {
+		t.Errorf("a005 last_transition = %q, want last_tick_at %v (single captured tick timestamp)", e.LastTransition, state["last_tick_at"])
 	}
 	// Stage unchanged → last_transition preserved, agent still updated.
 	if e := m["b006"]; e.Stage != "review" || e.Agent != "active" {
