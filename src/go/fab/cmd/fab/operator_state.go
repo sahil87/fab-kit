@@ -15,10 +15,10 @@ import (
 // Shared operator state-file IO. Every `fab operator` state subcommand reads
 // the whole file tolerantly (unknown TOP-LEVEL keys survive a read-modify-write
 // — the tick-start posture, so a legacy hand-drifted file never wedges the
-// operator) and re-marshals the four OWNED sections (monitored, autopilot,
-// branch_map, watches) from the typed structs below on mutation — an invented
-// field inside an owned section can neither be introduced nor survive a
-// mutation of that section. All writes go through atomicfile.WriteFile; all
+// operator) and re-marshals the five OWNED sections (monitored, autopilot,
+// branch_map, watches, notes) from the typed structs below on mutation — an
+// invented field inside an owned section can neither be introduced nor survive
+// a mutation of that section. All writes go through atomicfile.WriteFile; all
 // timestamps are computed here (RFC3339 UTC) — no subcommand accepts one.
 
 // monitoredEntry is one `monitored` entry — the fab-operator.md §4 schema,
@@ -173,6 +173,7 @@ func emptyOperatorState() map[string]interface{} {
 		"autopilot":  nil,
 		"branch_map": map[string]interface{}{},
 		"watches":    map[string]interface{}{},
+		"notes":      []interface{}{},
 	}
 }
 
@@ -183,6 +184,7 @@ func operatorStateCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE:  runOperatorState,
 	}
+	cmd.Flags().Bool("all", false, "include resolved notes in the notes list (excluded by default)")
 	cmd.Flags().Bool("json", false, "print the state as JSON instead of YAML")
 	return cmd
 }
@@ -211,13 +213,48 @@ func runOperatorState(cmd *cobra.Command, args []string) error {
 
 	w := cmd.OutOrStdout()
 	asJSON, _ := cmd.Flags().GetBool("json")
-	if !asJSON {
-		_, err = w.Write(raw)
-		return err
-	}
-	var data interface{}
+	showAll, _ := cmd.Flags().GetBool("all")
+
+	var data map[string]interface{}
 	if err := yaml.Unmarshal(raw, &data); err != nil {
 		return fmt.Errorf("cannot parse %s: %w", path, err)
+	}
+	notes, err := readNotes(data)
+	if err != nil {
+		return err
+	}
+	open := []noteEntry{}
+	hasResolved := false
+	for _, n := range notes {
+		if n.Resolved {
+			hasResolved = true
+		} else {
+			open = append(open, n)
+		}
+	}
+	// Resolved notes are excluded unless --all. Filtering re-marshals the
+	// parsed state; with nothing to filter the raw bytes print verbatim (the
+	// read never rewrites the file, and untouched files stay byte-stable).
+	filtering := hasResolved && !showAll
+	if filtering {
+		data["notes"] = open
+		if raw, err = yaml.Marshal(data); err != nil {
+			return fmt.Errorf("cannot marshal %s: %w", path, err)
+		}
+	}
+
+	if !asJSON {
+		// OPEN NOTES header — human output only: comment-prefixed so stdout
+		// stays parseable YAML for yq consumers. Omitted when nothing is open.
+		if len(open) > 0 {
+			now := time.Now().UTC()
+			fmt.Fprintf(w, "# OPEN NOTES (%d)\n", len(open))
+			for _, n := range open {
+				fmt.Fprintf(w, "# %s\n", formatNoteLine(n, now))
+			}
+		}
+		_, err = w.Write(raw)
+		return err
 	}
 	out, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
