@@ -203,7 +203,7 @@ A new `operator_tick_diff_test.go` (or extension of `operator_test.go`) SHALL co
 
 ### Phase 4: Coupled skill + doc updates
 
-- [ ] T009 Rewrite `src/kit/skills/fab-operator.md` §4 per R9: tick step 1 → `tick-start --diff` + deltas + fleet-sourced frame; step 2 population = `candidates:`; step 5 removals as level-triggered ack; step 6 `update` bookkeeping removed from the diff path (kept for non-baseline edits); § Operator State File read-cadence sentence corrected; Status Frame data-source note; the one-line version-skew fallback. §5/§ Notes/§6 untouched <!-- R9 -->
+- [x] T009 Rewrite `src/kit/skills/fab-operator.md` §4 per R9: tick step 1 → `tick-start --diff` + deltas + fleet-sourced frame; step 2 population = `candidates:`; step 5 removals as level-triggered ack; step 6 `update` bookkeeping removed from the diff path (kept for non-baseline edits); § Operator State File read-cadence sentence corrected; Status Frame data-source note; the one-line version-skew fallback. §5/§ Notes/§6 untouched <!-- R9 -->
 - [ ] T010 Update `src/kit/skills/_cli-fab.md` § fab operator tick-start with the `[--diff]` signature and full output/baseline-writer contract per R10 <!-- R10 -->
 - [ ] T011 Sweep: grep `pane map --all-sessions` + per-tick `fab operator state`/`update` claims across `docs/specs/` and `src/kit/skills/` (excluding `findings/`), update tick-mechanics restatements — known site `docs/specs/skills.md` § /fab-operator flow; leave §1 re-derive-before-action, §2 Init step 3, and memory files (hydrate) alone <!-- R11 -->
 
