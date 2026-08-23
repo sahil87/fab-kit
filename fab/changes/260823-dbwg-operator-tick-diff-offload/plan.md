@@ -215,46 +215,50 @@ A new `operator_tick_diff_test.go` (or extension of `operator_test.go`) SHALL co
 
 ### Functional Completeness
 
-- [ ] A-001 R1: `--diff` emits the pinned single-document contract; flagless `tick-start` output and writes are byte-identical
-- [ ] A-002 R2: level-triggered vs consumed-on-read classes behave per spec (re-emit vs consume)
-- [ ] A-003 R3: completion fires from the display-state/terminal-stage predicate incl. both `stop_stage` branches
-- [ ] A-004 R4: `pane_mismatch` emitted on recycled panes with `found`; mismatched panes never diffed/baselined/candidates
-- [ ] A-005 R5: `candidates:` is monitored-only, waiting-first, with `idle_duration`, unknown/active excluded
-- [ ] A-006 R6: `fleet:` carries all monitored entries with the nine fields and baseline fallback rows
-- [ ] A-007 R7: baseline + tick bookkeeping land in one atomic write; `last_transition` touched iff stage changed; unknown top-level keys survive; stale comment corrected
-- [ ] A-008 R8: `collectPaneRows` extracted, `fab pane map` byte-identical, existing panemap tests pass unmodified; `tickSnapshotRows` seam present
-- [ ] A-009 R9: skill §4 rewired (diff tick, fleet frame, candidates population, step-6 bookkeeping removed, skew fallback); §5 mechanics, § Notes, §6 untouched
-- [ ] A-010 R10: `_cli-fab.md` tick-start section documents `--diff` fully, in the same change
+- [x] A-001 R1: `--diff` emits the pinned single-document contract; flagless `tick-start` output and writes are byte-identical
+- [x] A-002 R2: level-triggered vs consumed-on-read classes behave per spec (re-emit vs consume)
+- [x] A-003 R3: completion fires from the display-state/terminal-stage predicate incl. both `stop_stage` branches
+- [x] A-004 R4: `pane_mismatch` emitted on recycled panes with `found`; mismatched panes never diffed/baselined/candidates
+- [x] A-005 R5: `candidates:` is monitored-only, waiting-first, with `idle_duration`, unknown/active excluded
+- [x] A-006 R6: `fleet:` carries all monitored entries with the nine fields and baseline fallback rows
+- [x] A-007 R7: baseline + tick bookkeeping land in one atomic write; `last_transition` touched iff stage changed; unknown top-level keys survive; stale comment corrected
+- [x] A-008 R8: `collectPaneRows` extracted, `fab pane map` byte-identical, existing panemap tests pass unmodified; `tickSnapshotRows` seam present
+- [x] A-009 R9: skill §4 rewired (diff tick, fleet frame, candidates population, step-6 bookkeeping removed, skew fallback); §5 mechanics, § Notes, §6 untouched
+- [x] A-010 R10: `_cli-fab.md` tick-start section documents `--diff` fully, in the same change
 
 ### Behavioral Correctness
 
-- [ ] A-011 R7: after the §4 rewrite, no skill step instructs a per-tick `fab operator update` stage/agent write (the under-reporting coupling is closed)
-- [ ] A-012 R9: the rewritten tick performs no per-tick `fab pane map` or `fab operator state` call (watch pass excepted)
+- [x] A-011 R7: after the §4 rewrite, no skill step instructs a per-tick `fab operator update` stage/agent write (the under-reporting coupling is closed)
+- [x] A-012 R9: the rewritten tick performs no per-tick `fab pane map` or `fab operator state` call (watch pass excepted)
 
 ### Scenario Coverage
 
-- [ ] A-013 R12: every R12 test case exists and passes via the two seams; the stage-string-unchanged completion case is explicitly covered
+- [x] A-013 R12: every R12 test case exists and passes via the two seams; the stage-string-unchanged completion case is explicitly covered
 
 ### Edge Cases & Error Handling
 
-- [ ] A-014 R1: empty monitored set → empty-list blocks, tick increments, snapshot subprocess skipped
-- [ ] A-015 R4: pane resolving to no change (null `found`) handled as mismatch, not death
-- [ ] A-016 R9: old-binary unknown-flag error routes to the documented flagless fallback line
+- [x] A-014 R1: empty monitored set → empty-list blocks, tick increments, snapshot subprocess skipped
+- [x] A-015 R4: pane resolving to no change (null `found`) handled as mismatch, not death
+- [x] A-016 R9: old-binary unknown-flag error routes to the documented flagless fallback line
 
 ### Code Quality
 
-- [ ] A-017 Pattern consistency: new Go follows the operator-verb file conventions (seam vars, `mutateOperatorState`, typed sections) and the skill edits follow owner-or-pointer (no restating owned rules alongside pointers)
-- [ ] A-018 No unnecessary duplication: snapshot logic reused via `collectPaneRows` — no second enumeration path; diff output structs defined once
-- [ ] A-019 Canonical source only: skill edits in `src/kit/skills/`, never `.claude/skills/`
-- [ ] A-020 CLI ⇒ docs + tests: `_cli-fab.md` updated and tests shipped in the same change (Constitution Additional Constraints)
-- [ ] A-021 Sibling sweep done up front: aggregate-spec restatements of the tick mechanics updated per R11 (findings/ excluded)
-- [ ] A-022 gofmt clean on all touched Go files
+- [x] A-017 Pattern consistency: new Go follows the operator-verb file conventions (seam vars, `mutateOperatorState`, typed sections) and the skill edits follow owner-or-pointer (no restating owned rules alongside pointers)
+- [x] A-018 No unnecessary duplication: snapshot logic reused via `collectPaneRows` — no second enumeration path; diff output structs defined once
+- [x] A-019 Canonical source only: skill edits in `src/kit/skills/`, never `.claude/skills/`
+- [x] A-020 CLI ⇒ docs + tests: `_cli-fab.md` updated and tests shipped in the same change (Constitution Additional Constraints)
+- [x] A-021 Sibling sweep done up front: aggregate-spec restatements of the tick mechanics updated per R11 (findings/ excluded)
+- [x] A-022 gofmt clean on all touched Go files
 
 ## Notes
 
 - Check items as you review: `- [x]`
 - All acceptance items must pass before `/fab-continue` (hydrate)
 - If an item is not applicable, mark checked and prefix with **N/A**: `- [x] A-NNN **N/A**: {reason}`
+
+## Deletion Candidates
+
+- None — this change adds new functionality without making existing code redundant. The one removal it performed (the skill's per-tick pane-map/state/`update` bookkeeping in `fab-operator.md` §4) was executed inline by the change itself; no dead Go code, config, or branches remain.
 
 ## Assumptions
 
@@ -271,7 +275,7 @@ A new `operator_tick_diff_test.go` (or extension of `operator_test.go`) SHALL co
 | 9 | Confident | Sweep excludes `docs/specs/findings/` (dated historical reviews) and the §1 re-derive-before-action + §2 Init orientation surfaces | Findings are point-in-time records; the on-demand pane-map surface is unchanged by design | S:70 R:85 A:85 D:80 |
 | 10 | Confident | `pane_mismatch.found` key emitted with `null` when the pane hosts no resolvable change (custom `MarshalYAML` on the delta) — key presence, not value alone, distinguishes "no change here" from "field n/a" | R1's pinned contract shows `found` nullable; a struct+omitempty cannot emit an explicit null, and null-vs-absent is the mismatch-subtype signal | S:65 R:85 A:85 D:70 |
 | 11 | Confident | Joined fleet rows fall back to the enrollment-record `repo` when the snapshot row's repo is unresolved; snapshot `session` taken as-is | Identity fields in the frame must never blank on a transient resolution miss; baseline repo is the stable enrollment record | S:60 R:80 A:80 D:70 |
-| 12 | Certain | No-baseline-stage entries (enrolled without `--stage`, stored stage `""`) diff against nothing — first `--diff` establishes the baseline silently | Same contract as enrollment-between-diffs (no synthetic events); `last_transition` untouched on the establishing write (no transition occurred) | S:85 R:80 A:85 D:85 |
+| 12 | Certain | No-baseline-stage entries (enrolled without `--stage`, stored stage `""`) diff against nothing — first `--diff` establishes the baseline silently | Same contract as enrollment-between-diffs (no synthetic events); `last_transition` IS touched on the establishing write — `""` → first-snapshot-stage counts as a stage change, matching `fab operator update`'s documented semantics (operator_monitored.go) per R7 <!-- corrected per review should-fix: text previously disagreed with the conforming code --> | S:85 R:80 A:85 D:85 |
 | 13 | Confident | Sweep scope extended to `src/kit/skills/_cli-external.md` § tmux pane-mapping note (restated the tick's per-tick snapshot as a pane-map call); canonical `fab-operator.md` intro + Monitored-Set re-derive sentence aligned in the same pass | code-quality.md sibling sweep: grep the old claim repo-wide in the class, not just the intake-named files | S:75 R:85 A:85 D:80 |
 
 13 assumptions (5 certain, 8 confident, 0 tentative).

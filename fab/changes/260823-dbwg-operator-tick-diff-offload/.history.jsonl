@@ -1,0 +1,9 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-23T18:22:11Z"}
+{"args":"Change 3 (Phase B1) of the operator offload plan: fab operator tick-start --diff (binary-owned tick diff: level-triggered + consumed-on-read deltas, candidates, fleet block, baseline write) coupled with the fab-operator.md §4 tick rewrite","cmd":"fab-new","event":"command","ts":"2026-08-23T18:22:11Z"}
+{"delta":"+4.7","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-08-23T18:24:12Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-08-23T18:25:01Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-23T18:26:18Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-23T18:33:14Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-23T18:44:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-23T18:47:31Z"}
+{"event":"review","result":"passed","ts":"2026-08-23T18:47:31Z"}
