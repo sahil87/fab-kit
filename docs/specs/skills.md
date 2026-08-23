@@ -1322,12 +1322,12 @@ User invokes /docs-reorg-specs
 
 **Purpose**: Review source-tree structure — folder shape, file placement, naming, consolidation — as a *prediction interface* and present an evidence-backed, ranked findings report. Fully read-only: suggestions only — applies nothing, drafts nothing, routes nothing; each proposal MAY carry an informational suggested-next-action line the skill never executes. Structure only — content duplication is pointed at `/fab-dedupe`, never clustered here. Declares `helpers: [_srad]` (SRAD grades proposal confidence).
 
-**Context**: Always-load layer; `fab/project/config.yaml` (`source_paths`), `constitution.md` + `code-quality.md` (derive the co-change mandated-coupling carve-out), `context.md` as the project's own convention frame. No preflight, no change artifacts.
+**Context**: Always-load layer; `fab/project/config.yaml` (`source_paths`), `constitution.md` + `code-quality.md` (derive the co-change mandated-coupling carve-out), `context.md` as the project's own convention frame. No `fab preflight` run (the Pre-flight step is only the config/constitution init check), no change artifacts.
 
-**Arguments**: `[<path>]` optional — a directory inside the repo; omitted → all `source_paths` swept as one combined scope, echoed with its file count. Path-based docs-tree carve-out: a path inside `docs/memory/` or `docs/specs/` is refused with a `/docs-reorg-memory` / `/docs-reorg-specs` pointer; everything else in the scope is in scope regardless of file type.
+**Arguments**: `[<path>]` optional — a directory inside the repo; omitted → all `source_paths` swept as one combined scope, echoed with its file count. Path-based docs-tree carve-out: a path inside `docs/memory/` or `docs/specs/` is refused with a `/docs-reorg-memory` / `/docs-reorg-specs` pointer; a scope containing either tree is swept with those subtrees pruned (noted in the scope echo); everything else in the scope is in scope regardless of file type.
 
 **Behavior**:
-1. Resolve and echo the scope (docs-tree carve-out applied)
+1. Resolve and echo the scope (docs-tree carve-out applied — refusal, or pruning for a containing scope)
 2. Gather signals — tree shape (depth, fan-out, singleton folders, junk drawers), sibling-naming inconsistency, static import-direction, and git co-change under mandatory noise controls (12-month window, >20-file bulk-commit cap, `-M` rename following, constitution-derived mandated-coupling carve-out, cross-layer whitelist) via a shipped worked command; shallow/absent history skips co-change with a report note
 3. Evaluate against frames in priority order ((a) `context.md` conventions, (b) ecosystem convention, (c) sibling consistency); the taste guard drops uncited findings, and frame-(c)-only findings require a quantified sibling majority
 4. Cluster findings into proposals — prediction failure, move/rename list, blast radius (breaking references + in-flight exposure from open branches/active changes), SRAD-graded confidence; package-scoped folder moves (e.g. Go package dirs) carry a mandatory elevated blast grade
@@ -1340,7 +1340,7 @@ User invokes /docs-reorg-specs
 ```text
 User invokes /code-reorg [<path>]
 ├─ Pre-flight: config.yaml + constitution.md → resolve scope (default: all source_paths combined) → echo scope + file count
-├─ [path in docs/memory/ or docs/specs/] STOP — pointer to /docs-reorg-memory / /docs-reorg-specs
+├─ [path in docs/memory/ or docs/specs/] STOP — pointer to /docs-reorg-memory / /docs-reorg-specs; [scope contains them] prune those subtrees
 ├─ Gather signals: tree shape · sibling naming · import-direction · co-change (window/cap/-M/carve-outs; [shallow history] skip with note)
 ├─ Evaluate vs frames (context.md → ecosystem → sibling consistency); taste guard drops uncited findings
 └─ Cluster proposals (blast radius + SRAD confidence) → ranked report → STOP (no Next: line)

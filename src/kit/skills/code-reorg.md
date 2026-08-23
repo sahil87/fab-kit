@@ -52,7 +52,7 @@ Resolution:
 - **Argument given** — resolve it relative to the repo root. It must exist and lie inside the repo, else STOP per § Error Handling.
 - **No argument** — default to all `source_paths` from `fab/project/config.yaml`, swept as **one combined scope** per run. If `source_paths` is missing or empty, STOP naming the config key.
 
-**Docs-tree carve-out (path-based, not content-based).** A resolved path inside `docs/memory/` or `docs/specs/` is **refused** with a pointer to `/docs-reorg-memory` / `/docs-reorg-specs` — those trees have FKF-aware sibling skills. These two trees are the only exclusions: everything else inside the scoped path is in scope regardless of file type. Markdown inside a source tree is just source, judged by the same placement/naming frames.
+**Docs-tree carve-out (path-based, not content-based).** A resolved path inside `docs/memory/` or `docs/specs/` is **refused** with a pointer to `/docs-reorg-memory` / `/docs-reorg-specs` — those trees have FKF-aware sibling skills. A scope that *contains* either tree (e.g. `.` or `docs/`) is accepted, but those two subtrees are **pruned** from the swept file set — record the pruning in the Step 1 scope echo. These two trees are the only exclusions: everything else inside the scoped path is in scope regardless of file type. Markdown inside a source tree is just source, judged by the same placement/naming frames.
 
 ---
 
@@ -68,10 +68,11 @@ Do **not** load change artifacts. There is no active change at this point.
 
 ### Step 1: Resolve and Echo the Scope
 
-Resolve the scope per § Arguments, applying the docs-tree carve-out. **Echo the resolved scope and its file count before analysis** — a silently mis-resolved scope wastes the whole run:
+Resolve the scope per § Arguments, applying the docs-tree carve-out (refusal, or pruning for a containing scope). **Echo the resolved scope and its file count before analysis** — a silently mis-resolved scope wastes the whole run — noting any pruned subtrees:
 
 ```
 Scope: src/ scripts/ (combined) — 214 files
+Scope: docs/ — 87 files (pruned: docs/memory/, docs/specs/)
 ```
 
 ### Step 2: Gather Signals
