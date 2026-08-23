@@ -15,7 +15,7 @@
 > The canonical schema is the Go field table in `src/go/fab/internal/configref/`; this doc is its
 > human-readable rationale. Defaults that have a Go symbol are sourced from that symbol, never
 > restated here or in the table. The values behind those symbols are single-sourced in
-> `src/go/fab/internal/agent/defaults.yaml` (embedded into the binary via `go:embed`). The embedded
+> `src/go/fab/defaults.yaml` (embedded into the binary via `go:embed`). The embedded
 > census is exactly: `defaults.yaml` (values) + `internal/configref` (schema/prose) +
 > `internal/configscope` (scope taxonomy) + `src/kit/scaffold/` (non-config files) — no stub copy of
 > the config exists anywhere.
@@ -68,7 +68,7 @@ command from `agent.DefaultInteractiveCommand`, the per-role profiles via `agent
 `agent.RoleNames()`, the stage names via `agent.StageNames()`. Those symbols are projections of one
 values file, not independent constants: the built-in tier's values — the two depth knobs' `claude`,
 the three `dispatch` defaults (`mode: native`, `column_width: 35`, `reap_done: true`), and the four
-providers' capability grammars and role fills — live in `src/go/fab/internal/agent/defaults.yaml`,
+providers' capability grammars and role fills — live in `src/go/fab/defaults.yaml`,
 embedded into the binary via `go:embed` and parsed once. The three dispatch values reach
 `internal/config` through its exported `DefaultDispatchMode` / `DefaultDispatchColumnWidth` /
 `DefaultDispatchReapDone`, which are **package-level vars carrying no literal of their own**, assigned
@@ -409,7 +409,7 @@ agent, operator, batch, spawn, prmeta — sees effective config with zero per-ca
 1. **environment** — YAML-valued variables derived from registry keys
 2. **system** — `~/.fab-kit/config.yaml` (co-located with the version cache; XDG path rejected — decision 5)
 3. **project** — `fab/project/config.yaml`
-4. **built-in defaults** — the values in `internal/agent`'s embedded `defaults.yaml` (read through
+4. **built-in defaults** — the values in the module-root embedded `defaults.yaml` (read through
    the Go symbols this spec's table references), applied at the
    existing point-of-use seams (`internal/agent`'s role/provider resolution, the nil-safe accessors)
    and projected as a materialized read-model tier by `configref.DefaultsMap` (below)

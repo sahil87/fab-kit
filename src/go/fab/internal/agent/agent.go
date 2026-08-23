@@ -14,7 +14,8 @@
 // The tables here are fab-kit's curated judgment, and they are split across two
 // files by whether a user can override them. The knobs and the provider table
 // (capability grammars plus every provider's per-role fills) are DATA: they live in defaults.yaml
-// (embedded below), shaped as a config-file fragment, and defaults.yaml is the
+// (at the module root, embedded there by the root fab package and parsed below),
+// shaped as a config-file fragment, and defaults.yaml is the
 // single place to bump when a new top model lands (the "Fable upgrade path"). The
 // stage→role mapping and the role→depth partition are POLICY: they stay Go maps
 // here and are NOT user-overridable (there is no stage_roles config and no
@@ -48,25 +49,26 @@
 package agent
 
 import (
-	_ "embed"
 	"fmt"
 	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
+	fabroot "github.com/sahil87/fab-kit/src/go/fab"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 )
 
 // defaultsYAML is fab-kit's built-in agent defaults — the depth knobs and the
 // provider table (capability grammars plus every provider's per-role fills) — compiled into the
-// binary. It is deliberately EMBEDDED rather than read from the kit cache at
-// runtime: kit and binary release atomically, so an on-disk read would gain
-// nothing and add a binary↔kit version-skew failure mode to a resolution path that
-// cannot fail today.
-//
-//go:embed defaults.yaml
-var defaultsYAML []byte
+// binary. The bytes are embedded by the module-root fab package (go:embed cannot
+// reach above the embedding package's directory, and the file lives at the module
+// root for visibility); this package owns all parsing and consumption. The
+// embed-over-kit-cache rationale lives on fabroot.DefaultsYAML. Copied rather
+// than aliased: DefaultsYAML is an exported mutable slice, and a fab-importing
+// package's init may legally run before this package's — the copy pins what
+// mustParseDefaults sees to the embedded bytes.
+var defaultsYAML = append([]byte(nil), fabroot.DefaultsYAML...)
 
 // builtinDefaults is defaultsYAML parsed once, at package initialization, into
 // the SAME struct config.LoadPath fills from a user's config.yaml. The file is

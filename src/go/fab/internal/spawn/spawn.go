@@ -19,7 +19,7 @@ import (
 // command the former plain form produced via append mode.
 //
 // A var, not a const, because the string it re-exports is now parsed from
-// internal/agent's embedded defaults.yaml rather than written as a Go literal.
+// the module-root embedded defaults.yaml (parsed by internal/agent) rather than written as a Go literal.
 var DefaultSpawnCommand = agent.DefaultInteractiveCommand
 
 // Command reads the default provider's interactive command from the given

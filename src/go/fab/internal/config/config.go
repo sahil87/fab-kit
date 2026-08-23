@@ -264,7 +264,7 @@ type AutopilotConfig struct {
 
 // The three built-in dispatch defaults. They are VARS carrying NO literal values
 // because they no longer own a value: the single value source for all three is the
-// `dispatch:` block of internal/agent's embedded defaults.yaml, and internal/agent's
+// `dispatch:` block of the module-root embedded defaults.yaml (parsed by internal/agent), and internal/agent's
 // init() assigns the parsed values into these vars (260809-wll4). The push runs
 // agent → config because agent imports config — config cannot read the values back
 // without an import cycle — so agent owning the value is the only direction the
@@ -299,7 +299,7 @@ var (
 	// topology `fab operator autopilot start` adopts when neither its --mode flag
 	// nor a configured preference names one. Like the dispatch defaults above it
 	// is a VAR carrying NO literal: the single value source is the `autopilot:`
-	// block of internal/agent's embedded defaults.yaml, pushed in by
+	// block of the module-root embedded defaults.yaml (parsed by internal/agent), pushed in by
 	// internal/agent's init(). It is the canonical symbol both
 	// GetAutopilotMergeMode and internal/configref consume.
 	DefaultAutopilotMergeMode string
