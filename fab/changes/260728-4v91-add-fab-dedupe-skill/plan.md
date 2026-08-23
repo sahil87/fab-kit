@@ -405,7 +405,7 @@ Adding a skill that declares `helpers: [_generation, _srad, _intake]` makes it a
 ## Deletion Candidates
 
 - `fab/backlog.md` `[ruaw]` (inventory layer) — the curated-inventory half is superseded by `/fab-dedupe`; the entry was correctly annotated rather than deleted because its process residue (reuse ledger, apply-entry priming, `reuse` acceptance category) is still unbuilt. No deletion recommended, but the residue should be re-scoped to a narrower entry once consumed.
-- `fab/plans/sahil/reuse-awareness-codemap.md` (Part 1 section) — the standing plan document this change's Part 1 supersedes. Not touched by this change; it remains the `[cmap]` pickup detail for Part 2, so deleting Part 1 in isolation would orphan Part 2's context. Candidate for a trim, not a delete.
+- `fab/plans/sahil/26-07-22-reuse-awareness-codemap.md` (Part 1 section) — the standing plan document this change's Part 1 supersedes. Not touched by this change; it remains the `[cmap]` pickup detail for Part 2, so deleting Part 1 in isolation would orphan Part 2's context. Candidate for a trim, not a delete.
 - Nothing else — the change adds a skill, one registry row, and one taxonomy entry. No existing function, branch, or config key was made redundant.
 
 ## Assumptions

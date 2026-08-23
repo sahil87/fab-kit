@@ -6,12 +6,12 @@
 ## Origin
 
 One-shot `/fab-new` dispatch from the operator, implementing **Change 3** of the plan
-document `fab/plans/sahil/config-overhaul.md` (all decisions user-confirmed 2026-08-08
+document `fab/plans/sahil/26-08-08-config-overhaul.md` (all decisions user-confirmed 2026-08-08
 in a `/fab-discuss` session; see that plan's § Change 3, § Orchestration, and
 § Resolved decisions — items 4, 5, 6 are this change's charter).
 
 > Implement Change 3 (dispatch.mode: the descent ladder + capability delink) of
-> fab/plans/sahil/config-overhaul.md — read that full section plus the Orchestration and
+> fab/plans/sahil/26-08-08-config-overhaul.md — read that full section plus the Orchestration and
 > Resolved Decisions sections for scope, decisions, obligations, and rejected
 > alternatives. This is described in the plan as the semantic heart and the largest
 > sweep class of the six changes — treat the whole watchable/presence-signal mirror

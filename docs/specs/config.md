@@ -2,7 +2,7 @@
 
 > **Status:** Design intent (pre-implementation, Constitution VI). This spec is human-curated. It
 > records the config-system schema decisions resolved in the 2026-07-08 `/fab-discuss` session and
-> written up in the config-upgrade effort's backlog doc (`fab/plans/sahil/config-upgrade.md`, all six
+> written up in the config-upgrade effort's backlog doc (`fab/plans/sahil/26-07-08-config-upgrade.md`, all six
 > decisions user-confirmed). It is written across the **three-change** config-upgrade effort:
 > **Change 1** (260708-ff2v) — the per-field metadata table + `fab config explain` restructure +
 > `--json` — **Change 2** (260708-lpb5) — the four-tier environment > system > project > built-in cascade resolution + scope enforcement +

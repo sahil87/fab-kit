@@ -7,9 +7,9 @@
 
 One-shot `/fab-new` invocation picking up the final change of the config-overhaul series:
 
-> Config-overhaul Change 5 (source consolidation) per fab/plans/sahil/config-overhaul.md and backlog [x3cf] item 5: dispatch constants -> defaults.yaml, retire the fab-kit stub config.yaml, add config upgrade --check drift mode, add fence scope annotations, fix the show --origin knob-blind bug; plus the folded items -- config init --print/--force flags, and a config-file prose diet (short per-field fence lines pointing at fab config explain).
+> Config-overhaul Change 5 (source consolidation) per fab/plans/sahil/26-08-08-config-overhaul.md and backlog [x3cf] item 5: dispatch constants -> defaults.yaml, retire the fab-kit stub config.yaml, add config upgrade --check drift mode, add fence scope annotations, fix the show --origin knob-blind bug; plus the folded items -- config init --print/--force flags, and a config-file prose diet (short per-field fence lines pointing at fab config explain).
 
-The authoritative design is `fab/plans/sahil/config-overhaul.md` § Change 5 (all decisions user-confirmed 2026-08-08/09). All prerequisite changes are **merged into main and present on this branch**: C1 env layer (#553), C2 six-verb surface (#555), C3 dispatch.mode ladder (#554), C4 field renames (#560), and the fp02 config read-model redesign (#557).
+The authoritative design is `fab/plans/sahil/26-08-08-config-overhaul.md` § Change 5 (all decisions user-confirmed 2026-08-08/09). All prerequisite changes are **merged into main and present on this branch**: C1 env layer (#553), C2 six-verb surface (#555), C3 dispatch.mode ladder (#554), C4 field renames (#560), and the fp02 config read-model redesign (#557).
 
 **Scope correction applied at intake**: the prompt's "fix the show --origin knob-blind bug" (plan item 5) is **dropped** — fp02 subsumed it (user-confirmed in fp02's intake: "remaining C5 items must rebase on this and drop those two"). Verified in the current source: `cmd/fab/config.go` `readModelDefaults` composes `configref.DefaultsMapFor(cfg)` against the live config, so the derived per-role provider rows already report the provider a depth knob selects. This change implements plan items **1, 2, 3, 4, 6, 7**.
 
@@ -106,7 +106,7 @@ Already shipped by fp02 (#557, merged). No work here; the `_shared/configuration
 
 ## Open Questions
 
-*(none — all design decisions user-confirmed in fab/plans/sahil/config-overhaul.md, 2026-08-08/09)*
+*(none — all design decisions user-confirmed in fab/plans/sahil/26-08-08-config-overhaul.md, 2026-08-08/09)*
 
 ## Assumptions
 

@@ -70,7 +70,7 @@ Every live reference to the mirror tree SHALL be removed or rewritten:
 - `docs/memory/_shared/context-loading.md` — drop the `SPEC-_preamble.md` parenthetical (line 93)
 - `docs/memory/runtime/operator.md` — trim the dead "three SPEC mirrors were aligned" clause in the `_cli-external` Design Decision (line 460)
 - `docs/specs/fkf.md` — fix the live claims at lines 204 and 229
-- `fab/plans/sahil/skill-prose-consolidation.md` — update execution constraint 1 and the line ~398 sweep-checklist item
+- `fab/plans/sahil/26-08-08-skill-prose-consolidation.md` — update execution constraint 1 and the line ~398 sweep-checklist item
 
 - **GIVEN** the intake's live-reference inventory
 - **WHEN** the sweep completes
@@ -129,7 +129,7 @@ Nothing under `.claude/skills/` SHALL be edited (canonical source is `src/kit/sk
 
 - [x] T006 Delete `docs/specs/skills/` (36 files) and remove the `skills/` row from `docs/specs/index.md` <!-- R4 -->
 - [x] T007 Sweep memory files: `docs/memory/memory-docs/specs-index.md`, `docs/memory/pipeline/dedupe.md`, `docs/memory/pipeline/execution-skills.md`, `docs/memory/_shared/context-loading.md`, `docs/memory/runtime/operator.md` <!-- R7 -->
-- [x] T008 Sweep `docs/specs/fkf.md` (lines 204, 229) and `fab/plans/sahil/skill-prose-consolidation.md` (constraint 1, sweep-checklist item) <!-- R7 -->
+- [x] T008 Sweep `docs/specs/fkf.md` (lines 204, 229) and `fab/plans/sahil/26-08-08-skill-prose-consolidation.md` (constraint 1, sweep-checklist item) <!-- R7 -->
 
 ### Phase 4: Verify
 
@@ -183,7 +183,7 @@ Nothing under `.claude/skills/` SHALL be edited (canonical source is `src/kit/sk
 | 1 | Certain | Fold shape per section: short header line + fenced Flow diagram + Tools/Sub-agents one-liners only where informative, appended at the end of each `## /<skill>` section | Intake specifies the skeleton shape (title + short header + Flow + Tools + Sub-agents) and the add-information filter; title/heading already exists as the section heading | S:90 R:80 A:85 D:85 |
 | 2 | Confident | Partial skeletons folded into § Skill Helpers as compact per-partial subsections for `_preamble`, `_generation`, `_intake`, `_pipeline`, `_review`, `_srad`; `_cli-fab`/`_cli-external`/`_cli-agents` dropped (no Flow) | Intake assumption row 7 — "only where it carries a real flow that adds information"; the six carry real flows, the three reference partials do not | S:40 R:85 A:65 D:55 |
 | 3 | Confident | `docs/memory/runtime/operator.md` line 503's `*Introduced by*: 260811-xy7a-... (migrated from the condensed SPEC mirrors)` provenance citation stays — citation-only provenance is allowed by FKF §3.3 | Only line 460's dead clause is in the sweep inventory; provenance citations are not live claims | S:70 R:90 A:75 D:70 |
-| 4 | Certain | `fab/plans/sahil/skill-prose-consolidation.md` constraint 1 and the sweep-checklist item are rewritten (not deleted) to drop the mirror requirement while keeping the plan's other constraints intact | The plan is a live execution doc; its mirror constraints are dead rules but the surrounding constraints stay valid | S:80 R:85 A:85 D:80 |
-| 5 | Confident | The final grep surfaced three live sites beyond the intake inventory, swept the same way: `fab/plans/sahil/reuse-awareness-codemap.md:119` and `fab/plans/sahil/agent-state-divestment.md:121` (live plan docs — same class as skill-prose-consolidation.md) and the open `[ ]` backlog entry `[ruaw]`'s dead "full SPEC-mirror sweep" surface phrase; `docs/findings/index.md`'s dated review-round summary and the constitution's dated amendment annotations stay as historical records | The intake's sweep rule is "update every live reference"; plan docs and an open backlog entry are live, dated findings/annotation records are not | S:65 R:85 A:80 D:75 |
+| 4 | Certain | `fab/plans/sahil/26-08-08-skill-prose-consolidation.md` constraint 1 and the sweep-checklist item are rewritten (not deleted) to drop the mirror requirement while keeping the plan's other constraints intact | The plan is a live execution doc; its mirror constraints are dead rules but the surrounding constraints stay valid | S:80 R:85 A:85 D:80 |
+| 5 | Confident | The final grep surfaced three live sites beyond the intake inventory, swept the same way: `fab/plans/sahil/26-07-22-reuse-awareness-codemap.md:119` and `fab/plans/sahil/26-07-06-agent-state-divestment.md:121` (live plan docs — same class as skill-prose-consolidation.md) and the open `[ ]` backlog entry `[ruaw]`'s dead "full SPEC-mirror sweep" surface phrase; `docs/findings/index.md`'s dated review-round summary and the constitution's dated amendment annotations stay as historical records | The intake's sweep rule is "update every live reference"; plan docs and an open backlog entry are live, dated findings/annotation records are not | S:65 R:85 A:80 D:75 |
 
 5 assumptions (2 certain, 3 confident, 0 tentative).

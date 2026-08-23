@@ -63,7 +63,7 @@ Grep pattern: `docs/specs/skills/` and `SPEC-*.md`-style names. Repo-wide grep w
 - `docs/memory/memory-docs/specs-index.md` — § Per-Skill SPEC Mirrors (lines ~41–45: tree description, naming convention) and the Design Decision "docs-reorg-specs exempts `docs/specs/skills/SPEC-*.md` from reorganization" (line ~57). Rewrite to present truth: the mirror tree no longer exists; skeletons live in `skills.md`.
 - `docs/memory/pipeline/dedupe.md` — line 19's mirror sentence ("Its mirror is `docs/specs/skills/SPEC-fab-dedupe.md`, updated when ...").
 - `docs/memory/pipeline/execution-skills.md` — line 67's trailing clause ("... mirrored into `docs/specs/skills/SPEC-git-pr.md`'s Flow tree").
-- `fab/plans/sahil/skill-prose-consolidation.md` — execution constraint 1 (line ~38, the mirror-update-in-same-change constraint) and the line ~398 sweep-checklist item (`ls docs/specs/skills/SPEC-*.md` against every touched skill).
+- `fab/plans/sahil/26-08-08-skill-prose-consolidation.md` — execution constraint 1 (line ~38, the mirror-update-in-same-change constraint) and the line ~398 sweep-checklist item (`ls docs/specs/skills/SPEC-*.md` against every touched skill).
 
 **Additional live sites found by the intake grep:**
 
@@ -92,7 +92,7 @@ Grep pattern: `docs/specs/skills/` and `SPEC-*.md`-style names. Repo-wide grep w
 ## Impact
 
 - **Scope**: markdown-only; zero Go, zero scripts, zero tests. ~36 file deletions (558 lines) + ~14 file edits.
-- **Files edited**: `docs/specs/skills.md` (largest edit — 27 skeleton folds + checklist + one link), `docs/specs/index.md`, `docs/specs/fkf.md`, `fab/project/constitution.md`, `fab/project/code-review.md`, `fab/project/code-quality.md`, `src/kit/skills/docs-reorg-specs.md`, 5 memory files (+ regenerated indexes/log via `fab memory-index`), `fab/plans/sahil/skill-prose-consolidation.md`.
+- **Files edited**: `docs/specs/skills.md` (largest edit — 27 skeleton folds + checklist + one link), `docs/specs/index.md`, `docs/specs/fkf.md`, `fab/project/constitution.md`, `fab/project/code-review.md`, `fab/project/code-quality.md`, `src/kit/skills/docs-reorg-specs.md`, 5 memory files (+ regenerated indexes/log via `fab memory-index`), `fab/plans/sahil/26-08-08-skill-prose-consolidation.md`.
 - **Governance**: constitution version 1.5.0 → 1.6.0 (normative MUST rule removed); the code-review must-fix rule set shrinks by one; the code-quality sweep-class list shrinks by one.
 - **Constraints honored**: `.claude/skills/` (deployed copies) untouched; `src/kit/skills/docs-reorg-specs.md` edit is a canonical-source edit; markdown-only artifacts (Constitution IV).
 - **Risk**: low — all content deleted is either duplicated (memory coverage verified by xy7a's audit) or being relocated into `skills.md`; everything is git-recoverable.

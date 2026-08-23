@@ -5,7 +5,7 @@
 
 ## Origin
 
-> Implement Change 6 (FAB_KIT_PATH: session-scoped kit-resolution override for kit development) of `fab/plans/sahil/config-overhaul.md` — read that full section plus the Orchestration and Resolved Decisions sections for scope, decisions, obligations, and rejected alternatives. This change is edge-free and independent of every other change in the plan per the dependency map — it touches a different seam (the shim + kit-path resolution) and mostly a different binary, with only trivial adjacency in `_cli-fab.md` and doctor output. Changes 1, 2, and 3 are running in parallel in sibling worktrees off the same base commit; proceed independently of them.
+> Implement Change 6 (FAB_KIT_PATH: session-scoped kit-resolution override for kit development) of `fab/plans/sahil/26-08-08-config-overhaul.md` — read that full section plus the Orchestration and Resolved Decisions sections for scope, decisions, obligations, and rejected alternatives. This change is edge-free and independent of every other change in the plan per the dependency map — it touches a different seam (the shim + kit-path resolution) and mostly a different binary, with only trivial adjacency in `_cli-fab.md` and doctor output. Changes 1, 2, and 3 are running in parallel in sibling worktrees off the same base commit; proceed independently of them.
 
 One-shot `/fab-new` invocation against a fully-resolved plan document (all decisions user-confirmed 2026-08-08 in a `/fab-discuss` session; Change 6 folded in from backlog `[kpth]` the same day). Backlog anchor for the whole plan: `[x3cf]`. The pipeline is directed to continue autonomously through `/fab-fff` after intake.
 
@@ -73,7 +73,7 @@ Known edge (documented, not engineered around): `wt`'s `WORKTREE_INIT_SCRIPT="fa
 - `docs/specs/config.md`: an env-override note recording that `FAB_KIT_PATH` is deliberately **not** a registry field (decision 14) — kit resolution happens before the config cascade exists; env-only by design.
 - Memory `docs/memory/distribution/kit-architecture.md`: the kit-resolution sections (fab-go kitpath, fab-kit cache/sync pipeline) gain the override contract.
 - Memory `docs/memory/distribution/distribution.md`: sync/doctor/upgrade-repo behavior descriptions updated where they restate the affected output/refusal contracts.
-- `fab/plans/sahil/config-overhaul.md` is a plan artifact — leave it untouched (its Change 6 section remains the historical design record).
+- `fab/plans/sahil/26-08-08-config-overhaul.md` is a plan artifact — leave it untouched (its Change 6 section remains the historical design record).
 
 ### 7. Tests
 

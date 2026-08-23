@@ -6,7 +6,7 @@
 ## Origin
 
 > Implement Change 1 (per-session selection: the env override layer + launch flags) of
-> `fab/plans/sahil/config-overhaul.md` — read that full section plus the Orchestration and
+> `fab/plans/sahil/26-08-08-config-overhaul.md` — read that full section plus the Orchestration and
 > Resolved Decisions sections for scope, decisions, obligations, and rejected alternatives.
 > Changes 2, 3, and 6 are running in parallel in sibling worktrees off the same base commit;
 > this change has zero dependency on them per the plan's dependency map, so proceed
@@ -17,7 +17,7 @@
 
 One-shot `/fab-new` invocation dispatched by the operator off backlog `[x3cf]`. All design
 decisions were resolved in the 2026-08-08 `/fab-discuss` sessions and recorded in
-`fab/plans/sahil/config-overhaul.md` (§ Change 1, § Orchestration, § Resolved decisions
+`fab/plans/sahil/26-08-08-config-overhaul.md` (§ Change 1, § Orchestration, § Resolved decisions
 items 11–13); that plan doc is the authoritative design source for this intake.
 
 **Parallel-worktree discipline** (operator instruction, binding on apply/review): Changes 2

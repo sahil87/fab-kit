@@ -62,7 +62,7 @@ import (
 
 // fenceWidth is the total column width the anchor lines are dash-padded to, so the
 // BEGIN and END rules line up as a visible box (matching the worked example in
-// fab/plans/sahil/config-upgrade.md § The fence).
+// fab/plans/sahil/26-07-08-config-upgrade.md § The fence).
 const fenceWidth = 76
 
 // beginPrefix / endPrefix are the byte-exact splice-anchor prefixes. The full

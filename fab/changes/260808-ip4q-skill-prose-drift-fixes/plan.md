@@ -113,7 +113,7 @@ Every touched `src/kit/skills/*.md` file MUST have its corresponding `docs/specs
 
 ### Non-Goals
 
-- Phases 2–4 of `fab/plans/sahil/skill-prose-consolidation.md` are excluded.
+- Phases 2–4 of `fab/plans/sahil/26-08-08-skill-prose-consolidation.md` are excluded.
 - No Go implementation, test, migration, or `docs/memory/` change is part of this apply stage.
 - Existing dispatch restatements are not broadly consolidated; Phase 1 only corrects the verified defects with minimal pointers.
 

@@ -10,7 +10,7 @@
 > keys in the Go config registry.
 
 Produced by a `/fab-discuss` session on 2026-07-28 that began as a review of
-`fab/plans/sahil/reuse-awareness-codemap.md` (the `[ruaw]` / `[cmap]` backlog pair) and
+`fab/plans/sahil/26-07-22-reuse-awareness-codemap.md` (the `[ruaw]` / `[cmap]` backlog pair) and
 converged on a narrower, shippable skill. The session's decision trail:
 
 1. **Review of the existing plan** surfaced that Part 2 (`fab codemap`, a Go subsystem with

@@ -7,9 +7,9 @@
 
 One-shot `/fab-new` invocation executing Change 4 of the config-overhaul plan:
 
-> Config overhaul Change 4: rename providers config fields session_command/dispatch_command to interactive_command/headless_command with read-time alias, on-disk migration, and full kit-text sweep per fab/plans/sahil/config-overhaul.md Change 4.
+> Config overhaul Change 4: rename providers config fields session_command/dispatch_command to interactive_command/headless_command with read-time alias, on-disk migration, and full kit-text sweep per fab/plans/sahil/26-08-08-config-overhaul.md Change 4.
 
-All design decisions were resolved and user-confirmed in the 2026-08-08 `/fab-discuss` session recorded in `fab/plans/sahil/config-overhaul.md` (§ Change 4 and § Resolved decisions items 6–7). This intake transfers that plan section plus the current-repo state facts an implementing agent needs.
+All design decisions were resolved and user-confirmed in the 2026-08-08 `/fab-discuss` session recorded in `fab/plans/sahil/26-08-08-config-overhaul.md` (§ Change 4 and § Resolved decisions items 6–7). This intake transfers that plan section plus the current-repo state facts an implementing agent needs.
 
 **Ordering context (verified against this branch, 2026-08-09)**: the plan's hard edge C3 → C4 is satisfied — Change 3 (`dispatch.mode` descent ladder, 260808-yilt) is merged and released in v2.18.1, as are Change 1 (env override layer, #553), Change 2 (six-verb `fab config` surface, #555), the config read-model redesign (#557), and the provider-roster change (#559: gemini removed; agy and kimi added). This change therefore lands on the post-C3 names and sweeps C3's text, exactly as the plan's recommended 3 → 4 order intends. Change 5 (source consolidation) is deliberately after this one.
 
@@ -81,7 +81,7 @@ Current hit counts (2026-08-09, this branch) for `session_command|dispatch_comma
 
 - Memory index descriptions: any file whose `description:` frontmatter mentions the old names gets its frontmatter edited; regenerate indexes with `fab memory-index` (index files are generated — never hand-edit).
 - The sweep also owns C3's text (the ladder prose that says "pane needs tmux + session_command" etc. across `_preamble.md` § CLI-Adapter Dispatch, specs, memory) and the post-plan provider roster: the agy/kimi "NO session_command" rationale blocks become "NO interactive_command" (the plan predates #559's gemini→agy/kimi swap; the sweep binds to the *current* roster, not the plan's examples).
-- `fab/plans/sahil/config-overhaul.md` itself is a historical planning record — not swept (its Change 1 comment "(fields renamed interactive_command/headless_command by Change 4)" already anticipates this change).
+- `fab/plans/sahil/26-08-08-config-overhaul.md` itself is a historical planning record — not swept (its Change 1 comment "(fields renamed interactive_command/headless_command by Change 4)" already anticipates this change).
 - **Out of scope**: `dispatch.mode`'s **value** `headless` and the `fab dispatch` command family keep their names — the rename disambiguates the *field* from them; it does not touch them.
 
 ## Affected Memory
@@ -108,7 +108,7 @@ Current hit counts (2026-08-09, this branch) for `session_command|dispatch_comma
 
 ## Open Questions
 
-None — all design decisions were resolved and user-confirmed in `fab/plans/sahil/config-overhaul.md` (2026-08-08 session), and the ordering precondition (C3 merged) is verified against this branch.
+None — all design decisions were resolved and user-confirmed in `fab/plans/sahil/26-08-08-config-overhaul.md` (2026-08-08 session), and the ordering precondition (C3 merged) is verified against this branch.
 
 ## Assumptions
 

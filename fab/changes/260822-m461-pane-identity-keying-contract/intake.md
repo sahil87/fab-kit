@@ -5,7 +5,7 @@
 
 ## Origin
 
-> Source: **`fab/plans/sahil/pane-identity-keying.md`** — a backlog detail doc written
+> Source: **`fab/plans/sahil/26-08-22-pane-identity-keying.md`** — a backlog detail doc written
 > 2026-08-22 after a run-kit discussion session on pane-map keying. Its findings were
 > verified against fab-kit HEAD (`cmd/fab/panemap.go`, `internal/dispatch/dispatch.go`)
 > and run-kit HEAD (`internal/sessions/fabstate.go`) on that date; the doc itself

@@ -45,7 +45,7 @@ A migration file MUST rewrite the old keys to the new keys in both project and s
 - **GIVEN** an existing `fab/project/config.yaml` with `session_command`
 - **WHEN** `/fab-setup migrations` runs the `2.18.1-to-2.19.0.md` migration
 - **THEN** it SHALL rewrite it to `interactive_command` preserving values and comments
-- **AND** historical migration files and `fab/plans/sahil/config-overhaul.md` MUST stay verbatim
+- **AND** historical migration files and `fab/plans/sahil/26-08-08-config-overhaul.md` MUST stay verbatim
 
 ### Docs & Memory: Kit-text sweep
 
