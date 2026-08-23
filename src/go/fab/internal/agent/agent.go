@@ -64,8 +64,11 @@ import (
 // binary. The bytes are embedded by the module-root fab package (go:embed cannot
 // reach above the embedding package's directory, and the file lives at the module
 // root for visibility); this package owns all parsing and consumption. The
-// embed-over-kit-cache rationale lives on fabroot.DefaultsYAML.
-var defaultsYAML = fabroot.DefaultsYAML
+// embed-over-kit-cache rationale lives on fabroot.DefaultsYAML. Copied rather
+// than aliased: DefaultsYAML is an exported mutable slice, and a fab-importing
+// package's init may legally run before this package's — the copy pins what
+// mustParseDefaults sees to the embedded bytes.
+var defaultsYAML = append([]byte(nil), fabroot.DefaultsYAML...)
 
 // builtinDefaults is defaultsYAML parsed once, at package initialization, into
 // the SAME struct config.LoadPath fills from a user's config.yaml. The file is
