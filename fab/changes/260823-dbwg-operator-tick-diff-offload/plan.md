@@ -198,8 +198,8 @@ A new `operator_tick_diff_test.go` (or extension of `operator_test.go`) SHALL co
 
 ### Phase 3: Integration & Edge Cases
 
-- [ ] T007 Write `src/go/fab/cmd/fab/operator_tick_diff_test.go`: all R12 cases via the `operatorStatePathOverride` + `tickSnapshotRows` seams (event kinds, re-emit-until-remove, display-state completion + stop_stage ordering, same-write baseline + unknown-key survival, candidate ordering/exclusions, fleet shape + fallback row, empty-monitored short-circuit asserting the snapshot fn is not called, flagless byte-identical) <!-- R12 -->
-- [ ] T008 Run `gofmt -l src/go/fab/` (must be clean) and `go test ./src/go/fab/cmd/fab/` — all new and existing tests green (existing panemap tests unmodified per R8) <!-- R12 -->
+- [x] T007 Write `src/go/fab/cmd/fab/operator_tick_diff_test.go`: all R12 cases via the `operatorStatePathOverride` + `tickSnapshotRows` seams (event kinds, re-emit-until-remove, display-state completion + stop_stage ordering, same-write baseline + unknown-key survival, candidate ordering/exclusions, fleet shape + fallback row, empty-monitored short-circuit asserting the snapshot fn is not called, flagless byte-identical) <!-- R12 -->
+- [x] T008 Run `gofmt -l src/go/fab/` (must be clean) and `go test ./src/go/fab/cmd/fab/` — all new and existing tests green (existing panemap tests unmodified per R8) <!-- R12 -->
 
 ### Phase 4: Coupled skill + doc updates
 
