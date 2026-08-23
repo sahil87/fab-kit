@@ -1,0 +1,55 @@
+id: dckc
+name: 260823-dckc-pane-questions-sweep
+created: 2026-08-23T19:44:07Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 8
+    acceptance_count: 17
+    acceptance_completed: 17
+confidence:
+    certain: 7
+    confident: 5
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    fuzzy: true
+    dimensions:
+        signal: 77.9
+        reversibility: 84.2
+        competence: 87.1
+        disambiguation: 83.8
+stage_metrics:
+    intake: {started_at: "2026-08-23T19:44:07Z", driver: fab-new, iterations: 1, completed_at: "2026-08-23T19:58:18Z"}
+    apply: {started_at: "2026-08-23T19:58:18Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-23T20:06:56Z"}
+    review: {started_at: "2026-08-23T20:06:56Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-23T20:10:23Z"}
+    hydrate: {started_at: "2026-08-23T20:10:23Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-23T20:19:52Z"}
+    ship: {started_at: "2026-08-23T20:19:52Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-08-23T20:19:52Z"
+    computed_at_stage: hydrate
+summary: 'mechanized operator question detection into fab pane questions: new pane verb (capture seam, guards, table-driven indicator scanner) + tests; operator skill §5 rewired to one binary sweep; memory fence re-scoped to raw peek with questions as the named exception'
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-08-23T20:19:52Z

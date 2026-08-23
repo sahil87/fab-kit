@@ -1162,7 +1162,7 @@ Started via `fab operator`; runs a continuous /loop cycle
 └─ Drive autopilot queues (/fab-new → /fab-fff); spawn each task in a fresh worktree
 ```
 
-**Tools**: Bash (`fab operator tick-start`, `fab pane map`, `rk mux send` (`command -v rk`-gated; raw `tmux send-keys` when rk is absent), `wt create`), Skill (`/loop`); helpers `_cli-agents`, `_cli-fab`, `_cli-external`.
+**Tools**: Bash (`fab operator tick-start`, `fab pane questions`, `fab pane map`, `rk mux send` (`command -v rk`-gated; raw `tmux send-keys` when rk is absent), `wt create`), Skill (`/loop`); helpers `_cli-agents`, `_cli-fab`, `_cli-external`.
 
 **Sub-agents**: None (spawns agent sessions, not sub-agents).
 

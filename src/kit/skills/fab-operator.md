@@ -268,7 +268,7 @@ On each tick:
    - `pane_death` (the entry's pane is absent) — report, then remove via step 5;
    - `pane_mismatch` (tmux recycled the `%N` pane ID — a different change, or none, now occupies it; the delta carries `found`) — report + remove via step 5; a mismatched pane is never diffed and never a candidate;
    - `stage_advance {from, to}` / `review_fail {from: review, to: apply}` — report in the frame.
-   `completion`, `pane_death`, and `pane_mismatch` are **level-triggered**: they re-emit on every tick until acted on — `fab operator remove` is the ack, so a crash between diff and action loses nothing. `stage_advance` and `review_fail` are **consumed-on-read** (baseline-diffed); a lost one costs a missed report only. Output the status frame from the `fleet:` block — see **Status Frame Format** below. **Version-skew fallback**: if `tick-start --diff` errors as an unknown flag (new skill, older installed binary), fall back to the flagless tick for the session — `fab operator tick-start` + `fab pane map --all-sessions --json` + per-pane capture + step-6 `update` bookkeeping — and report the mismatch once.
+   `completion`, `pane_death`, and `pane_mismatch` are **level-triggered**: they re-emit on every tick until acted on — `fab operator remove` is the ack, so a crash between diff and action loses nothing. `stage_advance` and `review_fail` are **consumed-on-read** (baseline-diffed); a lost one costs a missed report only. Output the status frame from the `fleet:` block — see **Status Frame Format** below. **Version-skew fallback**: if `tick-start --diff` or `fab pane questions` errors as an unknown flag/command (new skill, older installed binary), fall back to the flagless tick for the session — `fab operator tick-start` + `fab pane map --all-sessions --json` + per-pane manual capture-and-scan + step-6 `update` bookkeeping — and report the mismatch once.
 
 2. **Auto-nudge** — the per-tick sweep population is the tick's `candidates:` block (waiting-first, then idle — the binary computes it to match §5's policy exactly). Run each candidate through question detection (§5 — `waiting` is the primary signal). (No post-intake `/git-branch` nudge — `/fab-new` Step 11 creates or renames the branch inline; only a detected branch/change mismatch warrants a `/git-branch` send, per §3 pre-send validation item 4.)
 3. **Watches** — read `fab operator state` here (the watch pass's own state read — `known` / `completed` / `last_checked` / `last_error`), then for each watch, query the source, compare against `known` + `completed` (§7 step 2's dedupe rule), spawn on new matches (§7).
@@ -358,28 +358,17 @@ Run `fab operator time --interval {interval}` (where `{interval}` is the **curre
 
 ## 5. Auto-Nudge
 
-The operator auto-answers routine prompts from monitored agents. The per-tick question-detection population (tick step 2) is each `waiting` agent (the primary signal — see below) plus, as a fallback, each idle agent. The capture-based patterns below **remain applicable** to `active`/unknown (`—`) panes — an uninstrumented harness, or a mid-turn prompt not yet flipped to `waiting` — but those panes are **not swept every tick**; the per-tick sweep is `waiting`+idle only.
+The operator auto-answers routine prompts from monitored agents. The per-tick question-detection population (tick step 2) is each `waiting` agent (the primary signal — see below) plus, as a fallback, each idle agent. The `questions` sweep's capture-based patterns **remain applicable** to `active`/unknown (`—`) panes — an uninstrumented harness, or a mid-turn prompt not yet flipped to `waiting` — via an on-demand `fab pane questions --panes <id>` call, but those panes are **not swept every tick**; the per-tick sweep is `waiting`+idle only.
 
 **The `waiting` Agent-column state is the primary signal.** When a monitored pane's `@rk_agent_state` is `waiting`, the agent is blocked on a human (permission prompt / menu / elicitation) — this is event-driven and covers all instrumented harnesses (Claude/codex/copilot/gemini), so it is the first-class trigger for both the tightened cadence (§4) and question detection here. A `waiting` pane MUST be capture-scanned and run through the answer model, with each **idle** pane as the per-tick fallback (the population stated above).
 
 ### Question Detection
 
-Capture and state-read mechanics (including the uninstrumented-pane state-writer caveat that makes capture the universal fallback) are in `_cli-agents.md` § Peek; the patterns and guards below are the operator's own question-detection policy over that capture.
+Detection is a single binary sweep, not per-pane manual work: run `fab pane questions --panes <ids>` over the tick's `candidates:` block from `fab operator tick-start --diff` (population policy unchanged — `waiting` first, then idle; re-expressed here as the command's input). The command applies the mechanical guards and indicator patterns itself and returns `matches:` (pane, agent_state, indicator, snippet) plus `skipped:` with reasons — the full contract (flags, guards, indicator classes, skip-reason enum, JSON fields, exit codes) is owned by `_cli-fab.md` § fab pane · questions. Capture and state-read mechanics (including the uninstrumented-pane state-writer caveat that makes capture the universal fallback) are in `_cli-agents.md` § Peek. Claude Code permission/tool-approval prompts are **not** mechanized as their own class — in practice they are covered by the yes/no, action-word, imperative, and enumerated classes; novel prompt shapes remain operator judgment via an on-demand `--panes` sweep or manual capture.
 
-1. **Capture**: `rk mux capture --raw -l 20 [-L <server>] <pane>` when rk is installed (`command -v rk`-gated); raw `tmux capture-pane -p -t <pane> | tail -20` when rk is absent — never an error (`-L <server>` only when the operator runs on a non-default tmux socket — the §9 second-operator case)
-2. **Claude turn boundary guard**: `^\s*>\s*$` in last 2 lines → skip (normal human-turn boundary)
-3. **Blank capture guard**: all blank → skip (treat as "cannot determine")
-4. **Scan for indicators** (bottom-most match wins):
-   - Lines ending with `?` (last non-empty line only, <120 chars, skip `#`/`//`/`*`/`>`/timestamp lines)
-   - `[Y/n]`, `[y/N]`, `(y/n)`, `(yes/no)`
-   - `Allow?`, `Approve?`, `Confirm?`, `Proceed?`
-   - Claude Code permission/tool approval prompts
-   - `Do you want to...`, `Should I...`, `Would you like...`
-   - Lines ending with `:` (CLI input prompts)
-   - Enumerated options (`[1-9]\)`)
-   - `Press.*key`, `press.*enter`, `hit.*enter` (case-insensitive)
-5. **No match** → stuck detection applies
-6. **Match** → answer model
+1. **Sweep**: `fab pane questions --panes <ids>` over the tick's `candidates:` block (full contract: `_cli-fab.md` § fab pane · questions)
+2. **No match** → stuck detection applies
+3. **Match** → answer model
 
 ### Answer Model
 
@@ -422,7 +411,7 @@ leaves open a Strategic prompt. Use the default `rk notify` command and gate in
 
 Deliver text answers via `rk mux send <pane> "<text>" --answer` when rk is installed (`command -v rk`-gated) — the answer-mode gate permits `waiting` (the auto-answer's primary target) and `idle`, still refuses `active`, and validates pane existence (full contract is tool-owned via `rk skill`; the usage summary lives in `_cli-agents.md` § Pre-Send Validation). Key-name answers (bare Enter, arrows, `C-c`) ride `rk mux send --key` on the same path. When rk is absent, the answer is raw `tmux send-keys` (keys and literal text alike) behind the same gate — never an error.
 
-Before the send: run the §3 pre-send gate (`_cli-agents.md` § Pre-Send Validation — pane exists; state read per its step 2, expecting `waiting` or the idle fallback), then re-capture the terminal (the same rk-gated `rk mux capture --raw -l 20` capture as § Question Detection step 1, raw-tmux when rk is absent). If output changed since detection, abort — agent is no longer waiting. If the answer appears to land but the agent does not resume: on the rk path the send's delivery verification is built in — a probe failure surfaces as staged text + a stderr warning + exit 1, so re-capture and decide; never blind-resend. On the rk-absent raw path, apply the delivery probe (`_cli-agents.md` § Delivery Probe) instead of re-sending blind.
+Before the send: run the §3 pre-send gate (`_cli-agents.md` § Pre-Send Validation — pane exists; state read per its step 2, expecting `waiting` or the idle fallback), then re-capture the terminal (the 20-line capture whose mechanics live in `_cli-agents.md` § Peek — `rk`-gated with raw-tmux fallback). If output changed since detection, abort — agent is no longer waiting. `fab pane questions` output is detection input only — it never replaces the pre-send gate or this re-capture-before-send guard (the batch capture is older than the just-in-time one, so the guard matters more, not less). If the answer appears to land but the agent does not resume: on the rk path the send's delivery verification is built in — a probe failure surfaces as staged text + a stderr warning + exit 1, so re-capture and decide; never blind-resend. On the rk-absent raw path, apply the delivery probe (`_cli-agents.md` § Delivery Probe) instead of re-sending blind.
 
 ### Idle Auto-Default on Strategic Escalations
 

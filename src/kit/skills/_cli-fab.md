@@ -511,11 +511,11 @@ Reconciliation, under the A/B/C field-category model:
 
 ## fab pane
 
-Tmux pane operations with fab context enrichment. `fab pane <map|capture|process|window-name|open|ready|deliver|kill> [flags...]`
+Tmux pane operations with fab context enrichment. `fab pane <map|capture|process|window-name|open|ready|deliver|kill|questions> [flags...]`
 
 **Dispatch-internal verbs (cli-layering Part 7)**: `capture`, `process`, and `kill` are kept for the **rk-less pane arm** — the dispatch orchestrator's peek/escalation path (`_preamble.md` § CLI-Adapter Dispatch), `fab dispatch logs`' suggested capture command, and probe cleanups. Skill-facing guidance rides run-kit's substrate twins `rk mux capture`/`rk mux process`/`rk mux kill` instead (`command -v rk`-gated, raw-tmux fallback; usage owned by `_cli-agents.md` § Peek). Command behavior, flags, and exit codes below are unchanged by the demotion.
 
-**Pane-family exit codes** (capture, window-name, open, ready, deliver, kill, process): pane validation failures use a shared scheme so callers can branch on cause — `2` = pane missing, `3` = any other tmux failure (dead server, bad socket). `map` alone uses plain `ERROR:`-formatted exit 1 (multi-pane discovery has no single target pane to be "missing"). **Usage-error coexistence**: a *usage* error on any pane verb — a bad flag or a cobra arg-count violation — exits `2` at parse time (the binary-wide convention above), caught before the handler runs; the in-handler `2` = pane-missing / `3` = tmux-failure scheme is a separate, in-handler `os.Exit` path that bypasses the usage/operational mapping. Exit `2` on a pane verb is therefore ambiguous between "usage error" (at parse time) and "pane missing" (in-handler) — disambiguate on stderr wording; the codes are not renumbered.
+**Pane-family exit codes** (capture, window-name, open, ready, deliver, kill, process): pane validation failures use a shared scheme so callers can branch on cause — `2` = pane missing, `3` = any other tmux failure (dead server, bad socket). `map` and `questions` alone use plain `ERROR:`-formatted exit 1 (multi-pane discovery has no single target pane to be "missing"). **Usage-error coexistence**: a *usage* error on any pane verb — a bad flag or a cobra arg-count violation — exits `2` at parse time (the binary-wide convention above), caught before the handler runs; the in-handler `2` = pane-missing / `3` = tmux-failure scheme is a separate, in-handler `os.Exit` path that bypasses the usage/operational mapping. Exit `2` on a pane verb is therefore ambiguous between "usage error" (at parse time) and "pane missing" (in-handler) — disambiguate on stderr wording; the codes are not renumbered.
 
 **Persistent flag** (all subcommands): `--server <name>` / `-L <name>` (default `""`) — target tmux socket (`tmux -L <name>`). Defaults to `$TMUX` / tmux default. Lets daemons on one tmux server inspect panes on another.
 
@@ -592,6 +592,29 @@ Verified delivery addressed by pane id — the same choreography `fab dispatch d
 ### kill — `fab pane kill <pane> [--server <name>]`
 
 The record-free generic kill — exposes the shared `KillPane` helper with the family's validated exit-code contract. *Dispatch-internal — skill-facing pane removal rides the agent-state-gated `rk mux kill` (see the § fab pane note above); this verb backs rk-less probe cleanups and the pane arm.* Validates the pane first, then kills it. Success: `killed <pane>`, plus a `server: <name>` line when non-default. Pane missing → exit 2 (`Error: pane <id> not found`); other tmux failure → exit 3. No dispatch-record interaction, no `.fab-dispatch/` state — `fab dispatch kill` (record-keyed, ungated recovery) is unaffected and remains the pipeline's kill.
+
+### questions — `fab pane questions [--all-sessions] [--panes <id>...] [--json] [--server <name>]`
+
+Sweep candidate panes for pending questions/prompts — fab-operator's §5 Question Detection policy mechanized into the binary. A **first-class skill-facing verb** (NOT dispatch-internal, unlike `capture`/`process`/`kill` — the deliberate carve-out: this is a policy-bearing sweep, not a peek primitive). Per candidate: capture the last 20 lines (fixed, not a flag), apply the two guards, scan bottom-most-first for the mechanical indicator classes, and report matches + skip reasons. Detection input only — never a license to send blind (the operator's pre-send gate and re-capture-before-send guard still run before any send).
+
+| Flag | Description |
+|------|-------------|
+| `--panes <id>...` | Explicit pane IDs to sweep (repeatable/comma-separated); mutually exclusive with `--all-sessions`; skips the `$TMUX` check and resolves IDs server-wide |
+| `--all-sessions` | Discover candidates across all sessions (skips the `$TMUX` check) |
+| `--json` | Emit the JSON result below |
+
+Discovery modes (`--all-sessions`, or no flags = current session, requires `$TMUX`) sweep only panes whose resolved `agent_state` is `waiting`/`idle` (see § agent state above) — unknown (`—`) and `active` panes are excluded by construction. `--panes` takes the IDs verbatim and applies the state check per pane during the sweep.
+
+| JSON field | Type / meaning |
+|------------|----------------|
+| `matches[].pane` | Pane ID of a matched candidate |
+| `matches[].agent_state` | `waiting` / `idle`, as read at sweep time |
+| `matches[].indicator` | `question_mark` / `yes_no` / `action_word` / `imperative_question` / `colon_prompt` / `enumerated_options` / `press_key` |
+| `matches[].snippet` | The matched line |
+| `skipped[].pane` | Candidate pane that did not match |
+| `skipped[].reason` | `state_changed` / `capture_failed` / `blank_capture` / `turn_boundary` / `no_indicator` |
+
+Both arrays encode `[]` when empty (never `null`). Human output: one line per match (`pane [agent_state] indicator: snippet`), one line per skip (`pane: reason`), then `N matched, M skipped`; an empty candidate set prints `No candidate panes.`. **Exit codes** follow `map`, not the per-pane 2/3 scheme: `0` on any clean sweep regardless of match/skip counts (a dead candidate is a normal `capture_failed` skip, not a failure); non-zero only on usage error (`$TMUX` unset with no targeting flag → `ERROR: not inside a tmux session`) or a hard discovery failure (tmux unreachable).
 
 ---
 
