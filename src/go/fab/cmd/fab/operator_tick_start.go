@@ -219,7 +219,7 @@ func runOperatorTickStartDiff(cmd *cobra.Command) error {
 }
 
 // resolvedSnap reports whether a snapshot display field carries a real value
-// (the em dash is panemap's unresolved sentinel).
+// (the em dash is pane_map's unresolved sentinel).
 func resolvedSnap(s string) bool {
 	return s != "" && s != "—"
 }

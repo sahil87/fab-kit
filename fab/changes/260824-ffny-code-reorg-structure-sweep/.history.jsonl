@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-24T05:38:57Z"}
+{"args":"code-reorg structure sweep: normalize 4 concatenated filenames in cmd/fab, move src/benchmark decision record to docs/findings, rename internal/hooklib to internal/artifact; from /code-reorg src run 2026-08-24, all three proposals user-approved","cmd":"fab-new","event":"command","ts":"2026-08-24T05:38:57Z"}
+{"delta":"+0.0","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-08-24T05:41:00Z"}
+{"cmd":"fab-draft","event":"command","ts":"2026-08-24T05:41:14Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-08-24T05:43:15Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-24T05:45:29Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-24T05:46:01Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-24T05:59:25Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-24T06:04:48Z"}
+{"event":"review","result":"passed","ts":"2026-08-24T06:04:48Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-24T06:06:22Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-24T06:08:30Z"}

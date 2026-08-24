@@ -38,7 +38,7 @@ const questionsCaptureLines = 20
 // paneCaptureFn is the injectable capture seam: pane.Capture execs tmux
 // directly with no test seam today, so this package-level var lets tests
 // stub content without a live pane — the rkPanesRunner/currentSessionName/
-// operatorStatePathOverride precedent (panemap.go, operator_tick_start.go).
+// operatorStatePathOverride precedent (pane_map.go, operator_tick_start.go).
 var paneCaptureFn = pane.Capture
 
 // questionsRowsFn is the injectable row-snapshot seam for the up-front

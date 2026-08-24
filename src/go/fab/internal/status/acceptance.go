@@ -4,14 +4,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sahil87/fab-kit/src/go/fab/internal/hooklib"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/artifact"
 )
 
 // LiveAcceptance derives acceptance progress from the change's plan.md
 // `## Acceptance` checkboxes at read time, rather than trusting the
 // hook-maintained `.status.yaml` counter (which goes stale on any
 // hook-bypassing mutation — sed edits, direct file edits). It composes the
-// existing hooklib counters so checkbox-parsing logic lives in one place.
+// existing artifact counters so checkbox-parsing logic lives in one place.
 //
 // Returns (done, total, ok). ok is false — and done/total are 0 — when
 // plan.md is absent/unreadable or has no `## Acceptance` heading; callers
@@ -25,10 +25,10 @@ func LiveAcceptance(changeDir string) (done, total int, ok bool) {
 		return 0, 0, false
 	}
 	content := string(data)
-	if !hooklib.HasSectionHeading(content, hooklib.SectionAcceptance) {
+	if !artifact.HasSectionHeading(content, artifact.SectionAcceptance) {
 		return 0, 0, false
 	}
-	total = hooklib.CountSectionItemsBounded(content, hooklib.SectionAcceptance)
-	done = hooklib.CountCompletedSectionItemsBounded(content, hooklib.SectionAcceptance)
+	total = artifact.CountSectionItemsBounded(content, artifact.SectionAcceptance)
+	done = artifact.CountCompletedSectionItemsBounded(content, artifact.SectionAcceptance)
 	return done, total, true
 }

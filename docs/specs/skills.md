@@ -211,7 +211,7 @@ Adding a skill to the kit touches eight integration points. Work through all of 
 5. **Error Handling + Key Properties tables** — the body closes with the two standard tables (skill-specific errors only; idempotency, write surface, stage effects).
 6. **Flow skeleton in skills.md** — add the skill's Flow skeleton to its `skills.md` section: the Flow diagram, plus the Tools and Sub-agents one-liners where they add information beyond the section's prose. Behavioral partials carry theirs in § Skill Helpers (§ Partial Flow Skeletons); pure-reference partials carry none.
 7. **skills.md row** — add the skill's section to this file (and its `helpers:` row to § Skill Helpers when it declares any).
-8. **Help grouping** — add the skill to `skillToGroupMap` in `src/go/fab/cmd/fab/fabhelp.go` so `/fab-help` lists it under the right group (unmapped skills fall into the "Other" bucket).
+8. **Help grouping** — add the skill to `skillToGroupMap` in `src/go/fab/cmd/fab/fab_help.go` so `/fab-help` lists it under the right group (unmapped skills fall into the "Other" bucket).
 
 ---
 

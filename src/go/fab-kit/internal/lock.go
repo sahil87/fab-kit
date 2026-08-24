@@ -17,8 +17,8 @@ import (
 // This helper is intentionally local to the fab-kit module: the two Go
 // modules (src/go/fab and src/go/fab-kit) deliberately share no code — small
 // utilities are replicated across the separate go.mod boundaries rather than
-// imported (the documented two-module replication pattern, cf. the hooklib
-// replication in 260402-ktbg).
+// imported (the documented two-module replication pattern, cf. the
+// internal/artifact — then named hooklib — replication in 260402-ktbg).
 func acquireLock(path string) (release func(), err error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {

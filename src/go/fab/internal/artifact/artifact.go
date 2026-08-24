@@ -1,4 +1,4 @@
-package hooklib
+package artifact
 
 import (
 	"regexp"

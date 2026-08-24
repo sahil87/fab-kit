@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/sahil87/fab-kit/src/go/fab/internal/hooklib"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/artifact"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/score"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
 	sf "github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
@@ -77,7 +77,7 @@ func refreshFromIntake(changeDir string, sfile *sf.StatusFile) (dirty bool) {
 	// source = re-inference allowed (back-compat default). Compare before/after
 	// so re-inferring the same type does not report dirty (dirty-idempotency).
 	if sfile.ChangeTypeSource != sf.SourceExplicit {
-		changeType := hooklib.InferChangeType(string(content))
+		changeType := artifact.InferChangeType(string(content))
 		beforeType := sfile.ChangeType
 		if applyErr := status.ApplyChangeType(sfile, changeType); applyErr == nil && sfile.ChangeType != beforeType {
 			dirty = true
@@ -140,8 +140,8 @@ func refreshFromPlan(changeDir string, sfile *sf.StatusFile) (dirty bool) {
 	}
 	content := string(data)
 
-	hasTasks := hooklib.HasSectionHeading(content, hooklib.SectionTasks)
-	hasAcceptance := hooklib.HasSectionHeading(content, hooklib.SectionAcceptance)
+	hasTasks := artifact.HasSectionHeading(content, artifact.SectionTasks)
+	hasAcceptance := artifact.HasSectionHeading(content, artifact.SectionAcceptance)
 
 	// Snapshot the plan block so we report dirty only when a recompute
 	// actually changed a value — ApplyAcceptance always mutates and returns
@@ -153,14 +153,14 @@ func refreshFromPlan(changeDir string, sfile *sf.StatusFile) (dirty bool) {
 	// generated=true when the file exists with at least a ## Tasks heading.
 	if hasTasks {
 		_ = status.ApplyAcceptance(sfile, "generated", "true")
-		taskCount := hooklib.CountSectionItemsBounded(content, hooklib.SectionTasks)
+		taskCount := artifact.CountSectionItemsBounded(content, artifact.SectionTasks)
 		_ = status.ApplyAcceptance(sfile, "task_count", strconv.Itoa(taskCount))
 	}
 
 	// Only update acceptance counts when ## Acceptance is present.
 	if hasAcceptance {
-		acceptanceCount := hooklib.CountSectionItemsBounded(content, hooklib.SectionAcceptance)
-		acceptanceCompleted := hooklib.CountCompletedSectionItemsBounded(content, hooklib.SectionAcceptance)
+		acceptanceCount := artifact.CountSectionItemsBounded(content, artifact.SectionAcceptance)
+		acceptanceCompleted := artifact.CountCompletedSectionItemsBounded(content, artifact.SectionAcceptance)
 		_ = status.ApplyAcceptance(sfile, "acceptance_count", strconv.Itoa(acceptanceCount))
 		_ = status.ApplyAcceptance(sfile, "acceptance_completed", strconv.Itoa(acceptanceCompleted))
 	}

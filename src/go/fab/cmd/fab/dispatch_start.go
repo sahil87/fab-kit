@@ -76,7 +76,7 @@ type launchFlags struct {
 //
 // That group fires during ValidateFlagGroups — BEFORE any RunE work — so the
 // conflict is a genuine usage error (exit 2) that structurally cannot leave
-// partial state behind, matching resolve.go / pane_capture.go / panemap.go.
+// partial state behind, matching resolve.go / pane_capture.go / pane_map.go.
 func addLaunchFlags(cmd *cobra.Command, role paneRole) *launchFlags {
 	f := &launchFlags{role: role}
 	if role == paneForced {

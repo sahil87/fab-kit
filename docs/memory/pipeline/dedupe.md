@@ -18,7 +18,7 @@ The boundary with `/code-reorg` ([code-reorg](/pipeline/code-reorg.md)) splits c
 
 ### Requirement: Identity, pre-flight, and read-only-until-accept
 
-The canonical source is `src/kit/skills/fab-dedupe.md`, frontmatter `name: fab-dedupe` with `helpers: [_generation, _srad, _intake]` — the triple `/fab-draft` declares — and one optional `[scope]` argument. `fab fab-help` groups it under **Planning** via `fabhelp.go`'s `skillToGroupMap`.
+The canonical source is `src/kit/skills/fab-dedupe.md`, frontmatter `name: fab-dedupe` with `helpers: [_generation, _srad, _intake]` — the triple `/fab-draft` declares — and one optional `[scope]` argument. `fab fab-help` groups it under **Planning** via `fab_help.go`'s `skillToGroupMap`.
 
 Pre-flight verifies `config.yaml` and `constitution.md`, STOPping with the standard uninitialized message when either is missing. It MUST NOT run `fab preflight` — the skill operates with no active change and must not resolve or disturb one. Logging is `fab log command "fab-dedupe"`, no change ID.
 
