@@ -115,7 +115,7 @@ when it is absent (per § Functional entry points).
 > **fab-owned**: how the operator drives `wt create` for spawning, and which wt
 > form the fab routing rule selects when (that decision is fab's).
 
-> **Repo-targeted spawning (operator).** `wt` operates on the **current working directory's** repo. For multi-repo coordination, the operator MUST run `wt create` **in the target repo's directory** (the agent's absolute main-worktree root), so the new worktree lands under `$(dirname <target-repo>)/<repo-name>.worktrees/` — not under the operator's own repo. Composing the session command is a separate step with its own `--repo` targeting rule — see `_cli-agents.md` § Spawn Composition (and `fab-operator.md` §6 step 5 for the operator's always-pass-`--repo` policy).
+> **Repo-targeted spawning (operator).** `wt` operates on the **current working directory's** repo. For multi-repo coordination, the operator MUST run `wt create` **in the target repo's directory** (the agent's absolute main-worktree root), so the new worktree lands under `$(dirname <target-repo>)/<repo-name>.worktrees/` — not under the operator's own repo. Composing the session command is a separate step with its own `--repo` targeting rule — see `_cli-agents.md` § Spawn Composition (and `fab-operator.md` §6 step 6 for the operator's always-pass-`--repo` policy).
 
 ### Operator Spawning Rules
 
@@ -175,14 +175,14 @@ Terminal multiplexer commands used by the operator for agent observation and int
 
 | Command | Usage | Purpose |
 |---------|-------|---------|
-| `new-window` | `tmux new-window -n <name> -c <dir> "<cmd>"` | Open a new tmux tab with a command running in a specific directory |
+| `new-window` | `tmux new-window [-t '<session>:'] -n <name> -c <dir> "<cmd>"` | Open a new tmux tab with a command running in a specific directory. Without `-t` the window lands in the **ambient** session (`_cli-agents.md` § Spawn Composition); the operator always passes `-t` (`fab-operator.md` §6 step 2) |
 
 ### Usage Notes
 
 - **Pane mapping across sessions**: The operator's tick snapshots **all** sessions on its tmux server internally via `fab operator tick-start --diff` (see `_cli-fab.md` § fab operator tick-start), not just the operator's own session; `fab pane map --all-sessions --json` remains the on-demand surface. The snapshot rows carry a per-row `repo` field (the pane's absolute main-worktree root, `null` when unresolved) used to group the status frame by repo then session.
 - **Pane capture**: Prefer `rk mux capture` when rk is present (`command -v rk`-gated; substrate-enriched capture — last-N tail, `--raw`/`--json`, reconciled agent state). When rk is absent, fail open to raw `tmux capture-pane -p -t <pane>` — never an error. Usage ownership is in `_cli-agents.md` § Peek. (`fab pane capture` is dispatch-internal — kept for the rk-less pane arm; see `_cli-fab.md` § fab pane.)
 - **Send keys**: Prefer `rk mux send` when rk is present (`command -v rk`-gated; it carries built-in pane-existence and agent-state validation with probe-verified delivery). When rk is absent, fail open to raw `tmux send-keys` behind the caller's own state read (`fab pane map`) plus the manual delivery probe — never an error. Usage ownership for both paths is in `_cli-agents.md` § Pre-Send Validation and `fab-operator.md` §3/§5.
-- **`new-window`** is also how an agent session is spawned — the command form, quoting, and the one-prompt/no-`&&`-chaining rule are owned by `_cli-agents.md` § Spawn Composition ("Open it in a pane"); the operator's `»<wt>` window-marker name is its own policy, in `fab-operator.md` §6
+- **`new-window`** is also how an agent session is spawned — the command form, quoting, the ambient-session `-t` caveat, and the one-prompt/no-`&&`-chaining rule are owned by `_cli-agents.md` § Spawn Composition ("Open it in a pane"); the operator's `»<wt>` window-marker name and its target-session derivation are its own policy, in `fab-operator.md` §6
 
 ---
 
