@@ -461,7 +461,7 @@ func TestRender_FenceAdvertsCarryScopeAnnotations(t *testing.T) {
 }
 
 // TestRender_FenceAdvertisesConsolidateDetectors: the `consolidate.detectors` key
-// added for /fab-dedupe (260728-4v91) is an advertised C field, so an un-overridden
+// added for /code-dedupe (260728-4v91, as /fab-dedupe) is an advertised C field, so an un-overridden
 // project gets it scaffolded — fully commented — into the managed fence, and a
 // project that HAS overridden it keeps its live block with no fence duplicate
 // (presence=intent). Runs over the SHIPPED registry: this is the guard that the new

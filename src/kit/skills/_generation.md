@@ -1,6 +1,6 @@
 ---
 name: _generation
-description: "Artifact generation procedures — Intake Generation (used by fab-new, fab-draft, fab-dedupe, and fab-continue's intake regeneration), Plan Generation (used by fab-continue, fab-ff, fab-fff at apply entry), and the diff-based Intake-from-Diff + Plan-from-Diff procedures (used by fab-adopt to reconstruct artifacts from an existing branch diff)."
+description: "Artifact generation procedures — Intake Generation (used by fab-new, fab-draft, and fab-continue's intake regeneration), Plan Generation (used by fab-continue, fab-ff, fab-fff at apply entry), and the diff-based Intake-from-Diff + Plan-from-Diff procedures (used by fab-adopt to reconstruct artifacts from an existing branch diff)."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -10,7 +10,7 @@ metadata:
 
 > | Procedure | Consumers | Entry | Source posture |
 > |-----------|-----------|-------|----------------|
-> | Intake Generation | `/fab-new`, `/fab-draft`, `/fab-dedupe`, `/fab-continue` intake regeneration | `_intake.md` Step 5; dedupe once per accepted cluster | Forward conversation/design |
+> | Intake Generation | `/fab-new`, `/fab-draft`, `/fab-continue` intake regeneration | `_intake.md` Step 5 | Forward conversation/design |
 > | Plan Generation | `/fab-continue`, `/fab-ff`, `/fab-fff` | Apply entry | Forward intake |
 > | Intake-from-Diff | `/fab-adopt` | Adoption reconstruction | Fixed branch diff + PR body |
 > | Plan-from-Diff | `/fab-adopt` | Same main-session pass as Intake-from-Diff | Fixed existing implementation |

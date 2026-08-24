@@ -86,7 +86,6 @@ For detailed visual maps of how commands connect — including shortcuts, rework
 | `/docs-hydrate-memory [sources...]` | Ingest external sources into docs/memory/ | Updated `docs/memory/` with indexes |
 | `/fab-new` | Start change (creates intake + activates) | `intake.md`, `.status.yaml` |
 | `/fab-draft` | Create change intake without activating | `intake.md`, `.status.yaml` |
-| `/fab-dedupe [scope]` | Sweep a scoped area for duplicated utilities, cluster them by behavioral shape, draft one intake per accepted cluster (read-only until you accept) | One `intake.md` + `.status.yaml` per accepted cluster, none activated |
 | `/fab-continue [<stage>]` | Next artifact (or reset to stage) | Next stage artifact |
 | `/fab-ff` | Fast-forward through hydrate (intake-gated) | apply (plan + execute) + sub-agent review + hydrate |
 | `/fab-fff` | Fast-forward-further through review-pr (confidence-gated) | All artifacts through hydrate + ship + review-pr |

@@ -119,9 +119,9 @@ func TestFabHelp_GroupMapping(t *testing.T) {
 	// Verify all expected skills are mapped
 	expectedMapped := []string{
 		"fab-new", "fab-draft", "fab-switch", "fab-status", "fab-discuss", "git-branch",
-		"fab-continue", "fab-ff", "fab-fff", "fab-proceed", "fab-clarify", "fab-dedupe",
+		"fab-continue", "fab-ff", "fab-fff", "fab-proceed", "fab-clarify",
 		"fab-archive", "fab-issue", "git-pr", "git-pr-review",
-		"docs-hydrate-specs", "docs-reorg-specs", "docs-reorg-memory", "docs-distill-memory", "code-reorg", "fab-operator",
+		"docs-hydrate-specs", "docs-reorg-specs", "docs-reorg-memory", "docs-distill-memory", "code-reorg", "code-dedupe", "fab-operator",
 		"fab-setup", "fab-help", "docs-hydrate-memory",
 	}
 	for _, name := range expectedMapped {

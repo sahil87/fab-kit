@@ -87,7 +87,7 @@ plan:
 
 Counts are recomputed by `fab status refresh`/`internal/refresh.Refresh`, self-healed at the transition seams (`fab status advance`/`finish`, `fab preflight`), which parses `plan.md` section-by-section (heading-bounded count of `- [ ]` and `- [x]` items between `## Tasks`/`## Acceptance` and the next `##` heading). It is defensive — missing sections do not zero out valid values.
 
-The confidence block initializes to zero counts and score 0.0 — a new change has no assessed confidence. The score is computed by `fab score` from `intake.md` (the sole scoring source) (j6cs), persisted by `/fab-new`, `/fab-draft`, and `/fab-dedupe` (all three via the shared `_intake` Step 7 (4v91)) and recomputed by `/fab-clarify`. The template carries no `indicative` key.
+The confidence block initializes to zero counts and score 0.0 — a new change has no assessed confidence. The score is computed by `fab score` from `intake.md` (the sole scoring source) (j6cs), persisted by `/fab-new` and `/fab-draft` (both via the shared `_intake` Step 7) and recomputed by `/fab-clarify`. The template carries no `indicative` key.
 
 See [change-lifecycle.md](/pipeline/change-lifecycle.md) for the full `.status.yaml` field reference and state vocabulary.
 
@@ -104,9 +104,9 @@ A skill MAY declare additional helper files via a `helpers:` frontmatter list. T
 
 | Phase | Helper | Knob(s) | Consumers |
 |-------|--------|---------|-----------|
-| artifact mechanics | `_generation` | — | `fab-new`, `fab-draft`, `fab-dedupe`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-adopt` |
+| artifact mechanics | `_generation` | — | `fab-new`, `fab-draft`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-adopt` |
 | review mechanics | `_review` | `{mode}` | `fab-continue`, `fab-ff`, `fab-fff`, `fab-adopt` |
-| pre-intake orchestration | `_intake` | `{questioning-mode}` | `fab-new`, `fab-draft`, `fab-dedupe`, `fab-proceed` |
+| pre-intake orchestration | `_intake` | `{questioning-mode}` | `fab-new`, `fab-draft`, `fab-proceed` |
 | post-intake orchestration | `_pipeline` | `{driver}`, `{terminal}` | `fab-ff`, `fab-fff`, `fab-adopt` |
 
 The symmetry is complete (3xaj): `_intake` (pre-boundary intake creation) is the counterpart to `_pipeline` (post-boundary orchestration), pivoting on the single context-bearing boundary — intake. Each helper file follows the established internal-helper frontmatter shape (`user-invocable: false`, `disable-model-invocation: true`, `metadata: internal: true`) and is a **flat** `src/kit/skills/_*.md` canonical source (the directory-per-skill `_{name}/SKILL.md` form is the *deployed* copy `fab sync` writes under `.claude/skills/`). The internal helpers carry no `helpers:` of their own (consumer-declared model). See [pipeline/planning-skills.md](/pipeline/planning-skills.md) § The `_intake` Shared Create-Intake Procedure for the full decomposition.

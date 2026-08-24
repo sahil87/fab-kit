@@ -1,10 +1,10 @@
 ---
-name: fab-dedupe
-description: "Sweep a scoped area for duplicated utilities, cluster them by behavioral shape, and draft one intake per accepted cluster group. Read-only until you approve."
-helpers: [_generation, _srad, _intake]
+name: code-dedupe
+description: "Sweep a scoped area for duplicated utilities, cluster them by behavioral shape, and present a ranked consolidation report. Fully read-only: suggestions only, applies nothing, drafts nothing; structure/placement review is /code-reorg's."
+helpers: [_srad]
 ---
 
-# /fab-dedupe [scope]
+# /code-dedupe [scope]
 
 > Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
@@ -24,9 +24,13 @@ helpers: [_generation, _srad, _intake]
 
 ## Purpose
 
-`/fab-dedupe` finds code that should have been a shared utility and wasn't. It sweeps a scoped area for duplicate and near-duplicate functions, groups them into **clusters**, decomposes each cluster into a shared core plus opt-in variation layers, proposes a canonical home, and — for the clusters you accept — drafts a change intake per cluster group.
+`/code-dedupe` finds code that should have been a shared utility and wasn't. It sweeps a scoped area for duplicate and near-duplicate functions, groups them into **clusters**, decomposes each cluster into a shared core plus opt-in variation layers, proposes a canonical home, and presents a ranked, evidence-backed consolidation report.
 
-The skill **does not refactor**: it records each risky consolidation in a scored intake for `/fab-fff` or `/fab-continue` to implement and review.
+The report is the skill's **terminal output and entire effect**. The skill is fully read-only: it modifies no files, refactors nothing, creates no changes, and creates no git state. It does **not** draft intakes or decide how a cluster gets consolidated (micro change vs `/fab-new` vs ignore) — that routing is the user's per-cluster choice. Each cluster MAY carry an informational suggested-next-action line (e.g. a ready-to-paste `/fab-new consolidate {shared behavior} into {canonical home}`), which the skill never executes.
+
+Hard boundary: **content duplication only**. Where files live and what they are called — placement, naming, folder shape — is `/code-reorg`'s scope; structural smells encountered here are reported as pointers to `/code-reorg`, never analyzed.
+
+"Do nothing" is a first-class outcome: a clean scope yields a plain `no consolidation candidates in {scope}` close. That is a success, not a failure.
 
 **Language-agnostic by construction.** Detectors are configured commands, probed at run time and skipped silently when absent. A repo with no detectors installed still works — the agent sweeps unaided, just with a smaller seed.
 
@@ -70,7 +74,7 @@ Do **not** load change artifacts. There is no active change at this point.
 After context loading:
 
 ```bash
-fab log command "fab-dedupe"
+fab log command "code-dedupe"
 ```
 
 ---
@@ -146,6 +150,8 @@ For each cluster record:
 - **Call-site count** — how many places change
 - **Members outside scope** — flagged explicitly (see § Arguments)
 
+**Already-done guard.** Check each cluster against `docs/memory/_shared/utilities.md` (when present) and in-flight changes (`fab/changes/`): a cluster already consolidated, or with a change in flight for it, is dropped from the proposals and noted in the report — re-proposing finished or in-progress work is noise.
+
 #### Layered decomposition — do not record one flat signature
 
 Real clusters are **layered**: a base behavior every member needs, plus opt-in layers that only some members need. Record it that way.
@@ -172,85 +178,52 @@ Layering avoids a lossy flat API, drives divergence ranking, and preserves each 
 
 **A cluster of one is not a cluster.** Drop it.
 
-### Step 4: Rank and Present
+### Step 4: Rank, Grade, and Present
 
 Rank clusters by consolidation value: high call-site count and low divergence first, low count and high divergence last. A 12-member cluster whose members mostly need only the base layer is a trivial win; a 3-member cluster with subtle behavioral differences may not be worth doing at all.
 
 **Base-only members count as LOW divergence**; rank layer profiles, not textual similarity.
 
-Present the sweep report — read-only, nothing has been written:
-
-```
-Consolidation sweep — src/go (test helpers)
-Detectors: jscpd (skipped — not installed)
-Scanned: 104 files, 312 functions
-
-  1. Fab-root test scaffolding — 12 members, 12 call sites, low divergence
-     internal/{resolve,change,archive,score,...}_test.go
-     → newFabRoot(t, opts...) in internal/fabtest
-     Base: tempdir + fab/changes (all 12)
-     Layers: +project config (2) · +change dir (3) · +active symlink (1) · +kit override (1)
-
-  2. YAML frontmatter parsing — 3 members, 8 call sites, medium divergence
-     ...
-
-  2 clusters. Which should become changes? (all / 1,3 / none)
-```
-
-Then **ask** which clusters to act on **as a plain conversational question** — the reply grammar is `all`, a comma-separated list of numbers (`1,3`), or `none`. Do **not** use a structured multi-select picker: a conversational reply matches how every other fab skill interacts, sets no new precedent, and handles an arbitrary number of clusters (a structured picker caps at four options).
-
-Accepting nothing is a valid, complete outcome — the report itself is useful.
-
-### Step 5: Draft Intakes
-
-For each accepted cluster group, read `.claude/skills/_intake/SKILL.md` and execute the **Create-Intake Procedure** (Steps 0–9) with `{questioning-mode} = interactive`.
-
-Group by refactor coherence, not by count: clusters sharing a canonical home belong in one change; unrelated clusters get separate changes. **Prefer one intake per cluster.** Bundling makes apply all-or-nothing and forces review to issue one verdict over several independent refactors.
-
-Bind the procedure's inputs as follows.
-
-**Step 0 (Parse Input)** — the description is natural language: `consolidate {cluster shared-behavior} into {canonical home}`. No backlog or Linear ID applies, so no collision check runs and each invocation creates a fresh change. Re-running a sweep therefore creates *new* changes rather than resuming — see § Key Properties.
-
-**Step 2 (Gap Analysis)** — check `docs/memory/_shared/utilities.md` and open changes for this cluster. Already consolidated, or a change in flight for it → report and skip that cluster; do not create a duplicate.
-
-**Step 5 (Generate `intake.md`)** — the cluster data populates the template:
-
-| Intake section | Content |
-|---|---|
-| `## Origin` | The scope argument, the detectors that ran, and their exit codes. Falsifiable evidence: a reader can re-run the sweep. |
-| `## Why` | The duplication itself — member count, call-site count, and the cost of leaving it (every new site copies a member again). |
-| `## What Changes` | The canonical home, the **layered API** (base + layers, as recorded in Step 3), and per-member migration notes — which layers each member needs. Concrete: the template says do not summarize or abstract. |
-| `## Impact` | Every call site, and every member outside the swept scope. |
-| `## Affected Memory` | `_shared/utilities` — `(new)` on first consolidation, `(modify)` after. |
-| `## Open Questions` | Divergences the sweep could not resolve. |
-| `## Assumptions` | One SRAD row per divergence, plus one for the canonical-home choice. See below. |
-
-**SRAD grading (Step 8)** — grade honestly; the intake gate depends on it:
+Grade each cluster's consolidation confidence per `_srad.md` (record the per-dimension scores alongside the grade):
 
 - Identical members, obvious home → **Certain**
 - Minor divergence with a clear unified API → **Confident**
 - Divergence where consolidating might drop a behavior → **Tentative**
-- Cannot tell whether members are genuinely the same → **Unresolved**, and ask (the SRAD Critical Rule applies — this skill is interactive)
+- Cannot tell whether members are genuinely the same → **Unresolved**
 
-A cluster that grades mostly Tentative is telling you it should not be auto-consolidated. Let it fail the gate rather than talking the score up.
+A cluster that grades mostly Tentative is telling you it should not be consolidated wholesale — say so in the report rather than talking it up.
 
-**STOP after the procedure's Step 9** (intake at `ready`). Do not activate the
-change or create a branch; those are `/fab-new`-only steps.
-
-### Output
-
-Per drafted intake, report name and confidence, then apply `_preamble.md`
-§ Activation Preamble for each drafted name at intake state:
+Present the sweep report and **stop**:
 
 ```
-Drafted 2 changes:
-  260728-a1b2-consolidate-test-fixtures    Confidence: 4.2 / 5.0 (6 decisions)
-  260728-c3d4-consolidate-frontmatter      Confidence: 3.1 / 5.0 (4 decisions)
+/code-dedupe — src/go (test helpers)
+Detectors: jscpd (skipped — not installed)
+Scanned: 104 files, 312 functions
 
-Next: {per § Activation Preamble, once per drafted name}
+  1. Fab-root test scaffolding — 12 members, 12 call sites, low divergence    Confidence: Confident (S:.. R:.. A:.. D:..)
+     internal/{resolve,change,archive,score,...}_test.go
+     → newFabRoot(t, opts...) in internal/fabtest
+     Base: tempdir + fab/changes (all 12)
+     Layers: +project config (2) · +change dir (3) · +active symlink (1) · +kit override (1)
+     Suggested next action: /fab-new consolidate fab-root test scaffolding into internal/fabtest
+
+  2. YAML frontmatter parsing — 3 members, 8 call sites, medium divergence    Confidence: Tentative (S:.. R:.. A:.. D:..)
+     ...
+
+## For /code-reorg (structure, not duplication)
+
+  - internal/util/ reads as a junk drawer — run /code-reorg internal
+
+No files were modified. Suggested next actions are informational — acting on any cluster is your call.
 ```
 
-When no clusters are accepted, end with the report and no `Next:` line — nothing was created.
+Rules:
+
+- Structural/placement smells appear **only** in the separate `For /code-reorg` section — never as clusters.
+- Suggested-next-action lines are **informational only**; the skill never executes them. A suggested `/fab-new` line SHOULD name `_shared/utilities` for the change's Affected Memory (see § Memory Home).
+- Clusters dropped by the already-done guard are noted, not silently omitted.
+- When no clusters are found, close with `no consolidation candidates in {scope}` — a success.
+- **No `Next:` pipeline line.** The report ends the skill — a documented opt-out per `_preamble.md` § Next Steps Convention (the skill file wins, like `/fab-discuss`'s ready signal and `/code-reorg`'s report).
 
 ### Error Handling
 
@@ -261,11 +234,7 @@ When no clusters are accepted, end with the report and no `Next:` line — nothi
 | All detectors missing | Continue — sweep unaided, note it in the report |
 | A detector exits non-zero | Continue — parse available output, note the exit code |
 | A detector's output is unparseable | Continue — treat as no seed from that detector, note it |
-| No clusters found | Report "no consolidation candidates in {scope}" and stop — a legitimate outcome |
-| User accepts no clusters | Report and stop; nothing written |
-| `fab change new` fails for one cluster | Report it, continue with the remaining accepted clusters, list failures at the end |
-
-The Create-Intake Procedure's own error conditions apply from Step 5 onward. No activation or git rows — those steps never run.
+| No clusters found | Report `no consolidation candidates in {scope}` — a success, not a failure |
 
 ---
 
@@ -275,7 +244,7 @@ Consolidated utilities are recorded in **`docs/memory/_shared/utilities.md`**. T
 
 Do **not** create a top-level `utilities` domain for this. Every other domain is organized by subject matter; this one would be organized by code role and cut across all of them. If it outgrows a single file, `/docs-reorg-memory` will say so and it can be promoted then.
 
-The skill does not write this file. It is listed in the intake's `## Affected Memory`, and **hydrate writes it** on the normal pipeline path — no special memory-writing path, no drift between what shipped and what is recorded.
+The skill only **reads** this file (Step 3's already-done guard). It is written by hydrate when a consolidation change ships on the normal pipeline path — which is why a suggested `/fab-new` line names `_shared/utilities` for the change's Affected Memory — no special memory-writing path, no drift between what shipped and what is recorded.
 
 The file SHOULD carry an honest coverage header, because a utilities index that silently under-covers is worse than none — every consumer trusts it equally whether it lists 10% or 90%:
 
@@ -291,9 +260,11 @@ Coverage: swept `src/go` (test helpers) 2026-07-28 · not yet swept: `src/kit`, 
 |----------|-------|
 | Requires active change? | No |
 | Runs preflight? | No |
-| Read-only? | Until Step 5 — the sweep and report write nothing; intakes are created only for accepted clusters |
-| Idempotent? | Partially — the sweep is idempotent; re-running after accepting clusters creates *new* changes (natural-language input has no dedup). Step 2's gap analysis is the guard: it skips clusters already consolidated or already in flight |
-| Advances stage? | Yes — each drafted intake to `ready` |
-| Modifies `.fab-status.yaml`? | No — changes are not activated |
+| Read-only? | Yes — modifies no files, creates no changes, advances no stage, creates no git state |
+| Idempotent? | Yes — same scope + same code ⇒ same clusters |
+| Advances stage? | No |
+| Modifies `.fab-status.yaml`? | No |
 | Modifies git state? | No |
-| Refactors code? | **No** — that is the drafted change's job |
+| Refactors code or drafts intakes? | **No** — the report is the terminal output; routing each cluster is the user's choice |
+| Judges placement/naming/structure? | **No** — content duplication only; structure is pointed at `/code-reorg` |
+| Outputs `Next:` line? | No — ends with the report (opt-out per `_preamble.md` § Next Steps Convention) |

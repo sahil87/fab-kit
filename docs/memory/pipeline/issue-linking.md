@@ -62,7 +62,7 @@ When invoked from an orchestrator or any promptless context, branch (c) — and 
 
 ### Standalone Post-Intake Skill
 **Decision**: Linear find-or-create is a separate user-invocable skill (`/fab-issue`), not embedded in `/fab-new` / `/fab-draft` / `_intake`.
-**Why**: Matching quality is best post-intake (a clean description and change type exist); external side effects do not belong in intake (Constitution III); `/fab-draft` is a bulk consumer via `/fab-dedupe`, so auto-creating Linear issues per draft would spam the workspace.
+**Why**: Matching quality is best post-intake (a clean description and change type exist); external side effects do not belong in intake (Constitution III); `/fab-draft` can be invoked in bulk to queue intakes, so auto-creating Linear issues per draft would spam the workspace.
 **Rejected**: Embedding in intake (side effects + bulk-draft spam); linking at ship time inside `/git-pr` (too late for the user to steer, and `/git-pr` is deliberately prompt-free/autonomous).
 *Introduced by*: 260812-z5qt-linear-issue-find-or-create
 

@@ -253,7 +253,7 @@ When a skill creates or restores a change without activating it (no `.fab-status
 Next: /fab-switch {name} to make it active, then {default}, {other commands}
 ```
 
-This applies to `/fab-draft` (always), `/fab-dedupe` (per drafted intake — it stops at `ready` without activating, so every intake it drafts carries the preamble), and `/fab-archive restore` (without `--switch`). `/fab-new` auto-activates and does not need the activation preamble.
+This applies to `/fab-draft` (always) and `/fab-archive restore` (without `--switch`). `/fab-new` auto-activates and does not need the activation preamble.
 
 ---
 
@@ -490,7 +490,7 @@ Per `docs/specs/harness-adapters.md` § Dispatch-prompt obligations, **whatever 
 
 ## SRAD Autonomy Framework (pointer)
 
-SRAD is the decision framework planning skills use to score decision points (Signal, Reversibility, Agent Competence, Disambiguation → Certain/Confident/Tentative/Unresolved) and decide when to ask vs. assume. The full framework — scoring dimensions, grade thresholds, Critical Rule, artifact markers, and the Assumptions Summary block — lives in the `_srad` helper, declared via `helpers:` by the planning skills (`fab-new`, `fab-draft`, `fab-dedupe`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify`). Non-planning skills do not need it.
+SRAD is the decision framework planning skills use to score decision points (Signal, Reversibility, Agent Competence, Disambiguation → Certain/Confident/Tentative/Unresolved) and decide when to ask vs. assume. The full framework — scoring dimensions, grade thresholds, Critical Rule, artifact markers, and the Assumptions Summary block — lives in the `_srad` helper, declared via `helpers:` by the planning skills (`fab-new`, `fab-draft`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify`). Non-planning skills do not need it.
 
 ---
 
@@ -510,7 +510,7 @@ See `docs/specs/change-types.md` for the full taxonomy.
 
 ### Invocation
 
-- `/fab-new`, `/fab-draft`, and `/fab-dedupe` persist the intake score through `_intake.md` Step 7; dedupe does so once per accepted cluster group.
+- `/fab-new` and `/fab-draft` persist the intake score through `_intake.md` Step 7.
 - `/fab-clarify` re-persists it after resolving assumptions in both modes.
 - `/fab-ff` and `/fab-fff` check the one intake gate before the automated bracket.
 - `/fab-continue` never scores at apply entry or later; intake is authoritative.

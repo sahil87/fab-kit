@@ -425,7 +425,6 @@ Grades aggregate into a **confidence score** that gates `/fab-ff`. If ambiguity 
 |---------|---------|
 | `/fab-new <description>` | Start a new change — creates the intake, activates it, and creates the git branch |
 | `/fab-draft <description>` | Create a change intake without activating it (queue for later) |
-| `/fab-dedupe [scope]` | Sweep a scoped area for duplicated utilities, cluster them by behavioral shape, and draft one intake per accepted cluster — read-only until you approve |
 | `/fab-continue` | Advance to the next stage (or reset to a specific stage) |
 | `/fab-ff` | Fast-forward through hydrate — confidence-gated, auto-rework loop |
 | `/fab-fff` | Fast-forward further through ship + PR review — same gates as ff |
@@ -462,6 +461,7 @@ Grades aggregate into a **confidence score** that gates `/fab-ff`. If ambiguity 
 | `/docs-distill-memory [<domain>]` | Rewrite a memory domain to the FKF present-truth style — strip narration, cap descriptions, relocate rationale |
 | `/docs-reorg-specs` | Analyze spec files for themes, suggest reorganization |
 | `/code-reorg [<path>]` | Review source-tree structure — placement, naming, consolidation — and present a ranked findings report (read-only, suggestions only) |
+| `/code-dedupe [scope]` | Sweep a scoped area for duplicated utilities, cluster them by behavioral shape, and present a ranked consolidation report (read-only, suggestions only) |
 
 ### Multi-Agent Coordination
 

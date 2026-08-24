@@ -330,23 +330,23 @@ The `_` (underscore) prefix denotes internal partial files that are loaded by sk
 |------|--------------|---------|
 | `_preamble.md` | Always-load (every skill) | Context loading, SRAD, confidence scoring, Next Steps, Skill Helper Declaration, inlined Naming Conventions, inlined Run-Kit (rk) Reference, Common fab Commands |
 | `_cli-fab.md` | Selective (via `helpers: [_cli-fab]`) | Fab CLI command reference — commands and flags beyond the Common fab Commands headline in `_preamble`. Used only by `fab-operator` currently |
-| `_generation.md` | Selective (via `helpers: [_generation]`) | Spec/tasks/intake generation procedures. Used by `fab-new`, `fab-draft`, `fab-dedupe`, `fab-ff`, `fab-fff`, `fab-adopt` |
+| `_generation.md` | Selective (via `helpers: [_generation]`) | Spec/tasks/intake generation procedures. Used by `fab-new`, `fab-draft`, `fab-ff`, `fab-fff`, `fab-adopt` |
 | `_review.md` | Selective (via `helpers: [_review]`) | Review procedures. Used by `fab-ff`, `fab-fff`, `fab-adopt` |
-| `_srad.md` | Selective (via `helpers: [_srad]`) | SRAD autonomy framework — decision scoring, confidence grades, artifact markers, the Assumptions Summary block. The most widely declared helper: `fab-new`, `fab-draft`, `fab-dedupe`, `fab-continue`, `fab-clarify`, `fab-ff`, `fab-fff`, `fab-adopt` |
+| `_srad.md` | Selective (via `helpers: [_srad]`) | SRAD autonomy framework — decision scoring, confidence grades, artifact markers, the Assumptions Summary block. The most widely declared helper: `fab-new`, `fab-draft`, `fab-continue`, `fab-clarify`, `fab-ff`, `fab-fff`, `fab-adopt`, plus the report-only analysis skills `code-reorg` and `code-dedupe` (report-item confidence grading) |
 | `_pipeline.md` | Selective (via `helpers: [_pipeline]`) | Shared ff/fff pipeline bracket — intake gate, apply → review → hydrate, the auto-rework loop and its exhaustion stop. Used by `fab-ff`, `fab-fff` (full bracket) and `fab-adopt` (partial consumer — the rework loop + hydrate dispatch only) |
-| `_intake.md` | Selective (via `helpers: [_intake]`) | Shared pre-boundary Create-Intake Procedure, parameterized by a `{questioning-mode}` knob. Used by `fab-new`, `fab-draft`, `fab-dedupe` |
+| `_intake.md` | Selective (via `helpers: [_intake]`) | Shared pre-boundary Create-Intake Procedure, parameterized by a `{questioning-mode}` knob. Used by `fab-new`, `fab-draft` |
 | `_cli-agents.md` | Selective (via `helpers: [_cli-agents]`) | Agent-CLI interaction reference — generic spawn / pre-send-validation / peek / await procedures for driving another agent CLI in a tmux pane, plus a four-provider operational dictionary (claude, codex, agy, kimi). Used only by `fab-operator` |
 | `_cli-external.md` | Selective (via `helpers: [_cli-external]`) | **Fab-owned** external-tool content only (clix): the operator spawning choreography, the escalation `rk notify` usage and the pointer to the operator's startup role self-mark, the agent-messaging and pane peek/kill/process usage pointers (`rk mux send`/`await` usage owned by `_cli-agents.md` § Pre-Send Validation / § Await and `fab-operator.md` §3/§5; `rk mux capture`/`kill`/`process` usage owned by `_cli-agents.md` § Peek; the verbs' contracts are tool-owned), the absent-binary discipline, `tmux` (reduced — captures prefer `rk mux capture` with raw `capture-pane` as the rk-absent fallback, `fab pane capture` staying dispatch-internal; sends prefer `rk mux send` with raw `send-keys` as the rk-absent fallback; `new-window` remains), and `/loop`. Each owned binary's *usage knowledge* — `wt`/`idea` (bare) and `rk`/`hop` (`command -v`-gated fail-silent) — is delegated at use-time to `<tool> skill` (with a silent `https://shll.ai/<tool>/skill` version-skew fallback), its command tree to `<tool> help-dump`. Used only by `fab-operator` |
 
 Only `_preamble.md` is always-loaded. All other helpers are opt-in via the `helpers:` frontmatter field on each skill. `_naming.md` and `_cli-rk.md` do not exist as separate files — their content is inlined into `_preamble.md` (`## Naming Conventions`, `## Run-Kit (rk) Reference`).
 
 Skill → helper mapping (the declaration lives in each skill's frontmatter; `grep -l '^helpers:' src/kit/skills/*.md` is the roster):
-- `fab-new`, `fab-draft`, `fab-dedupe` → `[_generation, _srad, _intake]`
+- `fab-new`, `fab-draft` → `[_generation, _srad, _intake]`
 - `fab-ff`, `fab-fff` → `[_generation, _review, _srad, _pipeline]`
 - `fab-adopt` → `[_srad, _generation, _review, _pipeline]`
-- `fab-continue`, `fab-clarify` → `[_srad]`
+- `fab-continue`, `fab-clarify`, `code-reorg`, `code-dedupe` → `[_srad]`
 - `fab-operator` → `[_cli-agents, _cli-fab, _cli-external]`
-- The other 18 of the 27 user-facing skills declare no `helpers:` (they load only `_preamble`)
+- The other 19 of the 29 user-facing skills declare no `helpers:` (they load only `_preamble`)
 
 `_preamble.md` § Skill Helper Declaration is where the field is specified: it enumerates the eight allowed values (`_generation`, `_review`, `_cli-fab`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`) and shows a fenced `fab-ff` frontmatter example. That example's `helpers:` line is illustrative — the preamble itself declares no helpers and loads nothing extra by default.
 
