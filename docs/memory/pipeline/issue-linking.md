@@ -18,7 +18,7 @@ Issue IDs never appear in folder slugs or branch names; they live only in the `i
 
 ## The `/fab-issue` Skill
 
-`src/kit/skills/fab-issue.md` — user-invocable, takes optional `[<change>] [<issue-id>]`, requires an active change (or the transient `[<change>]` override), advances no stage (runs no `fab status` transition command), and ends with the standard state-derived `Next:` line. It declares no `helpers:` (loads only `_preamble`) and maps to the `Completion` help group in `fabhelp.go`. Its only writes are `fab status add-issue` and the Linear-side issue create.
+`src/kit/skills/fab-issue.md` — user-invocable, takes optional `[<change>] [<issue-id>]`, requires an active change (or the transient `[<change>]` override), advances no stage (runs no `fab status` transition command), and ends with the standard state-derived `Next:` line. It declares no `helpers:` (loads only `_preamble`) and maps to the `Completion` help group in `fab_help.go`. Its only writes are `fab status add-issue` and the Linear-side issue create.
 
 ### Gate Chain
 

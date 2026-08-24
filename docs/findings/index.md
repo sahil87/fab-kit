@@ -11,6 +11,7 @@
 
 | Finding | Status | Summary |
 |---------|--------|---------|
+| [statusman-benchmark](statusman-benchmark/README.md) | resolved | Historical decision record (relocated from `src/benchmark/` in ffny): 4-way statusman.sh benchmark (bash / optimized bash / node / rust, later + go) that informed the Go backend decision; implementations deleted in tb6f, [RESULTS.md](statusman-benchmark/RESULTS.md) holds the numbers, summary survives in `docs/memory/distribution/kit-architecture.md` § Performance Benchmark |
 | [intake-is-the-context-boundary](intake-is-the-context-boundary.md) | open | Intake is the sole context boundary — main context ≤ intake, dispatched artifact-fed blocks > intake. Post-intake stages should have one execution mode (dispatched), collapsing the dual-mode `do NOT run fab status` seam and closing Gap 1a of the model-tier finding |
 | [per-stage-model-tier-application](per-stage-model-tier-application.md) | open | Per-stage model tiers are honored only on the subagent-dispatch seam — foreground stages and skipped `resolve-agent` calls inherit the session model, and the Agent tool exposes no per-subagent `effort` knob |
 | [kimi-vs-codex-rvza-ttff](kimi-vs-codex-rvza-ttff.html) | open | Head-to-head experiment (2026-08-10): rvza + ttff each piped to a draft PR on all-kimi (k3) vs all-codex (sol@xhigh) workers — kimi ~2.5× faster on both, codex higher-quality on both (decisively on the sweep-heavy ttff: sweep 10 vs 6); sweep-verification greps should target phrase classes, not tokens |

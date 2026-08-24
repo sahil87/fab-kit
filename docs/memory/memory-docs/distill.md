@@ -107,7 +107,7 @@ Re-running the skill on an already-distilled domain finds nothing to rewrite and
 
 ### fab-help Group Registration
 
-`/docs-distill-memory` is registered in the "Maintenance" `/fab-help` group (with `/docs-reorg-memory`, `/docs-reorg-specs`, `/docs-hydrate-specs`) via `skillToGroupMap` in `src/go/fab/cmd/fab/fabhelp.go`, and listed on the hardcoded `Maintain docs:` TYPICAL FLOW line. `/fab-help` discovers the command itself by scanning deployed skill frontmatter; only its *grouping* comes from the map (an unmapped skill falls into the "Other" bucket). The registration carries no command-signature change, so `_cli-fab.md` is unaffected.
+`/docs-distill-memory` is registered in the "Maintenance" `/fab-help` group (with `/docs-reorg-memory`, `/docs-reorg-specs`, `/docs-hydrate-specs`) via `skillToGroupMap` in `src/go/fab/cmd/fab/fab_help.go`, and listed on the hardcoded `Maintain docs:` TYPICAL FLOW line. `/fab-help` discovers the command itself by scanning deployed skill frontmatter; only its *grouping* comes from the map (an unmapped skill falls into the "Other" bucket). The registration carries no command-signature change, so `_cli-fab.md` is unaffected.
 
 ## Design Decisions
 

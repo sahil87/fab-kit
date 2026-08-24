@@ -25,7 +25,7 @@ func tmuxSocketPathLen(dir, name string) int {
 // run (change 0j0t). Prefers t.TempDir(); when the resulting socket path
 // would exceed the sun_path budget (long $TMPDIR bases on macOS), it falls
 // back to a short /tmp dir removed via t.Cleanup — never a skip. Shared by
-// the integration tests in this file and panemap_test.go.
+// the integration tests in this file and pane_map_test.go.
 //
 // It also scrubs $TMUX/$TMUX_PANE: $TMUX outranks TMUX_TMPDIR in tmux's
 // socket resolution (-L/-S > $TMUX > TMUX_TMPDIR), so for any test run from

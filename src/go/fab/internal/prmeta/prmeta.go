@@ -535,7 +535,7 @@ func countCheckboxesInTasksSection(path string) (int, int) {
 	for _, line := range fileLines {
 		// Match the heading exactly — "## Tasks" or "## Tasks ..." (trailing
 		// text/whitespace) — but never "## TasksAndStuff". Mirrors the
-		// canonical bound in hooklib.HasSectionHeading / scanSectionItems.
+		// canonical bound in artifact.HasSectionHeading / scanSectionItems.
 		if line == tasksHeading || strings.HasPrefix(line, tasksHeading+" ") {
 			inSection = true
 			continue
