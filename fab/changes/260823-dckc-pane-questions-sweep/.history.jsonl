@@ -1,0 +1,11 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-23T19:44:07Z"}
+{"args":"Phase B2 of the operator offload plan: fab pane questions (--all-sessions, --panes, --json) + fab-operator §5 detection rewire; prior attempt stashed at 1749af3 reviewed for reuse","cmd":"fab-new","event":"command","ts":"2026-08-23T19:44:07Z"}
+{"delta":"+4.7","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-08-23T19:45:45Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-23T19:57:34Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-23T19:58:18Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-23T20:06:56Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-23T20:10:23Z"}
+{"event":"review","result":"passed","ts":"2026-08-23T20:10:23Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-23T20:19:52Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-23T20:23:14Z"}
+{"event":"review","result":"passed","ts":"2026-08-23T20:34:16Z"}

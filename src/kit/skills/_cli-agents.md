@@ -121,6 +121,8 @@ Two independent axes, read separately:
 
 > **State-writer caveat — uninstrumented panes read unknown.** fab is a pure *consumer* of `@rk_agent_state`; the writer is run-kit's `rk agent-setup` global agent-harness hooks, which cover **Claude Code, Codex, Copilot, Gemini, and OpenCode** — not just Claude (see `_cli-fab.md` § fab pane → § agent state). The unknown case is therefore an **uninstrumented pane**, not a non-claude one: no `rk agent-setup` was ever run in that environment, or the pane runs a harness those hooks do not cover. Such a pane reports `—` (unknown) — indistinguishable from "no state". So **capture is the universal fallback**: state reads are an optimization on instrumented panes, not a portable signal. Never gate a flow on a non-unknown state read.
 
+**Exception to the substrate-twin rule — `fab pane questions`.** Skill-facing peek rides run-kit's substrate twins (`rk mux capture`/`process`/`kill`), and fab's own `fab pane capture`/`kill`/`process` are dispatch-internal — but `fab pane questions` is the named exception: it is a **policy-bearing sweep** (fab-operator's own question-detection indicator patterns and guards mechanized per candidate pane), not a raw peek primitive, so it lives in `fab pane` on purpose rather than `rk mux`. Use it when the question is "is any of these panes blocked on a prompt?", plain peek when you need the screen itself.
+
 ### Await
 
 There is **no cross-provider completion notification.** The Agent-tool style "sub-agent finished, here is its result" callback has no equivalent when you drive a CLI in a pane. The available signals are:

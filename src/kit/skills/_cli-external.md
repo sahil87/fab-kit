@@ -218,7 +218,7 @@ The third fab-owned rk usage — agent messaging via `rk mux send`/`rk mux await
 
 ### Pane peek/kill/process (fab-owned — pointer)
 
-The fourth fab-owned rk usage — pane peek via `rk mux capture`, pane removal via the agent-state-gated `rk mux kill`, and process-tree inspection via `rk mux process`, each `command -v rk`-gated and fail-open to raw tmux when rk is absent — is owned by `_cli-agents.md` § Peek (with the operator's capture form in `fab-operator.md` §5). The verbs' full contracts are tool-owned; see `rk skill`. fab's own `fab pane capture`/`kill`/`process` remain dispatch-internal for the rk-less pane arm (`_cli-fab.md` § fab pane).
+The fourth fab-owned rk usage — pane peek via `rk mux capture`, pane removal via the agent-state-gated `rk mux kill`, and process-tree inspection via `rk mux process`, each `command -v rk`-gated and fail-open to raw tmux when rk is absent — is owned by `_cli-agents.md` § Peek (the operator's per-tick question detection rides the mechanized `fab pane questions` sweep instead — `fab-operator.md` §5). The verbs' full contracts are tool-owned; see `rk skill`. fab's own `fab pane capture`/`kill`/`process` remain dispatch-internal for the rk-less pane arm (`_cli-fab.md` § fab pane).
 
 ---
 
