@@ -23,7 +23,7 @@ true_impact_exclude:
 # checklist:
 #   extra_categories: []               # example: [performance, accessibility, i18n]
 #
-# consolidate.detectors — duplicate-detection commands /fab-dedupe runs to
+# consolidate.detectors — duplicate-detection commands /code-dedupe runs to
 # seed its sweep; {paths} and {out} substitute at run time (shell-quoted). [project]
 # Full prose: fab config explain consolidate.detectors
 # consolidate:

@@ -518,10 +518,10 @@ checklist:
 			Key:         "consolidate.detectors",
 			Default:     nil,
 			Kind:        configvalue.KindSequence,
-			Description: "Duplicate-detection commands `/fab-dedupe` runs to seed its sweep. Each entry is a shell command template; `{paths}` and `{out}` are substituted at run time as shell-quoted values. Missing binaries are skipped silently.",
+			Description: "Duplicate-detection commands `/code-dedupe` runs to seed its sweep. Each entry is a shell command template; `{paths}` and `{out}` are substituted at run time as shell-quoted values. Missing binaries are skipped silently.",
 			Scope:       ScopeProject,
 			Advertise:   true,
-			Segment: `# consolidate.detectors — duplicate-detection commands /fab-dedupe runs to seed
+			Segment: `# consolidate.detectors — duplicate-detection commands /code-dedupe runs to seed
 # its sweep. Each entry is a shell command template; {paths} (the resolved scope)
 # and {out} (a scratch dir) are substituted at run time as shell-quoted values,
 # so paths containing spaces or shell metacharacters stay intact arguments.
@@ -532,7 +532,7 @@ checklist:
 #   detectors:
 #     - jscpd --reporters json --output {out} {paths}`,
 			ShortSegment: shortAdvert(ScopeProject,
-				"consolidate.detectors — duplicate-detection commands /fab-dedupe runs to\n"+
+				"consolidate.detectors — duplicate-detection commands /code-dedupe runs to\n"+
 					"seed its sweep; {paths} and {out} substitute at run time (shell-quoted).",
 				"consolidate.detectors") +
 				"# consolidate:\n" +

@@ -42,13 +42,14 @@ Current mapping:
 
 | Skill(s) | `helpers:` |
 |----------|------------|
-| `fab-new`, `fab-draft`, `fab-dedupe` | `[_generation, _srad, _intake]` (consumers declare underlying helpers rather than inheriting transitively — the `_pipeline` precedent) |
+| `fab-new`, `fab-draft` | `[_generation, _srad, _intake]` (consumers declare underlying helpers rather than inheriting transitively — the `_pipeline` precedent) |
 | `fab-continue` | `[_srad]` (+ point-of-use in-body reads of `_generation`/`_review`) |
 | `fab-ff`, `fab-fff` | `[_generation, _review, _srad, _pipeline]` (orchestrator-level rework edits `plan.md` sections directly, so `_generation` stays unconditional; `_pipeline` is the shared ff/fff pipeline bracket and constitutes the wrappers' entire body, so its load is unconditional by construction (szxd)) |
 | `fab-adopt` | `[_srad, _generation, _review, _pipeline]` |
 | `fab-clarify` | `[_srad]` |
+| `code-reorg`, `code-dedupe` | `[_srad]` (report-only analysis skills — SRAD grades report-item confidence; no `_intake`/`_generation`) |
 | `fab-operator` | `[_cli-agents, _cli-fab, _cli-external]` (`_cli-agents` carries the agent-CLI interaction primitives the operator's spawn/pre-send/peek steps reference — see [runtime/agent-primitives.md](/runtime/agent-primitives.md)) |
-| All others (18 skills) | omitted / `[]` (load only `_preamble`) |
+| All others (19 skills) | omitted / `[]` (load only `_preamble`) |
 
 `_naming` and `_cli-rk` are NOT allowed values — their content is inlined into `_preamble`. `_preamble` itself is implicit and never listed. `/fab-proceed` declares **no** `helpers:` (it dispatches `_intake` as a subagent prompt — the subagent reads the helper) (3xaj). The internal helpers `_generation`, `_review`, `_pipeline`, and `_intake` themselves carry no `helpers:` frontmatter — they reference what they need in-body and rely on the consumer (or dispatched subagent) having loaded it.
 
@@ -56,9 +57,9 @@ Current mapping:
 
 | Phase | Helper | Knob(s) | Consumers |
 |-------|--------|---------|-----------|
-| artifact mechanics | `_generation` | — | `fab-new`, `fab-draft`, `fab-dedupe`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-adopt` |
+| artifact mechanics | `_generation` | — | `fab-new`, `fab-draft`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-adopt` |
 | review mechanics | `_review` | `{mode}` | `fab-continue`, `fab-ff`, `fab-fff`, `fab-adopt` |
-| **pre-intake orchestration** | **`_intake`** | `{questioning-mode}` | `fab-new`, `fab-draft`, `fab-dedupe`, `fab-proceed` |
+| **pre-intake orchestration** | **`_intake`** | `{questioning-mode}` | `fab-new`, `fab-draft`, `fab-proceed` |
 | post-intake orchestration | `_pipeline` | `{driver}`, `{terminal}` | `fab-ff`, `fab-fff`, `fab-adopt` |
 
 `_intake` (3xaj) is the **pre-boundary** counterpart to the **post-boundary** `_pipeline` (szxd): intake is the single context-bearing boundary in the pipeline; everything up to and including intake creation runs in the main session context (pre-boundary: `_intake`), everything after runs as dispatched subagents over the intake artifact (post-boundary: `_pipeline`). Both extractions mirror the same shape (shared body + one-or-two knobs + call-site tails). See [pipeline/planning-skills.md](/pipeline/planning-skills.md) § The `_intake` Shared Create-Intake Procedure for the full pre-boundary decomposition.
@@ -161,7 +162,7 @@ This subsection documents *where the resolution call sits* and *how the profile 
 
 ### SRAD Protocol (via the `_srad` Helper)
 
-The SRAD autonomy framework lives in the dedicated `_srad.md` helper (zc9m), declared via frontmatter `helpers:` by the planning skills — `fab-new`, `fab-draft`, `fab-dedupe` (4v91), `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify`. It is **not part of the always-load layer**: `_preamble.md` carries only a ~3-line pointer (§ SRAD Autonomy Framework (pointer)), so non-planning skills do not pay for the framework. The framework defines:
+The SRAD autonomy framework lives in the dedicated `_srad.md` helper (zc9m), declared via frontmatter `helpers:` by the planning skills — `fab-new`, `fab-draft`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify` — and by the report-only analysis skills `code-reorg`/`code-dedupe` for report-item confidence grading. It is **not part of the always-load layer**: `_preamble.md` carries only a ~3-line pointer (§ SRAD Autonomy Framework (pointer)), so non-planning skills do not pay for the framework. The framework defines:
 - **SRAD scoring table** — four dimensions evaluated on a continuous 0–100 scale per decision point
 - **Fuzzy-to-grade mapping** — composite score via weighted mean (w_S=0.20, w_R=0.30, w_A=0.30, w_D=0.20) (4yi8), mapped to **indicative-only** grades via half-open bands: composite ≥ 80 Certain, 50 ≤ c < 80 Confident, 20 ≤ c < 50 Tentative, else Unresolved (the bands align with the demerit penalty-curve knees; the grade is derived from the composite and never read by the score formula) (4yi8)
 - **No Critical Rule, no hard-fail (4yi8)** — there is deliberately no "R < 25 AND A < 25 forces Unresolved" override and no "any Unresolved row → 0.0" short-circuit; blocking is emergent from the demerit penalty curve (a `composite < 20` row penalizes ≥ 2.0), and reversibility is carried by R's 0.30 weight rather than a separate rule
@@ -170,7 +171,7 @@ The SRAD autonomy framework lives in the dedicated `_srad.md` helper (zc9m), dec
 - **Artifact markers** — `<!-- assumed: ... -->` for Tentative, `<!-- clarified: ... -->` for resolved assumptions
 - **Assumptions Summary Block** — standard format with required `Scores` column for per-dimension data; all four grades (Certain, Confident, Tentative, Unresolved) recorded
 
-The companion confidence-scoring internals — the `.status.yaml` `confidence:` schema, the score formula (the demerit model (4yi8): `score = clamp(5.0 − Σ penalty(composite), 0, 5)`, no coverage factor and no `expected_min` in the score path), and the status-template notes — live in `_cli-fab.md` § fab score (extended) (zc9m). Agents never compute the score: `fab score` (Go) does, reading `intake.md` as the sole scoring source. `_preamble.md` § Confidence Scoring keeps only the **Gate Threshold** (single flat-3.0 intake gate via `fab score --check-gate --stage intake`) and **Invocation** (who scores, when (d9rs): `/fab-new`, `/fab-draft`, **and `/fab-dedupe`** (4v91) persist the intake score after generation — all three through the shared `_intake` Step 7, `/fab-dedupe` once per accepted cluster group; `/fab-clarify` re-persists it in **both modes** — Suggest Step 7 and Auto Mode step 4 — not just suggest mode). The preamble's Bulk Confirm subsection is likewise a one-sentence pointer — `fab-clarify.md` (Step 2, Suggest Mode) is the sole authority for the trigger and semantics (see [pipeline/clarify.md](/pipeline/clarify.md)).
+The companion confidence-scoring internals — the `.status.yaml` `confidence:` schema, the score formula (the demerit model (4yi8): `score = clamp(5.0 − Σ penalty(composite), 0, 5)`, no coverage factor and no `expected_min` in the score path), and the status-template notes — live in `_cli-fab.md` § fab score (extended) (zc9m). Agents never compute the score: `fab score` (Go) does, reading `intake.md` as the sole scoring source. `_preamble.md` § Confidence Scoring keeps only the **Gate Threshold** (single flat-3.0 intake gate via `fab score --check-gate --stage intake`) and **Invocation** (who scores, when (d9rs): `/fab-new` and `/fab-draft` persist the intake score after generation — both through the shared `_intake` Step 7; `/fab-clarify` re-persists it in **both modes** — Suggest Step 7 and Auto Mode step 4 — not just suggest mode). The preamble's Bulk Confirm subsection is likewise a one-sentence pointer — `fab-clarify.md` (Step 2, Suggest Mode) is the sole authority for the trigger and semantics (see [pipeline/clarify.md](/pipeline/clarify.md)).
 
 ### Next Steps Convention (State Table, Scoped MUST)
 
@@ -179,7 +180,7 @@ The `_preamble.md` preamble defines a **state-keyed Next Steps Convention** that
 1. **State Table** — 10 states (none, initialized, intake, apply, review pass, review fail, hydrate, ship, review-pr pass, review-pr fail) each mapping to available commands and a default
 2. **State derivation rules** — how to determine the current state from `config.yaml` existence, `.fab-status.yaml`, and `.status.yaml` progress map
 3. **Lookup procedure** — determine state, look up in table, output default first
-4. **Activation preamble** — when a skill creates/restores a change without activating it (`/fab-draft` always, `/fab-dedupe` per drafted intake (4v91), `/fab-archive restore` without `--switch`), the `Next:` line includes a `/fab-switch {name}` instruction before state-derived commands (`/fab-new` auto-activates and does not need it)
+4. **Activation preamble** — when a skill creates/restores a change without activating it (`/fab-draft` always, `/fab-archive restore` without `--switch`), the `Next:` line includes a `/fab-switch {name}` instruction before state-derived commands (`/fab-new` auto-activates and does not need it)
 
 No skill duplicates or maintains its own suggestion logic — skills on the default path derive from this single canonical table.
 

@@ -28,7 +28,7 @@ helpers: [_srad]
 
 The report is the skill's **terminal output and entire effect**. The skill is fully read-only: it modifies no files, creates no changes, runs no `fab status` transition, and creates no git state. It does **not** apply moves/renames, draft intakes, or decide how a finding gets fixed (micro change vs `/fab-new` vs ignore) — that routing is the user's per-finding choice. Each proposal MAY carry an informational suggested-next-action line (e.g. `micro: rename directly and commit` or a ready-to-paste `/fab-new <description>`), which the skill never executes.
 
-Hard boundary: **structure only** — where files live and what they are called, with no behavioral change. Content and functionality judgment is out of scope; content-duplication smells are not clustered here but reported as pointers to `/fab-dedupe`.
+Hard boundary: **structure only** — where files live and what they are called, with no behavioral change. Content and functionality judgment is out of scope; content-duplication smells are not clustered here but reported as pointers to `/code-dedupe`.
 
 "Do nothing" is a first-class outcome: a clean tree yields a plain `no proposals — structure predicts well` close. That is a success, not a failure.
 
@@ -155,16 +155,16 @@ Rank proposals by **highest confidence × lowest blast radius** first. Present a
 
   2. ...
 
-## For /fab-dedupe (content duplication, not structure)
+## For /code-dedupe (content duplication, not structure)
 
-  - internal/{a,b}/retry.go look semantically duplicated — run /fab-dedupe internal
+  - internal/{a,b}/retry.go look semantically duplicated — run /code-dedupe internal
 
 No files were modified. Suggested next actions are informational — acting on any proposal is your call.
 ```
 
 Rules:
 
-- Content-duplication smells appear **only** in the separate `For /fab-dedupe` section — never as proposals.
+- Content-duplication smells appear **only** in the separate `For /code-dedupe` section — never as proposals.
 - Suggested-next-action lines are **informational only**; the skill never executes them.
 - A co-change-skipped run states the skip note in the report (Step 2).
 - When no finding survives the taste guard, close with `no proposals — structure predicts well` — a success.
@@ -197,6 +197,6 @@ Rules:
 | Modifies `.fab-status.yaml`? | No |
 | Modifies git state? | No |
 | Applies moves/renames or drafts intakes? | **No** — the report is the terminal output; routing each fix is the user's choice |
-| Judges code content/functionality? | **No** — structure only; content duplication is pointed at `/fab-dedupe` |
+| Judges code content/functionality? | **No** — structure only; content duplication is pointed at `/code-dedupe` |
 | Sweeps `docs/memory/` or `docs/specs/`? | **No** — refused with a pointer to `/docs-reorg-memory` / `/docs-reorg-specs` |
 | Outputs `Next:` line? | No — ends with the report (opt-out per `_preamble.md` § Next Steps Convention) |

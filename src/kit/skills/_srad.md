@@ -9,7 +9,7 @@ metadata:
 # SRAD Autonomy Framework
 
 > This file defines the SRAD decision framework used by the planning skills
-> (`fab-new`, `fab-draft`, `fab-dedupe`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify`), each of which
+> (`fab-new`, `fab-draft`, `fab-continue`, `fab-ff`, `fab-fff`, `fab-clarify`), each of which
 > declares `_srad` in its frontmatter `helpers:` list (see `_preamble.md` § Skill Helper Declaration).
 
 When generating artifacts, planning skills encounter decision points not explicitly addressed by user input. The SRAD framework provides a principled method for deciding when to ask, when to assume, and when to surface assumptions.
@@ -71,7 +71,6 @@ Each decision is labelled with an **indicative grade** derived from its composit
 | Remaining skill | Follows | Skill-specific delta |
 |-----------------|---------|----------------------|
 | `fab-draft` | `fab-new` posture and budget | Runs Steps 0–9, then skips activation/branch |
-| `fab-dedupe` | `fab-new` posture, `{questioning-mode} = interactive`, and `/fab-clarify` escape valve | Adds cluster analysis and invokes the posture once per accepted cluster group |
 | `fab-clarify` | Escape valve | SRAD-prioritized suggest questions (max 5/invocation), re-grades resolved rows, then recomputes `fab score --stage intake` |
 
 ## Worked Examples
@@ -94,7 +93,7 @@ Planning skills use HTML comment markers to flag assumptions for downstream scan
 
 | Marker | Grade | Placed by | Scanned by |
 |--------|-------|-----------|------------|
-| `<!-- assumed: {description} -->` | Tentative | All planning skills (fab-new, fab-draft, fab-dedupe, fab-continue, fab-ff, fab-fff, fab-clarify) | `/fab-clarify` (suggest + auto modes) |
+| `<!-- assumed: {description} -->` | Tentative | All planning skills (fab-new, fab-draft, fab-continue, fab-ff, fab-fff, fab-clarify) | `/fab-clarify` (suggest + auto modes) |
 | `<!-- clarified: {description} -->` | Resolved | `/fab-clarify` | Informational — not scanned |
 
 **Placement**: Insert the marker inline in the artifact, immediately after the assumed or guessed content. The `{description}` MUST be a concise summary of what was assumed/guessed and why.

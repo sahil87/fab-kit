@@ -1415,7 +1415,7 @@ func TestConfigReferenceCommandJSONFlag(t *testing.T) {
 }
 
 // TestConfigReferenceConsolidateDetectors pins the `consolidate.detectors`
-// registry row added for /fab-dedupe (260728-4v91). It is a SKILL-consumed key
+// registry row added for /code-dedupe (260728-4v91, as /fab-dedupe). It is a SKILL-consumed key
 // (no Config struct field — markdown reads it), so no reflection-based coverage
 // test would catch its loss; this test is the guard. Three properties are pinned:
 // the row's metadata (nil default per the empty-default convention, project

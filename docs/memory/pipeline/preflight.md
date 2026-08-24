@@ -66,7 +66,7 @@ Skills operating on a change run preflight per `_preamble.md` §2: execute `fab 
 
 After preflight, skills log the invocation with a direct `fab log command "<skill>" "<id>"` call (`_preamble.md` §2 step 4), passing the `id` from the preflight output. That command owns a best-effort contract — it always exits 0 given valid usage, printing internal failures as a stderr warning — so no shell guard is needed.
 
-Skills that operate without an active change do not run preflight: `/fab-setup`, `/fab-new`, `/fab-switch`, `/fab-discuss`, `/fab-help`, `/fab-dedupe` (which must not resolve or disturb a change), and `/fab-operator` (a listed exception to the always-load layer). Exempt skills that still want telemetry call `fab log command` directly.
+Skills that operate without an active change do not run preflight: `/fab-setup`, `/fab-new`, `/fab-switch`, `/fab-discuss`, `/fab-help`, `/code-dedupe` and `/code-reorg` (which must not resolve or disturb a change), and `/fab-operator` (a listed exception to the always-load layer). Exempt skills that still want telemetry call `fab log command` directly.
 
 ## Design Decisions
 

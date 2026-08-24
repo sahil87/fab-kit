@@ -45,12 +45,12 @@ helpers: [_generation, _review, _srad, _pipeline]
 
 | Skill | `helpers:` |
 |-------|------------|
-| `fab-new`, `fab-draft`, `fab-dedupe` | `[_generation, _srad, _intake]` |
+| `fab-new`, `fab-draft` | `[_generation, _srad, _intake]` |
 | `fab-ff`, `fab-fff` | `[_generation, _review, _srad, _pipeline]` (the shared bracket lives in `_pipeline.md`) |
 | `fab-adopt` | `[_srad, _generation, _review, _pipeline]` (orchestrator — reuses the diff-generation procedures, diff-only review, and the auto-rework budget) |
 | `fab-continue` | `[_srad]` (+ `_generation`/`_review` stage-conditionally, in-body) |
 | `fab-clarify` | `[_srad]` |
-| `code-reorg` | `[_srad]` (SRAD grades proposal confidence; report-only — no `_intake`/`_generation`) |
+| `code-reorg`, `code-dedupe` | `[_srad]` (SRAD grades proposal/cluster confidence; report-only — no `_intake`/`_generation`) |
 | `fab-operator` | `[_cli-agents, _cli-fab, _cli-external]` (`_cli-agents` carries the generic agent-CLI interaction procedures extracted from the skill in 260805-nvad, plus the four-provider grammar/discovery dictionary) |
 | All other skills | omitted (load only `_preamble`) |
 
@@ -86,7 +86,7 @@ Consumer reads _generation.md (via helpers: declaration)
 └─ Adoption variants (fab-adopt only, diff read once): Intake-from-Diff / Plan-from-Diff (headings only; no R#/T#/A# ceremony)
 ```
 
-`_intake` — shared pre-boundary Create-Intake Procedure (Steps 0–9) for /fab-new, /fab-draft, /fab-dedupe, and /fab-proceed's create-new dispatch:
+`_intake` — shared pre-boundary Create-Intake Procedure (Steps 0–9) for /fab-new, /fab-draft, and /fab-proceed's create-new dispatch:
 
 ```text
 ├─ 0 Parse input: Linear ID → MCP fetch / backlog ID → read fab/backlog.md / natural language as-is
@@ -773,54 +773,6 @@ User invokes /fab-clarify [change-name]  — or —  [AUTO-MODE] invocation
 
 ---
 
-## `/fab-dedupe [scope]`
-
-**Purpose**: Sweep a scoped area for duplicated utilities, cluster them by behavioral shape, and draft one change intake per accepted cluster group. Read-only until the user accepts clusters. It **does not refactor** — the consolidation runs through the normal pipeline with review in the loop.
-
-**Context**: config, constitution, `docs/memory/_shared/utilities.md` (if present — so the sweep does not re-propose finished work). No change artifacts — there is no active change. Runs **no** `fab preflight`.
-
-**Creates**: 0..N change folders with `.status.yaml` + `intake.md`, each at intake `ready`. No activation, no git branch. Zero is a valid outcome.
-
-**Arguments**:
-- `[scope]` *(optional)* — natural language (`"test setup helpers in src/go"`), or a path/glob. Natural language resolves against `source_paths`/`test_paths` and is confirmed with the user; a bare invocation defaults to `source_paths` with a length warning. Scope filters *where clusters may be found*, not *where their members may live* — out-of-scope members of an in-scope cluster MUST be reported.
-
-**Examples**:
-```
-/fab-dedupe src/go
-→ Consolidation sweep — src/go · Detectors: jscpd (skipped — not installed)
-→ 2 clusters. Which should become changes? (all / 1,3 / none)
-→ Drafted 1 change: 260728-a1b2-consolidate-test-fixtures  Confidence: 4.2 / 5.0
-```
-
-**Behavior** (5 steps, then the shared procedure):
-1. **Resolve scope** → concrete paths; echo the resolved set and file count.
-2. **Run detectors** — `consolidate.detectors` from project config (default: jscpd alone). Each is probed with `command -v` and **skipped silently when absent** (the `rk` fail-silent discipline); a **non-zero exit is a finding, not a STOP** — an explicit per-skill exception to `_preamble.md` § Common fab Commands' failure rule, which governs `fab` commands rather than third-party tools. `{paths}` and `{out}` are substituted before execution as **shell-quoted** values, so a scope path containing a space or a shell metacharacter stays one intact argument.
-3. **Cluster by behavioral shape** — seeded by detector output but not limited to it. Per cluster: members, shared behavior, divergences, canonical home, call sites, out-of-scope members, and a **layered decomposition** — a shared core plus named opt-in variation layers with their member lists, and the unified API expressing that shape. Never one flat signature per cluster. Do not cluster on name similarity; a cluster of one is not a cluster.
-4. **Rank and present** — call sites ↑ / divergence ↓, where a member needing only the base layer counts as **LOW** divergence even when its body reads differently. Then ask which clusters to act on as a **plain conversational reply** (`all` / `1,3` / `none`) — not a structured multi-select.
-5. **Draft intakes** — per accepted cluster group, execute the `_intake` **Create-Intake Procedure** (Steps 0–9, `{questioning-mode} = interactive`), preferring one intake per cluster, and **STOP after Step 9**.
-
-**Configuration**: one registry key, `consolidate.detectors` (project scope, advertised, no built-in default). The utilities memory home is **hardcoded** to `docs/memory/_shared/utilities.md` — there is no override key, and the skill never writes the file (hydrate does, on the normal pipeline path).
-
-**Key property**: read-only until Step 5; the sweep is idempotent but drafting is not (natural-language input creates a fresh change each run) — Step 2's gap analysis is the duplicate-work guard.
-
-
-**Flow**:
-
-```text
-User invokes /fab-dedupe [scope]
-├─ Pre-flight: config.yaml + constitution.md exist (no fab preflight); Read: _preamble.md
-├─ Bash: fab log command "fab-dedupe"
-├─ Resolve scope → paths; probe + run configured detectors (fail-silent)
-├─ Cluster by behavioral shape; rank → report → ASK (all / 1,3 / none)
-└─ Per accepted group → Create-Intake Procedure Steps 0–9 (see `_intake.md`); STOP after Step 9 (no activation)
-```
-
-**Tools**: Read (memory, source), Bash (`fab log command`, detector probes), Write (`intake.md` via the shared procedure). No `fab preflight`, no `fab change switch`, no git.
-
-**Sub-agents**: None.
-
----
-
 ## Apply Behavior (via `/fab-continue`)
 
 **Purpose**: Co-generate `plan.md` (`## Requirements` from `intake.md` + `## Tasks` + `## Acceptance`) at the entry sub-step, then execute the unchecked tasks in `plan.md` `## Tasks` (main sub-step). Both run in a single skill invocation.
@@ -1320,7 +1272,7 @@ User invokes /docs-reorg-specs
 
 ## `/code-reorg [<path>]`
 
-**Purpose**: Review source-tree structure — folder shape, file placement, naming, consolidation — as a *prediction interface* and present an evidence-backed, ranked findings report. Fully read-only: suggestions only — applies nothing, drafts nothing, routes nothing; each proposal MAY carry an informational suggested-next-action line the skill never executes. Structure only — content duplication is pointed at `/fab-dedupe`, never clustered here. Declares `helpers: [_srad]` (SRAD grades proposal confidence).
+**Purpose**: Review source-tree structure — folder shape, file placement, naming, consolidation — as a *prediction interface* and present an evidence-backed, ranked findings report. Fully read-only: suggestions only — applies nothing, drafts nothing, routes nothing; each proposal MAY carry an informational suggested-next-action line the skill never executes. Structure only — content duplication is pointed at `/code-dedupe`, never clustered here. Declares `helpers: [_srad]` (SRAD grades proposal confidence).
 
 **Context**: Always-load layer; `fab/project/config.yaml` (`source_paths`), `constitution.md` + `code-quality.md` (derive the co-change mandated-coupling carve-out), `context.md` as the project's own convention frame. No `fab preflight` run (the Pre-flight step is only the config/constitution init check), no change artifacts.
 
@@ -1331,7 +1283,7 @@ User invokes /docs-reorg-specs
 2. Gather signals — tree shape (depth, fan-out, singleton folders, junk drawers), sibling-naming inconsistency, static import-direction, and git co-change under mandatory noise controls (12-month window, >20-file bulk-commit cap, `-M` rename following, constitution-derived mandated-coupling carve-out, cross-layer whitelist) via a shipped worked command; shallow/absent history skips co-change with a report note
 3. Evaluate against frames in priority order ((a) `context.md` conventions, (b) ecosystem convention, (c) sibling consistency); the taste guard drops uncited findings, and frame-(c)-only findings require a quantified sibling majority
 4. Cluster findings into proposals — prediction failure, move/rename list, blast radius (breaking references + in-flight exposure from open branches/active changes), SRAD-graded confidence; package-scoped folder moves (e.g. Go package dirs) carry a mandatory elevated blast grade
-5. Present the report ranked highest-confidence × lowest-blast-radius and stop — content-duplication smells ride a separate "for `/fab-dedupe`" section; a clean tree closes with "no proposals — structure predicts well"
+5. Present the report ranked highest-confidence × lowest-blast-radius and stop — content-duplication smells ride a separate "for `/code-dedupe`" section; a clean tree closes with "no proposals — structure predicts well"
 
 **Key properties**: No active change required. Fully read-only (modifies no files, creates no changes or git state, advances no stage). Idempotent — same tree + same history ⇒ same findings. Report-only: the report is the terminal output; fix routing (micro change vs `/fab-new` vs ignore) is the user's per-finding choice. Emits no `Next:` line (documented opt-out, like `/fab-discuss`).
 
@@ -1347,6 +1299,41 @@ User invokes /code-reorg [<path>]
 ```
 
 **Tools**: Read/Glob/Grep (tree shape, import statements, project context), Bash (`git log` co-change walk, open-branch/active-change inspection for in-flight exposure). No Write/Edit — read-only by design.
+
+**Sub-agents**: None.
+
+---
+
+## `/code-dedupe [scope]`
+
+**Purpose**: Sweep a scoped area for duplicated utilities, cluster them by behavioral shape, and present a ranked, evidence-backed consolidation report. Fully read-only: suggestions only — refactors nothing, drafts nothing, routes nothing; each cluster MAY carry an informational suggested-next-action line (e.g. a ready-to-paste `/fab-new` one-liner) the skill never executes. Content duplication only — placement/naming/structure is pointed at `/code-reorg`, never analyzed here. Declares `helpers: [_srad]` (SRAD grades cluster confidence).
+
+**Context**: config, constitution, `docs/memory/_shared/utilities.md` (if present — so the sweep does not re-propose finished work). No change artifacts — there is no active change. Runs **no** `fab preflight`.
+
+**Arguments**:
+- `[scope]` *(optional)* — natural language (`"test setup helpers in src/go"`), or a path/glob. Natural language resolves against `source_paths`/`test_paths` and is confirmed with the user; a bare invocation defaults to `source_paths` with a length warning. Scope filters *where clusters may be found*, not *where their members may live* — out-of-scope members of an in-scope cluster MUST be reported.
+
+**Behavior**:
+1. **Resolve scope** → concrete paths; echo the resolved set and file count.
+2. **Run detectors** — `consolidate.detectors` from project config (default: jscpd alone). Each is probed with `command -v` and **skipped silently when absent** (the `rk` fail-silent discipline); a **non-zero exit is a finding, not a STOP** — an explicit per-skill exception to `_preamble.md` § Common fab Commands' failure rule, which governs `fab` commands rather than third-party tools. `{paths}` and `{out}` are substituted before execution as **shell-quoted** values, so a scope path containing a space or a shell metacharacter stays one intact argument.
+3. **Cluster by behavioral shape** — seeded by detector output but not limited to it. Per cluster: members, shared behavior, divergences, canonical home, call sites, out-of-scope members, and a **layered decomposition** — a shared core plus named opt-in variation layers with their member lists, and the unified API expressing that shape. Never one flat signature per cluster. Do not cluster on name similarity; a cluster of one is not a cluster. The **already-done guard** drops (and notes) clusters already consolidated per `_shared/utilities.md` or already in flight in `fab/changes/`.
+4. **Rank, grade, and present** — call sites ↑ / divergence ↓, where a member needing only the base layer counts as **LOW** divergence even when its body reads differently; SRAD-graded confidence per cluster (identical members + obvious home → Certain; divergence that might drop a behavior → Tentative). Present the report and **stop** — structural smells ride a separate "For `/code-reorg`" section; a clean scope closes with "no consolidation candidates in {scope}".
+
+**Configuration**: one registry key, `consolidate.detectors` (project scope, advertised, no built-in default). The utilities memory home is **hardcoded** to `docs/memory/_shared/utilities.md` — there is no override key, and the skill never writes the file (hydrate does, when a user-routed consolidation change ships; a suggested `/fab-new` line names `_shared/utilities` for the change's Affected Memory).
+
+**Key properties**: No active change required. Fully read-only (modifies no files, creates no changes or git state, advances no stage). Idempotent — same scope + same code ⇒ same clusters. Report-only: the report is the terminal output; consolidation routing (micro change vs `/fab-new` vs ignore) is the user's per-cluster choice. Emits no `Next:` line (documented opt-out, like `/code-reorg`).
+
+**Flow**:
+
+```text
+User invokes /code-dedupe [scope]
+├─ Pre-flight: config.yaml + constitution.md exist (no fab preflight); Read: _preamble.md
+├─ Bash: fab log command "code-dedupe"
+├─ Resolve scope → paths; probe + run configured detectors (fail-silent)
+└─ Cluster by behavioral shape (already-done guard) → rank + SRAD-grade → ranked report → STOP (no Next: line)
+```
+
+**Tools**: Read (memory, source), Bash (`fab log command`, detector probes). No Write/Edit — read-only by design. No `fab preflight`, no `fab change` commands, no git.
 
 **Sub-agents**: None.
 

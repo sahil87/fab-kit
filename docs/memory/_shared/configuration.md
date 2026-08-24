@@ -138,9 +138,9 @@ The `2.14.0-to-2.15.0` migration moves the value and deletes the key for a pre-2
 
 #### `consolidate`
 
-- `detectors` — duplicate-detection commands `/fab-dedupe` runs to **seed** its sweep (4v91). A list of shell command templates; `{paths}` (the resolved scope) and `{out}` (a scratch dir) are substituted at run time as **shell-quoted** values, so paths carrying spaces or shell metacharacters stay intact arguments rather than splitting or injecting into the command. Absent → the skill defaults to jscpd alone. **Skill-consumed** (invisible to Go reflection over `Config` — the registry row is what documents it), `Scope: project`, `Advertise: true`, `Default: nil`. A detector whose binary is missing is skipped **silently**; a non-zero exit is treated as a **finding, not an error**. See [pipeline/dedupe.md](/pipeline/dedupe.md) for the sweep contract.
+- `detectors` — duplicate-detection commands `/code-dedupe` runs to **seed** its sweep (4v91). A list of shell command templates; `{paths}` (the resolved scope) and `{out}` (a scratch dir) are substituted at run time as **shell-quoted** values, so paths carrying spaces or shell metacharacters stay intact arguments rather than splitting or injecting into the command. Absent → the skill defaults to jscpd alone. **Skill-consumed** (invisible to Go reflection over `Config` — the registry row is what documents it), `Scope: project`, `Advertise: true`, `Default: nil`. A detector whose binary is missing is skipped **silently**; a non-zero exit is treated as a **finding, not an error**. See [pipeline/code-dedupe.md](/pipeline/code-dedupe.md) for the sweep contract.
 
-There is deliberately no `consolidate.memory_file` key — `/fab-dedupe`'s utilities memory home is hardcoded to `docs/memory/_shared/utilities.md`.
+There is deliberately no `consolidate.memory_file` key — `/code-dedupe`'s utilities memory home is hardcoded to `docs/memory/_shared/utilities.md`.
 
 #### `providers`
 Top-level map holding each agent's **capability grammar** and per-role fills, keyed by opaque provider names. `ProviderConfig` carries `interactive_command`, `headless_command`, `native`, and `profiles`. `agent.ResolveProvider` merges user fields over the embedded built-ins per field; explicit `native: false` disables a built-in native capability, so YAML-presence tracking distinguishes it from an omitted value.

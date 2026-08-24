@@ -1,6 +1,6 @@
 ---
 name: _intake
-description: "Shared pre-boundary Create-Intake Procedure (fab-new Steps 0–9) used by fab-new, fab-draft, fab-dedupe, and fab-proceed — parse input, slug, gap analysis, create change, conversation context mining, generate intake.md, verify change type, confidence, question selection, advance to ready. Parameterized by a single {questioning-mode} knob (interactive | promptless-defer)."
+description: "Shared pre-boundary Create-Intake Procedure (fab-new Steps 0–9) used by fab-new, fab-draft, and fab-proceed — parse input, slug, gap analysis, create change, conversation context mining, generate intake.md, verify change type, confidence, question selection, advance to ready. Parameterized by a single {questioning-mode} knob (interactive | promptless-defer)."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -12,7 +12,7 @@ metadata:
 >
 > | `{questioning-mode}` | Consumers | Step 8 behavior |
 > |----------------------|-----------|-----------------|
-> | `interactive` | `/fab-new`, `/fab-draft`, `/fab-dedupe` (once per accepted cluster group) | Ask via SRAD; no fixed cap, conversational mode at 5+ Unresolved |
+> | `interactive` | `/fab-new`, `/fab-draft` | Ask via SRAD; no fixed cap, conversational mode at 5+ Unresolved |
 > | `promptless-defer` | `/fab-proceed` create-new dispatch | Record would-be questions as deferred Unresolved rows per `_srad.md` |
 >
 > This is the only behavioral fork. **Call sites retain** the decision whether to create an intake and every post-procedure action, including `/fab-new` activation/branch Steps 10–11.
@@ -100,7 +100,7 @@ Follow the **Intake Generation Procedure** (`_generation.md`). Load context per 
 
 This is the sole step that varies by `{questioning-mode}`.
 
-- **`{questioning-mode} = interactive`** (used by `/fab-new`, `/fab-draft`, `/fab-dedupe`): Apply SRAD (`_srad.md`). No fixed question cap — SRAD scoring determines count. Zero questions for clear inputs. **Conversational mode**: when 5+ Unresolved, ask one at a time until resolved or user signals done.
+- **`{questioning-mode} = interactive`** (used by `/fab-new`, `/fab-draft`): Apply SRAD (`_srad.md`). No fixed question cap — SRAD scoring determines count. Zero questions for clear inputs. **Conversational mode**: when 5+ Unresolved, ask one at a time until resolved or user signals done.
 
 - **`{questioning-mode} = promptless-defer`** (used by `/fab-proceed`'s dispatch): apply `_srad.md` § Critical Rule's promptless-dispatch carve-out instead of asking. Return every deferred Unresolved row in the subagent result so `/fab-proceed` can surface it.
 

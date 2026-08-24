@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`/code-reorg [<path>]` — read-only source-tree structure review: sweeps a scoped path (default: combined `source_paths`) for prediction failures (junk drawers, singleton folders, sibling naming inconsistency, co-change/import-direction misplacement) and presents a ranked report of move/rename/merge/split proposals. Suggestions only — applies, drafts, and routes nothing; docs/memory + docs/specs refused with docs-reorg-* pointers; duplication smells point to /fab-dedupe."
+description: "`/code-reorg [<path>]` — read-only source-tree structure review: sweeps a scoped path (default: combined `source_paths`) for prediction failures (junk drawers, singleton folders, sibling naming inconsistency, co-change/import-direction misplacement) and presents a ranked report of move/rename/merge/split proposals. Suggestions only — applies, drafts, and routes nothing; docs/memory + docs/specs refused with docs-reorg-* pointers; duplication smells point to /code-dedupe."
 ---
 # Code-Reorg Skill
 
@@ -8,13 +8,13 @@ description: "`/code-reorg [<path>]` — read-only source-tree structure review:
 
 ## Overview
 
-`/code-reorg [<path>]` treats folder structure as a **prediction interface** — a structure is good when a reader can predict where a thing lives from its name and what a file contains from its path. It sweeps a scoped source tree for concrete prediction failures and presents a ranked report of evidence-backed proposals (moves, renames, folder merges/splits), each with rationale, blast radius, and an SRAD-graded confidence. The report is the skill's terminal output and entire effect: it applies nothing, drafts nothing, and never decides how a finding gets fixed. It is the source-tree sibling of `/docs-reorg-memory` / `/docs-reorg-specs` (same analyze-and-propose posture, source-tree scope) and the structural complement of `/fab-dedupe` ([dedupe](/pipeline/dedupe.md)), which judges content duplication.
+`/code-reorg [<path>]` treats folder structure as a **prediction interface** — a structure is good when a reader can predict where a thing lives from its name and what a file contains from its path. It sweeps a scoped source tree for concrete prediction failures and presents a ranked report of evidence-backed proposals (moves, renames, folder merges/splits), each with rationale, blast radius, and an SRAD-graded confidence. The report is the skill's terminal output and entire effect: it applies nothing, drafts nothing, and never decides how a finding gets fixed. It is the source-tree sibling of `/docs-reorg-memory` / `/docs-reorg-specs` (same analyze-and-propose posture, source-tree scope) and the structural complement of `/code-dedupe` ([code-dedupe](/pipeline/code-dedupe.md)), which judges content duplication.
 
 ## Requirements
 
 ### Requirement: Identity and the report-only contract
 
-The canonical source is `src/kit/skills/code-reorg.md`, frontmatter `name: code-reorg` with `helpers: [_srad]` and one optional `[<path>]` argument. `fab fab-help` groups it under **Maintenance** via `fab_help.go`'s `skillToGroupMap` — alongside the `docs-reorg-*` analysis skills, not under Planning where `/fab-dedupe` sits (dedupe drafts intakes; code-reorg drafts nothing). It does not join fab_help.go's hardcoded TYPICAL FLOW "Maintain docs:" line, which enumerates docs-tree commands.
+The canonical source is `src/kit/skills/code-reorg.md`, frontmatter `name: code-reorg` with `helpers: [_srad]` and one optional `[<path>]` argument. `fab fab-help` groups it under **Maintenance** via `fab_help.go`'s `skillToGroupMap` — alongside `/code-dedupe` and the `docs-reorg-*` analysis skills. It does not join fab_help.go's hardcoded TYPICAL FLOW "Maintain docs:" line, which enumerates docs-tree commands.
 
 The skill is fully read-only: it modifies no files, creates no changes, runs no `fab status` transition, and creates no git state. Pre-flight verifies `config.yaml` and `constitution.md` exist (STOPping with the standard uninitialized message otherwise) and MUST NOT run `fab preflight` — the skill operates with no active change and must not resolve or disturb one. Routing each finding (micro change vs `/fab-new` vs ignore) is the user's per-finding choice; each proposal MAY carry an informational suggested-next-action line (e.g. `micro: rename directly and commit` or a ready-to-paste `/fab-new <description>`), which the skill never executes. The skill emits no `Next:` pipeline line — a documented opt-out per `_preamble.md` § Next Steps Convention, like `/fab-discuss`. A clean tree closes with `no proposals — structure predicts well`; that is a success, not a failure.
 
@@ -48,14 +48,14 @@ Step 4 clusters related findings into coherent units — one proposal = "rename 
 
 ### Requirement: The ranked report is the terminal output
 
-Step 5 ranks proposals by highest confidence × lowest blast radius, presents, and stops. Content-duplication smells appear **only** in a separate `For /fab-dedupe` section — never as proposals. A co-change-skipped run states the skip note in the report. The error table enumerates: missing config/constitution (STOP), nonexistent/outside-repo path (STOP with the resolved attempt), missing/empty `source_paths` (STOP naming the config key), docs-tree path (refusal with the sibling-skill pointer), shallow history (co-change skipped, noted, other signals run), and no findings surviving the taste guard (the `no proposals` success close).
+Step 5 ranks proposals by highest confidence × lowest blast radius, presents, and stops. Content-duplication smells appear **only** in a separate `For /code-dedupe` section — never as proposals. A co-change-skipped run states the skip note in the report. The error table enumerates: missing config/constitution (STOP), nonexistent/outside-repo path (STOP with the resolved attempt), missing/empty `source_paths` (STOP naming the config key), docs-tree path (refusal with the sibling-skill pointer), shallow history (co-change skipped, noted, other signals run), and no findings surviving the taste guard (the `no proposals` success close).
 
 ## Design Decisions
 
 ### Report-only: the skill finds and presents, never routes
 **Decision**: `/code-reorg` ends at its ranked report; it applies nothing, drafts no intakes, and never decides whether a fix is a micro change or a pipeline change.
 **Why**: Routing is the user's per-finding call — a one-rename proposal is a micro change that must skip fab, a cross-cutting move deserves a pipeline change, and the skill cannot know which without owning policy it shouldn't. Decoupling also drops the `_intake`/`_generation` dependency entirely.
-**Rejected**: The fab-dedupe drafted-intake handoff — it forces routing decisions, conflicts with the micro-change doctrine, and the precedent funnel has produced zero drafted intakes since shipping.
+**Rejected**: The drafted-intake handoff (the original `/fab-dedupe` model) — it forces routing decisions, conflicts with the micro-change doctrine, and the precedent funnel produced zero drafted intakes since shipping. The same evidence later made that skill report-only too (now `/code-dedupe`).
 *Introduced by*: 260823-ekp3-code-reorg-skill
 
 ### Path-based docs carve-out, not content-based
