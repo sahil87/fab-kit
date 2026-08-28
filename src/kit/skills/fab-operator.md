@@ -168,7 +168,7 @@ monitored:
     agent: active
     stop_stage: null       # null = full pipeline, or a stage name to park at
     spawned_by: null       # watch name if spawned by a watch, null otherwise
-    depends_on: []         # change IDs — same-repo deps cherry-pick, cross-repo deps are ordering-only (§6)
+    depends_on: []         # change IDs — same-repo deps cherry-pick, cross-repo deps are ordering-only; both gate on § Dependency satisfied (§6)
     branch: 260324-r3m7-add-retry-logic  # this change's branch name
     enrolled_at: "2026-03-23T17:30:00Z"
     last_transition: "2026-03-23T17:32:00Z"
@@ -224,7 +224,7 @@ Windows that already carry `»` (operator-spawned windows from §6, `/clear`-res
 {change}: window rename skipped ({error}).
 ```
 
-**Removal**: change reaches its stop stage (or a terminal stage if `stop_stage` is null), pane dies, user explicitly stops. Removal is `fab operator remove <change-id>` — the `branch_map` entry is **not** removed by it; it persists for downstream dependency resolution. On every removal path, the operator MUST swap the active-monitoring `»` prefix for the done-marker `›` (U+203A, SINGLE RIGHT-POINTING ANGLE QUOTATION MARK) via the `replace-prefix` primitive:
+**Removal**: change completes (its `completion` delta — at/past its `stop_stage`, or `review-pr` done/skipped when `stop_stage` is null), pane dies, user explicitly stops. Removal is `fab operator remove <change-id>` — the `branch_map` entry is **not** removed by it; it persists for downstream dependency resolution. On every removal path, the operator MUST swap the active-monitoring `»` prefix for the done-marker `›` (U+203A, SINGLE RIGHT-POINTING ANGLE QUOTATION MARK) via the `replace-prefix` primitive:
 
 ```sh
 fab pane window-name replace-prefix <pane> » ›
@@ -232,7 +232,7 @@ fab pane window-name replace-prefix <pane> » ›
 
 The primitive's literal-prefix guard protects user-renamed windows (if the user renamed the window mid-monitoring so it no longer starts with `»`, the call no-ops). Exit 2 (pane missing — window is gone anyway) is treated as successful removal; other non-zero exits log `"{change}: window rename skipped ({error})."` and the operator continues. This keeps the tab bar an accurate at-a-glance map of what is currently tracked (`»` active) vs. operator-touched (`›` trail).
 
-**Stop stage**: when `stop_stage` is set on a monitored entry, the operator treats that stage as the terminal stage for that change. On reaching it, the operator reports completion and removes the change — it does not push the agent further. Default is `null` (full pipeline: hydrate/ship/review-pr are terminal).
+**Stop stage**: when `stop_stage` is set on a monitored entry, the operator treats that stage as the terminal stage for that change. On reaching it, the operator reports completion and removes the change — it does not push the agent further. Default is `null` (full pipeline: the change completes only when `review-pr` is done/skipped — hydrate and ship are mid-pipeline and never complete an entry by themselves). Spawns that deliberately park earlier — e.g. a `/fab-ff` run, which stops after hydrate — MUST enroll with `--stop-stage hydrate`; otherwise the entry never completes and sits in the monitored set until the user stops it.
 
 ### Branch Map
 
@@ -264,7 +264,7 @@ Notes are the operator's owned surface for cross-cutting narrative state — the
 On each tick:
 
 1. **Snapshot** — run `fab operator tick-start --diff`: one command increments `tick_count`, writes `last_tick_at`, snapshots the fleet internally, diffs it against the monitored baseline, and writes the baseline back in the same atomic mutation (full contract in `_cli-fab.md` § fab operator tick-start). Stdout is one document: the `tick: N` / `now: HH:MM` header lines, then three YAML blocks — `deltas:` (events), `candidates:` (the step-2 sweep population), and `fleet:` (one row per monitored entry, pre-ordered repo → session → enrollment — **the status frame's data source**). Act on `deltas:` **before any answers** (a completion removes the entry and skips its answer). Each delta is one of:
-   - `completion` (terminal stage, or at/past the entry's `stop_stage`) — report, then remove via step 5;
+   - `completion` (`review-pr` done/skipped, or at/past the entry's `stop_stage`) — report, then remove via step 5;
    - `pane_death` (the entry's pane is absent) — report, then remove via step 5;
    - `pane_mismatch` (tmux recycled the `%N` pane ID — a different change, or none, now occupies it; the delta carries `found`) — report + remove via step 5; a mismatched pane is never diffed and never a candidate;
    - `stage_advance {from, to}` / `review_fail {from: review, to: apply}` — report in the frame.
@@ -273,7 +273,7 @@ On each tick:
 2. **Auto-nudge** — the per-tick sweep population is the tick's `candidates:` block (waiting-first, then idle — the binary computes it to match §5's policy exactly). Run each candidate through question detection (§5 — `waiting` is the primary signal). (No post-intake `/git-branch` nudge — `/fab-new` Step 11 creates or renames the branch inline; only a detected branch/change mismatch warrants a `/git-branch` send, per §3 pre-send validation item 4.)
 3. **Watches** — read `fab operator state` here (the watch pass's own state read — `known` / `completed` / `last_checked` / `last_error`), then for each watch, query the source, compare against `known` + `completed` (§7 step 2's dedupe rule), spawn on new matches (§7).
 4. **Autopilot dispatch** — if an autopilot queue is active, run the next autopilot action (§6); if a merge sequence is in progress, run its per-tick check (§6 Auto-Merge Choreography). Autopilot-driven changes are visible in the frame via `▶`.
-5. **Removals** — ack the level-triggered deltas from step 1: remove completed changes (reached stop stage or terminal stage), dead panes, and mismatched panes from the monitored set via `fab operator remove`. The event stops re-emitting once the entry is gone.
+5. **Removals** — ack the level-triggered deltas from step 1: remove completed changes (`completion` delta observed), dead panes, and mismatched panes from the monitored set via `fab operator remove`. The event stops re-emitting once the entry is gone.
 6. **Observed-field updates** — the per-tick `stage`/`agent` baseline write is owned by `tick-start --diff` (step 1): on the diff path the skill does **no** per-tick `fab operator update` stage/agent bookkeeping (a hand-written baseline would make the next diff under-report). `fab operator update <change-id>` stays for non-baseline field edits (e.g. `stop_stage`; the binary touches `last_transition` on a stage change). There is no whole-file persist step — every action above already persisted through its own verb.
 7. **Loop lifecycle** — stop when no tracked state remains (monitored set, autopilot queue, watches, in-progress merge sequence); otherwise apply §4 Adaptive cadence (autopilot uses §6's cadence)
 
@@ -341,7 +341,7 @@ Example (this is the literal markdown the operator emits, shown fenced here only
 | active / healthy | active | last query ok, no new items | 🟢 |
 | waiting / idle / new-items | `waiting` (blocked on a human) or idle | has new unprocessed items | 🟡 |
 | stuck / errored | >15m idle at non-terminal | `last_error` set | 🔴 |
-| complete | reached terminal/stop stage | — | ✅ |
+| complete | `completion` delta (review-pr done/skipped, or at/past `stop_stage`) | — | ✅ |
 | paused | — | `enabled: false` | ⚪ |
 
 ### Idle Message
@@ -489,10 +489,12 @@ Window markers (`»` / `›`) key on server-global pane IDs.
 
 ### Dependency Resolution
 
+**Dependency satisfied.** A `depends_on` entry is satisfied when the dependency's **pipeline has completed** — its monitored entry has emitted (or would emit) a `completion` delta: `review-pr` done/skipped when its `stop_stage` is null, or at/past its `stop_stage` — **and**, for a same-repo dependency with a null `stop_stage`, its PR exists (`gh pr view <dep-branch> --json url` succeeds, so the branch is pushed and stable). Neither enrollment, a `branch_map` entry, nor the branch being minted is satisfaction — all three exist from the moment the dep's agent spawns. An unsatisfied dependency **holds the spawn** in both tiers, re-checked on each tick, logging `"{change}: waiting on dependency {dep} ({dep.repo}) to complete."`. Every consumer below (both tiers, the autopilot loop, watches) gates on this definition.
+
 Dependency resolution is **two-tier**, split by repo. Each entry in `depends_on` is classified by comparing the dependency's `repo` (from its `branch_map` `{ branch, repo }` pair, or the dep's monitored entry) against **this change's** `repo`:
 
 - **Same-repo dependency** (`dep.repo == change.repo`) → **cherry-pick** the dependency's code into the worktree, exactly as today. **In the `stacked-prs` merge mode the same-repo strategy changes** — the dependent's branch is created off the dependency's branch (no cherry-pick commit); see the `stacked-prs` note under Same-repo resolution below.
-- **Cross-repo dependency** (`dep.repo != change.repo`) → **ordering-only barrier** in every mode: the operator waits until the dependency reaches its `stop_stage` (a terminal stage when `stop_stage` is null), then spawns the dependent agent. **No code is merged.**
+- **Cross-repo dependency** (`dep.repo != change.repo`) → **ordering-only barrier** in every mode: the operator waits until the dependency is satisfied per **Dependency satisfied** above, then spawns the dependent agent. **No code is merged.**
 
 > **REQUIRED caveat — cross-repo deps give the dependent agent NO code.** An ordering-only cross-repo dependency is a pure *sequencing* constraint: the dependent worktree receives nothing from the dependency. This is correct only for **logical** dependencies (e.g., "don't start the frontend change until the API change merges to its repo's main"), never for **code-level** dependencies. Cross-repo branches share no common default-branch base to cherry-pick across, so there is no sound way to make the dependency's code available — do not expect cross-repo `depends_on` to do so. For code sharing across repos, the dependency must merge and be consumed as a normal upstream artifact (package, vendored copy), outside the operator's scope.
 
@@ -509,6 +511,8 @@ Dependency resolution is **two-tier**, split by repo. Each entry in `depends_on`
    ```
 
    `origin/{default_branch}` is the cherry-pick base in step 3 below. Fetching first prevents a stale base even on correctly-defaulted repos; resolving the name makes autopilot usable on repos whose default branch isn't `main`.
+
+0.5. **Readiness gate** — for each same-repo change ID still in the monitored set, check it is satisfied per **Dependency satisfied** above. If any is not, hold the spawn (no branch lookup, no cherry-pick) and let the loop re-check on subsequent ticks. A dep that has left the monitored set (present only in `branch_map`) was removed on its own `completion` and passes this gate. The `stacked-prs` variant below inherits this gate.
 
 1. **Resolve same-repo dependency branches** — For each same-repo change ID, look up its branch:
    - First from the monitored entry's `branch` field (if the dep is still active).
@@ -544,7 +548,7 @@ Dependency resolution is **two-tier**, split by repo. Each entry in `depends_on`
       Log: `"{change}: cherry-pick conflict with dependency {dep-change}. Escalating."`
       Escalate to user. Do not proceed without the dependency content. Bounded retry: 0 (§3).
 
-**Cross-repo resolution.** For each cross-repo dependency, do not cherry-pick. Instead, before spawning, verify the dependency has reached its `stop_stage` (or terminal stage). If it has not, hold the spawn and let the loop re-check on subsequent ticks; spawn once every cross-repo barrier clears. Log the wait: `"{change}: waiting on cross-repo dependency {dep} (in {dep.repo}) to reach {stop_stage}."`
+**Cross-repo resolution.** For each cross-repo dependency, do not cherry-pick. Instead, before spawning, verify the dependency is satisfied per **Dependency satisfied** above. If it is not, hold the spawn and let the loop re-check on subsequent ticks; spawn once every cross-repo barrier clears, logging the wait with the shared line from that definition.
 
 **Same-repo resolution (`stacked-prs` mode).** Steps 1–3 are skipped for same-repo dependencies — the dependent's branch is created off its nearest same-repo predecessor's *branch* at the §6 spawn sequence's worktree/branch step instead of off `origin/{default_branch}` (the probe-and-route per `_cli-external.md` § wt: existing dep branch → `wt create --checkout <dep-branch>` route). The squashed `"operator: cherry-pick"` commit does not exist for same-repo deps in this mode. After `/git-pr` creates the dependent's PR, the operator retargets its base to the dependency's branch: `gh pr edit <pr> --base <dep-branch>` (`/git-pr` itself is unchanged and mode-unaware). The merge-all choreography for the stack lives under Ordered Merge below. Dependency-branch drift after a dependent PR exists (a dep's review-pr rework moving its branch) is out of scope — the same exposure exists in the cherry-pick model; conflicts surface at merge-all and escalate.
 
@@ -577,7 +581,7 @@ User provides a queue of changes. Confirmation prompt reflects the active mode:
 - **`merge-auto`:** "Confirm upfront (merges PRs on completion)."
 - **`stacked-prs`:** "Confirm upfront (creates stacked PRs — merge after review)."
 
-A queue **may span repos**, with mixed dependency semantics: implicit `--base` chaining (and explicit `depends_on`) cherry-picks **within a repo** and **degrades to an ordering-only barrier across repo boundaries** (per Dependency Resolution above; the nearest-same-repo-predecessor rule is defined in Queue ordering below). Worked example — a chain `ab12 → cd34 → ef56` where `cd34` lives in a different repo: `cd34` gets `depends_on: [ab12]` (cross-repo — waits for `ab12` to reach its stop/terminal stage, no code), and `ef56` (back in `ab12`'s repo) gets `depends_on: [ab12]` — its nearest same-repo predecessor — and cherry-picks from it; queue order still runs `ef56` after `cd34`.
+A queue **may span repos**, with mixed dependency semantics: implicit `--base` chaining (and explicit `depends_on`) cherry-picks **within a repo** and **degrades to an ordering-only barrier across repo boundaries** (per Dependency Resolution above; the nearest-same-repo-predecessor rule is defined in Queue ordering below). Worked example — a chain `ab12 → cd34 → ef56` where `cd34` lives in a different repo: `cd34` gets `depends_on: [ab12]` (cross-repo — waits for `ab12` to be satisfied per § Dependency Resolution **Dependency satisfied**, no cherry-pick), and `ef56` (back in `ab12`'s repo) gets `depends_on: [ab12]` — its nearest same-repo predecessor — and cherry-picks from it; queue order still runs `ef56` after `cd34`.
 
 Once the user confirms, persist the queue via `fab operator autopilot start --queue <id,id,...> [--mode <name>]` (the binary stores the mode and prints `mode: <name> (<source>)`; contracts in `_cli-fab.md` § fab operator autopilot); every later progression (completion or skip) is `fab operator autopilot advance [--skip]`, and the interrupts below ride `pause`/`resume`/`stop`.
 
@@ -644,8 +648,8 @@ The operator works each change through the pipeline. Pre-send validation (§3) a
 2. **Spawn** — run the §6 spawn sequence steps 1–3 (establish the change's target repo and target session, create worktree in the repo; `--reuse` for respawns)
 3. **Resolve dependencies + open tab + enroll** — §6 spawn sequence steps 4–8 (existence-guarded pointer activation, same-repo cherry-pick / cross-repo ordering-only barriers per Dependency Resolution). Step 7's `<command>` is the change's pipeline command — `/fab-fff <change>` (or the appropriate command for its current stage) — so the dispatch happens **once, at spawn**; do NOT send the command again after the tab opens
 4. **Monitor** — normal tick detection handles progress
-5. **Record** — on completion, run `fab operator autopilot advance` (the binary moves `current` to `completed` and promotes the next entry) and collect the PR URL. The `{ branch, repo }` pair is already in `branch_map` — `enroll` recorded it at spawn
-6. **Spawn next** — repeat from item 1 using § Queue ordering and § Dependency Resolution; embed its command at spawn
+5. **Record** — when the current change is satisfied per § Dependency Resolution **Dependency satisfied** (its `completion` delta observed **and** its PR URL collected), run `fab operator autopilot advance` (the binary moves `current` to `completed` and promotes the next entry) and collect the PR URL. The `{ branch, repo }` pair is already in `branch_map` — `enroll` recorded it at spawn
+6. **Spawn next** — only after item 5's satisfaction check; repeat from item 1 using § Queue ordering and § Dependency Resolution; embed its command at spawn
 7. **Report** — `"ab12: PR ready. 1 of 3 complete. Starting cd34."`
 8. **(After all complete) Summary** — list all PR links with per-repo dependency annotations and per-repo merge order suggestion (see Queue Completion Summary below)
 
@@ -754,7 +758,7 @@ On each tick (step 3), for each enabled watch:
    - `fab operator watch seen <name> <item-id>` (only after successful spawn — the binary appends idempotently and enforces the 200-cap)
 5. **Report** — `"Watch linear-bugs: DEV-1024 — Fix auth redirect (72m old). Spawning."`
 
-When a watch-spawned agent reaches its `stop_stage`, `fab operator watch complete <name> <item-id>` (moves the item from `known` to `completed`) and report: `"Watch linear-bugs: DEV-1024 completed intake."`
+When a watch-spawned agent completes (its `completion` delta — at/past the watch's `stop_stage`, or `review-pr` done/skipped when it is null), `fab operator watch complete <name> <item-id>` (moves the item from `known` to `completed`) and report: `"Watch linear-bugs: DEV-1024 completed intake."`
 
 ### Conversational Management
 
