@@ -36,7 +36,7 @@ stage_metrics:
     ship: {started_at: "2026-08-28T11:21:51Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-28T11:23:41Z"}
     review-pr: {started_at: "2026-08-28T11:23:41Z", driver: git-pr, iterations: 1}
 prs:
-    - ""
+    - https://github.com/sahil87/fab-kit/pull/622
 true_impact:
     added: 747
     deleted: 153
@@ -53,4 +53,4 @@ true_impact:
     computed_at_stage: ship
 summary: fab reads run-kit's renamed @rk_pane_agent_state pane option with a legacy @rk_agent_state fallback (capture dual-read, map eight-field format preferring the canonical name) and tolerates the optional :pid third segment; skill/spec/memory prose swept, @rk_role→@rk_win_role
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-28T11:23:41Z
+last_updated: 2026-08-28T11:24:15Z
