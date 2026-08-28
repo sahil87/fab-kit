@@ -154,7 +154,7 @@ Output is `opened <id>/<stage> (pane %N, split, title fab-<id>-<stage>)` or `ope
 
 ### Requirement: `fab dispatch ready <change> <stage>` is a mechanical, purely echo-based probe
 
-`ready` SHALL answer one question about an opened pane — *can it accept typed input right now?* — and report exactly one of `ready`, `booting`, or `parked`, derived **only** from a literal sentinel send plus pane captures: never from `@rk_agent_state`, never from a pattern table of known dialogs. It sends the sentinel with `send-keys -l` (never submitted), takes the captures, clears the sentinel with `C-u` whether or not it echoed, and presses no other key.
+`ready` SHALL answer one question about an opened pane — *can it accept typed input right now?* — and report exactly one of `ready`, `booting`, or `parked`, derived **only** from a literal sentinel send plus pane captures: never from `@rk_pane_agent_state`, never from a pattern table of known dialogs. It sends the sentinel with `send-keys -l` (never submitted), takes the captures, clears the sentinel with `C-u` whether or not it echoed, and presses no other key.
 
 | Report | Condition |
 |--------|-----------|
@@ -843,7 +843,7 @@ Steering by a *human* is unrestricted; the *pipeline*'s access to a worker's key
 ### First-run walls are classified mechanically and answered by agent judgment
 **Decision**: `fab dispatch ready` classifies a pane by echo and screen stability only — `ready` / `booting` / `parked` — and reports a capture snippet with every non-`ready` answer. It never presses Enter, never answers anything, and carries no table of known dialogs; deciding what a parked screen wants is the orchestrator's judgment, bounded by the wiring's 2-round budget with login walls escalating immediately.
 **Why**: Dialog text is a version treadmill and provider-specific, and a half-matched pattern pressing Enter into an unknown screen is worse than stalling. An agent already reads screens for a living, and the snippet gives it everything it needs in the same call. Keeping the binary's half purely mechanical is also what keeps it provider-neutral: nothing in Go knows what a trust prompt looks like.
-**Rejected**: A Go pattern table of known dialogs (version treadmill, blind keypresses). Provider-specific trust-store pre-seeding — probed and working for agy, but undocumented-format provider machinery inside a provider-neutral binary. Consulting `@rk_agent_state` (couples dispatch to the operator's agent-state reader for an answer a sentinel already gives).
+**Rejected**: A Go pattern table of known dialogs (version treadmill, blind keypresses). Provider-specific trust-store pre-seeding — probed and working for agy, but undocumented-format provider machinery inside a provider-neutral binary. Consulting `@rk_pane_agent_state` (couples dispatch to the operator's agent-state reader for an answer a sentinel already gives).
 *Introduced by*: 260809-3oz7-pane-readiness-gate-sendkeys-delivery
 
 ### Two verbs for the pane entry, not one flag

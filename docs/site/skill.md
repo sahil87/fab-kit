@@ -69,8 +69,8 @@ fab is one member of the [shll toolkit](https://shll.ai) and composes with its s
   `/fab-archive` skill) mark the matching backlog entry done.
 - **`gh`** (GitHub CLI) — the ship/review-pr stages use `gh` for PR creation and comment
   triage. Authenticate with `gh auth login` first.
-- **`rk` (run-kit)** — fab is a pure *consumer* of run-kit's `@rk_agent_state` tmux
-  pane-option convention (written by `rk agent-setup`); `fab pane` reads it to gate `send`.
+- **`rk` (run-kit)** — fab is a pure *consumer* of run-kit's `@rk_pane_agent_state` tmux
+  pane-option convention (written by `rk agent setup`); `fab pane` reads it to gate `send`.
 - **The `/fab-*` skills** — `fab sync` deploys markdown skills (`/fab-new`, `/fab-continue`,
   `/fab-ff`, `/fab-fff`, `/git-pr`, …) into the repo's agent directories. Those skills are
   how a harness actually drives the pipeline; the `fab` binary is their engine.

@@ -46,7 +46,7 @@ func paneMapCmd() *cobra.Command {
 // paneEntry holds a single tmux pane's ID, tab (window) name, current working directory,
 // session name, window index, the pane's resolved agent state, and the tmux window ID.
 // Agent state is RESOLVED at discovery time — the internal path parses the raw
-// @rk_agent_state option via pane.AgentDisplayFromOption; the delegated rk path
+// agent-state option via pane.AgentDisplayFromOption; the delegated rk path
 // takes rk's reconciled agent_state/agent_state_duration verbatim (rk rows carry
 // no raw option, so the resolved pair is the shared representation).
 type paneEntry struct {
@@ -244,7 +244,7 @@ var rkPanesRunner = func(server string) ([]byte, error) {
 // parseRKPanes maps `rk mux panes --json` output to pane entries: pane←pane,
 // tab←window_name, cwd←cwd, session←session, index←window_index,
 // windowID←window_id. Agent state is rk's RECONCILED value taken structurally —
-// never re-read from the @rk_agent_state option. Two contract adaptations:
+// never re-read from the agent-state option. Two contract adaptations:
 // a state outside {active, waiting, idle} maps to unknown (""), and a duration
 // on a non-idle row is DROPPED — rk reports agent_state_duration for waiting
 // too, but fab's agent_idle_duration field keeps its published idle-only
@@ -348,16 +348,20 @@ const (
 )
 
 // tmuxPaneFormat is the format string passed to tmux list-panes -F. It carries
-// seven tab-separated fields. #{@rk_agent_state} (field 6) carries the
-// agent-state pane option so the Agent column is resolved from the SAME
-// list-panes call — zero extra subprocesses (and the tmux_server disambiguation
-// problem evaporates, since a pane option lives on exactly one server's pane);
-// tmux emits an empty field for it when the option is unset, so it is a
-// possibly-empty MIDDLE field. #{window_id} (field 7) is the tmux server-assigned
-// window identifier (@N), stable for a window's lifetime and never empty — it is
-// deliberately the TRAILING field so the possibly-empty agent-state field can
-// never leave the line ending in a tab.
-const tmuxPaneFormat = "#{pane_id}\t#{window_name}\t#{pane_current_path}\t#{session_name}\t#{window_index}\t#{@rk_agent_state}\t#{window_id}"
+// EIGHT tab-separated fields. Fields 6 and 7 carry the agent-state pane option
+// under both of its names — #{@rk_pane_agent_state} (field 6, canonical) and
+// #{@rk_agent_state} (field 7, the pre-scope-prefix legacy name still written
+// by older run-kit hook generations and dual-written during run-kit's
+// deprecation window) — so the Agent column is resolved from the SAME
+// list-panes call with zero extra subprocesses (and the tmux_server
+// disambiguation problem evaporates, since a pane option lives on exactly one
+// server's pane). The parser prefers field 6 and falls back to field 7. tmux
+// emits an empty field for an unset option, so BOTH are possibly-empty MIDDLE
+// fields. #{window_id} (field 8) is the tmux server-assigned window identifier
+// (@N), stable for a window's lifetime and never empty — it is deliberately the
+// TRAILING field so the possibly-empty agent-state fields can never leave the
+// line ending in a tab.
+const tmuxPaneFormat = "#{pane_id}\t#{window_name}\t#{pane_current_path}\t#{session_name}\t#{window_index}\t#{@rk_pane_agent_state}\t#{@rk_agent_state}\t#{window_id}"
 
 // discoverPanes runs `tmux list-panes` with session targeting and parses the output.
 // Uses tab as the field delimiter so that window names containing spaces are handled correctly.
@@ -416,18 +420,25 @@ func discoverAllSessions(server string) ([]paneEntry, error) {
 }
 
 // parsePaneLines parses tmux list-panes output into paneEntry slices. The
-// format string carries seven tab-separated fields. #{@rk_agent_state}
-// (field 6) is a possibly-empty MIDDLE field — empty when the option is unset;
-// #{window_id} (field 7) is the never-empty TRAILING field. Trimming is
-// per-line and newline-only (never TrimSpace), which stays load-bearing for
-// legacy SIX-field lines whose empty agent-state field left the line ending in
-// a tab. Lines are parsed with graded tolerance: seven fields yield both
-// agent state and windowID; a legacy six-field line yields agent state with an
-// empty windowID; a legacy five-field line yields neither; lines with fewer
-// than five fields are skipped. The raw option value is resolved to the
-// (state, idle-duration) pair here via pane.AgentDisplayFromOption — the SAME
-// helper the capture reader uses — so the internal and delegated (rk) paths
-// share one downstream representation.
+// format string carries eight tab-separated fields. #{@rk_pane_agent_state}
+// (field 6) and legacy #{@rk_agent_state} (field 7) are possibly-empty MIDDLE
+// fields — empty when that option is unset; #{window_id} (field 8) is the
+// never-empty TRAILING field. Trimming is per-line and newline-only (never
+// TrimSpace), which stays load-bearing for legacy SIX-field lines whose empty
+// agent-state field left the line ending in a tab. Lines are parsed with
+// graded tolerance:
+//
+//	8 fields — agent state from field 6 if non-empty, else field 7 (canonical
+//	           wins when both are set); windowID from field 8
+//	7 fields — the pre-dual-read layout: agent state from field 6, windowID
+//	           from field 7
+//	6 fields — agent state from field 6, empty windowID
+//	5 fields — neither
+//	<5       — skipped
+//
+// The raw option value is resolved to the (state, idle-duration) pair here via
+// pane.AgentDisplayFromOption — the SAME helper the capture reader uses — so
+// the internal and delegated (rk) paths share one downstream representation.
 func parsePaneLines(output string) ([]paneEntry, error) {
 	var panes []paneEntry
 	for _, line := range strings.Split(output, "\n") {
@@ -435,7 +446,7 @@ func parsePaneLines(output string) ([]paneEntry, error) {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "\t", 7)
+		parts := strings.SplitN(line, "\t", 8)
 		if len(parts) < 5 {
 			continue
 		}
@@ -444,11 +455,17 @@ func parsePaneLines(output string) ([]paneEntry, error) {
 		if len(parts) >= 6 {
 			rawOption = strings.TrimSpace(parts[5])
 		}
-		agentState, agentIdleDur := pane.AgentDisplayFromOption(rawOption)
 		windowID := ""
-		if len(parts) == 7 {
+		switch len(parts) {
+		case 8:
+			if rawOption == "" {
+				rawOption = strings.TrimSpace(parts[6])
+			}
+			windowID = parts[7]
+		case 7:
 			windowID = parts[6]
 		}
+		agentState, agentIdleDur := pane.AgentDisplayFromOption(rawOption)
 		panes = append(panes, paneEntry{
 			id:           parts[0],
 			tab:          parts[1],
@@ -498,7 +515,7 @@ func matchPanesByFolder(panes []paneEntry, folder string, resolveFunc func(paneE
 }
 
 // resolvePane resolves a pane entry into a table row. Agent state arrives
-// pre-resolved on the entry (the internal path parses the @rk_agent_state
+// pre-resolved on the entry (the internal path parses the agent-state
 // option at discovery; the delegated path carries rk's reconciled value) —
 // independent of whether a change is active. This is the three-axis model:
 // Change (from .fab-status.yaml), Agent (from the entry's resolved state), and

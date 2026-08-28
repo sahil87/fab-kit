@@ -210,7 +210,7 @@ This is the operator's *usage* of the tool, not the `rk notify` contract itself 
 
 ### Operator role self-mark (fab-owned — pointer)
 
-The second fab-owned rk usage — the fail-silent `rk role operator` self-mark that pins the operator window in run-kit's dashboard — is owned by `fab-operator.md` §2 Startup (§ Role Mark). The `@rk_role` option contract and its one-operator-per-server radio semantics are tool-owned; see `rk skill`.
+The second fab-owned rk usage — the fail-silent `rk role operator` self-mark that pins the operator window in run-kit's dashboard — is owned by `fab-operator.md` §2 Startup (§ Role Mark). The `@rk_win_role` option contract and its one-operator-per-server radio semantics are tool-owned; see `rk skill`.
 
 ### Agent messaging (fab-owned — pointer)
 

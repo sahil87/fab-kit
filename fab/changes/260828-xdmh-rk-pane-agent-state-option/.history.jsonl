@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-28T02:55:49Z"}
+{"args":"fab-kit change: rename internal/pane AgentStateOption to @rk_pane_agent_state with a fallback read of the legacy @rk_agent_state, and add the new field to pane_map.go tmux format string with the parser preferring it (refactor). Change 4 of run-kit plan 26-08-28-tmux-option-scope-naming.md; must not execute until run-kit Change 3 (dual-read) is released.","cmd":"fab-new","event":"command","ts":"2026-08-28T02:55:49Z"}
+{"delta":"+0.0","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-08-28T02:57:55Z"}
+{"delta":"+0.0","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-08-28T02:58:08Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-28T11:09:02Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-28T11:10:20Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-28T11:16:33Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-28T11:20:36Z"}
+{"event":"review","result":"passed","ts":"2026-08-28T11:20:36Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-28T11:21:51Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-28T11:23:41Z"}
+{"event":"review","result":"passed","ts":"2026-08-28T11:41:09Z"}
