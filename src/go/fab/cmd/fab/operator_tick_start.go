@@ -81,10 +81,19 @@ func nextTickCount(data map[string]interface{}) int {
 
 // --- tick-start --diff -------------------------------------------------------
 
-// tickTerminalStages is the completion set when an entry has no stop_stage —
-// today's §4 step-2 terminal policy (a fully-done pipeline reads
-// review-pr/done and is contained in it).
-var tickTerminalStages = map[string]bool{"hydrate": true, "ship": true, "review-pr": true}
+// tickTerminusStage is the pipeline terminus — the only stage at which an
+// entry with no stop_stage completes. Completion there is a display-state
+// check (done/skipped), never bare stage membership: a change entering
+// hydrate or ship under /fab-fff is mid-pipeline, not complete. Callers that
+// deliberately park earlier (a /fab-ff run stops after hydrate) express that
+// through stop_stage.
+const tickTerminusStage = "review-pr"
+
+// stageFinished reports whether a display state means the stage is over —
+// the shared test for "at the terminus" and "at the stop_stage".
+func stageFinished(displayState string) bool {
+	return displayState == "done" || displayState == "skipped"
+}
 
 // tickDelta is one --diff event. Deltas come in two delivery classes:
 // LEVEL-TRIGGERED (completion, pane_death, pane_mismatch — stateless
@@ -234,15 +243,16 @@ func stageOrderIndex(stage string) int {
 	return -1
 }
 
-// tickCompleted is the completion predicate — a display-state/terminal-stage
-// check, NEVER a stage diff (a change completing at its terminal stage never
-// changes its stage string; only display_state flips). stop_stage null: the
-// terminal set. stop_stage set: past the stop in stage order, or AT the stop
-// with display_state done/skipped (a finished stop-stage auto-activates the
-// next stage, so equality alone would race the transition).
+// tickCompleted is the completion predicate — a display-state check at a
+// stage, NEVER a stage diff (a change completing at its final stage never
+// changes its stage string; only display_state flips). stop_stage null: AT
+// the terminus (review-pr) with display_state done/skipped. stop_stage set:
+// past the stop in stage order, or AT the stop with display_state
+// done/skipped (a finished stop-stage auto-activates the next stage, so
+// equality alone would race the transition).
 func tickCompleted(entry monitoredEntry, stage, displayState string) bool {
 	if entry.StopStage == nil {
-		return tickTerminalStages[stage]
+		return stage == tickTerminusStage && stageFinished(displayState)
 	}
 	oi, oStop := stageOrderIndex(stage), stageOrderIndex(*entry.StopStage)
 	if oi < 0 || oStop < 0 {
@@ -251,7 +261,7 @@ func tickCompleted(entry monitoredEntry, stage, displayState string) bool {
 	if oi > oStop {
 		return true
 	}
-	return oi == oStop && (displayState == "done" || displayState == "skipped")
+	return oi == oStop && stageFinished(displayState)
 }
 
 // baselineFleetRow renders the fleet row for a dead or mismatched pane:

@@ -241,10 +241,22 @@ func TestOperatorTickDiff_CompletionPredicateBranches(t *testing.T) {
 		"s003": {Pane: "%3", Repo: "/r/a", Session: "s1", Stage: "review", StopStage: &stopReview, EnrolledAt: "2026-01-01T00:00:00Z", LastTransition: "2026-01-01T00:00:00Z"},
 		// stop_stage set, past the stop → complete (even mid-stage).
 		"s004": {Pane: "%4", Repo: "/r/a", Session: "s1", Stage: "review", StopStage: &stopReview, EnrolledAt: "2026-01-01T00:00:00Z", LastTransition: "2026-01-01T00:00:00Z"},
-		// stop_stage null, terminal set member → complete.
+		// stop_stage null, ship still running → NOT complete (mid-pipeline under
+		// /fab-fff; the regression guard for the spurious hydrate/ship completions).
 		"s005": diffEntry("%5", "/r/a", "s1", "ship", "2026-01-01T00:00:00Z"),
 		// stop_stage null, non-terminal → NOT complete.
 		"s006": diffEntry("%6", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		// stop_stage null, hydrate running → NOT complete.
+		"s007": diffEntry("%7", "/r/a", "s1", "hydrate", "2026-01-01T00:00:00Z"),
+		// stop_stage null, hydrate done but pipeline continues (the transient
+		// finish→ship-start window, or a parked /fab-ff run) → NOT complete.
+		"s008": diffEntry("%8", "/r/a", "s1", "hydrate", "2026-01-01T00:00:00Z"),
+		// stop_stage null, AT the terminus but still active (awaiting a PR review) → NOT complete.
+		"s009": diffEntry("%9", "/r/a", "s1", "review-pr", "2026-01-01T00:00:00Z"),
+		// stop_stage null, terminus done → complete.
+		"s010": diffEntry("%10", "/r/a", "s1", "review-pr", "2026-01-01T00:00:00Z"),
+		// stop_stage null, terminus skipped (review-pr disabled at ship) → complete.
+		"s011": diffEntry("%11", "/r/a", "s1", "review-pr", "2026-01-01T00:00:00Z"),
 	}
 	seedDiffState(t, entries)
 	stubSnapshot(t, []paneRow{
@@ -254,15 +266,20 @@ func TestOperatorTickDiff_CompletionPredicateBranches(t *testing.T) {
 		snapRow("%4", "s004", "hydrate", "active", "active", ""),
 		snapRow("%5", "s005", "ship", "active", "active", ""),
 		snapRow("%6", "s006", "apply", "active", "active", ""),
+		snapRow("%7", "s007", "hydrate", "active", "active", ""),
+		snapRow("%8", "s008", "hydrate", "done", "idle", "2m"),
+		snapRow("%9", "s009", "review-pr", "active", "active", ""),
+		snapRow("%10", "s010", "review-pr", "done", "idle", "5m"),
+		snapRow("%11", "s011", "review-pr", "skipped", "idle", "5m"),
 	})
 
 	doc := parseTickDiff(t, runTickDiff(t))
-	for _, id := range []string{"s001", "s002", "s004", "s005"} {
+	for _, id := range []string{"s001", "s002", "s004", "s010", "s011"} {
 		if findDelta(doc, "completion", id) == nil {
 			t.Errorf("completion for %s missing: %v", id, doc.Deltas)
 		}
 	}
-	for _, id := range []string{"s003", "s006"} {
+	for _, id := range []string{"s003", "s005", "s006", "s007", "s008", "s009"} {
 		if d := findDelta(doc, "completion", id); d != nil {
 			t.Errorf("completion for %s emitted, want none: %v", id, d)
 		}
