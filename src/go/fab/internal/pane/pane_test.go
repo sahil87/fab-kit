@@ -367,6 +367,14 @@ func TestParseAgentState(t *testing.T) {
 		{"unknown state token", "bogus:1751800000", "", 0, false},
 		{"empty state token", ":1751800000", "", 0, false},
 		{"trailing empty epoch", "idle:", "", 0, false},
+		// run-kit's three-segment form: "<state>:<epoch>:<pid>" — pid validated, ignored
+		{"waiting with epoch and pid", "waiting:1751790000:48213", "waiting", 1751790000, true},
+		{"idle with epoch and pid", "idle:1751800000:1", "idle", 1751800000, true},
+		{"zero pid is malformed", "idle:1751800000:0", "", 0, false},
+		{"negative pid is malformed", "idle:1751800000:-5", "", 0, false},
+		{"non-integer pid is malformed", "idle:1751800000:abc", "", 0, false},
+		{"empty pid segment is malformed", "idle:1751800000:", "", 0, false},
+		{"four segments is malformed", "idle:1751800000:1:2", "", 0, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -505,12 +513,11 @@ func tmuxSocketDir(t *testing.T, name string) string {
 }
 
 // TestReadAgentStateOption_Integration drives the full reader against a real
-// tmux server, simulating run-kit's rk agent-setup writer via
-// `tmux set-option -p @rk_agent_state "<state>:<epoch>"` (the writer
-// simulation directed by the intake — the actual writer does not exist yet).
-// It covers the codex-pane scenario (a pane the old Claude-only _agents
-// pipeline could never see) and the unknown case (option unset). Skipped when
-// tmux is unavailable.
+// tmux server, simulating run-kit's `rk agent setup` hook writer via
+// `tmux set-option -p <option> "<state>:<epoch>"`. It covers the unknown case
+// (neither option set), the canonical @rk_pane_agent_state read, and the
+// dual-read contract: legacy-only panes still resolve, and when both names are
+// set the canonical value wins. Skipped when tmux is unavailable.
 func TestReadAgentStateOption_Integration(t *testing.T) {
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("tmux not available")
@@ -580,4 +587,46 @@ func TestReadAgentStateOption_Integration(t *testing.T) {
 			}
 		})
 	}
+
+	// Dual-read contract. Reset both options first so the sub-tests below
+	// start from a clean pane regardless of the loop above.
+	unsetBoth := func(t *testing.T) {
+		t.Helper()
+		_, _ = tmux("set-option", "-pu", "-t", paneID, AgentStateOption)
+		_, _ = tmux("set-option", "-pu", "-t", paneID, LegacyAgentStateOption)
+	}
+
+	t.Run("legacy-only option falls back", func(t *testing.T) {
+		unsetBoth(t)
+		if out, err := tmux("set-option", "-p", "-t", paneID, LegacyAgentStateOption, "active:1751800000"); err != nil {
+			t.Fatalf("set-option: %v: %s", err, out)
+		}
+		if raw := ReadAgentStateOption(paneID, server); raw != "active:1751800000" {
+			t.Fatalf("ReadAgentStateOption = %q, want legacy value", raw)
+		}
+	})
+
+	t.Run("canonical wins when both are set", func(t *testing.T) {
+		unsetBoth(t)
+		if out, err := tmux("set-option", "-p", "-t", paneID, LegacyAgentStateOption, "idle:1600000000"); err != nil {
+			t.Fatalf("set-option legacy: %v: %s", err, out)
+		}
+		if out, err := tmux("set-option", "-p", "-t", paneID, AgentStateOption, "waiting:1751790000:48213"); err != nil {
+			t.Fatalf("set-option canonical: %v: %s", err, out)
+		}
+		raw := ReadAgentStateOption(paneID, server)
+		if raw != "waiting:1751790000:48213" {
+			t.Fatalf("ReadAgentStateOption = %q, want canonical value", raw)
+		}
+		if state, _ := AgentDisplayFromOption(raw); state != AgentStateWaiting {
+			t.Errorf("three-segment canonical value resolved to %q, want waiting", state)
+		}
+	})
+
+	t.Run("neither set → unknown", func(t *testing.T) {
+		unsetBoth(t)
+		if raw := ReadAgentStateOption(paneID, server); raw != "" {
+			t.Errorf("expected empty raw option, got %q", raw)
+		}
+	})
 }

@@ -16,13 +16,24 @@ import (
 )
 
 // AgentStateOption is the tmux pane user option that carries an agent's
-// lifecycle state, written by run-kit's `rk agent-setup` global agent-harness
-// hooks and read by the fab pane commands. Its value is
-// "<state>:<epoch_seconds>" where state is one of the AgentState* constants
-// below. fab is a pure CONSUMER of this convention — it never writes the
-// option (run-kit owns the schema); it reads it with plain tmux commands, so
-// there is no dependency on run-kit software being installed.
-const AgentStateOption = "@rk_agent_state"
+// lifecycle state, written by run-kit's `rk agent setup` global agent-harness
+// hooks and read by the fab pane commands. The name follows run-kit's
+// @rk_<scope>_<name> scheme (scope encoded in the name because tmux format
+// expansion walks pane → window → session → global). Its value is
+// "<state>:<epoch_seconds>[:<pid>]" where state is one of the AgentState*
+// constants below; the optional pid segment is validated and ignored by fab
+// (see parseAgentState). fab is a pure CONSUMER of this convention — it never
+// writes the option (run-kit owns the schema); it reads it with plain tmux
+// commands, so there is no dependency on run-kit software being installed.
+const AgentStateOption = "@rk_pane_agent_state"
+
+// LegacyAgentStateOption is the pre-scope-prefix name of AgentStateOption.
+// Hook generations installed before run-kit's rename write only this name,
+// and run-kit dual-writes both during its deprecation window, so readers
+// consult it only when AgentStateOption is unset on the pane. Dropping this
+// fallback is a follow-up sequenced after run-kit removes its own legacy
+// reads.
+const LegacyAgentStateOption = "@rk_agent_state"
 
 // Agent lifecycle states carried by AgentStateOption:
 //   - active  — turn in progress
@@ -303,7 +314,7 @@ func GetPanePID(paneID, server string) (int, error) {
 // Agent-state resolution is independent of whether a change is active — a pane
 // running any instrumented agent in "discussion mode" (no change), a git repo
 // without a fab/ directory, or a non-git directory still populates AgentState
-// when the pane carries the @rk_agent_state option. It is resolved before the
+// when the pane carries the agent-state option. It is resolved before the
 // git/fab early returns for exactly that reason (see the resolution block), so
 // map/capture agree on every pane class.
 func ResolvePaneContext(paneID, mainRoot, server string) (*PaneContext, error) {
@@ -321,14 +332,14 @@ func ResolvePaneContext(paneID, mainRoot, server string) (*PaneContext, error) {
 
 	// Agent resolution — the AGENT axis is fully independent of the CHANGE
 	// axis, so it MUST be resolved BEFORE the not-a-git-repo / no-fab-dir
-	// early returns below. Otherwise a non-fab pane carrying @rk_agent_state
+	// early returns below. Otherwise a non-fab pane carrying an agent-state option
 	// would resolve to unknown here while `pane map` (which reads the option
 	// off every pane's list-panes row) shows its real state — the two readers
 	// would disagree, and `pane capture` would report unknown for a pane the
 	// map shows as idle. Reading the option first keeps both readers
 	// (map/capture) in agreement for every pane class: non-git, git but
-	// no fab/, and fab. Reads the @rk_agent_state pane option (written by
-	// run-kit's rk agent-setup), so discussion-mode panes and non-Claude
+	// no fab/, and fab. Reads the agent-state pane option (written by
+	// run-kit's rk agent setup), so discussion-mode panes and non-Claude
 	// agents (codex/copilot/gemini) are covered uniformly; an absent or
 	// unparseable option leaves AgentState nil (unknown).
 	state, idleDur := AgentDisplayFromOption(ReadAgentStateOption(paneID, server))
@@ -432,36 +443,47 @@ func ReadFabCurrent(wtRoot string) (string, string) {
 	return folderName, folderName
 }
 
-// parseAgentState parses the raw value of the @rk_agent_state pane option
-// ("<state>:<epoch_seconds>") into its state token and epoch. It returns
-// ok=false when the raw value is empty, has no ":epoch" suffix, carries a
-// non-integer epoch, or names a state token outside {active, waiting, idle}
-// — every "unknown" case collapses to ok=false so callers render a single
-// unknown sentinel. Pure (no tmux), so the grammar is unit-testable without
-// a tmux server.
+// parseAgentState parses the raw value of the agent-state pane option
+// ("<state>:<epoch_seconds>[:<pid>]") into its state token and epoch. The
+// value has exactly two or three colon-separated segments: a state token in
+// {active, waiting, idle}, an integer epoch, and — written by current run-kit
+// hooks — an optional positive-integer pid of the agent process. fab does not
+// consume the pid (PID-liveness reconciliation is rk's), but per run-kit's
+// contract a malformed value is WHOLLY unknown, so the segment is validated
+// when present. It returns ok=false for an empty value, any other segment
+// count, a non-integer epoch, a non-positive or non-integer pid, or an
+// unknown state token — every "unknown" case collapses to ok=false so callers
+// render a single unknown sentinel. Pure (no tmux), so the grammar is
+// unit-testable without a tmux server.
 func parseAgentState(raw string) (state string, epoch int64, ok bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return "", 0, false
 	}
-	idx := strings.LastIndex(raw, ":")
-	if idx < 0 {
+	parts := strings.Split(raw, ":")
+	if len(parts) < 2 || len(parts) > 3 {
 		return "", 0, false
 	}
-	state = raw[:idx]
+	state = parts[0]
 	switch state {
 	case AgentStateActive, AgentStateWaiting, AgentStateIdle:
 	default:
 		return "", 0, false
 	}
-	epoch, err := strconv.ParseInt(raw[idx+1:], 10, 64)
+	epoch, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
 		return "", 0, false
+	}
+	if len(parts) == 3 {
+		pid, err := strconv.ParseInt(parts[2], 10, 64)
+		if err != nil || pid <= 0 {
+			return "", 0, false
+		}
 	}
 	return state, epoch, true
 }
 
-// AgentDisplayFromOption converts a raw @rk_agent_state option value into a
+// AgentDisplayFromOption converts a raw agent-state option value into a
 // display state and (for idle only) an idle-duration string. It returns
 // ("", "") for the unknown case (unparseable / absent / unknown token), which
 // callers map to the em-dash / JSON-null sentinel. Only the idle state
@@ -483,9 +505,9 @@ func AgentDisplayFromOption(raw string) (state, idleDuration string) {
 	return AgentStateIdle, FormatIdleDuration(elapsed)
 }
 
-// ReadAgentStateOption reads the raw @rk_agent_state pane user option for a
+// ReadAgentStateOption reads the raw agent-state pane user option for a
 // single pane via `tmux [-L <server>] show-options -pv -t <pane>
-// @rk_agent_state`. The `-v` flag returns the bare value when the option is
+// @rk_pane_agent_state`. The `-v` flag returns the bare value when the option is
 // SET. An *unset* option is not an empty-stdout success: on tmux 3.6a
 // `show-options -pv` for a missing option exits 1 with an error on stderr and
 // no stdout — so the common "no state written for this pane" case surfaces as
@@ -499,11 +521,30 @@ func AgentDisplayFromOption(raw string) (state, idleDuration string) {
 // An empty paneID returns "" (unknown) without touching tmux: `show-options
 // -pv -t ""` would silently target the client's CURRENT pane, reading a
 // wrong-pane state rather than failing — so the empty case is refused up front.
+//
+// Dual-read: the canonical AgentStateOption is read first; only when that read
+// errors (unset) or yields an empty value is the identical read repeated for
+// LegacyAgentStateOption. Two targeted `show-options -pv` calls are used rather
+// than one `display-message -F` with both keys because `#{@opt}` format
+// expansion walks pane → window → session → global — the scope leak run-kit's
+// rename exists to remove — while `show-options -p` reads the pane scope
+// strictly and keeps the error→unknown mapping above. The second call fires
+// only for legacy-hook and uninstrumented panes.
 func ReadAgentStateOption(paneID, server string) string {
 	if paneID == "" {
 		return ""
 	}
-	out, _, err := RunCmd("tmux", WithServer(server, "show-options", "-pv", "-t", paneID, AgentStateOption)...)
+	if raw := readPaneOption(paneID, server, AgentStateOption); raw != "" {
+		return raw
+	}
+	return readPaneOption(paneID, server, LegacyAgentStateOption)
+}
+
+// readPaneOption runs `tmux show-options -pv -t <pane> <option>` and returns
+// the trimmed value, or "" on any error (unset option, missing pane, dead
+// server). If server is non-empty, the invocation is scoped via `-L <server>`.
+func readPaneOption(paneID, server, option string) string {
+	out, _, err := RunCmd("tmux", WithServer(server, "show-options", "-pv", "-t", paneID, option)...)
 	if err != nil {
 		return ""
 	}
@@ -512,7 +553,7 @@ func ReadAgentStateOption(paneID, server string) string {
 
 // FormatIdleDuration formats elapsed seconds into a human-readable duration.
 // Uses floor division: <60s -> Ns, 60s-3599s -> Nm, >=3600s -> Nh. Formats
-// the epoch-derived idle durations of the @rk_agent_state readers.
+// the epoch-derived idle durations of the agent-state option readers.
 func FormatIdleDuration(seconds int64) string {
 	if seconds < 60 {
 		return fmt.Sprintf("%ds", seconds)

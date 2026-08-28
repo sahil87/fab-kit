@@ -143,7 +143,7 @@ func TestPrintCaptureHeader(t *testing.T) {
 		}
 	})
 
-	// R8 GIVEN/THEN: a pane with @rk_agent_state = waiting shows `agent: waiting`
+	// R8 GIVEN/THEN: a pane with @rk_pane_agent_state = waiting shows `agent: waiting`
 	// in the header — the waiting state carries no idle duration (ioku cycle 2).
 	t.Run("header shows waiting state without duration", func(t *testing.T) {
 		var buf bytes.Buffer

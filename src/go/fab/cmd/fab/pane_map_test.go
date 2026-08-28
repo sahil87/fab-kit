@@ -424,7 +424,7 @@ func TestParsePaneLines(t *testing.T) {
 	})
 
 	t.Run("legacy trailing empty agent-state field is preserved (six-field line, unset option)", func(t *testing.T) {
-		// A legacy six-field line (no #{window_id}) whose @rk_agent_state is
+		// A legacy six-field line (no #{window_id}) whose agent-state option is
 		// unset ends in a tab. Newline-only trimming must NOT eat that trailing
 		// empty field — the pane is still parsed with an empty agentState and an
 		// empty windowID.
@@ -464,8 +464,77 @@ func TestParsePaneLines(t *testing.T) {
 		}
 	})
 
+	t.Run("eight-field line: canonical @rk_pane_agent_state (field 6) resolves, windowID from field 8", func(t *testing.T) {
+		input := "%3\talpha\t/home/user/repo\trunK\t2\tidle:1751800000\t\t@5\n"
+		panes, err := parsePaneLines(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(panes) != 1 {
+			t.Fatalf("expected 1 pane, got %d", len(panes))
+		}
+		if panes[0].agentState != "idle" {
+			t.Errorf("agentState = %q, want idle from the canonical field", panes[0].agentState)
+		}
+		if panes[0].windowID != "@5" {
+			t.Errorf("windowID = %q, want @5", panes[0].windowID)
+		}
+	})
+
+	t.Run("eight-field line: legacy @rk_agent_state (field 7) is the fallback", func(t *testing.T) {
+		input := "%3\talpha\t/home/user/repo\trunK\t2\t\tactive:1751800000\t@5\n"
+		panes, err := parsePaneLines(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(panes) != 1 {
+			t.Fatalf("expected 1 pane, got %d", len(panes))
+		}
+		if panes[0].agentState != "active" {
+			t.Errorf("agentState = %q, want active from the legacy field", panes[0].agentState)
+		}
+		if panes[0].windowID != "@5" {
+			t.Errorf("windowID = %q, want @5", panes[0].windowID)
+		}
+	})
+
+	t.Run("eight-field line: canonical wins when both agent fields are set", func(t *testing.T) {
+		// Three-segment run-kit value on the canonical field, a stale legacy value beside it.
+		input := "%3\talpha\t/home/user/repo\trunK\t2\twaiting:1751790000:48213\tidle:1600000000\t@5\n"
+		panes, err := parsePaneLines(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(panes) != 1 {
+			t.Fatalf("expected 1 pane, got %d", len(panes))
+		}
+		if panes[0].agentState != "waiting" {
+			t.Errorf("agentState = %q, want waiting (canonical field wins)", panes[0].agentState)
+		}
+		if panes[0].agentIdleDur != "" {
+			t.Errorf("agentIdleDur = %q, want empty for waiting", panes[0].agentIdleDur)
+		}
+	})
+
+	t.Run("eight-field line: both agent fields empty → unknown, windowID kept", func(t *testing.T) {
+		input := "%3\talpha\t/home/user/repo\trunK\t2\t\t\t@5\n"
+		panes, err := parsePaneLines(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(panes) != 1 {
+			t.Fatalf("expected 1 pane, got %d", len(panes))
+		}
+		if panes[0].agentState != "" {
+			t.Errorf("agentState = %q, want empty", panes[0].agentState)
+		}
+		if panes[0].windowID != "@5" {
+			t.Errorf("windowID = %q, want @5", panes[0].windowID)
+		}
+	})
+
 	t.Run("seven-field line with empty agent-state middle field parses windowID", func(t *testing.T) {
-		// @rk_agent_state now a MIDDLE field: an unset option yields an empty
+		// Legacy seven-field layout: the agent-state MIDDLE field is empty
 		// field between window_index and window_id (\t\t). windowID must still
 		// parse from the trailing field.
 		input := "%3\talpha\t/home/user/repo\trunK\t3\t\t@5\n"
@@ -547,7 +616,7 @@ func TestAgentColumn(t *testing.T) {
 
 // TestMapCaptureAgentAgreement_NonFabPane pins the invariant that ALL the
 // readers (pane map's resolvePane, and pane capture's ResolvePaneContext)
-// resolve the SAME agent state for a non-fab pane carrying @rk_agent_state.
+// resolve the SAME agent state for a non-fab pane carrying @rk_pane_agent_state.
 // The regression it guards: before the rework, resolvePane's non-git branch
 // hardcoded the em-dash while ResolvePaneContext read the option before its
 // git/fab early returns — so `pane map` could show `idle (…)` for a pane
