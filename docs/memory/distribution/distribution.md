@@ -191,7 +191,7 @@ Preflight compares `$(fab kit-path)/VERSION` against the project's pinned versio
 
 - `⚠ Skills may be out of sync — run fab sync to refresh (engine X, project Y)`
 
-If either value is unreadable or empty, the check is silently skipped. This detects stale local skill deployments when a developer pulls new `src/kit/` source via git but hasn't re-run `fab sync` (since `.claude/`, `.agents/`, `.opencode/` are gitignored and not updated by git pull).
+If either value is unreadable or empty, the check is silently skipped. This detects stale local skill deployments when a developer pulls new `src/kit/` source via git but hasn't re-run `fab sync` (fab's deployed copies in `.claude/skills/`, `.agents/skills/`, `.opencode/commands/` are ignored via each target's generated `.gitignore` manifest and so not updated by git pull).
 
 #### Version Skew Detection (`fab setup check`)
 

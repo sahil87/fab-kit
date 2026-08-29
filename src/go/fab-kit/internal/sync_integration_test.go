@@ -255,6 +255,25 @@ func TestSync_FullRunProducesExpectedTree(t *testing.T) {
 		t.Errorf("expected project sync script marker: %v", err)
 	}
 
+	// Generated manifest: the fired claude target gets a whole-file-owned
+	// .gitignore listing exactly the deployed skills; skipped targets get none.
+	manifest, err := os.ReadFile(filepath.Join(repo, ".claude", "skills", ".gitignore"))
+	if err != nil {
+		t.Fatalf("fired target must get a generated manifest: %v", err)
+	}
+	wantManifest := manifestHeaderSkills + "/.gitignore\n/fab-help/\n/fab-new/\n"
+	if string(manifest) != wantManifest {
+		t.Errorf("manifest content mismatch:\n--- want ---\n%s\n--- got ---\n%s", wantManifest, manifest)
+	}
+	for _, skipped := range []string{
+		filepath.Join(repo, ".agents", "skills", ".gitignore"),
+		filepath.Join(repo, ".opencode", "commands", ".gitignore"),
+	} {
+		if _, err := os.Stat(skipped); !os.IsNotExist(err) {
+			t.Errorf("skipped target must not get a manifest: %s", skipped)
+		}
+	}
+
 	// cleanLegacyAgents scoping: skill-named legacy file removed, custom kept.
 	if _, err := os.Stat(filepath.Join(repo, ".claude", "agents", "fab-new.md")); !os.IsNotExist(err) {
 		t.Error("legacy agent file matching a kit skill should be deleted")
@@ -327,6 +346,71 @@ func TestSync_GitignoreNegationSurvivesFullSync(t *testing.T) {
 	}
 	if strings.Contains(string(data), ".claude/\n.claude/") || strings.Count(string(data), ".claude") != 2 {
 		t.Errorf("sync must not append a broader .claude ignore; got:\n%s", data)
+	}
+}
+
+// TestSync_ManifestLifecycle covers the manifest-scoped prune contract
+// end-to-end: a user-added skill dir survives sync; a kit-dropped skill is
+// pruned on the NEXT sync (the one after its manifest recorded it); the first
+// sync on a manifest-less directory prints the note and prunes nothing.
+func TestSync_ManifestLifecycle(t *testing.T) {
+	repo := setupSyncRepo(t)
+
+	// A user skill placed in the target before any sync must survive — and
+	// its presence triggers the one-time no-manifest note on the first run.
+	skillsDir := filepath.Join(repo, ".claude", "skills")
+	if err := os.MkdirAll(filepath.Join(skillsDir, "my-team-skill"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	var err error
+	out := captureStdout(t, func() { err = Sync("dev", "dev", false, false) })
+	if err != nil {
+		t.Fatalf("first Sync: %v", err)
+	}
+	if strings.Count(out, "has no fab manifest yet") != 1 {
+		t.Errorf("first run must print the no-manifest note once, got:\n%s", out)
+	}
+	if _, err := os.Stat(filepath.Join(skillsDir, "my-team-skill")); err != nil {
+		t.Error("user skill must survive the first sync")
+	}
+
+	// Second run: manifest exists now, the user skill was never recorded in
+	// it, so it still survives and no note is printed.
+	out = captureStdout(t, func() { err = Sync("dev", "dev", false, false) })
+	if err != nil {
+		t.Fatalf("second Sync: %v", err)
+	}
+	if strings.Contains(out, "no fab manifest") {
+		t.Errorf("second run must not print the note, got:\n%s", out)
+	}
+	if _, err := os.Stat(filepath.Join(skillsDir, "my-team-skill")); err != nil {
+		t.Error("user skill must survive subsequent syncs")
+	}
+
+	// The kit drops fab-help: the next sync prunes it (the previous manifest
+	// recorded it) and rewrites the manifest without it. The user skill,
+	// never recorded, survives.
+	kitDir := filepath.Join(os.Getenv("HOME"), ".fab-kit", "versions", "dev", "kit")
+	if err := os.Remove(filepath.Join(kitDir, "skills", "fab-help.md")); err != nil {
+		t.Fatal(err)
+	}
+	captureStdout(t, func() { err = Sync("dev", "dev", false, false) })
+	if err != nil {
+		t.Fatalf("third Sync: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(skillsDir, "fab-help")); !os.IsNotExist(err) {
+		t.Error("kit-dropped skill must be pruned once the manifest recorded it")
+	}
+	if _, err := os.Stat(filepath.Join(skillsDir, "my-team-skill")); err != nil {
+		t.Error("user skill must survive pruning of a kit-dropped skill")
+	}
+	manifest, err := os.ReadFile(filepath.Join(skillsDir, ".gitignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := manifestHeaderSkills + "/.gitignore\n/fab-new/\n"
+	if string(manifest) != want {
+		t.Errorf("manifest after kit drop:\n--- want ---\n%s\n--- got ---\n%s", want, manifest)
 	}
 }
 
