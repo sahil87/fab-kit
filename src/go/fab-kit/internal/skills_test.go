@@ -107,48 +107,183 @@ func TestDeploySkills_GenericDirForNonCodexCLI(t *testing.T) {
 	}
 }
 
+// TestCleanStaleSkills_Directory: pruning is scoped to the previous manifest —
+// an entry is removed only when fab recorded it (in prev) AND the kit dropped
+// it. A user-added directory fab never recorded must survive, and a manifest
+// entry with no on-disk directory is a silent no-op.
 func TestCleanStaleSkills_Directory(t *testing.T) {
 	baseDir := t.TempDir()
 	repoRoot := filepath.Dir(baseDir)
 
-	// Create directory-format skill entries
+	// On disk: fab-new (still in kit), fab-old (kit dropped it), my-team-skill (user's).
 	os.MkdirAll(filepath.Join(baseDir, "fab-new"), 0755)
 	os.WriteFile(filepath.Join(baseDir, "fab-new", "SKILL.md"), []byte("# New\n"), 0644)
-	os.MkdirAll(filepath.Join(baseDir, "old-skill"), 0755)
-	os.WriteFile(filepath.Join(baseDir, "old-skill", "SKILL.md"), []byte("# Old\n"), 0644)
+	os.MkdirAll(filepath.Join(baseDir, "fab-old"), 0755)
+	os.WriteFile(filepath.Join(baseDir, "fab-old", "SKILL.md"), []byte("# Old\n"), 0644)
+	os.MkdirAll(filepath.Join(baseDir, "my-team-skill"), 0755)
 
-	// Canonical skills: only fab-new
+	// Previous manifest recorded fab-new, fab-old, and gone-skill (no dir on disk).
+	prev := map[string]bool{"fab-new": true, "fab-old": true, "gone-skill": true}
 	skills := []string{"fab-new"}
-	cleanStaleSkills(baseDir, "directory", skills, repoRoot)
+	cleanStaleSkills(baseDir, "directory", prev, skills, true, repoRoot)
 
-	// old-skill should be removed
-	if _, err := os.Stat(filepath.Join(baseDir, "old-skill")); !os.IsNotExist(err) {
-		t.Error("expected old-skill directory to be removed")
+	if _, err := os.Stat(filepath.Join(baseDir, "fab-old")); !os.IsNotExist(err) {
+		t.Error("expected fab-old (previously manifested, dropped from kit) to be removed")
 	}
-	// fab-new should still exist
 	if _, err := os.Stat(filepath.Join(baseDir, "fab-new", "SKILL.md")); err != nil {
 		t.Error("expected fab-new skill to still exist")
 	}
+	if _, err := os.Stat(filepath.Join(baseDir, "my-team-skill")); err != nil {
+		t.Error("user-added directory fab never manifested must NOT be removed")
+	}
 }
 
+// TestCleanStaleSkills_Flat: same manifest scoping for the flat format —
+// a user's .md that fab never recorded must survive.
 func TestCleanStaleSkills_Flat(t *testing.T) {
 	baseDir := t.TempDir()
 	repoRoot := filepath.Dir(baseDir)
 
-	// Create flat-format skill entries
 	os.WriteFile(filepath.Join(baseDir, "fab-new.md"), []byte("# New\n"), 0644)
 	os.WriteFile(filepath.Join(baseDir, "old-skill.md"), []byte("# Old\n"), 0644)
+	os.WriteFile(filepath.Join(baseDir, "mine.md"), []byte("# Mine\n"), 0644)
 
+	prev := map[string]bool{"fab-new": true, "old-skill": true, "gone": true}
 	skills := []string{"fab-new"}
-	cleanStaleSkills(baseDir, "flat", skills, repoRoot)
+	cleanStaleSkills(baseDir, "flat", prev, skills, true, repoRoot)
 
-	// old-skill.md should be removed
 	if _, err := os.Stat(filepath.Join(baseDir, "old-skill.md")); !os.IsNotExist(err) {
-		t.Error("expected old-skill.md to be removed")
+		t.Error("expected old-skill.md (previously manifested, dropped from kit) to be removed")
 	}
-	// fab-new.md should still exist
 	if _, err := os.Stat(filepath.Join(baseDir, "fab-new.md")); err != nil {
 		t.Error("expected fab-new.md to still exist")
+	}
+	if _, err := os.Stat(filepath.Join(baseDir, "mine.md")); err != nil {
+		t.Error("user-added mine.md fab never manifested must NOT be removed")
+	}
+}
+
+// TestCleanStaleSkills_NoManifestPrunesNothing: without a manifest fab has no
+// ownership record, so NOTHING is pruned — and when the directory held a
+// non-kit entry, exactly one note is printed instead.
+func TestCleanStaleSkills_NoManifestPrunesNothing(t *testing.T) {
+	baseDir := t.TempDir()
+	repoRoot := filepath.Dir(baseDir)
+	os.MkdirAll(filepath.Join(baseDir, "fab-new"), 0755)
+	os.MkdirAll(filepath.Join(baseDir, "unknown"), 0755)
+
+	var noteCount int
+	out := captureStdout(t, func() {
+		cleanStaleSkills(baseDir, "directory", nil, []string{"fab-new"}, false, repoRoot)
+	})
+	noteCount = strings.Count(out, "has no fab manifest yet")
+	if noteCount != 1 {
+		t.Errorf("expected the no-manifest note exactly once, got %d in:\n%s", noteCount, out)
+	}
+	if _, err := os.Stat(filepath.Join(baseDir, "unknown")); err != nil {
+		t.Error("no-manifest run must prune nothing — unknown/ must survive")
+	}
+}
+
+// TestCleanStaleSkills_NoManifestKitOnlyDirPrintsNothing: an all-kit directory
+// has nothing to warn about — no note on every fresh checkout.
+func TestCleanStaleSkills_NoManifestKitOnlyDirPrintsNothing(t *testing.T) {
+	baseDir := t.TempDir()
+	repoRoot := filepath.Dir(baseDir)
+	os.MkdirAll(filepath.Join(baseDir, "fab-new"), 0755)
+
+	out := captureStdout(t, func() {
+		cleanStaleSkills(baseDir, "directory", nil, []string{"fab-new"}, false, repoRoot)
+	})
+	if strings.Contains(out, "no fab manifest") {
+		t.Errorf("kit-only directory must not print the note, got:\n%s", out)
+	}
+}
+
+// TestWriteReadSkillManifest_RoundTrip: the manifest is byte-stable, anchored
+// per format, self-ignoring, and parses back to exactly the deployed set.
+func TestWriteReadSkillManifest_RoundTrip(t *testing.T) {
+	for _, tc := range []struct {
+		format   string
+		deployed []string
+		want     string
+	}{
+		{"directory", []string{"_preamble", "fab-new"},
+			manifestHeaderSkills + "/.gitignore\n/_preamble/\n/fab-new/\n"},
+		{"flat", []string{"_preamble", "fab-new"},
+			manifestHeaderCmds + "/.gitignore\n/_preamble.md\n/fab-new.md\n"},
+	} {
+		t.Run(tc.format, func(t *testing.T) {
+			baseDir := t.TempDir()
+			if err := writeSkillManifest(baseDir, tc.format, tc.deployed); err != nil {
+				t.Fatalf("writeSkillManifest: %v", err)
+			}
+			data, err := os.ReadFile(filepath.Join(baseDir, ".gitignore"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(data) != tc.want {
+				t.Errorf("manifest content mismatch:\n--- want ---\n%s\n--- got ---\n%s", tc.want, data)
+			}
+			// Byte-stable: a second write with the same list is identical.
+			if err := writeSkillManifest(baseDir, tc.format, tc.deployed); err != nil {
+				t.Fatal(err)
+			}
+			data2, _ := os.ReadFile(filepath.Join(baseDir, ".gitignore"))
+			if string(data2) != string(data) {
+				t.Error("manifest must be byte-stable across two writes")
+			}
+			// Round-trip: parses back to exactly the deployed set.
+			owned, had := readSkillManifest(baseDir, tc.format)
+			if !had {
+				t.Fatal("readSkillManifest must report the manifest exists")
+			}
+			if len(owned) != len(tc.deployed) {
+				t.Fatalf("owned set %v, want %v", owned, tc.deployed)
+			}
+			for _, name := range tc.deployed {
+				if !owned[name] {
+					t.Errorf("owned set missing %q: %v", name, owned)
+				}
+			}
+			if owned[".gitignore"] {
+				t.Error("the self-entry must not parse as an owned skill")
+			}
+		})
+	}
+}
+
+// TestReadSkillManifest_CorruptLinesSkipped: unparseable lines are skipped,
+// not fatal; a missing manifest reports had=false.
+func TestReadSkillManifest_CorruptLinesSkipped(t *testing.T) {
+	baseDir := t.TempDir()
+	content := "# comment\n/.gitignore\n/fab-new/\nno-anchor\n/\n\n/\n"
+	os.WriteFile(filepath.Join(baseDir, ".gitignore"), []byte(content), 0644)
+
+	owned, had := readSkillManifest(baseDir, "directory")
+	if !had {
+		t.Fatal("manifest exists — had must be true")
+	}
+	if len(owned) != 1 || !owned["fab-new"] {
+		t.Errorf("corrupt lines must be skipped, owned = %v", owned)
+	}
+
+	_, had = readSkillManifest(filepath.Join(t.TempDir(), "nope"), "directory")
+	if had {
+		t.Error("missing manifest must report had=false")
+	}
+}
+
+// TestWriteSkillManifest_FailurePropagates: a failed manifest write surfaces
+// as an error (jznd fail-loud contract — Sync must exit non-zero).
+func TestWriteSkillManifest_FailurePropagates(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("file permissions do not apply to root")
+	}
+	baseDir := t.TempDir()
+	roDir(t, baseDir)
+	if err := writeSkillManifest(baseDir, "flat", []string{"fab-new"}); err == nil {
+		t.Fatal("expected a manifest write failure to propagate as an error")
 	}
 }
 
@@ -173,7 +308,7 @@ func TestSyncAgentSkills_CopyWriteFailureCounted(t *testing.T) {
 	roDir(t, baseDir) // flat copy into read-only dir fails
 
 	agent := agentConfig{Label: "Test", BaseDir: baseDir, Format: "flat", Mode: "copy"}
-	err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
+	_, err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
 	if err == nil {
 		t.Fatal("expected write failure to surface as an error (was silently counted as created)")
 	}
@@ -202,7 +337,7 @@ func TestSyncAgentSkills_FailedReplaceDoesNotWriteThroughSymlink(t *testing.T) {
 	roDir(t, baseDir)
 
 	agent := agentConfig{Label: "Test", BaseDir: baseDir, Format: "flat", Mode: "copy"}
-	err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
+	_, err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
 	if err == nil {
 		t.Fatal("expected the failed replace to surface as an error")
 	}
@@ -227,7 +362,7 @@ func TestSyncAgentSkills_SymlinkFailureCounted(t *testing.T) {
 	roDir(t, baseDir)
 
 	agent := agentConfig{Label: "Test", BaseDir: baseDir, Format: "flat", Mode: "symlink"}
-	err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
+	_, err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
 	if err == nil {
 		t.Fatal("expected symlink failure to surface as an error")
 	}
@@ -245,7 +380,7 @@ func TestSyncAgentSkills_UnreadableSourceCounted(t *testing.T) {
 
 	baseDir := filepath.Join(t.TempDir(), "skills")
 	agent := agentConfig{Label: "Test", BaseDir: baseDir, Format: "flat", Mode: "copy"}
-	err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
+	_, err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
 	if err == nil {
 		t.Fatal("expected unreadable source to be counted as a failure (was a silent continue)")
 	}
@@ -261,7 +396,7 @@ func TestSyncAgentSkills_BaseDirCreationFailure(t *testing.T) {
 	parent := t.TempDir()
 	roDir(t, parent)
 	agent := agentConfig{Label: "Test", BaseDir: filepath.Join(parent, "skills"), Format: "flat", Mode: "copy"}
-	err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
+	_, err := syncAgentSkills(agent, []string{"fab-new"}, skillsDir)
 	if err == nil {
 		t.Fatal("expected BaseDir MkdirAll failure to surface as an error")
 	}

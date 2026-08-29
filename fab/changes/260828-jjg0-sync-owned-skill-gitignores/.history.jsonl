@@ -1,0 +1,9 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-28T19:08:15Z"}
+{"args":"Per-target generated .gitignore + manifest-scoped stale pruning for fab sync (replace blanket agent-dir ignores)","cmd":"fab-new","event":"command","ts":"2026-08-28T19:08:15Z"}
+{"delta":"+3.6","event":"confidence","score":3.6,"trigger":"calc-score","ts":"2026-08-28T19:10:29Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-28T20:06:34Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-28T20:09:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-29T01:07:17Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-29T01:10:40Z"}
+{"event":"review","result":"passed","ts":"2026-08-29T01:10:40Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-29T01:12:53Z"}

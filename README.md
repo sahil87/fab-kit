@@ -280,7 +280,7 @@ Run `fab doctor` to check all prerequisites (git, yq, direnv hook, etc.) and dia
 
 - `direnv allow` doesn't work - reload your shell or run `eval "$(direnv export zsh)"`
 - `/fab-setup` not recognized - re-run `fab sync` to deploy skills
-- **After cloning a repo that uses Fab Kit** - run `fab sync` once. Agent skills and hooks live in `.claude/` which is gitignored by default, so each developer needs to deploy them locally.
+- **After cloning a repo that uses Fab Kit** - run `fab sync` once. Fab's deployed skill copies in `.claude/skills/` (and the other agent targets) are ignored via a generated per-target `.gitignore`, so each developer needs to deploy them locally.
 - **A stage fails mid-way** - run `/fab-continue` to resume from the last checkpoint. All stage artifacts are persisted, so no progress is lost.
 - **AI produces bad code** - the review sub-agent catches it. `/fab-ff` and `/fab-fff` auto-loop between apply and review (up to 3 cycles) before escalating to you.
 - **Abandon a change** - delete the change folder, or run `/fab-archive` to move it to the archive.

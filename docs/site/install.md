@@ -119,8 +119,9 @@ Two install-specific notes worth calling out:
 - `fab sync` re-deploys skills, scaffolds structure, and syncs hooks **without** changing the
   pinned version — run it on its own right after cloning a repo that already uses Fab Kit. It also
   runs automatically in every new worktree created by `wt create`.
-- Agent skills and hooks live under `.claude/`, which is gitignored by default, so **each developer
-  deploys them locally** with `fab sync` — they do not arrive with a `git clone`.
+- Fab's deployed skill copies under `.claude/skills/` (and the other agent targets) are ignored via a
+  generated per-target `.gitignore`, so **each developer deploys them locally** with `fab sync` — they
+  do not arrive with a `git clone`.
 
 ## Verify your install
 

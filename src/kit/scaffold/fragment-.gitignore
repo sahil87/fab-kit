@@ -2,11 +2,4 @@
 .fab-*
 !fab/.fab-version
 .status.yaml.lock
-
-# Optional - ignore agent specific folders
-/.agents
-/.claude
-/.cursor
-/.opencode
-/.codex
-/.kimi
+/.claude/settings.local.json
