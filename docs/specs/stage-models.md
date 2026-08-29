@@ -123,7 +123,7 @@ versioned with the kit and is the single file to edit when a new model ships.
 
 | Role | Provider | Model | Effort |
 |------|----------|-------|--------|
-| `default` | `claude` | `claude-fable-5` | `high` |
+| `default` | `claude` | `claude-opus-5` | `high` |
 | `operator` | `claude` | `claude-sonnet-5` | `medium` |
 | `doing` | `claude` | `claude-opus-5` | `high` |
 | `review` | `claude` | `claude-opus-5` | `high` |
@@ -142,8 +142,9 @@ critic gets the same top-end model as the author so it can actually catch what t
 model). `hydrate` runs Opus/`high` — knowledge work and memory writing are named Opus strengths. Note
 that on the native dispatch arm the effort half is advisory anyway (§ Effort asymmetry), so the model
 choice is what actually carries. `default` runs
-Fable/`high` — interactive sessions want the quicker working style (Anthropic guidance: `high` is the
-sweet spot, and Fable at lower efforts still exceeds prior models' `xhigh`). `operator` runs
+Opus/`high` — the role covers interactive sessions and advisory intake scoring, where the same
+coding/agentic strength that earns `doing` its Opus is what the user is talking to directly, and
+`high` is the recommended effort sweet spot. `operator` runs
 Sonnet/`medium` (highest-volume coordinator, pattern-matching work, escalation discipline makes the
 cheaper model safe). `fast` sits at the mechanical floor on Sonnet/`medium` — effort at `medium` (not
 `low`) buys margin for faithful PR-description comprehension. Cost-conscious projects opt any role down
@@ -222,7 +223,19 @@ strongest model, `ship` its cheapest.
 ### Built-in providers
 
 fab-kit ships **four built-in providers** — `claude` (the default), `codex`, `agy` and `kimi` — in the
-`providers:` block of the module-root embedded `defaults.yaml`:
+`providers:` block of the module-root embedded `defaults.yaml`.
+
+The sample below is **shape-only**: it shows the command grammars and the per-provider fill SHAPE
+(which roles each map carries, and whether a row is model+effort, effort-only, or model-only), with
+the model IDs elided. This spec states shipped model IDs in exactly one place — the four-column table
+in § Default role profiles, which covers `claude` and is drift-guarded. For the live values of every
+provider, read `src/go/fab/defaults.yaml` (canonical), or render them:
+
+- `fab config explain providers --json` — projects every provider's fill map, resolved.
+- `fab resolve-agent <stage>` — the fill a given stage actually gets.
+
+(`fab config explain providers` prints every provider's fill map in its human-readable form too,
+claude's included.)
 
 ```yaml
 providers:
@@ -230,28 +243,28 @@ providers:
     native: true
     interactive_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
     headless_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
-    profiles:
-      default:  { model: claude-fable-5,  effort: high }
-      operator: { model: claude-sonnet-5, effort: medium }
-      doing:    { model: claude-opus-5,   effort: high }
-      review:   { model: claude-opus-5,   effort: high }
-      hydrate:  { model: claude-opus-5,   effort: high }
-      fast:     { model: claude-sonnet-5, effort: medium }
+    profiles:                                 # dense — all six roles carry model + effort
+      default:  { model: ..., effort: ... }
+      operator: { model: ..., effort: ... }
+      doing:    { model: ..., effort: ... }
+      review:   { model: ..., effort: ... }
+      hydrate:  { model: ..., effort: ... }
+      fast:     { model: ..., effort: ... }
   codex:
     interactive_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
     headless_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
     profiles:                                 # sparse — an absent role takes `default`
-      default:  { model: gpt-5.6-sol,  effort: high }
-      operator: { model: gpt-5.6-luna, effort: medium }
-      doing:    { effort: xhigh }
-      review:   { effort: xhigh }
-      fast:     { model: gpt-5.6-luna, effort: low }
+      default:  { model: ..., effort: ... }
+      operator: { model: ..., effort: ... }
+      doing:    { effort: ... }               # effort only — model inherits `default`
+      review:   { effort: ... }
+      fast:     { model: ..., effort: ... }
   agy:
     interactive_command: 'agy --dangerously-skip-permissions --model {model}'
     headless_command: 'sh -c ''agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'''
     profiles:                                 # model-only: the reasoning level rides the ID suffix
-      default: { model: gemini-3.1-pro-high }
-      fast:    { model: gemini-3.6-flash-low }
+      default: { model: ... }
+      fast:    { model: ... }
   kimi:
     interactive_command: 'kimi --auto -m {model}'
     headless_command: 'sh -c ''kimi -m {model} -p "$(cat)"'''
@@ -808,14 +821,14 @@ adversarial framing**, not a different model. A project that wants a genuinely d
 
 ---
 
-## Fable upgrade path
+## Model upgrade path
 
-Fable has landed, and the defaults moved with it — the shipped assignment is the table in
-§ Default role profiles, which is the drift-guarded mirror of `defaults.yaml` and the only place this
-spec states model IDs. (Deliberate: prose that restates the IDs rots silently between bumps, which is
-exactly what happened to this section before.) The durable shape is the rationale in that section:
-Fable for the quicker interactive working style, Opus where the named strengths are code review,
-agentic execution, and memory writing, Sonnet at the mechanical floor.
+The shipped assignment is the table in § Default role profiles, which is the drift-guarded mirror of
+`defaults.yaml` and the only place this spec states model IDs. (Deliberate: prose that restates the
+IDs rots silently between bumps, which is exactly what happened to this section before.) The durable
+shape is the rationale in that section: the frontier model wherever the named strengths are code
+review, agentic execution, memory writing, and direct interactive work, Sonnet at the mechanical
+floor and for the highest-volume coordinator.
 
 fab bumps the values in **one place** (the `providers.claude.profiles` block of `defaults.yaml`) each
 release, and every non-overriding project upgrades for free. The per-role fill table is fab's curated

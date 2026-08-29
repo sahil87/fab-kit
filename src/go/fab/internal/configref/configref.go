@@ -762,10 +762,11 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# unvalidated — override one with providers.<name>.profiles.<role>.model to pin a\n" +
 		"# newer model. kimi deliberately ships NO fills (see its note below), so it\n" +
 		"# resolves an empty model and the -m flag drops out.\n" +
-		"# Only the non-claude maps are PRINTED below — claude's six fills are the role\n" +
-		"# defaults `fab resolve-agent <stage>` resolves, and every provider's map is\n" +
-		"# projected by `fab config explain --json`; their absence from claude's\n" +
-		"# block below is a rendering choice, not a missing fill.\n" +
+		"# EVERY provider's fill map is printed below, claude's included — the rendered\n" +
+		"# reference is the user-facing half of this block, and a reader must not have to\n" +
+		"# reach for --json to see what the default provider actually resolves. The same\n" +
+		"# values are also projected by `fab config explain providers --json` and resolved\n" +
+		"# per stage by `fab resolve-agent <stage>`.\n" +
 		"# All four blocks below render LIVE and uniformly — claude's baseline and the\n" +
 		"# codex, agy and kimi blocks at the same indentation, one `#` deep in your\n" +
 		"# fence. Claude carries all three capabilities; codex, agy and kimi carry pane +\n" +
@@ -1142,7 +1143,11 @@ func providersShortSegment(providers map[string]providerDefault, roleOrder []str
 }
 
 // providersYAML is the YAML payload of the providers block — all four built-in
-// provider blocks rendered LIVE at one indentation family — shared by
+// provider blocks rendered LIVE at one indentation family, each with its fill map
+// (260829: claude's six were previously omitted here, the last asymmetry left over
+// from the pre-ywkx regime where the non-claude blocks rendered commented; the
+// rendered reference is the user-facing half, so every provider now shows one) —
+// shared by
 // providersSegment (long form, essay header) and providersShortSegment
 // (file-bound form, diet header) so the rendered grammar has exactly one
 // source. Values interpolate the canonical agent vars; fill lines follow
@@ -1153,6 +1158,7 @@ func providersYAML(providers map[string]providerDefault, roleOrder []string) str
 		"    native: " + strconv.FormatBool(providers[agent.DefaultProviderName].Native) + "\n" +
 		"    interactive_command: " + YAMLSingleQuoted(agent.DefaultInteractiveCommand) + "\n" +
 		"    headless_command: " + YAMLSingleQuoted(agent.DefaultHeadlessCommand) + "\n" +
+		profilesLines(providers[agent.DefaultProviderName].Profiles, roleOrder) +
 		"  codex:\n" +
 		"    interactive_command: " + YAMLSingleQuoted(agent.DefaultCodexInteractiveCommand) + "\n" +
 		"    headless_command: " + YAMLSingleQuoted(agent.DefaultCodexHeadlessCommand) + "\n" +

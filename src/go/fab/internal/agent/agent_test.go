@@ -60,7 +60,7 @@ func TestResolveDefaults(t *testing.T) {
 // TestCLIFabReferenceListsDefaultRoles.
 func TestDefaultRoleProfilesArePinned(t *testing.T) {
 	pinned := map[string]Profile{
-		RoleDefault:  {Provider: "claude", Model: "claude-fable-5", Effort: "high"},
+		RoleDefault:  {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
 		RoleOperator: {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
 		RoleDoing:    {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
 		RoleReview:   {Provider: "claude", Model: "claude-opus-5", Effort: "high"},

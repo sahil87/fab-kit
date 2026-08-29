@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,6 +11,26 @@ import (
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 )
+
+// roleFill returns a built-in role's shipped {model, effort}.
+//
+// Several suites in this package assert a WHOLE composed launch line, so they
+// necessarily name the fill. Deriving it here rather than spelling the shipped IDs
+// keeps a defaults.yaml model bump from rippling into them (see defaults.yaml
+// § TO BUMP A MODEL) while still pinning the composition itself — which flag the
+// model lands on, in what order, and against which command shape.
+//
+// Use it for any assertion that mirrors a SHIPPED fill. An assertion whose value is
+// a test fixture (a configured override, an explicit --model flag) must keep its
+// literal: those exist precisely to differ from the built-in.
+func roleFill(t *testing.T, role string) (model, effort string) {
+	t.Helper()
+	p, ok := agent.DefaultProfile(role)
+	if !ok {
+		t.Fatalf("agent.DefaultProfile(%q) failed — no built-in profile for that role", role)
+	}
+	return p.Model, p.Effort
+}
 
 // agentTestRepo creates a temp repo with fab/project/config.yaml holding the
 // given config body and chdirs into the repo root (cwd restored on cleanup).
@@ -129,8 +150,8 @@ func TestAgentWorkersOverride(t *testing.T) {
 }
 
 // TestAgentPrintDefaultRole: `fab agent --print` with no role arg resolves the
-// `default` role (claude/claude-fable-5/high) and appends the profile to the
-// non-templated claude session command.
+// `default` role and appends that profile to the non-templated claude session
+// command.
 func TestAgentPrintDefaultRole(t *testing.T) {
 	agentTestRepo(t, `providers:
   claude:
@@ -140,14 +161,15 @@ func TestAgentPrintDefaultRole(t *testing.T) {
 	if err != nil {
 		t.Fatalf("agent --print: %v", err)
 	}
-	want := "claude --dangerously-skip-permissions --model claude-fable-5 --effort high\n"
+	model, effort := roleFill(t, agent.RoleDefault)
+	want := fmt.Sprintf("claude --dangerously-skip-permissions --model %s --effort %s\n", model, effort)
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
 }
 
 // TestAgentPrintOperatorRole: `fab agent operator --print` resolves the `operator`
-// role (claude-sonnet-5/medium).
+// role's shipped fill.
 func TestAgentPrintOperatorRole(t *testing.T) {
 	agentTestRepo(t, `providers:
   claude:
@@ -157,7 +179,8 @@ func TestAgentPrintOperatorRole(t *testing.T) {
 	if err != nil {
 		t.Fatalf("agent operator --print: %v", err)
 	}
-	want := "claude --model claude-sonnet-5 --effort medium\n"
+	model, effort := roleFill(t, agent.RoleOperator)
+	want := fmt.Sprintf("claude --model %s --effort %s\n", model, effort)
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
@@ -249,8 +272,9 @@ func TestAgentPrintBuiltinFallback(t *testing.T) {
 		t.Fatalf("agent --print: %v", err)
 	}
 	// Pin the full resolved command: the built-in templated default with the
-	// `default` role's {claude-fable-5, high} substituted into its placeholders.
-	want := "claude --dangerously-skip-permissions -n \"$(basename \"$(pwd)\")\" --model claude-fable-5 --effort high\n"
+	// `default` role's fill substituted into its placeholders.
+	model, effort := roleFill(t, agent.RoleDefault)
+	want := fmt.Sprintf("claude --dangerously-skip-permissions -n \"$(basename \"$(pwd)\")\" --model %s --effort %s\n", model, effort)
 	if out != want {
 		t.Errorf("output = %q, want the `default`-role profile substituted into the templated built-in command %q", out, want)
 	}
@@ -351,7 +375,7 @@ func TestAgentPrintProviderEmptyProfileAppendsNothing(t *testing.T) {
 
 // TestAgentPrintProviderBypassesRole: the provider form ignores role resolution
 // entirely — the `default` role's model/effort must NOT leak into the composed
-// command (the role path would have substituted claude-fable-5/high).
+// command (the role path would have substituted the `default` role's fill).
 func TestAgentPrintProviderBypassesRole(t *testing.T) {
 	agentTestRepo(t, `providers:
   claude:
@@ -368,13 +392,17 @@ func TestAgentPrintProviderBypassesRole(t *testing.T) {
 
 // TestAgentPrintProviderBuiltinClaude: the built-in claude provider resolves on
 // the provider path with no providers: block configured at all.
+//
+// The flag values are deliberately BOTH off the `default` role's fill, so the
+// assertion discriminates the explicit-flag path from role resolution on each half
+// independently. Keep them that way if a bump ever makes one of them the default.
 func TestAgentPrintProviderBuiltinClaude(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
-	out, err := runAgentPrint(t, "--provider", "claude", "--model", "claude-opus-5", "--effort", "xhigh")
+	out, err := runAgentPrint(t, "--provider", "claude", "--model", "claude-haiku-4-5", "--effort", "xhigh")
 	if err != nil {
 		t.Fatalf("agent --provider claude --print: %v", err)
 	}
-	want := "claude --dangerously-skip-permissions -n \"$(basename \"$(pwd)\")\" --model claude-opus-5 --effort xhigh\n"
+	want := "claude --dangerously-skip-permissions -n \"$(basename \"$(pwd)\")\" --model claude-haiku-4-5 --effort xhigh\n"
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}

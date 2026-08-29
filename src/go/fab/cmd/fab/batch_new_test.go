@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/backlog"
 )
 
@@ -367,8 +369,8 @@ func stubBatchNewTmuxCapture(t *testing.T) string {
 // TestRunBatchNew_SpawnCommandProfileInjection verifies that the worker spawn
 // command carries the `default` role's {model}/{effort} PROFILE — substituted into
 // a templated interactive_command (no literal braces reach tmux), or appended as
-// --model/--effort to a non-templated command. The `default` role resolves to
-// claude/claude-fable-5/high.
+// --model/--effort to a non-templated command. The expected fill is DERIVED from
+// the built-in `default` role, so a defaults.yaml bump does not reach this suite.
 func TestRunBatchNew_SpawnCommandProfileInjection(t *testing.T) {
 	t.Run("templated interactive_command substituted with the default profile", func(t *testing.T) {
 		root := chdirBatchNewFixture(t, testBacklog)
@@ -388,7 +390,8 @@ func TestRunBatchNew_SpawnCommandProfileInjection(t *testing.T) {
 		if strings.Contains(got, "{model}") || strings.Contains(got, "{effort}") {
 			t.Errorf("literal placeholder braces reached tmux:\n%s", got)
 		}
-		if !strings.Contains(got, "codex -m claude-fable-5 -c model_reasoning_effort=high '/fab-new") {
+		model, effort := roleFill(t, agent.RoleDefault)
+		if want := fmt.Sprintf("codex -m %s -c model_reasoning_effort=%s '/fab-new", model, effort); !strings.Contains(got, want) {
 			t.Errorf("templated interactive_command not substituted with the default profile:\n%s", got)
 		}
 	})
@@ -407,7 +410,8 @@ func TestRunBatchNew_SpawnCommandProfileInjection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("reading tmux capture: %v", err)
 		}
-		if !strings.Contains(string(args), "claude --dangerously-skip-permissions --model claude-fable-5 --effort high '/fab-new") {
+		model, effort := roleFill(t, agent.RoleDefault)
+		if want := fmt.Sprintf("claude --dangerously-skip-permissions --model %s --effort %s '/fab-new", model, effort); !strings.Contains(string(args), want) {
 			t.Errorf("non-templated interactive_command missing the appended default profile:\n%s", string(args))
 		}
 	})
@@ -426,7 +430,8 @@ func TestRunBatchNew_WorkersOverride(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading tmux capture: %v", err)
 	}
-	want := "FAB_AGENT_WORKERS='co'\\''dex; $(touch nope)' claude --model claude-fable-5 --effort high '/fab-new"
+	model, effort := roleFill(t, agent.RoleDefault)
+	want := fmt.Sprintf("FAB_AGENT_WORKERS='co'\\''dex; $(touch nope)' claude --model %s --effort %s '/fab-new", model, effort)
 	if !strings.Contains(string(args), want) {
 		t.Errorf("tmux command missing safely quoted workers prefix %q:\n%s", want, args)
 	}
