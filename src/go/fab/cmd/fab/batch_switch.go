@@ -10,6 +10,7 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/shellquote"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 	"github.com/spf13/cobra"
 )
 
@@ -138,6 +139,9 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag, quietF
 		// Open tmux window
 		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single("/fab-switch "+match))
 		shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
+		// Interactive spawn: the shell fallback keeps the pane (and its cwd)
+		// alive as the user's interactive shell after the agent exits.
+		shellCmd = spawn.WithShellFallback(shellCmd)
 		exec.Command("tmux", "new-window", "-n", match, "-c", wtPath, shellCmd).Run()
 	}
 

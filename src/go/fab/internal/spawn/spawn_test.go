@@ -85,6 +85,41 @@ func TestCommand_InvalidYAML(t *testing.T) {
 	}
 }
 
+// TestWithShellFallback pins the interactive-spawn shell fallback: the exact
+// suffix `; exec "$SHELL"` appended by plain concatenation (no idempotence
+// check — callers compose it exactly once, as the final step).
+func TestWithShellFallback(t *testing.T) {
+	tests := []struct {
+		name string
+		cmd  string
+		want string
+	}{
+		{
+			name: "plain agent command gains the suffix",
+			cmd:  `claude '/fab-operator'`,
+			want: `claude '/fab-operator'; exec "$SHELL"`,
+		},
+		{
+			name: "env-prefixed command keeps the prefix first",
+			cmd:  `FAB_AGENT_WORKERS=codex claude '/fab-operator'`,
+			want: `FAB_AGENT_WORKERS=codex claude '/fab-operator'; exec "$SHELL"`,
+		},
+		{
+			name: "empty command still yields the bare suffix",
+			cmd:  "",
+			want: `; exec "$SHELL"`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := WithShellFallback(tc.cmd)
+			if got != tc.want {
+				t.Errorf("WithShellFallback(%q) = %q, want %q", tc.cmd, got, tc.want)
+			}
+		})
+	}
+}
+
 // TestWithProfile verifies the `doing`-role flag injection: both flags appended at
 // the END in order model→effort (last-wins), each flag omitted entirely when its
 // value is empty, and an all-empty profile leaving spawnCmd untouched.

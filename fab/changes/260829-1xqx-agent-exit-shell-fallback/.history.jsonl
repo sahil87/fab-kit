@@ -1,0 +1,11 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-29T05:08:36Z"}
+{"args":"Interactive agent spawns fall back to the user's shell on agent exit (operator tab + operator-spawned windows + batch new/switch); dispatch pane workers out of scope; new operator agent_exited tick delta","cmd":"fab-new","event":"command","ts":"2026-08-29T05:08:36Z"}
+{"delta":"+0.0","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-08-29T05:10:30Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-08-29T05:14:56Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-29T05:17:59Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-29T05:37:49Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-29T05:41:11Z"}
+{"event":"review","result":"passed","ts":"2026-08-29T05:41:11Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-29T05:47:47Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-08-29T05:48:39Z"}
+{"event":"review","result":"passed","ts":"2026-08-29T05:56:43Z"}

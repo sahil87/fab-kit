@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"path/filepath"
 	"sort"
 	"time"
 
@@ -112,19 +113,20 @@ func stageFinished(displayState string) bool {
 }
 
 // tickDelta is one --diff event. Deltas come in two delivery classes:
-// LEVEL-TRIGGERED (completion, pane_death, pane_mismatch — stateless
-// predicates over the current snapshot, re-emitted every tick until the entry
-// is removed; the natural ack is `fab operator remove`, so a crash between
-// diff and action loses nothing) and CONSUMED-ON-READ (stage_advance,
+// LEVEL-TRIGGERED (completion, pane_death, pane_mismatch, agent_exited —
+// stateless predicates over the current snapshot, re-emitted every tick until
+// the entry is removed; the natural ack is `fab operator remove`, so a crash
+// between diff and action loses nothing) and CONSUMED-ON-READ (stage_advance,
 // review_fail — baseline-diffed and consumed by the same-write baseline
 // update; a lost one costs a missed report only).
 type tickDelta struct {
-	Kind         string  // completion | pane_death | pane_mismatch | stage_advance | review_fail
+	Kind         string  // completion | pane_death | pane_mismatch | agent_exited | stage_advance | review_fail
 	Change       string  // monitored change ID
 	Pane         string  // the entry's pane
 	Stage        *string // completion only
 	DisplayState *string // completion only
 	Found        *string // pane_mismatch only — the occupying change ID (null when none resolvable)
+	Command      *string // agent_exited only — the shell now occupying the pane (e.g. zsh)
 	From         *string // stage_advance / review_fail only
 	To           *string // stage_advance / review_fail only
 }
@@ -153,6 +155,8 @@ func (d tickDelta) MarshalYAML() (interface{}, error) {
 		putNullable("display_state", d.DisplayState)
 	case "pane_mismatch":
 		putNullable("found", d.Found)
+	case "agent_exited":
+		putNullable("command", d.Command)
 	case "stage_advance", "review_fail":
 		putNullable("from", d.From)
 		putNullable("to", d.To)
@@ -197,8 +201,9 @@ type tickDiffOutput struct {
 // emits IN PLACE of `fleet:` (never both keys). Key order is pinned by the
 // struct field order. Counts are taken over the same rows fleet: would have
 // carried: tracked == waiting + idle + active + unknown on every quiet tick
-// (dead/mismatched panes emit level-triggered deltas, which force the full
-// document).
+// (dead/mismatched/exited panes emit level-triggered deltas, which force the
+// full document; their baseline rows carry null agent_state, so they would
+// count under unknown).
 type tickFleetSummary struct {
 	Tracked int `yaml:"tracked"` // one per monitored entry
 	Waiting int `yaml:"waiting"` // snapshot agent_state waiting
@@ -304,6 +309,28 @@ func emitTickDiffDoc(w io.Writer, out tickDiffOutput, quiet bool, tickCount int,
 	}
 	_, err = w.Write(doc)
 	return err
+}
+
+// shellCommands is the fixed set of shell names the agent_exited predicate
+// matches (basename, case-sensitive). It covers every common login shell;
+// reading tmux's default-shell option to extend it was considered and deferred
+// (intake open question — extend on demand).
+var shellCommands = map[string]bool{
+	"sh": true, "bash": true, "zsh": true, "fish": true, "dash": true,
+	"ksh": true, "tcsh": true, "csh": true, "nu": true,
+}
+
+// isShellCommand reports whether cmd's basename is a known shell — the
+// agent_exited predicate. The pane's FOREGROUND command, never agent state:
+// fab's parseAgentState ignores the :pid segment, so after an agent exits and
+// the interactive spawn's `; exec "$SHELL"` fallback takes the pane over, the
+// agent-state option still reads the agent's last (stale) value. An empty
+// command (legacy enumeration line) never matches.
+func isShellCommand(cmd string) bool {
+	if cmd == "" {
+		return false
+	}
+	return shellCommands[filepath.Base(cmd)]
 }
 
 // resolvedSnap reports whether a snapshot display field carries a real value
@@ -426,6 +453,26 @@ func diffMonitored(monitored map[string]monitoredEntry, rows []paneRow, out *tic
 				Change: id,
 				Pane:   entry.Pane,
 				Found:  toNullable(row.changeID),
+			})
+			fleetRows = append(fleetRows, fleetSortRow{baselineFleetRow(id, entry), entry.EnrolledAt})
+			continue
+		}
+
+		// agent_exited: level-triggered — the pane IS present and hosts this
+		// change, but its foreground process is a shell: the interactive
+		// spawn's `; exec "$SHELL"` fallback took the pane over after the
+		// agent quit or crashed. Baseline untouched (no stage/agent write —
+		// the stored agent state is the agent's last live reading, and the
+		// snapshot's stale idle must not be trusted), no stage diffs, and the
+		// pane is EXCLUDED from candidates: so the §5 sweep can never type
+		// into a bare shell prompt.
+		if isShellCommand(row.command) {
+			cmd := row.command
+			out.Deltas = append(out.Deltas, tickDelta{
+				Kind:    "agent_exited",
+				Change:  id,
+				Pane:    entry.Pane,
+				Command: &cmd,
 			})
 			fleetRows = append(fleetRows, fleetSortRow{baselineFleetRow(id, entry), entry.EnrolledAt})
 			continue

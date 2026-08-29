@@ -185,7 +185,10 @@ Mechanics, all fixed by this spec:
 - **Command composed**: the resolved provider's **`interactive_command`** — the same string `fab agent`
   composes — with `{model}`/`{effort}` substituted through the shared `internal/spawn` resolution. This is
   why pane mode needs **no new provider config field**: the interactive invocation is already in the
-  provider table. It MUST NOT read or fall back to `headless_command`.
+  provider table. It MUST NOT read or fall back to `headless_command`. Interactive **human-facing** spawns
+  (the operator launcher, operator-spawned agent windows, `fab batch new`/`switch`) carry a shell fallback
+  (`; exec "$SHELL"`) so the pane survives the agent's exit; dispatch pane workers do **not**, because this
+  adapter's `running`/`done`/`orphaned` subset treats pane death as the worker's terminal event.
 - **Where the pane opens — TWO SHAPES, one identity.** Both are the `_cli-agents.md` § Spawn Composition
   form with cwd = the repo root, and both record the new **pane ID** in
   `.fab-dispatch/{id}/{stage}.yaml` alongside the `fab-{id}-{stage}` identity string and the tmux socket

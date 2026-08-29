@@ -63,6 +63,14 @@ func snapRow(pane, changeID, stage, display, agentState, idleDur string) paneRow
 	}
 }
 
+// snapRowCmd is snapRow with the pane's current foreground command set — the
+// agent_exited predicate input.
+func snapRowCmd(pane, changeID, stage, display, agentState, idleDur, command string) paneRow {
+	r := snapRow(pane, changeID, stage, display, agentState, idleDur)
+	r.command = command
+	return r
+}
+
 // stubSnapshot replaces the tickSnapshotRows seam and reports whether the
 // snapshot fn was invoked.
 func stubSnapshot(t *testing.T, rows []paneRow) *bool {
@@ -151,6 +159,7 @@ func TestOperatorTickDiff_AllEventKinds(t *testing.T) {
 		"m004": diffEntry("%4", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),  // pane hosts no change
 		"a005": diffEntry("%5", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),  // → stage_advance
 		"r006": diffEntry("%6", "/r/a", "s1", "review", "2026-01-01T00:00:00Z"), // → review_fail
+		"e007": diffEntry("%7", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),  // pane fell back to a shell
 	}
 	seedDiffState(t, entries)
 	stubSnapshot(t, []paneRow{
@@ -159,12 +168,13 @@ func TestOperatorTickDiff_AllEventKinds(t *testing.T) {
 		snapRow("%4", "", "—", "—", "active", ""),
 		snapRow("%5", "a005", "review", "active", "active", ""),
 		snapRow("%6", "r006", "apply", "active", "active", ""),
+		snapRowCmd("%7", "e007", "apply", "active", "idle", "2m", "zsh"),
 	})
 
 	doc := parseTickDiff(t, runTickDiff(t))
 
-	if len(doc.Deltas) != 6 {
-		t.Fatalf("deltas = %v, want 6", doc.Deltas)
+	if len(doc.Deltas) != 7 {
+		t.Fatalf("deltas = %v, want 7", doc.Deltas)
 	}
 	if d := findDelta(doc, "completion", "c001"); d == nil || d["stage"] != "review-pr" || d["display_state"] != "done" {
 		t.Errorf("completion delta wrong: %v", d)
@@ -190,6 +200,144 @@ func TestOperatorTickDiff_AllEventKinds(t *testing.T) {
 	if d := findDelta(doc, "stage_advance", "r006"); d != nil {
 		t.Errorf("review_fail transition also emitted stage_advance: %v", d)
 	}
+	// The pane is present and change-matched, but hosts a shell → agent_exited.
+	if d := findDelta(doc, "agent_exited", "e007"); d == nil || d["command"] != "zsh" {
+		t.Errorf("agent_exited delta wrong: %v", d)
+	}
+}
+
+func TestOperatorTickDiff_AgentExited(t *testing.T) {
+	t.Run("shell command emits agent_exited with the command field", func(t *testing.T) {
+		entries := map[string]monitoredEntry{
+			"e001": diffEntry("%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		}
+		seedDiffState(t, entries)
+		stubSnapshot(t, []paneRow{snapRowCmd("%1", "e001", "apply", "active", "", "", "bash")})
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		d := findDelta(doc, "agent_exited", "e001")
+		if d == nil || d["command"] != "bash" {
+			t.Fatalf("agent_exited delta wrong: %v", d)
+		}
+	})
+
+	t.Run("non-shell and empty commands emit nothing", func(t *testing.T) {
+		entries := map[string]monitoredEntry{
+			"e001": diffEntry("%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+			"e002": diffEntry("%2", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+			"e003": diffEntry("%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+			"e004": diffEntry("%4", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		}
+		seedDiffState(t, entries)
+		stubSnapshot(t, []paneRow{
+			snapRowCmd("%1", "e001", "apply", "active", "active", "", "claude"),
+			snapRowCmd("%2", "e002", "apply", "active", "active", "", "kimi"),
+			snapRowCmd("%3", "e003", "apply", "active", "active", "", "node"),
+			snapRowCmd("%4", "e004", "apply", "active", "active", "", ""), // legacy line, no command
+		})
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		if len(doc.Deltas) != 0 {
+			t.Errorf("deltas = %v, want none for non-shell/empty commands", doc.Deltas)
+		}
+	})
+
+	t.Run("basename match: a full shell path matches, a lookalike name does not", func(t *testing.T) {
+		entries := map[string]monitoredEntry{
+			"e001": diffEntry("%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+			"e002": diffEntry("%2", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		}
+		seedDiffState(t, entries)
+		stubSnapshot(t, []paneRow{
+			snapRowCmd("%1", "e001", "apply", "active", "", "", "/usr/bin/fish"),
+			snapRowCmd("%2", "e002", "apply", "active", "active", "", "zshrc-lint"),
+		})
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		if d := findDelta(doc, "agent_exited", "e001"); d == nil || d["command"] != "/usr/bin/fish" {
+			t.Errorf("agent_exited for /usr/bin/fish wrong: %v", d)
+		}
+		if d := findDelta(doc, "agent_exited", "e002"); d != nil {
+			t.Errorf("agent_exited emitted for zshrc-lint (not a shell basename): %v", d)
+		}
+	})
+
+	t.Run("stale idle agent state yields no candidate and leaves the baseline untouched", func(t *testing.T) {
+		entries := map[string]monitoredEntry{
+			"e001": diffEntry("%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		}
+		path := seedDiffState(t, entries)
+		// The agent exited; the pane option still carries its last reading
+		// (idle) — exactly the stale-idle trap the command predicate exists for.
+		stubSnapshot(t, []paneRow{snapRowCmd("%1", "e001", "apply", "active", "idle", "5m", "zsh")})
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		if len(doc.Candidates) != 0 {
+			t.Errorf("candidates = %v, want none (a bare shell must never be swept)", doc.Candidates)
+		}
+		if e := readMonitored(t, path)["e001"]; e.Stage != "apply" || e.Agent != "" {
+			t.Errorf("exited entry baseline = %+v, want untouched (stage apply, agent empty)", e)
+		}
+	})
+
+	t.Run("level-triggered: re-emits every tick until removed", func(t *testing.T) {
+		entries := map[string]monitoredEntry{
+			"e001": diffEntry("%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		}
+		seedDiffState(t, entries)
+		stubSnapshot(t, []paneRow{snapRowCmd("%1", "e001", "apply", "active", "", "", "zsh")})
+
+		for run := 1; run <= 2; run++ {
+			doc := parseTickDiff(t, runTickDiff(t))
+			if findDelta(doc, "agent_exited", "e001") == nil {
+				t.Errorf("run %d: agent_exited missing (level-triggered must re-emit): %v", run, doc.Deltas)
+			}
+		}
+	})
+
+	t.Run("mismatch wins over agent_exited", func(t *testing.T) {
+		entries := map[string]monitoredEntry{
+			"a001": diffEntry("%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		}
+		seedDiffState(t, entries)
+		// A recycled pane hosting no change AND a shell: exactly one delta,
+		// pane_mismatch.
+		stubSnapshot(t, []paneRow{snapRowCmd("%3", "", "—", "—", "", "", "zsh")})
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		if len(doc.Deltas) != 1 {
+			t.Fatalf("deltas = %v, want exactly one", doc.Deltas)
+		}
+		if findDelta(doc, "pane_mismatch", "a001") == nil {
+			t.Errorf("pane_mismatch missing: %v", doc.Deltas)
+		}
+		if d := findDelta(doc, "agent_exited", "a001"); d != nil {
+			t.Errorf("mismatched pane also emitted agent_exited: %v", d)
+		}
+	})
+
+	t.Run("fleet row is the baseline row with null agent state; quiet summary counts unknown", func(t *testing.T) {
+		entries := map[string]monitoredEntry{
+			"e001": diffEntry("%1", "/r/a", "s1", "review", "2026-01-01T00:00:00Z"),
+		}
+		seedDiffState(t, entries)
+		stubSnapshot(t, []paneRow{snapRowCmd("%1", "e001", "review", "active", "idle", "5m", "zsh")})
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		if len(doc.Fleet) != 1 {
+			t.Fatalf("fleet = %v, want 1 row", doc.Fleet)
+		}
+		f := doc.Fleet[0]
+		if f.Repo != "/r/a" || f.Session != "s1" || f.Stage == nil || *f.Stage != "review" {
+			t.Errorf("exited fleet identity wrong: %+v", f)
+		}
+		if f.AgentState != nil || f.DisplayState != nil || f.IdleDuration != nil || f.PRURL != nil {
+			t.Errorf("exited fleet observed fields = %v/%v/%v/%v, want all null", f.AgentState, f.DisplayState, f.IdleDuration, f.PRURL)
+		}
+		if s := summarizeFleet(doc.Fleet); s.Tracked != 1 || s.Unknown != 1 {
+			t.Errorf("summary = %+v, want tracked 1 / unknown 1 (an exited pane counts as unknown)", s)
+		}
+	})
 }
 
 func TestOperatorTickDiff_LevelTriggeredReEmitUntilRemove(t *testing.T) {

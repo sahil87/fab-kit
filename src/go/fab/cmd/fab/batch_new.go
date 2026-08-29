@@ -11,6 +11,7 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/shellquote"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 	"github.com/spf13/cobra"
 )
 
@@ -138,6 +139,9 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 		// launch failure names it as the recovery/cleanup hint.
 		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single("/fab-new "+content))
 		shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
+		// Interactive spawn: the shell fallback keeps the pane (and its cwd)
+		// alive as the user's interactive shell after the agent exits.
+		shellCmd = spawn.WithShellFallback(shellCmd)
 		if _, stderr, err := pane.RunCmd("tmux", "new-window", "-n", "fab-"+id, "-c", wtPath, shellCmd); err != nil {
 			fmt.Fprintf(errW, "  [%s] FAILED: tmux new-window: %v (worktree already created at %s)\n",
 				id, pane.StderrError(err, stderr), wtPath)

@@ -575,6 +575,71 @@ func TestParsePaneLines(t *testing.T) {
 		}
 	})
 
+	t.Run("nine-field line: windowID from field 8, command from field 9", func(t *testing.T) {
+		input := "%3\talpha\t/home/user/repo\trunK\t2\tidle:1751800000\t\t@5\tclaude\n"
+		panes, err := parsePaneLines(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(panes) != 1 {
+			t.Fatalf("expected 1 pane, got %d", len(panes))
+		}
+		if panes[0].agentState != "idle" {
+			t.Errorf("agentState = %q, want idle from the canonical field", panes[0].agentState)
+		}
+		if panes[0].windowID != "@5" {
+			t.Errorf("windowID = %q, want @5", panes[0].windowID)
+		}
+		if panes[0].command != "claude" {
+			t.Errorf("command = %q, want claude (field 9)", panes[0].command)
+		}
+	})
+
+	t.Run("nine-field line with empty agent-state middle fields still parses command", func(t *testing.T) {
+		input := "%7\tbravo\t/tmp\tdev\t1\t\t\t@9\tzsh\n"
+		panes, err := parsePaneLines(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(panes) != 1 {
+			t.Fatalf("expected 1 pane, got %d", len(panes))
+		}
+		if panes[0].agentState != "" {
+			t.Errorf("agentState = %q, want empty", panes[0].agentState)
+		}
+		if panes[0].windowID != "@9" {
+			t.Errorf("windowID = %q, want @9", panes[0].windowID)
+		}
+		if panes[0].command != "zsh" {
+			t.Errorf("command = %q, want zsh", panes[0].command)
+		}
+	})
+
+	t.Run("legacy lines parse with empty command", func(t *testing.T) {
+		for _, tc := range []struct {
+			name  string
+			input string
+		}{
+			{"eight-field", "%3\talpha\t/home/user/repo\trunK\t2\tidle:1751800000\t\t@5\n"},
+			{"seven-field", "%3\talpha\t/home/user/repo\trunK\t2\tidle:1751800000\t@5\n"},
+			{"six-field", "%3\talpha\t/home/user/repo\trunK\t2\tidle:1751800000\n"},
+			{"five-field", "%3\talpha\t/home/user/repo\trunK\t2\n"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				panes, err := parsePaneLines(tc.input)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(panes) != 1 {
+					t.Fatalf("expected 1 pane, got %d", len(panes))
+				}
+				if panes[0].command != "" {
+					t.Errorf("command = %q, want empty for a legacy line", panes[0].command)
+				}
+			})
+		}
+	})
+
 	t.Run("legacy five-field line parses with empty agentState and windowID", func(t *testing.T) {
 		input := "%3\talpha\t/home/user/repo\trunK\t2\n"
 		panes, err := parsePaneLines(input)
@@ -1831,6 +1896,22 @@ func TestParseRKPanes(t *testing.T) {
 	if idle.agentState != "idle" || idle.agentIdleDur != "5m" {
 		t.Errorf("idle agent pair = (%q, %q), want (idle, 5m)", idle.agentState, idle.agentIdleDur)
 	}
+	if idle.command != "claude" {
+		t.Errorf("command = %q, want claude (carried snapshot-internal from the rk row)", idle.command)
+	}
+	if panes[2].command != "zsh" {
+		t.Errorf("command = %q, want zsh", panes[2].command)
+	}
+
+	t.Run("row without command maps to empty", func(t *testing.T) {
+		panes, err := parseRKPanes([]byte(`[{"session":"s","window_index":1,"window_id":"@1","window_name":"w","pane":"%1","cwd":"/tmp"}]`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if panes[0].command != "" {
+			t.Errorf("command = %q, want empty when the rk row lacks it", panes[0].command)
+		}
+	})
 
 	// rk reports a duration for waiting; fab's idle-only contract drops it.
 	waiting := panes[1]
