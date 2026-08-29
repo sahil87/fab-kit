@@ -37,7 +37,7 @@ Start via `fab operator` (singleton tmux tab named `operator`). The launcher req
 | Do not enforce lifecycle | Agents self-govern pipeline transitions; report unexpected stages factually (§4). |
 | Keep context lean | Never read intake/spec/plan artifacts; retain only pane maps, snapshots, and operator state (§2, §4). |
 | Re-derive state | Before every action, query `fab pane map --all-sessions`; never trust conversational pane/repo/session/stage values (§4). |
-| Self-manage context | Near capacity, `/clear`, reload context and the state file, then resume; monitored/autopilot state survives (§4). |
+| Survive compaction | The agent cannot `/clear` itself. When a tick fires and §4 Tick Behavior is no longer in context (harness auto-compaction, or a session resumed from a summary), run `/fab-operator` **once** to reload, re-run §2 Init, then resume lean `operator tick` firings; monitored/autopilot/branch_map/notes survive in the server-keyed state file (§4 Post-Compaction Reload). |
 | Route pipeline-first | New work MUST enter through `/fab-new`, then `/fab-fff`, `/fab-ff`, or `/fab-continue`; never send raw implementation instructions or use `/fab-continue` to skip intake. Coordination maintenance remains direct (§6). |
 
 ---
@@ -46,7 +46,7 @@ Start via `fab operator` (singleton tmux tab named `operator`). The launcher req
 
 ### Context Loading
 
-Load only `fab/project/config.yaml`, `fab/project/constitution.md`, and `fab/project/context.md` (optional — skip gracefully if missing). The operator is a listed exception to the `_preamble.md` §1 always-load layer: code-quality, code-review, and the doc indexes serve artifact generation and review, which the operator never does (§1 Context discipline) — and a long-lived session re-pays any loaded file after every `/clear`. Do not run `fab preflight`. Do not load change artifacts.
+Load only `fab/project/config.yaml`, `fab/project/constitution.md`, and `fab/project/context.md` (optional — skip gracefully if missing). The operator is a listed exception to the `_preamble.md` §1 always-load layer: code-quality, code-review, and the doc indexes serve artifact generation and review, which the operator never does (§1 Context discipline) — and a long-lived session re-pays any loaded file after every reload (compaction, `/clear`, or restart — §4 Post-Compaction Reload). Do not run `fab preflight`. Do not load change artifacts.
 
 Helpers declared in frontmatter: `_cli-agents` (the generic agent-CLI interaction procedures — spawn composition, pre-send validation, delivery probe, peek, await — plus the per-provider grammar/discovery dictionary), `_cli-fab` (fab command reference), and `_cli-external` (wt, idea, tmux, /loop reference). Naming conventions are inlined in `_preamble.md` § Naming Conventions — already loaded.
 
@@ -91,10 +91,17 @@ This single preflight probe covers every later `wt create` call site; none is in
 ### Init
 
 1. Run `fab operator state` to read (or create, on first run) the server-keyed operator state file — the binary derives the path and persists the empty skeleton when missing; the operator never computes the path or hand-creates the file (`_cli-fab.md` § fab operator state). Old repo-rooted `.fab-operator.yaml` files are not read or migrated
-2. Restore monitored set, autopilot queue, branch_map, and notes from the file (supports `/clear` recovery)
+2. Restore monitored set, autopilot queue, branch_map, and notes from the file (this is what makes §4 Post-Compaction Reload lossless)
 3. Run `fab pane map --all-sessions` and display the output (all sessions on this server, not just the operator's own)
-4. If any tracked items exist (monitored set, autopilot queue, watches, or an in-progress merge sequence — an open merge-sequence `coordination` note), start the single loop per §4 Adaptive cadence
-5. Output: `Operator ready.` (+ `Loop active ({interval}).` if loop started)
+4. If any tracked items exist (monitored set, autopilot queue, watches, or an in-progress merge sequence — an open merge-sequence `coordination` note), start the single loop per §4 Adaptive cadence, using the literal from §4 Loop Prompt
+5. Output the ready line **with the loop literal** — the agent copies it later, never composes one:
+
+   ```
+   Operator ready. Loop active (3m) — /loop 3m "operator tick"
+   Operator ready. Loop idle — start with /loop 3m "operator tick" on first enrollment
+   ```
+
+   (first form when step 4 started the loop, with `{interval}` = the active cadence, `3m` or `90s`; second form when nothing is tracked yet)
 
 ---
 
@@ -143,14 +150,43 @@ When `fab resolve` fails during a **user-initiated** action (not monitoring tick
 
 ## 4. The Loop
 
-The loop is the operator's heartbeat — a `/loop "operator tick"` that runs as long as the monitored set is non-empty, an autopilot queue is active, any watch is configured, or a merge sequence is in progress (an open merge-sequence `coordination` note — §6 Auto-Merge Choreography rule 4). When all four are empty, stop the loop. The loop starts when the first change is enrolled, an autopilot queue begins, a watch is created, or a merge sequence starts. A user prompt can also restart it.
+The loop is the operator's heartbeat — a `/loop` whose prompt is the bare `operator tick` (§ Loop Prompt) that runs as long as the monitored set is non-empty, an autopilot queue is active, any watch is configured, or a merge sequence is in progress (an open merge-sequence `coordination` note — §6 Auto-Merge Choreography rule 4). When all four are empty, stop the loop. The loop starts when the first change is enrolled, an autopilot queue begins, a watch is created, or a merge sequence starts — always as `/loop 3m "operator tick"` (§ Loop Prompt). A user prompt can also restart it.
 
 **Adaptive cadence.** The heartbeat interval is **not fixed** — it adapts to whether any monitored agent is `waiting` (blocked on a human):
 
 - **Normal cadence: `3m`** (the default). Used when no monitored agent is `waiting` (or input-waiting).
 - **Tightened cadence: `90s`** (§8, overridable). The moment a tick detects **any** monitored agent in the **`waiting`** Agent-column state (the pane's `@rk_pane_agent_state` is `waiting` — the agent is blocked on a permission prompt / menu / elicitation), the operator tightens the heartbeat to bound worst-case detection/pickup latency. `waiting` is the primary, event-driven trigger; capture-based §5 menu detection is the fallback for uninstrumented panes (`—`). When a later tick finds no monitored agent `waiting` (or menu-waiting), it relaxes back to `3m`.
 - **One-loop invariant.** Adapting cadence means **re-establishing the single loop at the new interval** (e.g. restart `/loop 90s "operator tick"`), never running two loops concurrently (`_cli-external.md` § /loop — "one loop at a time"). The operator changes the interval of *the* loop; it does not add a second.
-- **Autopilot composition.** When an autopilot queue is driving, autopilot's own cadence (default `2m`, `_cli-external.md`) governs the loop; the menu-tightening applies to the monitoring loop's `3m`/`90s` band, not autopilot's `2m`.
+- **Autopilot composition.** Autopilot has no cadence of its own — a driving queue rides the same single `3m`/`90s` loop (§6 actions run at tick step 4). This section is the only cadence owner.
+
+### Loop Prompt
+
+The exact invocations — **copy one of these, never compose your own**:
+
+```
+/loop 3m "operator tick"      # normal cadence
+/loop 90s "operator tick"     # tightened cadence (Adaptive cadence above, §8)
+```
+
+The loop prompt **MUST be the bare text `operator tick`**. It **MUST NOT** be `/fab-operator` or any other slash command. Reason: a slash command macro-expands its full source into the turn on **every** firing — this file alone is ~21k tokens, so a `/fab-operator` loop prompt re-pays the whole skill each tick (~400k tokens/hour at `3m`) and exhausts the context window in roughly ten ticks. The tick procedure (§4 Tick Behavior) is already in context; the prompt only needs to *name* it.
+
+`/loop` also has a **self-paced (dynamic) mode** with no fixed interval, where the model hands a wakeup prompt back each tick. Either mode is permitted; in dynamic mode the wakeup prompt handed back **MUST likewise be the bare `operator tick`** — the same rule applied to the string the agent returns rather than the string it typed.
+
+Recovery when this procedure is no longer in context: § Post-Compaction Reload.
+
+### Post-Compaction Reload
+
+**Trigger** — a tick (`operator tick`) arrives and §4 Tick Behavior is not in context: the agent cannot see the numbered Snapshot → Auto-nudge → Watches → Autopilot → Removals → Observed-field updates → Loop lifecycle list. Typical causes: harness auto-compaction of a long session, a fresh session resumed from a conversation summary, a user `/clear`.
+
+**Procedure**:
+
+1. Run `/fab-operator` exactly **once** — this reloads the skill body and its helpers and re-runs §2 Startup including Init (state file re-read via `fab operator state`, `fab pane map --all-sessions`, loop re-establishment per § Loop Prompt).
+2. Treat the tick that triggered the reload as consumed — the next tick's `fab operator tick-start --diff` re-emits every level-triggered delta (§4 Tick Behavior step 1), so nothing durable is lost.
+3. Continue with bare `operator tick` firings. **Never** put `/fab-operator` into the loop prompt as a way to "stay reloaded" — that is the failure mode this procedure replaces.
+
+**Durable state** — monitored set, autopilot queue, `branch_map`, watches, and notes all live in the server-keyed operator state file and survive compaction, `/clear`, crash, and restart; only §8 session-scoped settings and in-conversation context are lost.
+
+**`/clear` is a user action.** A user may `/clear` a bloated operator; it lands on this same procedure (the next tick, or the user's next message, finds no procedure in context). The skill never instructs the agent to `/clear` — the agent-side mechanism is *compaction → one-shot `/fab-operator` reload*.
 
 ### Operator State File
 
@@ -219,7 +255,7 @@ After the enroll call, the operator MUST prefix `»` (U+00BB) to the target tmux
 fab pane window-name ensure-prefix <pane> »
 ```
 
-Windows that already carry `»` (operator-spawned windows from §6, `/clear`-restored entries, re-enrolled changes) no-op through the primitive's guard. A non-zero exit — pane vanished between refresh and rename (exit 2) or any other tmux error (exit 3, including tmux not running / socket unreachable) — causes the operator to log one line and continue. Enrollment itself is already durable from the preceding server-keyed state file write:
+Windows that already carry `»` (operator-spawned windows from §6, reload-restored entries, re-enrolled changes) no-op through the primitive's guard. A non-zero exit — pane vanished between refresh and rename (exit 2) or any other tmux error (exit 3, including tmux not running / socket unreachable) — causes the operator to log one line and continue. Enrollment itself is already durable from the preceding server-keyed state file write:
 
 ```
 {change}: window rename skipped ({error}).
@@ -277,7 +313,7 @@ On each tick:
 4. **Autopilot dispatch** — if an autopilot queue is active, run the next autopilot action (§6); if a merge sequence is in progress, run its per-tick check (§6 Auto-Merge Choreography). Autopilot-driven changes are visible in the frame via `▶`.
 5. **Removals** — ack the level-triggered deltas from step 1: remove completed changes (`completion` delta observed), dead panes, mismatched panes, and exited agents (the pane survives as a shell — kill it only when respawning, per §3 Bounded Retries) from the monitored set via `fab operator remove`. The event stops re-emitting once the entry is gone.
 6. **Observed-field updates** — the per-tick `stage`/`agent` baseline write is owned by `tick-start --diff` (step 1): on the diff path the skill does **no** per-tick `fab operator update` stage/agent bookkeeping (a hand-written baseline would make the next diff under-report). `fab operator update <change-id>` stays for non-baseline field edits (e.g. `stop_stage`; the binary touches `last_transition` on a stage change). There is no whole-file persist step — every action above already persisted through its own verb.
-7. **Loop lifecycle** — stop when no tracked state remains (monitored set, autopilot queue, watches, in-progress merge sequence); otherwise apply §4 Adaptive cadence (autopilot uses §6's cadence)
+7. **Loop lifecycle** — stop when no tracked state remains (monitored set, autopilot queue, watches, in-progress merge sequence); otherwise apply §4 Adaptive cadence — the single cadence owner, autopilot included — re-establishing the loop with a § Loop Prompt literal when the interval changes
 
 Actions (nudges, removals, autopilot progress) render as an *italic* footnote line below the frame as they happen, `·`-separated, keeping them visually subordinate to the table frame:
 
@@ -732,7 +768,7 @@ All five rules are MUSTs:
 1. **Sequential arming.** At most one armed PR per repo-sequence. Arm PR_n only after PR_{n-1}'s merge is **verified** — a merge event on the PR's timeline, never an assumption. Never arm a PR whose base is another PR's branch.
 2. **Arming-failure shapes.** A draft PR MUST be readied first with `gh pr ready` (fab's `/git-pr` creates drafts, so this is every autopilot PR). An "already clean" rejection (the repo has no required checks, so auto-merge has nothing to wait for) → merge directly. Auto-merge disabled on the repo → fall back to the foreground CI-wait choreography above for the sequence.
 3. **Stall rule.** The per-tick check on a still-unmerged armed PR inspects two things. A **failed required check** (`gh pr checks`) is Ordered Merge's CI failure — disarm per rule 5 and apply the halt-dependents-only policy (a failed check never makes the PR `CONFLICTING`; auto-merge just silently never fires). Unmerged after 3 consecutive ticks with no failed check → check `gh pr view --json mergeable` (the field is `mergeable` — `gh pr view --json` exposes no `mergeableState` field); `CONFLICTING` → disarm and escalate. Both shapes are event-less — the tick MUST poll.
-4. **Persisted sequence.** Starting a merge sequence MUST write a `kind: coordination` note (`fab operator note add --kind coordination`) recording, **per repo-sequence**, the sequence, current position, and armed PR (a multi-repo merge-all runs one armed PR per repo-sequence — rule 1 — so the note's prose carries one line per sequence) — an armed PR **outlives the operator** (it survives `/clear`, crash, and abandonment), so the sequence must not live only in conversation. Update the note as the sequence advances (`fab operator note update`) and resolve it at sequence end (`fab operator note resolve`). A restarted operator re-orients from the note (§2 Init) and resumes verification/arming.
+4. **Persisted sequence.** Starting a merge sequence MUST write a `kind: coordination` note (`fab operator note add --kind coordination`) recording, **per repo-sequence**, the sequence, current position, and armed PR (a multi-repo merge-all runs one armed PR per repo-sequence — rule 1 — so the note's prose carries one line per sequence) — an armed PR **outlives the operator** (it survives compaction, `/clear`, crash, and abandonment), so the sequence must not live only in conversation. Update the note as the sequence advances (`fab operator note update`) and resolve it at sequence end (`fab operator note resolve`). A restarted operator re-orients from the note (§2 Init) and resumes verification/arming.
 5. **Disarm on halt.** Any halt or escalation — CI failure, stall, conflict — MUST run `gh pr merge --disable-auto` on the remaining armed PRs of the **halted sequences**: the failing repo's sub-sequence plus its transitive cross-repo dependent cone, matching the halt-dependents-only policy (which assumes unstarted merges stay unstarted — armed auto-merge violates that without the disarm). Independent sub-sequences keep their armed PRs and continue. A user "stop" is global and disarms every armed PR.
 
 **Per tick while a merge sequence is in progress** (an open merge-sequence `coordination` note): check **each** armed PR (one per repo-sequence) — merged (timeline event) → report, advance that sequence's position in the note, and arm its next PR per rule 1 (readying a draft per rule 2); unmerged → run rule 3's checks and count toward its stall threshold. This check rides the normal tick (§4 Tick Behavior step 4), so merge-all consumes no foreground attention between arms — and a merge sequence in progress is by itself a loop run-condition (§4): at merge-all time the autopilot queue is exhausted and the monitored set is typically empty, so without this condition the loop might not even be running to do the tick-verify work.
@@ -812,7 +848,7 @@ The isolation unit is the **tmux server**. There is exactly **one operator per t
 | Spawn target session | derived (§6 step 2 ladder) | "spawn into session {name}" |
 | Notify channel | `rk` (run-kit Web Push; auto-fallback when `rk` absent) | "notify via ntfy topic {topic}" / "notify via discord {url}" / "notify via push" |
 
-These settings are session-scoped and reset on `/clear` or session restart; they are not operator-state-file fields. The **strategic auto-default threshold is hardcoded at 30m** (§5) — there is deliberately **no** setting for it.
+These settings are session-scoped and reset on compaction, `/clear`, or session restart (§4 Post-Compaction Reload); they are not operator-state-file fields. The **strategic auto-default threshold is hardcoded at 30m** (§5) — there is deliberately **no** setting for it.
 
 ---
 
@@ -831,6 +867,6 @@ These settings are session-scoped and reset on `/clear` or session restart; they
 | Requires a git repo? | No — `fab operator` opens its window in the repo root inside a repo, else `os.Getwd()` (neutral parent dir). Errors only if both fail |
 | Requires a `fab/` project? | No — session command comes from the project's `providers.claude.interactive_command` when `fab/` is resolvable, else `spawn.DefaultSpawnCommand` (the template `claude --permission-mode bypassPermissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`). No project `providers`/`agent:` block is read on a `fab/`-less launch |
 | Coordinating-agent model | Operator role — `fab operator` resolves the `operator` role (`agent.ResolveRole`; a Tier-1 role, so the `agent.session` knob picks its provider), reads that provider's `interactive_command`, injects the profile via `spawn.WithProfile` (**substitutes** into a `{model}`/`{effort}` template — the built-in claude default is templated — or **appends** `--model`/`--effort` to a plain command carrying no placeholder); falls back to the built-in operator profile + built-in claude provider on any failure (incl. no resolvable `fab/` project) |
-| Uses `/loop`? | Yes — adaptive heartbeat: `3m` normally, tightens to `90s` (§8) when any monitored agent is `waiting` (`@rk_pane_agent_state`) or menu-waiting (capture fallback), relaxes back to `3m`; one loop at a time; runs while any tracked state remains — monitored set, autopilot queue, watches, or an in-progress merge sequence (§4); quiet ticks render the one-line compact frame (§4 Status Frame Format) |
+| Uses `/loop`? | Yes — adaptive heartbeat: `3m` normally, tightens to `90s` (§8) when any monitored agent is `waiting` (`@rk_pane_agent_state`) or menu-waiting (capture fallback), relaxes back to `3m`; one loop at a time; runs while any tracked state remains — monitored set, autopilot queue, watches, or an in-progress merge sequence (§4); quiet ticks render the one-line compact frame (§4 Status Frame Format); loop prompt is the bare `operator tick` — never a slash command (§4 Loop Prompt) |
 | Uses the operator state file? | Yes — monitored set + autopilot queue + branch map + notes persistence in the server-keyed path (§2 Init step 1); reads via `fab operator state`, every mutation through a `fab operator` verb — never a hand-write (§4 doctrine) |
 | Multi-repo / multi-session? | Yes — one operator per tmux server spans all its sessions and repos via the `(session, repo, pane)` addressing tuple |

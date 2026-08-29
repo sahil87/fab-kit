@@ -235,9 +235,9 @@ Recurring check skill — invokes a prompt at a regular interval.
 - **`<interval>`** — duration between ticks (e.g., `5m`, `2m`)
 - **`<prompt>`** — the instruction to execute on each tick
 
+`/loop` also has a self-paced (no-interval) mode in which the model hands a wakeup prompt back each tick; the operator's prompt rule (`fab-operator.md` §4 Loop Prompt) applies to that wakeup prompt too.
+
 ### Constraints
 
-- **One loop at a time** — there SHALL be at most one active `/loop` in a session
-- **Start**: when the first change is enrolled in monitoring and no loop is running
-- **Stop**: when the monitored set becomes empty, or on explicit user command
-- **Autopilot override**: autopilot uses its own cadence (default 2m); replaces any existing monitoring loop
+- **One loop at a time** — there SHALL be at most one active `/loop` in a session; changing the interval means re-establishing *the* loop, never adding a second.
+- **Operator policy lives in `fab-operator.md` §4** — start/stop conditions, the `3m`/`90s` adaptive cadence, the autopilot composition, and the mandatory bare-text loop prompt (`operator tick`, never a slash command — § Loop Prompt). This file does not restate them.
