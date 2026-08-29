@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 4
@@ -27,22 +27,24 @@ stage_metrics:
     apply: {started_at: "2026-08-29T01:55:14Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-29T01:59:12Z"}
     review: {started_at: "2026-08-29T01:59:12Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-29T02:03:35Z"}
     hydrate: {started_at: "2026-08-29T02:03:35Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-29T02:03:58Z"}
-    ship: {started_at: "2026-08-29T02:03:58Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-29T02:03:58Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-29T02:05:10Z"}
+    review-pr: {started_at: "2026-08-29T02:05:10Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/625
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 416
+    deleted: 24
+    net: 392
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 52
+        deleted: 16
+        net: 36
     tests:
         added: 0
         deleted: 0
         net: 0
-    computed_at: "2026-08-29T02:03:58Z"
-    computed_at_stage: hydrate
+    computed_at: "2026-08-29T02:05:10Z"
+    computed_at_stage: ship
 summary: Operator loop prompt is a hard MUST/MUST-NOT rule with copyable literals (bare 'operator tick', never a slash command); 'Self-manage context' replaced by the compaction → one-shot /fab-operator reload procedure; _cli-external /loop reduced to one-loop rule + pointer; 2m autopilot cadence dropped
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-29T02:03:58Z
+last_updated: 2026-08-29T02:05:10Z
