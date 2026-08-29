@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 8
@@ -33,22 +33,24 @@ stage_metrics:
     apply: {started_at: "2026-08-28T20:09:15Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-29T01:07:17Z"}
     review: {started_at: "2026-08-29T01:07:17Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-29T01:10:40Z"}
     hydrate: {started_at: "2026-08-29T01:10:40Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-29T01:12:53Z"}
-    ship: {started_at: "2026-08-29T01:12:53Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-29T01:12:53Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-29T01:15:26Z"}
+    review-pr: {started_at: "2026-08-29T01:15:26Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/624
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 1044
+    deleted: 81
+    net: 963
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 538
+        deleted: 67
+        net: 471
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-08-29T01:12:53Z"
-    computed_at_stage: hydrate
+        added: 238
+        deleted: 19
+        net: 219
+    computed_at: "2026-08-29T01:15:26Z"
+    computed_at_stage: ship
 summary: 'fab sync drops the blanket agent-directory ignores: the scaffold fragment ships only non-directory lines (+/.claude/settings.local.json), each fired deploy target gets a whole-file-owned generated .gitignore manifest of what fab deployed, and cleanStaleSkills prunes only (previous manifest − current kit); migration 2.22.0-to-2.23.0 strips the historical tokens and regenerates manifests (VERSION 2.23.0)'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-29T01:12:53Z
+last_updated: 2026-08-29T01:15:26Z
