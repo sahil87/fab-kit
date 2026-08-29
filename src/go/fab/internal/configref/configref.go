@@ -766,7 +766,7 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# reference is the user-facing half of this block, and a reader must not have to\n" +
 		"# reach for --json to see what the default provider actually resolves. The same\n" +
 		"# values are also projected by `fab config explain providers --json` and resolved\n" +
-		"# per stage by `fab resolve-agent <stage>`.\n" +
+		"# per stage or role by `fab resolve-agent <stage|role>`.\n" +
 		"# All four blocks below render LIVE and uniformly — claude's baseline and the\n" +
 		"# codex, agy and kimi blocks at the same indentation, one `#` deep in your\n" +
 		"# fence. Claude carries all three capabilities; codex, agy and kimi carry pane +\n" +

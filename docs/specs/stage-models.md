@@ -232,7 +232,7 @@ in § Default role profiles, which covers `claude` and is drift-guarded. For the
 provider, read `src/go/fab/defaults.yaml` (canonical), or render them:
 
 - `fab config explain providers --json` — projects every provider's fill map, resolved.
-- `fab resolve-agent <stage>` — the fill a given stage actually gets.
+- `fab resolve-agent <stage|role>` — the fill a given stage (or a role named directly) actually gets.
 
 (`fab config explain providers` prints every provider's fill map in its human-readable form too,
 claude's included.)
