@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"sort"
 	"time"
 
@@ -23,12 +24,20 @@ func operatorTickStartCmd() *cobra.Command {
 		RunE:  runOperatorTickStart,
 	}
 	cmd.Flags().Bool("diff", false, "also diff a pane snapshot against the monitored baseline: emit deltas/candidates/fleet blocks and update the baseline in the same write")
+	cmd.Flags().Bool("quiet", false, "with --diff: on a no-delta tick that is not every 10th, replace the fleet: block with a fleet_summary: count block")
 	return cmd
 }
 
 func runOperatorTickStart(cmd *cobra.Command, args []string) error {
-	if diff, _ := cmd.Flags().GetBool("diff"); diff {
-		return runOperatorTickStartDiff(cmd)
+	diff, _ := cmd.Flags().GetBool("diff")
+	quiet, _ := cmd.Flags().GetBool("quiet")
+	// Invalid flag combination fails before any state read/write — a rejected
+	// invocation must not consume a tick.
+	if quiet && !diff {
+		return fmt.Errorf("--quiet requires --diff")
+	}
+	if diff {
+		return runOperatorTickStartDiff(cmd, quiet)
 	}
 
 	yamlPath, err := operatorStatePath()
@@ -80,6 +89,13 @@ func nextTickCount(data map[string]interface{}) int {
 }
 
 // --- tick-start --diff -------------------------------------------------------
+
+// tickQuietFullEvery is the built-in periodic full-refresh interval: under
+// --quiet, every Nth tick (by post-increment tick_count) emits the full
+// document (fleet:) even with no deltas, so a complete frame still appears
+// periodically. Deliberately a constant — not a flag or config knob (matches
+// the §5 hardcoded-30m idle auto-default precedent).
+const tickQuietFullEvery = 10
 
 // tickTerminusStage is the pipeline terminus — the only stage at which an
 // entry with no stop_stage completes. Completion there is a display-state
@@ -177,7 +193,53 @@ type tickDiffOutput struct {
 	Fleet      []tickFleetRow  `yaml:"fleet"`
 }
 
-func runOperatorTickStartDiff(cmd *cobra.Command) error {
+// tickFleetSummary is the `fleet_summary:` block — five counts a quiet tick
+// emits IN PLACE of `fleet:` (never both keys). Key order is pinned by the
+// struct field order. Counts are taken over the same rows fleet: would have
+// carried: tracked == waiting + idle + active + unknown on every quiet tick
+// (dead/mismatched panes emit level-triggered deltas, which force the full
+// document).
+type tickFleetSummary struct {
+	Tracked int `yaml:"tracked"` // one per monitored entry
+	Waiting int `yaml:"waiting"` // snapshot agent_state waiting
+	Idle    int `yaml:"idle"`    // snapshot agent_state idle
+	Active  int `yaml:"active"`  // snapshot agent_state active
+	Unknown int `yaml:"unknown"` // null/empty/em-dash agent_state
+}
+
+// summarizeFleet reduces fleet rows to the quiet tick's count block. Any
+// agent_state outside waiting/idle/active (null, or an unresolved sentinel
+// like the em dash) counts as unknown.
+func summarizeFleet(rows []tickFleetRow) tickFleetSummary {
+	s := tickFleetSummary{Tracked: len(rows)}
+	for _, r := range rows {
+		if r.AgentState == nil {
+			s.Unknown++
+			continue
+		}
+		switch *r.AgentState {
+		case "waiting":
+			s.Waiting++
+		case "idle":
+			s.Idle++
+		case "active":
+			s.Active++
+		default:
+			s.Unknown++
+		}
+	}
+	return s
+}
+
+// tickDiffQuietOutput is the quiet-tick document — deltas/candidates then
+// fleet_summary in place of fleet (key order pinned by field order).
+type tickDiffQuietOutput struct {
+	Deltas       []tickDelta      `yaml:"deltas"`
+	Candidates   []tickCandidate  `yaml:"candidates"`
+	FleetSummary tickFleetSummary `yaml:"fleet_summary"`
+}
+
+func runOperatorTickStartDiff(cmd *cobra.Command, quiet bool) error {
 	// Capture time once so last_tick_at, the baseline's last_transition, and
 	// stdout are consistent.
 	now := time.Now()
@@ -217,9 +279,26 @@ func runOperatorTickStartDiff(cmd *cobra.Command) error {
 		return err
 	}
 
-	w := cmd.OutOrStdout()
+	return emitTickDiffDoc(cmd.OutOrStdout(), out, quiet, tickCount, now)
+}
+
+// emitTickDiffDoc writes the tick:/now: header and the diff document. A quiet
+// tick (--quiet, no deltas, post-increment tickCount not a multiple of
+// tickQuietFullEvery) emits fleet_summary: in place of fleet:; every other
+// tick emits the full document. Never both keys.
+func emitTickDiffDoc(w io.Writer, out tickDiffOutput, quiet bool, tickCount int, now time.Time) error {
 	fmt.Fprintf(w, "tick: %d\nnow: %s\n", tickCount, now.Format("15:04"))
-	doc, err := yaml.Marshal(out)
+	var doc []byte
+	var err error
+	if quiet && len(out.Deltas) == 0 && tickCount%tickQuietFullEvery != 0 {
+		doc, err = yaml.Marshal(tickDiffQuietOutput{
+			Deltas:       out.Deltas,
+			Candidates:   out.Candidates,
+			FleetSummary: summarizeFleet(out.Fleet),
+		})
+	} else {
+		doc, err = yaml.Marshal(out)
+	}
 	if err != nil {
 		return fmt.Errorf("cannot marshal tick diff: %w", err)
 	}

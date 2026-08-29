@@ -1,0 +1,8 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-08-29T02:13:25Z"}
+{"args":"Shrink the operator's per-tick context footprint — fab operator tick-start --diff --quiet (fleet_summary in place of fleet on quiet ticks, full every 10th) + one-line compact no-change status frame in fab-operator.md §4","cmd":"fab-new","event":"command","ts":"2026-08-29T02:13:26Z"}
+{"delta":"+0.0","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-08-29T02:15:30Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-08-29T02:16:13Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-08-29T02:23:06Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-08-29T02:25:23Z"}
+{"event":"review","result":"passed","ts":"2026-08-29T02:25:23Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-08-29T02:26:23Z"}

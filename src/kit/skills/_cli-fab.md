@@ -1241,7 +1241,7 @@ Singleton tmux-tab launcher for `/fab-operator`. Requires `$TMUX` (else exit 1, 
 ### fab operator tick-start
 
 ```
-fab operator tick-start [--diff]
+fab operator tick-start [--diff [--quiet]]
 ```
 
 Called at start of each operator tick. Increments `tick_count`, writes `last_tick_at` (ISO 8601 UTC) to the **server-keyed** state file (not the old repo-rooted `.fab-operator.yaml`). The flagless form is unchanged — stdout:
@@ -1286,6 +1286,18 @@ fleet: []                          # empty-list form when nothing monitored (lik
 - **Detection semantics.** `completion` is a display-state/terminal-stage predicate (never a stage diff): with `stop_stage: null` it fires only at the pipeline terminus — `review-pr` with `display_state` done/skipped (hydrate and ship are mid-pipeline and never complete an entry by themselves; a run that deliberately parks earlier expresses that via `stop_stage`); with a `stop_stage` it fires past the stop in stage order, or at the stop with `display_state` done/skipped. `pane_mismatch` fires when the entry's pane now resolves to a **different** change ID (or none — `found: null`): tmux recycles `%N` pane IDs across server restarts, so a recycled pane is never diffed, baseline-updated, or listed as a candidate (its fleet row falls back to baseline identity fields with null observed fields).
 - **`candidates:`** — monitored entries whose snapshot agent state is waiting or idle, waiting first then idle, sorted by change ID within each class; unknown (`—`) and active panes are excluded, so on rk-less servers the block is empty. This is the operator §5 sweep population.
 - **`fleet:`** — one row per monitored entry, ordered repo → session → enrolled_at → change ID: the status frame's data source, so the skill never re-fetches the full pane map per tick.
+- **`--quiet`** — valid only with `--diff` (`--quiet` alone errors `--quiet requires --diff` before any state read/write, consuming no tick). On a **quiet tick** — `deltas:` empty AND the post-increment `tick_count` not a multiple of the built-in constant 10 (not a flag or config knob) — the `fleet:` block is **replaced** by a five-count `fleet_summary:` mapping (never both keys; block order stays `deltas`, `candidates`, then one of the two):
+
+  ```yaml
+  fleet_summary:
+      tracked: 8      # one per monitored entry
+      waiting: 1      # snapshot agent_state waiting
+      idle: 3         # snapshot agent_state idle
+      active: 3       # snapshot agent_state active
+      unknown: 1      # null/empty/em-dash agent_state
+  ```
+
+  `tracked` always equals `waiting + idle + active + unknown` on a quiet tick (dead/mismatched panes emit level-triggered deltas, which force the full document). A tick with non-empty `deltas:`, and every 10th tick, emits the full document — identical to plain `--diff`. `candidates:` is always emitted. The empty-monitored short-circuit still skips the snapshot; under `--quiet` it emits the all-zero `fleet_summary:` (or `fleet: []` on a 10th tick).
 - **Baseline writer.** `--diff` updates the baseline in the **same atomic mutation** as the tick bookkeeping: for each cleanly-joined entry, `stage` ← snapshot stage (touching `last_transition` **iff** the stage changed — `fab operator update`'s semantics) and `agent` ← the snapshot agent state verbatim. Dead/mismatched entries stay untouched; an unresolved (em-dash) snapshot stage fabricates no delta and leaves the baseline stage alone. With an **empty monitored set** the snapshot subprocess is skipped entirely and all three blocks emit `[]` — a no-op tick is first-class.
 
 **State path** (server-keyed, XDG): `<XDG_STATE_HOME>/fab/operator/<server-slug>.yaml`, where the base is `$XDG_STATE_HOME` (when set and absolute) else `$HOME/.local/state` — uniform on Linux and macOS (never `~/Library/...`). `<server-slug>` is derived from the tmux socket path (`#{socket_path}`) by escaping literal `-` to `--` then mapping separators to a single `-` (e.g. `/tmp/tmux-1000/default` → `tmp-tmux--1000-default`); the escape keeps the mapping collision-free so distinct sockets never share a state file. One operator-per-tmux-server gets one state file that survives a server restart (same `-L` label → same socket path). Falls back to slug `default` when tmux can't be queried. No migration of old repo-rooted `.fab-operator.yaml` files — they are abandoned in place.

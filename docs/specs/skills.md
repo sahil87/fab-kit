@@ -1092,7 +1092,7 @@ User invokes /fab-help
 
 ## `/fab-operator`
 
-**Purpose**: Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across every session on its tmux server (per tick via `fab operator tick-start --diff`, on demand via `fab pane map --all-sessions`), routes commands and prompt answers via `rk mux send` (plain / `--answer`; `command -v rk`-gated, raw `tmux send-keys` behind the operator's own state gate when rk is absent), auto-answers routine prompts, drives autopilot queues, and spawns dependency-aware agents. Started via `fab operator` (a singleton tmux tab named `operator`, one per tmux server).
+**Purpose**: Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across every session on its tmux server (per tick via `fab operator tick-start --diff --quiet`, on demand via `fab pane map --all-sessions`), routes commands and prompt answers via `rk mux send` (plain / `--answer`; `command -v rk`-gated, raw `tmux send-keys` behind the operator's own state gate when rk is absent), auto-answers routine prompts, drives autopilot queues, and spawns dependency-aware agents. Started via `fab operator` (a singleton tmux tab named `operator`, one per tmux server).
 
 **Context**: A deliberate exception to the always-load layer — loads only `config.yaml`, `constitution.md`, and `context.md` (optional). It runs no `fab preflight` and never reads change artifacts, keeping a long-lived context window reserved for coordination state. Declares `helpers: [_cli-agents, _cli-fab, _cli-external]`.
 
@@ -1109,7 +1109,7 @@ User invokes /fab-help
 
 ```text
 Started via `fab operator`; runs a continuous /loop cycle
-├─ Tick: Bash: fab operator tick-start --diff (snapshot + deltas + fleet; re-derive before every action: Bash: fab pane map --all-sessions — never trust cached values)
+├─ Tick: Bash: fab operator tick-start --diff --quiet (snapshot + deltas + fleet or fleet_summary; re-derive before every action: Bash: fab pane map --all-sessions — never trust cached values)
 ├─ Auto-answer routine agent questions (rk mux send --answer); nudge stalled agents; route commands via rk mux send (raw tmux send-keys fallback)
 └─ Drive autopilot queues (/fab-new → /fab-fff); spawn each task in a fresh worktree
 ```
