@@ -196,7 +196,11 @@ func TestIsShellCommand(t *testing.T) {
 		{"", false},      // legacy enumeration line — never a shell
 	}
 	for _, tc := range tests {
-		t.Run(tc.cmd, func(t *testing.T) {
+		name := tc.cmd
+		if name == "" {
+			name = "empty command"
+		}
+		t.Run(name, func(t *testing.T) {
 			if got := IsShellCommand(tc.cmd); got != tc.want {
 				t.Errorf("IsShellCommand(%q) = %t, want %t", tc.cmd, got, tc.want)
 			}
