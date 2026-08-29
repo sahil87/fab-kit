@@ -44,7 +44,7 @@ func TestPaneDeliver_PayloadFlagGuard(t *testing.T) {
 // exits 1 naming the file, and the pane is byte-for-byte untouched.
 func TestPaneDeliver_MissingPromptFileTypesNothing(t *testing.T) {
 	server := "fabtest-panedeliver-nofile"
-	tmux, paneID := newTmuxPane(t, server, "", 80)
+	tmux, paneID := newTmuxPane(t, server, readyPaneCommand, 80)
 
 	// Let the shell finish drawing its first prompt, or the pane's own startup
 	// repaint — not the refused delivery — would diff the two captures.
@@ -87,14 +87,14 @@ func settledCapture(t *testing.T, tmux func(args ...string) (string, error), pan
 	return ""
 }
 
-// TestPaneDeliver_SuccessLines drives both payloads into a live shell pane —
-// which echoes typed text and reacts to Enter, enough of an "agent" for the
-// choreography's terms — and pins the success report naming the pane and the
-// payload source.
+// TestPaneDeliver_SuccessLines drives both payloads into a live pane running a
+// non-shell foreground (readyPaneCommand) — which echoes typed text and reacts
+// to Enter, enough of an "agent" for the choreography's terms — and pins the
+// success report naming the pane and the payload source.
 func TestPaneDeliver_SuccessLines(t *testing.T) {
 	t.Run("literal text", func(t *testing.T) {
 		server := "fabtest-panedeliver-text"
-		_, paneID := newTmuxPane(t, server, "", 80)
+		_, paneID := newTmuxPane(t, server, readyPaneCommand, 80)
 
 		stdout, stderr, err := runPaneCmd(t, "deliver", paneID, "-L", server, "--text", "echo hi")
 		if err != nil {
@@ -108,7 +108,7 @@ func TestPaneDeliver_SuccessLines(t *testing.T) {
 
 	t.Run("prompt file types the pointer line", func(t *testing.T) {
 		server := "fabtest-panedeliver-file"
-		tmux, paneID := newTmuxPane(t, server, "", 120)
+		tmux, paneID := newTmuxPane(t, server, readyPaneCommand, 120)
 
 		promptPath := filepath.Join(t.TempDir(), "prompt.md")
 		if err := os.WriteFile(promptPath, []byte("# do the thing\n"), 0o644); err != nil {
@@ -124,10 +124,10 @@ func TestPaneDeliver_SuccessLines(t *testing.T) {
 			t.Errorf("stdout = %q, want %q", stdout, want)
 		}
 		// The typed payload is the dispatch-parity pointer line, verbatim on the
-		// shell's transcript (the shell rejects `Read` as a command — which is
-		// exactly the screen advance the delivery verified). tmux hard-wraps the
-		// pane's visible lines at the pane width, so the comparison drops
-		// whitespace from both sides, mirroring the gate's own wrap tolerance.
+		// pane's transcript (cat re-prints the submitted line — which is exactly
+		// the screen advance the delivery verified). tmux hard-wraps the pane's
+		// visible lines at the pane width, so the comparison drops whitespace
+		// from both sides, mirroring the gate's own wrap tolerance.
 		capture, err := tmux("capture-pane", "-p", "-t", paneID)
 		if err != nil {
 			t.Fatal(err)
@@ -178,7 +178,7 @@ func TestPaneDeliver_ParkedPaneFailsWithSnippet(t *testing.T) {
 func TestPaneDeliver_JSON(t *testing.T) {
 	t.Run("text source", func(t *testing.T) {
 		server := "fabtest-panedeliver-jsontext"
-		_, paneID := newTmuxPane(t, server, "", 80)
+		_, paneID := newTmuxPane(t, server, readyPaneCommand, 80)
 
 		stdout, _, err := runPaneCmd(t, "deliver", paneID, "-L", server, "--text", "echo hi", "--json")
 		if err != nil {
@@ -198,7 +198,7 @@ func TestPaneDeliver_JSON(t *testing.T) {
 
 	t.Run("prompt source carries path", func(t *testing.T) {
 		server := "fabtest-panedeliver-jsonfile"
-		_, paneID := newTmuxPane(t, server, "", 120)
+		_, paneID := newTmuxPane(t, server, readyPaneCommand, 120)
 
 		promptPath := filepath.Join(t.TempDir(), "prompt.md")
 		if err := os.WriteFile(promptPath, []byte("# do the thing\n"), 0o644); err != nil {

@@ -24,12 +24,23 @@ import (
 // dispatch and a rework-cycle continuation. See docs/specs/harness-adapters.md
 // § 3.
 //
-// Why the gate is mechanical: classification here is purely ECHO- and
-// STABILITY-based — send a sentinel, see whether it appears, see whether the
-// screen is still moving. It carries NO table of known dialogs, because dialog
-// text is a version treadmill and a half-matched pattern pressing Enter into an
-// unknown screen is worse than stalling. Deciding what a `parked` screen wants
-// is the orchestrator's judgment, over the snippet this file returns.
+// Why the gate probes in two stages: the sentinel echo is only trustworthy
+// once an agent owns the pane. A tmux pane starts with a SHELL holding the
+// pty in COOKED mode, where the tty echoes typed characters by itself — so in
+// the window between the pane spawning and the provider binary putting the
+// pty into raw mode, the sentinel echoes for a reason that has nothing to do
+// with an agent being ready, and every downstream verification built on the
+// echo fails in the same direction (a "delivered" prompt the booting TUI
+// silently discards). The gate therefore first asks who owns the pane
+// (`#{pane_current_command}` — the same foreground-command signal the
+// operator's agent_exited delta keys on): a shell foreground classifies
+// `booting` with NO keystroke sent at all. Post-takeover, classification is
+// purely ECHO- and STABILITY-based — send a sentinel, see whether it appears,
+// see whether the screen is still moving. It carries NO table of known
+// dialogs, because dialog text is a version treadmill and a half-matched
+// pattern pressing Enter into an unknown screen is worse than stalling.
+// Deciding what a `parked` screen wants is the orchestrator's judgment, over
+// the snippet this file returns.
 
 // Readiness is the gate's classification of a pane. The values are the exact
 // strings `fab pane ready` and `fab dispatch ready` print — they are the report
@@ -40,8 +51,10 @@ type Readiness string
 const (
 	// ReadyReady: the sentinel echoed — the pane accepts typed input.
 	ReadyReady Readiness = "ready"
-	// ReadyBooting: the sentinel did not echo, but the screen is empty or still
-	// changing — the TUI is plausibly still starting.
+	// ReadyBooting: there is no agent to answer yet — either the pane's
+	// foreground command is still a shell (the provider binary has not taken
+	// the tty), or the sentinel did not echo on an empty or still-changing
+	// screen (the TUI is plausibly still starting).
 	ReadyBooting Readiness = "booting"
 	// ReadyParked: a stable screen that swallowed the sentinel — a dialog,
 	// survey, login wall, or wedged process is holding the input.
@@ -87,12 +100,14 @@ const (
 // retried again — a pane that failed verification twice needs eyes, not a loop.
 const deliveryAttempts = 2
 
-// PaneIO is the tmux surface the gate uses: capture the screen, type literal
-// text, press a named key. It is an interface so the whole choreography —
-// including the retry path, which no pure function can express — is testable
-// against a scripted fake with no tmux server, matching this package's
-// established preference for table-testable decisions.
+// PaneIO is the tmux surface the gate uses: read the pane's foreground
+// command, capture the screen, type literal text, press a named key. It is an
+// interface so the whole choreography — including the retry path, which no
+// pure function can express — is testable against a scripted fake with no
+// tmux server, matching this package's established preference for
+// table-testable decisions.
 type PaneIO interface {
+	CurrentCommand(paneID string) (string, error)
 	Capture(paneID string, lines int) (string, error)
 	SendLiteral(paneID, text string) error
 	SendKey(paneID, key string) error
@@ -102,6 +117,10 @@ type PaneIO interface {
 // helpers so the gate and `fab pane capture` both go through
 // one tmux argv builder and one stderr-enrichment convention.
 type tmuxPaneIO struct{ server string }
+
+func (t tmuxPaneIO) CurrentCommand(paneID string) (string, error) {
+	return CurrentCommand(t.server, paneID)
+}
 
 func (t tmuxPaneIO) Capture(paneID string, lines int) (string, error) {
 	return Capture(t.server, paneID, lines)
@@ -171,11 +190,32 @@ func DeriveReadiness(echoed bool, first, second string) Readiness {
 // Probe classifies a pane and returns a trailing capture snippet for every
 // non-`ready` answer, so the caller never needs a second capture call.
 //
-// It is READ-MOSTLY and idempotent (Constitution III): the only thing it writes
-// to the pane is the sentinel, which is typed literally, never submitted, and
-// cleared with C-u whether or not it echoed. It presses no other key and answers
+// AGENT TAKEOVER PRECONDITION: before anything is typed, the pane's
+// foreground command is read. While it is still a shell, the provider binary
+// has not taken the tty, so there is no agent to probe — and a cooked-mode
+// shell echoes typed characters by itself, so the sentinel would echo for a
+// reason that has nothing to do with readiness. That path reports `booting`
+// and sends NOTHING, regardless of echo; the echo is the untrustworthy
+// signal and is not consulted. Only once a non-shell process owns the pane
+// does the sentinel/echo/stability choreography run.
+//
+// It is READ-MOSTLY and idempotent (Constitution III): the only thing it
+// writes to the pane is the sentinel, which is typed literally, never
+// submitted, and cleared with C-u whether or not it echoed — and even that is
+// skipped on the pre-takeover path. It presses no other key and answers
 // nothing.
 func (g *Gate) Probe(paneID string) (Readiness, string, error) {
+	cmd, err := g.IO.CurrentCommand(paneID)
+	if err != nil {
+		return "", "", err
+	}
+	if IsShellCommand(cmd) {
+		snippet, err := g.IO.Capture(paneID, captureLines)
+		if err != nil {
+			return "", "", err
+		}
+		return ReadyBooting, Snippet(snippet), nil
+	}
 	if err := g.IO.SendLiteral(paneID, ReadySentinel); err != nil {
 		return "", "", err
 	}

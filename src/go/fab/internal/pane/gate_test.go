@@ -12,6 +12,11 @@ import (
 // asserted. It is what makes the retry path — which no pure function can express
 // — testable without a tmux server.
 type fakePaneIO struct {
+	// command is the scripted foreground command. It defaults to a NON-shell
+	// ("kimi"): pre-existing tests exercise the post-takeover path by
+	// definition, and the takeover precondition's shell rows set it
+	// explicitly.
+	command  string
 	captures []string
 	sends    []string
 	// ops is every operation in order, captures included, for the assertions that
@@ -21,7 +26,15 @@ type fakePaneIO struct {
 }
 
 func newFakeIO(captures ...string) *fakePaneIO {
-	return &fakePaneIO{captures: captures, failOn: map[string]error{}}
+	return &fakePaneIO{command: "kimi", captures: captures, failOn: map[string]error{}}
+}
+
+func (f *fakePaneIO) CurrentCommand(_ string) (string, error) {
+	if err := f.failOn["command"]; err != nil {
+		return "", err
+	}
+	f.ops = append(f.ops, "command")
+	return f.command, nil
 }
 
 func (f *fakePaneIO) Capture(_ string, _ int) (string, error) {
@@ -109,6 +122,78 @@ func TestProbeReportsReadyOnEcho(t *testing.T) {
 	}
 }
 
+// TestProbeReportsBootingWhileAShellOwnsThePane is the agent-takeover
+// precondition's table: while the pane's foreground command is a shell, the
+// probe classifies `booting` REGARDLESS of what the screen would show — and,
+// the load-bearing assertion, types NOTHING. A cooked-mode shell echoes typed
+// characters by itself, so the sentinel echo is exactly the untrustworthy
+// signal on this path; sending it is how the false-ready window opens.
+func TestProbeReportsBootingWhileAShellOwnsThePane(t *testing.T) {
+	for _, cmd := range []string{"zsh", "bash", "/usr/bin/fish"} {
+		t.Run(cmd, func(t *testing.T) {
+			// The scripted capture shows the sentinel "echoed" — the exact
+			// false-ready shape a cooked-mode shell produces. The precondition
+			// must not consult it.
+			io := newFakeIO("$ " + ReadySentinel)
+			io.command = cmd
+			state, snippet, err := testGate(io).Probe("%17")
+			if err != nil {
+				t.Fatalf("Probe: %v", err)
+			}
+			if state != ReadyBooting {
+				t.Errorf("state = %q, want %q while %q owns the pane", state, ReadyBooting, cmd)
+			}
+			if len(io.sends) != 0 {
+				t.Errorf("sends = %v, want NOTHING typed on the shell-foreground path", io.sends)
+			}
+			if snippet == "" {
+				t.Error("a booting report carries the screen snippet, got empty")
+			}
+			wantOps := []string{"command", "capture"}
+			if strings.Join(io.ops, ",") != strings.Join(wantOps, ",") {
+				t.Errorf("ops = %v, want %v — read the owner, capture the evidence, stop", io.ops, wantOps)
+			}
+		})
+	}
+}
+
+// TestProbeRunsTheSentinelChoreographyOnceAnAgentOwnsThePane is the
+// precondition's other half: any NON-shell foreground lets the ordinary
+// echo/stability choreography run, so an echoing pane classifies `ready`.
+func TestProbeRunsTheSentinelChoreographyOnceAnAgentOwnsThePane(t *testing.T) {
+	for _, cmd := range []string{"kimi", "claude", "node"} {
+		t.Run(cmd, func(t *testing.T) {
+			io := newFakeIO("$ " + ReadySentinel)
+			io.command = cmd
+			state, _, err := testGate(io).Probe("%17")
+			if err != nil {
+				t.Fatalf("Probe: %v", err)
+			}
+			if state != ReadyReady {
+				t.Errorf("state = %q, want %q once %q owns the pane and the sentinel echoed", state, ReadyReady, cmd)
+			}
+		})
+	}
+}
+
+// TestProbePropagatesACommandReadFailure pins that a failed foreground-command
+// read surfaces as an error with NOTHING typed — a pane whose owner cannot be
+// determined is not a pane to type into.
+func TestProbePropagatesACommandReadFailure(t *testing.T) {
+	io := newFakeIO("$ " + ReadySentinel)
+	io.failOn["command"] = fmt.Errorf("no server running")
+	state, _, err := testGate(io).Probe("%17")
+	if err == nil {
+		t.Fatal("a failed foreground-command read must surface")
+	}
+	if state != "" {
+		t.Errorf("state = %q, want empty on error", state)
+	}
+	if len(io.sends) != 0 {
+		t.Errorf("sends = %v, want NOTHING typed when the owner is unknown", io.sends)
+	}
+}
+
 // TestProbeClearsSentinelWhenItDidNotEcho pins that C-u fires on the NON-echo
 // path too: a sentinel that did not show up in the capture may still have landed
 // somewhere the capture did not cover, and leaving it in a worker's input buffer
@@ -160,7 +245,7 @@ func TestProbeCapturesTheStabilityPairBeforeClearing(t *testing.T) {
 	if _, _, err := testGate(io).Probe("%17"); err != nil {
 		t.Fatalf("Probe: %v", err)
 	}
-	want := []string{"literal:" + ReadySentinel, "capture", "capture", "key:" + KeyClear}
+	want := []string{"command", "literal:" + ReadySentinel, "capture", "capture", "key:" + KeyClear}
 	if strings.Join(io.ops, ",") != strings.Join(want, ",") {
 		t.Errorf("ops =\n  %v\nwant\n  %v", io.ops, want)
 	}
@@ -307,6 +392,7 @@ func TestDeliverVerifiesEchoAndSubmission(t *testing.T) {
 	// or a retry baselines against the pointer the previous attempt left on the
 	// input line and can never verify (see TestDeliverRetriesAfterAnIgnoredEnter).
 	wantOps := []string{
+		"command", // the takeover precondition — who owns the pane?
 		"literal:" + ReadySentinel,
 		"capture", // probe
 		"key:" + KeyClear,
@@ -458,6 +544,35 @@ func TestDeliverRefusesAParkedPane(t *testing.T) {
 		if s == "literal:"+testPointer {
 			t.Error("the pointer must not be typed into a pane that is not ready")
 		}
+	}
+}
+
+// TestDeliverFailsIntoAShellForegroundPane pins that the takeover
+// precondition reaches delivery too: a pre-takeover pane (shell foreground)
+// fails BOTH attempts with the ordinary not-ready error and the snippet
+// attached — instead of the false-verified delivery a cooked-mode shell's
+// sentinel echo used to produce — and no pointer or Enter is ever sent.
+func TestDeliverFailsIntoAShellForegroundPane(t *testing.T) {
+	io := newFakeIO("$ " + ReadySentinel) // the cooked-mode false-echo shape
+	io.command = "zsh"
+	warnings, snippet, err := testGate(io).Deliver("%17", testPointer)
+	if err == nil {
+		t.Fatal("delivery into a pre-takeover pane must fail, not false-verify")
+	}
+	if !strings.Contains(err.Error(), "after 2 attempts") {
+		t.Errorf("error = %q, want it to name the attempt budget", err)
+	}
+	if !strings.Contains(err.Error(), string(ReadyBooting)) {
+		t.Errorf("error = %q, want it to name the booting classification", err)
+	}
+	if len(warnings) != 1 {
+		t.Errorf("want exactly one retry warning, got %v", warnings)
+	}
+	if snippet == "" {
+		t.Error("the failed delivery carries the shell screen as its snippet, got empty")
+	}
+	if len(io.sends) != 0 {
+		t.Errorf("sends = %v, want NOTHING sent — neither pointer nor Enter", io.sends)
 	}
 }
 

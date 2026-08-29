@@ -161,11 +161,12 @@ the worker its prompt are two separate events with a decision between them, so t
 | Verb | Does | Reports |
 |------|------|---------|
 | `fab dispatch open <change> <stage>` | spawns the pane from the composed `interactive_command` **verbatim** and persists the stdin prompt to `{stage}-prompt.md`; delivers **nothing** | `opened <id>/<stage> (…)` |
-| `fab dispatch ready <change> <stage>` | mechanically probes whether the pane accepts typed input | `ready` \| `booting` \| `parked` (+ pane, socket, capture snippet) |
+| `fab dispatch ready <change> <stage>` | mechanically probes whether the pane accepts typed input — gated on **agent takeover**: a shell foreground classifies `booting` with nothing typed | `ready` \| `booting` \| `parked` (+ pane, socket, capture snippet) |
 | `fab dispatch deliver <change> <stage> [--prompt-file <p>]` | types the prompt pointer and verifies it landed | `delivered <id>/<stage> (…)` |
 
 **Implementation layering — primitives vs. bindings (260810-1lah).** The readiness classifier (the
-mechanical gate: typed sentinel, echo check, `C-u` clear), the wrap-tolerant echo-verify delivery
+mechanical gate: agent-takeover precondition, typed sentinel, echo check, `C-u` clear), the
+wrap-tolerant echo-verify delivery
 choreography, and the tmux pane mechanics live in `internal/pane` as **pane-addressed primitives**,
 exposed as `fab pane open` / `fab pane ready` / `fab pane deliver` for driving any pane by id with no
 dispatch record ([`_cli-fab.md`](../../src/kit/skills/_cli-fab.md) § fab pane). The three dispatch
@@ -271,16 +272,20 @@ Mechanics, all fixed by this spec:
   `interactive_command` at all. The boot race the old rationale avoided is now handled explicitly, by the
   readiness gate below and the retry above.
 - **The readiness gate stands between `open` and `deliver`, and it is MECHANICAL in the runtime and
-  JUDGMENT in the orchestrator.** `fab dispatch ready` classifies a pane **purely** by typing a sentinel
-  literally (never submitted, always cleared with `C-u`) and reading captures: the sentinel echoed ⇒
-  `ready`; no echo on a blank or still-changing screen ⇒ `booting`; no echo on a stable screen ⇒
-  `parked`. It MUST carry **no table of known dialogs** — dialog text is a version treadmill, and a
-  half-matched pattern pressing Enter into an unknown screen is worse than stalling — and it MUST answer
-  nothing itself. Every non-`ready` report MUST carry the pane, its socket, and a capture snippet,
-  because deciding what a parked screen wants belongs to the orchestrator. All three classifications are
-  a successful observation (the `wait`-timeout precedent); non-zero exit is reserved for real errors.
-  The gate's budget, escalation classes, and login-wall rule are skill-side policy in `_preamble.md`
-  § CLI-Adapter Dispatch, exactly as the recovery policy is.
+  JUDGMENT in the orchestrator.** `fab dispatch ready` first checks who owns the pane: while the
+  pane's foreground command (`#{pane_current_command}`) is still a shell, the provider binary has not
+  taken the tty, and a cooked-mode shell echoes typed characters by itself — so the gate MUST report
+  `booting` and MUST type NOTHING, because the sentinel would echo for a reason that has nothing to do
+  with an agent being ready. Only once a non-shell process owns the pane does it classify **purely** by
+  typing a sentinel literally (never submitted, always cleared with `C-u`) and reading captures: the
+  sentinel echoed ⇒ `ready`; no echo on a blank or still-changing screen ⇒ `booting`; no echo on a
+  stable screen ⇒ `parked`. It MUST carry **no table of known dialogs** — dialog text is a version
+  treadmill, and a half-matched pattern pressing Enter into an unknown screen is worse than stalling —
+  and it MUST answer nothing itself. Every non-`ready` report MUST carry the pane, its socket, and a
+  capture snippet, because deciding what a parked screen wants belongs to the orchestrator. All three
+  classifications are a successful observation (the `wait`-timeout precedent); non-zero exit is
+  reserved for real errors. The gate's budget, escalation classes, and login-wall rule are skill-side
+  policy in `_preamble.md` § CLI-Adapter Dispatch, exactly as the recovery policy is.
 - **The pane path has TWO prerequisites — a reachable tmux server and an `interactive_command` on the
   resolved provider.** `open` selects pane EXPLICITLY, so either missing prerequisite is a hard error
   with no launch or state write — never a silent descent to headless, which would be the opposite of what
