@@ -85,7 +85,7 @@ The `fab batch` subcommand group in `fab-go`. Source: `src/go/fab/cmd/fab/batch.
 `fab operator` is a `fab-go` parent command with subcommands. Source: `src/go/fab/cmd/fab/operator.go`. Default behavior (no subcommand): creates a singleton tmux window named "operator" running the resolved **operator-role** session command (composed from the operator provider's `interactive_command` + that role's profile via `internal/agent` + `internal/spawn`) (tykw) with `'/fab-operator'`. If the window already exists, switches to it. Requires an active tmux session (`$TMUX` check).
 
 Subcommands:
-- **`fab operator tick-start`** — start-of-tick atomic state update: increments `tick_count`, writes `last_tick_at` (RFC3339 UTC), outputs `tick: N\nnow: HH:MM`. Writes to a **server-keyed XDG state file** — `<stateDir>/fab/operator/<server-slug>.yaml`, NOT the old repo-rooted `.fab-operator.yaml` (see "Operator State File" below). Source: `src/go/fab/cmd/fab/operator_tick_start.go`.
+- **`fab operator tick-start`** — start-of-tick atomic state update: increments `tick_count`, writes `last_tick_at` (RFC3339 UTC), outputs `tick: N\nnow: HH:MM`. Writes to a **server-keyed XDG state file** — `<stateDir>/fab/operator/<server-slug>.yaml`, NOT the old repo-rooted `.fab-operator.yaml` (see "Operator State File" below). Source: `src/go/fab/cmd/fab/operator_tick_start.go`. With `--diff` it appends deltas/candidates/fleet blocks; `--diff --quiet` replaces `fleet:` with a five-count `fleet_summary:` on a no-delta tick whose tick count is not a multiple of the built-in 10 (full document on deltas and every 10th tick).
 
 #### Operator State File (server-keyed XDG)
 

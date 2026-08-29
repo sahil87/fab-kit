@@ -20,7 +20,7 @@ helpers: [_cli-agents, _cli-fab, _cli-external]
 - 8. Configuration
 - 9. Key Properties
 
-Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across all sessions on its tmux server (per tick via `fab operator tick-start --diff`, on demand via `fab pane map --all-sessions`), routes commands and answers via `rk mux send` when rk is installed (`command -v rk`-gated — plain for command routing, `--answer` for prompt answers, `--key` for key-name input), degrading to raw `tmux send-keys` behind its own §3 state gate when rk is absent — never an error — and monitors progress via `/loop`. Spans multiple repos and sessions on one server. The loop is the heart of the operator.
+Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across all sessions on its tmux server (per tick via `fab operator tick-start --diff --quiet`, on demand via `fab pane map --all-sessions`), routes commands and answers via `rk mux send` when rk is installed (`command -v rk`-gated — plain for command routing, `--answer` for prompt answers, `--key` for key-name input), degrading to raw `tmux send-keys` behind its own §3 state gate when rk is absent — never an error — and monitors progress via `/loop`. Spans multiple repos and sessions on one server. The loop is the heart of the operator.
 
 Start via `fab operator` (singleton tmux tab named `operator`). The launcher requires **neither a git repo nor a resolvable `fab/` project** — matching the per-server, cross-repo singleton model, whose natural launch point is a neutral parent directory (e.g. `~/code`). Its exact degraded behavior (window cwd, session command, `operator`-role model resolution and built-in defaults) is documented in `_cli-fab.md` § fab operator and is the canonical §9 Key Properties rows below.
 
@@ -263,12 +263,12 @@ Notes are the operator's owned surface for cross-cutting narrative state — the
 
 On each tick:
 
-1. **Snapshot** — run `fab operator tick-start --diff`: one command increments `tick_count`, writes `last_tick_at`, snapshots the fleet internally, diffs it against the monitored baseline, and writes the baseline back in the same atomic mutation (full contract in `_cli-fab.md` § fab operator tick-start). Stdout is one document: the `tick: N` / `now: HH:MM` header lines, then three YAML blocks — `deltas:` (events), `candidates:` (the step-2 sweep population), and `fleet:` (one row per monitored entry, pre-ordered repo → session → enrollment — **the status frame's data source**). Act on `deltas:` **before any answers** (a completion removes the entry and skips its answer). Each delta is one of:
+1. **Snapshot** — run `fab operator tick-start --diff --quiet`: one command increments `tick_count`, writes `last_tick_at`, snapshots the fleet internally, diffs it against the monitored baseline, and writes the baseline back in the same atomic mutation (full contract in `_cli-fab.md` § fab operator tick-start). Drop `--quiet` only when the user asks for status ("status", "any updates?", "show the fleet") — the binary's built-in every-10th-tick full document is the periodic full refresh, so no skill-side counter is kept. Stdout is one document: the `tick: N` / `now: HH:MM` header lines, then three YAML blocks — `deltas:` (events), `candidates:` (the step-2 sweep population, always emitted), and the frame block: `fleet:` (one row per monitored entry, pre-ordered repo → session → enrollment — **the status frame's data source**) or, on a quiet tick (no deltas, tick count not a multiple of 10), `fleet_summary:` (five counts — tracked/waiting/idle/active/unknown) **in place of** `fleet:`. The skill branches its frame on which key is present — see **Status Frame Format** below. Act on `deltas:` **before any answers** (a completion removes the entry and skips its answer). Each delta is one of:
    - `completion` (`review-pr` done/skipped, or at/past the entry's `stop_stage`) — report, then remove via step 5;
    - `pane_death` (the entry's pane is absent) — report, then remove via step 5;
    - `pane_mismatch` (tmux recycled the `%N` pane ID — a different change, or none, now occupies it; the delta carries `found`) — report + remove via step 5; a mismatched pane is never diffed and never a candidate;
    - `stage_advance {from, to}` / `review_fail {from: review, to: apply}` — report in the frame.
-   `completion`, `pane_death`, and `pane_mismatch` are **level-triggered**: they re-emit on every tick until acted on — `fab operator remove` is the ack, so a crash between diff and action loses nothing. `stage_advance` and `review_fail` are **consumed-on-read** (baseline-diffed); a lost one costs a missed report only. Output the status frame from the `fleet:` block — see **Status Frame Format** below. **Version-skew fallback**: if `tick-start --diff` or `fab pane questions` errors as an unknown flag/command (new skill, older installed binary), fall back to the flagless tick for the session — `fab operator tick-start` + `fab pane map --all-sessions --json` + per-pane manual capture-and-scan + step-6 `update` bookkeeping — and report the mismatch once.
+   `completion`, `pane_death`, and `pane_mismatch` are **level-triggered**: they re-emit on every tick until acted on — `fab operator remove` is the ack, so a crash between diff and action loses nothing. `stage_advance` and `review_fail` are **consumed-on-read** (baseline-diffed); a lost one costs a missed report only. Output the status frame from the frame block — see **Status Frame Format** below. **Version-skew fallback** (two rungs, softest first): if `--quiet` errors as an unknown flag (older binary), drop `--quiet` for the session (keep `--diff`) and report the mismatch once; if `tick-start --diff` or `fab pane questions` errors as an unknown flag/command (new skill, older installed binary), fall back to the flagless tick for the session — `fab operator tick-start` + `fab pane map --all-sessions --json` + per-pane manual capture-and-scan + step-6 `update` bookkeeping — and report the mismatch once.
 
 2. **Auto-nudge** — the per-tick sweep population is the tick's `candidates:` block (waiting-first, then idle — the binary computes it to match §5's policy exactly). Run each candidate through question detection (§5 — `waiting` is the primary signal). (No post-intake `/git-branch` nudge — `/fab-new` Step 11 creates or renames the branch inline; only a detected branch/change mismatch warrants a `/git-branch` send, per §3 pre-send validation item 4.)
 3. **Watches** — read `fab operator state` here (the watch pass's own state read — `known` / `completed` / `last_checked` / `last_error`), then for each watch, query the source, compare against `known` + `completed` (§7 step 2's dedupe rule), spawn on new matches (§7).
@@ -289,7 +289,18 @@ When the action log is long, the operator MAY split it across several italic lin
 
 The frame is emitted as an assistant message that the agent harness renders as GitHub-flavored markdown in the terminal. **Render rule** (the binding constraint on every styling choice below): emit **bare markdown** — no code fence, no headings, no ANSI escapes (none of these survive the render path); the channels that DO render are **tables**, **emoji** (the only color channel), **bold** (`**…**`), *italic*, `code spans`, and plain URLs. The frame uses exactly these.
 
-The frame is: a **header line**, one **repo section** per repo (an anchor line + a change table), then a **Watches** section (anchor line + table). **Data source**: the change tables render from the tick's `fleet:` block (already ordered repo → session → enrollment — no per-tick `fab pane map` or `fab operator state` call feeds the frame); the Watches table is fed by the watch pass (tick step 3).
+The frame has **two shapes**, chosen by which key the tick document carries (tick step 1):
+
+- **Full frame** (`fleet:` present — a delta tick, every 10th tick, or a user status request run without `--quiet`): a **header line**, one **repo section** per repo (an anchor line + a change table), then a **Watches** section (anchor line + table). **Data source**: the change tables render from the tick's `fleet:` block (already ordered repo → session → enrollment — no per-tick `fab pane map` or `fab operator state` call feeds the frame); the Watches table is fed by the watch pass (tick step 3).
+- **Compact frame** (`fleet_summary:` present — a quiet tick: no deltas, not a 10th tick): exactly **ONE line** — no anchors, no repo tables:
+
+  ```
+  🛰️ **Operator** · {HH:MM} · tick #{N} · **{tracked} tracked** · no change
+  ```
+
+  Append ` · {waiting} waiting` only when `waiting > 0` (e.g. `… · **8 tracked** · no change · 1 waiting`). `{tracked}` keeps the full header's definition (changes + watches): changes = `fleet_summary.tracked`, watches = the count from step 3's `fab operator state` read. The **Watches table** renders on a compact tick ONLY if the watch pass (step 3) produced news this tick — new items, a `last_error`, or an auto-disable; otherwise it is omitted.
+
+On either shape, the *italic* action-footnote line still renders whenever an action happened (nudge / answer / removal / autopilot).
 
 > **Runtime no-fence rule (agent-critical)**: do NOT wrap the frame in a ` ``` ` code fence. The fenced block below is for *documentation* (so this skill file shows the literal source). At runtime the operator must emit the header, anchors, and tables directly into its message body — a fenced frame renders as literal text (the tables would not lay out and the emoji/bold would not style).
 
@@ -325,6 +336,7 @@ Example (this is the literal markdown the operator emits, shown fenced here only
 | Element | Format | Notes |
 |---------|--------|-------|
 | Header | `🛰️ **Operator** · {HH:MM} · tick #{N} · **{N} tracked**` | Total includes changes + watches; no per-type/repo count |
+| Compact frame | `🛰️ **Operator** · {HH:MM} · tick #{N} · **{N} tracked** · no change[ · {W} waiting]` | Rendered from `fleet_summary:`; replaces header+tables on a quiet tick |
 | Repo anchor | `📂 **{repo-path}** · {session}` | One per repo; omit `session:` label. Null roots render `📂 **(unresolved repo)**` |
 | Change table | Headerless centered `▶`, `ID`, `Health`, `Stage`, `PR` | ID is a code span; Stage may trail `⚠️`; PR is the full `pr_url`, never markdown display text |
 | Watches table | `Watch`, `Target`, `Health`, `Status` | Watch name is a code span; Target is `target_repo`; Status is counts + relative time |
@@ -353,6 +365,8 @@ Waiting for next tick. Time: 08:26 · next tick: 08:29
 ```
 
 Run `fab operator time --interval {interval}` (where `{interval}` is the **currently active** loop interval — `3m` normally, `90s` when the cadence is tightened per §4 Adaptive cadence) to get the `now:` and `next:` values to fill in the message. A tightened cadence therefore shows the nearer next-tick time. This lets the user gauge staleness at a glance without scrolling to the last tick frame.
+
+The idle message is the **only other per-tick output** besides the frame (and the action footnote when an action happened): nothing else — no restating the tick document, no echoing `candidates:`, no per-candidate "no question detected" lines.
 
 ---
 
@@ -814,6 +828,6 @@ These settings are session-scoped and reset on `/clear` or session restart; they
 | Requires a git repo? | No — `fab operator` opens its window in the repo root inside a repo, else `os.Getwd()` (neutral parent dir). Errors only if both fail |
 | Requires a `fab/` project? | No — session command comes from the project's `providers.claude.interactive_command` when `fab/` is resolvable, else `spawn.DefaultSpawnCommand` (the template `claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`). No project `providers`/`agent:` block is read on a `fab/`-less launch |
 | Coordinating-agent model | Operator role — `fab operator` resolves the `operator` role (`agent.ResolveRole`; a Tier-1 role, so the `agent.session` knob picks its provider), reads that provider's `interactive_command`, injects the profile via `spawn.WithProfile` (**substitutes** into a `{model}`/`{effort}` template — the built-in claude default is templated — or **appends** `--model`/`--effort` to a plain command carrying no placeholder); falls back to the built-in operator profile + built-in claude provider on any failure (incl. no resolvable `fab/` project) |
-| Uses `/loop`? | Yes — adaptive heartbeat: `3m` normally, tightens to `90s` (§8) when any monitored agent is `waiting` (`@rk_pane_agent_state`) or menu-waiting (capture fallback), relaxes back to `3m`; one loop at a time; runs while any tracked state remains — monitored set, autopilot queue, watches, or an in-progress merge sequence (§4) |
+| Uses `/loop`? | Yes — adaptive heartbeat: `3m` normally, tightens to `90s` (§8) when any monitored agent is `waiting` (`@rk_pane_agent_state`) or menu-waiting (capture fallback), relaxes back to `3m`; one loop at a time; runs while any tracked state remains — monitored set, autopilot queue, watches, or an in-progress merge sequence (§4); quiet ticks render the one-line compact frame (§4 Status Frame Format) |
 | Uses the operator state file? | Yes — monitored set + autopilot queue + branch map + notes persistence in the server-keyed path (§2 Init step 1); reads via `fab operator state`, every mutation through a `fab operator` verb — never a hand-write (§4 doctrine) |
 | Multi-repo / multi-session? | Yes — one operator per tmux server spans all its sessions and repos via the `(session, repo, pane)` addressing tuple |

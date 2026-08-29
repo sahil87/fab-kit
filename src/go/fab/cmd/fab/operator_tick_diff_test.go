@@ -15,8 +15,15 @@ import (
 // tick_count and an unknown top-level key) and redirects state I/O to it.
 func seedDiffState(t *testing.T, entries map[string]monitoredEntry) string {
 	t.Helper()
+	return seedDiffStateAt(t, entries, 5)
+}
+
+// seedDiffStateAt is seedDiffState with an explicit starting tick_count (the
+// every-10th-tick cases seed 9/19/10).
+func seedDiffStateAt(t *testing.T, entries map[string]monitoredEntry, tickCount int) string {
+	t.Helper()
 	data := map[string]interface{}{
-		"tick_count": 5,
+		"tick_count": tickCount,
 		"monitored":  entries,
 		"custom_key": "preserve-me",
 	}
@@ -73,25 +80,38 @@ func stubSnapshot(t *testing.T, rows []paneRow) *bool {
 // runTickDiff executes `tick-start --diff` and returns its stdout document.
 func runTickDiff(t *testing.T) string {
 	t.Helper()
+	out, err := runTickDiffArgs(t, "--diff")
+	if err != nil {
+		t.Fatalf("tick-start --diff: %v", err)
+	}
+	return out
+}
+
+// runTickDiffArgs executes tick-start with the given args and returns stdout;
+// the command's error is returned (not fatal) so invalid-flag cases are
+// assertable.
+func runTickDiffArgs(t *testing.T, args ...string) (string, error) {
+	t.Helper()
 	cmd := operatorTickStartCmd()
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&bytes.Buffer{})
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"--diff"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("tick-start --diff: %v", err)
-	}
-	return stdout.String()
+	cmd.SetArgs(args)
+	err := cmd.Execute()
+	return stdout.String(), err
 }
 
 // tickDiffDoc is the parsed --diff stdout (after the tick:/now: header).
 // Deltas stay generic maps so key PRESENCE (e.g. `found: null`) is assertable.
+// FleetSummary is nil unless the quiet path emitted the block — key presence
+// is the contract, asserted on raw stdout, not on parsed emptiness.
 type tickDiffDoc struct {
-	Deltas     []map[string]interface{} `yaml:"deltas"`
-	Candidates []tickCandidate          `yaml:"candidates"`
-	Fleet      []tickFleetRow           `yaml:"fleet"`
+	Deltas       []map[string]interface{} `yaml:"deltas"`
+	Candidates   []tickCandidate          `yaml:"candidates"`
+	Fleet        []tickFleetRow           `yaml:"fleet"`
+	FleetSummary *tickFleetSummary        `yaml:"fleet_summary"`
 }
 
 // parseTickDiff splits the tick:/now: header from the YAML blocks and parses
@@ -451,6 +471,213 @@ func TestOperatorTickDiff_Fleet(t *testing.T) {
 	if f4.DisplayState != nil || f4.AgentState != nil || f4.IdleDuration != nil || f4.PRURL != nil {
 		t.Errorf("f004 fallback observed fields = %v/%v/%v/%v, want all null", f4.DisplayState, f4.AgentState, f4.IdleDuration, f4.PRURL)
 	}
+}
+
+// --- quiet tick (--diff --quiet) -----------------------------------------------
+
+// assertDocKeys asserts the fleet/fleet_summary key presence contract on raw
+// stdout (the contract is "the key is absent", not "the key is empty").
+func assertDocKeys(t *testing.T, out string, wantSummary bool) {
+	t.Helper()
+	hasSummary := strings.Contains(out, "fleet_summary:")
+	hasFleet := strings.Contains(out, "fleet:")
+	if wantSummary && (!hasSummary || hasFleet) {
+		t.Errorf("want fleet_summary present, fleet absent:\n%s", out)
+	}
+	if !wantSummary && (!hasFleet || hasSummary) {
+		t.Errorf("want fleet present, fleet_summary absent:\n%s", out)
+	}
+}
+
+func TestOperatorTickDiff_QuietNoDeltasEmitsSummary(t *testing.T) {
+	entries := map[string]monitoredEntry{
+		"w001": diffEntry("%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		"a002": diffEntry("%2", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+	}
+	seedDiffState(t, entries) // tick 5 → 6: not a multiple of 10
+	stubSnapshot(t, []paneRow{
+		snapRow("%1", "w001", "apply", "active", "waiting", ""),
+		snapRow("%2", "a002", "apply", "active", "active", ""),
+	})
+
+	out, err := runTickDiffArgs(t, "--diff", "--quiet")
+	if err != nil {
+		t.Fatalf("tick-start --diff --quiet: %v", err)
+	}
+	assertDocKeys(t, out, true)
+	for _, block := range []string{"deltas: []", "candidates:"} {
+		if !strings.Contains(out, block) {
+			t.Errorf("stdout missing %q (candidates are always emitted):\n%s", block, out)
+		}
+	}
+	// Block order is pinned: deltas, candidates, then fleet_summary.
+	di, ci, fi := strings.Index(out, "deltas:"), strings.Index(out, "candidates:"), strings.Index(out, "fleet_summary:")
+	if !(di >= 0 && di < ci && ci < fi) {
+		t.Errorf("block order wrong (want deltas < candidates < fleet_summary):\n%s", out)
+	}
+
+	doc := parseTickDiff(t, out)
+	if len(doc.Deltas) != 0 {
+		t.Errorf("deltas = %v, want none", doc.Deltas)
+	}
+	if doc.FleetSummary == nil {
+		t.Fatalf("parsed doc missing fleet_summary:\n%s", out)
+	}
+	want := tickFleetSummary{Tracked: 2, Waiting: 1, Idle: 0, Active: 1, Unknown: 0}
+	if *doc.FleetSummary != want {
+		t.Errorf("fleet_summary = %+v, want %+v", *doc.FleetSummary, want)
+	}
+}
+
+func TestOperatorTickDiff_QuietWithDeltaEmitsFullFleet(t *testing.T) {
+	entries := map[string]monitoredEntry{
+		"a005": diffEntry("%5", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+	}
+	seedDiffState(t, entries)
+	stubSnapshot(t, []paneRow{snapRow("%5", "a005", "review", "active", "active", "")})
+
+	out, err := runTickDiffArgs(t, "--diff", "--quiet")
+	if err != nil {
+		t.Fatalf("tick-start --diff --quiet: %v", err)
+	}
+	// A delta (any kind) forces the full document.
+	assertDocKeys(t, out, false)
+	if doc := parseTickDiff(t, out); findDelta(doc, "stage_advance", "a005") == nil {
+		t.Errorf("stage_advance delta missing: %v", doc.Deltas)
+	}
+}
+
+func TestOperatorTickDiff_QuietEveryTenthTickEmitsFullFleet(t *testing.T) {
+	seed := func(t *testing.T, tickCount int) {
+		t.Helper()
+		seedDiffStateAt(t, map[string]monitoredEntry{
+			"w001": diffEntry("%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		}, tickCount)
+		stubSnapshot(t, []paneRow{snapRow("%1", "w001", "apply", "active", "waiting", "")})
+	}
+	for _, tc := range []struct {
+		name        string
+		seedCount   int
+		wantSummary bool
+	}{
+		{"9 to 10 is full", 9, false},
+		{"19 to 20 is full", 19, false},
+		{"10 to 11 is quiet", 10, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			seed(t, tc.seedCount)
+			out, err := runTickDiffArgs(t, "--diff", "--quiet")
+			if err != nil {
+				t.Fatalf("tick-start --diff --quiet: %v", err)
+			}
+			assertDocKeys(t, out, tc.wantSummary)
+		})
+	}
+}
+
+func TestOperatorTickStart_QuietRequiresDiff(t *testing.T) {
+	path := seedDiffState(t, map[string]monitoredEntry{
+		"a005": diffEntry("%5", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+	})
+
+	out, err := runTickDiffArgs(t, "--quiet")
+	if err == nil {
+		t.Fatalf("--quiet without --diff succeeded, stdout = %q", out)
+	}
+	if !strings.Contains(err.Error(), "--quiet requires --diff") {
+		t.Errorf("error = %v, want '--quiet requires --diff'", err)
+	}
+	// The guard fires before any state I/O — the invalid invocation consumes
+	// no tick.
+	if state := readStateFile(t, path); state["tick_count"] != 5 {
+		t.Errorf("tick_count = %v, want 5 (invalid flag combo must not tick)", state["tick_count"])
+	}
+}
+
+func TestOperatorTickDiff_QuietSummaryCounts(t *testing.T) {
+	entries := map[string]monitoredEntry{
+		"w001": diffEntry("%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		"w002": diffEntry("%2", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		"i003": diffEntry("%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		"a004": diffEntry("%4", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		"a005": diffEntry("%5", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		"u006": diffEntry("%6", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+	}
+	seedDiffState(t, entries)
+	stubSnapshot(t, []paneRow{
+		snapRow("%1", "w001", "apply", "active", "waiting", ""),
+		snapRow("%2", "w002", "apply", "active", "waiting", ""),
+		snapRow("%3", "i003", "apply", "active", "idle", "8m"),
+		snapRow("%4", "a004", "apply", "active", "active", ""),
+		snapRow("%5", "a005", "apply", "active", "active", ""),
+		snapRow("%6", "u006", "apply", "active", "", ""), // null agent_state → unknown
+	})
+
+	out, err := runTickDiffArgs(t, "--diff", "--quiet")
+	if err != nil {
+		t.Fatalf("tick-start --diff --quiet: %v", err)
+	}
+	assertDocKeys(t, out, true)
+	// The five keys are pinned in order: tracked, waiting, idle, active, unknown.
+	last := -1
+	for _, k := range []string{"tracked:", "waiting:", "idle:", "active:", "unknown:"} {
+		i := strings.Index(out, k)
+		if i <= last {
+			t.Errorf("fleet_summary key %q missing or out of pinned order:\n%s", k, out)
+		}
+		last = i
+	}
+
+	doc := parseTickDiff(t, out)
+	want := tickFleetSummary{Tracked: 6, Waiting: 2, Idle: 1, Active: 2, Unknown: 1}
+	if doc.FleetSummary == nil || *doc.FleetSummary != want {
+		t.Fatalf("fleet_summary = %v, want %+v", doc.FleetSummary, want)
+	}
+	s := *doc.FleetSummary
+	if s.Tracked != s.Waiting+s.Idle+s.Active+s.Unknown {
+		t.Errorf("tracked != waiting+idle+active+unknown: %+v", s)
+	}
+}
+
+func TestOperatorTickDiff_QuietEmptyMonitored(t *testing.T) {
+	t.Run("non-10th tick emits all-zero summary", func(t *testing.T) {
+		path := withOperatorState(t, "tick_count: 5\nmonitored: {}\ncustom_key: preserve-me\n")
+		called := stubSnapshot(t, nil)
+
+		out, err := runTickDiffArgs(t, "--diff", "--quiet")
+		if err != nil {
+			t.Fatalf("tick-start --diff --quiet: %v", err)
+		}
+		if *called {
+			t.Error("snapshot fn invoked on empty monitored set — must be skipped")
+		}
+		assertDocKeys(t, out, true)
+		for _, block := range []string{"deltas: []", "candidates: []", "tracked: 0", "waiting: 0", "idle: 0", "active: 0", "unknown: 0"} {
+			if !strings.Contains(out, block) {
+				t.Errorf("stdout missing %q:\n%s", block, out)
+			}
+		}
+		if state := readStateFile(t, path); state["tick_count"] != 6 {
+			t.Errorf("tick_count = %v, want 6 (no-op tick still increments)", state["tick_count"])
+		}
+	})
+
+	t.Run("10th tick emits fleet: []", func(t *testing.T) {
+		withOperatorState(t, "tick_count: 9\nmonitored: {}\ncustom_key: preserve-me\n")
+		called := stubSnapshot(t, nil)
+
+		out, err := runTickDiffArgs(t, "--diff", "--quiet")
+		if err != nil {
+			t.Fatalf("tick-start --diff --quiet: %v", err)
+		}
+		if *called {
+			t.Error("snapshot fn invoked on empty monitored set — must be skipped")
+		}
+		assertDocKeys(t, out, false)
+		if !strings.Contains(out, "fleet: []") {
+			t.Errorf("10th tick missing fleet: []:\n%s", out)
+		}
+	})
 }
 
 // --- no-op tick + flagless parity ----------------------------------------------
