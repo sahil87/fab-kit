@@ -140,7 +140,7 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single("/fab-new "+content))
 		shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
 		// Interactive spawn: the shell fallback keeps the pane (and its cwd)
-		// alive as the user's login shell after the agent exits.
+		// alive as the user's interactive shell after the agent exits.
 		shellCmd = spawn.WithShellFallback(shellCmd)
 		if _, stderr, err := pane.RunCmd("tmux", "new-window", "-n", "fab-"+id, "-c", wtPath, shellCmd); err != nil {
 			fmt.Fprintf(errW, "  [%s] FAILED: tmux new-window: %v (worktree already created at %s)\n",

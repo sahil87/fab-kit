@@ -8,7 +8,7 @@
 ### Runtime: Interactive spawn grammar
 
 #### R1: Interactive spawns carry a shell fallback
-Every **interactive** agent spawn fab performs — the operator launcher tab (`fab operator`), `fab batch new`, and `fab batch switch` — MUST pass `tmux new-window` a shell command of the form `<composed-cmd> '<prompt>'; exec "$SHELL"`, so the agent runs as the wrapper shell's foreground child and the pane survives the agent's exit as the user's login shell in the same cwd.
+Every **interactive** agent spawn fab performs — the operator launcher tab (`fab operator`), `fab batch new`, and `fab batch switch` — MUST pass `tmux new-window` a shell command of the form `<composed-cmd> '<prompt>'; exec "$SHELL"`, so the agent runs as the wrapper shell's foreground child and the pane survives the agent's exit as the user's interactive (non-login) shell in the same cwd.
 
 - **GIVEN** `fab operator` is run inside tmux with no existing `operator` window
 - **WHEN** the new window is created
@@ -123,7 +123,7 @@ Evaluation order per entry MUST be `pane_death` (absent) → `pane_mismatch` (di
 ### Design Decisions
 
 #### Shell fallback via `; exec "$SHELL"` wrapper, not shell-then-send-keys
-**Decision**: Append `; exec "$SHELL"` to the single-shot interactive spawn command so the agent runs as the wrapper shell's foreground child and the user's login shell takes the pane over on exit.
+**Decision**: Append `; exec "$SHELL"` to the single-shot interactive spawn command so the agent runs as the wrapper shell's foreground child and the user's interactive (non-login) shell takes the pane over on exit.
 **Why**: Keeps the spawn atomic (no shell-prompt readiness race, no send-keys into a shell, no alias/quoting detour), preserves every existing readiness/deliver contract (`#{pane_current_command}` still reports the agent while it runs), and is a one-token grammar change per site.
 **Rejected**: Open a bare shell then `send-keys` the agent command — introduces a readiness race and a two-step choreography on every spawn. `remain-on-exit` — leaves a dead pane, not a terminal.
 *Introduced by*: 260829-1xqx-agent-exit-shell-fallback
