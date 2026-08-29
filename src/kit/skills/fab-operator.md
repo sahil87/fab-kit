@@ -164,9 +164,11 @@ The loop is the operator's heartbeat — a `/loop` whose prompt is the bare `ope
 The exact invocations — **copy one of these, never compose your own**:
 
 ```
-/loop 3m "operator tick"      # normal cadence
-/loop 90s "operator tick"     # tightened cadence (Adaptive cadence above, §8)
+/loop 3m "operator tick"
+/loop 90s "operator tick"
 ```
+
+The first is the normal cadence; the second is the tightened cadence (Adaptive cadence above, §8). The lines are comment-free on purpose — anything after the closing quote would ride into the slash command.
 
 The loop prompt **MUST be the bare text `operator tick`**. It **MUST NOT** be `/fab-operator` or any other slash command. Reason: a slash command macro-expands its full source into the turn on **every** firing — this file alone is ~21k tokens, so a `/fab-operator` loop prompt re-pays the whole skill each tick (~400k tokens/hour at `3m`) and exhausts the context window in roughly ten ticks. The tick procedure (§4 Tick Behavior) is already in context; the prompt only needs to *name* it.
 

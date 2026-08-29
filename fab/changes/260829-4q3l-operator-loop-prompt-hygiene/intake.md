@@ -38,9 +38,11 @@ All edits land in `src/kit/skills/` canonical sources (Constitution V; `code-qua
 1. A literal block of the exact invocations the agent copies — never composes:
 
    ```
-   /loop 3m "operator tick"      # normal cadence
-   /loop 90s "operator tick"     # tightened cadence (§4 Adaptive cadence, §8)
+   /loop 3m "operator tick"
+   /loop 90s "operator tick"
    ```
+
+   (normal and tightened cadence respectively — the lines stay comment-free so a verbatim copy carries nothing extra into the slash command)
 
 2. An explicit prohibition, in RFC-2119 form, with its one-line reason:
 
