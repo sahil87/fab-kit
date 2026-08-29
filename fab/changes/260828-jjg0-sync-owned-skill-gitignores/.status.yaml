@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 8
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-08-29T01:07:17Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-29T01:10:40Z"}
     hydrate: {started_at: "2026-08-29T01:10:40Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-29T01:12:53Z"}
     ship: {started_at: "2026-08-29T01:12:53Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-29T01:15:26Z"}
-    review-pr: {started_at: "2026-08-29T01:15:26Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-08-29T01:15:26Z", driver: git-pr, iterations: 1, completed_at: "2026-08-29T01:22:15Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/624
 true_impact:
@@ -53,4 +53,4 @@ true_impact:
     computed_at_stage: ship
 summary: 'fab sync drops the blanket agent-directory ignores: the scaffold fragment ships only non-directory lines (+/.claude/settings.local.json), each fired deploy target gets a whole-file-owned generated .gitignore manifest of what fab deployed, and cleanStaleSkills prunes only (previous manifest − current kit); migration 2.22.0-to-2.23.0 strips the historical tokens and regenerates manifests (VERSION 2.23.0)'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-29T01:15:26Z
+last_updated: 2026-08-29T01:22:15Z
