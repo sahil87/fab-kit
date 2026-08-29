@@ -200,6 +200,40 @@ func TestCleanStaleSkills_NoManifestKitOnlyDirPrintsNothing(t *testing.T) {
 	}
 }
 
+// TestCleanStaleSkills_NoManifestCrossShapeEntryPrintsNote: a non-kit entry of
+// the wrong shape for the target (a directory in a flat target, a file in a
+// directory target) still means the directory isn't kit-only — the note must
+// print for it too.
+func TestCleanStaleSkills_NoManifestCrossShapeEntryPrintsNote(t *testing.T) {
+	t.Run("stray directory in flat target", func(t *testing.T) {
+		baseDir := t.TempDir()
+		repoRoot := filepath.Dir(baseDir)
+		os.WriteFile(filepath.Join(baseDir, "fab-new.md"), []byte("# New\n"), 0644)
+		os.MkdirAll(filepath.Join(baseDir, "scratch"), 0755)
+
+		out := captureStdout(t, func() {
+			cleanStaleSkills(baseDir, "flat", nil, []string{"fab-new"}, false, repoRoot)
+		})
+		if !strings.Contains(out, "no fab manifest") {
+			t.Errorf("stray directory in a flat target must trigger the note, got:\n%s", out)
+		}
+	})
+
+	t.Run("stray file in directory target", func(t *testing.T) {
+		baseDir := t.TempDir()
+		repoRoot := filepath.Dir(baseDir)
+		os.MkdirAll(filepath.Join(baseDir, "fab-new"), 0755)
+		os.WriteFile(filepath.Join(baseDir, "notes.txt"), []byte("mine\n"), 0644)
+
+		out := captureStdout(t, func() {
+			cleanStaleSkills(baseDir, "directory", nil, []string{"fab-new"}, false, repoRoot)
+		})
+		if !strings.Contains(out, "no fab manifest") {
+			t.Errorf("stray file in a directory target must trigger the note, got:\n%s", out)
+		}
+	})
+}
+
 // TestWriteReadSkillManifest_RoundTrip: the manifest is byte-stable, anchored
 // per format, self-ignoring, and parses back to exactly the deployed set.
 func TestWriteReadSkillManifest_RoundTrip(t *testing.T) {
@@ -257,7 +291,7 @@ func TestWriteReadSkillManifest_RoundTrip(t *testing.T) {
 // not fatal; a missing manifest reports had=false.
 func TestReadSkillManifest_CorruptLinesSkipped(t *testing.T) {
 	baseDir := t.TempDir()
-	content := "# comment\n/.gitignore\n/fab-new/\nno-anchor\n/\n\n/\n"
+	content := manifestHeaderSkills + "# comment\n/.gitignore\n/fab-new/\nno-anchor\n/\n\n/\n"
 	os.WriteFile(filepath.Join(baseDir, ".gitignore"), []byte(content), 0644)
 
 	owned, had := readSkillManifest(baseDir, "directory")
@@ -271,6 +305,26 @@ func TestReadSkillManifest_CorruptLinesSkipped(t *testing.T) {
 	_, had = readSkillManifest(filepath.Join(t.TempDir(), "nope"), "directory")
 	if had {
 		t.Error("missing manifest must report had=false")
+	}
+}
+
+// TestReadSkillManifest_UserGitignoreNotManifest: a .gitignore without the
+// generated header is the user's own file, not fab's ownership record —
+// it must report had=false so its entries never scope pruning.
+func TestReadSkillManifest_UserGitignoreNotManifest(t *testing.T) {
+	for _, format := range []string{"directory", "flat"} {
+		t.Run(format, func(t *testing.T) {
+			baseDir := t.TempDir()
+			os.WriteFile(filepath.Join(baseDir, ".gitignore"), []byte("/my-stuff/\n*.log\n"), 0644)
+
+			owned, had := readSkillManifest(baseDir, format)
+			if had {
+				t.Error("a .gitignore without the generated header is not fab's manifest — had must be false")
+			}
+			if len(owned) != 0 {
+				t.Errorf("user entries must not parse as owned skills, owned = %v", owned)
+			}
+		})
 	}
 }
 

@@ -309,10 +309,20 @@ func parseManifestEntry(format, line string) (string, bool) {
 // readSkillManifest reads a target's generated manifest back into the set of
 // skill names fab previously deployed there. The second return reports whether
 // a manifest existed at all — its absence means fab has no ownership record
-// for the directory and must prune nothing.
+// for the directory and must prune nothing. A .gitignore counts as fab's
+// manifest only when it carries the generated header for the target's format;
+// a user's own pre-existing .gitignore is not an ownership record — treating
+// it as one would scope pruning to the user's entries and delete their content.
 func readSkillManifest(baseDir, format string) (map[string]bool, bool) {
 	data, err := os.ReadFile(manifestPath(baseDir))
 	if err != nil {
+		return nil, false
+	}
+	header := manifestHeaderCmds
+	if format == "directory" {
+		header = manifestHeaderSkills
+	}
+	if !strings.HasPrefix(string(data), header) {
 		return nil, false
 	}
 	owned := make(map[string]bool)
@@ -368,21 +378,23 @@ func cleanStaleSkills(baseDir, format string, prev map[string]bool, skills []str
 	if !hadManifest {
 		// No ownership record — pruning here would guess, and guessing wrong
 		// deletes user skills. Warn once when there is anything worth warning
-		// about (a non-kit entry); a fresh, kit-only directory prints nothing.
+		// about: any entry that isn't a kit skill in this target's format
+		// (a stray directory in a flat target, a stray file in a directory
+		// target). A fresh, kit-only directory prints nothing.
 		for _, e := range entries {
 			if e.Name() == manifestFileName {
 				continue
 			}
 			name := e.Name()
+			kitEntry := false
 			if format == "flat" {
-				if e.IsDir() || !strings.HasSuffix(name, ".md") {
-					continue
+				if !e.IsDir() && strings.HasSuffix(name, ".md") {
+					kitEntry = skillSet[strings.TrimSuffix(name, ".md")]
 				}
-				name = strings.TrimSuffix(name, ".md")
-			} else if !e.IsDir() {
-				continue
+			} else if e.IsDir() {
+				kitEntry = skillSet[name]
 			}
-			if !skillSet[name] {
+			if !kitEntry {
 				rel, _ := filepath.Rel(repoRoot, baseDir)
 				fmt.Printf(noManifestNoteFormat, rel)
 				return
