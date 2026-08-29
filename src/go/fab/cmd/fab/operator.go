@@ -103,6 +103,10 @@ func runOperator(cmd *cobra.Command, args []string) error {
 	shellCmd := fmt.Sprintf("%s '/fab-operator'", spawnCmd)
 	workers, workersSet := workersOverride(cmd)
 	shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
+	// Interactive spawn: the shell fallback keeps the pane (and its cwd) alive
+	// as the user's login shell after the operator agent exits. Applied AFTER
+	// withWorkersEnv so the env prefix still scopes the agent command only.
+	shellCmd = spawn.WithShellFallback(shellCmd)
 	if _, stderr, err := pane.RunCmd("tmux", "new-window", "-c", windowDir, "-n", tabName, shellCmd); err != nil {
 		return pane.StderrError(fmt.Errorf("tmux new-window failed: %w", err), stderr)
 	}

@@ -227,7 +227,7 @@ Both mechanical senders SHALL refuse when the record is headless (naming `fab di
 | 2 | `--server <name>` supplied | **new window** | `tmux -L <name> new-window -n fab-{id}-{stage} -P -F '#{pane_id}' -c <repo-root> "<resolved-cmd>"` | the tmux **window name** |
 | 3 | `$TMUX_PANE` empty | **new window** | `tmux new-window -n fab-{id}-{stage} -P -F '#{pane_id}' -c <repo-root> "<resolved-cmd>"` | the tmux **window name** |
 
-The shell-command argument is the resolved `interactive_command` **alone** in all three shapes — nothing is appended to it (§ Prompt delivery is post-spawn, verified, and send-keys-only).
+The shell-command argument is the resolved `interactive_command` **alone** in all three shapes — nothing is appended to it (§ Prompt delivery is post-spawn, verified, and send-keys-only). Dispatch pane workers deliberately do **not** carry the interactive spawn's `; exec "$SHELL"` shell fallback (see [agent-primitives.md](/runtime/agent-primitives.md) § Spawn composition): the pane mode's `running`/`done`/`orphaned` subset and `dispatch.reap_done` treat pane death as the worker's terminal event, so a surviving fallback shell would read as a live worker.
 
 This realizes the **two-tier tmux hierarchy**: an **operator** opens worktree agents as tmux **windows** (that path is untouched), and each **worktree agent**'s stage workers appear as **panes beside it** — so a stage worker does not consume a window in the operator's (and run-kit's) window list. `--server` may name a socket other than the one the caller's pane lives on, where the caller's `$TMUX_PANE` id is meaningless (pane ids are server-global, not global); an empty `$TMUX_PANE` means the dispatcher — a headless orchestrator calling `open` — has no pane of its own to split.
 

@@ -196,3 +196,28 @@ func TestPlainPaneArgs(t *testing.T) {
 		}
 	}
 }
+
+// TestPaneCreatorsNeverShellWrap pins the scope boundary of the interactive
+// `; exec "$SHELL"` spawn fallback (internal/spawn.WithShellFallback): it is
+// for INTERACTIVE spawns a human types into. The dispatch/pane creators
+// deliberately pass the command VERBATIM — their running/done/orphaned state
+// machine treats pane death as the worker's terminal event, so a surviving
+// fallback shell would read as a live worker.
+func TestPaneCreatorsNeverShellWrap(t *testing.T) {
+	const fallback = `; exec "$SHELL"`
+	const cmd = "kimi --agent"
+
+	if got := splitArgs(SplitPlacement{Direction: SplitRight, Target: "%1", SizePercent: 35}, "/repo", cmd); got[len(got)-1] != cmd {
+		t.Errorf("splitArgs shell-command = %q, want the command verbatim (%q)", got[len(got)-1], cmd)
+	}
+	for name, args := range map[string][]string{
+		"splitArgs":    splitArgs(SplitPlacement{Direction: SplitRight, Target: "%1"}, "/repo", cmd),
+		"plain split":  plainPaneArgs(true, "/repo", cmd),
+		"plain window": plainPaneArgs(false, "/repo", cmd),
+	} {
+		last := args[len(args)-1]
+		if strings.Contains(last, fallback) || strings.Contains(last, `$SHELL`) {
+			t.Errorf("%s shell-command %q carries the interactive shell fallback — dispatch panes must stay unwrapped", name, last)
+		}
+	}
+}

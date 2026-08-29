@@ -50,6 +50,18 @@ func Command(configPath string) string {
 	return DefaultSpawnCommand
 }
 
+// WithShellFallback appends the interactive-spawn shell fallback so the pane
+// survives the agent's exit: the agent runs as the wrapper shell's foreground
+// child (a two-command string defeats the wrapper shell's exec optimisation)
+// and `exec "$SHELL"` takes the pane over afterwards, in the same cwd.
+// Interactive spawns only — dispatch pane workers (pane.OpenWindow /
+// pane.OpenSplitPane callers in dispatch_start.go, `fab dispatch open`,
+// `fab pane open`) deliberately do NOT use it: their state machine treats
+// pane death as the worker's terminal event.
+func WithShellFallback(cmd string) string {
+	return cmd + `; exec "$SHELL"`
+}
+
 // Placeholder tokens recognized in a templated spawn_command. Their presence
 // (either one) switches WithProfile from append mode to template mode.
 const (

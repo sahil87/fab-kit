@@ -103,6 +103,18 @@ printf '%s\n' "$@" >> ` + capture,
 	if !strings.Contains(string(args), want) || !strings.Contains(string(args), "'/fab-operator'") {
 		t.Errorf("tmux command missing safely quoted workers prefix %q:\n%s", want, args)
 	}
+
+	// Interactive spawn grammar: the new-window shell-command argument (the
+	// LAST captured line of the single new-window call) must end with the
+	// shell fallback suffix, with the FAB_AGENT_WORKERS= prefix still leading.
+	lines := strings.Split(strings.TrimRight(string(args), "\n"), "\n")
+	last := lines[len(lines)-1]
+	if !strings.HasSuffix(last, `; exec "$SHELL"`) {
+		t.Errorf("new-window shell command missing shell fallback suffix, last arg = %q", last)
+	}
+	if !strings.HasPrefix(last, "FAB_AGENT_WORKERS=") {
+		t.Errorf("FAB_AGENT_WORKERS= prefix must still lead the composed command, last arg = %q", last)
+	}
 }
 
 func TestRunOperator_WorkersOverrideDoesNotRelaunchExistingSingleton(t *testing.T) {

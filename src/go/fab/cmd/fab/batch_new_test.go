@@ -430,4 +430,39 @@ func TestRunBatchNew_WorkersOverride(t *testing.T) {
 	if !strings.Contains(string(args), want) {
 		t.Errorf("tmux command missing safely quoted workers prefix %q:\n%s", want, args)
 	}
+
+	// Interactive spawn grammar: the new-window shell-command argument (the
+	// LAST captured line of the single new-window call) must end with the
+	// shell fallback suffix, with the FAB_AGENT_WORKERS= prefix still leading.
+	lines := strings.Split(strings.TrimRight(string(args), "\n"), "\n")
+	last := lines[len(lines)-1]
+	if !strings.HasSuffix(last, `; exec "$SHELL"`) {
+		t.Errorf("new-window shell command missing shell fallback suffix, last arg = %q", last)
+	}
+	if !strings.HasPrefix(last, "FAB_AGENT_WORKERS=") {
+		t.Errorf("FAB_AGENT_WORKERS= prefix must still lead the composed command, last arg = %q", last)
+	}
+}
+
+// TestRunBatchNew_ShellFallback verifies the interactive spawn grammar: the
+// composed new-window shell command ends with the `; exec "$SHELL"` fallback
+// so the pane survives the agent's exit.
+func TestRunBatchNew_ShellFallback(t *testing.T) {
+	root := chdirBatchNewFixture(t, testBacklog)
+	writeBatchNewConfig(t, root, "claude")
+	t.Setenv("TMUX", "/tmp/tmux-fake/default,123,0")
+	capture := stubBatchNewTmuxCapture(t)
+
+	if _, stderr, err := runBatchNewCmd(t, "90g5"); err != nil {
+		t.Fatalf("batch new: %v\nstderr: %s", err, stderr)
+	}
+	args, err := os.ReadFile(capture)
+	if err != nil {
+		t.Fatalf("reading tmux capture: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(string(args), "\n"), "\n")
+	last := lines[len(lines)-1]
+	if !strings.HasSuffix(last, `; exec "$SHELL"`) {
+		t.Errorf("new-window shell command missing shell fallback suffix, last arg = %q", last)
+	}
 }
