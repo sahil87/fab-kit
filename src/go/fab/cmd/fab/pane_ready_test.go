@@ -19,11 +19,12 @@ import (
 // internal/pane/gate_test.go; what is pinned here is the report form (dispatch
 // parity) and that answering at all is a success.
 
-// TestPaneReady_ReadyReport: a live pane at an idle shell prompt echoes the
-// sentinel, so the report is exactly the classification line and nothing else.
+// TestPaneReady_ReadyReport: a live pane running a non-shell foreground
+// (readyPaneCommand) echoes the sentinel, so the report is exactly the
+// classification line and nothing else.
 func TestPaneReady_ReadyReport(t *testing.T) {
 	server := "fabtest-paneready-ok"
-	_, paneID := newTmuxPane(t, server, "", 80)
+	_, paneID := newTmuxPane(t, server, readyPaneCommand, 80)
 
 	stdout, _, err := runPaneCmd(t, "ready", paneID, "-L", server)
 	if err != nil {
@@ -88,7 +89,7 @@ func TestPaneReady_NonReadyReports(t *testing.T) {
 func TestPaneReady_JSON(t *testing.T) {
 	t.Run("ready", func(t *testing.T) {
 		server := "fabtest-paneready-json-ok"
-		_, paneID := newTmuxPane(t, server, "", 80)
+		_, paneID := newTmuxPane(t, server, readyPaneCommand, 80)
 
 		stdout, _, err := runPaneCmd(t, "ready", paneID, "-L", server, "--json")
 		if err != nil {

@@ -97,7 +97,7 @@ These config variables are unrelated to the fab-kit binary's `FAB_AGENTS` skills
 
 `fab/project/config.yaml` SHALL support a top-level `providers:` map keyed by **opaque, user-chosen provider names**. Each provider MAY independently carry:
 
-- **`interactive_command`** — **pure launch grammar**: how to open an interactive agent session, and nothing more. It makes the provider pane-capable when tmux is available. Prompt delivery is fab's, not the command's — no code path appends a prompt argument to it ([dispatch.md](/runtime/dispatch.md) § Prompt delivery), so pane capability does not depend on whether the CLI accepts a positional initial prompt.
+- **`interactive_command`** — **pure launch grammar**: how to open an interactive agent session, and nothing more. It makes the provider pane-capable when tmux is available. Prompt delivery is fab's, not the command's — no code path appends a prompt argument to it ([dispatch.md](/runtime/dispatch.md) § Prompt delivery), so pane capability does not depend on whether the CLI accepts a positional initial prompt. **Exec contract**: the command MUST exec its binary, so the binary — not a wrapper shell — owns the pane's foreground. The readiness gate's takeover precondition requires exactly that (a shell foreground reports `booting` and is never typed into — [dispatch.md](/runtime/dispatch.md) § `fab dispatch ready`), so a wrapper that keeps a shell in the foreground is unsupported by design and fails **observably**: every probe reports `booting` with the shell prompt in the snippet until the wiring's consecutive-booting allowance is spent and the run escalates — never silently.
 - **`native`** — declares native Agent-tool capability. Provider names are opaque, so fab never infers it.
 - **`headless_command`** — runs one headless stage task via `fab dispatch`; the prompt is supplied on stdin.
 
@@ -490,6 +490,12 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 **Why**: Interactive operation is common to agent CLIs, while headless prompt grammar is provider-specific. The readiness gate already separates launch from input and classifies boot and first-run walls without provider branches.
 **Rejected**: Withholding `interactive_command` because a CLI has a first-run wall; encoding a separate pane-eligibility bit; provider-specific trust-wall handling or fab-owned trust-store writes.
 *Introduced by*: 260810-ttff-agy-interactive-pane-capability
+
+### Exec contract for providers
+**Decision**: A provider's `interactive_command` must exec its binary, so the binary — not a wrapper shell — owns the pane's foreground; all four built-ins already do. The contract is stated once in the provider-authoring guidance (`_cli-agents.md`); a wrapper provider fails observably (`booting` with the shell prompt in the snippet, then escalation), so no escape hatch is needed and no new field is added.
+**Why**: The readiness gate's takeover precondition keys on the pane's foreground command, so takeover is the one shape requirement a pane provider's command must satisfy; with the gate enforcing it visibly, the contract needs no mechanism beyond documentation.
+**Rejected**: Time-bounding the precondition (reopens the cooked-tty false-ready window after N seconds); comparing against `spawn_cmd` (brittle across `bash -c` argv shapes).
+*Introduced by*: 260829-57mp-pane-readiness-agent-takeover
 
 ### kimi Ships the Probed `kimi --auto -m {model}` Verbatim
 **Decision**: kimi's built-in `interactive_command` is exactly `kimi --auto -m {model}` — the invocation probed live against the CLI (2026-08-10, kimi 0.34.0) — and the value is pinned by a test rather than merely asserted present.

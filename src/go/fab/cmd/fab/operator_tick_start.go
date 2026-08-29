@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	"io"
-	"path/filepath"
 	"sort"
 	"time"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/status"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -311,27 +311,9 @@ func emitTickDiffDoc(w io.Writer, out tickDiffOutput, quiet bool, tickCount int,
 	return err
 }
 
-// shellCommands is the fixed set of shell names the agent_exited predicate
-// matches (basename, case-sensitive). It covers every common login shell;
-// reading tmux's default-shell option to extend it was considered and deferred
-// (intake open question — extend on demand).
-var shellCommands = map[string]bool{
-	"sh": true, "bash": true, "zsh": true, "fish": true, "dash": true,
-	"ksh": true, "tcsh": true, "csh": true, "nu": true,
-}
-
-// isShellCommand reports whether cmd's basename is a known shell — the
-// agent_exited predicate. The pane's FOREGROUND command, never agent state:
-// fab's parseAgentState ignores the :pid segment, so after an agent exits and
-// the interactive spawn's `; exec "$SHELL"` fallback takes the pane over, the
-// agent-state option still reads the agent's last (stale) value. An empty
-// command (legacy enumeration line) never matches.
-func isShellCommand(cmd string) bool {
-	if cmd == "" {
-		return false
-	}
-	return shellCommands[filepath.Base(cmd)]
-}
+// The shell-name predicate the agent_exited check below rides lives in
+// internal/pane (pane.IsShellCommand) — the shared home for the pane
+// primitives both the operator and the readiness gate consume.
 
 // resolvedSnap reports whether a snapshot display field carries a real value
 // (the em dash is pane_map's unresolved sentinel).
@@ -466,7 +448,7 @@ func diffMonitored(monitored map[string]monitoredEntry, rows []paneRow, out *tic
 		// snapshot's stale idle must not be trusted), no stage diffs, and the
 		// pane is EXCLUDED from candidates: so the §5 sweep can never type
 		// into a bare shell prompt.
-		if isShellCommand(row.command) {
+		if pane.IsShellCommand(row.command) {
 			cmd := row.command
 			out.Deltas = append(out.Deltas, tickDelta{
 				Kind:    "agent_exited",

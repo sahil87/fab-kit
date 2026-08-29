@@ -36,10 +36,13 @@ func runDeliver(t *testing.T, args ...string) (stdout, stderr string, err error)
 }
 
 // newTmuxPane starts a PRIVATE tmux server (its socket dir isolated per test),
-// opens one session whose pane runs command — empty meaning the default shell,
-// which is enough of an "agent" for the choreography's terms to mean something:
-// it echoes typed text and reacts to Enter — and returns a runner bound to that
-// server plus the pane id. tmux absence is a skip, never a failure.
+// opens one session whose pane runs command, and returns a runner bound to that
+// server plus the pane id. The live-agent stand-in for a "ready" fixture is
+// readyPaneCommand — never an empty command: the default shell is a SHELL
+// foreground, which the gate's agent-takeover precondition classifies
+// `booting` (the cooked-tty false-echo window is the exact failure the gate
+// now closes), so a bare shell can no longer stand in for an agent.
+// tmux absence is a skip, never a failure.
 func newTmuxPane(t *testing.T, server, command string, width int) (tmux func(args ...string) (string, error), paneID string) {
 	t.Helper()
 	if _, err := exec.LookPath("tmux"); err != nil {
@@ -165,7 +168,7 @@ func TestDispatchDeliver_RefusesNonPaneDispatches(t *testing.T) {
 func TestDispatchDeliver_RefusesAMidStageWorker(t *testing.T) {
 	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
 	server := "fabtest-midstage"
-	tmux, paneID := newTmuxPane(t, server, "", 80)
+	tmux, paneID := newTmuxPane(t, server, readyPaneCommand, 80)
 
 	dir := seedPaneDispatch(t, repoRoot, id, "apply", paneID, server)
 	rec, err := dispatch.Load(dir, "apply")
@@ -209,7 +212,7 @@ func TestDispatchDeliver_RefusesAMidStageWorker(t *testing.T) {
 func TestDispatchDeliver_MissingPromptFileErrorsBeforeTyping(t *testing.T) {
 	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
 	server := "fabtest-noprompt"
-	_, paneID := newTmuxPane(t, server, "", 80)
+	_, paneID := newTmuxPane(t, server, readyPaneCommand, 80)
 
 	seedPaneDispatch(t, repoRoot, id, "apply", paneID, server) // no {stage}-prompt.md
 
@@ -285,7 +288,7 @@ func TestDeliveryPointerPath_PromptFileIsRepoRelative(t *testing.T) {
 func TestDispatchDeliver_PartialStashIsRestored(t *testing.T) {
 	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
 	server := "fabtest-deliver-stash"
-	_, paneID := newTmuxPane(t, server, "", 80)
+	_, paneID := newTmuxPane(t, server, readyPaneCommand, 80)
 
 	dir := seedPaneDispatch(t, repoRoot, id, "apply", paneID, server)
 	mustWrite(t, dispatch.PromptPath(dir, "apply"), "the full stage prompt\n")
@@ -308,9 +311,9 @@ func TestDispatchDeliver_PartialStashIsRestored(t *testing.T) {
 }
 
 // TestDispatchDeliver_Integration is the end-to-end path against a real tmux pane
-// running a plain shell — enough of an "agent" for the choreography's terms to
-// mean something: it echoes typed text (the echo check) and reacts to Enter (the
-// busy check).
+// running a non-shell foreground (readyPaneCommand) — enough of an "agent" for the
+// choreography's terms to mean something: it echoes typed text (the echo check)
+// and reacts to Enter (the busy check).
 //
 // It pins the three observable outcomes of a successful delivery: the readiness
 // probe reports `ready`, the pointer reaches the pane, and the record flips to
@@ -320,7 +323,7 @@ func TestDispatchDeliver_PartialStashIsRestored(t *testing.T) {
 func TestDispatchDeliver_Integration(t *testing.T) {
 	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
 	server := "fabtest-deliver"
-	tmux, paneID := newTmuxPane(t, server, "", 200)
+	tmux, paneID := newTmuxPane(t, server, readyPaneCommand, 200)
 
 	dir := seedPaneDispatch(t, repoRoot, id, "apply", paneID, server)
 	mustWrite(t, dispatch.PromptPath(dir, "apply"), "the full stage prompt\nline two\n")
@@ -329,8 +332,8 @@ func TestDispatchDeliver_Integration(t *testing.T) {
 	// started.
 	mustWrite(t, dispatch.ResultPath(dir, "apply"), "stage: apply\nstatus: success\n")
 
-	// The gate first: a live shell echoes the sentinel, so the pane reads ready and
-	// the report is the bare word with no snippet.
+	// The gate first: a live non-shell foreground echoes the sentinel, so the pane
+	// reads ready and the report is the bare word with no snippet.
 	readyOut, err := runReady(t, "abcd", "apply")
 	if err != nil {
 		t.Fatalf("ready: %v", err)

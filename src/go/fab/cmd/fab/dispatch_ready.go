@@ -14,13 +14,20 @@ func dispatchReadyCmd() *cobra.Command {
 		Short: "Probe whether an opened pane worker can accept typed input (ready / booting / parked)",
 		Long: "Answer one question about a pane opened by `fab dispatch open`: can it accept\n" +
 			"typed input right now?\n\n" +
-			"The probe is purely MECHANICAL — it types a sentinel literally, checks whether\n" +
+			"Before any keystroke the probe checks who owns the pane: while the foreground\n" +
+			"command is still a shell (the provider binary has not taken the tty yet), it\n" +
+			"reports `booting` and types NOTHING — a shell in cooked mode echoes typed\n" +
+			"characters by itself, so the sentinel would echo for a reason that has nothing\n" +
+			"to do with an agent being ready. Only once a non-shell process owns the pane\n" +
+			"does the echo-and-stability probe run.\n\n" +
+			"That probe is purely MECHANICAL — it types a sentinel literally, checks whether\n" +
 			"the sentinel echoed, clears it with C-u, and looks at whether the screen is\n" +
 			"still moving. It carries no table of known dialogs, presses no other key, and\n" +
 			"answers nothing: dialog text is a version treadmill, and a half-matched pattern\n" +
 			"pressing Enter into an unknown screen is worse than stalling.\n\n" +
 			"  ready    the sentinel echoed — hand the worker its prompt with `fab dispatch deliver`\n" +
-			"  booting  no echo, but the screen is blank or still changing — wait and re-probe\n" +
+			"  booting  the pane is still a shell, or no echo on a blank/changing screen —\n" +
+			"           wait and re-probe\n" +
 			"  parked   no echo on a stable screen — a dialog, survey, login wall, or wedged\n" +
 			"           process is holding the input; the snippet below shows what\n\n" +
 			"Deciding what a parked screen wants is the orchestrator's judgment, which is\n" +

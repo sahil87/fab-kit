@@ -279,6 +279,53 @@ func runSend(args []string, paneID, what string) error {
 	return nil
 }
 
+// shellCommands is the fixed set of shell names IsShellCommand matches
+// (basename, case-sensitive). It covers every common login shell; reading
+// tmux's default-shell option to extend it was considered and deferred
+// (intake open question — extend on demand).
+var shellCommands = map[string]bool{
+	"sh": true, "bash": true, "zsh": true, "fish": true, "dash": true,
+	"ksh": true, "tcsh": true, "csh": true, "nu": true,
+}
+
+// IsShellCommand reports whether cmd's basename is a known shell. It is the
+// shared predicate both pane-foreground consumers key on — the operator's
+// agent_exited delta (fab's parseAgentState ignores the :pid segment, so
+// after an agent exits and the interactive spawn's `; exec "$SHELL"` fallback
+// takes the pane over, the agent-state option still reads the agent's last,
+// stale value — the foreground command is the ground truth about who owns the
+// pane) and the readiness gate's agent-takeover precondition. An empty
+// command (legacy enumeration line) never matches.
+func IsShellCommand(cmd string) bool {
+	if cmd == "" {
+		return false
+	}
+	return shellCommands[filepath.Base(cmd)]
+}
+
+// CurrentCommandArgs returns the tmux display-message argv that reads a
+// pane's FOREGROUND command (`#{pane_current_command}`) — who owns the pane's
+// tty right now. When server is non-empty the argv is prefixed with
+// `-L <server>`.
+func CurrentCommandArgs(server, paneID string) []string {
+	return WithServer(server, "display-message", "-p", "-t", paneID, "#{pane_current_command}")
+}
+
+// CurrentCommand returns a pane's foreground command, trimmed. It is the
+// readiness gate's agent-takeover precondition (a shell foreground means the
+// provider binary has not taken the tty yet, so there is no agent to probe)
+// and the operator's agent_exited signal. Server-first, matching
+// Capture/SendLiteral (see Capture on why the pairs share one order). On
+// failure the error names the pane and carries tmux's stderr diagnostic via
+// StderrError.
+func CurrentCommand(server, paneID string) (string, error) {
+	out, stderr, err := RunCmd("tmux", CurrentCommandArgs(server, paneID)...)
+	if err != nil {
+		return "", StderrError(fmt.Errorf("pane %s: %w", paneID, err), stderr)
+	}
+	return strings.TrimSpace(out), nil
+}
+
 // ReadWindowName returns the current window name for a tmux pane via
 // `tmux display-message -p -t <pane> '#W'`. Returns the trimmed name, the
 // tmux stderr bytes (useful for exit-code mapping — callers can distinguish

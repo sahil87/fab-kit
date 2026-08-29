@@ -15,7 +15,7 @@ import (
 // a non-`ready` answer actually prints, and that answering at all is a success.
 //
 // The `ready` case rides the end-to-end delivery test in dispatch_deliver_test.go,
-// where a live shell echoes the sentinel.
+// where a live non-shell pane (readyPaneCommand) echoes the sentinel.
 
 // parkedPaneCommand is a pane that swallows typed input on a stable screen —
 // mechanically indistinguishable from a first-run trust dialog, which is the
@@ -27,6 +27,22 @@ const parkedPaneCommand = "stty -echo; echo TRUST-THIS-FOLDER-WALL; sleep 300"
 // drawn yet — a TUI still starting rather than a wall holding the input.
 const bootingPaneCommand = "stty -echo; sleep 300"
 
+// readyPaneCommand is the live-agent stand-in for every "ready" fixture: a
+// NON-shell foreground that still echoes typed text and reacts to Enter. This
+// fixture changed BECAUSE THE GATE'S SPEC CHANGED (Constitution VII — spec
+// drives tests, never the reverse): the readiness gate now requires agent
+// takeover — while a pane's foreground command is a shell it classifies
+// `booting` and types nothing, because a cooked-mode shell echoes the
+// sentinel by itself (the false-ready window this gate closed). The default
+// shell that previously stood in here can therefore never classify `ready`;
+// `cat` (basename outside the shell set, cooked-mode tty echo, screen
+// advances on Enter) holds every property the choreography asserts without
+// depending on which login shell the host runs. The leading `echo` draws a
+// banner so the pane's settled screen is non-blank — the refusal tests'
+// baseline diff (settledPane/settledCapture) requires one, and a bare `cat`
+// screen stays empty until something is typed.
+const readyPaneCommand = "echo READY-PANE; exec cat"
+
 // TestDispatchReady_RefusesAMidStageWorker: the probe is a SENDER — it types the
 // sentinel and presses C-u — so it is bound by the same no-input-injection rule as
 // `deliver`. Against a delivered worker still executing its stage it must refuse
@@ -35,7 +51,7 @@ const bootingPaneCommand = "stty -echo; sleep 300"
 func TestDispatchReady_RefusesAMidStageWorker(t *testing.T) {
 	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
 	server := "fabtest-ready-midstage"
-	tmux, paneID := newTmuxPane(t, server, "", 80)
+	tmux, paneID := newTmuxPane(t, server, readyPaneCommand, 80)
 
 	dir := seedPaneDispatch(t, repoRoot, id, "apply", paneID, server)
 	rec, err := dispatch.Load(dir, "apply")
@@ -65,7 +81,7 @@ func TestDispatchReady_RefusesAMidStageWorker(t *testing.T) {
 		t.Fatalf("a `done` worker must pass the mid-stage guard: %v", err)
 	}
 	if out != string(pane.ReadyReady)+"\n" {
-		t.Errorf("report = %q, want %q from the live shell", out, string(pane.ReadyReady)+"\n")
+		t.Errorf("report = %q, want %q from the live pane", out, string(pane.ReadyReady)+"\n")
 	}
 }
 
@@ -77,7 +93,7 @@ func TestDispatchReady_RefusesAMidStageWorker(t *testing.T) {
 func TestDispatchReady_RefusesAnAliasedPane(t *testing.T) {
 	repoRoot, id := setupDispatchRepoWithCommands(t, "", "claude")
 	server := "fabtest-ready-alias"
-	tmux, paneID := newTmuxPane(t, server, "", 80)
+	tmux, paneID := newTmuxPane(t, server, readyPaneCommand, 80)
 
 	livePID, err := pane.GetPanePID(paneID, server)
 	if err != nil {

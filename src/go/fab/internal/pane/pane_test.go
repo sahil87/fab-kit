@@ -147,6 +147,67 @@ func TestIsPaneMissing(t *testing.T) {
 	}
 }
 
+// TestCurrentCommandArgs pins the argv the foreground-command read builds —
+// server-first with the -L prefix, and the format literal carried verbatim.
+func TestCurrentCommandArgs(t *testing.T) {
+	t.Run("no server", func(t *testing.T) {
+		got := CurrentCommandArgs("", "%17")
+		want := []string{"display-message", "-p", "-t", "%17", "#{pane_current_command}"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("CurrentCommandArgs = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("server prefixed", func(t *testing.T) {
+		got := CurrentCommandArgs("runKit", "%17")
+		want := []string{"-L", "runKit", "display-message", "-p", "-t", "%17", "#{pane_current_command}"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("CurrentCommandArgs = %v, want %v", got, want)
+		}
+	})
+}
+
+// TestIsShellCommand pins the shell-name predicate both pane-foreground
+// consumers share: the same nine basenames, a case-sensitive basename match
+// (a full path like /usr/bin/fish still matches), and an empty command never
+// matching.
+func TestIsShellCommand(t *testing.T) {
+	tests := []struct {
+		cmd  string
+		want bool
+	}{
+		{"sh", true},
+		{"bash", true},
+		{"zsh", true},
+		{"fish", true},
+		{"dash", true},
+		{"ksh", true},
+		{"tcsh", true},
+		{"csh", true},
+		{"nu", true},
+		{"/usr/bin/fish", true}, // basename match — a full path still resolves
+		{"zshrc-lint", false},   // a shell-NAMED binary is not a shell
+		{"Bash", false},         // case-sensitive
+		{"kimi", false},
+		{"claude", false},
+		{"node", false},
+		{"cat", false},   // the integration fixture's ready stand-in
+		{"sleep", false}, // the parked/booting fixtures' foreground
+		{"", false},      // legacy enumeration line — never a shell
+	}
+	for _, tc := range tests {
+		name := tc.cmd
+		if name == "" {
+			name = "empty command"
+		}
+		t.Run(name, func(t *testing.T) {
+			if got := IsShellCommand(tc.cmd); got != tc.want {
+				t.Errorf("IsShellCommand(%q) = %t, want %t", tc.cmd, got, tc.want)
+			}
+		})
+	}
+}
+
 // TestValidatePaneResult exercises the pure decision half of the targeted
 // display-message probe — every branch verified against real tmux behavior:
 // tmux ≥3.6 exits 0 with EMPTY output for a missing pane (comparison branch);
@@ -627,6 +688,70 @@ func TestReadAgentStateOption_Integration(t *testing.T) {
 		unsetBoth(t)
 		if raw := ReadAgentStateOption(paneID, server); raw != "" {
 			t.Errorf("expected empty raw option, got %q", raw)
+		}
+	})
+}
+
+// TestCurrentCommand_Integration drives the foreground-command read against a
+// real tmux server: a pane running `sleep` reports `sleep`, and its pane's
+// default shell reports a name IsShellCommand matches — the two shapes the
+// readiness gate's takeover precondition distinguishes. Skipped when tmux is
+// unavailable.
+func TestCurrentCommand_Integration(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not available")
+	}
+
+	server := "fabtest"
+	t.Setenv("TMUX_TMPDIR", tmuxSocketDir(t, server))
+	tmux := func(args ...string) (string, error) {
+		out, err := exec.Command("tmux", append([]string{"-L", server}, args...)...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+
+	// The session is pinned to an explicit `sh` rather than the host's login
+	// shell: the assertion below is about the predicate recognising a shell
+	// foreground, not about which shell this host happens to run (a default
+	// outside the nine-name set — xonsh, say — must not fail the suite).
+	if out, err := tmux("new-session", "-d", "-s", "s", "-x", "80", "-y", "24", "sh"); err != nil {
+		t.Skipf("could not start tmux server (%v): %s", err, out)
+	}
+	t.Cleanup(func() { _, _ = tmux("kill-server") })
+
+	paneID, err := tmux("display-message", "-p", "-t", "s", "#{pane_id}")
+	if err != nil || paneID == "" {
+		t.Fatalf("resolve pane id: %v (%q)", err, paneID)
+	}
+
+	t.Run("sh foreground is a shell", func(t *testing.T) {
+		cmd, err := CurrentCommand(server, paneID)
+		if err != nil {
+			t.Fatalf("CurrentCommand: %v", err)
+		}
+		if !IsShellCommand(cmd) {
+			t.Errorf("CurrentCommand = %q, want a known shell for a pane running sh", cmd)
+		}
+	})
+
+	t.Run("sleep foreground reports sleep", func(t *testing.T) {
+		if out, err := tmux("send-keys", "-t", paneID, "exec sleep 300", "Enter"); err != nil {
+			t.Fatalf("start sleep: %v: %s", err, out)
+		}
+		// The exec is near-instant, but tmux's pane_current_command refresh is
+		// not synchronous with send-keys returning — poll briefly.
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			cmd, err := CurrentCommand(server, paneID)
+			if err != nil {
+				t.Fatalf("CurrentCommand: %v", err)
+			}
+			if cmd == "sleep" {
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("CurrentCommand = %q, want %q", cmd, "sleep")
+			}
+			time.Sleep(100 * time.Millisecond)
 		}
 	})
 }
