@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 4
@@ -28,7 +28,7 @@ stage_metrics:
     review: {started_at: "2026-08-29T01:59:12Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-29T02:03:35Z"}
     hydrate: {started_at: "2026-08-29T02:03:35Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-29T02:03:58Z"}
     ship: {started_at: "2026-08-29T02:03:58Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-29T02:05:10Z"}
-    review-pr: {started_at: "2026-08-29T02:05:10Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-08-29T02:05:10Z", driver: git-pr, iterations: 1, completed_at: "2026-08-29T02:09:47Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/625
 true_impact:
@@ -47,4 +47,4 @@ true_impact:
     computed_at_stage: ship
 summary: Operator loop prompt is a hard MUST/MUST-NOT rule with copyable literals (bare 'operator tick', never a slash command); 'Self-manage context' replaced by the compaction → one-shot /fab-operator reload procedure; _cli-external /loop reduced to one-loop rule + pointer; 2m autopilot cadence dropped
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-29T02:05:10Z
+last_updated: 2026-08-29T02:09:47Z
