@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -227,14 +228,23 @@ func configShowCmd() *cobra.Command {
   fab config show agent.workers --origin`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fabRoot, err := resolve.FabRoot()
-			if err != nil {
+			// Read-only: `show` reads the cascade, never change state, so with no
+			// fab/ project it degrades to the project-free layers (env > system >
+			// built-in defaults) instead of failing closed. Its writing siblings
+			// — set, unset, init, upgrade — keep the FabRoot gate: they target a
+			// project file that must exist. See cmd/fab/skill.md.
+			var layers *config.Layers
+			if fabRoot, err := resolve.FabRoot(); err == nil {
+				projectPath := filepath.Join(fabRoot, "project", "config.yaml")
+				layers, err = config.LoadLayers(projectPath)
+				if err != nil {
+					return err
+				}
+			} else if !errors.Is(err, resolve.ErrNoFabRoot) {
+				// Broken environment (unreadable cwd), not "no project".
 				return err
-			}
-			projectPath := filepath.Join(fabRoot, "project", "config.yaml")
-			layers, err := config.LoadLayers(projectPath)
-			if err != nil {
-				return err
+			} else {
+				layers = config.LoadLayersNoProject()
 			}
 			defaults, err := readModelDefaults(layers)
 			if err != nil {

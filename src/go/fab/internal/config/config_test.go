@@ -1746,3 +1746,101 @@ func TestLoad_AutopilotMergeModeEnv(t *testing.T) {
 		t.Errorf("merge_mode = %q, want env cherry-pick-ladder over system merge-auto", got)
 	}
 }
+
+// --- Project-free cascade (LoadNoProject / LoadLayersNoProject) ---------------
+//
+// A CONFIG-ONLY command (fab agent, fab resolve-agent, fab config show) run
+// outside any fab/ project resolves env > system > built-in defaults. These pin
+// that the upper tiers still apply with NO project tier — the whole point, since
+// a machine-wide preference must not need a project to take effect.
+
+// TestLoadNoProject_AppliesSystemLayer: the system file wins with no project.
+func TestLoadNoProject_AppliesSystemLayer(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, "dispatch:\n  mode: pane\nagent:\n  workers: codex\n")
+
+	cfg := LoadNoProject()
+	if got := cfg.Dispatch.Mode; got != "pane" {
+		t.Errorf("dispatch.mode = %q, want the system layer's %q with no project tier", got, "pane")
+	}
+	if got := cfg.Agent.Workers; got != "codex" {
+		t.Errorf("agent.workers = %q, want the system layer's %q with no project tier", got, "codex")
+	}
+}
+
+// TestLoadNoProject_EnvOutranksSystem: tier order is preserved without a project.
+func TestLoadNoProject_EnvOutranksSystem(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, "agent:\n  session: codex\n")
+	t.Setenv("FAB_AGENT_SESSION", "kimi")
+
+	if got := LoadNoProject().Agent.Session; got != "kimi" {
+		t.Errorf("agent.session = %q, want the env layer's %q to outrank the system layer", got, "kimi")
+	}
+}
+
+// TestLoadNoProject_NoSystemFileIsZeroConfig: absent system file + absent project
+// is the zero config, not an error — the built-in defaults tier then supplies
+// every value at its point of use.
+func TestLoadNoProject_NoSystemFileIsZeroConfig(t *testing.T) {
+	isolateSystemConfig(t)
+
+	cfg := LoadNoProject()
+	if cfg == nil {
+		t.Fatal("LoadNoProject() = nil, want a usable zero config")
+	}
+	if cfg.Dispatch.Mode != "" || cfg.Agent.Session != "" {
+		t.Errorf("LoadNoProject() = %+v, want the zero config when no system file exists", cfg)
+	}
+	if cfg.StageHooks == nil {
+		t.Error("StageHooks map is nil — the zero config must stay nil-safe for map writes")
+	}
+}
+
+// TestLoadNoProject_LeavesFabVersionEmpty: .fab-version is a per-project pin, and
+// there is no project here. Preflight's staleness check skips an empty value.
+func TestLoadNoProject_LeavesFabVersionEmpty(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, "dispatch:\n  mode: pane\n")
+
+	if got := LoadNoProject().FabVersion; got != "" {
+		t.Errorf("FabVersion = %q, want empty — there is no project to pin a version", got)
+	}
+}
+
+// TestLoadLayersNoProject_HasNoProjectTier: the provenance surface reports an
+// absent project layer (nil map, "" path) while still carrying system and env.
+func TestLoadLayersNoProject_HasNoProjectTier(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, "dispatch:\n  mode: pane\n")
+
+	layers := LoadLayersNoProject()
+	if layers.ProjectPath != "" || layers.Project != nil {
+		t.Errorf("project tier = {%q, %v}, want absent", layers.ProjectPath, layers.Project)
+	}
+	if layers.System == nil {
+		t.Error("system layer is nil — it must still load with no project")
+	}
+	if layers.Effective["dispatch"] == nil {
+		t.Errorf("Effective = %v, want the system layer merged in", layers.Effective)
+	}
+}
+
+// TestLoadNoProject_IncompatibleSystemLayerKeepsEnv: a system file that is valid
+// YAML but Config-INCOMPATIBLE (a scalar where a map belongs) cannot be caught by
+// loadSystemLayer, which decodes into map[string]any — it only surfaces at
+// unmarshal. Per the loader's fail-open contract that must warn and drop the
+// system layer, NOT discard valid FAB_* env overrides alongside it.
+func TestLoadNoProject_IncompatibleSystemLayerKeepsEnv(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, "dispatch: not-a-mapping\n")
+	t.Setenv("FAB_AGENT_SESSION", "codex")
+
+	cfg := LoadNoProject()
+	if cfg == nil {
+		t.Fatal("LoadNoProject() = nil on an incompatible system layer — config must never brick")
+	}
+	if got := cfg.Agent.Session; got != "codex" {
+		t.Errorf("agent.session = %q, want the env layer's %q to survive the bad system layer", got, "codex")
+	}
+}

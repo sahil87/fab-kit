@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -146,30 +147,44 @@ func findWindowExact(out, name string) (windowID string, found bool) {
 // spawn.DefaultSpawnCommand (still profile-substituted) rather than erroring — the
 // operator must always launch.
 func operatorSpawnCommand() string {
+	// With a fab/ project, the project tier participates. Without one, fall back
+	// to the PROJECT-FREE cascade rather than to a nil config: env > system >
+	// built-in defaults. A nil config would silently discard the user's
+	// ~/.fab-kit/config.yaml, so an operator launched from a neutral directory
+	// (its natural cross-repo home) would ignore machine-wide preferences it
+	// honors everywhere else.
 	var cfg *config.Config
 	if fabRoot, err := resolve.FabRoot(); err == nil {
 		cfg, _ = config.Load(fabRoot) // nil on error → nil-safe accessors below
+	} else {
+		// ErrNoFabRoot is the ordinary "launched outside a project" case and is
+		// silent. Any OTHER FabRoot failure means a broken environment (an
+		// unreadable cwd) — the operator still launches, because a coordinator
+		// that refuses to start is worse than one on default settings, but it
+		// must not do so SILENTLY or the environment problem is invisible.
+		// (runOperator's own os.Getwd fallback for the window dir already hard-
+		// fails on this, so in practice it is unreachable from that path.)
+		if !errors.Is(err, resolve.ErrNoFabRoot) {
+			fmt.Fprintf(os.Stderr, "fab: warning: cannot resolve the working directory (%v); launching the operator on env+system config only\n", err)
+		}
+		cfg = config.LoadNoProject()
 	}
 
-	profile := operatorProfile(cfg)
-
-	sessionCmd := spawn.DefaultSpawnCommand
-	if prov, ok := agent.ResolveProvider(cfg, profile.Provider); ok && prov.InteractiveCommand != "" {
-		sessionCmd = prov.InteractiveCommand
+	// Shared resolution chain (see roleSessionCommand in agent.go) — the same one
+	// `fab agent operator` walks, so the tab and a hand-run session can never
+	// compose different commands. Only the MISSING-COMMAND policy differs here:
+	// the operator must always launch, so a provider with no interactive_command
+	// falls back to the built-in rather than erroring.
+	cmd, profile, err := roleSessionCommand(cfg, agent.RoleOperator)
+	if err != nil {
+		// Unreachable: RoleOperator is always a known role (drift-guard test).
+		// Degrade to the built-in operator profile rather than fail to launch.
+		profile, _ = agent.DefaultProfile(agent.RoleOperator)
 	}
-	return spawn.WithProfile(sessionCmd, profile.Model, profile.Effort)
-}
-
-// operatorProfile resolves the operator-role profile from cfg, degrading to the
-// built-in operator default when cfg is nil or the role cannot be resolved. Pure
-// (no exec / no filesystem), so the fallback is unit-testable.
-func operatorProfile(cfg *config.Config) agent.Profile {
-	if p, err := agent.ResolveRole(cfg, agent.RoleOperator); err == nil {
-		return p
+	if cmd == "" {
+		cmd = spawn.WithProfile(spawn.DefaultSpawnCommand, profile.Model, profile.Effort)
 	}
-	// RoleOperator is always a known role (guarded by the drift-guard test).
-	def, _ := agent.DefaultProfile(agent.RoleOperator)
-	return def
+	return cmd
 }
 
 // gitRepoRoot returns the git repo root for the current directory. On

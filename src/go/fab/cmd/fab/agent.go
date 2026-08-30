@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -129,28 +130,33 @@ func runAgent(cmd *cobra.Command, role, provider string, providerSet bool, model
 		return err
 	}
 
-	providerName, profileModel, profileEffort := provider, model, effort
-	if !providerSet {
-		profile, err := agent.ResolveRole(cfg, role)
+	// The two addressing modes are mutually exclusive, so they compose the
+	// command separately rather than threading a shared provider variable
+	// through both. The ROLE path is the one the operator also walks, and it
+	// lives in roleSessionCommand.
+	var resolvedCmd string
+	if providerSet {
+		prov, known := agent.ResolveProvider(cfg, provider)
+		if !known {
+			return unknownProviderError(cfg, provider)
+		}
+		if prov.InteractiveCommand == "" {
+			return fmt.Errorf("provider %q has no interactive_command; configure providers.%s.interactive_command", provider, provider)
+		}
+		resolvedCmd = spawn.WithProfile(prov.InteractiveCommand, model, effort)
+	} else {
+		cmd, profile, err := roleSessionCommand(cfg, role)
 		if err != nil {
 			return err
 		}
-		providerName, profileModel, profileEffort = profile.Provider, profile.Model, profile.Effort
-	}
-
-	prov, known := agent.ResolveProvider(cfg, providerName)
-	if providerSet && !known {
-		return unknownProviderError(cfg, providerName)
-	}
-	if !known || prov.InteractiveCommand == "" {
-		if providerSet {
-			return fmt.Errorf("provider %q has no interactive_command; configure providers.%s.interactive_command", providerName, providerName)
+		if cmd == "" {
+			// `fab agent` errors where the operator falls back: an explicitly
+			// requested session that cannot be composed must say so.
+			return fmt.Errorf("role %q resolves to provider %q, which has no interactive_command; configure providers.%s.interactive_command",
+				role, profile.Provider, profile.Provider)
 		}
-		return fmt.Errorf("role %q resolves to provider %q, which has no interactive_command; configure providers.%s.interactive_command",
-			role, providerName, providerName)
+		resolvedCmd = cmd
 	}
-
-	resolvedCmd := spawn.WithProfile(prov.InteractiveCommand, profileModel, profileEffort)
 
 	if printOnly {
 		fmt.Fprintln(cmd.OutOrStdout(), resolvedCmd)
@@ -190,6 +196,47 @@ func unknownProviderError(cfg *config.Config, name string) error {
 		name, strings.Join(agent.ProviderNames(cfg), ", "), hintName)
 }
 
+// roleSessionCommand composes the interactive session command for ROLE: the
+// role's provider's interactive_command with the role's {model, effort}
+// substituted. It is the ONE implementation of that resolution chain — both
+// `fab agent <role>` and the operator's tmux-tab launcher go through it.
+//
+// It returns an EMPTY command (and a nil error) when the role's provider cannot
+// supply one — either the provider NAME does not resolve at all, or it resolves
+// but carries no interactive_command. The two are deliberately one signal: from
+// a caller's view both mean "this role names no launchable session", and both
+// have always produced the same outcome. That is deliberately not an error here,
+// because the two callers legitimately differ on what it means — and keeping
+// that divergence at the call sites, with the resolution itself shared, is the
+// whole reason this helper exists:
+//
+//   - `fab agent` surfaces it as an actionable error naming the role and the
+//     provider: a session the user explicitly asked for cannot be composed.
+//   - the operator falls back to spawn.DefaultSpawnCommand — it must always
+//     launch, so a broken provider entry cannot strand the coordinator.
+//
+// The resolved profile comes back alongside so a falling-back caller can still
+// substitute the role's {model, effort} into whatever command it picks.
+//
+// A genuine role-resolution failure (an unknown role NAME) is returned as an
+// error — that is a caller mistake, not a policy choice.
+//
+// Before this existed the chain was written twice, and the copies drifted on the
+// no-project case: the operator fell back to a nil config (silently discarding
+// ~/.fab-kit/config.yaml) while `fab agent` failed closed. Sharing the chain is
+// what keeps that from recurring.
+func roleSessionCommand(cfg *config.Config, role string) (string, agent.Profile, error) {
+	profile, err := agent.ResolveRole(cfg, role)
+	if err != nil {
+		return "", agent.Profile{}, err
+	}
+	prov, known := agent.ResolveProvider(cfg, profile.Provider)
+	if !known || prov.InteractiveCommand == "" {
+		return "", profile, nil
+	}
+	return spawn.WithProfile(prov.InteractiveCommand, profile.Model, profile.Effort), profile, nil
+}
+
 // loadRepoConfig loads the config from an explicit repo root (--repo) or the
 // current repo's fab/ (upward search). The path-based load mirrors the former
 // `fab spawn-command --repo` behavior; a missing file yields an empty config (the
@@ -200,7 +247,20 @@ func loadRepoConfig(repo string) (*config.Config, error) {
 	}
 	fabRoot, err := resolve.FabRoot()
 	if err != nil {
-		return nil, err
+		if !errors.Is(err, resolve.ErrNoFabRoot) {
+			// A cwd that cannot be read is a broken environment, not "no
+			// project" — surface it instead of silently reading built-ins.
+			return nil, err
+		}
+		// No fab/ project anywhere up the tree. `fab agent` is a CONFIG-ONLY
+		// command — it needs a resolved {provider, model, effort}, not change
+		// state — so it degrades to the project-free cascade (env > system >
+		// built-in defaults) rather than failing closed. That is what makes
+		// `fab agent` usable as a plain session launcher from any directory,
+		// and it keeps a machine-wide preference in ~/.fab-kit/config.yaml
+		// authoritative outside a project too. Project-state commands keep
+		// erroring here; see cmd/fab/skill.md's config-free-commands rule.
+		return config.LoadNoProject(), nil
 	}
 	return config.Load(fabRoot)
 }

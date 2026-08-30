@@ -416,18 +416,65 @@ func LoadPath(path string) (*Config, error) {
 		return nil, err
 	}
 
-	systemMap := loadSystemLayer()
-	envMap, _ := loadEnvLayer()
+	return fromProjectMap(projectMap)
+}
 
-	// Merge lowest tier first: project, then system OVER it, then env OVER both.
-	// A nil project map (file absent) still lets the system layer through; a nil
-	// env map leaves the file merge untouched.
-	merged := MergeLayers(projectMap, systemMap, envMap)
+// LoadNoProject is the PROJECT-FREE counterpart of Load: the effective config with
+// NO project tier — env > system > built-in defaults.
+//
+// This is what a CONFIG-ONLY command resolves when it runs outside any fab/
+// project (`fab agent` in an arbitrary directory, say). It is deliberately NOT a
+// fallback for project-state commands, which must keep failing closed: a missing
+// fab/ is a real error for anything that reads or writes change state.
+//
+// Config.FabVersion is left empty — .fab-version is a per-project pin and there is
+// no project here. Preflight's staleness check already skips an empty value.
+//
+// Note this is strictly MORE than the zero Config: the system file and FAB_* env
+// vars still apply, which is the whole point — a machine-wide preference should
+// not need a project to take effect.
+//
+// It returns no error, per the loader's fail-open contract (config must never
+// brick). There IS one reachable failure: a system file that is valid YAML but
+// Config-INCOMPATIBLE (say `dispatch: "a string"` where a map is expected) —
+// loadSystemLayer decodes into map[string]any and so cannot catch a type
+// mismatch, which only surfaces at unmarshal. That is handled the same way
+// loadSystemLayer handles a MALFORMED system file: warn, drop the system layer,
+// and retry — so valid FAB_* env overrides still apply rather than being lost
+// alongside the bad file. Only if the env layer is itself incompatible does this
+// fall all the way back to the zero Config.
+func LoadNoProject() *Config {
+	cfg, err := fromProjectMap(nil)
+	if err == nil {
+		return cfg
+	}
 
-	// Absent system layer + absent project file, or a project file that decoded
-	// to nothing, both leave `merged` empty and yield the zero Config — the
-	// byte-identical empty-config result the old missing-file path returned.
-	return FromMap(merged)
+	// The system layer is Config-incompatible. Drop it (warning, like every other
+	// fail-open system-file path) and retry env-only.
+	warnf("fab: warning: system config is incompatible with the config schema (%v); ignoring it\n", err)
+	if cfg, err := FromMap(MergeLayers(nil, envLayerMap())); err == nil {
+		return cfg
+	}
+	return &Config{StageHooks: make(map[string]StageHook)}
+}
+
+// fromProjectMap is the shared tail of Load/LoadPath and LoadNoProject. Merge
+// order is lowest tier first: project, then system OVER it, then env OVER both.
+// A nil project map (file absent, or no project at all) still lets the system
+// layer through; a nil env map leaves the file merge untouched.
+//
+// An absent system layer plus an absent project file — or a project file that
+// decoded to nothing — leaves the merge empty and yields the zero Config, the
+// byte-identical result the pre-cascade missing-file path returned.
+func fromProjectMap(projectMap map[string]any) (*Config, error) {
+	return FromMap(MergeLayers(projectMap, loadSystemLayer(), envLayerMap()))
+}
+
+// envLayerMap is loadEnvLayer's map half — the origins map is provenance-only and
+// unused on the typed-config path.
+func envLayerMap() map[string]any {
+	m, _ := loadEnvLayer()
+	return m
 }
 
 // FromMap unmarshals an already-merged layer tree into a Config. It is the tail
@@ -497,6 +544,25 @@ func LoadLayers(projectPath string) (*Layers, error) {
 	if err != nil {
 		return nil, err
 	}
+	return layersFrom(projectPath, projectMap), nil
+}
+
+// LoadLayersNoProject is the PROJECT-FREE counterpart of LoadLayers: it resolves
+// env > system > (built-in defaults, projected by the caller) with no project tier
+// at all, for a config-only read run outside any fab/ project. ProjectPath is ""
+// and Project is nil, which the provenance surfaces already render as an absent
+// layer — the same shape a project whose config.yaml does not exist produces.
+//
+// It cannot fail: the only error LoadLayers can return comes from parsing the
+// project file, and there is none here.
+func LoadLayersNoProject() *Layers {
+	return layersFrom("", nil)
+}
+
+// layersFrom is the shared tail of both loaders. The project map is already read
+// (or deliberately nil); system and env are loaded here so the two entry points
+// can never drift on which tiers they compose or in what order.
+func layersFrom(projectPath string, projectMap map[string]any) *Layers {
 	systemMap := loadSystemLayer()
 	envMap, envOrigins := loadEnvLayer()
 	sysPath, _ := systemConfigPath() // "" only if HOME is unresolvable (fail-open)
@@ -508,7 +574,7 @@ func LoadLayers(projectPath string) (*Layers, error) {
 		Env:         envMap,
 		EnvOrigins:  envOrigins,
 		Effective:   MergeLayers(projectMap, systemMap, envMap),
-	}, nil
+	}
 }
 
 // readYAMLMap reads a config.yaml at path into a generic map for merging. Returns

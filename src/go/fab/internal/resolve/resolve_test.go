@@ -398,3 +398,28 @@ func TestToFolder_UnreadableSymlinkTargetClassified(t *testing.T) {
 		t.Errorf("expected cause-bearing stat error, got: %v", err)
 	}
 }
+
+// TestFabRoot_NoProjectIsClassified: exhausting the upward search returns the
+// ErrNoFabRoot sentinel, so callers can distinguish the ordinary "not in a
+// project" answer from a broken environment (an unreadable cwd, which FabRoot
+// returns verbatim) without matching on message text. The surfaced string is
+// unchanged, so the documented `ERROR: fab/ directory not found` still holds.
+func TestFabRoot_NoProjectIsClassified(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	_, err := FabRoot()
+	if err == nil {
+		t.Fatal("FabRoot() succeeded in a directory with no fab/ above it")
+	}
+	if !errors.Is(err, ErrNoFabRoot) {
+		t.Errorf("FabRoot() error = %v, want it to match ErrNoFabRoot so callers can degrade on it", err)
+	}
+	if err.Error() != "fab/ directory not found" {
+		t.Errorf("FabRoot() message = %q, want the documented text unchanged", err.Error())
+	}
+	// A cwd failure must NOT match the sentinel — that is the whole distinction.
+	if errors.Is(os.ErrPermission, ErrNoFabRoot) {
+		t.Error("an unrelated error matches ErrNoFabRoot — the sentinel is too broad")
+	}
+}

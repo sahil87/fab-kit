@@ -233,17 +233,29 @@ func TestFindWindowExact(t *testing.T) {
 	})
 }
 
-// TestOperatorProfile verifies the pure `operator`-role resolver that backs the
-// operator's coordinating-agent model selection: a nil config resolves the
-// built-in operator default, and a project override is honored (per-field merge
-// over the built-in). The expected fill is DERIVED, so a defaults.yaml bump does
-// not reach this suite.
-func TestOperatorProfile(t *testing.T) {
-	// nil config → built-in operator default.
+// TestOperatorRoleResolution verifies the operator-role resolution that backs the
+// operator's coordinating-agent model selection, through the SHARED chain the tab
+// launcher and `fab agent operator` both walk: a nil config resolves the built-in
+// operator default, and a project override is honored (per-field merge over the
+// built-in). The expected fill is DERIVED, so a defaults.yaml bump does not reach
+// this suite.
+//
+// This used to test a private operatorProfile() helper. That helper was a second
+// copy of the resolution chain and is gone; testing the shared one means the
+// assertion now covers the code that actually runs.
+func TestOperatorRoleResolution(t *testing.T) {
 	model, effort := roleFill(t, agent.RoleOperator)
-	got := operatorProfile(nil)
+
+	// nil config → built-in operator default, composed into the built-in command.
+	cmd, got, err := roleSessionCommand(nil, agent.RoleOperator)
+	if err != nil {
+		t.Fatalf("roleSessionCommand(nil, operator): %v", err)
+	}
 	if got.Provider != "claude" || got.Model != model || got.Effort != effort {
-		t.Errorf("operatorProfile(nil) = %+v, want the built-in operator default", got)
+		t.Errorf("profile = %+v, want the built-in operator default", got)
+	}
+	if want := strings.TrimSuffix(builtinClaudeCommand(model, effort), "\n"); cmd != want {
+		t.Errorf("command = %q, want the built-in claude command %q", cmd, want)
 	}
 
 	// A project override of the `operator` role is honored (only effort here;
@@ -251,9 +263,52 @@ func TestOperatorProfile(t *testing.T) {
 	cfg := &config.Config{Agent: config.AgentConfig{Profiles: map[string]config.RoleProfile{
 		"operator": {Effort: "high"},
 	}}}
-	got = operatorProfile(cfg)
+	_, got, err = roleSessionCommand(cfg, agent.RoleOperator)
+	if err != nil {
+		t.Fatalf("roleSessionCommand(override, operator): %v", err)
+	}
 	if got.Provider != "claude" || got.Model != model || got.Effort != "high" {
-		t.Errorf("operatorProfile(override) = %+v, want effort=high with inherited provider+model", got)
+		t.Errorf("profile = %+v, want effort=high with inherited provider+model", got)
+	}
+}
+
+// TestRoleSessionCommand_EmptyWhenProviderHasNoInteractiveCommand pins the
+// three-state contract the two callers branch on: an empty command with a nil
+// error and the profile still populated, so the operator can fall back to
+// spawn.DefaultSpawnCommand with the role's {model, effort} while `fab agent`
+// turns the same signal into an actionable error.
+func TestRoleSessionCommand_EmptyWhenProviderHasNoInteractiveCommand(t *testing.T) {
+	cfg := &config.Config{
+		Agent:     config.AgentConfig{Session: "bare"},
+		Providers: map[string]config.ProviderConfig{"bare": {HeadlessCommand: "bare -p"}},
+	}
+
+	cmd, profile, err := roleSessionCommand(cfg, agent.RoleOperator)
+	if err != nil {
+		t.Fatalf("roleSessionCommand: %v — a missing interactive_command is a policy signal, not an error", err)
+	}
+	if cmd != "" {
+		t.Errorf("command = %q, want empty when the provider carries no interactive_command", cmd)
+	}
+	if profile.Provider != "bare" {
+		t.Errorf("profile = %+v, want the resolved profile returned alongside the empty command", profile)
+	}
+}
+
+// TestOperatorSpawnMatchesAgentRolePath is the anti-drift assertion the shared
+// helper exists to make possible: the operator tab and `fab agent operator`
+// compose the SAME command. Two implementations of the resolution chain is how
+// they silently diverged before.
+func TestOperatorSpawnMatchesAgentRolePath(t *testing.T) {
+	noProjectDir(t)
+
+	viaAgent, err := runAgentPrint(t, "operator")
+	if err != nil {
+		t.Fatalf("agent operator --print: %v", err)
+	}
+	if viaOperator := operatorSpawnCommand(); viaOperator != strings.TrimSuffix(viaAgent, "\n") {
+		t.Errorf("operator tab composes %q but `fab agent operator` composes %q — the two paths have drifted",
+			viaOperator, strings.TrimSuffix(viaAgent, "\n"))
 	}
 }
 
