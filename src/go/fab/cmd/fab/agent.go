@@ -11,6 +11,7 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/shellquote"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 	"github.com/spf13/cobra"
 )
@@ -75,12 +76,33 @@ func agentCmd() *cobra.Command {
 	var model string
 	var effort string
 	cmd := &cobra.Command{
-		Use:   "agent [role]",
+		Use:   "agent [role] [-- <agent-args>...]",
 		Short: "Launch (or --print) the resolved agent session command in the current shell",
-		Args:  cobra.MaximumNArgs(1),
+		// Everything after `--` is passthrough for the launched agent CLI, so the
+		// count of POSITIONALS cannot be validated by arity alone — only the args
+		// BEFORE the dash are fab's. cobra records that boundary in
+		// ArgsLenAtDash(); MaximumNArgs(1) would count the passthrough as extra
+		// roles and reject `fab agent -- --resume`.
+		Args: func(cmd *cobra.Command, args []string) error {
+			if n := cmd.ArgsLenAtDash(); n > 1 {
+				return fmt.Errorf("accepts at most 1 arg before `--`, received %d (everything after `--` is passed to the agent CLI)", n)
+			} else if n < 0 && len(args) > 1 {
+				return fmt.Errorf("accepts at most 1 arg(s), received %d (to pass arguments to the agent CLI, put them after `--`)", len(args))
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			role := ""
-			if len(args) == 1 {
+			// ArgsLenAtDash is the count of args before `--`, or -1 when no `--`
+			// was given. It is the ONLY reliable split: cobra strips the dash
+			// itself, so the passthrough is otherwise indistinguishable from a
+			// second positional.
+			role, passthrough := "", []string(nil)
+			if n := cmd.ArgsLenAtDash(); n >= 0 {
+				if n == 1 {
+					role = args[0]
+				}
+				passthrough = args[n:]
+			} else if len(args) == 1 {
 				role = args[0]
 			}
 
@@ -107,7 +129,7 @@ func agentCmd() *cobra.Command {
 				}
 			}
 
-			return runAgent(cmd, role, provider, providerSet, model, effort, printOnly, repo)
+			return runAgent(cmd, role, provider, providerSet, model, effort, printOnly, repo, passthrough)
 		},
 	}
 	cmd.Flags().BoolVar(&printOnly, "print", false, "print the fully-resolved command instead of executing it")
@@ -124,7 +146,7 @@ func agentCmd() *cobra.Command {
 // Flag.Changed for --provider) — NOT the emptiness of `provider` — selects the
 // mode, so an explicitly-empty `--provider=` takes the provider path and fails
 // its lookup rather than silently resolving the default role.
-func runAgent(cmd *cobra.Command, role, provider string, providerSet bool, model, effort string, printOnly bool, repo string) error {
+func runAgent(cmd *cobra.Command, role, provider string, providerSet bool, model, effort string, printOnly bool, repo string, passthrough []string) error {
 	cfg, err := loadRepoConfig(repo)
 	if err != nil {
 		return err
@@ -157,6 +179,13 @@ func runAgent(cmd *cobra.Command, role, provider string, providerSet bool, model
 		}
 		resolvedCmd = cmd
 	}
+
+	// Passthrough args are appended as SHELL-QUOTED tokens, because the composed
+	// line is handed to `sh -c` (below) and reaches --print as copy-pasteable
+	// text. Quoting here is what keeps `fab agent -- -p "two words"` a single
+	// argument instead of two, and what stops a value containing shell
+	// metacharacters from being re-interpreted.
+	resolvedCmd = appendPassthrough(resolvedCmd, passthrough)
 
 	if printOnly {
 		fmt.Fprintln(cmd.OutOrStdout(), resolvedCmd)
@@ -235,6 +264,24 @@ func roleSessionCommand(cfg *config.Config, role string) (string, agent.Profile,
 		return "", profile, nil
 	}
 	return spawn.WithProfile(prov.InteractiveCommand, profile.Model, profile.Effort), profile, nil
+}
+
+// appendPassthrough appends caller-supplied agent-CLI arguments to a composed
+// command line, one shell-quoted token each.
+//
+// The composed line is a STRING executed via `sh -c` and printed verbatim by
+// --print, so the arguments have to survive one more round of shell word
+// splitting. Single-quoting each token is what makes `-p "two words"` arrive as
+// one argument, and what keeps a token containing $, backticks or ; inert
+// instead of being re-interpreted by that shell.
+//
+// An empty slice returns the command unchanged, so a no-passthrough invocation
+// is byte-identical to before this existed.
+func appendPassthrough(command string, args []string) string {
+	for _, a := range args {
+		command += " " + shellquote.Single(a)
+	}
+	return command
 }
 
 // loadRepoConfig loads the config from an explicit repo root (--repo) or the

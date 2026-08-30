@@ -1406,7 +1406,7 @@ Duration is Go format (`3m`, `5m`, `2m`). Invalid → exit 1.
 ## fab agent
 
 ```
-fab agent [role] [--provider <name> [--model <id>] [--effort <level>]] [--workers <provider>] [--print] [--repo <path>]
+fab agent [role] [--provider <name> [--model <id>] [--effort <level>]] [--workers <provider>] [--print] [--repo <path>] [-- <agent-args>...]
 ```
 
 Launch (or `--print`) the profile-resolved agent **session** command in the current shell, with model and effort substituted.
@@ -1421,6 +1421,8 @@ Common to both modes:
 - **Default (exec)**: replaces this process with the composed command via `sh -c` (so shell expansions like `$(basename "$(pwd)")` expand at invocation). `fab agent` starts the default-role agent right here; `fab agent operator` starts the coordinator profile. **No TTY guard** — exec-and-let-the-agent-CLI-handle-it (document-don't-validate).
 - **`--print`**: prints the fully-resolved command instead of executing. Lets the operator compose a worker spawn from a real profile.
 - **`--repo <path>`**: reads `<path>/fab/project/config.yaml` instead of the current repo. Composes with either addressing mode.
+
+**Passthrough args (`-- <agent-args>...`)**: everything after `--` is forwarded to the launched agent CLI, so `fab agent -- --resume` runs the resolved claude command with `--resume` appended, and `fab agent doing -- -p "two words"` does the same on the `doing` role's provider. The split is cobra's `ArgsLenAtDash()` — the arg BEFORE the dash is still the role, and arity is validated on that half only (`fab agent a b -- x` errors; so does `fab agent a b`, with a hint pointing at the `--` form). Flags after the dash belong to the agent CLI, never to fab: `fab agent -- --repo /x` forwards `--repo /x` rather than re-pointing fab's config lookup. Each token is **shell-quoted** on the way in, because the composed line is executed via `sh -c` and printed verbatim by `--print` — that is what keeps `-p "two words"` one argument, and what makes a token containing `$(…)`, `;` or `>` inert data instead of script. Passthrough applies to BOTH addressing modes (role and `--provider`), and an invocation with no `--` is byte-identical to before.
 
 **Runs OUTSIDE a fab project.** `fab agent` is a **config-only** command — it resolves a `{provider, model, effort}` and launches a session; it never reads or writes change state. So when no `fab/` directory exists anywhere up the tree it does **not** fail closed: it degrades to the **project-free cascade**, `env > system (~/.fab-kit/config.yaml) > built-in defaults`, dropping only the project tier. A machine-wide preference therefore takes effect in any directory, which is what makes `fab agent` usable as a plain session launcher (`eval "$(fab agent --print)"` from anywhere). `Config.FabVersion` stays empty outside a project — `.fab-version` is a per-project pin — and preflight's staleness check already skips an empty value. `fab resolve-agent` and `fab config show` degrade the same way. **Project-state commands do not** — a missing `fab/` stays a hard error for anything touching change state, including `config`'s writing verbs (`set`, `unset`, `init`, `upgrade`).
 - **`--workers <provider>`**: sets `FAB_AGENT_WORKERS=<provider>` in the exec environment for the launched session, replacing any value inherited from the parent environment rather than appending a second entry. It is pure pass-through launch sugar: no provider lookup or validation, and `--print` remains exactly the resolved session command with no assignment added.
