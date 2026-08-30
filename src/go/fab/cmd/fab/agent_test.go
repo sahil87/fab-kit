@@ -32,6 +32,20 @@ func roleFill(t *testing.T, role string) (model, effort string) {
 	return p.Model, p.Effort
 }
 
+// builtinClaudeCommand renders the built-in claude interactive_command with the
+// given fill substituted into its {model}/{effort} placeholders.
+//
+// Assertions below pin the SUBSTITUTION, not the command grammar. Deriving the
+// grammar from agent.DefaultInteractiveCommand (which resolves from defaults.yaml)
+// means a grammar change there — a new permission flag, a renamed option — moves
+// these expectations by itself, the same derive-don't-restate rule roleFill applies
+// to model IDs. A test that needs a grammar DIFFERENT from the built-in (a fixture
+// standing in for a user-authored command) still writes its own literal.
+func builtinClaudeCommand(model, effort string) string {
+	return strings.NewReplacer("{model}", model, "{effort}", effort).
+		Replace(agent.DefaultInteractiveCommand) + "\n"
+}
+
 // agentTestRepo creates a temp repo with fab/project/config.yaml holding the
 // given config body and chdirs into the repo root (cwd restored on cleanup).
 func agentTestRepo(t *testing.T, configBody string) string {
@@ -274,7 +288,7 @@ func TestAgentPrintBuiltinFallback(t *testing.T) {
 	// Pin the full resolved command: the built-in templated default with the
 	// `default` role's fill substituted into its placeholders.
 	model, effort := roleFill(t, agent.RoleDefault)
-	want := fmt.Sprintf("claude --dangerously-skip-permissions -n \"$(basename \"$(pwd)\")\" --model %s --effort %s\n", model, effort)
+	want := builtinClaudeCommand(model, effort)
 	if out != want {
 		t.Errorf("output = %q, want the `default`-role profile substituted into the templated built-in command %q", out, want)
 	}
@@ -402,7 +416,7 @@ func TestAgentPrintProviderBuiltinClaude(t *testing.T) {
 	if err != nil {
 		t.Fatalf("agent --provider claude --print: %v", err)
 	}
-	want := "claude --dangerously-skip-permissions -n \"$(basename \"$(pwd)\")\" --model claude-haiku-4-5 --effort xhigh\n"
+	want := builtinClaudeCommand("claude-haiku-4-5", "xhigh")
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}

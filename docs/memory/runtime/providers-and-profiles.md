@@ -111,7 +111,7 @@ Every supported agent CLI has an interactive mode, so built-in providers SHALL s
 
 | Built-in | `interactive_command` | `native` | `headless_command` | `profiles` |
 |----------|-------------------|----------|--------------------|------------|
-| `claude` | templated default | `true` | `claude -p --dangerously-skip-permissions --model {model} --effort {effort}` | all six roles |
+| `claude` | templated default | `true` | `claude -p --permission-mode bypassPermissions --model {model} --effort {effort}` | all six roles |
 | `codex` | `codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}` | absent | `codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}` | sparse — `default`, `doing`, `review`, `fast` |
 | `agy` | `agy --dangerously-skip-permissions --model {model}` | absent | `sh -c 'agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'` | sparse — `default`, `fast` (model only) |
 | `kimi` | `kimi --auto -m {model}` | absent | `sh -c 'kimi -m {model} -p "$(cat)"'` | **none** — deliberate |
@@ -469,7 +469,7 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 
 ### Non-Claude Built-in Commands Run Full-Auto
 **Decision**: Both codex command forms carry `--dangerously-bypass-approvals-and-sandbox` and both agy command forms carry `--dangerously-skip-permissions`; kimi carries `--auto` on its interactive command and no approval flag on its headless one, because `kimi -p` is already non-interactive, auto-approves tool calls, and *rejects* `--yolo`/`--auto`. Project and system provider-command overrides remain the approval-gated escape hatch.
-**Why**: Headless and pane stage workers are unattended and have no approval-answering channel; ship and review-pr also require network and repository operations. Explicit bypass grammar gives the non-claude built-ins the same autonomous execution policy as claude's shipped `--dangerously-skip-permissions` command — expressed in each CLI's own vocabulary, including "no flag" where the CLI's headless mode already implies it.
+**Why**: Headless and pane stage workers are unattended and have no approval-answering channel; ship and review-pr also require network and repository operations. Explicit bypass grammar gives the non-claude built-ins the same autonomous execution policy as claude's shipped `--permission-mode bypassPermissions` command — expressed in each CLI's own vocabulary, including "no flag" where the CLI's headless mode already implies it.
 **Rejected**: Codex `--full-auto` (retains a workspace-write sandbox that blocks required network operations); bypassing only `headless_command` (leaves pane workers gated); adding an approval flag to kimi's dispatch form for symmetry (the CLI errors on it); approval-gated built-ins or per-project fixes (break the complete one-knob provider swap).
 *Introduced by*: 260808-clxw-codex-gemini-bypass-flags; *Updated by*: 260808-rpsr-remove-gemini-add-agy-kimi
 
