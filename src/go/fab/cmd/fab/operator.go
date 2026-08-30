@@ -159,25 +159,21 @@ func operatorSpawnCommand() string {
 		cfg = config.LoadNoProject()
 	}
 
-	profile := operatorProfile(cfg)
-
-	sessionCmd := spawn.DefaultSpawnCommand
-	if prov, ok := agent.ResolveProvider(cfg, profile.Provider); ok && prov.InteractiveCommand != "" {
-		sessionCmd = prov.InteractiveCommand
+	// Shared resolution chain (see roleSessionCommand in agent.go) — the same one
+	// `fab agent operator` walks, so the tab and a hand-run session can never
+	// compose different commands. Only the MISSING-COMMAND policy differs here:
+	// the operator must always launch, so a provider with no interactive_command
+	// falls back to the built-in rather than erroring.
+	cmd, profile, err := roleSessionCommand(cfg, agent.RoleOperator)
+	if err != nil {
+		// Unreachable: RoleOperator is always a known role (drift-guard test).
+		// Degrade to the built-in operator profile rather than fail to launch.
+		profile, _ = agent.DefaultProfile(agent.RoleOperator)
 	}
-	return spawn.WithProfile(sessionCmd, profile.Model, profile.Effort)
-}
-
-// operatorProfile resolves the operator-role profile from cfg, degrading to the
-// built-in operator default when cfg is nil or the role cannot be resolved. Pure
-// (no exec / no filesystem), so the fallback is unit-testable.
-func operatorProfile(cfg *config.Config) agent.Profile {
-	if p, err := agent.ResolveRole(cfg, agent.RoleOperator); err == nil {
-		return p
+	if cmd == "" {
+		cmd = spawn.WithProfile(spawn.DefaultSpawnCommand, profile.Model, profile.Effort)
 	}
-	// RoleOperator is always a known role (guarded by the drift-guard test).
-	def, _ := agent.DefaultProfile(agent.RoleOperator)
-	return def
+	return cmd
 }
 
 // gitRepoRoot returns the git repo root for the current directory. On
