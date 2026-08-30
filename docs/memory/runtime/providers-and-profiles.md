@@ -340,7 +340,7 @@ The stage→role mapping is **fab-owned and NOT user-overridable** (`stageRoles`
 - **WHEN** the role is resolved
 - **THEN** `dispatch=` carries claude's headless command because the selector never ascends
 
-### Requirement: `fab agent [role] [--provider <name> [--model <id>] [--effort <level>]] [--workers <provider>] [--print] [--repo <path>]` — session launcher
+### Requirement: `fab agent [role] [--provider <name> [--model <id>] [--effort <level>]] [--workers <provider>] [--print] [--repo <path>] [-- <agent-args>...]` — session launcher
 
 `fab agent` SHALL compose an interactive session command in one of **two mutually exclusive addressing modes** and **exec it in the current shell**:
 
