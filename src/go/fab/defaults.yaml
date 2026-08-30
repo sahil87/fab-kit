@@ -107,8 +107,8 @@ autopilot:
 providers:
   claude:
     native: true
-    interactive_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
-    headless_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
+    interactive_command: 'claude --permission-mode bypassPermissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
+    headless_command: 'claude -p --permission-mode bypassPermissions --model {model} --effort {effort}'
     # The six role fills. `default` doubles as this provider's cross-role
     # fallback: a role absent here resolves the `default` entry, then empty.
     profiles:
@@ -122,7 +122,7 @@ providers:
     # `codex exec` is a SUBCOMMAND (not a flag) and reads the prompt from stdin,
     # which is where `fab dispatch` pipes it. Both forms bypass approvals and the
     # sandbox: stage workers are unattended and cannot answer approval prompts,
-    # matching claude's shipped `--dangerously-skip-permissions` posture.
+    # matching claude's shipped `--permission-mode bypassPermissions` posture.
     interactive_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
     headless_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
     # Sparse: a role absent here resolves the `default` entry, so hydrate gets
@@ -165,7 +165,7 @@ providers:
     # REJECTS --yolo/--auto ("Cannot combine --prompt with --yolo"), so the
     # dispatch form carries no approval flag. Same nested-shell stdin idiom as agy.
     # The INTERACTIVE form is where the full-auto flag belongs: --auto is kimi's
-    # unattended posture, matching claude's shipped --dangerously-skip-permissions.
+    # unattended posture, matching claude's shipped --permission-mode bypassPermissions.
     # Its {model} resolves empty (no fills), so the -m pair drops out and kimi runs
     # on the user's own default_model.
     interactive_command: 'kimi --auto -m {model}'

@@ -241,8 +241,8 @@ claude's included.)
 providers:
   claude:
     native: true
-    interactive_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
-    headless_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
+    interactive_command: 'claude --permission-mode bypassPermissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
+    headless_command: 'claude -p --permission-mode bypassPermissions --model {model} --effort {effort}'
     profiles:                                 # dense — all six roles carry model + effort
       default:  { model: ..., effort: ... }
       operator: { model: ..., effort: ... }
@@ -292,7 +292,7 @@ amortizes across a checkout), and its **input echo** verifies now that delivery'
 box-drawing runes as well as whitespace — kimi draws vertical side rules down its input box, so a
 wrapped pointer arrives in the capture with `││` interleaved between the halves.
 
-**Full-auto posture, per FORM.** Claude uses `--dangerously-skip-permissions` on both its forms,
+**Full-auto posture, per FORM.** Claude uses `--permission-mode bypassPermissions` on both its forms,
 codex `--dangerously-bypass-approvals-and-sandbox` on both its forms, and agy
 `--dangerously-skip-permissions` on both forms. kimi carries `--auto` on its INTERACTIVE
 form only: `kimi -p` is already non-interactive and auto-approves tool calls, and *errors* when
@@ -443,8 +443,8 @@ agent:
 providers:
   claude:
     native: true
-    interactive_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
-    headless_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
+    interactive_command: 'claude --permission-mode bypassPermissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
+    headless_command: 'claude -p --permission-mode bypassPermissions --model {model} --effort {effort}'
   # codex, agy and kimi are BUILT-IN providers carrying grammar (and, for the
   # first two, fills) — `fab config explain` shows their blocks LIVE like
   # claude's, and a copy hoisted into your config PINS the shown values against

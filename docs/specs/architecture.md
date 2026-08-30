@@ -267,8 +267,8 @@ checklist:
 providers:
   claude:
     native: true
-    interactive_command: claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}
-    headless_command: claude -p --dangerously-skip-permissions --model {model} --effort {effort}
+    interactive_command: claude --permission-mode bypassPermissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}
+    headless_command: claude -p --permission-mode bypassPermissions --model {model} --effort {effort}
     profiles:                              # the six per-role fills — run `fab config explain` for the live values
       doing: { model: <model-id>, effort: <effort> }   # example: shape only
   codex:
