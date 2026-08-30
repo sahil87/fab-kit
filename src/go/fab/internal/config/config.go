@@ -432,15 +432,30 @@ func LoadPath(path string) (*Config, error) {
 //
 // Note this is strictly MORE than the zero Config: the system file and FAB_* env
 // vars still apply, which is the whole point — a machine-wide preference should
-// not need a project to take effect. It cannot fail (no project file to misparse).
+// not need a project to take effect.
+//
+// It returns no error, per the loader's fail-open contract (config must never
+// brick). There IS one reachable failure: a system file that is valid YAML but
+// Config-INCOMPATIBLE (say `dispatch: "a string"` where a map is expected) —
+// loadSystemLayer decodes into map[string]any and so cannot catch a type
+// mismatch, which only surfaces at unmarshal. That is handled the same way
+// loadSystemLayer handles a MALFORMED system file: warn, drop the system layer,
+// and retry — so valid FAB_* env overrides still apply rather than being lost
+// alongside the bad file. Only if the env layer is itself incompatible does this
+// fall all the way back to the zero Config.
 func LoadNoProject() *Config {
 	cfg, err := fromProjectMap(nil)
-	if err != nil {
-		// Unreachable: the only error path is a project-file parse, and there is
-		// no project file. Degrade to the zero config rather than panic.
-		return &Config{StageHooks: make(map[string]StageHook)}
+	if err == nil {
+		return cfg
 	}
-	return cfg
+
+	// The system layer is Config-incompatible. Drop it (warning, like every other
+	// fail-open system-file path) and retry env-only.
+	warnf("fab: warning: system config is incompatible with the config schema (%v); ignoring it\n", err)
+	if cfg, err := FromMap(MergeLayers(nil, envLayerMap())); err == nil {
+		return cfg
+	}
+	return &Config{StageHooks: make(map[string]StageHook)}
 }
 
 // fromProjectMap is the shared tail of Load/LoadPath and LoadNoProject. Merge

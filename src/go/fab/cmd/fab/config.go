@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -239,6 +240,9 @@ func configShowCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+			} else if !errors.Is(err, resolve.ErrNoFabRoot) {
+				// Broken environment (unreadable cwd), not "no project".
+				return err
 			} else {
 				layers = config.LoadLayersNoProject()
 			}

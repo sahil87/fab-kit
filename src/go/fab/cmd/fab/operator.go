@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -156,6 +157,16 @@ func operatorSpawnCommand() string {
 	if fabRoot, err := resolve.FabRoot(); err == nil {
 		cfg, _ = config.Load(fabRoot) // nil on error → nil-safe accessors below
 	} else {
+		// ErrNoFabRoot is the ordinary "launched outside a project" case and is
+		// silent. Any OTHER FabRoot failure means a broken environment (an
+		// unreadable cwd) — the operator still launches, because a coordinator
+		// that refuses to start is worse than one on default settings, but it
+		// must not do so SILENTLY or the environment problem is invisible.
+		// (runOperator's own os.Getwd fallback for the window dir already hard-
+		// fails on this, so in practice it is unreachable from that path.)
+		if !errors.Is(err, resolve.ErrNoFabRoot) {
+			fmt.Fprintf(os.Stderr, "fab: warning: cannot resolve the working directory (%v); launching the operator on env+system config only\n", err)
+		}
 		cfg = config.LoadNoProject()
 	}
 

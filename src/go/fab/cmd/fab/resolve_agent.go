@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -106,6 +107,9 @@ func resolveAgentCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+			} else if !errors.Is(err, resolve.ErrNoFabRoot) {
+				// Broken environment (unreadable cwd), not "no project".
+				return err
 			} else {
 				cfg = config.LoadNoProject()
 			}

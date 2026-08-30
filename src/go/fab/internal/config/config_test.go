@@ -1825,3 +1825,22 @@ func TestLoadLayersNoProject_HasNoProjectTier(t *testing.T) {
 		t.Errorf("Effective = %v, want the system layer merged in", layers.Effective)
 	}
 }
+
+// TestLoadNoProject_IncompatibleSystemLayerKeepsEnv: a system file that is valid
+// YAML but Config-INCOMPATIBLE (a scalar where a map belongs) cannot be caught by
+// loadSystemLayer, which decodes into map[string]any — it only surfaces at
+// unmarshal. Per the loader's fail-open contract that must warn and drop the
+// system layer, NOT discard valid FAB_* env overrides alongside it.
+func TestLoadNoProject_IncompatibleSystemLayerKeepsEnv(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, "dispatch: not-a-mapping\n")
+	t.Setenv("FAB_AGENT_SESSION", "codex")
+
+	cfg := LoadNoProject()
+	if cfg == nil {
+		t.Fatal("LoadNoProject() = nil on an incompatible system layer — config must never brick")
+	}
+	if got := cfg.Agent.Session; got != "codex" {
+		t.Errorf("agent.session = %q, want the env layer's %q to survive the bad system layer", got, "codex")
+	}
+}

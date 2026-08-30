@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -200,8 +201,11 @@ func unknownProviderError(cfg *config.Config, name string) error {
 // substituted. It is the ONE implementation of that resolution chain — both
 // `fab agent <role>` and the operator's tmux-tab launcher go through it.
 //
-// It returns an EMPTY command (and a nil error) when the resolved provider
-// carries no interactive_command. That is deliberately not an error here,
+// It returns an EMPTY command (and a nil error) when the role's provider cannot
+// supply one — either the provider NAME does not resolve at all, or it resolves
+// but carries no interactive_command. The two are deliberately one signal: from
+// a caller's view both mean "this role names no launchable session", and both
+// have always produced the same outcome. That is deliberately not an error here,
 // because the two callers legitimately differ on what it means — and keeping
 // that divergence at the call sites, with the resolution itself shared, is the
 // whole reason this helper exists:
@@ -243,6 +247,11 @@ func loadRepoConfig(repo string) (*config.Config, error) {
 	}
 	fabRoot, err := resolve.FabRoot()
 	if err != nil {
+		if !errors.Is(err, resolve.ErrNoFabRoot) {
+			// A cwd that cannot be read is a broken environment, not "no
+			// project" — surface it instead of silently reading built-ins.
+			return nil, err
+		}
 		// No fab/ project anywhere up the tree. `fab agent` is a CONFIG-ONLY
 		// command — it needs a resolved {provider, model, effort}, not change
 		// state — so it degrades to the project-free cascade (env > system >

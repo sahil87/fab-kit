@@ -17,6 +17,14 @@ import (
 var (
 	ErrNotFound  = errors.New("no matching change")
 	ErrAmbiguous = errors.New("ambiguous change reference")
+
+	// ErrNoFabRoot marks the EXPECTED outcome of FabRoot when no fab/ exists
+	// anywhere up the tree — "you are not in a project", which the config-only
+	// commands degrade on. It is deliberately distinct from FabRoot's other
+	// failure (os.Getwd), which means a genuinely broken environment (a deleted
+	// or unreadable cwd) and must surface rather than be silently read as
+	// "no project". Callers branch with errors.Is, never on the message text.
+	ErrNoFabRoot = errors.New("fab/ directory not found")
 )
 
 // classifiedError pairs a sentinel kind with a user-facing message. Its
@@ -42,7 +50,21 @@ func ambiguousf(format string, a ...any) error {
 	return &classifiedError{kind: ErrAmbiguous, msg: fmt.Sprintf(format, a...)}
 }
 
+// noFabRoot builds the classified "no fab/ anywhere up the tree" error. The
+// surfaced text is unchanged from before the sentinel existed, so the documented
+// `ERROR: fab/ directory not found` message and anything matching on it still
+// hold; only the errors.Is classification is new.
+func noFabRoot() error {
+	return &classifiedError{kind: ErrNoFabRoot, msg: "fab/ directory not found"}
+}
+
 // FabRoot returns the fab/ directory path by searching upward from cwd.
+//
+// Its two failures are DIFFERENT and callers must not conflate them: a cwd that
+// cannot be read (os.Getwd) is a broken environment and is returned as-is, while
+// exhausting the upward search returns ErrNoFabRoot — the ordinary "not in a
+// project" answer that config-only commands degrade on. Match with
+// errors.Is(err, ErrNoFabRoot).
 func FabRoot() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -55,7 +77,7 @@ func FabRoot() (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("fab/ directory not found")
+			return "", noFabRoot()
 		}
 		dir = parent
 	}
