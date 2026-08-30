@@ -110,7 +110,7 @@ func TestResolveAgentDefaultOutputExactBytes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve-agent ship: %v", err)
 	}
-	want = "model=claude-sonnet-5\neffort=medium\nprovider=claude\n"
+	want = wantRoleBytes(t, agent.RoleFast)
 	if out != want {
 		t.Errorf("ship output = %q, want %q", out, want)
 	}
@@ -234,7 +234,7 @@ func TestResolveAgentPrintsDispatchLine(t *testing.T) {
 func TestResolveAgentAliasEmitsShortAlias(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
 
-	out, err := runResolveAgentCmd(t, "apply", "--alias") // apply ∈ doing → fable
+	out, err := runResolveAgentCmd(t, "apply", "--alias") // apply ∈ doing → opus
 	if err != nil {
 		t.Fatalf("resolve-agent apply --alias: %v", err)
 	}

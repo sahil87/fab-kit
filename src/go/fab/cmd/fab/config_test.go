@@ -796,10 +796,10 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 		"FOUR built-in providers",
 		"KIT-RELEASE cadence",
 		"providers.<name>.profiles.<role>.model",
-		// Only the non-claude providers render a `profiles:` map, so the prose must
-		// say why claude's is absent — otherwise the reader concludes claude ships
-		// none.
-		"rendering choice, not a missing fill",
+		// Every provider renders its `profiles:` map, claude's included — the prose
+		// must say so, since the whole point is that a reader never has to reach for
+		// --json to see what the default provider resolves.
+		"EVERY provider's fill map is printed below, claude's included",
 		// kimi's empty fill map is a deliberate design point, not an omission, so
 		// the reference has to say so where a reader would otherwise see a gap.
 		"kimi deliberately ships NO fills",
@@ -813,6 +813,10 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 	for _, retired := range []string{
 		"GRAMMAR ONLY",
 		"fab ships no model ID",
+		// The pre-260829 omission clause: claude's fills render now, so a surviving
+		// "they are deliberately absent" line would be a user-facing inaccuracy.
+		"rendering choice, not a missing fill",
+		"Only the non-claude maps are PRINTED",
 		"resolves today with an EMPTY model",
 	} {
 		if strings.Contains(out, retired) {
@@ -886,7 +890,7 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 		t.Error("providers block still advertises the retired flat providers.<name>.model/.effort fill")
 	}
 
-	// The RENDERED reference must carry the shipped codex/agy fills, not just
+	// The RENDERED reference must carry EVERY built-in's shipped fills, not just
 	// the JSON projection below: those fill lines ARE the user-facing half of
 	// R7, and without this assertion they can be dropped from providersSegment with
 	// the whole suite staying green. Expectations are DERIVED from ResolveProvider,
@@ -894,7 +898,11 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 	// effort-only rows and agy's model-only rows are both pinned, a fill bump in
 	// defaults.yaml moves both sides together, and no model ID is written as a
 	// literal here.
-	for _, name := range []string{"codex", "agy"} {
+	//
+	// claude is in this list as of 260829. It was previously excluded — the rendered
+	// block showed its commands but not its fills — which left the DEFAULT provider
+	// as the only one whose resolved models a reader could not see without --json.
+	for _, name := range []string{"claude", "codex", "agy"} {
 		prov, ok := agent.ResolveProvider(nil, name)
 		if !ok {
 			t.Errorf("built-in provider %q does not resolve", name)

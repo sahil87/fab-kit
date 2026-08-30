@@ -21,11 +21,14 @@
 #   TestDefaultRoleProfilesArePinned      the deliberate-change pin, claude (agent_test.go)
 #   TestNonClaudeProviderFillsArePinned   the same pin for codex/agy/kimi (agent_test.go)
 #   TestDocTablesMatchAgentMaps           docs/specs/stage-models.md § default-role TABLE
-#   TestMirrorDocsMatchDefaultProfiles    docs/specs/stage-models.md inline-YAML sample (all 4 providers)
-#   TestCLIFabReferenceListsDefaultRoles  src/kit/skills/_cli-fab.md § resolve-agent enumeration
 #
-# No other test hardcodes these strings — the rest derive from DefaultProfile(),
-# so a bump does not touch them.
+# That table is the ONE doc mirror left, and the only place outside this file that
+# spells a shipped model ID. Everything else derives: the docs that used to restate
+# the fills (stage-models.md's providers sample, _cli-fab.md's resolve-agent
+# enumeration) now show SHAPE only and point at `fab resolve-agent` /
+# `fab config explain providers --json`, and every test builds its expectation from
+# DefaultProfile() via the cmd/fab `roleFill` helper. So a model bump is this file
+# plus that table — nothing else.
 
 # agent.session / agent.workers — the two advertised knobs, selecting a provider
 # by agent DEPTH. session = the Tier-1 roles a user talks to (default, operator);
@@ -109,7 +112,7 @@ providers:
     # The six role fills. `default` doubles as this provider's cross-role
     # fallback: a role absent here resolves the `default` entry, then empty.
     profiles:
-      default:  { model: claude-fable-5,  effort: high }
+      default:  { model: claude-opus-5,   effort: high }
       operator: { model: claude-sonnet-5, effort: medium }
       doing:    { model: claude-opus-5,   effort: high }
       review:   { model: claude-opus-5,   effort: high }

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"gopkg.in/yaml.v3"
 )
@@ -234,12 +235,14 @@ func TestFindWindowExact(t *testing.T) {
 
 // TestOperatorProfile verifies the pure `operator`-role resolver that backs the
 // operator's coordinating-agent model selection: a nil config resolves the
-// built-in operator default {claude, claude-sonnet-5, medium}, and a project
-// override is honored (per-field merge over the built-in).
+// built-in operator default, and a project override is honored (per-field merge
+// over the built-in). The expected fill is DERIVED, so a defaults.yaml bump does
+// not reach this suite.
 func TestOperatorProfile(t *testing.T) {
 	// nil config → built-in operator default.
+	model, effort := roleFill(t, agent.RoleOperator)
 	got := operatorProfile(nil)
-	if got.Provider != "claude" || got.Model != "claude-sonnet-5" || got.Effort != "medium" {
+	if got.Provider != "claude" || got.Model != model || got.Effort != effort {
 		t.Errorf("operatorProfile(nil) = %+v, want the built-in operator default", got)
 	}
 
@@ -249,7 +252,7 @@ func TestOperatorProfile(t *testing.T) {
 		"operator": {Effort: "high"},
 	}}}
 	got = operatorProfile(cfg)
-	if got.Provider != "claude" || got.Model != "claude-sonnet-5" || got.Effort != "high" {
+	if got.Provider != "claude" || got.Model != model || got.Effort != "high" {
 		t.Errorf("operatorProfile(override) = %+v, want effort=high with inherited provider+model", got)
 	}
 }

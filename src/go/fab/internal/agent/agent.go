@@ -16,7 +16,7 @@
 // (capability grammars plus every provider's per-role fills) are DATA: they live in defaults.yaml
 // (at the module root, embedded there by the root fab package and parsed below),
 // shaped as a config-file fragment, and defaults.yaml is the
-// single place to bump when a new top model lands (the "Fable upgrade path"). The
+// single place to bump when a new top model lands (the "Model upgrade path"). The
 // stage→role mapping and the role→depth partition are POLICY: they stay Go maps
 // here and are NOT user-overridable (there is no stage_roles config and no
 // per-stage escape hatch). Users override only which provider each depth uses, via
