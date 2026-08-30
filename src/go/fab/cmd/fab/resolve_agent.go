@@ -96,14 +96,18 @@ func resolveAgentCmd() *cobra.Command {
 		Short: "Resolve a pipeline stage (or agent role) to its {provider, model, effort} agent profile",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fabRoot, err := resolve.FabRoot()
-			if err != nil {
-				return err
-			}
-
-			cfg, err := config.Load(fabRoot)
-			if err != nil {
-				return err
+			// Config-only command: it resolves a profile, never change state, so
+			// with no fab/ project it degrades to env > system > built-in
+			// defaults instead of failing closed (see loadRepoConfig in agent.go
+			// and cmd/fab/skill.md's config-free-commands rule).
+			var cfg *config.Config
+			if fabRoot, err := resolve.FabRoot(); err == nil {
+				cfg, err = config.Load(fabRoot)
+				if err != nil {
+					return err
+				}
+			} else {
+				cfg = config.LoadNoProject()
 			}
 
 			role, err := agent.RoleForName(args[0])

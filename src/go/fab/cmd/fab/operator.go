@@ -146,9 +146,17 @@ func findWindowExact(out, name string) (windowID string, found bool) {
 // spawn.DefaultSpawnCommand (still profile-substituted) rather than erroring — the
 // operator must always launch.
 func operatorSpawnCommand() string {
+	// With a fab/ project, the project tier participates. Without one, fall back
+	// to the PROJECT-FREE cascade rather than to a nil config: env > system >
+	// built-in defaults. A nil config would silently discard the user's
+	// ~/.fab-kit/config.yaml, so an operator launched from a neutral directory
+	// (its natural cross-repo home) would ignore machine-wide preferences it
+	// honors everywhere else.
 	var cfg *config.Config
 	if fabRoot, err := resolve.FabRoot(); err == nil {
 		cfg, _ = config.Load(fabRoot) // nil on error → nil-safe accessors below
+	} else {
+		cfg = config.LoadNoProject()
 	}
 
 	profile := operatorProfile(cfg)

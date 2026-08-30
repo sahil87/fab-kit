@@ -200,7 +200,15 @@ func loadRepoConfig(repo string) (*config.Config, error) {
 	}
 	fabRoot, err := resolve.FabRoot()
 	if err != nil {
-		return nil, err
+		// No fab/ project anywhere up the tree. `fab agent` is a CONFIG-ONLY
+		// command — it needs a resolved {provider, model, effort}, not change
+		// state — so it degrades to the project-free cascade (env > system >
+		// built-in defaults) rather than failing closed. That is what makes
+		// `fab agent` usable as a plain session launcher from any directory,
+		// and it keeps a machine-wide preference in ~/.fab-kit/config.yaml
+		// authoritative outside a project too. Project-state commands keep
+		// erroring here; see cmd/fab/skill.md's config-free-commands rule.
+		return config.LoadNoProject(), nil
 	}
 	return config.Load(fabRoot)
 }
