@@ -9,9 +9,12 @@ package configupgrade
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
@@ -45,7 +48,7 @@ agent:
             model: claude-fable-5
             effort: xhigh
 `
-	out, _ := render(legacy, fields, "2.15.0")
+	out, _ := render(legacy, fields, ProjectTarget(""), "2.15.0")
 
 	// The user's preamble (live keys + their comment) is preserved verbatim as a prefix.
 	if !strings.HasPrefix(out, legacy) {
@@ -81,7 +84,7 @@ func TestRender_FenceOmitsOverriddenFields(t *testing.T) {
         review:
             model: claude-fable-5
 `
-	out, _ := render(src, fields, "2.15.0")
+	out, _ := render(src, fields, ProjectTarget(""), "2.15.0")
 
 	_, fenceBody, _ := sliceFence(t, out)
 	if strings.Contains(fenceBody, "agent:") {
@@ -101,7 +104,7 @@ func TestRender_FenceOmitsOverriddenFields(t *testing.T) {
 // only.
 func TestRender_FenceDemotesAgentMachinery(t *testing.T) {
 	fields := fieldsForTest(t)
-	out, _ := render("", fields, "2.15.0")
+	out, _ := render("", fields, ProjectTarget(""), "2.15.0")
 	_, fenceBody, _ := sliceFence(t, out)
 
 	for _, want := range []string{"agent.session", "agent.workers"} {
@@ -125,7 +128,7 @@ func TestRender_FenceDemotesAgentMachinery(t *testing.T) {
 // comment.
 func TestRender_FenceFullyComments(t *testing.T) {
 	fields := fieldsForTest(t)
-	out, _ := render("", fields, "2.15.0")
+	out, _ := render("", fields, ProjectTarget(""), "2.15.0")
 	_, fenceBody, _ := sliceFence(t, out)
 
 	for _, ln := range strings.Split(fenceBody, "\n") {
@@ -238,7 +241,7 @@ func TestRender_ParksUnknownLiveKey(t *testing.T) {
 
 legacy_mode: true
 `
-	out, report := render(src, fields, "2.15.0")
+	out, report := render(src, fields, ProjectTarget(""), "2.15.0")
 
 	preamble, _, postfence := sliceFence(t, out)
 	if strings.Contains(preamble, "legacy_mode:") {
@@ -267,7 +270,7 @@ agent:
         review:
             model: claude-fable-5
 `
-	out, _ := render(src, fields, "2.15.0")
+	out, _ := render(src, fields, ProjectTarget(""), "2.15.0")
 	if !strings.Contains(out, comment) {
 		t.Errorf("user comment on a live field must be preserved verbatim.\n--- got ---\n%s", out)
 	}
@@ -277,7 +280,7 @@ agent:
 // document — no preamble, valid anchors, ends in one newline.
 func TestRender_EmptyFileWritesFenceOnly(t *testing.T) {
 	fields := fieldsForTest(t)
-	out, _ := render("", fields, "2.15.0")
+	out, _ := render("", fields, ProjectTarget(""), "2.15.0")
 	if !strings.HasPrefix(out, "# >>> fab reference (kit 2.15.0) >>> ") {
 		t.Errorf("empty file should start with the BEGIN anchor, got:\n%s", out)
 	}
@@ -293,10 +296,10 @@ func TestRender_EmptyFileWritesFenceOnly(t *testing.T) {
 // an unregistered key would be parked rather than hoisted and would test nothing.
 func TestRender_BelowFenceLiveOverrideHoisted(t *testing.T) {
 	fields := fieldsForTest(t)
-	first, _ := render("project:\n    name: t\n", fields, "2.15.0")
+	first, _ := render("project:\n    name: t\n", fields, ProjectTarget(""), "2.15.0")
 	withBelow := first + "\ntrue_impact_exclude:\n    - docs/\n"
 
-	out, _ := render(withBelow, fields, "2.15.0")
+	out, _ := render(withBelow, fields, ProjectTarget(""), "2.15.0")
 	if !strings.Contains(out, "true_impact_exclude:\n    - docs/") {
 		t.Fatalf("a live override appended below the fence must NOT be dropped.\n--- got ---\n%s", out)
 	}
@@ -308,7 +311,7 @@ func TestRender_BelowFenceLiveOverrideHoisted(t *testing.T) {
 		t.Errorf("the now-live true_impact_exclude must be omitted from the regenerated fence.\n--- fence ---\n%s", fenceBody)
 	}
 	// Idempotent: a third run over the hoisted document is byte-identical.
-	third, _ := render(out, fields, "2.15.0")
+	third, _ := render(out, fields, ProjectTarget(""), "2.15.0")
 	if third != out {
 		t.Errorf("hoisted below-fence content must be idempotent.\n--- out ---\n%s\n--- third ---\n%s", out, third)
 	}
@@ -318,10 +321,10 @@ func TestRender_BelowFenceLiveOverrideHoisted(t *testing.T) {
 // fence is hoisted, then parked (not left dangling below the fence, and not dropped).
 func TestRender_BelowFenceUnknownKeyParked(t *testing.T) {
 	fields := fieldsForTest(t)
-	first, _ := render("project:\n    name: t\n", fields, "2.15.0")
+	first, _ := render("project:\n    name: t\n", fields, ProjectTarget(""), "2.15.0")
 	withBelow := first + "\nmy_custom_key: 99\n"
 
-	out, report := render(withBelow, fields, "2.15.0")
+	out, report := render(withBelow, fields, ProjectTarget(""), "2.15.0")
 	_, _, postfence := sliceFence(t, out)
 	if !strings.Contains(postfence, "#   my_custom_key: 99") {
 		t.Errorf("an unknown key appended below the fence must be parked, not dropped.\n--- postfence ---\n%s", postfence)
@@ -338,7 +341,7 @@ func TestRender_InteriorColumn0CommentInLiveBlock(t *testing.T) {
 	fields := fieldsForTest(t)
 	// An unknown live block whose value carries an interior column-0 comment.
 	src := "custom_block:\n    a: 1\n# a comment the user wrote inside the block\n    b: 2\n"
-	out, _ := render(src, fields, "2.15.0")
+	out, _ := render(src, fields, ProjectTarget(""), "2.15.0")
 	_, _, postfence := sliceFence(t, out)
 	// Both indented children must be parked together (b must not orphan above the fence).
 	for _, want := range []string{"#   custom_block:", "#       a: 1", "#       b: 2"} {
@@ -401,7 +404,7 @@ func TestRender_BHygieneFlagsEqualsDefault(t *testing.T) {
 			src += "            " + role + ": { " + strings.Join(set, ", ") + " }\n"
 		}
 	}
-	out, report := render(src, fields, "2.15.0")
+	out, report := render(src, fields, ProjectTarget(""), "2.15.0")
 
 	if !strings.Contains(out, "providers:") {
 		t.Error("the live providers field must be kept (presence=intent — never auto-removed)")
@@ -417,7 +420,7 @@ func TestRender_BHygieneFlagsEqualsDefault(t *testing.T) {
 func TestRender_BHygieneSilentOnRealOverride(t *testing.T) {
 	fields := fieldsForTest(t)
 	src := "providers:\n    claude:\n        interactive_command: 'my-custom-agent --flag'\n"
-	_, report := render(src, fields, "2.15.0")
+	_, report := render(src, fields, ProjectTarget(""), "2.15.0")
 	if strings.Contains(strings.Join(report, "\n"), "equals the current default") {
 		t.Errorf("a real override must not be flagged as equals-default, got %v", report)
 	}
@@ -431,7 +434,7 @@ func TestRender_BHygieneSilentOnRealOverride(t *testing.T) {
 // Runs over the SHIPPED registry.
 func TestRender_FenceAdvertsCarryScopeAnnotations(t *testing.T) {
 	fields := fieldsForTest(t)
-	out, _ := render("", fields, "2.15.0")
+	out, _ := render("", fields, ProjectTarget(""), "2.15.0")
 	_, fenceBody, _ := sliceFence(t, out)
 
 	advertised := 0
@@ -470,7 +473,7 @@ func TestRender_FenceAdvertisesConsolidateDetectors(t *testing.T) {
 	fields := fieldsForTest(t)
 
 	// Un-overridden: scaffolded into the fence, commented.
-	out, _ := render("project:\n    name: t\n", fields, "2.15.0")
+	out, _ := render("project:\n    name: t\n", fields, ProjectTarget(""), "2.15.0")
 	_, fenceBody, _ := sliceFence(t, out)
 	if !strings.Contains(fenceBody, "# consolidate.detectors") {
 		t.Errorf("fence must advertise the un-overridden consolidate.detectors field.\n--- fence ---\n%s", fenceBody)
@@ -481,7 +484,7 @@ func TestRender_FenceAdvertisesConsolidateDetectors(t *testing.T) {
 
 	// Overridden: the live block survives verbatim and is NOT re-advertised.
 	src := "consolidate:\n    detectors:\n        - jscpd {paths}\n"
-	out2, _ := render(src, fields, "2.15.0")
+	out2, _ := render(src, fields, ProjectTarget(""), "2.15.0")
 	if !strings.Contains(out2, "- jscpd {paths}") {
 		t.Errorf("a live consolidate override must be preserved verbatim.\n--- got ---\n%s", out2)
 	}
@@ -504,7 +507,7 @@ func TestUpgrade_RefusesUnparseableOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := Upgrade(path, "2.15.0")
+	_, err := Upgrade(ProjectTarget(path), "2.15.0")
 	if err == nil {
 		t.Fatal("Upgrade must REFUSE to write output that does not parse as YAML")
 	}
@@ -522,10 +525,10 @@ func TestUpgrade_RefusesUnparseableOutput(t *testing.T) {
 // restamp the fence) and leaves the file byte-identical on disk.
 func TestCheck_StaleStampReportsDriftWithoutWrite(t *testing.T) {
 	fields := fieldsForTest(t)
-	stale, _ := render("project:\n    name: t\n", fields, "2.14.0")
+	stale, _ := render("project:\n    name: t\n", fields, ProjectTarget(""), "2.14.0")
 	path := writeMutationFixture(t, stale)
 
-	res, err := Check(path, "2.15.0")
+	res, err := Check(ProjectTarget(path), "2.15.0")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -544,7 +547,7 @@ func TestCheck_UnparkedUnknownKeyReportsDriftWithoutWrite(t *testing.T) {
 	const src = "project:\n    name: t\n\nlegacy_mode: true\n"
 	path := writeMutationFixture(t, src)
 
-	res, err := Check(path, "2.15.0")
+	res, err := Check(ProjectTarget(path), "2.15.0")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -565,7 +568,7 @@ func TestCheck_MissingFenceReportsDriftWithoutWrite(t *testing.T) {
 	const legacy = "project:\n    name: t\n    description: d\n"
 	path := writeMutationFixture(t, legacy)
 
-	res, err := Check(path, "2.15.0")
+	res, err := Check(ProjectTarget(path), "2.15.0")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -582,7 +585,7 @@ func TestCheck_MissingFenceReportsDriftWithoutWrite(t *testing.T) {
 func TestCheck_MissingFileReportsDriftAndCreatesNothing(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 
-	res, err := Check(path, "2.15.0")
+	res, err := Check(ProjectTarget(path), "2.15.0")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -598,10 +601,10 @@ func TestCheck_MissingFileReportsDriftAndCreatesNothing(t *testing.T) {
 // version is clean — Changed=false and the file stays byte-identical.
 func TestCheck_CleanFileReportsNoDrift(t *testing.T) {
 	fields := fieldsForTest(t)
-	clean, _ := render("project:\n    name: t\n", fields, "2.15.0")
+	clean, _ := render("project:\n    name: t\n", fields, ProjectTarget(""), "2.15.0")
 	path := writeMutationFixture(t, clean)
 
-	res, err := Check(path, "2.15.0")
+	res, err := Check(ProjectTarget(path), "2.15.0")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -621,11 +624,11 @@ func TestCheck_AgreesWithUpgrade(t *testing.T) {
 	const src = "project:\n    name: t\n\nlegacy_mode: true\n"
 	path := writeMutationFixture(t, src)
 
-	checkRes, err := Check(path, "2.15.0")
+	checkRes, err := Check(ProjectTarget(path), "2.15.0")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
-	upRes, err := Upgrade(path, "2.15.0")
+	upRes, err := Upgrade(ProjectTarget(path), "2.15.0")
 	if err != nil {
 		t.Fatalf("Upgrade: %v", err)
 	}
@@ -636,7 +639,7 @@ func TestCheck_AgreesWithUpgrade(t *testing.T) {
 		t.Errorf("Check and Upgrade disagree on the report.\n--- check ---\n%s\n--- upgrade ---\n%s", got, want)
 	}
 
-	after, err := Check(path, "2.15.0")
+	after, err := Check(ProjectTarget(path), "2.15.0")
 	if err != nil {
 		t.Fatalf("Check after Upgrade: %v", err)
 	}
@@ -655,7 +658,7 @@ func TestRender_FenceAdvertisesDispatchMode(t *testing.T) {
 	fields := fieldsForTest(t)
 
 	// Un-overridden: scaffolded into the fence, commented.
-	out, _ := render("project:\n    name: t\n", fields, "2.15.0")
+	out, _ := render("project:\n    name: t\n", fields, ProjectTarget(""), "2.15.0")
 	_, fenceBody, _ := sliceFence(t, out)
 	if !strings.Contains(fenceBody, "# dispatch.mode") {
 		t.Errorf("fence must advertise the un-overridden dispatch.mode field.\n--- fence ---\n%s", fenceBody)
@@ -665,7 +668,7 @@ func TestRender_FenceAdvertisesDispatchMode(t *testing.T) {
 	}
 
 	// Overridden: the live block survives verbatim and is NOT re-advertised.
-	out2, _ := render("dispatch:\n    mode: pane\n", fields, "2.15.0")
+	out2, _ := render("dispatch:\n    mode: pane\n", fields, ProjectTarget(""), "2.15.0")
 	if !strings.Contains(out2, "mode: pane") {
 		t.Errorf("a live dispatch override must be preserved verbatim.\n--- got ---\n%s", out2)
 	}
@@ -687,7 +690,7 @@ func TestRender_FenceAdvertisesDispatchMode(t *testing.T) {
 func TestRender_FenceAdvertisesDispatchColumnWidth(t *testing.T) {
 	fields := fieldsForTest(t)
 
-	out, _ := render("project:\n    name: t\n", fields, "2.15.0")
+	out, _ := render("project:\n    name: t\n", fields, ProjectTarget(""), "2.15.0")
 	_, fenceBody, _ := sliceFence(t, out)
 	if !strings.Contains(fenceBody, "# dispatch.mode / dispatch.column_width / dispatch.reap_done") {
 		t.Errorf("fence must advertise the un-overridden dispatch.column_width field (named in the shared dispatch header).\n--- fence ---\n%s", fenceBody)
@@ -702,7 +705,7 @@ func TestRender_FenceAdvertisesDispatchColumnWidth(t *testing.T) {
 
 	// Overridden: the whole block is live above the fence, so neither dispatch key
 	// is re-advertised (override detection is top-level-key scoped).
-	out2, _ := render("dispatch:\n    column_width: 20\n", fields, "2.15.0")
+	out2, _ := render("dispatch:\n    column_width: 20\n", fields, ProjectTarget(""), "2.15.0")
 	if !strings.Contains(out2, "column_width: 20") {
 		t.Errorf("a live dispatch override must be preserved verbatim.\n--- got ---\n%s", out2)
 	}
@@ -723,7 +726,7 @@ func TestRender_FenceAdvertisesDispatchColumnWidth(t *testing.T) {
 func TestRender_FenceAdvertisesDispatchReapDone(t *testing.T) {
 	fields := fieldsForTest(t)
 
-	out, _ := render("project:\n    name: t\n", fields, "2.15.0")
+	out, _ := render("project:\n    name: t\n", fields, ProjectTarget(""), "2.15.0")
 	_, fenceBody, _ := sliceFence(t, out)
 	if !strings.Contains(fenceBody, "# dispatch.mode / dispatch.column_width / dispatch.reap_done") {
 		t.Errorf("fence must advertise the un-overridden dispatch.reap_done field (named in the shared dispatch header).\n--- fence ---\n%s", fenceBody)
@@ -738,7 +741,7 @@ func TestRender_FenceAdvertisesDispatchReapDone(t *testing.T) {
 
 	// Overridden: the whole block is live above the fence, so no dispatch key is
 	// re-advertised (override detection is top-level-key scoped).
-	out2, _ := render("dispatch:\n    reap_done: false\n", fields, "2.15.0")
+	out2, _ := render("dispatch:\n    reap_done: false\n", fields, ProjectTarget(""), "2.15.0")
 	if !strings.Contains(out2, "reap_done: false") {
 		t.Errorf("a live dispatch override must be preserved verbatim.\n--- got ---\n%s", out2)
 	}
@@ -802,7 +805,7 @@ func TestMutationRegression_MaterializationUsesOneRegistryRenderer(t *testing.T)
 
 func materializationFromRenderedFence(t *testing.T, owner configref.Field, key, value string) string {
 	t.Helper()
-	fence := renderFence([]configref.Field{owner}, map[string]bool{}, "test")
+	fence := renderFence(ProjectTarget(""), []configref.Field{owner}, map[string]bool{}, "test")
 	_, fenceBody, _ := sliceFence(t, fence)
 	virtual := strings.Split(fenceBody, "\n")
 	for i, line := range virtual {
@@ -827,7 +830,7 @@ func materializationFromRenderedFence(t *testing.T, owner configref.Field, key, 
 }
 
 func TestMutationRegression_MaterializationKeepsEveryAncestor(t *testing.T) {
-	original, _ := render("", fieldsForTest(t), "test")
+	original, _ := render("", fieldsForTest(t), ProjectTarget(""), "test")
 	path := writeMutationFixture(t, original)
 	if _, err := Set(path, "stage_hooks.apply.pre", "./scripts/check.sh", "test"); err != nil {
 		t.Fatalf("Set stage hook: %v", err)
@@ -997,22 +1000,22 @@ agent:
 	}
 }
 
-func TestSystemMutation_ScopeScaffoldAndNoFence(t *testing.T) {
+func TestSystemMutation_ScopeScaffoldAndManagedFence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".fab-kit", "config.yaml")
-	if _, err := SetSystem(path, "providers", "{custom: {interactive_command: tool}}"); err == nil || !strings.Contains(err.Error(), "scalar leaf") {
+	if _, err := SetSystem(path, "providers", "{custom: {interactive_command: tool}}", "test"); err == nil || !strings.Contains(err.Error(), "scalar leaf") {
 		t.Fatalf("SetSystem collection key error = %v, want scalar-leaf refusal", err)
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("rejected collection mutation created a file: %v", err)
 	}
-	if _, err := SetSystem(path, "source_paths", "[src/]"); err == nil {
+	if _, err := SetSystem(path, "source_paths", "[src/]", "test"); err == nil {
 		t.Fatal("SetSystem accepted a project-scoped key")
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("rejected system mutation created a file: %v", err)
 	}
 
-	if _, err := SetSystem(path, "agent.workers", "codex"); err != nil {
+	if _, err := SetSystem(path, "agent.workers", "codex", "test"); err != nil {
 		t.Fatalf("SetSystem: %v", err)
 	}
 	got := readMutationFixture(t, path)
@@ -1022,26 +1025,386 @@ func TestSystemMutation_ScopeScaffoldAndNoFence(t *testing.T) {
 	if !strings.Contains(got, "\n  workers: codex") {
 		t.Fatalf("missing system override\n--- got ---\n%s", got)
 	}
-	if strings.Contains(got, ">>> fab reference") {
-		t.Fatalf("system mutation introduced a project reference fence\n--- got ---\n%s", got)
+	if strings.Count(got, ">>> fab reference") != 1 || strings.Count(got, "<<< end fab reference") != 1 {
+		t.Fatalf("system mutation must retain exactly one managed fence\n--- got ---\n%s", got)
+	}
+	if !strings.Contains(got, "REGENERATED by `fab config upgrade --system`") {
+		t.Fatalf("system fence preamble does not name the system upgrade command\n--- got ---\n%s", got)
+	}
+	if strings.Contains(got, "stage_hooks") {
+		t.Fatalf("system fence contains a project-scoped field\n--- got ---\n%s", got)
+	}
+	check, err := Check(SystemTarget(path), "test")
+	if err != nil {
+		t.Fatalf("Check after SetSystem: %v", err)
+	}
+	if check.Changed {
+		t.Fatalf("SetSystem left the managed system file drifted\n--- got ---\n%s", got)
 	}
 }
 
 func TestSystemMutation_UnsetKnownAbsentIsByteStable(t *testing.T) {
 	const original = "# owned system comments\nagent:\n    workers: codex # keep me\n"
 	path := writeMutationFixture(t, original)
-	if _, err := UnsetSystem(path, "agent.session"); err != nil {
+	if _, err := UnsetSystem(path, "agent.session", "test"); err != nil {
 		t.Fatalf("UnsetSystem absent: %v", err)
 	}
 	if got := readMutationFixture(t, path); got != original {
 		t.Fatalf("absent unset changed bytes\n--- got ---\n%s", got)
 	}
-	if _, err := UnsetSystem(path, "agent.workers"); err != nil {
+	if _, err := UnsetSystem(path, "agent.workers", "test"); err != nil {
 		t.Fatalf("UnsetSystem present: %v", err)
 	}
 	got := readMutationFixture(t, path)
-	if !strings.Contains(got, "# keep me") || strings.Contains(got, "workers:") {
+	if !strings.Contains(got, "# keep me") || strings.Contains(strings.SplitN(got, "# >>> fab reference", 2)[0], "workers:") {
 		t.Fatalf("system unset failed comment-preserving removal\n--- got ---\n%s", got)
+	}
+	if strings.Count(got, ">>> fab reference") != 1 || strings.Count(got, "<<< end fab reference") != 1 {
+		t.Fatalf("system unset must leave exactly one managed fence\n--- got ---\n%s", got)
+	}
+	check, err := Check(SystemTarget(path), "test")
+	if err != nil || check.Changed {
+		t.Fatalf("system unset left the target drifted: %+v, %v", check, err)
+	}
+}
+
+func legacySystemScaffoldForTest(t *testing.T) string {
+	t.Helper()
+	var segments []string
+	for _, field := range fieldsForTest(t) {
+		if SystemField(field) && field.ShortSegment != "" {
+			segments = append(segments, CommentOutSegment(field.ShortSegment))
+		}
+	}
+	return legacySystemScaffoldHeader + "\n\n" + strings.Join(segments, "\n\n") + "\n"
+}
+
+// legacyV2198ToV2220ProvidersAdvert is byte-for-byte output from the released
+// v2.19.8, v2.20.7, v2.20.8, and v2.22.0 registries. Keep it independent of
+// configref.Fields: the regression is specifically that a current-registry
+// fixture changes in lockstep with the recognizer and cannot exercise history.
+const legacyV2198ToV2220ProvidersAdvert = `# providers — named agent capability grammars (interactive/headless/native
+# commands) plus per-role {model, effort} fills. fab-kit ships claude (the
+# default), codex, agy and kimi; naming a built-in on a depth knob needs no
+# entry here. [both]
+# Settable machine-wide: fab config set --system providers.<name>.<field> <value>
+# Full prose: fab config explain providers
+# providers:
+#   claude:
+#     native: true
+#     interactive_command: 'claude --dangerously-skip-permissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
+#     headless_command: 'claude -p --dangerously-skip-permissions --model {model} --effort {effort}'
+#   codex:
+#     interactive_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
+#     headless_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
+#     profiles:
+#       default: { model: gpt-5.6-sol, effort: high }
+#       doing: { effort: xhigh }
+#       fast: { model: gpt-5.6-luna, effort: low }
+#       operator: { model: gpt-5.6-luna, effort: medium }
+#       review: { effort: xhigh }
+#   agy:
+#     interactive_command: 'agy --dangerously-skip-permissions --model {model}'   # trust wall handled by the readiness gate; no {effort} flag
+#     headless_command: 'sh -c ''agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'''   # no {effort} flag; nested shell so $(cat) reads the piped prompt
+#     profiles:
+#       default: { model: gemini-3.1-pro-high }
+#       fast: { model: gemini-3.6-flash-low }
+#   kimi:
+#     interactive_command: 'kimi --auto -m {model}'   # --auto is the full-auto flag its headless form rejects
+#     headless_command: 'sh -c ''kimi -m {model} -p "$(cat)"'''   # no fills shipped, so the empty {model} drops -m`
+
+const legacyV2198ToV2220SystemScaffold = legacySystemScaffoldHeader + "\n\n" + legacyV2198ToV2220ProvidersAdvert + "\n"
+
+var legacyScaffoldVersions = []string{"2.19.8", "2.20.7", "2.20.8", "2.22.0"}
+
+func TestGeneratedSystemParagraphCatalogIncludesCurrentRenderer(t *testing.T) {
+	paragraphs := []string{SystemScaffoldHeader}
+	for _, field := range fieldsForTest(t) {
+		if SystemField(field) && field.ShortSegment != "" {
+			paragraphs = append(paragraphs, CommentOutSegment(field.ShortSegment))
+		}
+	}
+	for _, paragraph := range paragraphs {
+		digest := systemParagraphDigest(paragraph)
+		if _, ok := knownGeneratedSystemParagraphDigests[digest]; !ok {
+			firstLine := strings.SplitN(paragraph, "\n", 2)[0]
+			t.Errorf("current generated paragraph %q is missing digest %s from the historical catalog", firstLine, digest)
+		}
+	}
+}
+
+func TestSystemUpgrade_AdoptsReleasedHistoricalScaffoldsAfterRegistryDrift(t *testing.T) {
+	for _, version := range legacyScaffoldVersions {
+		t.Run(version, func(t *testing.T) {
+			path := writeMutationFixture(t, legacyV2198ToV2220SystemScaffold)
+
+			if _, err := Upgrade(SystemTarget(path), "2.30.0"); err != nil {
+				t.Fatalf("Upgrade historical system target: %v", err)
+			}
+			got := readMutationFixture(t, path)
+
+			if strings.Count(got, ">>> fab reference") != 1 || strings.Count(got, "<<< end fab reference") != 1 {
+				t.Fatalf("historical adoption must emit exactly one fence\n--- got ---\n%s", got)
+			}
+			for _, field := range fieldsForTest(t) {
+				if !SystemField(field) || field.ShortSegment == "" {
+					continue
+				}
+				marker := "# Full prose: fab config explain " + field.Key
+				if count := strings.Count(got, marker); count != 1 {
+					t.Errorf("historical adoption emitted %d adverts for %q, want 1\n--- got ---\n%s", count, field.Key, got)
+				}
+			}
+			if strings.Contains(got, "claude --dangerously-skip-permissions") {
+				t.Fatalf("historical claude command survived above the regenerated fence\n--- got ---\n%s", got)
+			}
+			if count := strings.Count(got, "#     interactive_command:"); count != 4 {
+				t.Fatalf("historical provider commands were duplicated: got %d interactive commands, want 4\n--- got ---\n%s", count, got)
+			}
+		})
+	}
+}
+
+func TestSystemUpgrade_LineCompleteAccountingPreservesMixedAndEditedParagraphs(t *testing.T) {
+	t.Run("note appended without blank separator", func(t *testing.T) {
+		const note = "# user: keep this provider note"
+		original := legacySystemScaffoldHeader + "\n\n" + legacyV2198ToV2220ProvidersAdvert + "\n" + note + "\n"
+		path := writeMutationFixture(t, original)
+
+		if _, err := Upgrade(SystemTarget(path), "2.30.0"); err != nil {
+			t.Fatalf("Upgrade mixed historical paragraph: %v", err)
+		}
+		got := readMutationFixture(t, path)
+		preserved := legacyV2198ToV2220ProvidersAdvert + "\n" + note
+		if !strings.Contains(got, preserved) {
+			t.Fatalf("mixed paragraph was not preserved whole\n--- got ---\n%s", got)
+		}
+		if count := strings.Count(got, "# Full prose: fab config explain providers"); count != 2 {
+			t.Fatalf("mixed paragraph should remain beside the regenerated advert: got %d copies, want 2\n--- got ---\n%s", count, got)
+		}
+	})
+
+	t.Run("user-edited generated copy", func(t *testing.T) {
+		const oldValue = "#       default: { model: gpt-5.6-sol, effort: high }"
+		const editedValue = "#       default: { model: my-local-model, effort: high }"
+		edited := strings.Replace(legacyV2198ToV2220ProvidersAdvert, oldValue, editedValue, 1)
+		path := writeMutationFixture(t, legacySystemScaffoldHeader+"\n\n"+edited+"\n")
+
+		if _, err := Upgrade(SystemTarget(path), "2.30.0"); err != nil {
+			t.Fatalf("Upgrade edited historical paragraph: %v", err)
+		}
+		got := readMutationFixture(t, path)
+		if !strings.Contains(got, edited) || !strings.Contains(got, editedValue) {
+			t.Fatalf("edited advert was not preserved as user content\n--- got ---\n%s", got)
+		}
+		if count := strings.Count(got, "# Full prose: fab config explain providers"); count != 2 {
+			t.Fatalf("edited paragraph should remain beside the regenerated advert: got %d copies, want 2\n--- got ---\n%s", count, got)
+		}
+	})
+
+	t.Run("note appended to historical header", func(t *testing.T) {
+		const note = "# user: keep this machine note"
+		path := writeMutationFixture(t, legacySystemScaffoldHeader+"\n"+note+"\n")
+
+		if _, err := Upgrade(SystemTarget(path), "2.30.0"); err != nil {
+			t.Fatalf("Upgrade mixed historical header: %v", err)
+		}
+		got := readMutationFixture(t, path)
+		if !strings.Contains(got, legacySystemScaffoldHeader+"\n"+note) {
+			t.Fatalf("mixed header paragraph was not preserved whole\n--- got ---\n%s", got)
+		}
+	})
+}
+
+func TestSystemUpgrade_LineCompleteAccountingAppliesAfterAdoption(t *testing.T) {
+	path := writeMutationFixture(t, "")
+	if _, err := Upgrade(SystemTarget(path), "2.30.0"); err != nil {
+		t.Fatalf("initial Upgrade: %v", err)
+	}
+	current := readMutationFixture(t, path)
+	const editedValue = "#       default: { model: later-user-edit, effort: high }"
+	edited := strings.Replace(legacyV2198ToV2220ProvidersAdvert,
+		"#       default: { model: gpt-5.6-sol, effort: high }", editedValue, 1)
+	withEditedCopy := strings.Replace(current, "\n# >>> fab reference", "\n\n"+edited+"\n\n# >>> fab reference", 1)
+	if err := os.WriteFile(path, []byte(withEditedCopy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Upgrade(SystemTarget(path), "2.30.0"); err != nil {
+		t.Fatalf("later Upgrade: %v", err)
+	}
+	got := readMutationFixture(t, path)
+	if !strings.Contains(got, edited) || !strings.Contains(got, editedValue) {
+		t.Fatalf("later upgrade discarded an edited advert above the fence\n--- got ---\n%s", got)
+	}
+}
+
+func TestSystemMutation_LineCompleteAccountingPreservesWholeParagraph(t *testing.T) {
+	const note = "# user: mutation must keep this attached note"
+	mixed := legacySystemScaffoldHeader + "\n\n" + legacyV2198ToV2220ProvidersAdvert + "\n" + note
+	tests := []struct {
+		name     string
+		original string
+		mutate   func(string) error
+	}{
+		{
+			name:     "set system",
+			original: mixed + "\n",
+			mutate: func(path string) error {
+				_, err := SetSystem(path, "agent.workers", "codex", "2.30.0")
+				return err
+			},
+		},
+		{
+			name:     "unset system",
+			original: mixed + "\n\nagent:\n  workers: codex\n",
+			mutate: func(path string) error {
+				_, err := UnsetSystem(path, "agent.workers", "2.30.0")
+				return err
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path := writeMutationFixture(t, tc.original)
+			if err := tc.mutate(path); err != nil {
+				t.Fatalf("mutation: %v", err)
+			}
+			got := readMutationFixture(t, path)
+			if !strings.Contains(got, legacyV2198ToV2220ProvidersAdvert+"\n"+note) {
+				t.Fatalf("mutation did not preserve the mixed paragraph whole\n--- got ---\n%s", got)
+			}
+			if count := strings.Count(got, "# Full prose: fab config explain providers"); count != 2 {
+				t.Fatalf("mixed paragraph should remain beside the regenerated advert: got %d copies, want 2\n--- got ---\n%s", count, got)
+			}
+		})
+	}
+}
+
+func TestSystemUpgrade_AdoptsLegacyScaffoldPreservingLiveConfigAndComments(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".fab-kit", "config.yaml")
+	legacy := legacySystemScaffoldForTest(t) + `
+# work laptop only
+agent:
+  workers: codex # pinned for reviews
+`
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var before map[string]any
+	if err := yaml.Unmarshal([]byte(legacy), &before); err != nil {
+		t.Fatalf("legacy fixture does not parse: %v", err)
+	}
+
+	result, err := Upgrade(SystemTarget(path), "2.30.0")
+	if err != nil {
+		t.Fatalf("Upgrade system target: %v", err)
+	}
+	if !result.Changed || !strings.Contains(strings.Join(result.Report, "\n"), "adopted existing unfenced system config") {
+		t.Fatalf("legacy adoption result = %+v", result)
+	}
+	got := readMutationFixture(t, path)
+	if strings.Count(got, ">>> fab reference") != 1 || strings.Count(got, "<<< end fab reference") != 1 {
+		t.Fatalf("adoption must emit exactly one fence\n--- got ---\n%s", got)
+	}
+	for _, advert := range []string{"# dispatch:", "# providers:", "# autopilot:"} {
+		if count := strings.Count(got, advert); count != 1 {
+			t.Errorf("adoption emitted %d copies of %q, want 1\n--- got ---\n%s", count, advert, got)
+		}
+	}
+	if !strings.Contains(got, "# work laptop only\nagent:\n  workers: codex # pinned for reviews") {
+		t.Fatalf("adoption did not preserve the live block and attached comment verbatim\n--- got ---\n%s", got)
+	}
+	if strings.Index(got, "agent:\n  workers: codex") > strings.Index(got, "# >>> fab reference") {
+		t.Fatalf("live system override was not hoisted above the fence\n--- got ---\n%s", got)
+	}
+	if strings.Contains(got, "stage_hooks") {
+		t.Fatalf("system scaffold advertised a project-scoped field\n--- got ---\n%s", got)
+	}
+	if !strings.Contains(got, "REGENERATED by `fab config upgrade --system`") {
+		t.Fatalf("system fence preamble names the wrong command\n--- got ---\n%s", got)
+	}
+	var after map[string]any
+	if err := yaml.Unmarshal([]byte(got), &after); err != nil {
+		t.Fatalf("adopted file does not parse: %v", err)
+	}
+	if !reflect.DeepEqual(after, before) {
+		t.Fatalf("adoption changed effective live YAML: before=%#v after=%#v", before, after)
+	}
+
+	second, err := Upgrade(SystemTarget(path), "2.30.0")
+	if err != nil {
+		t.Fatalf("second Upgrade: %v", err)
+	}
+	if second.Changed {
+		t.Fatalf("second system upgrade must be a no-op: %+v", second)
+	}
+	if got2 := readMutationFixture(t, path); got2 != got {
+		t.Fatal("second system upgrade was not byte-identical")
+	}
+}
+
+func TestSystemUpgrade_CheckAndParkingAreByteStable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".fab-kit", "config.yaml")
+	const original = "dispatch:\n  mode: pane\n\nretired_preference:\n  nested: kept\n"
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	check, err := Check(SystemTarget(path), "2.30.0")
+	if err != nil {
+		t.Fatalf("Check drifted system file: %v", err)
+	}
+	if !check.Changed {
+		t.Fatal("unfenced system config must report drift")
+	}
+	if got := readMutationFixture(t, path); got != original {
+		t.Fatal("system Check wrote the drifted file")
+	}
+
+	if _, err := Upgrade(SystemTarget(path), "2.30.0"); err != nil {
+		t.Fatalf("Upgrade system file: %v", err)
+	}
+	first := readMutationFixture(t, path)
+	if !strings.Contains(first, "#   retired_preference:") || !strings.Contains(first, "#     nested: kept") {
+		t.Fatalf("removed system key was not parked with its value\n--- got ---\n%s", first)
+	}
+	if strings.Contains(strings.SplitN(first, "# >>> fab reference", 2)[0], "retired_preference:") {
+		t.Fatalf("removed system key remained live above the fence\n--- got ---\n%s", first)
+	}
+	if _, err := Upgrade(SystemTarget(path), "2.30.0"); err != nil {
+		t.Fatalf("second Upgrade: %v", err)
+	}
+	if second := readMutationFixture(t, path); second != first {
+		t.Fatal("parked system block changed on the second upgrade")
+	}
+	clean, err := Check(SystemTarget(path), "2.30.0")
+	if err != nil || clean.Changed {
+		t.Fatalf("Check after Upgrade = %+v, %v; want clean", clean, err)
+	}
+}
+
+func TestSystemUpgrade_RefusesMalformedLiveConfigWithoutWriting(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".fab-kit", "config.yaml")
+	const malformed = "agent: [\n"
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(malformed), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Upgrade(SystemTarget(path), "2.30.0"); err == nil {
+		t.Fatal("system Upgrade must reject malformed live YAML")
+	}
+	if got := readMutationFixture(t, path); got != malformed {
+		t.Fatal("rejected system Upgrade changed the original bytes")
 	}
 }
 
@@ -1185,7 +1548,7 @@ func TestMutation_SetAdvertisesOnlyMissingSiblingField(t *testing.T) {
 func TestMutation_OpaqueProviderNamesSetUnset(t *testing.T) {
 	for _, name := range []string{"123", "true", "on", "-local", "测试"} {
 		t.Run(name, func(t *testing.T) {
-			original, _ := render("", fieldsForTest(t), "test")
+			original, _ := render("", fieldsForTest(t), ProjectTarget(""), "test")
 			path := writeMutationFixture(t, original)
 			key := "providers." + name + ".interactive_command"
 			if _, err := Set(path, key, "tool", "test"); err != nil {

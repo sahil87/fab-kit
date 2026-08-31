@@ -41,7 +41,8 @@
 // demoted to advertise:false, so it no longer costs ~90 commented lines in every
 // repo. It keeps its registry rows, its --json defaults, and its rendered segments,
 // because `fab config explain` is the canonical full schema surface and
-// `fab config init --system` renders the short form of those same segments.
+// `fab config init --system` / `fab config upgrade --system` render the short
+// form of those same segments.
 //
 // SHORT vs. LONG SEGMENTS (260809-wll4, R6/R7). Every segment-carrying row has TWO
 // renderings of the same field. Segment is the LONG form `fab config explain`
@@ -107,7 +108,7 @@ import (
 // internal/configscope (the config loader consumes the same source cycle-free);
 // they are aliased here so the registry and the cascade share one definition. As
 // of Change 2 (lpb5) the cascade resolver PRUNES a project-scoped field found in
-// the system file (with a warning) and `fab config init --system` renders only
+// the system file (with a warning), while system init and upgrade render only
 // system/both fields. See docs/specs/config.md § Scope taxonomy.
 type Scope = configscope.Scope
 

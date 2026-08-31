@@ -547,8 +547,9 @@ environment walk cannot drift from the reference schema.
   an unresolvable repo or unreadable layer prints nothing rather than failing a completed write.
 
   `unset` is deliberately kind-ungated so
-  it can repair malformed overrides. System writes accept only `scope: system`/`both`, never add a
-  project fence, and create a missing file with the canonical scaffold header. Unsetting an absent
+  it can repair malformed overrides. System writes accept only `scope: system`/`both`, keep live
+  overrides above the system target's managed fence, and create a missing file with the canonical
+  system header plus that fence. Unsetting an absent
   known key is an exit-zero notice that now **names the tier where the key IS live** plus the command
   that would remove it (`live in system ~/.fab-kit/config.yaml — use: fab config unset agent.workers
   --system`); an environment tier is named as one `unset` cannot remove, and a key supplied only by the
@@ -563,8 +564,11 @@ environment walk cannot drift from the reference schema.
   mutually exclusive. `--print` renders the exact would-be file to stdout with **zero writes**: it
   composes with both modes, is never blocked by an existing file, and `--print --force` is a pure
   preview of what an overwrite would write.
-- `fab config upgrade` remains the whole-project-file reconciliation verb described below, now with a
-  `--check` drift probe (§ The managed fence).
+- `fab config upgrade [--project|--system|--all] [--check]` is the whole-file reconciliation verb
+  described below. Bare/`--project` targets `fab/project/config.yaml` and requires a fab repo;
+  `--system` targets `~/.fab-kit/config.yaml` without resolving a repo; `--all` reconciles both and
+  therefore requires a repo. The three target flags are mutually exclusive. `--check` composes with
+  every mode, writes nothing, and under `--all` fails when either layer drifts (§ The managed fence).
 
 There is no reserved `validate` verb. Unknown-key refusal and system-scope enforcement happen at
 the mutation seam where they are actionable.
@@ -584,8 +588,7 @@ and auto-dropping would silently change behavior when the default later moves.
 ### The managed fence [Change 3 — landed] (decision 3)
 
 `fab config upgrade` (the whole-file reconciler in the shared comment-aware writing engine) regenerates a
-byte-stable, idempotent **managed fence** of commented C-fields (`advertise: true`, not currently
-overridden), rendered from each field's SHORT segment (`ShortSegment` — the 1–4-line
+byte-stable, idempotent **managed fence** rendered from each field's SHORT segment (`ShortSegment` — the 1–4-line
 scope-tagged description header plus the machine-wide and `fab config explain` pointers, §
 Section-level prose), never the long essay, delimited by byte-exact `>>>`/`<<<` splice anchors carrying a kit-version stamp
 (`# >>> fab reference (kit X.Y.Z) >>> …` / `# <<< end fab reference <<< …`, dash-padded). Upgrade
@@ -596,12 +599,22 @@ comment marker at **column 0**: the comment-out helper skips only a line whose `
 0 (fence-level prose), so a line the segment ships deliberately commented at an INDENT (the
 `  # profiles:` / `  #   review: { provider: codex }` agent-block examples) gains the fence prefix like a live line —
 which both keeps the fence visually flush and makes "strip the leading `# ` from every line of a block"
-restore the segment byte-exactly. The fence
-**omits fields already overridden** above it. Omission is at **top-level-key granularity**: a live
-top-level key (e.g. `agent:`) suppresses the entire scaffolded block for every registry row under that
-key, since the override unit and the system-file merge both land at the top-level key — the fence never
-half-advertises a partially-overridden block. A legacy file with no fence gets one **appended at the
-bottom**. Everything OUTSIDE the fence is the user's and is **never dropped**: content the user places
+restore the segment byte-exactly.
+
+The **project target** fences `advertise: true` fields and retains top-level-key omission: a live
+top-level key (for example `agent:`) suppresses the entire project scaffold block beneath it. A legacy
+project file with no fence gets one appended at the bottom. The **system target** keeps the canonical
+system precedence header, fences every `scope: system`/`both` field (including rows demoted from the
+project fence with `advertise: false`), and uses leaf-aware omission within shared blocks so a live
+`agent.workers` override does not hide the sibling `agent.session` advert. Its fence preamble names
+`fab config upgrade --system`.
+
+The first system upgrade also **adopts the pre-fence scaffold shape** emitted by older
+`fab config init --system` binaries. It recognizes the exact old generated header and commented
+`ShortSegment` lines, replaces those generated lines with one managed fence, preserves any line it
+cannot classify as generated, and hoists live YAML byte-for-byte above the fence. This avoids duplicate
+adverts without treating arbitrary user comments as owned output. Everything OUTSIDE either target's
+fence is the user's and is **never dropped**: content the user places
 BELOW the fence (a live override appended after the END anchor) is **hoisted above** the fence on the
 next run and then classified like any other live key (kept if known, parked if unknown) — the layout is
 self-healing, not a silent-loss trap. Unknown fields (a live key no longer in the registry) are
@@ -618,11 +631,16 @@ renderer. This retires the comment-clobbering
 `setFabVersion` bug class at the root. `fab upgrade-repo` **auto-runs** the upgrader after sync
 (decision 4, fail-open: a fab-go predating the subcommand prints a reminder and the upgrade continues).
 The kit-version stamp in the BEGIN line makes staleness visible and feeds the **`--check` drift
-probe**: `fab config upgrade --check` shares Upgrade's entire compute path (`configupgrade.Check`
-calls the same `computeUpgrade`) but writes NOTHING — it prints what a run would change and exits
-non-zero when the file has drifted (a stale fence kit-version stamp, unparked removed keys, a missing
-fence, or a missing file, which a real run would create), 0 when the file is clean. The shared compute
-path means the probe can never disagree with an applying run about what would change.
+probe**: bare/`--project`, `--system`, and `--all` all call the same target-parameterized
+`configupgrade.Check` / `computeUpgrade` path as applying runs but write NOTHING. A selected layer
+drifting (stale stamp, unparked removed keys, missing fence, or missing file) exits non-zero; `--all`
+prints separate `project:` and `system:` lines and exits zero only when both are clean. Thus checking
+cannot disagree with applying about what would change.
+
+System-level scaffold adoption deliberately ships **without a project migration file**. Migration
+execution is project-scoped, while `~/.fab-kit/config.yaml` is one machine-level file shared by every
+repo; applying a per-project migration to it would have the wrong cardinality. The idempotent
+`upgrade --system` adoption path is the owner of that one-time normalization.
 
 ### `fab_version` → `fab/.fab-version` [Change 3 — landed] (decision 1)
 

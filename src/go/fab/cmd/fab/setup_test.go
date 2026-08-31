@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sahil87/fab-kit/src/go/fab/internal/configupgrade"
 )
 
 // setupCheckFixture builds a minimal fab repo (fab/project/config.yaml +
@@ -115,6 +117,78 @@ func TestSetupWizard_AllEnterRunIsZeroWrite(t *testing.T) {
 	}
 }
 
+func TestSetupWizard_SystemScaffoldWarmup(t *testing.T) {
+	writeSystem := func(t *testing.T, content string) string {
+		t.Helper()
+		path := filepath.Join(os.Getenv("HOME"), ".fab-kit", "config.yaml")
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	t.Run("clean is silent", func(t *testing.T) {
+		setupCheckFixture(t, "", "claude")
+		forceTTY(t, false)
+		clean, err := configupgrade.RenderSystemScaffold(version)
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := writeSystem(t, clean)
+		before, _ := os.ReadFile(path)
+		err, out, errOut := runSetupWizardCmd(t, "", "--defaults")
+		if err != nil {
+			t.Fatalf("setup with clean system scaffold: %v\nstdout:\n%s\nstderr:\n%s", err, out, errOut)
+		}
+		if strings.Contains(out, "Refreshed ") {
+			t.Fatalf("clean warm-up printed a refresh advisory: %q", out)
+		}
+		after, _ := os.ReadFile(path)
+		if string(after) != string(before) {
+			t.Fatal("clean warm-up changed the system config")
+		}
+	})
+
+	t.Run("drift prints one advisory", func(t *testing.T) {
+		setupCheckFixture(t, "", "claude")
+		forceTTY(t, false)
+		path := writeSystem(t, "# work laptop only\n")
+		err, out, errOut := runSetupWizardCmd(t, "", "--defaults")
+		if err != nil {
+			t.Fatalf("setup with drifted scaffold: %v\nstdout:\n%s\nstderr:\n%s", err, out, errOut)
+		}
+		if count := strings.Count(out, "Refreshed "); count != 1 {
+			t.Fatalf("warm-up printed %d refresh advisories, want 1: %q", count, out)
+		}
+		got, _ := os.ReadFile(path)
+		if !strings.Contains(string(got), "# >>> fab reference") || !strings.Contains(string(got), "# work laptop only") {
+			t.Fatalf("warm-up did not refresh while preserving the user comment:\n%s", got)
+		}
+	})
+
+	t.Run("failure warns and continues", func(t *testing.T) {
+		setupCheckFixture(t, "", "claude")
+		forceTTY(t, false)
+		path := writeSystem(t, "agent: [\n")
+		err, out, errOut := runSetupWizardCmd(t, "", "--defaults")
+		if err != nil {
+			t.Fatalf("warm-up error aborted the setup interview: %v\nstdout:\n%s\nstderr:\n%s", err, out, errOut)
+		}
+		if !strings.Contains(errOut, "warning: could not refresh") {
+			t.Fatalf("warm-up failure emitted no warning: %q", errOut)
+		}
+		if !strings.Contains(out, "Configuring the system tier") {
+			t.Fatalf("interview did not continue after warm-up failure: %q", out)
+		}
+		if got, _ := os.ReadFile(path); string(got) != "agent: [\n" {
+			t.Fatalf("failed warm-up changed malformed config: %q", got)
+		}
+	})
+}
+
 func TestSetupWizard_ChangedAnswerDiffsAndWritesSystemTier(t *testing.T) {
 	setupCheckFixture(t, "", "claude", "codex")
 	forceTTY(t, true)
@@ -196,7 +270,7 @@ func TestSetupWizard_ProjectFlagOutsideRepoErrors(t *testing.T) {
 	}
 }
 
-func TestSetupWizard_DefaultsRunIsNonInteractiveAndZeroWrite(t *testing.T) {
+func TestSetupWizard_DefaultsRunWithMissingConfigIsNonInteractiveAndZeroWrite(t *testing.T) {
 	setupCheckFixture(t, "", "claude")
 	forceTTY(t, false) // a non-TTY run MUST complete under --defaults without reading stdin
 
@@ -210,7 +284,7 @@ func TestSetupWizard_DefaultsRunIsNonInteractiveAndZeroWrite(t *testing.T) {
 		}
 	}
 	if _, statErr := os.Stat(filepath.Join(os.Getenv("HOME"), ".fab-kit", "config.yaml")); !os.IsNotExist(statErr) {
-		t.Errorf("--defaults must be a zero-write run, stat err = %v", statErr)
+		t.Errorf("--defaults with a missing system config must be a zero-write run, stat err = %v", statErr)
 	}
 }
 
@@ -423,7 +497,8 @@ func TestSetupWizard_AdvancedFirstTimeProfileWriteLandsSystemTier(t *testing.T) 
 	if !strings.Contains(string(data), "operator") || !strings.Contains(string(data), "provider: codex") {
 		t.Errorf("system config must carry the operator profile write, got:\n%s", string(data))
 	}
-	if strings.Contains(string(data), "review") {
+	live := strings.SplitN(string(data), "# >>> fab reference", 2)[0]
+	if strings.Contains(live, "review") {
 		t.Errorf("only the answered key may be written — review profile must be absent, got:\n%s", string(data))
 	}
 }
