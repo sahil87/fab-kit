@@ -1391,6 +1391,53 @@ func TestSystemUpgrade_CheckAndParkingAreByteStable(t *testing.T) {
 	}
 }
 
+// TestSystemUpgrade_ParksProjectScopedKeyUnderOutOfScopeHeader: a registry-known
+// but scope:project key live in the machine-level file is NOT a removal — it must
+// park under the distinct out-of-scope header (never "removed in …"), while a
+// truly unknown key still parks under the removal header. The broadened
+// parkedHeaderRe recognizes both header forms, so a second run neither re-parks
+// nor churns the blocks.
+func TestSystemUpgrade_ParksProjectScopedKeyUnderOutOfScopeHeader(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".fab-kit", "config.yaml")
+	const original = "dispatch:\n  mode: pane\n\nstage_hooks:\n  apply:\n    post: make test\n\nretired_preference: 1\n"
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Upgrade(SystemTarget(path), "2.30.0")
+	if err != nil {
+		t.Fatalf("Upgrade system file: %v", err)
+	}
+	got := readMutationFixture(t, path)
+	if !strings.Contains(got, "# out of scope for this config layer — registry-known, unused at this layer (parked by fab config upgrade — delete when done):\n#   stage_hooks:\n#     apply:\n#       post: make test") {
+		t.Errorf("project-scoped key must park under the out-of-scope header with its value\n--- got ---\n%s", got)
+	}
+	if strings.Count(got, "# removed in ") != 1 ||
+		!strings.Contains(got, "# removed in an earlier release (parked by fab config upgrade — delete when done):\n#   retired_preference: 1") {
+		t.Errorf("truly unknown key must park under the removal header\n--- got ---\n%s", got)
+	}
+	if strings.Contains(strings.SplitN(got, "# >>> fab reference", 2)[0], "stage_hooks:") {
+		t.Errorf("out-of-scope key remained live above the fence\n--- got ---\n%s", got)
+	}
+	if report := strings.Join(result.Report, "\n"); !strings.Contains(report, `parked out-of-scope field "stage_hooks"`) {
+		t.Errorf("report must note the out-of-scope parking, got %v", result.Report)
+	}
+
+	if _, err := Upgrade(SystemTarget(path), "2.30.0"); err != nil {
+		t.Fatalf("second Upgrade: %v", err)
+	}
+	if second := readMutationFixture(t, path); second != got {
+		t.Fatal("second upgrade was not byte-identical (parked out-of-scope block not recognized)")
+	}
+	clean, err := Check(SystemTarget(path), "2.30.0")
+	if err != nil || clean.Changed {
+		t.Fatalf("Check after Upgrade = %+v, %v; want clean", clean, err)
+	}
+}
+
 func TestSystemUpgrade_RefusesMalformedLiveConfigWithoutWriting(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".fab-kit", "config.yaml")
 	const malformed = "agent: [\n"

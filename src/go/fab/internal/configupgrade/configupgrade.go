@@ -84,11 +84,11 @@ var (
 	endLineRe   = regexp.MustCompile(`^# <<< end fab reference <<< -*\s*$`)
 )
 
-// parkedHeaderRe matches a parked-removal block header (any version phrasing), so
-// a re-run recognizes an already-parked block and never re-parks the same key. The
-// version portion may contain spaces ("an earlier release"), so match lazily up to
-// the fixed "(parked by fab config upgrade" marker.
-var parkedHeaderRe = regexp.MustCompile(`^# removed in .+ \(parked by fab config upgrade`)
+// parkedHeaderRe matches a parked-block header (removed-key and out-of-scope-key
+// forms alike), so a re-run recognizes an already-parked block and never re-parks
+// the same key. The reason portion may contain spaces ("an earlier release"), so
+// match lazily up to the fixed "(parked by fab config upgrade" marker.
+var parkedHeaderRe = regexp.MustCompile(`^# .+ \(parked by fab config upgrade`)
 
 // knownGeneratedSystemParagraphDigests is the byte-exact identity catalog for
 // every distinct paragraph emitted by released `fab config init --system`
@@ -357,7 +357,7 @@ func RenderInitProject(seed InitSeed, kitVersion string) (string, error) {
 	preamble := renderInitPreamble(seed)
 	liveKeys := liveTopLevelKeys(preamble)
 	fence := renderFence(ProjectTarget(""), fields, liveKeys, kitVersion)
-	return assemble(preamble, fence, nil, nil), nil
+	return assemble(preamble, fence, nil, nil, nil), nil
 }
 
 // RenderSystemScaffold generates the fresh system config shape from the same
@@ -370,7 +370,7 @@ func RenderSystemScaffold(kitVersion string) (string, error) {
 	}
 	target := SystemTarget("")
 	fence := renderFence(target, fields, nil, kitVersion)
-	return assemble(target.Header, fence, nil, nil), nil
+	return assemble(target.Header, fence, nil, nil, nil), nil
 }
 
 // initHeader is the top-of-file banner the generated project config carries — it
@@ -498,7 +498,8 @@ func render(original string, fields []configref.Field, target Target, kitVersion
 		preamble = strings.TrimRight(preamble, "\n") + "\n" + strings.TrimLeft(belowFence, "\n")
 	}
 	preamble = normalizeTargetPreamble(preamble, fields, target)
-	out, report := reconcilePreamble(preamble, existingParked, target.reconciliationFields(fields), target, kitVersion)
+	registryKnown, _ := registryTopLevelKeys(fields)
+	out, report := reconcilePreamble(preamble, existingParked, target.reconciliationFields(fields), registryKnown, target, kitVersion)
 	if target.adoptLegacyFile && original != "" && !hadFence {
 		report = append([]string{"adopted existing unfenced system config into the managed fence (live keys and unrecognized comments preserved)"}, report...)
 	}
@@ -510,7 +511,7 @@ func render(original string, fields []configref.Field, target Target, kitVersion
 // Surgical mutation deliberately does not call this function: rename carry,
 // unknown-key parking, and B-hygiene are whole-file upgrade concerns and must not
 // affect an unrelated key during set/unset.
-func reconcilePreamble(preamble string, existingParked []string, fields []configref.Field, target Target, kitVersion string) (string, []string) {
+func reconcilePreamble(preamble string, existingParked []string, fields []configref.Field, registryKnown map[string]bool, target Target, kitVersion string) (string, []string) {
 	var report []string
 
 	// Live top-level keys the user has above the fence (the A set), plus their
@@ -526,10 +527,13 @@ func reconcilePreamble(preamble string, existingParked []string, fields []config
 	preamble, liveKeys, renameReport := carryRenames(preamble, liveKeys, fields)
 	report = append(report, renameReport...)
 
-	// Park unknown live keys (live top-level keys not documented by any registry
-	// row and not the fence/parked markers). Removed from the live preamble,
-	// appended once below the fence.
-	preamble, newlyParked := extractUnknownLiveKeys(preamble, fields)
+	// Park keys the target's field set does not document, split into removed
+	// (absent from the registry entirely) and out-of-scope (registry-known but
+	// filtered out of this target — e.g. a scope:project key found in the
+	// machine-level file). Removed from the live preamble, appended once below
+	// the fence under distinct headers: an out-of-scope key was not removed, so
+	// it must not park under the removal header.
+	preamble, newlyParked, newlyOutOfScope := extractUnknownLiveKeys(preamble, fields, registryKnown)
 
 	// Build the fence: project reconciliation retains its established top-level
 	// suppression, while the system target uses the mutation path's leaf-aware
@@ -549,9 +553,12 @@ func reconcilePreamble(preamble string, existingParked []string, fields []config
 	// value equals the current default. Reported only, never removed.
 	report = append(report, bHygieneReport(preamble, fields)...)
 
-	out := assemble(preamble, fence, existingParked, newlyParked)
+	out := assemble(preamble, fence, existingParked, newlyParked, newlyOutOfScope)
 	for _, k := range sortedKeys(newlyParked) {
 		report = append(report, fmt.Sprintf("parked removed field %q below the fence (delete when done)", k))
+	}
+	for _, k := range sortedKeys(newlyOutOfScope) {
+		report = append(report, fmt.Sprintf("parked out-of-scope field %q below the fence (registry-known, unused at this layer; delete when done)", k))
 	}
 	return out, report
 }
@@ -565,7 +572,7 @@ func renderMutation(preamble string, existingParked []string, fields []configref
 	fence := renderFenceWithSegments(target, fields, kitVersion, func(index int, f configref.Field) string {
 		return mutationFenceSegment(target, fields, index, livePaths)
 	})
-	return assemble(preamble, fence, existingParked, nil), nil
+	return assemble(preamble, fence, existingParked, nil, nil), nil
 }
 
 func liveDottedPaths(document string) [][]string {
@@ -943,15 +950,21 @@ func carryRenames(preamble string, liveKeys map[string]bool, fields []configref.
 	return strings.Join(lines, "\n"), liveKeys, report
 }
 
-// extractUnknownLiveKeys removes live top-level keys not documented by any registry
-// row from the preamble and returns them as key→serialized-block for parking. The
-// serialized block is the key's own top-level line and any following indented lines
-// (its value), captured verbatim for the parked comment.
-func extractUnknownLiveKeys(preamble string, fields []configref.Field) (string, map[string]string) {
+// extractUnknownLiveKeys removes live top-level keys the target's field set does
+// not document from the preamble and returns them as key→serialized-block for
+// parking, split into removed (absent from the registry entirely) and outOfScope
+// (registryKnown but filtered out of this target — e.g. a scope:project key in
+// the machine-level file) so the two park under distinct headers: a removed key
+// is gone from the registry, an out-of-scope key is merely unused at this layer
+// and must not be labelled a removal. The serialized block is the key's own
+// top-level line and any following indented lines (its value), captured verbatim
+// for the parked comment.
+func extractUnknownLiveKeys(preamble string, fields []configref.Field, registryKnown map[string]bool) (keptPreamble string, removed, outOfScope map[string]string) {
 	known, _ := registryTopLevelKeys(fields)
 	lines := strings.Split(preamble, "\n")
 
-	parked := map[string]string{}
+	removed = map[string]string{}
+	outOfScope = map[string]string{}
 	var kept []string
 	for i := 0; i < len(lines); {
 		m := topLevelKeyRe.FindStringSubmatch(lines[i])
@@ -972,9 +985,14 @@ func extractUnknownLiveKeys(preamble string, fields []configref.Field) (string, 
 			kept = append(kept, block...)
 			continue
 		}
-		parked[key] = strings.TrimRight(strings.Join(block, "\n"), "\n")
+		serialized := strings.TrimRight(strings.Join(block, "\n"), "\n")
+		if registryKnown[key] {
+			outOfScope[key] = serialized
+		} else {
+			removed[key] = serialized
+		}
 	}
-	return strings.Join(kept, "\n"), parked
+	return strings.Join(kept, "\n"), removed, outOfScope
 }
 
 // advancePastBlock returns the index of the first line AFTER the value block that
@@ -1116,7 +1134,7 @@ func CommentOutSegment(segment string) string {
 // assemble stitches the final file: preamble, a blank separator, the fence, then the
 // parked-removal blocks (existing first — preserved order — then newly parked, sorted
 // for determinism). The result always ends in exactly one trailing newline.
-func assemble(preamble, fence string, existingParked []string, newlyParked map[string]string) string {
+func assemble(preamble, fence string, existingParked []string, newlyParked, newlyOutOfScope map[string]string) string {
 	var b strings.Builder
 
 	pre := strings.TrimRight(preamble, "\n")
@@ -1128,7 +1146,10 @@ func assemble(preamble, fence string, existingParked []string, newlyParked map[s
 
 	allParked := append([]string{}, existingParked...)
 	for _, k := range sortedKeys(newlyParked) {
-		allParked = append(allParked, renderParkedBlock(k, newlyParked[k]))
+		allParked = append(allParked, renderParkedBlock("removed in "+parkedVersionPlaceholder, newlyParked[k]))
+	}
+	for _, k := range sortedKeys(newlyOutOfScope) {
+		allParked = append(allParked, renderParkedBlock(parkedOutOfScopeReason, newlyOutOfScope[k]))
 	}
 	for _, blk := range allParked {
 		b.WriteString("\n\n")
@@ -1139,17 +1160,24 @@ func assemble(preamble, fence string, existingParked []string, newlyParked map[s
 	return b.String()
 }
 
-// renderParkedBlock formats one parked removal: the header line, then the removed
-// key's serialized block indented under a `#   ` comment prefix.
-func renderParkedBlock(key, block string) string {
+// renderParkedBlock formats one parked block: the header line carrying the park
+// reason, then the key's serialized block indented under a `#   ` comment prefix.
+func renderParkedBlock(reason, block string) string {
 	var b strings.Builder
-	b.WriteString("# removed in " + parkedVersionPlaceholder + " (parked by fab config upgrade — delete when done):")
+	b.WriteString("# " + reason + " (parked by fab config upgrade — delete when done):")
 	for _, ln := range strings.Split(block, "\n") {
 		b.WriteString("\n#   ")
 		b.WriteString(ln)
 	}
 	return b.String()
 }
+
+// parkedOutOfScopeReason is the parked-block header reason for a registry-known
+// key that is out of scope for the reconciliation target (e.g. a scope:project
+// key found in the machine-level file): the key was NOT removed — this layer
+// simply ignores it (the loader tolerates unknown keys) — so the header must not
+// claim a removal.
+const parkedOutOfScopeReason = "out of scope for this config layer — registry-known, unused at this layer"
 
 // parkedVersionPlaceholder is the version stamped into a parked-removal header.
 // The registry does not carry the release in which a field was removed (the row is

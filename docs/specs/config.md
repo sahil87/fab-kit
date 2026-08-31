@@ -619,7 +619,10 @@ BELOW the fence (a live override appended after the END anchor) is **hoisted abo
 next run and then classified like any other live key (kept if known, parked if unknown) — the layout is
 self-healing, not a silent-loss trap. Unknown fields (a live key no longer in the registry) are
 **parked** in a `# removed in … (parked by fab config upgrade — delete when done):` block below the
-fence, the value serialized in the comment — appended **exactly once**, never regenerated away. Before
+fence, the value serialized in the comment — appended **exactly once**, never regenerated away. A
+registry-known key that is out of scope for the target (e.g. a `scope: project` key found in the
+machine-level file) parks the same way under a distinct `# out of scope for this config layer …`
+header — the key was not removed; the layer ignores it. Before
 writing, the reconciled document is **validated as YAML** and a run that would produce an unparseable
 file is **refused** (the original left untouched) rather than bricking the repo. A live field matching a
 registry row's `renamed_from` is **carried** to the new key mechanically (value verbatim), replacing the
