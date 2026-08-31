@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 23
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-08-30T19:16:45Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-31T04:11:44Z"}
     review: {started_at: "2026-08-31T04:11:44Z", driver: fab-fff, iterations: 3, completed_at: "2026-08-31T04:22:08Z"}
     hydrate: {started_at: "2026-08-31T04:22:08Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-31T04:29:02Z"}
-    ship: {started_at: "2026-08-31T04:29:02Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-08-31T04:29:02Z", driver: fab-fff, iterations: 1, completed_at: "2026-08-31T04:32:39Z"}
+    review-pr: {started_at: "2026-08-31T04:32:39Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/633
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 2052
+    deleted: 270
+    net: 1782
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 1213
+        deleted: 227
+        net: 986
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-08-31T04:29:02Z"
-    computed_at_stage: hydrate
+        added: 697
+        deleted: 78
+        net: 619
+    computed_at: "2026-08-31T04:32:39Z"
+    computed_at_stage: ship
 summary: 'config upgrade gains --system/--all: system layer gets the managed fence, legacy-scaffold adoption under line-complete accounting (byte-exact + sha256 history catalog), SetSystem/UnsetSystem fence-aware, fab setup warm-up refresh'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-08-31T04:29:02Z
+last_updated: 2026-08-31T04:32:39Z
