@@ -16,6 +16,7 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configref"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/configupgrade"
 )
 
 // TestConfigReferenceRoundTrips is the VALIDITY contract: the emitted reference
@@ -485,9 +486,9 @@ func TestConfigInitPrintForceIsPurePreview(t *testing.T) {
 // (the old invite-to-uncomment machine-wide phrasing is gone from generated
 // files; it stays in `fab config explain`).
 func TestConfigInitSystemScaffoldCarriesScopeAnnotations(t *testing.T) {
-	scaffold, err := renderSystemScaffold()
+	scaffold, err := configupgrade.RenderSystemScaffold(version)
 	if err != nil {
-		t.Fatalf("renderSystemScaffold: %v", err)
+		t.Fatalf("RenderSystemScaffold: %v", err)
 	}
 	for _, want := range []string{
 		"[both]",
@@ -506,9 +507,9 @@ func TestConfigInitSystemScaffoldCarriesScopeAnnotations(t *testing.T) {
 		t.Error("system scaffold must not advertise project-scoped fields")
 	}
 	// Byte-stable across renders (the scaffold is a generated file).
-	second, err := renderSystemScaffold()
+	second, err := configupgrade.RenderSystemScaffold(version)
 	if err != nil {
-		t.Fatalf("renderSystemScaffold (2nd): %v", err)
+		t.Fatalf("RenderSystemScaffold (2nd): %v", err)
 	}
 	if scaffold != second {
 		t.Error("system scaffold is not byte-stable across renders")

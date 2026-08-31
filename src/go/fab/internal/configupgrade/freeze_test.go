@@ -31,8 +31,8 @@ agent:
 
 legacy_mode: true
 `
-	first, _ := render(src, fields, "2.15.0")
-	second, _ := render(first, fields, "2.15.0")
+	first, _ := render(src, fields, ProjectTarget(""), "2.15.0")
+	second, _ := render(first, fields, ProjectTarget(""), "2.15.0")
 	if first != second {
 		t.Errorf("render is not idempotent.\n--- first ---\n%s\n--- second ---\n%s", first, second)
 	}
@@ -45,14 +45,14 @@ func TestFreeze_ParkedNotDuplicated(t *testing.T) {
 	fields := fieldsForTest(t)
 	src := "project:\n    name: t\n\nlegacy_mode: true\ncruft_key: 42\n"
 
-	first, _ := render(src, fields, "2.15.0")
+	first, _ := render(src, fields, ProjectTarget(""), "2.15.0")
 	if got := strings.Count(first, "#   legacy_mode: true"); got != 1 {
 		t.Fatalf("expected legacy_mode parked exactly once, got %d:\n%s", got, first)
 	}
 	if got := strings.Count(first, "#   cruft_key: 42"); got != 1 {
 		t.Fatalf("expected cruft_key parked exactly once, got %d:\n%s", got, first)
 	}
-	second, _ := render(first, fields, "2.15.0")
+	second, _ := render(first, fields, ProjectTarget(""), "2.15.0")
 	if second != first {
 		t.Errorf("re-run churned a parked block.\n--- first ---\n%s\n--- second ---\n%s", first, second)
 	}
@@ -67,8 +67,8 @@ func TestFreeze_VersionBumpRewritesStampOnly(t *testing.T) {
 	fields := fieldsForTest(t)
 	src := "project:\n    name: t\n\nlegacy_mode: true\n"
 
-	v1, _ := render(src, fields, "2.15.0")
-	v2, _ := render(v1, fields, "2.16.0")
+	v1, _ := render(src, fields, ProjectTarget(""), "2.15.0")
+	v2, _ := render(v1, fields, ProjectTarget(""), "2.16.0")
 
 	if strings.Count(v2, "# >>> fab reference") != 1 {
 		t.Errorf("a version bump must not duplicate the fence:\n%s", v2)
@@ -113,7 +113,7 @@ func TestFreeze_CarriesRenameOnce(t *testing.T) {
 	}
 	src := "old_key: keep-this-value\n"
 
-	first, report := render(src, fields, "2.15.0")
+	first, report := render(src, fields, ProjectTarget(""), "2.15.0")
 	if !strings.Contains(first, "new_key: keep-this-value") {
 		t.Errorf("rename must carry the value verbatim under the new key:\n%s", first)
 	}
@@ -123,7 +123,7 @@ func TestFreeze_CarriesRenameOnce(t *testing.T) {
 	if len(report) == 0 || !strings.Contains(strings.Join(report, "\n"), "old_key") {
 		t.Errorf("the report must note the rename, got %v", report)
 	}
-	second, _ := render(first, fields, "2.15.0")
+	second, _ := render(first, fields, ProjectTarget(""), "2.15.0")
 	if second != first {
 		t.Errorf("rename carry must be idempotent.\n--- first ---\n%s\n--- second ---\n%s", first, second)
 	}
@@ -157,7 +157,7 @@ func TestRender_RenameSkippedWhenTargetLive(t *testing.T) {
 	// Both old_key AND new_key are live — the target is already set.
 	src := "old_key: legacy-value\nnew_key: user-chosen-value\n"
 
-	out, report := render(src, fields, "2.15.0")
+	out, report := render(src, fields, ProjectTarget(""), "2.15.0")
 
 	if err := validateYAML(out); err != nil {
 		t.Fatalf("skipping the carry must keep the output parseable (no duplicate key): %v\n%s", err, out)
@@ -213,7 +213,7 @@ func TestUpgrade_AtomicWriteAndNoOp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res1, err := Upgrade(path, "2.15.0")
+	res1, err := Upgrade(ProjectTarget(path), "2.15.0")
 	if err != nil {
 		t.Fatalf("Upgrade #1: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestUpgrade_AtomicWriteAndNoOp(t *testing.T) {
 	}
 	after1, _ := os.ReadFile(path)
 
-	res2, err := Upgrade(path, "2.15.0")
+	res2, err := Upgrade(ProjectTarget(path), "2.15.0")
 	if err != nil {
 		t.Fatalf("Upgrade #2: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestUpgrade_MissingFileWritesFence(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 
-	res, err := Upgrade(path, "2.15.0")
+	res, err := Upgrade(ProjectTarget(path), "2.15.0")
 	if err != nil {
 		t.Fatalf("Upgrade on a missing file: %v", err)
 	}

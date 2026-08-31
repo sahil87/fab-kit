@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -88,8 +89,9 @@ type wizardOption struct {
 }
 
 // runSetupWizard is the bare-`fab setup` entry point. Flow: non-TTY guard →
-// write-target resolution → probe → scope banner → default-path questions →
-// opt-in advanced section → diff-before-write summary → surgical writes.
+// write-target resolution → existing-system-scaffold refresh → probe/read model →
+// scope banner → default-path questions → opt-in advanced section →
+// diff-before-write summary → surgical writes.
 func runSetupWizard(cmd *cobra.Command, opts wizardOptions) error {
 	if !opts.defaults && !isStdinTTY(cmd.InOrStdin()) {
 		return fmt.Errorf("stdin is not a TTY — use --defaults for non-interactive runs (or `fab setup check` for the read-only doctor)")
@@ -101,6 +103,7 @@ func runSetupWizard(cmd *cobra.Command, opts wizardOptions) error {
 		}
 		return err
 	}
+	refreshSystemScaffold(cmd)
 
 	in := setupCheckInput()
 	layers, defaults, err := wizardReadModel()
@@ -133,6 +136,32 @@ func runSetupWizard(cmd *cobra.Command, opts wizardOptions) error {
 	w.askDefaultPath()
 	w.askAdvanced()
 	return w.diffAndWrite()
+}
+
+// refreshSystemScaffold self-heals an existing machine-level scaffold before
+// the interview starts. A missing file remains absent so the wizard's all-Enter
+// path keeps its zero-write invariant. Refresh failures are advisory: setup is
+// still useful for repairing or replacing a bad value.
+func refreshSystemScaffold(cmd *cobra.Command) {
+	path, err := configMutationPath(true)
+	if err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "fab: warning: could not refresh the system config scaffold: %v\n", err)
+		return
+	}
+	if _, err := os.Stat(path); err != nil {
+		if !os.IsNotExist(err) {
+			fmt.Fprintf(cmd.ErrOrStderr(), "fab: warning: could not inspect the system config scaffold: %v\n", err)
+		}
+		return
+	}
+	result, err := configupgrade.Upgrade(configupgrade.SystemTarget(path), version)
+	if err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "fab: warning: could not refresh %s: %v\n", path, err)
+		return
+	}
+	if result.Changed {
+		fmt.Fprintf(cmd.OutOrStdout(), "Refreshed %s reference block (kit %s)\n", path, version)
+	}
 }
 
 // wizardReadModel loads the config cascade once for the whole interview, so
@@ -430,8 +459,9 @@ func (w *setupWizard) askAdvanced() {
 }
 
 // diffAndWrite renders the diff-before-write summary and applies confirmed
-// changes through the surgical config-set path. Zero changed answers means
-// zero writes — an all-Enter run touches no file (Constitution III).
+// changes through the surgical config-set path. Zero changed answers means this
+// step writes nothing; the command's earlier system-scaffold warm-up may already
+// have refreshed an existing stale file (Constitution III).
 func (w *setupWizard) diffAndWrite() error {
 	out := w.cmd.OutOrStdout()
 	var changes []wizardAnswer
@@ -477,7 +507,7 @@ func (w *setupWizard) writeOne(c wizardAnswer) error {
 	if w.opts.project {
 		result, err = configupgrade.Set(w.path, c.key, c.answer, version)
 	} else {
-		result, err = configupgrade.SetSystem(w.path, c.key, c.answer)
+		result, err = configupgrade.SetSystem(w.path, c.key, c.answer, version)
 	}
 	if err != nil {
 		return err

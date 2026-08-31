@@ -20,8 +20,10 @@ shape; this tells you *which* command to reach for and how the pieces compose.
   fail closed with `ERROR: fab/ directory not found`. Config-free commands still work —
   `fab agent`, `fab resolve-agent`, `fab config show` and `fab config explain` resolve the
   **project-free cascade** there (`env > system > built-in defaults`, project tier dropped),
-  so a machine-wide `~/.fab-kit/config.yaml` still applies. `config`'s WRITING verbs
-  (`set`, `unset`, `init`, `upgrade`) stay gated — they target a project file.
+  so a machine-wide `~/.fab-kit/config.yaml` still applies. Bare `config` writes stay
+  project-gated, while the `--system` forms of `set`, `unset`, `init`, and `upgrade`
+  target `~/.fab-kit/config.yaml` without requiring a fab repo. `upgrade --all` still
+  requires a project because it reconciles both tiers.
 
 ## Capabilities map
 

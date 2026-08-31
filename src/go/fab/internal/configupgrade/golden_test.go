@@ -56,7 +56,7 @@ func endAnchor() string           { return anchorLine(endPrefix) }
 // `preamble + sep + fenceBlock + parked`.
 func fenceBlock(v string) string {
 	return beginAnchor(v) + "\n" +
-		fenceHeaderComment + "\n" +
+		fenceHeaderComment("fab config upgrade") + "\n" +
 		"#\n" +
 		"# branch_prefix — worktree branch prefix. [project]\n" +
 		"# Full prose: fab config explain branch_prefix\n" +
@@ -70,7 +70,7 @@ func fenceBlock(v string) string {
 }
 
 func TestGolden_LegacyNoFence_FullDocument(t *testing.T) {
-	got, _ := render("project:\n    name: myproj\n", goldenFields(), "2.15.0")
+	got, _ := render("project:\n    name: myproj\n", goldenFields(), ProjectTarget(""), "2.15.0")
 	want := "project:\n    name: myproj\n\n" + fenceBlock("2.15.0") + "\n"
 	if got != want {
 		t.Errorf("legacy-no-fence full-document golden mismatch.\n--- got ---\n%s\n--- want ---\n%s", got, want)
@@ -78,7 +78,7 @@ func TestGolden_LegacyNoFence_FullDocument(t *testing.T) {
 }
 
 func TestGolden_EmptyFile_FullDocument(t *testing.T) {
-	got, _ := render("", goldenFields(), "2.15.0")
+	got, _ := render("", goldenFields(), ProjectTarget(""), "2.15.0")
 	want := fenceBlock("2.15.0") + "\n"
 	if got != want {
 		t.Errorf("empty-file full-document golden mismatch.\n--- got ---\n%s\n--- want ---\n%s", got, want)
@@ -88,8 +88,8 @@ func TestGolden_EmptyFile_FullDocument(t *testing.T) {
 func TestGolden_ExistingFence_RegionRewrittenOutsidePreserved(t *testing.T) {
 	// A file with an existing (stale-version) fence: the fence region is rewritten
 	// (re-stamped, regenerated) while the user's preamble outside it is preserved.
-	first, _ := render("project:\n    name: myproj\n", goldenFields(), "2.14.0")
-	got, _ := render(first, goldenFields(), "2.15.0")
+	first, _ := render("project:\n    name: myproj\n", goldenFields(), ProjectTarget(""), "2.14.0")
+	got, _ := render(first, goldenFields(), ProjectTarget(""), "2.15.0")
 	want := "project:\n    name: myproj\n\n" + fenceBlock("2.15.0") + "\n"
 	if got != want {
 		t.Errorf("existing-fence rewrite full-document golden mismatch.\n--- got ---\n%s\n--- want ---\n%s", got, want)
@@ -99,10 +99,10 @@ func TestGolden_ExistingFence_RegionRewrittenOutsidePreserved(t *testing.T) {
 func TestGolden_LiveOverrideOmittedFromFence_FullDocument(t *testing.T) {
 	// branch_prefix is live above the fence, so the fence must omit it (advertise
 	// only what you could override but haven't). The fence carries test_paths only.
-	got, _ := render("branch_prefix: feature/\n", goldenFields(), "2.15.0")
+	got, _ := render("branch_prefix: feature/\n", goldenFields(), ProjectTarget(""), "2.15.0")
 	want := "branch_prefix: feature/\n\n" +
 		beginAnchor("2.15.0") + "\n" +
-		fenceHeaderComment + "\n" +
+		fenceHeaderComment("fab config upgrade") + "\n" +
 		"#\n" +
 		"# test_paths — test globs. [project]\n" +
 		"# Full prose: fab config explain test_paths\n" +
@@ -117,7 +117,7 @@ func TestGolden_LiveOverrideOmittedFromFence_FullDocument(t *testing.T) {
 func TestGolden_UserCommentOnAField_Preserved_FullDocument(t *testing.T) {
 	// A user comment on a live A field is preserved byte-for-byte above the fence.
 	src := "# pin the project name — do not change\nproject:\n    name: myproj\n"
-	got, _ := render(src, goldenFields(), "2.15.0")
+	got, _ := render(src, goldenFields(), ProjectTarget(""), "2.15.0")
 	want := "# pin the project name — do not change\nproject:\n    name: myproj\n\n" + fenceBlock("2.15.0") + "\n"
 	if got != want {
 		t.Errorf("comment-preserved full-document golden mismatch.\n--- got ---\n%s\n--- want ---\n%s", got, want)
@@ -126,7 +126,7 @@ func TestGolden_UserCommentOnAField_Preserved_FullDocument(t *testing.T) {
 
 func TestGolden_UnknownKeyParked_FullDocument(t *testing.T) {
 	src := "project:\n    name: p\n\nlegacy_mode: true\n"
-	got, _ := render(src, goldenFields(), "2.15.0")
+	got, _ := render(src, goldenFields(), ProjectTarget(""), "2.15.0")
 	want := "project:\n    name: p\n\n" + fenceBlock("2.15.0") + "\n\n" +
 		"# removed in " + parkedVersionPlaceholder + " (parked by fab config upgrade — delete when done):\n" +
 		"#   legacy_mode: true\n"
@@ -139,12 +139,12 @@ func TestGolden_BelowFenceContentHoisted_FullDocument(t *testing.T) {
 	// R2.1 regression: a live override the user appended BELOW the fence is hoisted
 	// above it (never dropped). The reconciled document carries branch_prefix live
 	// above the fence, and the fence omits it. The exact scenario the review flagged.
-	first, _ := render("project:\n    name: myproj\n", goldenFields(), "2.15.0")
+	first, _ := render("project:\n    name: myproj\n", goldenFields(), ProjectTarget(""), "2.15.0")
 	withBelow := first + "\nbranch_prefix: feature/\n"
-	got, _ := render(withBelow, goldenFields(), "2.15.0")
+	got, _ := render(withBelow, goldenFields(), ProjectTarget(""), "2.15.0")
 	want := "project:\n    name: myproj\nbranch_prefix: feature/\n\n" +
 		beginAnchor("2.15.0") + "\n" +
-		fenceHeaderComment + "\n" +
+		fenceHeaderComment("fab config upgrade") + "\n" +
 		"#\n" +
 		"# test_paths — test globs. [project]\n" +
 		"# Full prose: fab config explain test_paths\n" +

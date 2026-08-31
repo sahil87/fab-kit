@@ -121,6 +121,30 @@ func TestConfigShow_NoProjectReadsCascade(t *testing.T) {
 	}
 }
 
+func TestConfigUpgradeSystem_NoProject(t *testing.T) {
+	home := noProjectDir(t)
+
+	cmd := configCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	cmd.SetArgs([]string{"upgrade", "--system"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("config upgrade --system with no fab/ project: %v", err)
+	}
+	path := filepath.Join(home, ".fab-kit", "config.yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("system upgrade did not create %s: %v", path, err)
+	}
+	if !strings.Contains(string(data), "# >>> fab reference") {
+		t.Fatalf("created system config has no managed fence:\n%s", data)
+	}
+	if strings.Contains(errOut.String(), "fab/ directory not found") {
+		t.Fatalf("system-only upgrade attempted project resolution: %s", errOut.String())
+	}
+}
+
 // TestProjectStateCommandsStillFailClosed: the other half of the contract. These
 // read or write change state, so a missing fab/ stays a hard error — degrading
 // them would silently operate on the wrong (or no) project.
@@ -133,6 +157,7 @@ func TestProjectStateCommandsStillFailClosed(t *testing.T) {
 		{"config unset", []string{"unset", "dispatch.mode"}},
 		{"config init", []string{"init"}},
 		{"config upgrade", []string{"upgrade"}},
+		{"config upgrade --all", []string{"upgrade", "--all"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			noProjectDir(t)
