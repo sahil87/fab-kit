@@ -216,8 +216,8 @@ type agentMode struct {
 // projection over the resolved invocation. The kind/selector/role triple
 // reports provenance for the ADDRESSING form (bare provider = kind "provider"
 // and role empty); provider/model/effort come from the resolved profile; the
-// command is the composed line pre-passthrough (the same line --print would
-// emit).
+// command is the composed line including passthrough args (the same line
+// --print would emit).
 type agentResolutionYAML struct {
 	Selector string `yaml:"selector"`
 	Kind     string `yaml:"kind"`
