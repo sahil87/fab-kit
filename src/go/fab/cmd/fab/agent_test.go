@@ -422,69 +422,65 @@ func TestAgentPrintProviderBuiltinClaude(t *testing.T) {
 	}
 }
 
-// TestAgentRoleAndProviderMutuallyExclusive: supplying both the [role] positional
-// and --provider is a usage error — no command is printed or exec'd.
-func TestAgentRoleAndProviderMutuallyExclusive(t *testing.T) {
-	agentTestRepo(t, "project:\n  name: test\n")
-	out, err := runAgentPrint(t, "doing", "--provider", "claude")
-	if err == nil {
-		t.Fatal("expected an error when both [role] and --provider are given")
+// TestAgentRoleAndProviderReResolve: supplying both the [role] positional and
+// --provider ceased to be a usage error — the role's profile re-resolves from
+// the named provider's own fills (kimi ships no fills, so its {model} drops the
+// -m pair and the CLI's own default applies). The former mutual-exclusion test
+// pinned the usage error; the re-resolve path is the conformance.
+func TestAgentRoleAndProviderReResolve(t *testing.T) {
+	agentTestRepo(t, `providers:
+  kimi:
+    interactive_command: "kimi --auto -m {model}"
+`)
+	out, err := runAgentPrint(t, "doing", "--provider", "kimi")
+	if err != nil {
+		t.Fatalf("agent doing --provider kimi --print: %v", err)
 	}
-	if !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Errorf("error should state the mutual exclusion, got: %v", err)
+	if !strings.Contains(out, `kimi --auto`) {
+		t.Errorf("selector + --provider must re-resolve fills (kimi's empty {model} drops its -m pair), got %q", out)
 	}
-	// A usage error must not compose a command. (The standalone command under test
-	// still writes cobra's usage block to its out buffer — the real root sets
-	// SilenceUsage — so assert on the absence of a composed command, not emptiness.)
-	if strings.Contains(out, "--dangerously-skip-permissions") {
-		t.Errorf("no session command should be composed on a usage error, got %q", out)
+	if strings.Contains(out, "-m ") {
+		t.Errorf("kimi's empty fill must drop its -m pair, got %q", out)
 	}
 }
 
-// TestAgentModelEffortRequireProvider: --model or --effort without --provider is a
-// usage error (the role path's profile comes from the role, so a bare --model has
-// no coherent semantics).
-func TestAgentModelEffortRequireProvider(t *testing.T) {
+// TestAgentModelEffortResolvesOnRolePath: --model/--effort without --provider
+// ceased to be a usage error — the role path applies them as final verbatim
+// overrides over the resolved role fill. The former requires-provider test
+// pinned the usage error; the override path is the conformance.
+func TestAgentModelEffortResolvesOnRolePath(t *testing.T) {
 	for _, flag := range []string{"--model", "--effort"} {
 		t.Run(flag, func(t *testing.T) {
 			agentTestRepo(t, "project:\n  name: test\n")
 			out, err := runAgentPrint(t, flag, "somevalue")
-			if err == nil {
-				t.Fatalf("expected an error for %s without --provider", flag)
+			if err != nil {
+				t.Fatalf("agent --print %s somevalue (default-role override): %v", flag, err)
 			}
-			if !strings.Contains(err.Error(), "require --provider") {
-				t.Errorf("error should say the flags require --provider, got: %v", err)
-			}
-			// See the note in TestAgentRoleAndProviderMutuallyExclusive: assert no
-			// command was composed rather than an empty buffer (cobra's usage block).
-			if strings.Contains(out, "--dangerously-skip-permissions") {
-				t.Errorf("no session command should be composed on a usage error, got %q", out)
+			if !strings.Contains(out, "somevalue") {
+				t.Errorf("bare %s must apply as the final role override, got %q", flag, out)
 			}
 		})
 	}
 }
 
-// TestAgentEmptyProviderStillMutuallyExclusive: an EXPLICITLY EMPTY `--provider=`
-// is a supplied flag, so the mutual exclusion with the [role] positional still
-// trips. Pins the guard on cobra's Flag.Changed rather than on value emptiness —
-// an emptiness test would let this invocation fall through to the role path and
-// print a command.
-func TestAgentEmptyProviderStillMutuallyExclusive(t *testing.T) {
+// TestAgentEmptyProviderStillErrorsWithPlaceholder: an EXPLICITLY EMPTY
+// `--provider=` is still a supplied flag — on the selector path that resolves
+// an empty provider, so its error substitutes the `<name>` placeholder (the
+// same path unknownProviderError uses) rather than naming the malformed
+// `providers.` key. Supplanted: the formerly-flagged mutual exclusion has
+// become the conformance.
+func TestAgentEmptyProviderStillErrorsWithPlaceholder(t *testing.T) {
 	agentTestRepo(t, `providers:
   claude:
     interactive_command: "claude --dangerously-skip-permissions"
 `)
-	out, err := runAgentPrint(t, "doing", "--provider=")
+	_, err := runAgentPrint(t, "doing", "--provider=")
 	if err == nil {
 		t.Fatal("expected an error for [role] plus an explicitly-empty --provider=")
 	}
-	if !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Errorf("error should state the mutual exclusion, got: %v", err)
-	}
-	// See the note in TestAgentRoleAndProviderMutuallyExclusive: assert no command
-	// was composed rather than an empty buffer (cobra's usage block).
-	if strings.Contains(out, "--dangerously-skip-permissions") {
-		t.Errorf("no session command should be composed on a usage error, got %q", out)
+	msg := err.Error()
+	if !strings.Contains(msg, "providers.<name>") {
+		t.Errorf("selector-path slot error should use the <name> placeholder on an empty provider, got: %v", err)
 	}
 }
 
@@ -517,10 +513,11 @@ func TestAgentEmptyProviderAloneIsLookupFailure(t *testing.T) {
 	}
 }
 
-// TestAgentEmptyModelEffortStillRequireProvider: an explicitly empty `--model=` /
-// `--effort=` without --provider is still the requires-provider usage error — the
-// same Flag.Changed guard, on the flag-scoping side.
-func TestAgentEmptyModelEffortStillRequireProvider(t *testing.T) {
+// TestAgentEmptyModelEffortResolvesOnRolePath: an explicitly empty `--model=` /
+// `--effort=` is still a supplied flag — it simply clears the resolved field
+// (the token-drop rule leaves a clean command). Supplanted: the formerly-flagged
+// requires-provider usage error has become the conformance.
+func TestAgentEmptyModelEffortResolvesOnRolePath(t *testing.T) {
 	for _, arg := range []string{"--model=", "--effort="} {
 		t.Run(arg, func(t *testing.T) {
 			agentTestRepo(t, `providers:
@@ -528,14 +525,11 @@ func TestAgentEmptyModelEffortStillRequireProvider(t *testing.T) {
     interactive_command: "claude --dangerously-skip-permissions"
 `)
 			out, err := runAgentPrint(t, arg)
-			if err == nil {
-				t.Fatalf("expected an error for %s without --provider", arg)
+			if err != nil {
+				t.Fatalf("agent --print %s (default-role override): %v", arg, err)
 			}
-			if !strings.Contains(err.Error(), "require --provider") {
-				t.Errorf("error should say the flags require --provider, got: %v", err)
-			}
-			if strings.Contains(out, "--dangerously-skip-permissions") {
-				t.Errorf("no session command should be composed on a usage error, got %q", out)
+			if !strings.Contains(out, "claude --dangerously-skip-permissions") {
+				t.Errorf("explicitly-empty %s must clear the role fill, got %q", arg, out)
 			}
 		})
 	}
