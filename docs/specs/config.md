@@ -549,7 +549,7 @@ environment walk cannot drift from the reference schema.
   `unset` is deliberately kind-ungated so
   it can repair malformed overrides. System writes accept only `scope: system`/`both`, keep live
   overrides above the system target's managed fence, and create a missing file with the canonical
-  system header plus that fence. Unsetting an absent
+  fence-owned system header inside that fence. Unsetting an absent
   known key is an exit-zero notice that now **names the tier where the key IS live** plus the command
   that would remove it (`live in system ~/.fab-kit/config.yaml — use: fab config unset agent.workers
   --system`); an environment tier is named as one `unset` cannot remove, and a key supplied only by the
@@ -603,11 +603,12 @@ restore the segment byte-exactly.
 
 The **project target** fences `advertise: true` fields and retains top-level-key omission: a live
 top-level key (for example `agent:`) suppresses the entire project scaffold block beneath it. A legacy
-project file with no fence gets one appended at the bottom. The **system target** keeps the canonical
-system precedence header, fences every `scope: system`/`both` field (including rows demoted from the
-project fence with `advertise: false`), and uses leaf-aware omission within shared blocks so a live
-`agent.workers` override does not hide the sibling `agent.session` advert. Its fence preamble names
-`fab config upgrade --system`.
+project file with no fence gets one appended at the bottom. The **system target** locates the canonical
+system precedence header **INSIDE the fence as the head of its preamble** (the above-fence region belongs
+exclusively to the user's live keys and own comments; nothing fab-generated still owns it), fences every
+`scope: system`/`both` field (including rows demoted from the project fence with `advertise: false`), and
+uses leaf-aware omission within shared blocks so a live `agent.workers` override does not hide the sibling
+`agent.session` advert. Its fence preamble names `fab config upgrade --system`.
 
 The first system upgrade also **adopts the pre-fence scaffold shape** emitted by older
 `fab config init --system` binaries. It recognizes the exact old generated header and commented
@@ -639,6 +640,14 @@ probe**: bare/`--project`, `--system`, and `--all` all call the same target-para
 drifting (stale stamp, unparked removed keys, missing fence, or missing file) exits non-zero; `--all`
 prints separate `project:` and `system:` lines and exits zero only when both are clean. Thus checking
 cannot disagree with applying about what would change.
+
+The system precedence header is fence-owned (inside the BEGIN/END anchors as the head of the fence
+preamble); the above-fence region belongs exclusively to the user's live keys and their own comments,
+and no code path writes fab-generated text there. The relocation was made two-part by design: first
+decouple the legacy-paragraph discard from `Target.Header` presence in `normalizeTargetPreamble` —
+the discard gates on an explicit `adoptLegacyFile` predicate so blanking the header can't disable
+adoption — then relocate the header at the shared `assemble` seam so `init --system` and
+`upgrade --system` stay byte-identical by construction.
 
 System-level scaffold adoption deliberately ships **without a project migration file**. Migration
 execution is project-scoped, while `~/.fab-kit/config.yaml` is one machine-level file shared by every

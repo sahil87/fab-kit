@@ -1,0 +1,240 @@
+# Intake: System Scaffold Header Inside the Fence
+
+**Change**: 260831-n2eo-system-header-inside-fence
+**Created**: 2026-08-31
+
+## Origin
+
+Direct follow-up to 260830-m4ai-config-upgrade-system-scaffold (PR #633, merged 2026-08-31,
+released in v2.23.8). While using the shipped `fab config upgrade --system` on a real machine
+config, the user asked to remove the commented header block above the fence. It was removed by
+hand twice and came back both times — first from `fab config upgrade --system`, then from
+`fab config set --system`.
+
+> **User input**: "Remove the extra comments that are not a part of the fence from the top"
+> … then, after the header returned: "ok go ahead" (to opening this change)
+
+Decisions from the conversation:
+
+1. The header is **relocated into the managed fence**, not deleted. Its content is genuinely
+   useful — the precedence rule ("Resolves ABOVE any project's `fab/project/config.yaml`") is
+   the thing users most often get wrong about this file — so it stays discoverable and clearly
+   regenerable rather than being dropped.
+2. The goal is that the **top of the file is pure config**: the first line of
+   `~/.fab-kit/config.yaml` is a live YAML key (or the fence, when nothing is overridden).
+
+## Why
+
+**The problem.** `~/.fab-kit/config.yaml` opens with an 11-line commented header before any
+actual configuration. A user who deletes it cannot keep it deleted: the header is reinstated
+**unconditionally** by every system write path. Verified on v2.23.8, twice, on a real config:
+
+- `fab config upgrade --system` re-inserted it
+- `fab config set --system providers.claude.profiles.default.model claude-fable-5`
+  re-inserted it as a side effect of an unrelated value change
+
+**The consequence.** The file's most useful region — the handful of keys the user actually set
+— is pushed below a screen of prose they have already read, on every `cat`, every editor open,
+every review of "what have I overridden machine-wide?". And because deletion does not stick,
+the only way to get a clean top-of-file today is to stop using the `--system` verbs, which
+defeats the point of the change that just shipped.
+
+**Why relocate rather than delete.** The header carries the one non-obvious fact about this
+file: it outranks every repo's committed config for preference-class fields. Deleting it makes
+the file cleaner and less discoverable at the same time. Inside the fence it is exactly as
+readable, is honestly labelled as regenerated content, and lives next to the field adverts it
+belongs with — while the top of the file becomes what the user opens the file to see.
+
+**The deeper defect: the header region is ambiguously owned.** Verified empirically on
+v2.23.8 by editing one header line and re-running `fab config upgrade --system`:
+
+| Header state | Result after one upgrade |
+|--------------|--------------------------|
+| Pristine | Recognized as generated, discarded, reinstalled — 1 copy. Binary-owned. |
+| **Edited** | R10a sees the edited line as unaccounted and preserves the whole paragraph as user content, **and** the binary installs a fresh pristine header — **2 copies**. |
+
+So the header is binary-controlled *until a user touches it*, at which point they get both
+their version and a fresh one. Neither ownership model holds: the region cannot be customized
+(your text is buried under a regenerated copy) and cannot be cleaned (deletion does not stick).
+The duplication is R10a behaving correctly — preserve on doubt — applied to a region that
+should never have been in doubt.
+
+Relocating the header inside the fence resolves the ownership question rather than just the
+layout: **inside the fence is binary-owned** (the fence contract already states edits there are
+overwritten, and there is no competing preamble copy to duplicate against), and **above the
+fence is unambiguously the user's** — live keys plus any custom comments, preserved by R10a.
+This is the primary justification; the cleaner top-of-file is the visible consequence.
+
+**Why now, as its own change.** m4ai is merged and archived, so this cannot be an amendment.
+It is also not micro: it changes the shape of a generated file every fab user on the machine
+has, and it touches the memory and spec that document the fence.
+
+## What Changes
+
+### 1. The system fence absorbs the header
+
+Today `assemble(preamble, fence, …)` (`configupgrade.go:1137`) writes the preamble, a blank
+line, then the fence. For the system target the preamble is `SystemScaffoldHeader`
+(`mutation.go`), so the rendered file is:
+
+```yaml
+# ~/.fab-kit/config.yaml — system-level fab config (all repos on this machine).
+# Resolves ABOVE any project's fab/project/config.yaml (and below environment
+# ... 9 more header lines ...
+
+dispatch:
+  mode: pane
+
+# >>> fab reference (kit 2.23.8) >>> ---------------------------------------
+# Overridable fields you have NOT overridden, with current defaults.
+# REGENERATED by `fab config upgrade --system` on every upgrade — …
+```
+
+Target shape after this change — header content moved into the fence body, above the
+existing `fenceHeaderComment` prose:
+
+```yaml
+dispatch:
+  mode: pane
+
+agent:
+  session: claude
+  workers: kimi
+
+# >>> fab reference (kit 2.24.0) >>> ---------------------------------------
+# ~/.fab-kit/config.yaml — system-level fab config (all repos on this machine).
+# Resolves ABOVE any project's fab/project/config.yaml (and below environment
+# overrides), so a preference set here beats a repo's committed suggestion. Only
+# preference-class fields (scope: system/both) are honored here; a project-scoped
+# field placed in this file is ignored with a warning.
+#
+# Overridable fields you have NOT overridden, with current defaults.
+# REGENERATED by `fab config upgrade --system` on every upgrade — edits inside this
+# fence are overwritten. To override a field: move it ABOVE the fence and
+# uncomment it.
+#
+# dispatch.mode / dispatch.column_width / dispatch.reap_done — …
+```
+
+The "This scaffold is generated by `fab config init --system` and refreshed by
+`fab config upgrade --system` …" sentence becomes redundant once the text sits inside a fence
+that already says it is regenerated — fold it into the fence prose rather than carrying both
+claims.
+
+When the user has overridden nothing, the file legitimately begins with the fence anchor. That
+is the correct degenerate case, not a regression.
+
+**Ownership invariant this establishes** (must be tested): after the change there is NO code
+path that writes binary-owned text above the fence, so an edited or deleted header can never
+produce two copies — the duplication reproduced on v2.23.8 becomes structurally impossible
+rather than merely unlikely.
+
+### 2. Decouple "install a header" from "discard generated paragraphs" — THE TRAP
+
+`normalizeTargetPreamble` (`configupgrade.go:~701`) opens with:
+
+```go
+if target.Header == "" {
+    return preamble
+}
+```
+
+That same function performs the **R10a line-complete legacy-paragraph discard** — the
+behavior that took two full review cycles to get right in m4ai (first exact-match recognition
+missed historical scaffolds and duplicated adverts; then structural matching silently deleted
+user comments). Blanking `Target.Header` to move the header would therefore **silently disable
+legacy adoption**, reintroducing duplicated adverts on every legacy file.
+
+The two concerns MUST be separated explicitly — e.g. a distinct `adoptLegacyFile` / discard
+predicate gating the paragraph walk, independent of whether a header string exists. Whatever
+form it takes, the m4ai regression tests
+(`TestSystemUpgrade_AdoptsReleasedHistoricalScaffoldsAfterRegistryDrift`,
+`TestSystemUpgrade_LineCompleteAccounting*`, `TestSystemMutation_LineCompleteAccounting*`)
+MUST all still pass unchanged. If any of them needs editing to accommodate this change, that
+is a signal the decoupling is wrong — not a signal to edit the test (Constitution VII).
+
+### 3. Both doors change together
+
+`fab config init --system` also emits the header above the fence (verified on v2.23.8:
+`fab config init --system --print` contains one fence anchor with the header above it). If
+only `upgrade --system` moves the header, a freshly `init`-ed file and an upgraded one differ,
+and the first `upgrade --system` after an `init` would relocate the header — reportable drift
+on an untouched file.
+
+`RenderSystemScaffold` and the upgrade render path must produce the **same shape**. A
+`--check` immediately after `init --system` MUST report clean.
+
+### 4. Adoption of already-shipped files
+
+Machines that ran v2.23.8's `upgrade --system` have the header **above** the fence. The first
+run after this change must relocate it, not duplicate it. Since the header text is a known
+generated paragraph, the existing R10a byte-exact identity machinery
+(`knownGeneratedSystemParagraphDigests` + current-rendering comparison) should already
+recognize and discard it — **verify this rather than assume it**, and add the v2.23.8 header
+rendering to the digest catalog if it is not already covered.
+
+The failure mode to guard against: the old header survives above the fence as "unrecognized
+user content" while the new fence also contains it — two copies of the same prose. Per R10a
+that is the *acceptable* direction (duplication over deletion), but it is still the wrong
+outcome here and should be handled properly.
+
+### 5. Project target unchanged
+
+`fab/project/config.yaml` has no equivalent header above its fence (its `referenceHeader` is
+already inside the fence region), so `ProjectTarget` is untouched. Confirm no shared code path
+regresses the project file — its golden tests are the guard.
+
+## Affected Memory
+
+- `_shared/configuration.md`: (modify) § `fab config upgrade` — the Managed Fence describes the
+  system layer's rendered shape; update to state the header is fence-owned and the file opens
+  with live keys. Add a Design Decision recording the relocate-not-delete choice and the
+  header/discard decoupling (item 2), since the latter is a non-obvious coupling a future
+  reader will otherwise re-break.
+
+## Impact
+
+**Code:**
+- `src/go/fab/internal/configupgrade/mutation.go` — `SystemScaffoldHeader` content (fold the
+  redundant generator sentence into the fence prose)
+- `src/go/fab/internal/configupgrade/configupgrade.go` — `fenceHeaderComment` composition,
+  `Target` (header vs discard-gate separation), `normalizeTargetPreamble` early-return,
+  `assemble` preamble handling
+- `src/go/fab/cmd/fab/config.go` — `RenderSystemScaffold` / `init --system` parity
+
+**Tests:** `configupgrade_test.go`, `golden_test.go`, `freeze_test.go`,
+`config_show_init_test.go`, `config_upgrade_test.go`. Needed: header-inside-fence shape;
+`init --system` then `--check --system` reports clean; relocation of a v2.23.8-shaped file
+without duplication; first-line-is-live-key assertion; and the full m4ai R10a suite passing
+untouched.
+
+**Docs:** `docs/specs/config.md` (system fence shape), `src/kit/skills/_cli-fab.md` if it
+shows the rendered layout. No CLI signature change, so the constitution's CLI⇒docs rule is
+not triggered by a flag change — but the rendered-shape description still needs the sweep.
+
+**Blast radius:** every `~/.fab-kit/config.yaml` is reshaped on the next `--system` write.
+Non-destructive by construction (live keys verbatim, R10a preserves anything unaccounted for),
+and `--check --system` previews it.
+
+## Open Questions
+
+None. The relocate-vs-delete decision was settled in conversation, and the two implementation
+hazards (the `Header == ""` coupling, and both-doors parity) are identified above with the
+verification each needs.
+
+## Assumptions
+
+| # | Grade | Decision | Rationale | Scores |
+|---|-------|----------|-----------|--------|
+| 1 | Certain | The header is relocated into the fence, not deleted | Discussed — user chose this over dropping it; the precedence rule it carries is the file's least obvious and most misunderstood fact | S:95 R:85 A:90 D:90 |
+| 2 | Certain | Success criterion is that the file's first line is a live YAML key (or the fence when nothing is overridden) | Discussed — the user's stated goal is "remove the extra comments … from the top"; this is the observable form of it | S:90 R:85 A:90 D:90 |
+| 3 | Certain | The header/discard coupling in `normalizeTargetPreamble` must be broken explicitly | Verified in source: the `Header == ""` early return also gates the R10a paragraph discard, so blanking the header would disable legacy adoption. Not a judgment call — a read defect waiting to happen | S:90 R:70 A:90 D:90 |
+| 4 | Certain | `init --system` and `upgrade --system` must render the same shape | Verified: `init --system --print` on v2.23.8 emits the header above a fence. Divergence would make a freshly-initialized file report drift on its first `--check` | S:90 R:80 A:90 D:90 |
+| 5 | Confident | The v2.23.8 header is (or will be made) a recognized generated paragraph, so relocation does not duplicate it | R10a's byte-exact identity plus the digest catalog is designed for exactly this; the current rendering is compared directly. Flagged for verification rather than assumed | S:70 R:75 A:80 D:75 |
+| 6 | Confident | The redundant "This scaffold is generated by … and refreshed by …" sentence is folded into the fence prose | Inside a fence that already declares itself regenerated, the sentence states the same fact twice — the owner-or-pointer rule in `code-quality.md` treats duplicated claims as the drift mechanism | S:70 R:85 A:80 D:75 |
+| 7 | Confident | `ProjectTarget` is untouched | The project file's reference header already lives inside its fence region; only the system target carries a preamble header. Its golden tests guard any shared-path regression | S:75 R:80 A:85 D:80 |
+| 8 | Confident | No migration file | Same rationale m4ai recorded: `~/.fab-kit/config.yaml` is machine-level and outside any project, so a per-project migration would run N times against one shared file. The reshape rides the existing `--system` write paths | S:70 R:75 A:85 D:80 |
+
+| 9 | Certain | The change's primary justification is ownership clarity, not layout: inside-fence = binary-owned, above-fence = user-owned | Verified on v2.23.8 that an edited header yields TWO copies (preserved user paragraph + reinstalled pristine header), so the region today is neither cleanly binary-owned nor user-owned. Relocation removes the competing writer | S:90 R:80 A:90 D:85 |
+
+9 assumptions — grades recomputed by `fab score` from the Scores column.

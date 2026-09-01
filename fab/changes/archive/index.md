@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260830-m4ai-config-upgrade-system-scaffold** — Config Upgrade — System Scaffold Regeneration
 - **260423-xvaz-skip-tasks-simple-types** — Skip Tasks Stage for Simple Change Types
 - **260325-lhhk-brew-install-system-shim** — Brew Install System Shim
 - **260718-weoh-sweep-worktree-hook-settings** — Sweep Worktree Hook Settings
