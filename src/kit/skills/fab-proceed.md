@@ -140,13 +140,13 @@ Relevance judgment is performed by the invoking agent inline — no external cla
 
 ### Subagent Dispatch (Prefix Steps)
 
-Each prefix step SHALL dispatch a `general-purpose` subagent with the standard context per `_preamble.md` § Subagent Dispatch. Resolve and surface the assigned role immediately before dispatch, then use the native model/effort seams. A resolved `dispatch=` line (selected by the shared `dispatch.mode` capability ladder) is visible but not taken: role names are not pipeline stages accepted by `fab dispatch start`, and prefix steps have no `{stage}-result.yaml` contract. The prefix skill never executes the line's value.
+Each prefix step SHALL dispatch a `general-purpose` subagent with the standard context per `_preamble.md` § Subagent Dispatch. Resolve and surface the assigned role immediately before dispatch, then use the YAML `model_alias`/`effort` native seams. A resolved `dispatch:` mapping (selected by the shared `dispatch.mode` capability ladder) is visible but not taken: role names are not pipeline stages accepted by `fab dispatch start`, and prefix steps have no `{stage}-result.yaml` contract. The prefix skill never executes `dispatch.command`.
 
 | Prefix step | Resolve command |
 |-------------|-----------------|
-| `_intake` Create-Intake Procedure | `fab resolve-agent default --alias` |
-| `/fab-switch` | `fab resolve-agent fast --alias` |
-| `/git-branch` | `fab resolve-agent fast --alias` |
+| `_intake` Create-Intake Procedure | `fab agent default -o yaml` |
+| `/fab-switch` | `fab agent fast -o yaml` |
+| `/git-branch` | `fab agent fast -o yaml` |
 
 The final `/fab-fff` invocation owns pipeline-stage dispatch under `_preamble.md` § CLI-Adapter Dispatch.
 

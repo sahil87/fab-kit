@@ -56,7 +56,7 @@ When invoked from an orchestrator or any promptless context, branch (c) — and 
 
 ## Orchestrator Wiring
 
-`/fab-fff` runs the `/fab-issue` behavior as an optional **Step 3.5: Link Linear Issue** between the bracket handoff and Step 4 (Ship), **inline in the orchestrator's context in both lanes** — no dispatch, no `fab resolve-agent`, no `.status.yaml` progress entry — and skips it when `progress.ship` is `done` (the PR title has already shipped). All gates and the promptless carve-out apply, so an unconfigured project sees zero behavior change and a skip or deferral never blocks ship. `/fab-proceed` inherits the step via its `/fab-fff` delegation; `/fab-ff` is deliberately not wired (it ends at hydrate — ship happens later via `/git-pr`), so its users run `/fab-issue` manually.
+`/fab-fff` runs the `/fab-issue` behavior as an optional **Step 3.5: Link Linear Issue** between the bracket handoff and Step 4 (Ship), **inline in the orchestrator's context in both lanes** — no dispatch, no YAML stage resolution, no `.status.yaml` progress entry — and skips it when `progress.ship` is `done` (the PR title has already shipped). All gates and the promptless carve-out apply, so an unconfigured project sees zero behavior change and a skip or deferral never blocks ship. `/fab-proceed` inherits the step via its `/fab-fff` delegation; `/fab-ff` is deliberately not wired (it ends at hydrate — ship happens later via `/git-pr`), so its users run `/fab-issue` manually.
 
 ## Design Decisions
 
@@ -67,7 +67,7 @@ When invoked from an orchestrator or any promptless context, branch (c) — and 
 *Introduced by*: 260812-z5qt-linear-issue-find-or-create
 
 ### Inline Execution of the fab-fff Link Step
-**Decision**: Step 3.5 runs inline in the orchestrator's context in BOTH lanes, with no `fab resolve-agent` call.
+**Decision**: Step 3.5 runs inline in the orchestrator's context in BOTH lanes, with no YAML stage-resolution call.
 **Why**: MCP tool availability is session-bound and the step is a handful of MCP calls plus one `fab status add-issue`; it is an optional linking action, not a pipeline stage with a role profile, and a dispatch would cost a cold start to save nothing.
 **Rejected**: Dispatching it as a stage worker — it has no stage, no result-file contract, and no `.status.yaml` progress entry to transition.
 *Introduced by*: 260812-z5qt-linear-issue-find-or-create

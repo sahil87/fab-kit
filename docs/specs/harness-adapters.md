@@ -56,7 +56,7 @@ observed via files. A third recovers what that detached process cannot offer —
 
 An *adapter* is the mechanism that turns "run stage S as a worker" into an actual launched worker and,
 later, an observed result. The resolution that precedes dispatch (stage → role →
-`{provider, model, effort}`, via `fab resolve-agent`; the invocation command lives on the resolved
+`{provider, model, effort}`, via `fab agent <stage> -o yaml`; the invocation command lives on the resolved
 provider) is **provider-neutral and adapter-independent** — see
 [`stage-models.md`](stage-models.md). Only the launch+observe step is adapter-specific.
 
@@ -80,8 +80,8 @@ merged and **never fall back to each other in either direction**.
 
 Today's path: the orchestrator spawns a sub-agent via the Claude Code **Agent tool**. Per
 [`stage-models.md`](stage-models.md) § Harness-adapter boundary, the resolved profile rides two seams —
-the **model** on the Agent tool's `model` parameter (a short alias via `fab resolve-agent <stage>
---alias`), and the **effort** as an imperative instruction in the dispatched prompt (the Agent tool has
+the **model** on the Agent tool's `model` parameter (the YAML `model_alias`), and the **effort** from
+the YAML `effort` key as an imperative instruction in the dispatched prompt (the Agent tool has
 no effort parameter). The worker runs in-process; its result is the sub-agent's returned message. The
 orchestrator observes the five states (below) **structurally** — it holds the sub-agent handle, so
 "running/done/failed" are direct properties of the Agent-tool call.
@@ -294,7 +294,7 @@ Mechanics, all fixed by this spec:
   a failed real tmux probe re-runs selection with `pane unavailable: tmux unreachable`. Headless performs
   no tmux probe. Command fields never substitute for one another: each rung composes only its own grammar.
 - **Mode selection = explicit overrides, then a preference ceiling**, resolved per invocation inside
-  `fab dispatch start`/`restart` through the same pure selector used by `fab resolve-agent`. In order,
+  `fab dispatch start`/`restart` through the same pure selector projected by `fab agent <stage> -o yaml`. In order,
   `--pane` ⇒ pane; `--headless` ⇒ headless; `--timeout` ⇒ headless; `--server` ⇒ pane. (`start` no longer
   accepts the two pane signals and refuses a pane landing outright; `open` needs none of them, being the
   pane verb itself. The ladder is therefore `restart`'s, and `start`'s means of detecting a landing it
@@ -302,7 +302,7 @@ Mechanics, all fixed by this spec:
   start at `dispatch.mode` (default `native`) and descend only through `pane → native → headless`:
   pane needs tmux + `interactive_command`, native needs `native: true`, headless needs `headless_command`.
   Automatic selection never ascends. A native result is not launchable by `fab dispatch`; it errors
-  before state writes with `fab resolve-agent` re-resolution guidance. Automatic success appends exactly
+  before state writes with `fab agent <stage> -o yaml` re-resolution guidance. Automatic success appends exactly
   `mode: <rung> (preferred)` or `mode: <rung> (descended: <reason>[; <reason>])`; pane reasons are
   `pane unavailable: no tmux`, `pane unavailable: tmux unreachable`, or
   `pane unavailable: no interactive_command`, followed in ladder order by
@@ -614,26 +614,26 @@ authority.
 ## Relationship to `stage-models.md`
 
 [`stage-models.md`](stage-models.md) owns the **resolution** layer (stage → role →
-`{provider, model, effort}`, the top-level `providers:` capability grammar, `fab resolve-agent`, verbatim
+`{provider, model, effort}`, the top-level `providers:` capability grammar, `fab agent -o yaml`, verbatim
 pass-through, provider neutrality) and describes the
 **native Agent-tool adapter** as its harness-specific injection layer. This spec catalogs that native
 adapter as **one of three** dispatch adapters and adds the two `fab dispatch` modes — **headless CLI** and
-**interactive pane** — alongside it, plus the cross-adapter protocol all three share. The `dispatch=` line
-is the adapter seam: `fab resolve-agent` resolves `dispatch.mode` against the provider's independent
-capabilities and `$TMUX`; native omits the line, while pane/headless emit their substituted command.
+**interactive pane** — alongside it, plus the cross-adapter protocol all three share. The optional YAML
+`dispatch:` mapping is the adapter seam: `fab agent <stage> -o yaml` resolves `dispatch.mode` against the provider's independent
+capabilities and `$TMUX`; native omits the key, while pane/headless emit their labelled rung and substituted command.
 `stage-models.md` § Harness-adapter boundary points here for the runtime that RUNS it.
 
 Resolution stays **adapter-independent** across all three, while the configured preference and capability
 ladder select the adapter. What selects it is therefore the **config** a dispatch resolves from —
 `dispatch.mode`, a depth knob (`agent.workers`/`agent.session`) or
 `agent.profiles.<role>.provider`, plus the `providers:` capability table — not command presence or an
-invocation flag. An invocation-time `fab resolve-agent <stage> --provider <name>` override
+invocation flag. An invocation-time `fab agent <stage> -o yaml --provider <name>` override
 (`260805-j3cm`) binds the **native adapter only**: `fab dispatch start`/`open` accept no override flags
 and re-resolve the stage from config themselves, so an overridden profile never reaches either
 `fab dispatch` mode (the headless mode would compose — or fail on the absence of — the *unoverridden*
 provider's `headless_command`, and `open` the unoverridden provider's `interactive_command`). Dispatch sites still
-re-read the resolved `dispatch=` line after an override — the branch rule is unchanged (it has always keyed
-on `dispatch=` presence) — but a `dispatch=` line that appears *only* because of an override is **not
+re-read the resolved `dispatch:` key after an override — the branch rule is unchanged (it keys
+on key presence) — but a `dispatch:` mapping that appears *only* because of an override is **not
 actionable**, and the two remedies are **not interchangeable**: dispatching that stage natively with the
 overridden model/effort is executable only for a **within-claude** `--model`/`--effort` override, since
 the native adapter's model seam is the Agent tool's `model` param — a Claude-alias enum

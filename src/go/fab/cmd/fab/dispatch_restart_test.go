@@ -278,18 +278,18 @@ func TestDispatchRestart_MissingPromptOverAnOrphanedRecord(t *testing.T) {
 	}
 }
 
-// TestDispatchRestart_NativeSelectionRequiresResolveAgent: the prologue is
+// TestDispatchRestart_NativeSelectionRequiresAgentYAML: the prologue is
 // `start`'s, so native selection fails identically with re-resolution guidance.
-func TestDispatchRestart_NativeSelectionRequiresResolveAgent(t *testing.T) {
+func TestDispatchRestart_NativeSelectionRequiresAgentYAML(t *testing.T) {
 	repoRoot, id := setupDispatchRepo(t, "") // built-in claude: native capability
 	dir := dispatch.DirFor(repoRoot, id)
 	seedOrphanedHeadless(t, dir, "apply", "prompt\n")
 
 	_, err := runRestart(t, "abcd", "apply")
 	if err == nil {
-		t.Fatal("expected native dispatch to be delegated to resolve-agent")
+		t.Fatal("expected native dispatch to be delegated to fab agent YAML")
 	}
-	for _, want := range []string{"native", "fab resolve-agent apply --alias"} {
+	for _, want := range []string{"native", "fab agent apply -o yaml"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error = %q, want %q", err.Error(), want)
 		}

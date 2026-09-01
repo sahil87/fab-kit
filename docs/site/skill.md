@@ -39,8 +39,9 @@ One line per capability, keyed to its command:
   gate score from `intake.md`.
 - **Resolution** — `fab resolve [--id|--folder|--dir|--status|--pane] [--or-none] [<change>]`
   converts a change reference to canonical output (`--or-none`: no change resolves → prints
-  `(none)`, exit 0 — the probe form; real errors still fail); `fab resolve-agent <stage>`
-  resolves the per-stage model/effort/dispatch profile.
+  `(none)`, exit 0 — the probe form; real errors still fail); `fab agent <stage> -o yaml`
+  resolves the structured per-stage profile. Deprecated `fab resolve-agent <stage>` keeps its
+  compatibility line projection.
 - **Dispatch** — `fab dispatch {start,open,ready,deliver,restart,status,wait,logs,kill,reap,clean}`
   runs a stage as a worker (the cross-harness CLI adapter), in two modes with two entries:
   `start` launches a detached, tmux-independent one, while a watchable tmux-pane worker is

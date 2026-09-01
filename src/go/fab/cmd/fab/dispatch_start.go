@@ -529,7 +529,7 @@ func validatePane(prov config.ProviderConfig, server, stage, providerName string
 }
 
 func nativeDispatchError(stage, provider string) error {
-	return fmt.Errorf("stage %q resolves to native mode for provider %q, but `fab dispatch` cannot launch the native Agent-tool adapter; re-run `fab resolve-agent %s --alias` and dispatch natively when the `dispatch=` line is absent",
+	return fmt.Errorf("stage %q resolves to native mode for provider %q, but `fab dispatch` cannot launch the native Agent-tool adapter; re-run `fab agent %s -o yaml` and dispatch natively when the `dispatch:` key is absent",
 		stage, provider, stage)
 }
 

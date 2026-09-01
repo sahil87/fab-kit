@@ -80,7 +80,7 @@ and fab-owned:
 
 **The split is mechanically real, not cosmetic.** `agent.session` applies at **launch time** — fab
 cannot switch a running session's provider — while `agent.workers` applies at **every stage dispatch**
-(`fab resolve-agent`). `intake` rides `default` and is therefore a session role for exactly that
+(`fab agent <stage> -o yaml`). `intake` rides `default` and is therefore a session role for exactly that
 reason: it runs foreground in the user's own session.
 
 Both keys are scope `both`, so "claude for what I talk to, codex for the workers" is settable once
@@ -200,7 +200,7 @@ provider is an opaque, user-chosen name mapping to three independent dispatch ca
   `fab agent --provider <name> [--model <id>] [--effort <level>]`, which bypasses role resolution
   entirely — a provider-addressed spawn for the "give me a codex session right here" case, where no
   role need name the provider first. The launcher's positional also accepts a **stage** name (mapped
-  through the fixed `stageRoles` table to its role, exactly as `fab resolve-agent` resolves), and combines
+  through the fixed `stageRoles` table to its role, exactly as `fab agent <stage> -o yaml` resolves), and combines
   with `--provider` to re-resolve that role's fills from the named provider (`-t` prints the raw template,
   `--headless` picks `headless_command`, and `-o yaml` carries the full structured resolution, including
   raw template, fill mode, per-field provenance, model alias, and labelled non-native dispatch — all
@@ -237,7 +237,7 @@ in § Default role profiles, which covers `claude` and is drift-guarded. For the
 provider, read `src/go/fab/defaults.yaml` (canonical), or render them:
 
 - `fab config explain providers --json` — projects every provider's fill map, resolved.
-- `fab resolve-agent <stage|role>` — the fill a given stage (or a role named directly) actually gets.
+- `fab agent <stage|role> -o yaml` — the structured resolution a stage (or a role named directly) actually gets.
 
 (`fab config explain providers` prints every provider's fill map in its human-readable form too,
 claude's included.)
@@ -328,7 +328,7 @@ Three per-provider shapes are load-bearing:
 Consequences:
 
 - **Naming any built-in resolves with zero `providers:` config** — `agent.workers: codex`, an
-  `agent.profiles.<role>.provider`, or `fab agent --provider codex` / `fab resolve-agent <stage>
+  `agent.profiles.<role>.provider`, or `fab agent --provider codex` / the deprecated `fab resolve-agent <stage>
   --provider codex` all work on a fresh project. A `providers:` block is for *overriding* a grammar or
   a fill, not for registering these providers.
 - **Role differentiation survives a provider swap.** `agent.workers: codex` resolves `xhigh` for
@@ -402,7 +402,7 @@ model / effort  invocation flag
 ```
 
 `<p>` is the **resolved** provider, so a provider swap re-derives model and effort from the new
-provider's own fills. `empty` keeps its existing meaning: an empty `model=` line is the "inherit the
+provider's own fills. `empty` keeps its existing meaning: an empty YAML `model` value is the "inherit the
 session model" signal, and on a command the placeholder's token (plus a preceding `-`-flag) is dropped
 by `spawn.WithProfile`, so the CLI's own default applies.
 
@@ -486,8 +486,8 @@ dispatch:
   provider's own fills.
 - An **empty model** signals "inherit the session/orchestrator model" once resolution bottoms out.
 - The `{model}`/`{effort}` placeholders in a provider command are substituted at resolve time via the
-  same `internal/spawn` template machinery. *This spec covers the config schema and the `dispatch=`
-  resolution output; the dispatch that RUNS a `headless_command` (`fab dispatch`) and the skill
+  same `internal/spawn` template machinery. *This spec covers the config schema and the optional YAML
+  `dispatch:` mapping; the dispatch that RUNS a `headless_command` (`fab dispatch`) and the skill
   dispatch-seam wiring share the cross-adapter contract fixed by
   [`harness-adapters.md`](harness-adapters.md).*
 
@@ -523,18 +523,19 @@ not this alias.
 
 ---
 
-## Resolution — `fab resolve-agent <stage|role>`
+## Structured resolution — `fab agent <stage|role> -o yaml`
 
 Resolution lives in **Go**, not in the prompt — the cascade is volatile logic that would drift across
-skill files if reasoned about in markdown. A pure-query command returns the concrete
-`{provider, model, effort}` for a stage (or role); skills inject the result and reason about nothing.
+skill files if reasoned about in markdown. The YAML print sink returns the concrete resolution for a
+stage (or role); skills consume its keys and reason about nothing.
 
 ```
-fab resolve-agent <stage|role> [--alias] [--provider <name>] [--model <id>] [--effort <level>]
+fab agent <stage|role> -o yaml [--provider <name>] [--model <id>] [--effort <level>]
 ```
 
-(Named `resolve-agent`, not `resolve-model`, because it resolves the provider, the model, and the
-effort the agent dispatch needs.)
+The deprecated `fab resolve-agent <stage|role>` command remains a working, byte-stable line projection
+of the same shared engine. Its `--alias` flag and ordered-line contract are preserved for compatibility;
+pipeline skills consume the YAML surface above.
 
 1. Take a **stage** name (`intake`/`apply`/`review`/`hydrate`/`ship`/`review-pr`) or a **role**
    name (`default`/`operator`/`doing`/`review`/`hydrate`/`fast`) — the positional argument accepts
@@ -544,15 +545,15 @@ effort the agent dispatch needs.)
    where the stage maps to that same-named role (`stageRoles[name] == name`), so the role-first check
    resolves such a name to the same profile either interpretation would — the order is immaterial for
    results. (A drift-guard test in `internal/agent` asserts every collision is a fixed point.) `ship`
-   is a stage but NOT a role — it maps to the `fast` role — so `resolve-agent ship` resolves the stage
-   while `resolve-agent fast` resolves the role, both to the same profile.
+   is a stage but NOT a role — it maps to the `fast` role — so `fab agent ship -o yaml` resolves the stage
+   while `fab agent fast -o yaml` resolves the role, both to the same profile.
 2. Resolve the role → `{provider, model, effort}` through the fill precedence above: the provider from
    an `agent.profiles.<role>.provider` override, else the role's depth knob, else the built-in claude;
    then model and effort per field from an `agent.profiles.<role>` field, else that provider's
    `profiles.<role>` fill, else its `profiles.default` fill, else empty.
 2a. **Apply invocation-time overrides** (`--provider`/`--model`/`--effort`) — the top rung, riding the
-   same single resolution call. `--provider` swaps the provider and **re-derives `dispatch=` from
-   `dispatch.mode` plus the NAMED provider's capabilities** — so the selected rung and emitted-line presence can differ from the
+   same single resolution call. `--provider` swaps the provider and **re-derives the optional `dispatch:`
+   mapping from `dispatch.mode` plus the NAMED provider's capabilities** — so the selected rung and key presence can differ from the
    stage's unoverridden one, but that is a **query result, not an adapter move**: `fab dispatch`
    re-resolves from config and accepts no overrides, so only a config override actually relocates a
    stage between the native and CLI adapters (§ Skill wiring → User-directed overrides). A swap
@@ -566,16 +567,17 @@ effort the agent dispatch needs.)
    rather than falling back to the depth knob.
 3. **Emit verbatim — NO validation** (see § No validation). fab does not check the provider, model, or
    effort against any provider's accepted set; it echoes the resolved strings as-is.
-4. Output: a `model=<id>` line always, then optional `effort=<level>`, `provider=<name>`, and
-   `dispatch=<command>` lines. The `effort=`/`provider=` lines are **omitted** when empty. An empty
-   model emits an empty `model=` line (the "inherit" signal). `dispatch=` is derived by the
-   `dispatch.mode` descent ladder: native omits it; pane emits `interactive_command`; headless emits
-   `headless_command`. Its presence remains the only skill-side branch, and skills never execute its
-   value. The command's `{model}`/`{effort}` placeholders are substituted via
+4. Output: structured YAML carrying `provider`, full `model`, `model_alias`, `effort`, composed
+   `command`, `template`, `fill_mode`, per-field `source`, and an optional `dispatch:` mapping.
+   `model_alias` carries the native Agent-tool alias for recognized Claude IDs and is empty for
+   non-Claude IDs. `dispatch:` is derived by the `dispatch.mode` descent ladder: native omits the key;
+   pane/headless include a labelled `rung` and their composed `command`. Key presence remains the only
+   skill-side branch, and skills never execute `dispatch.command`. The command's
+   `{model}`/`{effort}` placeholders are substituted via
    `internal/spawn`'s template resolution (reused, not reimplemented), using the role's own resolved
-   model/effort — and the `{model}` is **always the full model ID**, even under `--alias` (see
+   model/effort — and the dispatch command's `{model}` is **always the full model ID** (see
    § Harness-adapter boundary).
-5. **Byte-stable** for the same config (like other `fab resolve` queries). Non-zero exit only on a
+5. **Deterministic** for the same config. Non-zero exit only on a
    real error: an unreadable/malformed config, an unknown stage/role name, a supplied `--provider`
    that resolves to no provider, or a configured provider with no reachable dispatch capability.
    A stage that resolves to a default is success, not an error.
@@ -593,17 +595,18 @@ effort the agent dispatch needs.)
   `native` is quiet/in-context, and `headless` is detached-only.
 - Capability presence says how, never whether. Each mode composes only its own field, and adding
   claude's headless command does not move it off native under the default preference.
-- **No skill-wiring change:** absence iff native, presence for pane/headless; branch on presence and
+- **Skill branch:** `dispatch:` absent iff native, present for pane/headless; branch on key presence and
   never execute the value. `fab dispatch start` re-resolves internally from current config/environment.
-- **`--alias` is unaffected**: the `dispatch=` line always embeds the full model ID.
+- **Aliasing is arm-specific:** YAML `model_alias` supplies the native seam; `dispatch.command` always
+  embeds the full model ID.
 - If start-time re-resolution lands on native (for example tmux died after pane resolution),
-  `fab dispatch` errors before writing state and tells the caller to re-run `fab resolve-agent`.
+  `fab dispatch` errors before writing state and tells the caller to re-run `fab agent <stage> -o yaml`.
 
 ---
 
 ## No validation — verbatim pass-through (provider-neutral)
 
-`fab resolve-agent` does **NOT** validate the model or effort against any provider's accepted set. It
+The shared resolution engine does **NOT** validate the model or effort against any provider's accepted set. It
 maps stage→role→`{model, effort}` and **echoes both strings verbatim**, whatever they are — `xhigh`
 for an Opus model, `high` for Sonnet, `reasoning_effort`-style values for a non-Claude model a project
 might configure, or an empty effort. fab has no provider-specific knowledge in the resolution path.
@@ -641,17 +644,17 @@ still point a role at Haiku (pass-through doesn't forbid it); fab just doesn't s
 
 ---
 
-## Skill wiring — orchestrator/dispatch consume `fab resolve-agent`
+## Skill wiring — orchestrator/dispatch consume `fab agent -o yaml`
 
 The orchestrators (`/fab-ff`, `/fab-fff`, `/fab-proceed`, `/fab-adopt`) and `/fab-continue`'s sub-agent dispatch call
-`fab resolve-agent <stage>` immediately before dispatching each stage's sub-agent, **surface** the
-resolved `model=/effort=/provider=/dispatch=` lines (so a skipped or mis-resolved role — or a CLI
-dispatch — is visible in output rather than silent, the available stand-in for an enforcement guard
+`fab agent <stage> -o yaml` immediately before dispatching each stage's sub-agent, **surface** the
+resolved YAML — at minimum `provider`, `model`, `model_alias`, `effort`, and `dispatch:` presence — so a skipped or mis-resolved role or CLI
+dispatch is visible in output rather than silent, the available stand-in for an enforcement guard
 since dispatch is harness-internal), and apply the resolved **model AND effort** through their two
 seams:
 
-- **Model → the Agent tool's `model` param.** The Agent `model` param is a hard enum of short aliases (`opus`/`sonnet`/`haiku`/`fable`) that rejects full IDs, so the model half is resolved with `fab resolve-agent <stage> --alias` — the `--alias` flag emits the Agent-tool-valid short alias directly on the `model=` line (see § Harness-adapter boundary). Empty model → omit it (inherit session/orchestrator model — today's behavior).
-- **Effort → an explicit instruction in the subagent prompt.** The Agent tool has no `effort` param, so the resolved effort is injected as an imperative line in the dispatched prompt (e.g., ``Operate at `high` reasoning effort for this task.``) and the sub-agent self-selects. Empty effort → omit the instruction. See § Effort asymmetry for how far that actually carries.
+- **Model → the Agent tool's `model` param.** The Agent `model` param is a hard enum of short aliases (`opus`/`sonnet`/`haiku`/`fable`) that rejects full IDs, so the native arm reads the YAML `model_alias` key. Empty alias for an empty Claude profile means omit the parameter and inherit; an empty alias beside a non-Claude `model` means there is no native seam (see § Harness-adapter boundary).
+- **Effort → an explicit instruction in the subagent prompt.** The Agent tool has no `effort` param, so the YAML `effort` value is injected as an imperative line in the dispatched prompt (e.g., ``Operate at `high` reasoning effort for this task.``) and the sub-agent self-selects. Empty effort → omit the instruction. See § Effort asymmetry for how far that actually carries.
 
 ### Effort asymmetry — the two arms are not equally reliable
 
@@ -675,14 +678,14 @@ control (§ Foreground limitation's scope note).
 ### User-directed overrides
 
 When the user directs a provider/model for specific stages ("run review on codex"), the dispatch site
-adds the override flags to its **existing single** `fab resolve-agent <stage> --alias` call
+adds the override flags to its **existing single** `fab agent <stage> -o yaml` call
 (§ Resolution step 2a). Nothing else about the seam changes — one resolve call per stage, the same two
-seams, the same branch on `dispatch=` presence, the same compliance-visibility obligation. There is
+seams, the same branch on `dispatch:` key presence, the same compliance-visibility obligation. There is
 **no new dispatch machinery and no persistent state**: an override is per-invocation, so "use codex for
 the next N stages" means the same flags on those N resolve calls. The load-bearing caveat: **an
 invocation-time override binds the native Agent-tool arm only.** `fab dispatch start` takes no override
 flags — it re-resolves the stage from config itself (`agent.Resolve`) — so an overridden profile never
-reaches either `fab dispatch` mode, and a `dispatch=` line that appears *only* because of a
+reaches either `fab dispatch` mode, and a `dispatch:` mapping that appears *only* because of a
 `--provider` swap is **not actionable**. The two remedies are **not interchangeable**. Dispatching the
 stage natively with the overridden model/effort is executable only for a **within-claude**
 `--model`/`--effort` override: the native adapter's model seam is the Agent tool's `model` param, a hard
@@ -690,7 +693,7 @@ stage natively with the overridden model/effort is executable only for a **withi
 model has no native seam to ride. For a **cross-provider `--provider` override** the **config override**
 (`agent.workers`, or `agent.profiles.<role>.provider`) that `dispatch start`'s own re-resolution will
 see is therefore the **sole executable path** — the invocation flag can only report the mismatch. Sites
-still re-read the resolved `dispatch=` after an override rather than assuming the stage's unoverridden
+still re-read the resolved `dispatch:` key after an override rather than assuming the stage's unoverridden
 adapter — the branch rule is unchanged — but they read it to *notice* the mismatch, not to act on it.
 See [`harness-adapters.md`](harness-adapters.md) § Relationship to `stage-models.md`.
 
@@ -706,23 +709,23 @@ resolve, so review carries no special resolution rule).
 inherited session model now resolve a role like every other:
 
 - **`/fab-continue`'s ship and review-pr rows.** These delegate to `/git-pr` and `/git-pr-review`, and
-  resolve `fab resolve-agent ship --alias` / `fab resolve-agent review-pr --alias` before
-  dispatching that sub-agent — surfacing `model=/effort=` and applying the two seams — **mirroring
+  resolve `fab agent ship -o yaml` / `fab agent review-pr -o yaml` before
+  dispatching that sub-agent — surfacing the required YAML keys and applying the two seams — **mirroring
   `/fab-fff`'s full-lane Steps 4–5 exactly** (in the light lane those steps run inline with no
-  `fab resolve-agent`). This closes the caller asymmetry where `/fab-fff` resolved a role for
+  YAML resolution). This closes the caller asymmetry where `/fab-fff` resolved a role for
   ship/review-pr but plain `/fab-continue` did not. `/git-pr` and `/git-pr-review` still self-manage their own
   `fab status` transitions — only the model/effort seam is added.
 - **`/fab-proceed`'s prefix steps.** The prefix-step dispatches were previously exempt ("no
-  `fab resolve-agent` — they dispatch at the inherited model"). They now resolve a **role by name**
+  stage resolution — they dispatch at the inherited model). They now resolve a **role by name**
   (the resolver accepts a role name positionally, the same path `fab agent <role>` uses — no Go change):
-  `/fab-switch` and `/git-branch` resolve `fab resolve-agent fast --alias`; the `_intake` create-intake
-  dispatch resolves `fab resolve-agent default --alias`. (Intake itself remains advisory-only on the
-  foreground `/fab-new` path, which no resolution can govern.) Both surface `model=/effort=` and dispatch
+  `/fab-switch` and `/git-branch` resolve `fab agent fast -o yaml`; the `_intake` create-intake
+  dispatch resolves `fab agent default -o yaml`. (Intake itself remains advisory-only on the
+  foreground `/fab-new` path, which no resolution can govern.) Both surface the required YAML keys and dispatch
   through the two seams (empty ⇒ omit). This is why `fast` is multi-referent — it governs the ship stage
   *and* these prefix-step dispatches.
 
-`_cli-fab.md` documents the `fab resolve-agent` command signature (Constitution constraint: CLI changes
-MUST update `_cli-fab.md`). `architecture.md` documents the `agent:` + `providers:` config blocks
+`_cli-fab.md` documents the `fab agent` YAML schema and the deprecated `fab resolve-agent` compatibility
+contract (Constitution constraint: CLI changes MUST update `_cli-fab.md`). `architecture.md` documents the `agent:` + `providers:` config blocks
 alongside the existing `stage_hooks` example.
 
 ### Harness-adapter boundary (the only Claude-Code-specific layer)
@@ -730,18 +733,19 @@ alongside the existing `stage_hooks` example.
 Per-stage selection is **provider-neutral by construction**, not Claude-locked:
 
 - *Portable layers (no provider knowledge):* the `agent:` + `providers:` config schema, and the
-  entire `fab resolve-agent` resolution path (stage→role→`{provider, model, effort}`). The resolver
+  entire shared resolution path projected by `fab agent <stage|role> -o yaml` (stage→role→`{provider, model, effort}`). The engine
   does no validation and echoes strings verbatim, so a project can switch agents by pointing a depth
   knob at another provider and giving it per-role fills in that provider's model IDs and effort
   vocabulary (`gpt-5 / reasoning_effort:high`, `<vendor-model> / <its-knob>`) and nothing in fab rejects it.
 - *Harness-specific layer (the adapter):* injecting the resolved model+effort into the actual
   sub-agent dispatch is harness behavior, and the two halves use **two different seams** in Claude
   Code. **The model rides the Agent tool's `model` parameter** — a hard enum that takes a short alias
-  (`opus`/`sonnet`/`haiku`/`fable`), not the full versioned id the plain resolver emits — so the model
-  half is resolved with **`fab resolve-agent <stage> --alias`**, the deterministic Agent-tool adapter:
-  the `--alias` flag maps the resolved full ID to its short alias on the `model=` line (prefix-matched,
-  so dated variants like `claude-haiku-4-5-20251001` resolve to `haiku`; empty ⇒ empty inherit-signal;
-  a non-Claude override passes through verbatim). This replaces the earlier prompt-side hand-mapping
+  (`opus`/`sonnet`/`haiku`/`fable`), not the full versioned id in `model` — so the model
+  half reads **`model_alias` from `fab agent <stage> -o yaml`**, the deterministic Agent-tool adapter:
+  the structured surface maps the resolved full ID to its short alias (prefix-matched,
+  so dated variants like `claude-haiku-4-5-20251001` resolve to `haiku`; an empty Claude profile
+  remains the empty inherit signal; for a non-Claude ID, `model` retains the full ID while
+  `model_alias` is empty, so there is no native Agent-tool seam). This replaces the earlier prompt-side hand-mapping
   instruction (where the orchestrator was told to translate the id by hand on every dispatch — brittle
   and easy to fumble) with a Go-side translation that cannot be skipped. **The effort rides an
   instruction in the subagent prompt** (the Agent tool exposes no effort parameter) — with the
@@ -750,8 +754,9 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   introduced by this feature** — fab's entire existing subagent-dispatch design (`_preamble.md` §
   Subagent Dispatch) is already Claude-Code-shaped. Per-stage selection is exactly as portable as fab's
   existing dispatch: no more, no less. *(The operator launcher path is the deliberate exception — it
-  resolves the **operator**-role profile WITHOUT `--alias`, because `spawn.WithProfile` composes a
-  `claude` CLI invocation, which accepts full IDs. `WithProfile` is grammar-forgiving: it
+  does not consume `fab agent -o yaml` or `model_alias`: it resolves the **operator**-role profile
+  in-process, and `spawn.WithProfile` composes the command with the full model ID. A `claude` CLI
+  invocation accepts full IDs, so no alias mapping is involved. `WithProfile` is grammar-forgiving: it
   **substitutes** the resolved values into a `{model}`/`{effort}` **template** `interactive_command` —
   including the built-in claude default, which is templated, and a codex command — all-or-nothing (any
   placeholder disables the append entirely); an empty value drops the placeholder's token and a
@@ -762,17 +767,17 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   the default's placeholders last makes substitution byte-identical to the former append — so a
   non-Claude worker CLI is configurable without the launcher emitting Claude-only flags; 260702-6tmi,
   templated default 260703-gvxd.)*
-- *Cross-harness stage dispatch (the `dispatch=` adapter):* the resolved `dispatch.mode` + capability
+- *Cross-harness stage dispatch (the optional `dispatch:` mapping):* the resolved `dispatch.mode` + capability
   ladder is the seam for handing one stage to a native Agent-tool, pane, or headless CLI adapter.
-  Pane/headless resolution emits `dispatch=<command>` with `{model}`/`{effort}` substituted via
-  `internal/spawn`; native resolution omits it. This adapter is
-  the **inverse aliasing rule** from the Agent-tool `model` param: the `dispatch=` command **ALWAYS
+  Pane/headless resolution emits `dispatch.rung` plus `dispatch.command` with `{model}`/`{effort}` substituted via
+  `internal/spawn`; native resolution omits the mapping. This adapter is
+  the **inverse aliasing rule** from the Agent-tool `model` param: `dispatch.command` **ALWAYS
   embeds the FULL model ID, never an alias**, because an external CLI's `--model` flag takes a full ID
-  — CLI dispatch never aliases. So under `--alias` the `model=` line is aliased (Agent-tool half) while
-  the `dispatch=` line carries the full ID (CLI half). The field is **independent of** a provider's
+  — CLI dispatch never aliases. Thus `model_alias` carries the native half while
+  `dispatch.command` carries the full ID for the CLI half. The field is **independent of** a provider's
   `interactive_command` (which opens whole sessions); each ladder rung requires its own capability and
-  command fields never substitute for one another. *`fab resolve-agent` emits the line; the
-  dispatch that RUNS it (`fab dispatch`) and the skill dispatch-seam wiring that consumes it both
+  command fields never substitute for one another. *`fab agent -o yaml` emits the mapping; the
+  dispatch that RUNS the selected adapter (`fab dispatch`) and the skill dispatch-seam wiring that consumes it both
   shipped.* **The
   native Agent-tool adapter described in this section is one of *three* dispatch adapters catalogued
   in [`harness-adapters.md`](harness-adapters.md)** — the two `fab dispatch` modes are the others:
@@ -783,7 +788,7 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   hooks-enhance-never-own) all three share; the skill
   dispatch-seam wiring against it lives in `_preamble.md` § CLI-Adapter Dispatch + § Dispatch-Prompt
   Obligations (3d).
-  **Mode resolution is shared**: `resolve-agent` and the `fab dispatch` launch verbs consume the same
+  **Mode resolution is shared**: `fab agent -o yaml` and the `fab dispatch` launch verbs consume the same
   pure selector. Explicit flags precede automatic `dispatch.mode` descent; pane composes the resolved
   provider's `interactive_command`, native uses the Agent-tool capability, and headless composes
   `headless_command`. A missing capability skips its automatic rung, never substitutes a field, and
@@ -861,8 +866,8 @@ on dispatched sub-agent runs.
 
 **Post-intake stages no longer have a foreground path (260613-fgxx).** The post-intake dual execution
 mode was collapsed: apply/review/hydrate always dispatch a sub-agent, and plain `/fab-continue` is a
-one-stage sequencer that resolves `fab resolve-agent <stage>` and dispatches the stage's block just
-like an orchestrator. So `fab resolve-agent` applies uniformly across those stages regardless of
+one-stage sequencer that resolves `fab agent <stage> -o yaml` and dispatches the stage's block just
+like an orchestrator. So structured stage resolution applies uniformly across those stages regardless of
 caller — this closes **Gap 1a** of the per-stage-model finding (foreground stages can't resolve a
 role). Intake is pre-boundary: it runs in the main session and resolves no role.
 
@@ -873,7 +878,7 @@ skill MAY note "this stage is configured for X; you're on Y" but MUST NOT attemp
 > **Scope note**: this section reconciles the foreground limitation with the single post-intake
 > execution mode (260613-fgxx, Change A). The **effort half** of per-stage selection — injected into the
 > subagent prompt as an explicit instruction (since the Claude Code Agent tool has no effort parameter)
-> — and the **compliance-visibility** behavior (surfacing the resolved `model=/effort=` at each
+> — and the **compliance-visibility** behavior (surfacing the resolved YAML keys at each
 > dispatch site) are written in by 260613-m3d4 (Change C); see § Skill wiring above, and § Effort
 > asymmetry for how far the prompt seam actually carries. The **lone
 > residual** is a first-class per-sub-agent `effort` parameter on the Agent tool (the
@@ -915,7 +920,7 @@ package's tables and exported command values are wired to the file's keys.
 - **Role-granular reviewer keys** — obsolete: review is now a single sub-agent (260704-pag2), so there are no per-role reviewer/merge profiles to key on; the stage/role is the unit.
 - **Per-invocation `--model-<stage>` flags** on the orchestrators — still deferred as an
   *orchestrator* surface. The equivalent capability exists one level down, on the resolution
-  surface itself: `fab resolve-agent <stage> [--provider] [--model] [--effort]` (`260805-j3cm`), which
+  surface itself: `fab agent <stage> -o yaml [--provider] [--model] [--effort]` (`260805-j3cm`), which
   every dispatch site already calls exactly once per stage — so a per-stage override needs no new
   orchestrator flag surface and no new dispatch machinery.
 - **Cost/latency telemetry** per role — out of scope; this is selection only.

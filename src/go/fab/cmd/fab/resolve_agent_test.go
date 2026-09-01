@@ -236,8 +236,9 @@ agent:
 }
 
 // TestResolveAgentDefaultOutputExactBytes: on a config with no agent.profiles, the
-// default output includes model=/effort=/provider= (the byte-stable contract the
-// consuming skills rely on). intake ∈ `default` role; ship ∈ `fast` role.
+// default output includes model=/effort=/provider= (the frozen compatibility
+// contract; consuming skills use `fab agent -o yaml`). intake ∈ `default` role;
+// ship ∈ `fast` role.
 func TestResolveAgentDefaultOutputExactBytes(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
 

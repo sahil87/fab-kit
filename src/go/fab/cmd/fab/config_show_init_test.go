@@ -561,7 +561,7 @@ func TestConfigShowOrigin_DrillDownIsKnobAware(t *testing.T) {
 // regression, end to end. A per-role provider override (system config
 // `agent.profiles.operator.provider: codex`) used to compose with claude's
 // operator fill on the model/effort leaves — a row no resolution path produces
-// and one that disagrees with `fab resolve-agent operator`. The derived fills
+// and one that disagrees with `fab agent operator -o yaml`. The derived fills
 // must come from the overridden provider, while keyed --origin keeps the
 // provider leaf's provenance split: the override (effective) over the
 // knob-derived built-in (shadowed).
