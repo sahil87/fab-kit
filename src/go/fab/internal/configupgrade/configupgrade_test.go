@@ -1762,12 +1762,15 @@ func TestSystemShape_OpensWithLiveKeyAndHeaderInsideFence(t *testing.T) {
 	})
 }
 
-// T006 ownership invariant: an EDITED header copy above the fence (R10a
-// preserves it) is never duplicated by a freshly installed pristine copy — the
-// header prose appears exactly once, and a user comment above the fence
-// survives.
+// T006 ownership invariant: the binary writes NO header copy above the fence.
+// When a user has EDITED an above-fence header, R10a keeps their edited paragraph
+// there and the CANONICAL SystemScaffoldHeader appears exactly once, inside the
+// fence — so the file legitimately holds two header-like paragraphs (the user's
+// edited one above, the canonical one within). Reaching one total copy would mean
+// deleting the user's text, which R10a forbids. A user comment above the fence
+// likewise survives.
 func TestSystemOwnership_EditedAboveFenceHeaderNeverDuplicated(t *testing.T) {
-	t.Run("edited v2.23.8 header yields exactly one copy", func(t *testing.T) {
+	t.Run("edited current header: canonical copy appears once, inside the fence", func(t *testing.T) {
 		edited := strings.Replace(SystemScaffoldHeader,
 			"all repos on this machine", "all my repos (edited)", 1)
 		path := writeMutationFixture(t, edited+"\n\nagent:\n  workers: codex\n")
