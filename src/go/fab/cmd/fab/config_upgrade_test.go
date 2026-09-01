@@ -237,6 +237,16 @@ func TestConfigInitSystemAndUpgradeShareCanonicalRender(t *testing.T) {
 	if string(got) != want {
 		t.Fatal("system init and upgrade no longer share the canonical scaffold renderer")
 	}
+	// A --check immediately after the shared render must report clean and exit 0
+	// (acceptance: init --system then upgrade --system --check is a no-drift
+	// no-op).
+	checkOut, err := runConfigUpgrade(t, "--system", "--check")
+	if err != nil {
+		t.Fatalf("init --system then upgrade --system --check should exit 0: %v (%q)", err, checkOut)
+	}
+	if !strings.Contains(checkOut, "already up to date") {
+		t.Errorf("--check after --system upgrade should report already up to date, got: %q", checkOut)
+	}
 }
 
 // TestConfigInitProjectCommand drives `fab config init --project`: it generates a

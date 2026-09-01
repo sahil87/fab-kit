@@ -1000,6 +1000,10 @@ agent:
 	}
 }
 
+// TestSystemMutation_ScopeScaffoldAndManagedFence: `set --system` on a missing
+// file creates a scaffold whose system header lives INSIDE the fence (the
+// above-fence region starts with the live override), with the managed fence
+// and the system-upgrade command spelling intact.
 func TestSystemMutation_ScopeScaffoldAndManagedFence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".fab-kit", "config.yaml")
 	if _, err := SetSystem(path, "providers", "{custom: {interactive_command: tool}}", "test"); err == nil || !strings.Contains(err.Error(), "scalar leaf") {
@@ -1019,11 +1023,15 @@ func TestSystemMutation_ScopeScaffoldAndManagedFence(t *testing.T) {
 		t.Fatalf("SetSystem: %v", err)
 	}
 	got := readMutationFixture(t, path)
-	if !strings.HasPrefix(got, SystemScaffoldHeader) {
-		t.Fatalf("missing system scaffold header\n--- got ---\n%s", got)
+	if !strings.HasPrefix(got, "agent:") {
+		t.Fatalf("system mutation must open with the live override (header is fence-owned)\n--- got ---\n%s", got)
 	}
 	if !strings.Contains(got, "\n  workers: codex") {
 		t.Fatalf("missing system override\n--- got ---\n%s", got)
+	}
+	inside := strings.SplitN(got, "# <<< end fab reference", 2)[0]
+	if !strings.Contains(inside, SystemScaffoldHeader) {
+		t.Fatalf("system scaffold header missing inside the fence\n--- got ---\n%s", got)
 	}
 	if strings.Count(got, ">>> fab reference") != 1 || strings.Count(got, "<<< end fab reference") != 1 {
 		t.Fatalf("system mutation must retain exactly one managed fence\n--- got ---\n%s", got)
@@ -1225,7 +1233,10 @@ func TestSystemUpgrade_LineCompleteAccountingAppliesAfterAdoption(t *testing.T) 
 	const editedValue = "#       default: { model: later-user-edit, effort: high }"
 	edited := strings.Replace(legacyV2198ToV2220ProvidersAdvert,
 		"#       default: { model: gpt-5.6-sol, effort: high }", editedValue, 1)
-	withEditedCopy := strings.Replace(current, "\n# >>> fab reference", "\n\n"+edited+"\n\n# >>> fab reference", 1)
+	// The header is fence-owned, so the file opens with the fence anchor; attach
+	// the edited paragraph to the anchor line (no blank separator keeps it one
+	// paragraph, mirroring the original above-the-header form).
+	withEditedCopy := strings.Replace(current, "# >>> fab reference", edited+"\n# >>> fab reference", 1)
 	if err := os.WriteFile(path, []byte(withEditedCopy), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1713,4 +1724,148 @@ func readMutationFixture(t *testing.T, path string) string {
 		t.Fatalf("read fixture: %v", err)
 	}
 	return string(data)
+}
+
+// ============================================================
+// System header inside the fence (260831-n2eo) — T005–T008.
+// ============================================================
+
+// T005 shape: the regenerated system config opens with a live key (or the
+// fence anchor when nothing is overridden), and the header appears exactly
+// once, INSIDE the fence anchors.
+func TestSystemShape_OpensWithLiveKeyAndHeaderInsideFence(t *testing.T) {
+	t.Run("live overrides present opens with a live key", func(t *testing.T) {
+		path := writeMutationFixture(t, "dispatch:\n  mode: pane\n\nagent:\n  session: claude\n  workers: kimi\n")
+		if _, err := Upgrade(SystemTarget(path), "2.30.0"); err != nil {
+			t.Fatalf("Upgrade: %v", err)
+		}
+		got := readMutationFixture(t, path)
+		if !strings.HasPrefix(got, "dispatch:") {
+			t.Fatalf("line 1 is not a live key\n--- got ---\n%s", got)
+		}
+		if !strings.Contains(got, "agent:\n  session: claude\n  workers: kimi") {
+			t.Fatalf("live overrides not preserved verbatim\n--- got ---\n%s", got)
+		}
+		assertHeaderOnceInsideFence(t, got)
+	})
+
+	t.Run("no overrides opens with the fence BEGIN anchor", func(t *testing.T) {
+		path := writeMutationFixture(t, "")
+		if _, err := Upgrade(SystemTarget(path), "2.30.0"); err != nil {
+			t.Fatalf("Upgrade: %v", err)
+		}
+		got := readMutationFixture(t, path)
+		if !strings.HasPrefix(got, "# >>> fab reference") {
+			t.Fatalf("line 1 is not the fence BEGIN anchor\n--- got ---\n%s", got)
+		}
+		assertHeaderOnceInsideFence(t, got)
+	})
+}
+
+// T006 ownership invariant: an EDITED header copy above the fence (R10a
+// preserves it) is never duplicated by a freshly installed pristine copy — the
+// header prose appears exactly once, and a user comment above the fence
+// survives.
+func TestSystemOwnership_EditedAboveFenceHeaderNeverDuplicated(t *testing.T) {
+	t.Run("edited v2.23.8 header yields exactly one copy", func(t *testing.T) {
+		edited := strings.Replace(SystemScaffoldHeader,
+			"all repos on this machine", "all my repos (edited)", 1)
+		path := writeMutationFixture(t, edited+"\n\nagent:\n  workers: codex\n")
+		if _, err := Upgrade(SystemTarget(path), "2.30.0"); err != nil {
+			t.Fatalf("Upgrade: %v", err)
+		}
+		got := readMutationFixture(t, path)
+		if !strings.Contains(got, edited) {
+			t.Fatalf("edited header paragraph was not preserved as user content\n--- got ---\n%s", got)
+		}
+		above := strings.SplitN(got, "# >>> fab reference", 2)[0]
+		if strings.Contains(above, SystemScaffoldHeader) {
+			t.Fatalf("a pristine header copy was installed above the edited one (two-copy outcome)\n--- got ---\n%s", got)
+		}
+	})
+
+	t.Run("user comment above the fence survives", func(t *testing.T) {
+		path := writeMutationFixture(t, "# work laptop only\nagent:\n  workers: codex # pinned\n")
+		if _, err := Upgrade(SystemTarget(path), "2.30.0"); err != nil {
+			t.Fatalf("Upgrade: %v", err)
+		}
+		got := readMutationFixture(t, path)
+		if !strings.HasPrefix(got, "# work laptop only\nagent:") {
+			t.Fatalf("user comment above the fence did not survive at the top\n--- got ---\n%s", got)
+		}
+	})
+}
+
+// testV2238HeaderAboveFence is the verbatim v2.23.8 (tag) SystemScaffoldHeader
+// paragraph — a HARD CODED copy of the shipped text, not the current constant —
+// so the relocation test exercises the historical shape real users carry, not
+// a fixture that drifts whenever the registry renderer changes. Kept
+// independent of configref.Fields for the same reason as
+// legacyV2198ToV2220ProvidersAdvert.
+const testV2238HeaderAboveFence = `# ~/.fab-kit/config.yaml — system-level fab config (all repos on this machine).
+# Resolves ABOVE any project's fab/project/config.yaml (and below environment
+# overrides), so a preference set here beats a repo's committed suggestion. Only
+# preference-class fields (scope: system/both) are honored here; a project-scoped
+# field placed in this file is ignored with a warning.
+#
+# This scaffold is generated by ` + "`fab config init --system`" + ` and refreshed by
+# ` + "`fab config upgrade --system`" + ` from the same per-field metadata table as
+# ` + "`fab config explain`" + `, so it cannot drift from the schema. Every block in
+# the managed fence below is COMMENTED — move a field above the fence and uncomment
+# it to set a system-level override.`
+
+// T008 relocation: a v2.23.8-shaped file (pristine header ABOVE the fence)
+// relocates — the header is recognized as generated and discarded, leaving
+// exactly one copy inside the fence, with live keys byte-identical and
+// `config show`-relevant YAML unchanged.
+func TestSystemRelocation_DiscardsPristineAboveFenceHeader(t *testing.T) {
+	path := writeMutationFixture(t,
+		testV2238HeaderAboveFence+"\n\ndispatch:\n  mode: pane\n\nagent:\n  session: claude\n  workers: kimi\n")
+	if _, err := Upgrade(SystemTarget(path), "2.30.0"); err != nil {
+		t.Fatalf("Upgrade: %v", err)
+	}
+	got := readMutationFixture(t, path)
+	assertHeaderOnceInsideFence(t, got)
+	if strings.Contains(got, testV2238HeaderAboveFence) {
+		t.Fatalf("the v2.23.8 above-fence header survived (two-copy outcome)\n--- got ---\n%s", got)
+	}
+	if !strings.HasPrefix(got, "dispatch:\n  mode: pane\n\nagent:\n  session: claude\n  workers: kimi") {
+		t.Fatalf("live keys were not byte-identical after relocation\n--- got ---\n%s", got)
+	}
+
+	// Idempotent: a second run is byte-identical.
+	if _, err := Upgrade(SystemTarget(path), "2.30.0"); err != nil {
+		t.Fatalf("second Upgrade: %v", err)
+	}
+	if second := readMutationFixture(t, path); second != got {
+		t.Fatal("relocation was not idempotent")
+	}
+
+	// set/unset on a post-change file keep the fence intact and --check clean.
+	if _, err := SetSystem(path, "agent.workers", "claude", "2.30.0"); err != nil {
+		t.Fatalf("SetSystem: %v", err)
+	}
+	if _, err := UnsetSystem(path, "agent.workers", "2.30.0"); err != nil {
+		t.Fatalf("UnsetSystem: %v", err)
+	}
+	clean, err := Check(SystemTarget(path), "2.30.0")
+	if err != nil || clean.Changed {
+		t.Fatalf("set/unset on a post-change file left the target drifted: %+v, %v", clean, err)
+	}
+}
+
+// assertHeaderOnceInsideFence asserts the canonical SystemScaffoldHeader
+// appears exactly once in the file, positioned strictly between the BEGIN and
+// END anchors, and that no fab-generated header text sits above the fence.
+func assertHeaderOnceInsideFence(t *testing.T, got string) {
+	t.Helper()
+	if count := strings.Count(got, SystemScaffoldHeader); count != 1 {
+		t.Fatalf("header appears %d times, want exactly 1\n--- got ---\n%s", count, got)
+	}
+	headerIdx := strings.Index(got, SystemScaffoldHeader)
+	beginIdx := strings.Index(got, "# >>> fab reference")
+	endIdx := strings.Index(got, "# <<< end fab reference")
+	if beginIdx == -1 || endIdx == -1 || headerIdx < beginIdx || headerIdx > endIdx {
+		t.Fatalf("header is not strictly inside the fence anchors\n--- got ---\n%s", got)
+	}
 }

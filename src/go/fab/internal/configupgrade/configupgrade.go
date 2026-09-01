@@ -156,8 +156,11 @@ var knownGeneratedSystemParagraphDigests = map[string]struct{}{
 	// v2.20.9 and v2.23.5 additions
 	"4a1c4c4d2e66e8496bd740cc7295f506e8b393fa4940fea968f943a7bfd26e09": {},
 	"03efe32c365db8d64cd43096eb5a3ff3159a126f8e3ff4de8b75fab26db4b763": {},
-	// Current system header (the current advert digests are already above).
+	// v2.23.8 system header (emitted ABOVE the fence; relocated inside it by the
+	// current renderer) and the current fence-owned header. (The current advert
+	// digests are already above.)
 	"fe4bd2e1bbd7d22925c18de88e1af87d1ebc559aaf68714a580dbf5bf5e691e6": {},
+	"83980382a95ac269fe61b66d07d36fd9d072455b6ee7c20dc0377043232b6e69": {},
 }
 
 // fenceHeaderComment returns the explanatory preamble emitted at the top of a
@@ -178,11 +181,15 @@ type FieldFilter func(configref.Field) bool
 
 // Target describes one config file reconciled by the shared engine.
 type Target struct {
-	Path            string
-	Header          string
-	FieldFilter     FieldFilter
-	FencePreamble   string
-	advertisedOnly  bool
+	Path          string
+	FieldFilter   FieldFilter
+	FencePreamble string
+	// advertisedOnly limits the fence to advertise:true rows (project target).
+	advertisedOnly bool
+	// adoptLegacyFile enables the R10a legacy-paragraph discard: byte-exact
+	// generated paragraphs sitting ABOVE the fence (or in an unfenced legacy
+	// scaffold) are recognized and dropped, because the regenerated fence owns
+	// them. This predicate — not header presence — gates the discard.
 	adoptLegacyFile bool
 }
 
@@ -198,13 +205,15 @@ func ProjectTarget(path string) Target {
 }
 
 // SystemTarget returns the machine-level target. Every system-visible field is
-// scaffolded, including rows intentionally omitted from project fences.
+// scaffolded, including rows intentionally omitted from project fences. The
+// system header lives INSIDE the fence (at the head of FencePreamble): the
+// region above the fence is exclusively the user's — live keys and their own
+// comments — and no code path writes fab-generated text there.
 func SystemTarget(path string) Target {
 	return Target{
 		Path:            path,
-		Header:          SystemScaffoldHeader,
 		FieldFilter:     SystemField,
-		FencePreamble:   fenceHeaderComment("fab config upgrade --system"),
+		FencePreamble:   SystemScaffoldHeader + "\n#\n" + fenceHeaderComment("fab config upgrade --system"),
 		adoptLegacyFile: true,
 	}
 }
@@ -361,8 +370,9 @@ func RenderInitProject(seed InitSeed, kitVersion string) (string, error) {
 }
 
 // RenderSystemScaffold generates the fresh system config shape from the same
-// target descriptor upgrade and mutation use: canonical header followed by a
-// managed fence containing every system-visible field.
+// target descriptor upgrade and mutation use: a managed fence (whose preamble
+// carries the system header) containing every system-visible field. Nothing is
+// emitted above the fence — that region belongs to the user alone.
 func RenderSystemScaffold(kitVersion string) (string, error) {
 	fields, err := configref.Fields()
 	if err != nil {
@@ -370,7 +380,7 @@ func RenderSystemScaffold(kitVersion string) (string, error) {
 	}
 	target := SystemTarget("")
 	fence := renderFence(target, fields, nil, kitVersion)
-	return assemble(target.Header, fence, nil, nil, nil), nil
+	return assemble("", fence, nil, nil, nil), nil
 }
 
 // initHeader is the top-of-file banner the generated project config carries — it
@@ -720,12 +730,21 @@ func hasManagedFence(document string) bool {
 	return begin && end
 }
 
-// normalizeTargetPreamble installs a target-owned header and, for the system
-// target, removes only byte-exact generated paragraphs from an unfenced legacy
-// scaffold. If even one line was appended or edited, the paragraph does not
-// match and survives whole above the new fence (R10a).
+// normalizeTargetPreamble removes byte-exact generated paragraphs left above
+// the fence by an earlier rendering (an unfenced legacy scaffold, or a
+// v2.23.8-style above-fence header). If even one line was appended or edited,
+// the paragraph does not match and survives whole above the fence (R10a).
+// Anything else above the fence is the user's and passes through untouched.
+//
+// This function previously gated the whole walk on a non-empty Target.Header
+// and reinstalled that header above the fence. The gate and the R10a discard
+// have been separated: the discard is now gated by the explicit
+// target.adoptLegacyFile predicate, because the system header moved INSIDE the
+// fence (it heads FencePreamble). Had the old gate survived the header's
+// removal, legacy adoption would have been silently disabled — reintroducing
+// the duplicated adverts the m4ai review cycles eliminated.
 func normalizeTargetPreamble(preamble string, fields []configref.Field, target Target) string {
-	if target.Header == "" {
+	if !target.adoptLegacyFile {
 		return preamble
 	}
 
@@ -751,18 +770,15 @@ func normalizeTargetPreamble(preamble string, fields []configref.Field, target T
 		kept = append(kept, paragraph)
 	}
 
-	preserved := strings.Trim(strings.Join(kept, "\n\n"), "\n")
-	if preserved == "" {
-		return target.Header
-	}
-	return target.Header + "\n\n" + preserved
+	return strings.Trim(strings.Join(kept, "\n\n"), "\n")
 }
 
 // isGeneratedSystemParagraph authorizes deletion only when the WHOLE paragraph
-// is accounted for by one registry rendering. Current renderings are compared
-// directly; released historical renderings use the exact digest catalog above.
-// This is intentionally not a line-set or structural match: either could accept
-// a user-edited hybrid whose individual markers still resemble generated prose.
+// is accounted for by one registry rendering. The current and legacy header
+// renderings and current field adverts are compared directly; released
+// historical renderings use the exact digest catalog above. This is
+// intentionally not a line-set or structural match: either could accept a
+// user-edited hybrid whose individual markers still resemble generated prose.
 func isGeneratedSystemParagraph(paragraph string, fields []configref.Field, target Target) bool {
 	if paragraph == SystemScaffoldHeader || paragraph == legacySystemScaffoldHeader {
 		return true
