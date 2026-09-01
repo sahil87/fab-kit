@@ -3,6 +3,7 @@
 
 ## 2026-09-01
 - **Update** [kit-architecture](/distribution/kit-architecture.md) — Extended the fab agent surface: stage selectors on the positional, selector+--provider re-resolve-fills, --model/--effort as general post-refill overrides, -t/--template, --headless, -o yaml (7-key schema), -p shorthand; bare --provider bypass and --print bytes unchanged (77vz)
+- **Update** [kit-architecture](/distribution/kit-architecture.md) — unified agent resolution composition and line/YAML projections with traced provenance and dispatch parity (mp8d)
 
 ## 2026-08-31
 - **Update** [kit-architecture](/distribution/kit-architecture.md) — config upgrade gains --system/--all: system layer gets the managed fence, legacy-scaffold adoption under line-complete accounting (byte-exact + sha256 history catalog), SetSystem/UnsetSystem fence-aware, fab setup warm-up refresh (m4ai)
