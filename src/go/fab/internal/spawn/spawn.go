@@ -92,7 +92,7 @@ const (
 // § Per-Stage Model Resolution): in append mode it omits the flag entirely; in
 // template mode it triggers the empty-value token-drop rule (see resolveTemplate).
 func WithProfile(spawnCmd, model, effort string) string {
-	if isTemplate(spawnCmd) {
+	if IsTemplate(spawnCmd) {
 		return resolveTemplate(spawnCmd, model, effort)
 	}
 
@@ -109,9 +109,10 @@ func WithProfile(spawnCmd, model, effort string) string {
 	return b.String()
 }
 
-// isTemplate reports whether spawnCmd contains at least one placeholder, which
-// switches WithProfile (and fab spawn-command) into template mode.
-func isTemplate(spawnCmd string) bool {
+// IsTemplate reports whether spawnCmd contains at least one placeholder, which
+// switches WithProfile into template mode. Exported so resolution reporting can
+// name the mode without duplicating the discriminator.
+func IsTemplate(spawnCmd string) bool {
 	return strings.Contains(spawnCmd, modelPlaceholder) ||
 		strings.Contains(spawnCmd, effortPlaceholder)
 }

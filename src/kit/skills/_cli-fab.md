@@ -270,6 +270,8 @@ The token is exactly `(none)` — not `none` (a legal 4-char change ID, so it wo
 
 Pure query (no side effects) — resolves a pipeline **stage** (or an agent **role** name) to its `{provider, model, effort}` agent profile for sub-agent dispatch. Consumed by the orchestrators (`/fab-ff`, `/fab-fff`, `/fab-proceed`) and `/fab-continue`'s sub-agent dispatch, which call it immediately before dispatching each stage's sub-agent, and by `fab agent` / the operator launcher (role-name resolution).
 
+`fab resolve-agent` and `fab agent -o yaml` render projections of the same shared resolution engine.
+
 ```
 fab resolve-agent <stage|role> [--alias] [--provider <name>] [--model <id>] [--effort <level>]
 ```
@@ -1432,7 +1434,24 @@ Common to all forms:
 - **Default (exec)**: replaces this process with the composed command via `sh -c` (so shell expansions like `$(basename "$(pwd)")` expand at invocation). `fab agent` starts the default-role agent right here; `fab agent operator` starts the coordinator profile. **No TTY guard** — exec-and-let-the-agent-CLI-handle-it (document-don't-validate).
 - **`-p, --print`**: prints the fully-resolved command instead of executing. Lets the operator compose a worker spawn from a real profile. `-p` is a pure shorthand — byte-identical to `--print`.
 - **`-t, --template`**: prints the selected provider's command template **unsubstituted** — a tap BEFORE the fill step, `{model}`/`{effort}` placeholders intact. Implies print. Combines with any selector, `--provider`, and `--headless` (they pick which template). `--model`/`--effort` are rejected with a usage error — they feed the substitution step that `-t` skips.
-- **`-o, --output yaml`**: prints the resolution as a structured YAML document with exactly seven keys — `selector`, `kind` (`role`|`stage`; the bare-provider form reports `kind: provider` with an empty `role`), `role`, `provider`, `model`, `effort`, `command`. Implies print. Only `yaml` is accepted; anything else is a usage error. Mutually exclusive with `--print` and with `-t` — one output sink per invocation.
+- **`-o, --output yaml`**: prints the full resolution as structured YAML. The original seven keys keep their order and the remaining keys follow:
+
+  | Key | Semantics |
+  |-----|-----------|
+  | `selector` | Requested role or stage; empty for a bare-provider invocation. |
+  | `kind` | `role`, `stage`, or `provider`. |
+  | `role` | Resolved role; empty for `kind: provider`. |
+  | `provider` | Resolved provider name. |
+  | `model` | Full model ID; empty preserves the provider-inherit signal. |
+  | `effort` | Resolved effort; empty when inherited or unsupported. |
+  | `command` | Selected interactive or headless template after profile substitution and passthrough composition. |
+  | `model_alias` | Agent-tool short alias for a Claude model; empty for non-Claude IDs. |
+  | `template` | Raw selected provider command slot with placeholders intact. |
+  | `fill_mode` | `template` when placeholders are substituted, otherwise `append`. |
+  | `source` | Nested `provider`, `model`, and `effort` provenance using the actual precedence-rung names; an empty value denotes inherit/no supplying rung. |
+  | `dispatch` | Omitted exactly when the native rung is selected; otherwise contains labelled `rung: pane\|headless` and its fully substituted `command`. |
+
+  YAML output alone derives dispatch. It implies print, accepts only `yaml`, and is mutually exclusive with `--print` and `-t`; `--print`, exec, and `-t` remain unchanged.
 - **`--headless`**: resolves the provider's `headless_command` instead of `interactive_command`. Valid only with the three print sinks (`--print`, `-t`, `-o yaml`) — exec of a headless command is a usage error. A provider with no `headless_command` hard-errors naming the config key (`configure providers.<name>.headless_command`).
 - **`--model` / `--effort`** are **general final overrides**, valid with every addressing form (bare, selector, selector+`--provider`, provider-alone): they apply verbatim AFTER role resolution / provider refill, keyed on the flag being SUPPLIED (cobra's `Flag.Changed`), so an explicitly-empty `--model=` CLEARS the field rather than being ignored. No validation, no enum, no pair correction — verbatim pass-through. This matches `fab resolve-agent`'s bare-override semantics; the former launcher-side restriction is erased.
 - **`--repo <path>`**: reads `<path>/fab/project/config.yaml` instead of the current repo. Composes with any addressing form.

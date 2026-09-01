@@ -14,7 +14,6 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/shellquote"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 // agentCmd implements
@@ -57,9 +56,9 @@ import (
 //     UNsubstituted (a tap BEFORE the fill step — `{model}`/`{effort}` placeholders
 //     intact). Implies print; rejects `--model`/`--effort` with a usage error
 //     (they feed a step that never runs).
-//   - `-o, --output yaml`: prints the resolution as structured YAML (keys
-//     selector/kind/role/provider/model/effort/command — minimal in this
-//     change; the schema extends additively later).
+//   - `-o, --output yaml`: prints the complete structured resolution, including
+//     the addressing/profile/command fields, alias, template/fill mode,
+//     provenance, and the selected non-native dispatch rung when present.
 //   - `--headless` selects the provider's `headless_command` instead of
 //     `interactive_command`, valid only on the three print-family sinks; exec of a
 //     headless command is a usage error. A provider with no headless_command
@@ -212,131 +211,81 @@ type agentMode struct {
 	Passthrough []string
 }
 
-// agentResolutionYAML is the one `-o yaml` output document — the minimal
-// projection over the resolved invocation. The kind/selector/role triple
-// reports provenance for the ADDRESSING form (bare provider = kind "provider"
-// and role empty); provider/model/effort come from the resolved profile; the
-// command is the composed line including passthrough args (the same line
-// --print would emit).
-type agentResolutionYAML struct {
-	Selector string `yaml:"selector"`
-	Kind     string `yaml:"kind"`
-	Role     string `yaml:"role"`
-	Provider string `yaml:"provider"`
-	Model    string `yaml:"model"`
-	Effort   string `yaml:"effort"`
-	Command  string `yaml:"command"`
-}
-
 func resolveAgentInvocation(cmd *cobra.Command, m agentMode) error {
 	cfg, err := loadRepoConfig(m.Repo)
 	if err != nil {
 		return err
 	}
 
-	// The input-splitting above reduced the addressing to exactly one of
-	// these forms; resolve against each and pick the (template, interactive,
-	// or headless) command slot afterwards.
-	var profile agent.Profile
-	var cmdSlot string // provider's raw command template (interactive or headless)
-	var kind string    // "role" | "stage" | "provider"
-	var selector string
-
-	if m.ProviderSet && m.Selector == "" {
-		// BARE provider form: below role resolution entirely — compose the
-		// provider's command with the invocation's --model/--effort only
-		// (providers.<name>.profiles is deliberately not consulted).
-		prov, known := agent.ResolveProvider(cfg, m.Provider)
-		if !known {
-			return unknownProviderError(cfg, m.Provider)
+	providerOnly := m.ProviderSet && m.Selector == ""
+	selector, kind, role := m.Selector, "provider", ""
+	if !providerOnly {
+		if selector == "" {
+			selector = agent.RoleDefault
 		}
-		if cmdSlot, err = m.commandSlot(prov, m.Provider); err != nil {
-			return err
-		}
-		profile = agent.Profile{Provider: m.Provider, Model: m.Model, Effort: m.Effort}
-		kind = "provider"
-		selector = ""
-	} else {
-		if m.Selector == "" {
-			m.Selector = agent.RoleDefault
-		}
-		isRole := agent.IsRoleName(m.Selector)
+		isRole := agent.IsRoleName(selector)
 		kind = "stage"
 		if isRole {
 			kind = "role"
 		}
-		if _, isStage := agent.RoleForStage(m.Selector); !isRole && !isStage {
-			// Neither a role nor a known stage — a combined error naming both
-			// valid sets rather than agent.RoleForName's stage-only message.
-			return fmt.Errorf("unknown selector %q (valid roles: %s; valid stages: %s)", m.Selector, strings.Join(agent.RoleNames(), ", "), strings.Join(agent.StageNames(), ", "))
+		if _, isStage := agent.RoleForStage(selector); !isRole && !isStage {
+			return fmt.Errorf("unknown selector %q (valid roles: %s; valid stages: %s)", selector, strings.Join(agent.RoleNames(), ", "), strings.Join(agent.StageNames(), ", "))
 		}
-		role, _ := roleForKind(m.Selector, isRole)
-		profile, err = agent.ResolveRoleWith(cfg, role, agent.Overrides{Provider: m.Provider, ProviderSet: m.ProviderSet, Model: m.Model, ModelSet: m.ModelSet, Effort: m.Effort, EffortSet: m.EffortSet})
-		if err != nil {
-			return err
-		}
-		prov, known := agent.ResolveProvider(cfg, profile.Provider)
-		if !known && m.ProviderSet {
-			// A flag-named provider that resolves to nothing is the shared
-			// lookup failure, on the selector path exactly as on the bare
-			// --provider path (unknownProviderError is the one phrasing).
-			return unknownProviderError(cfg, m.Provider)
-		}
-		slotName := "interactive_command"
-		cmdSlot = prov.InteractiveCommand
-		if m.Headless {
-			slotName = "headless_command"
-			cmdSlot = prov.HeadlessCommand
-		}
-		if cmdSlot == "" {
-			// Selector-path errors name the requested selector + resolved
-			// provider (mirroring roleSessionCommand's present-tense contract).
-			// An explicitly-empty `--provider=` resolves an empty provider —
-			// substitute the same <name> placeholder unknownProviderError uses,
-			// so the hint never suggests a malformed `providers.` path.
-			hintName := profile.Provider
-			if hintName == "" {
-				hintName = "<name>"
-			}
-			return fmt.Errorf("role %q resolves to provider %q, which has no %s; configure providers.%s.%s",
-				m.Selector, profile.Provider, slotName, hintName, slotName)
-		}
-		selector = m.Selector
+		role, _ = roleForKind(selector, isRole)
 	}
 
-	// Resolve the command slot (template mode requires raw-with-placeholders;
-	// substitutions happen next unless the sink is -t's unsubstituted tap).
-	composed := cmdSlot
-	if !m.Template {
-		composed = spawn.WithProfile(cmdSlot, profile.Model, profile.Effort)
+	resolution, err := composeAgentResolution(cfg, resolutionRequest{
+		Selector:     selector,
+		Kind:         kind,
+		Role:         role,
+		ProviderOnly: providerOnly,
+		Overrides: agent.Overrides{
+			Provider:    m.Provider,
+			ProviderSet: m.ProviderSet,
+			Model:       m.Model,
+			ModelSet:    m.ModelSet,
+			Effort:      m.Effort,
+			EffortSet:   m.EffortSet,
+		},
+		Headless:    m.Headless,
+		Passthrough: m.Passthrough,
+		Dispatch:    m.Output != "",
+		TmuxEnv:     os.Getenv("TMUX"),
+	})
+	if err != nil {
+		return err
 	}
 
-	// Passthrough args are appended as SHELL-QUOTED tokens, because the composed
-	// line is handed to `sh -c` (below) and reaches --print as copy-pasteable
-	// text. Quoting here is what keeps `fab agent -- -p "two words"` a single
-	// argument instead of two, and what stops a value containing shell
-	// metacharacters from being re-interpreted.
-	composed = appendPassthrough(composed, m.Passthrough)
+	slotName := "interactive_command"
+	if m.Headless {
+		slotName = "headless_command"
+	}
+	if resolution.Template == "" {
+		if providerOnly {
+			return fmt.Errorf("provider %q has no %s; configure providers.%s.%s", resolution.Provider, slotName, resolution.Provider, slotName)
+		}
+		hintName := resolution.Provider
+		if hintName == "" {
+			hintName = "<name>"
+		}
+		return fmt.Errorf("role %q resolves to provider %q, which has no %s; configure providers.%s.%s",
+			selector, resolution.Provider, slotName, hintName, slotName)
+	}
 
 	if m.Template || m.Print || m.Output != "" {
 		if m.Output != "" {
-			// `-o yaml` emits the MINIMAL projection: bare-provider form
-			// reports a provider kind and an empty role. Selector kind reports
-			// the role-first/stage classification; the stage→role mapping is
-			// still visible via role.
-			doc := agentResolutionYAML{Selector: selector, Kind: kind, Role: "", Provider: profile.Provider, Model: profile.Model, Effort: profile.Effort, Command: composed}
-			if kind != "provider" {
-				role, _ := roleForKind(selector, agent.IsRoleName(selector))
-				doc.Role = role
-			}
-			b, err := yaml.Marshal(doc)
+			b, err := resolution.YAML()
 			if err != nil {
 				return err
 			}
 			fmt.Fprint(cmd.OutOrStdout(), string(b))
 			return nil
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), composed)
+		if m.Template {
+			fmt.Fprintln(cmd.OutOrStdout(), appendPassthrough(resolution.Template, m.Passthrough))
+		} else {
+			fmt.Fprintln(cmd.OutOrStdout(), resolution.Command)
+		}
 		return nil
 	}
 
@@ -347,25 +296,7 @@ func resolveAgentInvocation(cmd *cobra.Command, m agentMode) error {
 	if workers, set := workersOverride(cmd); set {
 		env = envWithWorkers(env, workers)
 	}
-	return execAgent("/bin/sh", []string{"/bin/sh", "-c", composed}, env)
-}
-
-// commandSlot picks the command slot for the BARE-provider form: the
-// provider's interactive_command, or its headless_command when --headless
-// is set. With no selector in play there is nothing else to name, so its
-// empty-slot error names the provider outright — keeping the provider hint
-// format on one side and the selector hint format on the other (the inline
-// site in resolveAgentInvocation).
-func (m agentMode) commandSlot(prov config.ProviderConfig, providerName string) (string, error) {
-	slot := prov.InteractiveCommand
-	slotKey := "interactive_command"
-	if m.Headless {
-		slot, slotKey = prov.HeadlessCommand, "headless_command"
-	}
-	if slot == "" {
-		return "", fmt.Errorf("provider %q has no %s; configure providers.%s.%s", providerName, slotKey, providerName, slotKey)
-	}
-	return slot, nil
+	return execAgent("/bin/sh", []string{"/bin/sh", "-c", resolution.Command}, env)
 }
 
 // roleForKind resolves the role agentMode's selector names: a role name when

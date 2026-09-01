@@ -74,6 +74,79 @@ func runAgentPrint(t *testing.T, args ...string) (string, error) {
 	return out.String(), err
 }
 
+// TestAgentPreRefactorSinkGoldens freezes every existing output sink before the
+// shared-resolution refactor. The YAML expectation is an exact prefix: Change 1's
+// seven keys and their bytes must remain first and unchanged when later keys are
+// appended additively.
+func TestAgentPreRefactorSinkGoldens(t *testing.T) {
+	agentTestRepo(t, `providers:
+  oracle:
+    interactive_command: "oracle tui -m {model} -e {effort}"
+    native: true
+    profiles:
+      default: { model: oracle-default, effort: low }
+      doing: { model: oracle-doing, effort: high }
+agent:
+  profiles:
+    doing: { provider: oracle }
+`)
+
+	t.Run("print", func(t *testing.T) {
+		got, err := runAgentPrint(t, "apply")
+		if err != nil {
+			t.Fatalf("agent apply --print: %v", err)
+		}
+		want := "oracle tui -m oracle-doing -e high\n"
+		if got != want {
+			t.Errorf("stdout = %q, want exact bytes %q", got, want)
+		}
+	})
+
+	t.Run("template", func(t *testing.T) {
+		got, err := runAgentExec(t, "apply", "-t")
+		if err != nil {
+			t.Fatalf("agent apply -t: %v", err)
+		}
+		want := "oracle tui -m {model} -e {effort}\n"
+		if got != want {
+			t.Errorf("stdout = %q, want exact bytes %q", got, want)
+		}
+	})
+
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "stage YAML",
+			args: []string{"yaml", "apply"},
+			want: "selector: apply\nkind: stage\nrole: doing\nprovider: oracle\nmodel: oracle-doing\neffort: high\ncommand: oracle tui -m oracle-doing -e high\n",
+		},
+		{
+			name: "bare-provider YAML",
+			args: []string{"yaml", "--provider", "oracle"},
+			want: "selector: \"\"\nkind: provider\nrole: \"\"\nprovider: oracle\nmodel: \"\"\neffort: \"\"\ncommand: oracle tui\n",
+		},
+		{
+			name: "selector-provider YAML",
+			args: []string{"yaml", "apply", "--provider", "oracle"},
+			want: "selector: apply\nkind: stage\nrole: doing\nprovider: oracle\nmodel: oracle-doing\neffort: high\ncommand: oracle tui -m oracle-doing -e high\n",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := runAgentYAML(t, tc.args...)
+			if err != nil {
+				t.Fatalf("agent -o %v: %v", tc.args, err)
+			}
+			if !strings.HasPrefix(got, tc.want) {
+				t.Errorf("stdout prefix = %q, want exact seven-key prefix %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestAgentWorkersOverride(t *testing.T) {
 	agentTestRepo(t, `providers:
   claude:

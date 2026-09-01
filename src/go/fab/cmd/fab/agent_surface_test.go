@@ -236,9 +236,7 @@ func TestAgentHeadlessMissingCapabilityHardErrors(t *testing.T) {
 
 // --- -o yaml (R6) ---
 
-// yamlKeys unmarshals a `-o yaml` document and returns its top-level key set —
-// the projection is MINIMAL, so the assertion is on EXACTLY the seven shipped
-// keys, not a superset a later additive extension would silently grow into.
+// yamlKeys unmarshals a `-o yaml` document and returns its top-level key set.
 func yamlKeys(t *testing.T, doc string) map[string]any {
 	t.Helper()
 	var m map[string]any
@@ -271,8 +269,8 @@ func TestAgentOutputYAMLStageSelector(t *testing.T) {
 		t.Errorf("-o yaml document should carry a command key, got:\n%s", out)
 	}
 	keys := yamlKeys(t, out)
-	if len(keys) != 7 {
-		t.Errorf("-o yaml must emit exactly the seven minimal keys, got %d: %v", len(keys), keys)
+	if len(keys) != 11 {
+		t.Errorf("-o yaml native resolution must emit the eleven non-dispatch keys, got %d: %v", len(keys), keys)
 	}
 }
 
@@ -296,8 +294,8 @@ func TestAgentOutputYAMLRoleSelector(t *testing.T) {
 		}
 	}
 	keys := yamlKeys(t, out)
-	if len(keys) != 7 {
-		t.Errorf("-o yaml must emit exactly the seven minimal keys on the role form too, got %d: %v", len(keys), keys)
+	if len(keys) != 11 {
+		t.Errorf("-o yaml native role resolution must emit the eleven non-dispatch keys, got %d: %v", len(keys), keys)
 	}
 }
 
@@ -313,8 +311,185 @@ func TestAgentOutputYAMLBareProviderForm(t *testing.T) {
 		}
 	}
 	keys := yamlKeys(t, out)
-	if len(keys) != 7 {
-		t.Errorf("-o yaml must emit exactly the seven minimal keys on the provider form too, got %d: %v", len(keys), keys)
+	if len(keys) != 12 {
+		t.Errorf("-o yaml non-native provider resolution must emit all twelve keys, got %d: %v", len(keys), keys)
+	}
+}
+
+func TestAgentOutputYAMLFullSchemaGoldens(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		tmux   string
+		args   []string
+		want   string
+	}{
+		{
+			name: "native omits dispatch",
+			config: `dispatch:
+  mode: native
+providers:
+  oracle:
+    interactive_command: "oracle tui -m {model} -e {effort}"
+    native: true
+    profiles:
+      doing: { model: claude-opus-5, effort: high }
+agent:
+  profiles:
+    doing: { provider: oracle }
+`,
+			args: []string{"yaml", "apply"},
+			want: `selector: apply
+kind: stage
+role: doing
+provider: oracle
+model: claude-opus-5
+effort: high
+command: oracle tui -m claude-opus-5 -e high
+model_alias: opus
+template: oracle tui -m {model} -e {effort}
+fill_mode: template
+source:
+    provider: agent.profiles.doing
+    model: providers.oracle.profiles.doing
+    effort: providers.oracle.profiles.doing
+`,
+		},
+		{
+			name: "headless labels rung and keeps non-Claude alias empty",
+			config: `dispatch:
+  mode: native
+providers:
+  oracle:
+    interactive_command: "oracle tui -m {model} -e {effort}"
+    headless_command: "oracle exec -m {model} -e {effort}"
+    profiles:
+      doing: { model: gpt-5, effort: xhigh }
+agent:
+  profiles:
+    doing: { provider: oracle }
+`,
+			args: []string{"yaml", "apply"},
+			want: `selector: apply
+kind: stage
+role: doing
+provider: oracle
+model: gpt-5
+effort: xhigh
+command: oracle tui -m gpt-5 -e xhigh
+model_alias: ""
+template: oracle tui -m {model} -e {effort}
+fill_mode: template
+source:
+    provider: agent.profiles.doing
+    model: providers.oracle.profiles.doing
+    effort: providers.oracle.profiles.doing
+dispatch:
+    rung: headless
+    command: oracle exec -m gpt-5 -e xhigh
+`,
+		},
+		{
+			name: "pane labels rung and aliases dated Claude ID",
+			config: `dispatch:
+  mode: pane
+providers:
+  oracle:
+    interactive_command: "oracle tui -m {model} -e {effort}"
+    headless_command: "oracle exec -m {model} -e {effort}"
+    profiles:
+      doing: { model: claude-haiku-4-5-20251001, effort: medium }
+agent:
+  profiles:
+    doing: { provider: oracle }
+`,
+			tmux: "/tmp/tmux-1000/default,1,0",
+			args: []string{"yaml", "apply"},
+			want: `selector: apply
+kind: stage
+role: doing
+provider: oracle
+model: claude-haiku-4-5-20251001
+effort: medium
+command: oracle tui -m claude-haiku-4-5-20251001 -e medium
+model_alias: haiku
+template: oracle tui -m {model} -e {effort}
+fill_mode: template
+source:
+    provider: agent.profiles.doing
+    model: providers.oracle.profiles.doing
+    effort: providers.oracle.profiles.doing
+dispatch:
+    rung: pane
+    command: oracle tui -m claude-haiku-4-5-20251001 -e medium
+`,
+		},
+		{
+			name: "bare provider preserves empty inherit fields",
+			config: `dispatch:
+  mode: headless
+providers:
+  oracle:
+    interactive_command: "oracle tui -m {model} -e {effort}"
+    headless_command: "oracle exec -m {model} -e {effort}"
+`,
+			args: []string{"yaml", "--provider", "oracle"},
+			want: `selector: ""
+kind: provider
+role: ""
+provider: oracle
+model: ""
+effort: ""
+command: oracle tui
+model_alias: ""
+template: oracle tui -m {model} -e {effort}
+fill_mode: template
+source:
+    provider: flag
+    model: ""
+    effort: ""
+dispatch:
+    rung: headless
+    command: oracle exec
+`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			agentTestRepo(t, tc.config)
+			t.Setenv("TMUX", tc.tmux)
+			got, err := runAgentYAML(t, tc.args...)
+			if err != nil {
+				t.Fatalf("agent -o %v: %v", tc.args, err)
+			}
+			if got != tc.want {
+				t.Errorf("stdout = %q, want exact full-schema bytes %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAgentOutputYAMLNoCapabilityMatchesResolveAgent(t *testing.T) {
+	agentTestRepo(t, `dispatch:
+  mode: native
+providers:
+  void:
+    interactive_command: void
+agent:
+  workers: void
+`)
+
+	_, resolveErr := runResolveAgentCmd(t, "apply")
+	if resolveErr == nil {
+		t.Fatal("resolve-agent must fail when no rung at or below native is reachable")
+	}
+	_, agentErr := runAgentYAML(t, "yaml", "apply")
+	if agentErr == nil {
+		t.Fatal("agent -o yaml must fail when no rung at or below native is reachable")
+	}
+	if agentErr.Error() != resolveErr.Error() {
+		t.Errorf("agent error = %q, resolve-agent error = %q", agentErr, resolveErr)
 	}
 }
 

@@ -4,6 +4,7 @@
 ## 2026-09-01
 - **Update** [agent-primitives](/runtime/agent-primitives.md) — Extended the fab agent surface: stage selectors on the positional, selector+--provider re-resolve-fills, --model/--effort as general post-refill overrides, -t/--template, --headless, -o yaml (7-key schema), -p shorthand; bare --provider bypass and --print bytes unchanged (77vz)
 - **Update** [providers-and-profiles](/runtime/providers-and-profiles.md) — Extended the fab agent surface: stage selectors on the positional, selector+--provider re-resolve-fills, --model/--effort as general post-refill overrides, -t/--template, --headless, -o yaml (7-key schema), -p shorthand; bare --provider bypass and --print bytes unchanged (77vz)
+- **Update** [providers-and-profiles](/runtime/providers-and-profiles.md) — unified agent resolution composition and line/YAML projections with traced provenance and dispatch parity (mp8d)
 
 ## 2026-08-29
 - **Update** [agent-primitives](/runtime/agent-primitives.md) — wraps interactive spawns in a ; exec "$SHELL" shell fallback (spawn.WithShellFallback; dispatch workers stay unwrapped) and adds the level-triggered agent_exited operator delta keyed on pane_current_command (1xqx)

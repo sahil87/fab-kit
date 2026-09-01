@@ -10,7 +10,6 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/dispatch"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
-	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 	"github.com/spf13/cobra"
 )
 
@@ -123,44 +122,30 @@ func resolveAgentCmd() *cobra.Command {
 			// being silently ignored, and `--provider=` resolves an empty provider
 			// (the lookup failure below) rather than falling back to the depth knob.
 			providerSet := cmd.Flags().Changed("provider")
-			profile, err := agent.ResolveRoleWith(cfg, role, agent.Overrides{
-				Provider:    provider,
-				ProviderSet: providerSet,
-				Model:       model,
-				ModelSet:    cmd.Flags().Changed("model"),
-				Effort:      effort,
-				EffortSet:   cmd.Flags().Changed("effort"),
+			kind := "stage"
+			if agent.IsRoleName(args[0]) {
+				kind = "role"
+			}
+			resolution, err := composeAgentResolution(cfg, resolutionRequest{
+				Selector: args[0],
+				Kind:     kind,
+				Role:     role,
+				Overrides: agent.Overrides{
+					Provider:    provider,
+					ProviderSet: providerSet,
+					Model:       model,
+					ModelSet:    cmd.Flags().Changed("model"),
+					Effort:      effort,
+					EffortSet:   cmd.Flags().Changed("effort"),
+				},
+				Dispatch: true,
+				TmuxEnv:  os.Getenv("TMUX"),
 			})
 			if err != nil {
 				return err
 			}
 
-			prov, known := agent.ResolveProvider(cfg, profile.Provider)
-			if providerSet && !known {
-				// A supplied --provider that resolves to nothing is a lookup
-				// failure naming the resolvable set — shared verbatim with
-				// `fab agent` via unknownProviderError.
-				return unknownProviderError(cfg, profile.Provider)
-			}
-			// The dispatch= command ALWAYS embeds the full resolved model ID (CLI
-			// dispatch never aliases), so substitute placeholders from the full
-			// model BEFORE --alias overwrites profile.Model with the short alias.
-			// $TMUX is read HERE (the cobra layer) so dispatchLineFor stays pure —
-			// the internal/dispatch.SelectMode precedent.
-			cmdTemplate, err := dispatchLineFor(prov, cfg.GetDispatchMode(), os.Getenv("TMUX"))
-			if err != nil {
-				return noDispatchCapabilityError(profile.Provider, cfg.GetDispatchMode(), err)
-			}
-			var dispatchLine string
-			if cmdTemplate != "" {
-				dispatchLine = spawn.WithProfile(cmdTemplate, profile.Model, profile.Effort)
-			}
-
-			if alias {
-				profile.Model = agent.ModelAlias(profile.Model)
-			}
-
-			fmt.Fprint(cmd.OutOrStdout(), formatAgentProfile(profile, dispatchLine))
+			fmt.Fprint(cmd.OutOrStdout(), resolution.Lines(alias))
 			return nil
 		},
 	}
@@ -169,31 +154,6 @@ func resolveAgentCmd() *cobra.Command {
 	cmd.Flags().StringVar(&model, "model", "", "override the resolved model (valid without --provider — a within-role override)")
 	cmd.Flags().StringVar(&effort, "effort", "", "override the resolved effort (valid without --provider — a within-role override)")
 	return cmd
-}
-
-// dispatchLineFor returns the unsubstituted command for the resolved automatic
-// rung, or "" for native mode. It shares internal/dispatch.SelectMode with the
-// launcher; $TMUX presence is the resolver seam's pane-availability signal.
-func dispatchLineFor(prov config.ProviderConfig, preference, tmuxEnv string) (string, error) {
-	tmux := dispatch.TmuxAbsent
-	if tmuxEnv != "" {
-		tmux = dispatch.TmuxAvailable
-	}
-	mode, _, err := dispatch.SelectMode(false, false, false, false, preference,
-		prov.Native, prov.InteractiveCommand != "", prov.HeadlessCommand != "", tmux)
-	if err != nil {
-		return "", err
-	}
-	switch mode {
-	case dispatch.ModeNative:
-		return "", nil
-	case dispatch.ModePane:
-		return prov.InteractiveCommand, nil
-	case dispatch.ModeHeadless:
-		return prov.HeadlessCommand, nil
-	default:
-		return "", fmt.Errorf("unexpected dispatch mode %q", mode)
-	}
 }
 
 // noDispatchCapabilityError reports that no rung at or below the configured
@@ -224,27 +184,4 @@ func joinRemedies(remedies []string) string {
 	default:
 		return strings.Join(remedies[:len(remedies)-1], ", ") + ", or " + remedies[len(remedies)-1]
 	}
-}
-
-// formatAgentProfile renders a resolved profile as the byte-stable stdout
-// contract: a `model=<id>` line always, an `effort=<level>` line only when the
-// effort is non-empty, a `provider=<name>` line only when the provider is
-// non-empty, and a `dispatch=<command>` line only when dispatchLine is non-empty.
-// An empty model emits an empty `model=` line (the "inherit" signal). dispatchLine
-// is the ALREADY-substituted command (placeholders resolved via internal/spawn) —
-// the caller passes "" to omit the line (native Agent-tool dispatch). Extracted so
-// the omit-when-empty branches are unit-testable without needing a config whose
-// RESOLVED effort/provider/headless_command is empty.
-func formatAgentProfile(p agent.Profile, dispatchLine string) string {
-	out := fmt.Sprintf("model=%s\n", p.Model)
-	if p.Effort != "" {
-		out += fmt.Sprintf("effort=%s\n", p.Effort)
-	}
-	if p.Provider != "" {
-		out += fmt.Sprintf("provider=%s\n", p.Provider)
-	}
-	if dispatchLine != "" {
-		out += fmt.Sprintf("dispatch=%s\n", dispatchLine)
-	}
-	return out
 }
