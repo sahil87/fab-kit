@@ -462,35 +462,58 @@ func ResolveRole(cfg *config.Config, role string) (Profile, error) {
 // only role-resolution error; an unknown PROVIDER name is a lookup concern for the
 // caller (which lists ProviderNames and exits non-zero), not an error here.
 func ResolveRoleWith(cfg *config.Config, role string, o Overrides) (Profile, error) {
+	p, _, err := ResolveRoleWithSource(cfg, role, o)
+	return p, err
+}
+
+// ResolveRoleWithSource is ResolveRoleWith plus a per-field trace of the rung
+// that supplied provider/model/effort. This is the single implementation of the
+// precedence: ResolveRoleWith delegates here and discards only the trace.
+func ResolveRoleWithSource(cfg *config.Config, role string, o Overrides) (Profile, Source, error) {
 	if !IsRoleName(role) {
-		return Profile{}, fmt.Errorf("unknown role %q (valid: %s)", role, strings.Join(RoleNames(), ", "))
+		return Profile{}, Source{}, fmt.Errorf("unknown role %q (valid: %s)", role, strings.Join(RoleNames(), ", "))
 	}
 
 	override, _ := cfg.GetAgentProfile(role)
 
 	provider := override.Provider
+	providerSource := "agent.profiles." + role
 	if provider == "" {
-		provider = depthProvider(cfg, role)
+		provider, providerSource = depthProviderWithSource(cfg, role)
 	}
 	if o.ProviderSet {
 		provider = o.Provider
+		providerSource = "flag"
 	}
 
 	prov, _ := ResolveProvider(cfg, provider)
-	fillModel, fillEffort := providerFill(prov, role)
+	fillModel, fillEffort, fillSource := providerFillWithSource(prov, provider, role)
 
 	p := Profile{
 		Provider: provider,
 		Model:    firstNonEmpty(override.Model, fillModel),
 		Effort:   firstNonEmpty(override.Effort, fillEffort),
 	}
+	source := Source{
+		Provider: providerSource,
+		Model:    fillSource.Model,
+		Effort:   fillSource.Effort,
+	}
+	if override.Model != "" {
+		source.Model = "agent.profiles." + role
+	}
+	if override.Effort != "" {
+		source.Effort = "agent.profiles." + role
+	}
 	if o.ModelSet {
 		p.Model = o.Model
+		source.Model = "flag"
 	}
 	if o.EffortSet {
 		p.Effort = o.Effort
+		source.Effort = "flag"
 	}
-	return p, nil
+	return p, source, nil
 }
 
 // Resolve maps a stage → its fixed role → a concrete {provider, model, effort}
@@ -505,33 +528,53 @@ func Resolve(cfg *config.Config, stage string) (Profile, error) {
 	return ResolveRole(cfg, role)
 }
 
-// depthProvider returns the provider the role's DEPTH KNOB names: agent.session for
+// depthProviderWithSource returns the provider the role's DEPTH KNOB names: agent.session for
 // a Tier-1 role, agent.workers for a Tier-2 one, then defaults.yaml's own knob
 // value, then the built-in claude. The last rung is belt-and-braces — defaults.yaml
 // ships both knobs — so a hand-trimmed defaults file can never resolve a role to no
-// provider at all.
-func depthProvider(cfg *config.Config, role string) string {
+// provider at all. The latter two are one built-in provenance rung because neither
+// came from user configuration.
+func depthProviderWithSource(cfg *config.Config, role string) (string, string) {
 	configured, builtin := cfg.GetAgentWorkers(), builtinDefaults.Agent.Workers
+	source := "agent.workers"
 	if roleDepth[role] == depthSession {
 		configured, builtin = cfg.GetAgentSession(), builtinDefaults.Agent.Session
+		source = "agent.session"
 	}
-	return firstNonEmpty(configured, builtin, DefaultProviderName)
+	if configured != "" {
+		return configured, source
+	}
+	return firstNonEmpty(builtin, DefaultProviderName), "built-in"
 }
 
-// providerFill returns the {model, effort} a resolved provider supplies for a role:
-// its own `profiles.<role>` entry, then its `profiles.default` entry (the provider's
-// cross-role fallback), per field.
+// providerFillWithSource returns the {model, effort} a resolved provider supplies
+// for a role: its own `profiles.<role>` entry, then its `profiles.default` entry
+// (the provider's cross-role fallback), then empty, per field. It records the
+// literal rung path alongside each non-empty value.
 //
 // The DEPRECATED flat providers.<name>.model/.effort is NOT a rung here — it is
 // folded into the override's own profiles.default by ResolveProvider, which is the
 // alias it is documented to be. So prov.Model/prov.Effort are deliberately not read:
 // this function's only call site passes ResolveProvider's output, where a non-empty
-// flat fill has already become Profiles[RoleDefault].
-func providerFill(prov config.ProviderConfig, role string) (model, effort string) {
+// flat fill has already become Profiles[RoleDefault]. The provider table has already
+// been merged, so this remains the only fill precedence implementation.
+func providerFillWithSource(prov config.ProviderConfig, provider, role string) (model, effort string, source Source) {
 	forRole := prov.Profiles[role]
 	forDefault := prov.Profiles[RoleDefault]
-	return firstNonEmpty(forRole.Model, forDefault.Model),
-		firstNonEmpty(forRole.Effort, forDefault.Effort)
+	roleSource := fmt.Sprintf("providers.%s.profiles.%s", provider, role)
+	defaultSource := fmt.Sprintf("providers.%s.profiles.default", provider)
+
+	if forRole.Model != "" {
+		model, source.Model = forRole.Model, roleSource
+	} else if forDefault.Model != "" {
+		model, source.Model = forDefault.Model, defaultSource
+	}
+	if forRole.Effort != "" {
+		effort, source.Effort = forRole.Effort, roleSource
+	} else if forDefault.Effort != "" {
+		effort, source.Effort = forDefault.Effort, defaultSource
+	}
+	return model, effort, source
 }
 
 // firstNonEmpty returns the first non-empty string, or "" when all are empty. It is

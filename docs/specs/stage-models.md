@@ -202,7 +202,9 @@ provider is an opaque, user-chosen name mapping to three independent dispatch ca
   role need name the provider first. The launcher's positional also accepts a **stage** name (mapped
   through the fixed `stageRoles` table to its role, exactly as `fab resolve-agent` resolves), and combines
   with `--provider` to re-resolve that role's fills from the named provider (`-t` prints the raw template,
-  `--headless` picks `headless_command`, `-o yaml` a structured document — all print-mode sinks). The direct form is a **lookup**, not a new validation surface: an
+  `--headless` picks `headless_command`, and `-o yaml` carries the full structured resolution, including
+  raw template, fill mode, per-field provenance, model alias, and labelled non-native dispatch — all
+  print-mode sinks). The direct form is a **lookup**, not a new validation surface: an
   unknown name errors listing the available providers, while resolved command strings still pass
   through verbatim. See `_cli-fab.md` § fab agent.
 - **`headless_command`** — runs ONE headless **stage task** via `fab dispatch`.

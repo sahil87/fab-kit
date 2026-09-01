@@ -311,6 +311,21 @@ The stage→role mapping is **fab-owned and NOT user-overridable** (`stageRoles`
 - **WHEN** `fab resolve-agent apply --provider bogus` runs
 - **THEN** it exits non-zero naming `bogus`, lists `agy, claude, codex, kimi`, and prints no profile
 
+### Requirement: One resolution object, one composer, two projections
+
+`internal/agent.Resolution` is the complete resolution result shared by `fab resolve-agent` and `fab agent`. It carries `selector`, `kind`, `role`, `provider`, the full `model`, `model_alias`, `effort`, the raw `template`, `fill_mode` (`template` or `append`), the composed `command`, per-field `source` provenance, and an optional `dispatch` value containing a labelled `rung` and composed `command`. A nil dispatch denotes the native rung.
+
+`cmd/fab/resolution.go` owns the single profile-to-resolution composer. Both commands normalize their addressing and overrides into that composer, then render projections of the returned value: `Resolution.Lines(alias)` produces `fab resolve-agent`'s frozen ordered line protocol, while `Resolution.YAML()` produces `fab agent -o yaml`'s full schema. The composer uses `agent.ResolveRoleWithSource` for the profile and provenance, `spawn.IsTemplate` plus `spawn.WithProfile` for fill mode and command composition, and `dispatch.SelectMode` for the optional dispatch projection. `ResolveRoleWith` delegates to `ResolveRoleWithSource`, so fill precedence and its trace share one implementation; `spawn.IsTemplate` exports the discriminator already used by `spawn.WithProfile`.
+
+Only the YAML sink on `fab agent` requests dispatch derivation. `--print`, exec, and `-t` consume the same resolution object without selecting a dispatch rung, while `-o yaml` and `fab resolve-agent` share the actionable no-capability error posture.
+
+#### Scenario: line and YAML projections agree
+
+- **GIVEN** the same selector, config, overrides, and tmux availability
+- **WHEN** `fab resolve-agent` renders its line projection and `fab agent -o yaml` renders its structured projection
+- **THEN** their provider, model, effort, and non-native dispatch command come from the same `agent.Resolution`
+- **AND** the line projection preserves its byte-stable `model=` / optional `effort=` / optional `provider=` / optional `dispatch=` contract
+
 ### Requirement: `dispatch.mode` — preference-bounded capability descent
 
 `dispatch.mode` is `pane`, `native`, or `headless`, defaults to `native`, and has scope `both`. The project layer overrides the machine-wide system preference. It is a **ceiling**: selection starts at that rung and moves only downward through pane → native → headless.
@@ -352,7 +367,7 @@ All forms compose through the same `spawn.WithProfile` (template substitution or
 
 - `-p, --print` prints the fully-resolved command instead of executing — the output is **profile-resolved** (model/effort substituted), so callers that spawn from the printed command get the profile. `-p` is a pure shorthand, byte-identical to `--print`.
 - `-t, --template` prints the selected provider's command template **unsubstituted** — a tap before the fill step, `{model}`/`{effort}` placeholders intact. It implies print, combines with any selector, `--provider`, and `--headless` (they pick which template), and rejects `--model`/`--effort` with a usage error (they feed the substitution step that `-t` skips).
-- `-o, --output yaml` emits the resolution as a structured YAML document with exactly seven keys — `selector`, `kind` (`role`|`stage`; the bare-provider form reports `kind: provider` with an empty `role`), `role`, `provider`, `model`, `effort`, `command`. It implies print, accepts exactly `yaml` (anything else is a usage error), and is mutually exclusive with `--print` and with `-t` — one output sink per invocation.
+- `-o, --output yaml` emits the full resolution as structured YAML. `selector`, `kind`, `role`, `provider`, `model`, `effort`, and `command` appear first in that order, followed by `model_alias`, raw `template`, `fill_mode`, per-field `source`, and optional labelled `dispatch`. `model_alias` is the Agent-tool short alias for Claude IDs and empty otherwise; `source` names the actual provider/model/effort precedence rung (empty means inherit); `dispatch` is absent exactly for native and otherwise contains `rung: pane|headless` plus its substituted `command`. YAML alone derives dispatch. It implies print, accepts exactly `yaml` (anything else is a usage error), and is mutually exclusive with `--print` and with `-t` — one output sink per invocation.
 - `--headless` resolves the provider's `headless_command` instead of `interactive_command`. It is valid only in the print-family modes (`--print`, `-t`, `-o yaml`) — exec of a headless command is a usage error. A provider with no `headless_command` hard-errors naming the config key (`configure providers.<name>.headless_command`).
 - `--repo <path>` reads the target repo's config (the operator's fetch-another-repo's-command use case). Composes with any addressing form.
 - `--workers <provider>` sets `FAB_AGENT_WORKERS=<provider>` in the environment passed to the exec seam without changing any addressing form's command resolution. An entry inherited from the parent environment is removed rather than shadowed, so the override is authoritative regardless of how a consumer resolves duplicate entries. It is accepted with `--print`, but printed output remains the command alone because no child process is executed.
@@ -453,6 +468,24 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 **Rejected**: A `--role` flag (surface for no benefit); inferring provider downstream (re-does resolution); a TTY guard (the agent CLI already handles no-TTY).
 *Introduced by*: 260702-tykw-agent-providers-role-tiers
 
+### Resolution Composition Lives Beside Both CLI Consumers
+**Decision**: `internal/agent` owns `Resolution`, its line/YAML projections, and the traced role resolver; `cmd/fab/resolution.go` owns the single composer used by both `fab resolve-agent` and `fab agent`.
+**Why**: `internal/spawn` imports `internal/agent`, so composing through `spawn.WithProfile` inside `internal/agent` would create an import cycle. Both CLI consumers already share package `main`, which provides one composition site without changing the package graph.
+**Rejected**: Moving `WithProfile` into `internal/agent`; creating an `internal/resolution` package for a composer with only two package-main consumers.
+*Introduced by*: 260901-mp8d-agent-resolution-struct-parity
+
+### Provenance Is Captured During Fill Resolution
+**Decision**: `ResolveRoleWithSource` returns the resolved profile with the provider/model/effort source rungs, and `ResolveRoleWith` delegates to it while discarding only the trace.
+**Why**: Capturing the source when each precedence rung is consulted preserves a single fill-precedence implementation and distinguishes equal values supplied by different rungs.
+**Rejected**: Inferring provenance after resolution by comparing the final value with every candidate rung.
+*Introduced by*: 260901-mp8d-agent-resolution-struct-parity
+
+### Structured YAML Shares the Resolver's Dispatch Failure Semantics
+**Decision**: `fab agent -o yaml` derives dispatch for role, stage, and provider addressing and returns the same actionable no-capability error as `fab resolve-agent`; every other `fab agent` sink skips dispatch derivation.
+**Why**: Structured consumers receive the same dispatch truth as the frozen line surface, including the distinction between native absence and an unreachable ladder.
+**Rejected**: Omitting `dispatch` when selection fails; deriving dispatch only for stage selectors; adding dispatch-derived errors to `--print`, exec, or `-t`.
+*Introduced by*: 260901-mp8d-agent-resolution-struct-parity
+
 ### `hydrate` Is Its Own Role; `fast` Keeps Its Role Name (Multi-Referent)
 **Decision**: `hydrate` is its own role rather than part of `doing`, giving six roles (`default`/`operator`/`doing`/`review`/`hydrate`/`fast`). A role is stage-named only where it maps 1:1 to a single referent (`review`, `hydrate`); `default`, `doing`, and `fast` keep role names because each is multi-referent — `fast` in particular governs both the ship stage and the `/fab-proceed` prefix-step dispatches.
 **Why**: Memory writing (hydrate) is knowledge work with a different cognitive profile than apply's diff work, so it deserves its own model/effort — grouped under `doing` it could never run cheaper or on a different model than apply. A stage name (`ship`) would misname `fast` once it also governs the prefix steps.
@@ -468,7 +501,7 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 ### One Output Sink per Invocation on `fab agent`
 **Decision**: `-o yaml` is mutually exclusive with `--print` and `-t` (usage errors); `-t` with `--print` is tolerated (`-t` implies print).
 **Why**: Each print-family flag selects a different sink (command line / template / structured doc); silently preferring one over another would make output shape depend on flag order.
-**Rejected**: Precedence ordering (surprising, undocumentable cheaply); allowing `-o yaml -t` to add a template key (that key is the `-o yaml` schema's later-owner surface).
+**Rejected**: Precedence ordering (surprising, undocumentable cheaply); allowing `-o yaml -t` to select two output sinks (the full YAML document already carries the raw template as data).
 *Introduced by*: 260901-77vz-fab-agent-surface-extension
 
 ### Selector Detection Reuses `agent.RoleForName` — No New Hoist

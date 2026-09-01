@@ -90,6 +90,151 @@ func runResolveAgentCmd(t *testing.T, args ...string) (string, error) {
 	return out.String(), err
 }
 
+func projectedResolutionLines(p agent.Profile, dispatchCommand string) string {
+	r := agent.Resolution{Provider: p.Provider, Model: p.Model, Effort: p.Effort}
+	if dispatchCommand != "" {
+		r.Dispatch = &agent.DispatchResolution{Command: dispatchCommand}
+	}
+	return r.Lines(false)
+}
+
+// TestResolveAgentGoldenMatrix freezes the exact stdout contract before the
+// shared-resolution refactor. Every branch that can affect the emitted bytes is
+// represented here: native/pane/headless selection, template/append command
+// composition, empty fills, aliasing on and off, non-Claude pass-through, and a
+// dated Claude family ID. The expectations are deliberately literal rather than
+// derived from the implementation so this table remains a byte-neutrality oracle.
+func TestResolveAgentGoldenMatrix(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		tmux   string
+		args   []string
+		want   string
+	}{
+		{
+			name: "native full ID",
+			config: `dispatch:
+  mode: native
+providers:
+  oracle:
+    native: true
+agent:
+  profiles:
+    doing: { provider: oracle, model: claude-opus-5, effort: high }
+`,
+			args: []string{"apply"},
+			want: "model=claude-opus-5\neffort=high\nprovider=oracle\n",
+		},
+		{
+			name: "native alias",
+			config: `dispatch:
+  mode: native
+providers:
+  oracle:
+    native: true
+agent:
+  profiles:
+    doing: { provider: oracle, model: claude-opus-5, effort: high }
+`,
+			args: []string{"apply", "--alias"},
+			want: "model=opus\neffort=high\nprovider=oracle\n",
+		},
+		{
+			name: "headless template non-Claude pass-through",
+			config: `dispatch:
+  mode: headless
+providers:
+  oracle:
+    headless_command: "oracle exec -m {model} -e {effort}"
+agent:
+  profiles:
+    doing: { provider: oracle, model: gpt-5, effort: xhigh }
+`,
+			args: []string{"apply", "--alias"},
+			want: "model=gpt-5\neffort=xhigh\nprovider=oracle\ndispatch=oracle exec -m gpt-5 -e xhigh\n",
+		},
+		{
+			name: "headless append mode",
+			config: `dispatch:
+  mode: headless
+providers:
+  oracle:
+    headless_command: "oracle exec"
+agent:
+  profiles:
+    doing: { provider: oracle, model: gpt-5, effort: high }
+`,
+			args: []string{"apply"},
+			want: "model=gpt-5\neffort=high\nprovider=oracle\ndispatch=oracle exec --model gpt-5 --effort high\n",
+		},
+		{
+			name: "empty fills preserve inherit signal",
+			config: `dispatch:
+  mode: headless
+providers:
+  oracle:
+    headless_command: "oracle exec -m {model} -e {effort}"
+agent:
+  workers: oracle
+`,
+			args: []string{"apply", "--alias"},
+			want: "model=\nprovider=oracle\ndispatch=oracle exec\n",
+		},
+		{
+			name: "pane dated Claude alias keeps full dispatch ID",
+			config: `dispatch:
+  mode: pane
+providers:
+  oracle:
+    interactive_command: "oracle tui -m {model} -e {effort}"
+agent:
+  profiles:
+    doing: { provider: oracle, model: claude-haiku-4-5-20251001, effort: medium }
+`,
+			tmux: "/tmp/tmux-1000/default,1,0",
+			args: []string{"apply", "--alias"},
+			want: "model=haiku\neffort=medium\nprovider=oracle\ndispatch=oracle tui -m claude-haiku-4-5-20251001 -e medium\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resolveAgentTestRepo(t, tc.config)
+			t.Setenv("TMUX", tc.tmux)
+			got, err := runResolveAgentCmd(t, tc.args...)
+			if err != nil {
+				t.Fatalf("resolve-agent %v: %v", tc.args, err)
+			}
+			if got != tc.want {
+				t.Errorf("stdout = %q, want exact bytes %q", got, tc.want)
+			}
+
+			cfg, err := loadRepoConfig("")
+			if err != nil {
+				t.Fatalf("load config for parity projection: %v", err)
+			}
+			resolution, err := composeAgentResolution(cfg, resolutionRequest{
+				Selector: "apply",
+				Kind:     "stage",
+				Role:     agent.RoleDoing,
+				Dispatch: true,
+				TmuxEnv:  tc.tmux,
+			})
+			if err != nil {
+				t.Fatalf("compose parity resolution: %v", err)
+			}
+			alias := false
+			for _, arg := range tc.args {
+				alias = alias || arg == "--alias"
+			}
+			if projected := resolution.Lines(alias); got != projected {
+				t.Errorf("resolve-agent stdout = %q, shared resolution projection = %q", got, projected)
+			}
+		})
+	}
+}
+
 // TestResolveAgentDefaultOutputExactBytes: on a config with no agent.profiles, the
 // default output includes model=/effort=/provider= (the byte-stable contract the
 // consuming skills rely on). intake ∈ `default` role; ship ∈ `fast` role.
@@ -202,13 +347,13 @@ func TestResolveAgentUnknownStageErrors(t *testing.T) {
 // when the model is empty (the "inherit" signal). Tested at the formatter level
 // since today's defaults never resolve to an empty effort/provider.
 func TestResolveAgentPrintsEmptyLinesOmitted(t *testing.T) {
-	if got := formatAgentProfile(agent.Profile{Model: "some-model"}, ""); got != "model=some-model\n" {
+	if got := projectedResolutionLines(agent.Profile{Model: "some-model"}, ""); got != "model=some-model\n" {
 		t.Errorf("empty effort+provider = %q, want %q (both lines omitted)", got, "model=some-model\n")
 	}
-	if got := formatAgentProfile(agent.Profile{}, ""); got != "model=\n" {
+	if got := projectedResolutionLines(agent.Profile{}, ""); got != "model=\n" {
 		t.Errorf("all-empty = %q, want %q (inherit signal)", got, "model=\n")
 	}
-	if got := formatAgentProfile(agent.Profile{Provider: "claude", Model: "m", Effort: "high"}, ""); got != "model=m\neffort=high\nprovider=claude\n" {
+	if got := projectedResolutionLines(agent.Profile{Provider: "claude", Model: "m", Effort: "high"}, ""); got != "model=m\neffort=high\nprovider=claude\n" {
 		t.Errorf("full profile = %q, want %q", got, "model=m\neffort=high\nprovider=claude\n")
 	}
 }
@@ -218,13 +363,13 @@ func TestResolveAgentPrintsEmptyLinesOmitted(t *testing.T) {
 // dispatchLine is the already-substituted command — the formatter emits it
 // verbatim.
 func TestResolveAgentPrintsDispatchLine(t *testing.T) {
-	got := formatAgentProfile(agent.Profile{Provider: "codex", Model: "claude-opus-4-8", Effort: "high"}, "codex exec -m claude-opus-4-8")
+	got := projectedResolutionLines(agent.Profile{Provider: "codex", Model: "claude-opus-4-8", Effort: "high"}, "codex exec -m claude-opus-4-8")
 	want := "model=claude-opus-4-8\neffort=high\nprovider=codex\ndispatch=codex exec -m claude-opus-4-8\n"
 	if got != want {
 		t.Errorf("with dispatch line = %q, want %q", got, want)
 	}
 	// Empty dispatchLine omits the dispatch= line (native Agent-tool dispatch).
-	if got := formatAgentProfile(agent.Profile{Provider: "claude", Model: "m", Effort: "high"}, ""); got != "model=m\neffort=high\nprovider=claude\n" {
+	if got := projectedResolutionLines(agent.Profile{Provider: "claude", Model: "m", Effort: "high"}, ""); got != "model=m\neffort=high\nprovider=claude\n" {
 		t.Errorf("empty dispatch = %q, want the three-line contract", got)
 	}
 }
@@ -267,7 +412,7 @@ func TestResolveAgentAliasEmptyModelInheritSignal(t *testing.T) {
 	if got := agent.ModelAlias(""); got != "" {
 		t.Fatalf("ModelAlias(\"\") = %q, want empty (inherit signal preserved under --alias)", got)
 	}
-	if got := formatAgentProfile(agent.Profile{Model: agent.ModelAlias(""), Effort: "high", Provider: "claude"}, ""); got != "model=\neffort=high\nprovider=claude\n" {
+	if got := projectedResolutionLines(agent.Profile{Model: agent.ModelAlias(""), Effort: "high", Provider: "claude"}, ""); got != "model=\neffort=high\nprovider=claude\n" {
 		t.Errorf("empty model under --alias = %q, want %q", got, "model=\neffort=high\nprovider=claude\n")
 	}
 }
@@ -740,7 +885,7 @@ agent:
 // dispatch.mode — capability descent at the resolver seam.
 // ---------------------------------------------------------------------------
 
-func TestDispatchLineFor_Matrix(t *testing.T) {
+func TestDispatchResolutionFor_Matrix(t *testing.T) {
 	const sess = "claude -n {model}"
 	const disp = "codex exec -m {model}"
 
@@ -762,7 +907,7 @@ func TestDispatchLineFor_Matrix(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := dispatchLineFor(tc.prov, tc.preference, tc.tmux)
+			gotResolution, err := dispatchResolutionFor(tc.prov, agent.Profile{Model: "test-model"}, tc.preference, tc.tmux)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("expected no-rung error")
@@ -770,10 +915,15 @@ func TestDispatchLineFor_Matrix(t *testing.T) {
 				return
 			}
 			if err != nil {
-				t.Fatalf("dispatchLineFor: %v", err)
+				t.Fatalf("dispatchResolutionFor: %v", err)
 			}
-			if got != tc.want {
-				t.Errorf("dispatchLineFor = %q, want %q", got, tc.want)
+			got := ""
+			if gotResolution != nil {
+				got = gotResolution.Command
+			}
+			want := strings.ReplaceAll(tc.want, "{model}", "test-model")
+			if got != want {
+				t.Errorf("dispatchResolutionFor command = %q, want %q", got, want)
 			}
 		})
 	}

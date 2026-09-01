@@ -167,6 +167,21 @@ func TestWithProfile(t *testing.T) {
 	}
 }
 
+func TestIsTemplate(t *testing.T) {
+	for _, tc := range []struct {
+		command string
+		want    bool
+	}{
+		{"agent", false},
+		{"agent -m {model}", true},
+		{"agent -e {effort}", true},
+	} {
+		if got := IsTemplate(tc.command); got != tc.want {
+			t.Errorf("IsTemplate(%q) = %v, want %v", tc.command, got, tc.want)
+		}
+	}
+}
+
 // TestWithProfile_Template verifies template mode: a spawnCmd containing
 // {model}/{effort} is resolved by substitution (all-or-nothing — the append
 // fallback is disabled), and an empty value drops the placeholder token plus a

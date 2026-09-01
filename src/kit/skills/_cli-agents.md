@@ -61,7 +61,7 @@ fab agent --provider codex --model <id> --effort <level> --print     # explicit 
 # Inspection taps.
 fab agent apply -t                    # the unsubstituted template (placeholders intact)
 fab agent doing --headless --print    # the headless_command slot instead of interactive_command
-fab agent apply -o yaml               # structured: selector/kind/role/provider/model/effort/command
+fab agent apply -o yaml               # full structured resolution; schema: _cli-fab.md § fab agent
 ```
 
 > **Every built-in provider has a session form.** Composition needs an `interactive_command`, and `claude`, `codex`, `agy`, and `kimi` all ship one. A wholly user-defined provider may deliberately omit the field; either form then errors actionably, naming the `providers.<name>.interactive_command` key to set.
