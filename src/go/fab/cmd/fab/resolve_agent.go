@@ -76,11 +76,9 @@ import (
 // inheritance.
 //
 // `--model`/`--effort` are valid WITHOUT `--provider` here — a within-role
-// override of the profile this pure query would otherwise print. This is a
-// deliberate, documented asymmetry with `fab agent`, where they remain usage
-// errors without `--provider`: `fab agent` is a session launcher with two mutually
-// exclusive addressing modes, where a bare `--model` would invent an undocumented
-// role-override surface.
+// override of the profile this pure query would otherwise print.
+// `fab agent` accepts the same bare overrides (a final post-refill layer
+// on every addressing form), so the two commands agree on override legality.
 //
 // An unknown `--provider` name is a LOOKUP failure (non-zero exit naming the
 // resolvable providers) — not validation of any command's content

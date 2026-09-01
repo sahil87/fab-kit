@@ -45,26 +45,32 @@ The `fab` commands referenced here (`fab agent`, `fab pane open`/`ready`/`delive
 
 An interactive agent session command is **never hand-assembled**. Ask `fab agent` to compose it, then open the composed command in a pane.
 
-Two addressing forms — both print a fully **profile-resolved** command (`{model}`/`{effort}` substituted, or Claude-style flags appended for a non-templated `interactive_command`):
+Two addressing forms — both print a fully **profile-resolved** command (`{model}`/`{effort}` substituted, or Claude-style flags appended for a non-templated `interactive_command`). The positional also accepts a **stage** name (`apply`, `review`, `hydrate`, `ship`, `intake`, `review-pr`), which maps to its fixed role; `-t` prints the raw template, `--headless` picks the `headless_command` slot, `-o yaml` emits the resolution as a structured document:
 
 ```sh
-# Role-addressed — the resolved role supplies {provider, model, effort}.
+# Selector-addressed — the resolved role (or stage→role) supplies {provider, model, effort}.
 fab agent --print                       # the default role, this repo
 fab agent operator --print              # a named role
+fab agent apply --print                 # a stage → its mapped role (byte-identical to `fab agent doing --print`)
 fab agent --print --repo <target-repo>  # another repo's config (never your own)
 
 # Provider-addressed — bypasses role resolution entirely.
 fab agent --provider codex --print                                  # bare invocation: the CLI's own default model
 fab agent --provider codex --model <id> --effort <level> --print     # explicit profile
+
+# Inspection taps.
+fab agent apply -t                    # the unsubstituted template (placeholders intact)
+fab agent doing --headless --print    # the headless_command slot instead of interactive_command
+fab agent apply -o yaml               # structured: selector/kind/role/provider/model/effort/command
 ```
 
 > **Every built-in provider has a session form.** Composition needs an `interactive_command`, and `claude`, `codex`, `agy`, and `kimi` all ship one. A wholly user-defined provider may deliberately omit the field; either form then errors actionably, naming the `providers.<name>.interactive_command` key to set.
 
-**Which form to use.** Use the **role** form when the spawn should inherit fab's role/budget policy (a pipeline-shaped worker, the operator's own coordinator) — including which provider the `agent.session` knob points Tier-1 agents at. Use the **provider** form when the question is mechanical — "give me a codex session right here" — with no role to speak of. `--provider` is mutually exclusive with the `[role]` positional, and `--model`/`--effort` are only valid alongside `--provider` (see `_cli-fab.md` § fab agent — note `fab resolve-agent` deliberately allows them bare, being a pure query). **No `providers:` block is needed for either form**: `claude`, `codex`, `agy`, and `kimi` are built-in providers.
+**Which form to use.** Use the **selector** form when the spawn should inherit fab's role/budget policy (a pipeline-shaped worker, the operator's own coordinator) — including which provider the `agent.session` knob points Tier-1 agents at; a stage name is just shorthand for its mapped role. Use the **provider** form when the question is mechanical — "give me a codex session right here" — with no role to speak of. `--model`/`--effort` are legal on ANY form as final post-refill overrides (a selector combined with `--provider` re-resolves the role's fills from that provider instead — see `_cli-fab.md` § fab agent). **No `providers:` block is needed for either form**: `claude`, `codex`, `agy`, and `kimi` are built-in providers.
 
 **Empty model/effort is a feature.** Omitting `--model`/`--effort` on the provider form leaves the value empty, and the composition rule drops the placeholder's token *and* a preceding `-`-flag while retaining fixed flags — so `fab agent --provider codex --print` against `codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}` yields `codex --dangerously-bypass-approvals-and-sandbox`. The installed CLI's own default model applies while the built-in's deliberate full-auto posture remains. This is how you spawn a provider whose current model IDs you do not know.
 
-**Provider-form caveat:** `fab agent --provider <name>` bypasses role resolution and both per-role fill sources, so its profile is exactly the passed flags; pass `--model` explicitly or use the role form when fills should apply. See `_cli-fab.md` § fab agent for the fill ladder and model-free Codex example.
+**Provider-form caveat:** the bare `fab agent --provider <name>` form bypasses role resolution and both per-role fill sources, so its profile is exactly the passed flags; when fills should apply, use a selector (optionally with `--provider` to re-resolve them from the named provider) or pass `--model` explicitly. See `_cli-fab.md` § fab agent for the fill ladder and model-free Codex example.
 
 **Open it in a pane** — the mechanized form composes *and* spawns in one step, with **no prompt attached**:
 

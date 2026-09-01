@@ -479,8 +479,8 @@ func TestResolveAgentOverrideProviderTakesFill(t *testing.T) {
 }
 
 // TestResolveAgentOverrideModelWithoutProvider: --model/--effort are valid WITHOUT
-// --provider here (a within-role override) — the documented asymmetry with
-// `fab agent`, where they are a usage error without --provider.
+// --provider here (a within-role override) — `fab agent` accepts the same bare
+// overrides as a final post-refill layer, so the two commands agree on legality.
 func TestResolveAgentOverrideModelWithoutProvider(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
 

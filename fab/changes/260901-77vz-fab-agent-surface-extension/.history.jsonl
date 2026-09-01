@@ -1,0 +1,14 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-01T09:40:45Z"}
+{"args":"fab agent unification Change 1/4: fab agent surface extension per fab/plans/sahil/26-09-01-fab-agent-unification.md § Change 1 -- stage selectors, role+--provider re-resolve, -t/--template, --headless, -o yaml. FULL lane. --print must stay byte-identical.","cmd":"fab-new","event":"command","ts":"2026-09-01T09:40:45Z"}
+{"delta":"+4.3","event":"confidence","score":4.3,"trigger":"calc-score","ts":"2026-09-01T09:44:18Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-01T09:49:40Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-01T09:50:17Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-01T10:41:49Z"}
+{"event":"review","result":"failed","ts":"2026-09-01T10:49:40Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-01T10:49:40Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-01T10:55:37Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-01T10:55:47Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-01T11:04:09Z"}
+{"event":"review","result":"passed","ts":"2026-09-01T11:04:09Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-01T11:06:32Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-01T11:21:25Z"}

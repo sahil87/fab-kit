@@ -199,7 +199,10 @@ provider is an opaque, user-chosen name mapping to three independent dispatch ca
   `{model, effort}` are substituted) or **directly**, via
   `fab agent --provider <name> [--model <id>] [--effort <level>]`, which bypasses role resolution
   entirely — a provider-addressed spawn for the "give me a codex session right here" case, where no
-  role need name the provider first. The direct form is a **lookup**, not a new validation surface: an
+  role need name the provider first. The launcher's positional also accepts a **stage** name (mapped
+  through the fixed `stageRoles` table to its role, exactly as `fab resolve-agent` resolves), and combines
+  with `--provider` to re-resolve that role's fills from the named provider (`-t` prints the raw template,
+  `--headless` picks `headless_command`, `-o yaml` a structured document — all print-mode sinks). The direct form is a **lookup**, not a new validation surface: an
   unknown name errors listing the available providers, while resolved command strings still pass
   through verbatim. See `_cli-fab.md` § fab agent.
 - **`headless_command`** — runs ONE headless **stage task** via `fab dispatch`.
@@ -553,9 +556,8 @@ effort the agent dispatch needs.)
    stage between the native and CLI adapters (§ Skill wiring → User-directed overrides). A swap
    re-derives an unoverridden model/effort from the new provider's own per-role fills (an explicit
    `agent.profiles.<role>` pin still wins). `--model`/`--effort` are valid **without** `--provider` (a
-   within-role override) — the documented asymmetry with `fab agent`, where they stay a usage error
-   without `--provider`, because `resolve-agent` is a pure query whose whole output is a profile while
-   `fab agent` is a launcher with two mutually exclusive addressing modes. All three key on whether the
+   within-role override) — `fab agent` accepts the same bare overrides as a final post-refill layer on
+   every addressing form, so the two commands agree on override legality. All three key on whether the
    flag was *supplied* (cobra's `Flag.Changed`), not on value emptiness — so an explicitly-empty
    `--provider=` resolves an empty provider (a **lookup** failure: non-zero exit naming the resolvable
    set — built-in table ∪ the project's `providers:` keys, sorted — mirroring `fab agent`'s error)
