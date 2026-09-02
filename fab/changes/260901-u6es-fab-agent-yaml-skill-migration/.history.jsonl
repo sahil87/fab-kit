@@ -1,0 +1,18 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-01T15:15:21Z"}
+{"args":"fab agent unification Change 3/4: skill/spec/memory prose sweep migrating dispatch sites to fab agent \u003cstage\u003e -o yaml","cmd":"fab-new","event":"command","ts":"2026-09-01T15:15:21Z"}
+{"delta":"+4.4","event":"confidence","score":4.4,"trigger":"calc-score","ts":"2026-09-01T15:18:46Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-01T15:19:28Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-01T15:19:39Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-01T15:58:58Z"}
+{"event":"review","result":"failed","ts":"2026-09-01T16:07:58Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-01T16:07:58Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-01T16:11:49Z"}
+{"event":"review","result":"failed","ts":"2026-09-01T16:20:40Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-01T16:20:40Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-01T16:22:57Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-01T16:31:05Z"}
+{"event":"review","result":"passed","ts":"2026-09-01T16:31:05Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-09-01T16:33:14Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-01T16:37:38Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-09-01T16:39:51Z"}
+{"event":"review","result":"passed","ts":"2026-09-01T16:46:50Z"}

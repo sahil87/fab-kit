@@ -189,15 +189,15 @@ func TestDispatchStart_LaunchesAndPersistsState(t *testing.T) {
 	}
 }
 
-func TestDispatchStart_NativeSelectionRequiresResolveAgent(t *testing.T) {
+func TestDispatchStart_NativeSelectionRequiresAgentYAML(t *testing.T) {
 	setupDispatchRepo(t, "") // built-in claude resolves to native at the default preference
 
 	_, err := runStart(t, "prompt", "abcd", "apply")
 	if err == nil {
-		t.Fatal("expected native dispatch to be delegated to resolve-agent")
+		t.Fatal("expected native dispatch to be delegated to fab agent YAML")
 	}
 	msg := err.Error()
-	for _, want := range []string{"native", "fab resolve-agent apply --alias"} {
+	for _, want := range []string{"native", "fab agent apply -o yaml"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("error = %q, want %q", msg, want)
 		}
@@ -671,7 +671,7 @@ func TestModeCommand_KimiComposesBothModes(t *testing.T) {
 // silently opening a pane would produce a worker with no prompt and no gate — so
 // the only honest outcome is the route.
 //
-// This is the pane twin of TestDispatchStart_NativeSelectionRequiresResolveAgent:
+// This is the pane twin of TestDispatchStart_NativeSelectionRequiresAgentYAML:
 // two rungs `start` cannot launch, refused the same way.
 func TestDispatchStart_RefusesAnAutomaticPaneLanding(t *testing.T) {
 	repoRoot, id := setupDispatchRepoWithCommands(t, "", `sh -c 'sleep 30' _`) // dispatch.mode: pane

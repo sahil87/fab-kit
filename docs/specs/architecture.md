@@ -300,7 +300,7 @@ providers:
 # beneath the knobs: {provider, model, effort} per role, every field optional, a set
 # field beating the knob (provider) or the provider's own fill (model/effort). There
 # is NO cross-role inheritance — agent.profiles.default is the `default` ROLE's own
-# override. Resolved per stage/role by `fab resolve-agent <stage|role>` at sub-agent
+# override. Resolved per stage/role by `fab agent <stage|role> -o yaml` at sub-agent
 # dispatch time; see docs/specs/stage-models.md. (`agent.tiers` is the pre-2.17.0
 # spelling — still read, rewritten by the 2.16.19-to-2.17.0 migration.)
 # Run `fab config explain` for the current built-in profiles (rendered live, so it
@@ -315,8 +315,8 @@ agent:
 # or headless. Resolution starts there and descends only through pane → native →
 # headless. Pane requires tmux plus interactive_command; native requires native:true;
 # headless requires headless_command. Missing prerequisites skip rungs, never
-# ascend. `fab resolve-agent` omits dispatch= iff native resolves and emits the
-# selected pane/headless command otherwise. Scope `both`, so it is settable once
+# ascend. `fab agent <stage|role> -o yaml` omits `dispatch:` iff native resolves and
+# includes the selected pane/headless rung and command otherwise. Scope `both`, so it is settable once
 # machine-wide in ~/.fab-kit/config.yaml, where it outranks the project file.
 #
 # dispatch.column_width (optional, default 35) — width, in percent of the window, of

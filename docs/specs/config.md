@@ -403,8 +403,8 @@ authoritative detail alongside the Change 1 schema.
 ### Override cascade
 
 Effective config resolves across four tiers, highest precedence first, at the single loader seam
-`internal/config.LoadPath` (so every consumer — preflight, impact, status, resolve-agent, dispatch,
-agent, operator, batch, spawn, prmeta — sees effective config with zero per-caller change):
+`internal/config.LoadPath` (so every consumer — preflight, impact, status, agent, deprecated resolve-agent, dispatch,
+operator, batch, spawn, prmeta — sees effective config with zero per-caller change):
 
 1. **environment** — YAML-valued variables derived from registry keys
 2. **system** — `~/.fab-kit/config.yaml` (co-located with the version cache; XDG path rejected — decision 5)
@@ -520,7 +520,7 @@ environment walk cannot drift from the reference schema.
   **model/effort** overrides are stripped before resolving (a defaults tier never echoes a tier above
   it); a per-role **provider** override is KEPT for the model/effort derivation — the built-in fill is
   a function of the provider the role actually dispatches to, so stripping it composed a chimera row
-  (the override's provider beside the knob provider's fills) that disagreed with `fab resolve-agent`.
+  (the override's provider beside the knob provider's fills) that disagreed with `fab agent <stage|role> -o yaml`.
   The provider leaf's own default stays knob-resolved, so keyed `--origin` shows the override
   shadowing the knob's provider while the model/effort leaves report the overridden provider's fill as
   `default (effective)`. Resolution stays provider-neutral: a knob or override naming a provider fab

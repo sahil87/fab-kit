@@ -155,7 +155,7 @@ Each entry below carries only **stable invocation grammar** and **discovery reci
 
 - **Built-ins:** `claude`, `codex`, `agy`, and `kimi` use the independent `interactive_command` / `headless_command` / `native` capability grammar in the module-root embedded `defaults.yaml`; all resolve without a `providers:` block. Claude ships all three capabilities; codex, agy, and kimi are non-native (pane + headless). `dispatch.mode` chooses the starting rung of the descending `pane → native → headless` ladder.
 - **Exec contract** (the owner statement — point here, never restate): a provider's `interactive_command` MUST **exec its binary**, so the binary — not a wrapper shell — owns the pane's foreground; all four built-ins already do. The readiness gate requires exactly that takeover (a shell foreground reports `booting` and is typed into never), so a wrapper that keeps a shell in the foreground is **unsupported by design** and fails OBSERVABLY, never silently: every probe reports `booting` with the shell prompt in the snippet until the wiring's consecutive-booting allowance is spent and the run escalates. No time bound, no `spawn_cmd` comparison — the contract is the command's shape.
-- **Fill-consuming paths:** depth knobs (`agent.session` / `agent.workers`), `agent.profiles.<role>.provider`, and `fab resolve-agent --provider` consume the built-in per-role fills and resolve a real model for every role — except on `kimi`, which ships none deliberately and resolves an empty model so the CLI's own `default_model` applies.
+- **Fill-consuming paths:** depth knobs (`agent.session` / `agent.workers`), `agent.profiles.<role>.provider`, and selector-addressed `fab agent <role|stage> --provider <name> -o yaml` consume the built-in per-role fills and resolve a real model for every role — except on `kimi`, which ships none deliberately and resolves an empty model so the CLI's own `default_model` applies.
 - **Provider-addressed sessions:** `fab agent --provider` bypasses both fill sources and stays bare unless `--model`/`--effort` is passed.
 - **Freshness and overrides:** non-Claude fills are release-cadence, unvalidated data. Discover current IDs with each entry's recipe; override with `providers.<name>.profiles.<role>.{model,effort}` (including in `~/.fab-kit/config.yaml`) or invocation flags. A `providers:` block overrides capabilities/fills; it does not register built-ins.
 
@@ -169,7 +169,7 @@ Each entry below carries only **stable invocation grammar** and **discovery reci
 | Structured output | `claude -p --output-format stream-json` |
 | Profile flags | `--model <id> --effort <level>` (the CLI accepts full IDs *and* short aliases) |
 | Session naming | `-n <name>` names the session (the built-in `interactive_command` uses `-n "$(basename "$(pwd)")"`) |
-| Model discovery | The installed CLI's own help is authoritative: `claude --help` for the `--model` flag's accepted forms. fab's own alias mapping (`opus`/`sonnet`/`haiku`/`fable`) is an Agent-tool adapter, not a claude-CLI constraint — see `_cli-fab.md` § fab resolve-agent |
+| Model discovery | The installed CLI's own help is authoritative: `claude --help` for the `--model` flag's accepted forms. fab's own `model_alias` mapping (`opus`/`sonnet`/`haiku`/`fable`) is an Agent-tool adapter, not a claude-CLI constraint — see `_cli-fab.md` § fab agent |
 
 **Agent-state instrumentation.** Claude Code is one of the harnesses `rk agent setup` instruments (alongside Codex, Copilot, Gemini, and OpenCode); instrumentation is an environment property, not a provider guarantee.
 

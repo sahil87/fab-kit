@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "Provider mechanics and role policy — session/workers depth knobs, environment and launch overrides, four pane-capable built-ins with independent interactive/native/headless grammar and per-role fills, six roles, precedence, stage mapping, `fab resolve-agent`, `fab agent`, dispatch-mode descent, and consumers."
+description: "Provider mechanics and role policy — session/workers depth knobs, environment and launch overrides, four pane-capable built-ins with independent interactive/native/headless grammar and per-role fills, six roles, precedence, stage mapping, `fab agent` YAML resolution, deprecated `fab resolve-agent` compatibility, dispatch-mode descent, and consumers."
 ---
 # Providers & Agent Profiles
 
@@ -21,7 +21,7 @@ Agent config splits **provider mechanics** (how to invoke an agent) from **role 
 
 Tier 1/Tier 2 name depth and nothing else. A pane worker is still Tier 2: the defining property is "owes a result artifact and owns no transitions" ([dispatch.md](/runtime/dispatch.md)), not "never spoken to".
 
-This file is the model — the depth knobs, the four built-in providers, the six roles and the fixed partition, the fill precedence, the stage→role mapping, the `fab resolve-agent`/`fab agent` surfaces, and who consumes the resolution. The **config-schema authority** is [_shared/configuration.md](/_shared/configuration.md) § `providers` and § `agent`; the **dispatch-seam wiring** is [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution; the pre-implementation design intent is `docs/specs/stage-models.md` (drift-guarded against the Go maps).
+This file is the model — the depth knobs, the four built-in providers, the six roles and the fixed partition, the fill precedence, the stage→role mapping, the structured `fab agent -o yaml` surface and deprecated `fab resolve-agent` compatibility projection, and who consumes the resolution. The **config-schema authority** is [_shared/configuration.md](/_shared/configuration.md) § `providers` and § `agent`; the **dispatch-seam wiring** is [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution; the pre-implementation design intent is `docs/specs/stage-models.md` (drift-guarded against the Go maps).
 
 ## Requirements
 
@@ -42,7 +42,7 @@ The **role→depth partition is fixed and fab-owned** (`roleDepth` in `internal/
 | Depth | Roles | Provider from | Applies at |
 |-------|-------|---------------|------------|
 | **Tier 1** (session) | `default`, `operator` | `agent.session` | **launch** time — fab cannot switch a running session's provider |
-| **Tier 2** (workers) | `doing`, `review`, `hydrate`, `fast` | `agent.workers` | **every stage dispatch** (`fab resolve-agent`) |
+| **Tier 2** (workers) | `doing`, `review`, `hydrate`, `fast` | `agent.workers` | **every stage dispatch** (`fab agent <stage> -o yaml`) |
 
 The split is mechanically real rather than cosmetic, which is what makes depth the right knob axis. `intake` rides `default` and is therefore a session role for exactly that reason — it runs foreground in the user's own session.
 
@@ -51,9 +51,9 @@ A knob supplies only the **provider** rung. Model and effort always come from th
 #### Scenario: one knob re-points every dispatched stage
 
 - **GIVEN** `agent: { workers: agy }` and no other agent keys
-- **WHEN** `fab resolve-agent apply` runs
-- **THEN** `provider=agy` (apply → `doing`, a workers role)
-- **AND** `fab resolve-agent operator` still emits `provider=claude` (a session role)
+- **WHEN** `fab agent apply -o yaml` runs
+- **THEN** `provider: agy` (apply → `doing`, a workers role)
+- **AND** `fab agent operator -o yaml` still emits `provider: claude` (a session role)
 
 #### Scenario: no `agent:` block at all
 
@@ -66,7 +66,7 @@ A knob supplies only the **provider** rung. Model and effort always come from th
 `FAB_AGENT_SESSION` and `FAB_AGENT_WORKERS` SHALL provide process-tree-local overrides for the two depth knobs. The current process and its descendants resolve these variables above project and system config, so two shell sessions in separate worktrees can select different worker providers without changing committed configuration. The variables are instances of the generic registry-derived environment mechanism documented in [_shared/configuration.md](/_shared/configuration.md) § Override Cascade & Scope Enforcement; both are honored because their registry rows have `scope: both`.
 
 - **`FAB_AGENT_SESSION=<provider>`** selects the Tier-1 provider for commands launched by that process tree.
-- **`FAB_AGENT_WORKERS=<provider>`** selects the Tier-2 provider used by `fab resolve-agent` and by `fab dispatch start` when it re-resolves a stage.
+- **`FAB_AGENT_WORKERS=<provider>`** selects the Tier-2 provider projected by `fab agent <stage> -o yaml` and used by `fab dispatch start` when it re-resolves a stage.
 - The values are YAML-parsed config overrides, not provider-validation surfaces; provider names remain opaque and an unknown name fails at the existing resolution lookup.
 - An empty variable behaves as unset — whether blank or spelled as an empty YAML value (`null`, `""`), per the cascade's one emptiness rule. The override is never persisted in `config.yaml`, a change artifact, or runtime state.
 
@@ -160,16 +160,16 @@ kimi has no interactive-initial-prompt flag — its `-p` is the non-interactive 
 
 - **GIVEN** built-in claude and `dispatch.mode: pane`
 - **WHEN** tmux and its `interactive_command` are available
-- **THEN** `fab resolve-agent` emits `dispatch=` with the interactive command
+- **THEN** `fab agent <stage> -o yaml` includes `dispatch: { rung: pane, command: … }`
 - **WHEN** tmux is unavailable
-- **THEN** the selector descends to claude's `native: true` and omits `dispatch=`
+- **THEN** the selector descends to claude's `native: true` and omits the `dispatch:` key
 - **AND** `dispatch.mode: headless` starts at headless and emits claude's substituted `headless_command`, even though native capability also exists
 
 #### Scenario: `kimi` resolves an empty model and drops the flag pair
 
 - **GIVEN** `agent.workers: kimi` and no `providers.kimi` block
-- **WHEN** `fab resolve-agent apply` runs
-- **THEN** `provider=kimi`, the `model=` line is empty, and `dispatch=sh -c 'kimi -p "$(cat)"'` — the `-m {model}` pair dropped as a unit, the quoted `"$(cat)"` segment left syntactically intact
+- **WHEN** `fab agent apply -o yaml` runs
+- **THEN** `provider: kimi`, `model: ""`, and `dispatch.command: sh -c 'kimi -p "$(cat)"'` — the `-m {model}` pair dropped as a unit, the quoted `"$(cat)"` segment left syntactically intact
 
 #### Scenario: `kimi` is eligible for a pane worker and a session
 
@@ -189,8 +189,8 @@ kimi has no interactive-initial-prompt flag — its `-p` is the non-interactive 
 #### Scenario: naming a built-in provider with no `providers:` block
 
 - **GIVEN** a config with `agent: { profiles: { review: { provider: codex, model: <codex-model-id>, effort: high } } }` and no `providers:` block at all
-- **WHEN** `fab resolve-agent review` runs
-- **THEN** it emits `provider=codex` plus the command selected by the current `dispatch.mode`; with the default `native` preference, codex descends to its headless capability
+- **WHEN** `fab agent review -o yaml` runs
+- **THEN** it emits `provider: codex` plus the `dispatch:` mapping selected by the current `dispatch.mode`; with the default `native` preference, codex descends to its headless capability
 - **AND** the same default preference resolves built-in claude natively because claude declares `native: true`
 
 ### Requirement: Six roles with fixed referents
@@ -213,8 +213,8 @@ The role names are the six fixed slots — `default`, `operator`, `doing`, `revi
 #### Scenario: a per-role override dials one role only
 
 - **GIVEN** `agent.profiles: { default: { model: X }, doing: { effort: high } }`
-- **WHEN** `fab resolve-agent apply` (role `doing`) runs
-- **THEN** `effort=high`, and the model comes from the resolved provider's `doing` fill — **not** from `agent.profiles.default.model`
+- **WHEN** `fab agent apply -o yaml` (role `doing`) runs
+- **THEN** `effort: high`, and the model comes from the resolved provider's `doing` fill — **not** from `agent.profiles.default.model`
 
 ### Requirement: The built-in defaults are an embedded `defaults.yaml`
 
@@ -227,7 +227,7 @@ The built-in tables — the depth knobs, the four-provider table with every prov
 #### Scenario: the defaults travel inside the binary
 
 - **GIVEN** a `fab` binary run from a directory with no fab-kit cache present
-- **WHEN** `fab resolve-agent apply` runs
+- **WHEN** `fab agent apply -o yaml` runs
 - **THEN** it resolves the built-in profile from the embedded bytes — no filesystem read of the kit cache occurs, and no on-disk state can make resolution fail
 
 ### Requirement: Fill precedence — one chain, provider-anchored
@@ -242,22 +242,22 @@ Resolution SHALL follow one precedence chain, implemented **once** in `internal/
 
 There is exactly **one** cross-role fallback and it lives on the **provider** side (`providers.<p>.profiles.default`). The agent side has none.
 
-An empty value keeps its established meaning: `spawn.WithProfile`'s token-drop (so the CLI's own default applies) and, on the `model=` line, "inherit the session/orchestrator model". The depth knob is applied only when `--provider` was **not** supplied, so an explicitly-empty `--provider=` resolves an empty provider — a lookup failure for the caller to report — rather than falling through to the knob.
+An empty value keeps its established meaning: `spawn.WithProfile`'s token-drop (so the CLI's own default applies) and, in the YAML `model` key, "inherit the session/orchestrator model". The depth knob is applied only when `--provider` was **not** supplied, so an explicitly-empty `--provider=` resolves an empty provider — a lookup failure for the caller to report — rather than falling through to the knob.
 
 #### Scenario: a provider swap refills from that provider
 
 - **GIVEN** `agent.workers: codex` and `providers.codex.profiles: { review: { model: <codex-model-id>, effort: high } }`
-- **WHEN** `fab resolve-agent review` runs
-- **THEN** `provider=codex`, `model=<codex-model-id>`, `effort=high`
+- **WHEN** `fab agent review -o yaml` runs
+- **THEN** `provider: codex`, `model: <codex-model-id>`, `effort: high`
 - **AND** the other workers roles keep codex's **shipped** fills (the override merges per role, then per field)
 - **AND** with no `providers:` block at all, every workers role still resolves codex's own shipped fill — never claude's values
 
 #### Scenario: a provider carrying no fills resolves empty
 
 - **GIVEN** `agent.workers: mine` and a project-defined `providers.mine` carrying commands but no `profiles` — the same shape the built-in `kimi` ships deliberately
-- **WHEN** `fab resolve-agent apply` runs
-- **THEN** `model=` is empty and no `effort=` line is emitted, with both placeholder tokens dropped from the composed command so the CLI's own default applies
-- **AND** an agy-resolved role emits no `effort=` line either — its fills are model-only, and the grammar carries no `{effort}` for one to land in
+- **WHEN** `fab agent apply -o yaml` runs
+- **THEN** `model` and `effort` are empty, with both placeholder tokens dropped from the composed command so the CLI's own default applies
+- **AND** an agy-resolved role also has an empty `effort` value — its fills are model-only, and the grammar carries no `{effort}` for one to land in
 
 ### Requirement: Fixed, non-overridable stage → role mapping
 
@@ -274,9 +274,9 @@ The stage→role mapping is **fab-owned and NOT user-overridable** (`stageRoles`
 
 `review` and `review-pr` are deliberately in **different** roles despite the shared word: `review` is the critic (discovers what's wrong from a diff); `review-pr` is responsive (fixes already-articulated feedback). `hydrate` is its own role — memory writing runs on a different model/effort than apply's diff work. The config overrides *what a role means* (budget), never *which stages belong to it* (taxonomy).
 
-### Requirement: `fab resolve-agent <stage|role> [--alias] [--provider <name>] [--model <id>] [--effort <level>]` resolution surface
+### Requirement: deprecated `fab resolve-agent <stage|role> [--alias] [--provider <name>] [--model <id>] [--effort <level>]` compatibility surface
 
-`fab resolve-agent` SHALL accept a **stage** name OR a **role** name positionally — a stage maps through the fixed mapping, a role resolves directly, and **role names are checked first** (`agent.RoleForName`). The two name sets overlap only at **fixed points**: a name shared by a stage and a role (`review`, `hydrate`) is one where the stage maps to that same-named role (`stageRoles[name] == name`), so the role-first check resolves such a name to the identical profile either interpretation would (`ship` is a stage but NOT a role — it maps to `fast` — so `resolve-agent ship` and `resolve-agent fast` both resolve to the `fast` profile, one via the stage mapping, the other directly). It resolves the role → `{provider, model, effort}` per § Fill precedence and emits, **verbatim, with NO validation**:
+`fab resolve-agent` is deprecated for skill dispatch; skills consume `fab agent <stage|role> -o yaml`. The compatibility command SHALL continue to accept a **stage** name OR a **role** name positionally — a stage maps through the fixed mapping, a role resolves directly, and **role names are checked first** (`agent.RoleForName`). The two name sets overlap only at **fixed points**: a name shared by a stage and a role (`review`, `hydrate`) is one where the stage maps to that same-named role (`stageRoles[name] == name`), so the role-first check resolves such a name to the identical profile either interpretation would (`ship` is a stage but NOT a role — it maps to `fast` — so `resolve-agent ship` and `resolve-agent fast` both resolve to the `fast` profile, one via the stage mapping, the other directly). It resolves the role → `{provider, model, effort}` per § Fill precedence and emits, **verbatim, with NO validation**:
 
 - `model=<id>` (always; empty = the inherit signal),
 - `effort=<level>` (omitted when empty),
@@ -335,25 +335,25 @@ Only the YAML sink on `fab agent` requests dispatch derivation. `--print`, exec,
 - Headless is possible when the provider has `headless_command`.
 - The first possible rung wins. Selection fails only when no rung at or below the preference is possible.
 - Invalid values warn and fall back to `native`. The retired boolean has no read-time alias.
-- `fab resolve-agent` and `fab dispatch start|restart` use the same pure selector; start/restart supply the real tmux reachability result before writing any state.
+- `fab agent <stage> -o yaml` and `fab dispatch start|restart` use the same pure selector; start/restart supply the real tmux reachability result before writing any state.
 
 #### Scenario: native preference descends for a non-native provider
 
 - **GIVEN** `dispatch.mode: native` and a role resolving to built-in codex
-- **WHEN** `fab resolve-agent <stage>` runs
-- **THEN** native is skipped and `dispatch=` carries codex's headless command
+- **WHEN** `fab agent <stage> -o yaml` runs
+- **THEN** native is skipped and `dispatch.command` carries codex's headless command
 
 #### Scenario: pane preference never ascends
 
 - **GIVEN** `dispatch.mode: pane`, no reachable tmux, and built-in claude
 - **WHEN** the role is resolved
-- **THEN** the selector descends to native and omits `dispatch=`; it does not jump directly to headless while native is possible
+- **THEN** the selector descends to native and omits `dispatch:`; it does not jump directly to headless while native is possible
 
 #### Scenario: headless preference ignores higher capabilities
 
 - **GIVEN** `dispatch.mode: headless` and built-in claude, which also supports pane and native
 - **WHEN** the role is resolved
-- **THEN** `dispatch=` carries claude's headless command because the selector never ascends
+- **THEN** `dispatch.command` carries claude's headless command because the selector never ascends
 
 ### Requirement: `fab agent [role|stage] [--provider <name>] [--model <id>] [--effort <level>] [--headless] [-t|--template] [-o yaml] [--workers <provider>] [-p|--print] [--repo <path>] [-- <agent-args>...]` — session launcher
 
@@ -363,7 +363,7 @@ Only the YAML sink on `fab agent` requests dispatch derivation. `--print`, exec,
 - **Selector + `--provider`** — re-resolves the selector's role from the named provider's own fills (`agent.ResolveRoleWith` with the provider pinned): the provider pin refills from `providers.<p>.profiles.<role>`, then that provider's `.default`, then empty, while an explicit `agent.profiles.<role>.model` pin still wins. So `fab agent apply --provider kimi --print` prints kimi's own command shape with kimi's fills, not claude's model patched in.
 - **Provider-addressed** (`--provider <name>`, no selector) — **bypass role resolution entirely**: look up `providers.<name>` directly via `agent.ResolveProvider` (project config per-field-merged over the built-in table, exactly as the selector path's provider lookup does) and compose its `interactive_command` with the `--model`/`--effort` values. This is the "give me a codex session right here" form — no role need name the provider first.
 
-All forms compose through the same `spawn.WithProfile` (template substitution or Claude-style flag append — see [configuration.md](/_shared/configuration.md) § `providers`); `--model`/`--effort` are **general final overrides**, valid on every addressing form (bare, selector, selector+`--provider`, provider-alone), applied verbatim after role resolution/provider refill and keyed on the flag being **supplied** (cobra's `Flag.Changed`) — matching `fab resolve-agent`'s bare-override semantics. The print-family sinks share `--repo`:
+All forms compose through the same `spawn.WithProfile` (template substitution or Claude-style flag append — see [configuration.md](/_shared/configuration.md) § `providers`); `--model`/`--effort` are **general final overrides**, valid on every addressing form (bare, selector, selector+`--provider`, provider-alone), applied verbatim after role resolution/provider refill and keyed on the flag being **supplied** (cobra's `Flag.Changed`) — the YAML and deprecated line projections share these override semantics. The print-family sinks share `--repo`:
 
 - `-p, --print` prints the fully-resolved command instead of executing — the output is **profile-resolved** (model/effort substituted), so callers that spawn from the printed command get the profile. `-p` is a pure shorthand, byte-identical to `--print`.
 - `-t, --template` prints the selected provider's command template **unsubstituted** — a tap before the fill step, `{model}`/`{effort}` placeholders intact. It implies print, combines with any selector, `--provider`, and `--headless` (they pick which template), and rejects `--model`/`--effort` with a usage error (they feed the substitution step that `-t` skips).
@@ -375,7 +375,7 @@ All forms compose through the same `spawn.WithProfile` (template substitution or
 
 Provider-form rules (the **bare** `--provider <name>` form — selector forms take the fill rungs):
 
-- **Omitted `--model`/`--effort`** leave the value empty and follow `WithProfile`'s empty-value rule (template mode drops the placeholder's token plus a preceding `-`-flag; append mode omits the flag), so a profile-free provider invocation results and the installed CLI's own default model applies — the way to spawn a provider whose current model IDs the caller does not know. Provider-level flags without placeholders remain in that command. **This path bypasses the provider's per-role fills** (the bypass is total — it skips role resolution *and* the fill), so an empty flag means empty, not the configured fill. The fills apply on the resolution surface (`fab resolve-agent`, role resolution, selector+`--provider`), not on the bare launcher form.
+- **Omitted `--model`/`--effort`** leave the value empty and follow `WithProfile`'s empty-value rule (template mode drops the placeholder's token plus a preceding `-`-flag; append mode omits the flag), so a profile-free provider invocation results and the installed CLI's own default model applies — the way to spawn a provider whose current model IDs the caller does not know. Provider-level flags without placeholders remain in that command. **This path bypasses the provider's per-role fills** (the bypass is total — it skips role resolution *and* the fill), so an empty flag means empty, not the configured fill. The fills apply on selector-addressed role resolution (`fab agent <stage|role> -o yaml` or selector+`--provider`), not on the bare launcher form.
 - Mode selection and the guards key on cobra's `Flag.Changed` — whether the flag was **supplied** — not on its value being non-empty, so an explicitly-empty `--provider=` resolves through the lookup and an explicitly-empty `--model=` clears the field on the selector paths rather than being ignored.
 - **An unknown provider name** is a non-zero-exit **lookup** failure listing the available names (`agent.ProviderNames`: fab-kit's built-in table ∪ the project's `providers:` keys via `config.ProviderNames`, sorted). Listing resolvable *names* is not validation of a command's *content* — resolved strings still pass through verbatim.
 - A provider that resolves but carries no valid command slot yields a config-key hint error — `configure providers.<name>.interactive_command` by default, or `configure providers.<name>.headless_command` when `--headless` is set — on either addressing path.
@@ -426,8 +426,8 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 #### Scenario: a legacy `agent.tiers:` block still resolves
 
 - **GIVEN** a config carrying only `agent: { tiers: { doing: { effort: medium } } }`
-- **WHEN** `fab resolve-agent apply` runs
-- **THEN** `effort=medium` — the legacy key still resolves
+- **WHEN** `fab agent apply -o yaml` runs
+- **THEN** `effort: medium` — the legacy key still resolves
 - **AND** a config carrying **both** `profiles.doing` and `tiers.doing` resolves from `profiles.doing`
 
 ## Design Decisions
@@ -457,13 +457,13 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 *Introduced by*: 260809-n1he-rename-provider-command-fields
 
 ### Providers Extracted; Roles; `fab agent` Retires `fab spawn-command`
-**Decision**: See the authoritative record in [_shared/configuration.md](/_shared/configuration.md) § Design Decisions → "Providers Extracted; Roles; `review_tools` → `code-review.md`". In brief: a top-level `providers:` table carries independent session/native/headless capabilities plus fills; roles resolve `{provider, model, effort}`; dispatch preference stays separate; review policy moved to `code-review.md`; `fab agent` owns session launch; and `resolve-agent` exposes `dispatch=` plus `provider=`.
+**Decision**: See the authoritative record in [_shared/configuration.md](/_shared/configuration.md) § Design Decisions → "Providers Extracted; Roles; `review_tools` → `code-review.md`". In brief: a top-level `providers:` table carries independent session/native/headless capabilities plus fills; roles resolve `{provider, model, effort}`; dispatch preference stays separate; review policy moved to `code-review.md`; `fab agent` owns session launch and structured resolution; the deprecated `resolve-agent` projection exposes `dispatch=` plus `provider=`.
 **Why**: Conflating provider mechanics with role/budget policy actively confused (two fields both named `spawn_command`; the `thinking` name hid its referent, which was review). Extraction plus role naming attack the confusion at its source; commands living on the provider make `{provider, model, effort}` composition safe (no cross-semantics command inheritance).
 **Rejected**: Merging the two command fields; folding a command in as a `default`-role field (implies the rejected cross-fallback); keeping `thinking`; provider inference from model strings; a `fab spawn-command` deprecation alias.
 *Introduced by*: 260702-tykw-agent-providers-role-tiers
 
 ### Positional Stage-or-Role; `provider=` Line; No TTY Guard
-**Decision**: `fab resolve-agent` accepts a stage OR role name positionally (role names checked first; shared names are fixed points), carries a `provider=` line, aliases only `model=`, and leaves `dispatch=` commands on the full model ID. `fab agent` exec does not TTY-guard.
+**Decision**: The deprecated `fab resolve-agent` compatibility surface accepts a stage OR role name positionally (role names checked first; shared names are fixed points), carries a `provider=` line, aliases only `model=`, and leaves `dispatch=` commands on the full model ID. `fab agent` exec does not TTY-guard.
 **Why**: Reuse the existing positional surface rather than add flag surface for no disambiguation benefit; surface the provider rather than re-derive it downstream; keep the no-validation/document-don't-guard contract for TTY.
 **Rejected**: A `--role` flag (surface for no benefit); inferring provider downstream (re-does resolution); a TTY guard (the agent CLI already handles no-TTY).
 *Introduced by*: 260702-tykw-agent-providers-role-tiers
@@ -571,10 +571,10 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 **Known consequence**: the fold runs *after* the scope cascade, so a system-layer `profiles.default` beats a project-layer flat fill per field — the provider-side twin of the `agent.profiles`/`agent.tiers` cross-scope inversion, pre-existing and byte-identical under the former rung form. Documented in the `2.16.19-to-2.17.0` migration; retiring both twins needs a layer-aware fold.
 *Introduced by*: 260806-ywkx-ship-codex-gemini-fills
 
-### Overrides Land on `resolve-agent`, Not New Dispatch Machinery — and Bind the Native Arm Only
-**Decision**: Invocation-time provider/model/effort overrides are flags on `fab resolve-agent`, the single resolution call every dispatch site already makes, and the skill wiring is one passthrough paragraph. Because `fab dispatch start` carries no override surface — it re-resolves the stage from config — the overrides bind the **native Agent-tool arm** only, and every doc restating the surface carries that scope.
-**Why**: Every dispatch site already makes exactly one `resolve-agent --alias` call and already branches on `dispatch=`, so overriding at that call reuses the whole seam with zero new machinery; a separate override channel would need its own precedence rules and its own compliance-visibility contract. `resolve-agent` is a pure query whose whole output is a profile, so overriding one field of it is unambiguous and useful. Scoping to the native arm keeps the docs describing what the code does instead of a workflow that errors on the headless arm and silently runs the wrong provider on the pane arm.
-**Rejected**: Plumbing the flags through `fab dispatch start` (a second resolution surface with its own precedence and visibility contract); per-stage override config keys (persistent state for a per-run intent); forbidding bare `--model` on `resolve-agent` for symmetry (a usage error for an unambiguous query).
+### Invocation Overrides Ride Structured Resolution and Bind the Native Arm Only
+**Decision**: Invocation-time provider/model/effort overrides are flags on `fab agent <stage> -o yaml`, the single resolution call every dispatch site makes. Because `fab dispatch start` carries no override surface — it re-resolves the stage from config — the overrides bind the **native Agent-tool arm** only, and every doc restating the surface carries that scope.
+**Why**: Every dispatch site makes exactly one structured resolution call and branches on `dispatch:` key presence, so overriding at that call reuses the whole seam with zero new machinery; a separate override channel would need its own precedence rules and its own compliance-visibility contract. The YAML output is a pure projection of the profile, so overriding one field is unambiguous and useful. Scoping to the native arm keeps the docs describing what the code does instead of a workflow that errors on the headless arm and silently runs the wrong provider on the pane arm.
+**Rejected**: Plumbing the flags through `fab dispatch start` (a second resolution surface with its own precedence and visibility contract); per-stage override config keys (persistent state for a per-run intent); forbidding bare `--model` on the resolution surface for symmetry (a usage error for an unambiguous query).
 *Introduced by*: 260805-j3cm-builtin-provider-templates-and-fill
 
 ### The Built-in Tables Are an Embedded Data File, Parsed Through the Config Schema
@@ -599,7 +599,7 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 **Decision**: `agent.DefaultProfile(role)` is defined as `ResolveRole(nil, role)` rather than a lookup in a separate built-in role→profile table.
 **Why**: There is no single built-in role→profile map to read any more — the values live under `providers.claude.profiles`, reached through the same chain everything else uses — and nil-config resolution is exactly "the built-in answer". It also keeps `fab config explain` sourcing its per-role defaults from the resolver rather than from a second table that could drift.
 **Rejected**: A parallel built-in profile map (a second table to keep in sync with the resolver, which is the drift class the embedded data file exists to remove).
-**Consequence — the registry row is the STATIC default; the read model composes a live one**: `configref.Fields()`'s `agent.profiles` default is built from `DefaultProfile`, which is knob-blind by construction. So `fab config show --origin` recomposes that one row through `configref.DefaultsMapFor`, resolving each role against the **live** config (`agent.ResolveRole`) twice, per leaf: the `provider` leaf against `knobsOnly` (the user's `agent.profiles`/`agent.tiers` entries stripped — the defaults tier reports the built-in a user override *shadows*, never an echo of that override), the `model`/`effort` leaves against `fillsOnly` (each per-role `provider` override kept, per-role model/effort overrides stripped — the built-in fill is a function of the provider the role actually dispatches to, and an overridden provider's own fills appear in no higher tier, so nothing echoes). The drill-down and `fab resolve-agent` therefore agree both on which provider a role would dispatch to and on the model/effort fills it would carry. See [_shared/configuration.md](/_shared/configuration.md) § Six-Verb Surface.
+**Consequence — the registry row is the STATIC default; the read model composes a live one**: `configref.Fields()`'s `agent.profiles` default is built from `DefaultProfile`, which is knob-blind by construction. So `fab config show --origin` recomposes that one row through `configref.DefaultsMapFor`, resolving each role against the **live** config (`agent.ResolveRole`) twice, per leaf: the `provider` leaf against `knobsOnly` (the user's `agent.profiles`/`agent.tiers` entries stripped — the defaults tier reports the built-in a user override *shadows*, never an echo of that override), the `model`/`effort` leaves against `fillsOnly` (each per-role `provider` override kept, per-role model/effort overrides stripped — the built-in fill is a function of the provider the role actually dispatches to, and an overridden provider's own fills appear in no higher tier, so nothing echoes). The drill-down and `fab agent <stage|role> -o yaml` therefore agree both on which provider a role would dispatch to and on the model/effort fills it would carry. See [_shared/configuration.md](/_shared/configuration.md) § Six-Verb Surface.
 *Introduced by*: 260806-j9nh-agent-profiles-session-workers; *Updated by*: 260812-05wy-config-show-role-provider-fills
 
 ### Unknown Provider Is a Lookup Failure That Names the Resolvable Set
@@ -608,14 +608,20 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 **Rejected**: Listing only the project's configured providers (omits the built-in `claude`, which resolves fine); a bare "unknown provider" error (leaves the caller to guess the config surface); validating the resolved command string (breaks the document-don't-validate contract); a per-command copy of the formatter (two phrasings of one contract to drift).
 *Introduced by*: 260805-nvad-cli-agents-helper-provider-spawn
 
+### User-Facing Go Strings Name the Skill-Consumed Resolution Surface
+**Decision**: User-facing Go strings that direct stage or role resolution name `fab agent <stage|role> -o yaml`; the native-dispatch error also states the `dispatch:`-key absence discriminator, and tests pin both the error guidance and the generated config-reference text.
+**Why**: Executable guidance and generated reference prose are part of the same behavioral claim as the skills. Keeping them on the structured surface prevents the binary from contradicting the workflow it ships.
+**Rejected**: Splitting user-facing resolution guidance between `fab agent` and the deprecated compatibility command, or treating executable strings as outside the documentation claim.
+*Introduced by*: 260901-u6es-fab-agent-yaml-skill-migration
+
 ## Consumers
 
 The provider/role resolution feeds three runtime consumers:
 
-- **The dispatch seam** (`/fab-ff`, `/fab-fff`, `/fab-proceed`, `/fab-adopt`, and `/fab-continue`'s one-stage sequencer) calls `fab resolve-agent <stage> --alias` before each post-intake stage's sub-agent and **branches on the resolved `dispatch=` line**: absent ⇒ native Agent-tool dispatch (model via the Agent `model` param, effort via a prompt instruction); present ⇒ the CLI adapter `fab dispatch` (the profile rides the `dispatch=` command). Every stage it resolves is a Tier-2 role, so `agent.workers` is the knob it consults. See [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution and [pipeline/execution-skills.md](/pipeline/execution-skills.md) § Status-transition ownership.
+- **The dispatch seam** (`/fab-ff`, `/fab-fff`, `/fab-proceed`, `/fab-adopt`, and `/fab-continue`'s one-stage sequencer) calls `fab agent <stage> -o yaml` before each post-intake stage's sub-agent and **branches on `dispatch:` key presence**: absent ⇒ native Agent-tool dispatch (model via `model_alias` on the Agent `model` param, effort via the YAML `effort` value in a prompt instruction); present ⇒ the CLI adapter `fab dispatch` (the profile rides `dispatch.command`, which skills never execute themselves). Every stage it resolves is a Tier-2 role, so `agent.workers` is the knob it consults. See [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution and [pipeline/execution-skills.md](/pipeline/execution-skills.md) § Status-transition ownership.
 - **The operator launcher** (`fab operator`) resolves the **operator** role in-process and composes its session command from that role's provider `interactive_command` + profile. Its interactive spawn carries the shell fallback (composed command + `; exec "$SHELL"` — see [agent-primitives.md](/runtime/agent-primitives.md) § Spawn composition). See [operator.md](/runtime/operator.md).
 - **Batch worker spawns** (`fab batch new`/`switch` and the operator's repo-targeted worker spawns) compose from the **default**-role provider `interactive_command` + profile — so workers spawn WITH a profile. As interactive spawns, they carry the same shell fallback, so the tab survives the agent's exit as a shell in the same cwd (see [agent-primitives.md](/runtime/agent-primitives.md) § Spawn composition). See [operator.md](/runtime/operator.md) and [distribution/kit-architecture.md](/distribution/kit-architecture.md).
 
 The latter two are Tier-1 roles, so `agent.session` is what governs them — and it binds at **launch**: a running session keeps the provider it started on.
 
-[`fab dispatch`](/runtime/dispatch.md) runs the command selected by the current ladder; this file and `fab resolve-agent` only resolve and emit it. `fab dispatch start` re-resolves the ladder so pane reachability is current at launch time.
+[`fab dispatch`](/runtime/dispatch.md) runs the command selected by the current ladder; `fab agent -o yaml` resolves and emits the structured selection. `fab dispatch start` re-resolves the ladder so pane reachability is current at launch time.

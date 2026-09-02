@@ -69,7 +69,7 @@ Skill reads _preamble.md
 ├─ Conventions: helpers: frontmatter, naming, rk reference, common fab commands, next steps
 ├─ Subagent Dispatch
 │  ├─ Dispatch pattern + Standard Subagent Context
-│  ├─ Per-stage model resolution: fab resolve-agent <stage> --alias → branch on dispatch= (absent ⇒ native Agent / present ⇒ fab dispatch CLI adapter)
+│  ├─ Per-stage model resolution: fab agent <stage> -o yaml → branch on dispatch: key presence (absent ⇒ native Agent / present ⇒ fab dispatch CLI adapter)
 │  ├─ Worker continuation (apply rework only): native SendMessage / pane deliver / else fresh
 │  ├─ CLI-adapter dispatch: fab dispatch start → wait; pane open → ready gate → deliver; stage-aware reap
 │  └─ Dispatch-prompt obligations (all adapters): {stage}-result.yaml, context files, terminal fab status refresh, no status TRANSITIONs
@@ -109,8 +109,8 @@ Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
 ├─ Resumability: skip done stages (lane re-derived from plan.md task count on resume)
 ├─ Step 1 Apply — plan.md co-generated INLINE at entry (both lanes; obviously-large scope MAY dispatch apply-with-co-gen)
 │  ├─ Fork once on plan task count (≤5 → LIGHT / >5 → FULL; --light/--full override, mutually exclusive)
-│  ├─ LIGHT: tasks executed inline (no dispatch, no fab resolve-agent, session model)
-│  ├─ FULL: apply worker dispatched with plan pre-existing (task execution only) via fab resolve-agent apply --alias (dispatch= absent ⇒ native Agent / present ⇒ CLI adapter)
+│  ├─ LIGHT: tasks executed inline (no dispatch, no YAML stage resolution, session model)
+│  ├─ FULL: apply worker dispatched with plan pre-existing (task execution only) via fab agent apply -o yaml (dispatch: absent ⇒ native Agent / present ⇒ CLI adapter)
 │  └─ fab status finish intake/apply
 ├─ Step 2 Review → subagent /fab-continue Review (_review.md) — ALWAYS a fresh dispatched worker, both lanes
 │  ├─ Pass: finish review → Step 3
@@ -542,7 +542,7 @@ skeleton, Steps 1–3, and Stage Dispatch Procedure. `fab-ff.md` binds only the
 
 **Behavior**:
 1. Check the intake gate (confidence >= 3.0, flat). Abort if below threshold. Skip if `--force`.
-2. **Apply entry** — co-generate `plan.md` (## Requirements from `intake.md` + ## Tasks + ## Acceptance) INLINE in the orchestrator's context (both lanes; an obviously-large intake scope MAY instead dispatch apply-with-co-gen), then fork once on task count: ≤ 5 → light lane (task execution runs inline — no dispatch, no `fab resolve-agent`), > 5 → full lane (a single apply subagent receives the finished plan via the plan-exists seam and executes unchecked tasks under `## Tasks` in dependency order, running tests after each). Under-specified requirements are resolved inline as graded SRAD assumptions in `plan.md` — no clarify step.
+2. **Apply entry** — co-generate `plan.md` (## Requirements from `intake.md` + ## Tasks + ## Acceptance) INLINE in the orchestrator's context (both lanes; an obviously-large intake scope MAY instead dispatch apply-with-co-gen), then fork once on task count: ≤ 5 → light lane (task execution runs inline — no dispatch and no YAML stage resolution), > 5 → full lane (a single apply subagent receives the finished plan via the plan-exists seam and executes unchecked tasks under `## Tasks` in dependency order, running tests after each). Under-specified requirements are resolved inline as graded SRAD assumptions in `plan.md` — no clarify step.
 3. **Review** — dispatch to a single sub-agent (fresh context, in BOTH lanes). The sub-agent returns prioritized findings (must-fix / should-fix / nice-to-have); it inspects items under `plan.md` `## Acceptance` against `## Requirements` and judges the diff on its own merits
 4. **On pass** — advance to hydrate
 5. **On fail** — auto-rework loop (up to `{max_cycles}` cycles, default 3): triage findings by priority, autonomously select rework path (fix code, revise plan, revise requirements), re-apply (light lane: inline; full lane — resume-first: continue the named `apply-{id}` worker on the native arm when reachable, else dispatch fresh), spawn fresh sub-agent for re-review. Escalation after 2 consecutive fix-code attempts. Stop after `{max_cycles}` failed cycles with summary.
@@ -596,7 +596,7 @@ User invokes /fab-ff [change-name] [--force]
 3. **Step 1 — Implementation**: Co-generate `plan.md` (## Requirements from `intake.md` + ## Tasks + ## Acceptance) INLINE in the orchestrator's context (both lanes; an obviously-large intake scope MAY instead dispatch apply-with-co-gen), then fork once on task count: ≤ 5 → light lane (tasks executed inline), > 5 → full lane (one apply subagent, plan pre-existing, executes unchecked tasks under `## Tasks` in dependency order, running tests after each). Under-specified requirements are resolved inline as graded SRAD assumptions — no clarify step.
 4. **Step 2 — Review**: Dispatch to review sub-agent (fresh context, prioritized findings — dispatched in BOTH lanes). On failure, triage findings by priority and autonomously select rework path (fix code, revise plan, revise requirements), then re-apply (light lane: inline; full lane — resume-first: continue the named `apply-{id}` worker on the native arm when reachable, else dispatch fresh). Re-review via fresh sub-agent. Retry up to `{max_cycles}` cycles (default 3; escalation after 2 consecutive fix-code). Bail with summary after `{max_cycles}` failed cycles.
 5. **Step 3 — Hydrate**: Hydrate into memory (inline in the light lane, dispatched in the full lane).
-6. **Step 3.5 — Link Linear Issue (optional)**: Run the `/fab-issue` behavior inline in BOTH lanes (no dispatch, no `fab resolve-agent`) — its gate chain skips gracefully (an unconfigured project sees zero behavior change), the promptless deferral applies, and a skip never blocks ship.
+6. **Step 3.5 — Link Linear Issue (optional)**: Run the `/fab-issue` behavior inline in BOTH lanes (no dispatch and no YAML stage resolution) — its gate chain skips gracefully (an unconfigured project sees zero behavior change), the promptless deferral applies, and a skip never blocks ship.
 7. **Step 4 — Ship**: Run `/git-pr` to commit, push, and create PR (dispatched in the full lane, inline in the light lane).
 8. **Step 5 — Review-PR**: Run `/git-pr-review` to process PR review comments (dispatched in the full lane, inline in the light lane).
 
