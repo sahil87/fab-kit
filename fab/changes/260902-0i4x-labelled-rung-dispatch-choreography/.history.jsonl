@@ -1,0 +1,14 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-02T02:03:14Z"}
+{"args":"fab agent unification Change 4: labelled-rung choreography simplification in _preamble (backlog 0i4x)","cmd":"fab-new","event":"command","ts":"2026-09-02T02:03:14Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-09-02T02:04:43Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-02T02:32:48Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-02T02:33:06Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-02T02:36:32Z"}
+{"event":"review","result":"failed","ts":"2026-09-02T02:42:47Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-02T02:42:47Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-02T02:43:13Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-02T02:47:55Z"}
+{"event":"review","result":"passed","ts":"2026-09-02T02:47:55Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-02T02:48:39Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-09-02T02:50:06Z"}
+{"event":"review","result":"passed","ts":"2026-09-02T02:57:52Z"}
