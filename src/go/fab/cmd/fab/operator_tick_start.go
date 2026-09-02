@@ -17,6 +17,11 @@ import (
 // a full file path (not a directory).
 var operatorStatePathOverride string
 
+// tickPaneAgentAlive is the real process-tree checker at runtime and a narrow
+// seam for tick-entry tests. diffMonitored itself stays pure through its
+// injected func(string) bool parameter.
+var tickPaneAgentAlive = paneAgentAlive
+
 func operatorTickStartCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tick-start",
@@ -276,7 +281,11 @@ func runOperatorTickStartDiff(cmd *cobra.Command, quiet bool) error {
 			return fmt.Errorf("tick --diff snapshot: %w", err)
 		}
 
-		diffMonitored(monitored, rows, &out, nowStr)
+		agents := loadAgentBinaryNames()
+		agentAlive := func(paneID string) bool {
+			return tickPaneAgentAlive(paneID, agents)
+		}
+		diffMonitored(monitored, rows, agentAlive, &out, nowStr)
 		data["monitored"] = monitored
 		return nil
 	})
@@ -391,7 +400,7 @@ func joinedFleetRow(id string, e monitoredEntry, r paneRow) tickFleetRow {
 // in place (the caller writes monitored back in the same mutation). now is
 // the tick's single captured timestamp (RFC 3339) so last_transition stays
 // consistent with last_tick_at.
-func diffMonitored(monitored map[string]monitoredEntry, rows []paneRow, out *tickDiffOutput, now string) {
+func diffMonitored(monitored map[string]monitoredEntry, rows []paneRow, agentAlive func(string) bool, out *tickDiffOutput, now string) {
 	byPane := make(map[string]paneRow, len(rows))
 	for _, r := range rows {
 		byPane[r.pane] = r
@@ -440,15 +449,14 @@ func diffMonitored(monitored map[string]monitoredEntry, rows []paneRow, out *tic
 			continue
 		}
 
-		// agent_exited: level-triggered — the pane IS present and hosts this
-		// change, but its foreground process is a shell: the interactive
-		// spawn's `; exec "$SHELL"` fallback took the pane over after the
-		// agent quit or crashed. Baseline untouched (no stage/agent write —
-		// the stored agent state is the agent's last live reading, and the
-		// snapshot's stale idle must not be trusted), no stage diffs, and the
-		// pane is EXCLUDED from candidates: so the §5 sweep can never type
-		// into a bare shell prompt.
-		if pane.IsShellCommand(row.command) {
+		// agent_exited: level-triggered — a shell foreground triggers a lazy
+		// process-tree confirmation. Positive live-agent evidence suppresses
+		// the delta and falls through to the clean join; false (including any
+		// PID/tree-walk error) preserves the exited behavior. Baseline remains
+		// untouched on exit (the snapshot's stale idle must not be trusted),
+		// and the pane is excluded from candidates so the §5 sweep can never
+		// type into a bare shell prompt.
+		if pane.IsShellCommand(row.command) && !agentAlive(entry.Pane) {
 			cmd := row.command
 			out.Deltas = append(out.Deltas, tickDelta{
 				Kind:    "agent_exited",

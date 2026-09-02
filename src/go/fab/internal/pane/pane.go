@@ -289,13 +289,12 @@ var shellCommands = map[string]bool{
 }
 
 // IsShellCommand reports whether cmd's basename is a known shell. It is the
-// shared predicate both pane-foreground consumers key on — the operator's
-// agent_exited delta (fab's parseAgentState ignores the :pid segment, so
-// after an agent exits and the interactive spawn's `; exec "$SHELL"` fallback
-// takes the pane over, the agent-state option still reads the agent's last,
-// stale value — the foreground command is the ground truth about who owns the
-// pane) and the readiness gate's agent-takeover precondition. An empty
-// command (legacy enumeration line) never matches.
+// readiness gate's direct agent-takeover precondition and the operator's
+// trigger for a process-tree liveness confirmation before agent_exited is
+// emitted. The latter confirmation is required because an interactive spawn's
+// non-interactive wrapper shell can remain the foreground process-group leader
+// while its live agent child runs. An empty command (legacy enumeration line)
+// never matches.
 func IsShellCommand(cmd string) bool {
 	if cmd == "" {
 		return false
@@ -314,7 +313,8 @@ func CurrentCommandArgs(server, paneID string) []string {
 // CurrentCommand returns a pane's foreground command, trimmed. It is the
 // readiness gate's agent-takeover precondition (a shell foreground means the
 // provider binary has not taken the tty yet, so there is no agent to probe)
-// and the operator's agent_exited signal. Server-first, matching
+// and the operator's trigger for process-tree liveness confirmation.
+// Server-first, matching
 // Capture/SendLiteral (see Capture on why the pairs share one order). On
 // failure the error names the pane and carries tmux's stderr diagnostic via
 // StderrError.

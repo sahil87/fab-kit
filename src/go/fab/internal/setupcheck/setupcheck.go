@@ -27,6 +27,7 @@ import (
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/shellparse"
 )
 
 // Severity is the seriousness of one probe finding. The exit-code contract
@@ -127,42 +128,6 @@ func (r *Report) countSeverity(s Severity) int {
 // LookPathFunc is the injectable PATH-resolution seam (production: exec.LookPath).
 type LookPathFunc func(string) (string, error)
 
-// shellWords splits a command template into words, honoring single- and
-// double-quoted spans (no escape processing — the provider grammars ship
-// none). Quote characters are stripped. This is deliberately NOT a full shell
-// lexer: it exists to find a command's leading executable, and the nested
-// `sh -c '<inner>'` forms keep their inner command as one quoted word.
-func shellWords(s string) []string {
-	var words []string
-	var cur strings.Builder
-	var quote byte // 0 = outside quotes
-	flush := func() {
-		if cur.Len() > 0 {
-			words = append(words, cur.String())
-			cur.Reset()
-		}
-	}
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch {
-		case quote != 0:
-			if c == quote {
-				quote = 0
-			} else {
-				cur.WriteByte(c)
-			}
-		case c == '\'' || c == '"':
-			quote = c
-		case c == ' ' || c == '\t':
-			flush()
-		default:
-			cur.WriteByte(c)
-		}
-	}
-	flush()
-	return words
-}
-
 // LeadingExecutable resolves the executable a provider command actually runs.
 // The plain form's first word is the answer (`claude --model ...` → `claude`);
 // a nested-shell wrapper (`sh -c 'agy -p "$(cat)"'`) recurses into the -c
@@ -170,7 +135,7 @@ func shellWords(s string) []string {
 // wrapper is fab's own stdin idiom, not the binary the user must install.
 // Returns "" for an empty command (capability not declared).
 func LeadingExecutable(command string) string {
-	words := shellWords(command)
+	words := shellparse.Words(command)
 	if len(words) == 0 {
 		return ""
 	}

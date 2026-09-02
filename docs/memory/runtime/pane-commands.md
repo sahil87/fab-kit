@@ -89,7 +89,7 @@ This doc covers the eight subcommands, the `--server` / `-L` persistent flag, an
 
 **Discovery**: Linux reads `/proc/<pid>/task/<tid>/children` recursively; macOS uses `ps -o pid,ppid,comm -ax` with PPID traversal, plus ONE batched `ps -axo pid=,args=` pass parsed into a PID→args map (pure `parsePSCmdlines` parser: pid is numeric-first, remainder is args — robust against comm-with-spaces) and joined by PID for full cmdlines — exactly two `ps` spawns total, no per-node lookups. A process exiting between the two passes degrades to cmdline `""` (the same value as a per-PID failure). Platform selection via Go build tags.
 
-**Classification** (based on process comm name): `claude`/`claude-code` → `agent`; `node` → `node`; `git`/`gh` → `git`; all others → `other`.
+**Classification** is parameterized by an agent-name set built once per command. The set is `claude`/`claude-code` plus the basenames of the quote-aware leading command words from every merged provider's `interactive_command` (built-ins and project providers); true POSIX `NAME=value` prefixes are skipped, executable paths containing `=` remain commands, and known shells are excluded. A process matches `agent` by normalized `comm` first, then by the basenames of at most the first two `cmdline` tokens so interpreter-wrapped agents are recognized without scanning prompt arguments. Remaining `node` processes classify as `node`, `git`/`gh` as `git`, and all others as `other`. Project-config resolution is best-effort and degrades to the built-in provider table. The same parameterized classifier and recursive root-inclusive tree scan supply the operator tick's live-agent confirmation.
 
 **Default output**: Tree-formatted process listing with PID, command name, and classification.
 
@@ -244,10 +244,16 @@ All tmux-invoking functions accept a trailing `server string` parameter and buil
 *Introduced by*: 260820-89vn-pane-map-rk-enumeration
 
 ### The Snapshot Row Carries `command` Internally, Never as Output
-**Decision**: The pane-map/tick snapshot row carries the pane's current foreground command as a `command` field on BOTH enumeration paths — the rk row's own `command` on the delegated path, and `#{pane_current_command}` appended as the ninth tab-separated field of the internal `list-panes -F` format (`window_id` stays field 8; legacy 5–8-field lines still parse with `command == ""`). The field is snapshot-internal: `fab pane map`'s human table and `--json` output carry no new column or key, and its sole consumer is the operator tick's `agent_exited` predicate (see [operator.md](/runtime/operator.md)).
-**Why**: The tick needs a provider-agnostic "is a shell sitting in this pane" signal, and `pane_current_command` is the cheapest input both paths already touch; keeping it off the rendered output preserves rk-contract parity (fab adds no new output fields from the delegation) while nothing consumes it externally.
+**Decision**: The pane-map/tick snapshot row carries the pane's current foreground command as a `command` field on BOTH enumeration paths — the rk row's own `command` on the delegated path, and `#{pane_current_command}` appended as the ninth tab-separated field of the internal `list-panes -F` format (`window_id` stays field 8; legacy 5–8-field lines still parse with `command == ""`). The field is snapshot-internal: `fab pane map`'s human table and `--json` output carry no new column or key, and its sole consumer is the operator tick's shell-branch trigger for `agent_exited` confirmation (see [operator.md](/runtime/operator.md)).
+**Why**: The tick needs a cheap provider-agnostic trigger for the rare process-tree confirmation, and `pane_current_command` is an input both enumeration paths already carry; keeping it off the rendered output preserves rk-contract parity while nothing consumes it externally.
 **Rejected**: A new `fab pane map` column or JSON key (output surface for an internal predicate input, against the delegation parity rule); re-deriving the signal per tick from a separate `display-message` probe (extra subprocess on the hot path).
 *Introduced by*: 260829-1xqx-agent-exit-shell-fallback
+
+### Agent Classification Is Config-Derived and Bounded
+**Decision**: Process classification accepts an explicit agent-name set. Command callers derive it from `claude`/`claude-code` plus merged providers' quote-aware `interactive_command` leading-word basenames, exclude shells, and pass it through process discovery. Matching checks `comm` first and only the first two `cmdline` token basenames; the tree scan includes its root.
+**Why**: One classifier keeps `fab pane process` output and the operator's liveness confirmation consistent across built-in and project providers, while the two-token window recognizes interpreter wrappers without treating prompt text as a running agent.
+**Rejected**: A global classifier tied to config state; Claude-only names; `comm`-only matching; whole-cmdline substring scans; deriving agent names from `headless_command`, whose leading shell wrappers do not identify the interactive pane process.
+*Introduced by*: 260902-ssyf-operator-liveness-process-tree
 
 ### Unknown `--session` Name Yields an Empty Result on the Delegated Path
 **Decision**: `--session bogus` with rk present filters to zero rows and prints `No tmux panes found.` (exit 0); the fallback path keeps tmux's own error for an unknown `-t` target.
