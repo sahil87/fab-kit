@@ -3,10 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/spf13/cobra"
 )
 
@@ -61,6 +64,39 @@ func TestAgentBinaryNames(t *testing.T) {
 		if names[shell] {
 			t.Errorf("agentBinaryNames included shell %q: %v", shell, names)
 		}
+	}
+}
+
+// TestLoadAgentBinaryNames_NoProjectAppliesSystemLayer: outside a fab project
+// the loader falls back to the project-free cascade rather than built-ins only,
+// so a system-layer (~/.fab-kit) provider definition still counts as liveness
+// evidence.
+func TestLoadAgentBinaryNames_NoProjectAppliesSystemLayer(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.MkdirAll(filepath.Join(home, ".fab-kit"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	system := "providers:\n  sysagent:\n    interactive_command: /opt/agents/sys-agent --auto\n"
+	if err := os.WriteFile(filepath.Join(home, ".fab-kit", "config.yaml"), []byte(system), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origWd) })
+	if _, err := resolve.FabRoot(); err == nil {
+		t.Fatal("test cwd unexpectedly resolves a fab project — precondition broken")
+	}
+
+	names := loadAgentBinaryNames()
+	if !names["sys-agent"] {
+		t.Errorf("loadAgentBinaryNames() = %v, want the system-layer provider binary %q outside a project", names, "sys-agent")
 	}
 }
 

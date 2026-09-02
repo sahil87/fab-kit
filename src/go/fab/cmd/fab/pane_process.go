@@ -114,12 +114,16 @@ func classifyProcess(comm, cmdline string, agents map[string]bool) string {
 }
 
 // loadAgentBinaryNames resolves project config when available and otherwise
-// degrades to the built-in provider table. A config read failure is best-effort
-// and silent: built-in names still provide useful classification.
+// falls back to the project-free cascade (env > system > built-ins), so
+// system-layer provider definitions still count outside a project. A config
+// read failure is best-effort and silent: built-in names still provide useful
+// classification.
 func loadAgentBinaryNames() map[string]bool {
 	var cfg *config.Config
 	if fabRoot, err := resolve.FabRoot(); err == nil {
 		cfg, _ = config.Load(fabRoot)
+	} else {
+		cfg = config.LoadNoProject()
 	}
 	return agentBinaryNames(cfg)
 }
