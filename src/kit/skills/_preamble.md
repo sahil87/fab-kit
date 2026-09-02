@@ -434,7 +434,7 @@ Step 1's pane branch is **open → gate → deliver**, and only then step 2's `w
 
 3. **`fab dispatch deliver <change> <stage>`**, then continue at step 2 of the numbered procedure (`wait`).
 
-**Judgment rounds — the carve-out, and its bounds.** A pane between `open` and a successful `deliver` holds no stage context, so there is nothing a keystroke could corrupt: it is not yet a worker, and the no-input-injection rule has no subject. In that window you MAY answer the wall yourself with raw `tmux [-L <server>] send-keys -t <pane> …`, reading the snippet to decide what it wants.
+**Judgment rounds — the carve-out, and its bounds.** A pane between `open` and a successful `deliver` holds no stage context, so there is nothing a keystroke could corrupt: it is not yet a worker, and the no-input-injection rule has no subject. In that window you MAY answer the wall yourself with raw `tmux [-L <server>] send-keys -t <pane> …`, reading the snippet to decide what it wants (raw sends first clear any pane mode — `_cli-agents.md` § Pre-Send Validation step 3 owns that guard).
 
 - **Budget: at most 2 rounds per gate.** Re-probe after each. Still not `ready` after the second ⇒ escalate.
 - **Login and credential walls escalate IMMEDIATELY and are never answered** — no round is spent, whatever the budget's state.

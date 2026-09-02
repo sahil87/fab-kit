@@ -1,0 +1,13 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-02T02:30:02Z"}
+{"args":"fab pane/dispatch send-keys into a copy-mode pane is silently eaten (keys interpreted as copy-mode bindings, exit 0); add a centralized pane_in_mode probe + cancel guard on the send path. Reframed from the original capture-guard request after empirical testing showed capture-pane reads the live grid during copy-mode.","cmd":"fab-new","event":"command","ts":"2026-09-02T02:30:02Z"}
+{"delta":"+4.7","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-09-02T02:31:43Z"}
+{"cmd":"fab-new","event":"command","ts":"2026-09-02T02:32:00Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-02T02:38:09Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-02T02:39:16Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-02T02:43:33Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-09-02T02:47:06Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-02T02:53:55Z"}
+{"event":"review","result":"passed","ts":"2026-09-02T02:53:55Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-02T02:55:58Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-09-02T02:57:11Z"}
+{"event":"review","result":"passed","ts":"2026-09-02T03:01:44Z"}
