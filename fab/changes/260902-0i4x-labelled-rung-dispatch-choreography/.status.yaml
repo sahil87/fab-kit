@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 4
@@ -33,22 +33,24 @@ stage_metrics:
     apply: {started_at: "2026-09-02T02:42:47Z", driver: fab-fff, iterations: 2, completed_at: "2026-09-02T02:43:13Z"}
     review: {started_at: "2026-09-02T02:43:13Z", driver: fab-fff, iterations: 2, completed_at: "2026-09-02T02:47:55Z"}
     hydrate: {started_at: "2026-09-02T02:47:55Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-02T02:48:39Z"}
-    ship: {started_at: "2026-09-02T02:48:39Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-09-02T02:48:39Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-02T02:50:06Z"}
+    review-pr: {started_at: "2026-09-02T02:50:06Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/638
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 269
+    deleted: 11
+    net: 258
     excluding:
-        added: 0
-        deleted: 0
+        added: 3
+        deleted: 3
         net: 0
     tests:
         added: 0
         deleted: 0
         net: 0
-    computed_at: "2026-09-02T02:48:39Z"
-    computed_at_stage: hydrate
+    computed_at: "2026-09-02T02:50:06Z"
+    computed_at_stage: ship
 summary: CLI-adapter dispatch step 1 now branches on the labelled dispatch.rung (pane → open→gate→deliver, headless → start); start's pane-refusal kept as defense-in-depth, start-probe discovery prose removed
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-09-02T02:48:39Z
+last_updated: 2026-09-02T02:50:06Z
