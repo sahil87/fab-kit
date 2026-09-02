@@ -12,8 +12,8 @@ import (
 
 // discoverProcessTree discovers the process tree for a given PID on Linux
 // by reading /proc filesystem entries.
-func discoverProcessTree(pid int) ([]ProcessNode, error) {
-	node, err := buildNodeFromProc(pid, 0)
+func discoverProcessTree(pid int, agents map[string]bool) ([]ProcessNode, error) {
+	node, err := buildNodeFromProc(pid, 0, agents)
 	if err != nil {
 		return nil, err
 	}
@@ -21,7 +21,7 @@ func discoverProcessTree(pid int) ([]ProcessNode, error) {
 }
 
 // buildNodeFromProc recursively builds a ProcessNode from /proc.
-func buildNodeFromProc(pid, ppid int) (ProcessNode, error) {
+func buildNodeFromProc(pid, ppid int, agents map[string]bool) (ProcessNode, error) {
 	comm := readProcFile(fmt.Sprintf("/proc/%d/comm", pid))
 	cmdline := readProcCmdline(pid)
 
@@ -30,14 +30,14 @@ func buildNodeFromProc(pid, ppid int) (ProcessNode, error) {
 		PPID:           ppid,
 		Comm:           comm,
 		Cmdline:        cmdline,
-		Classification: ClassifyProcess(comm),
+		Classification: classifyProcess(comm, cmdline, agents),
 		Children:       []ProcessNode{},
 	}
 
 	// Read children from /proc/<pid>/task/<tid>/children
 	childPIDs := readChildPIDs(pid)
 	for _, childPID := range childPIDs {
-		child, err := buildNodeFromProc(childPID, pid)
+		child, err := buildNodeFromProc(childPID, pid, agents)
 		if err != nil {
 			continue // skip unreadable children
 		}

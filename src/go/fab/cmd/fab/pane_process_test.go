@@ -6,35 +6,83 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/spf13/cobra"
 )
 
 func TestClassifyProcess(t *testing.T) {
+	agents := agentBinaryNames(nil)
 	tests := []struct {
+		name     string
 		comm     string
+		cmdline  string
 		expected string
 	}{
-		{"claude", "agent"},
-		{"Claude", "agent"},
-		{"CLAUDE", "agent"},
-		{"claude-code", "agent"},
-		{"Claude-Code", "agent"},
-		{"node", "node"},
-		{"Node", "node"},
-		{"git", "git"},
-		{"gh", "git"},
-		{"GH", "git"},
-		{"zsh", "other"},
-		{"bash", "other"},
-		{"python", "other"},
-		{"", "other"},
+		{"comm claude", "claude", "claude --flag", "agent"},
+		{"comm path and case", "/opt/bin/Claude-Code", "claude-code --flag", "agent"},
+		{"built-in codex", "codex", "codex", "agent"},
+		{"built-in agy", "agy", "agy", "agent"},
+		{"built-in kimi", "kimi", "kimi", "agent"},
+		{"cmdline argv zero fallback", "node", "/opt/bin/claude --flag", "agent"},
+		{"cmdline argv one fallback", "node", "node /opt/bin/codex --flag", "agent"},
+		{"prompt text outside bounded fallback", "node", "node runner ask claude for help", "node"},
+		{"node", "node", "node service.js", "node"},
+		{"git", "git", "git status", "git"},
+		{"gh", "GH", "gh pr view", "git"},
+		{"shell", "zsh", "/bin/zsh", "other"},
+		{"other", "python", "python worker.py", "other"},
+		{"empty", "", "", "other"},
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.comm, func(t *testing.T) {
-			result := ClassifyProcess(tc.comm)
+		t.Run(tc.name, func(t *testing.T) {
+			result := classifyProcess(tc.comm, tc.cmdline, agents)
 			if result != tc.expected {
-				t.Errorf("ClassifyProcess(%q) = %q, want %q", tc.comm, result, tc.expected)
+				t.Errorf("classifyProcess(%q, %q) = %q, want %q", tc.comm, tc.cmdline, result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestAgentBinaryNames(t *testing.T) {
+	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
+		"custom":        {InteractiveCommand: "TOKEN='a b' /opt/agents/my-agent --model m"},
+		"path-equals":   {InteractiveCommand: "/opt/agents/my=agent --model m"},
+		"shell-wrapper": {InteractiveCommand: "FAB_TOKEN=x /bin/zsh -lc my-agent"},
+	}}
+	names := agentBinaryNames(cfg)
+
+	for _, name := range []string{"claude", "claude-code", "codex", "agy", "kimi", "my-agent", "my=agent"} {
+		if !names[name] {
+			t.Errorf("agentBinaryNames omitted %q: %v", name, names)
+		}
+	}
+	for _, shell := range []string{"sh", "bash", "zsh", "fish"} {
+		if names[shell] {
+			t.Errorf("agentBinaryNames included shell %q: %v", shell, names)
+		}
+	}
+}
+
+func TestInteractiveCommandBinary(t *testing.T) {
+	tests := []struct {
+		name    string
+		command string
+		want    string
+	}{
+		{"quoted assignment value", "TOKEN='a b' /opt/agents/my-agent --flag", "my-agent"},
+		{"equals in executable path", "/opt/agents/my=agent --flag", "my=agent"},
+		{"plain assignment prefix", "FOO=1 kimi --auto", "kimi"},
+		{"multiple assignment prefixes", "FOO=1 _BAR_2='x y' codex", "codex"},
+		{"quoted assignment-looking word is executable", "'FOO=1' /opt/agents/my-agent", "foo=1"},
+		{"assignment only", "FOO=1 BAR='x y'", ""},
+		{"empty", "", ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := interactiveCommandBinary(tc.command); got != tc.want {
+				t.Errorf("interactiveCommandBinary(%q) = %q, want %q", tc.command, got, tc.want)
 			}
 		})
 	}
@@ -86,6 +134,21 @@ func TestParsePSCmdlines(t *testing.T) {
 }
 
 func TestHasAgentInTree(t *testing.T) {
+	t.Run("provider extension drives has_agent", func(t *testing.T) {
+		agents := agentBinaryNames(nil)
+		nodes := []ProcessNode{
+			{
+				PID: 100, Comm: "zsh", Classification: classifyProcess("zsh", "/bin/zsh", agents),
+				Children: []ProcessNode{
+					{PID: 200, Comm: "kimi", Cmdline: "kimi --auto", Classification: classifyProcess("kimi", "kimi --auto", agents)},
+				},
+			},
+		}
+		if !hasAgentInTree(nodes) {
+			t.Error("expected provider-derived classification to set has_agent")
+		}
+	})
+
 	t.Run("agent at root", func(t *testing.T) {
 		nodes := []ProcessNode{
 			{PID: 100, Comm: "claude", Classification: "agent"},

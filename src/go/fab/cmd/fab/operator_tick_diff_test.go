@@ -85,6 +85,14 @@ func stubSnapshot(t *testing.T, rows []paneRow) *bool {
 	return &called
 }
 
+// stubPaneAgentAlive replaces the process-tree liveness seam used at tick entry.
+func stubPaneAgentAlive(t *testing.T, fn func(string, map[string]bool) bool) {
+	t.Helper()
+	orig := tickPaneAgentAlive
+	tickPaneAgentAlive = fn
+	t.Cleanup(func() { tickPaneAgentAlive = orig })
+}
+
 // runTickDiff executes `tick-start --diff` and returns its stdout document.
 func runTickDiff(t *testing.T) string {
 	t.Helper()
@@ -150,6 +158,7 @@ func findDelta(doc tickDiffDoc, kind, change string) map[string]interface{} {
 // --- event kinds ---------------------------------------------------------------
 
 func TestOperatorTickDiff_AllEventKinds(t *testing.T) {
+	stubPaneAgentAlive(t, func(string, map[string]bool) bool { return false })
 	entries := map[string]monitoredEntry{
 		// completion: stage string UNCHANGED (review-pr → review-pr), only the
 		// display state flipped — the case a stage-diff provably cannot catch.
@@ -207,6 +216,8 @@ func TestOperatorTickDiff_AllEventKinds(t *testing.T) {
 }
 
 func TestOperatorTickDiff_AgentExited(t *testing.T) {
+	stubPaneAgentAlive(t, func(string, map[string]bool) bool { return false })
+
 	t.Run("shell command emits agent_exited with the command field", func(t *testing.T) {
 		entries := map[string]monitoredEntry{
 			"e001": diffEntry("%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
@@ -222,6 +233,11 @@ func TestOperatorTickDiff_AgentExited(t *testing.T) {
 	})
 
 	t.Run("non-shell and empty commands emit nothing", func(t *testing.T) {
+		calls := 0
+		stubPaneAgentAlive(t, func(string, map[string]bool) bool {
+			calls++
+			return false
+		})
 		entries := map[string]monitoredEntry{
 			"e001": diffEntry("%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
 			"e002": diffEntry("%2", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
@@ -239,6 +255,42 @@ func TestOperatorTickDiff_AgentExited(t *testing.T) {
 		doc := parseTickDiff(t, runTickDiff(t))
 		if len(doc.Deltas) != 0 {
 			t.Errorf("deltas = %v, want none for non-shell/empty commands", doc.Deltas)
+		}
+		if calls != 0 {
+			t.Errorf("process-tree checks = %d, want zero for non-shell/empty commands", calls)
+		}
+	})
+
+	t.Run("shell with live agent follows clean join", func(t *testing.T) {
+		var checkedPane string
+		stubPaneAgentAlive(t, func(paneID string, agents map[string]bool) bool {
+			checkedPane = paneID
+			if !agents["claude"] || !agents["codex"] {
+				t.Errorf("tick checker received incomplete agent names: %v", agents)
+			}
+			return true
+		})
+		entries := map[string]monitoredEntry{
+			"e001": diffEntry("%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		}
+		path := seedDiffState(t, entries)
+		stubSnapshot(t, []paneRow{snapRowCmd("%1", "e001", "review", "active", "idle", "5m", "zsh")})
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		if checkedPane != "%1" {
+			t.Errorf("liveness checked pane %q, want %%1", checkedPane)
+		}
+		if d := findDelta(doc, "agent_exited", "e001"); d != nil {
+			t.Errorf("live agent emitted agent_exited: %v", d)
+		}
+		if d := findDelta(doc, "stage_advance", "e001"); d == nil || d["from"] != "apply" || d["to"] != "review" {
+			t.Errorf("stage_advance after live-agent confirmation wrong: %v", d)
+		}
+		if len(doc.Candidates) != 1 || doc.Candidates[0].Change != "e001" || doc.Candidates[0].AgentState != "idle" {
+			t.Errorf("candidates after live-agent confirmation = %v, want idle e001", doc.Candidates)
+		}
+		if e := readMonitored(t, path)["e001"]; e.Stage != "review" || e.Agent != "idle" {
+			t.Errorf("live-agent baseline = %+v, want stage review / agent idle", e)
 		}
 	})
 
@@ -296,6 +348,11 @@ func TestOperatorTickDiff_AgentExited(t *testing.T) {
 	})
 
 	t.Run("mismatch wins over agent_exited", func(t *testing.T) {
+		calls := 0
+		stubPaneAgentAlive(t, func(string, map[string]bool) bool {
+			calls++
+			return true
+		})
 		entries := map[string]monitoredEntry{
 			"a001": diffEntry("%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
 		}
@@ -313,6 +370,9 @@ func TestOperatorTickDiff_AgentExited(t *testing.T) {
 		}
 		if d := findDelta(doc, "agent_exited", "a001"); d != nil {
 			t.Errorf("mismatched pane also emitted agent_exited: %v", d)
+		}
+		if calls != 0 {
+			t.Errorf("process-tree checks = %d, want zero because pane_mismatch wins", calls)
 		}
 	})
 

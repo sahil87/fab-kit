@@ -18,7 +18,7 @@ type psEntry struct {
 
 // discoverProcessTree discovers the process tree for a given PID on macOS
 // by using ps to enumerate processes and filtering by PPID traversal.
-func discoverProcessTree(pid int) ([]ProcessNode, error) {
+func discoverProcessTree(pid int, agents map[string]bool) ([]ProcessNode, error) {
 	out, err := exec.Command("ps", "-o", "pid,ppid,comm", "-ax").Output()
 	if err != nil {
 		return nil, fmt.Errorf("ps: %w", err)
@@ -69,7 +69,7 @@ func discoverProcessTree(pid int) ([]ProcessNode, error) {
 	// would mis-parse a combined listing.
 	cmdlines := getPSCmdlines()
 
-	node := buildNodeFromPS(rootEntry, childrenMap, cmdlines)
+	node := buildNodeFromPS(rootEntry, childrenMap, cmdlines, agents)
 	return []ProcessNode{node}, nil
 }
 
@@ -77,18 +77,20 @@ func discoverProcessTree(pid int) ([]ProcessNode, error) {
 // the PID→args map from getPSCmdlines; a PID missing from it (process exited
 // between the two ps passes) yields cmdline "" — the same degraded value the
 // per-pid spawn produced on failure.
-func buildNodeFromPS(entry psEntry, childrenMap map[int][]psEntry, cmdlines map[int]string) ProcessNode {
+
+func buildNodeFromPS(entry psEntry, childrenMap map[int][]psEntry, cmdlines map[int]string, agents map[string]bool) ProcessNode {
+	cmdline := cmdlines[entry.pid]
 	node := ProcessNode{
 		PID:            entry.pid,
 		PPID:           entry.ppid,
 		Comm:           entry.comm,
-		Cmdline:        cmdlines[entry.pid],
-		Classification: ClassifyProcess(entry.comm),
+		Cmdline:        cmdline,
+		Classification: classifyProcess(entry.comm, cmdline, agents),
 		Children:       []ProcessNode{},
 	}
 
 	for _, child := range childrenMap[entry.pid] {
-		node.Children = append(node.Children, buildNodeFromPS(child, childrenMap, cmdlines))
+		node.Children = append(node.Children, buildNodeFromPS(child, childrenMap, cmdlines, agents))
 	}
 
 	return node
