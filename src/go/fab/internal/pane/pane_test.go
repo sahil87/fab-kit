@@ -167,6 +167,66 @@ func TestCurrentCommandArgs(t *testing.T) {
 	})
 }
 
+func TestInModeArgs(t *testing.T) {
+	t.Run("no server", func(t *testing.T) {
+		got := InModeArgs("", "%17")
+		want := []string{"display-message", "-p", "-t", "%17", "#{pane_in_mode}"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("InModeArgs = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("server prefixed", func(t *testing.T) {
+		got := InModeArgs("runKit", "%17")
+		want := []string{"-L", "runKit", "display-message", "-p", "-t", "%17", "#{pane_in_mode}"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("InModeArgs = %v, want %v", got, want)
+		}
+	})
+}
+
+func TestCancelModeArgs(t *testing.T) {
+	t.Run("no server", func(t *testing.T) {
+		got := CancelModeArgs("", "%17")
+		want := []string{"send-keys", "-X", "-t", "%17", "cancel"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("CancelModeArgs = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("server prefixed", func(t *testing.T) {
+		got := CancelModeArgs("runKit", "%17")
+		want := []string{"-L", "runKit", "send-keys", "-X", "-t", "%17", "cancel"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("CancelModeArgs = %v, want %v", got, want)
+		}
+	})
+}
+
+// TestPaneInMode pins the pre-send guard's cancel decision: only a probe
+// reading `1` (tmux terminates the line with "\n") selects a cancel — `0`,
+// empty, and garbage never do, because `send-keys -X cancel` against a pane
+// not in a mode is a tmux error.
+func TestPaneInMode(t *testing.T) {
+	tests := []struct {
+		probeOut string
+		want     bool
+	}{
+		{"1\n", true},
+		{"1", true},
+		{"0\n", false},
+		{"0", false},
+		{"", false},
+		{"\n", false},
+		{"10\n", false},
+	}
+	for _, tt := range tests {
+		if got := paneInMode(tt.probeOut); got != tt.want {
+			t.Errorf("paneInMode(%q) = %v, want %v", tt.probeOut, got, tt.want)
+		}
+	}
+}
+
 // TestIsShellCommand pins the shell-name predicate both pane-foreground
 // consumers share: the same nine basenames, a case-sensitive basename match
 // (a full path like /usr/bin/fish still matches), and an empty command never

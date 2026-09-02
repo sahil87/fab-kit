@@ -256,16 +256,68 @@ func SendKeyArgs(server, paneID, key string) []string {
 	return WithServer(server, "send-keys", "-t", paneID, key)
 }
 
+// InModeArgs returns the tmux argv that reads a pane's `#{pane_in_mode}` —
+// whether the pane is currently in a mode (copy-mode from a human scrolling
+// up, choose-tree, clock, …). When server is non-empty the argv is prefixed
+// with `-L <server>`.
+func InModeArgs(server, paneID string) []string {
+	return WithServer(server, "display-message", "-p", "-t", paneID, "#{pane_in_mode}")
+}
+
+// CancelModeArgs returns the tmux argv that exits whatever mode a pane is in
+// (`send-keys -X cancel`), returning it to its live tail. Only valid against
+// a pane that IS in a mode — tmux errors otherwise, which is why the guard
+// below keeps the cancel conditional on the probe.
+func CancelModeArgs(server, paneID string) []string {
+	return WithServer(server, "send-keys", "-X", "-t", paneID, "cancel")
+}
+
+// paneInMode is the pure decision half of the pre-send mode guard: it maps
+// the `#{pane_in_mode}` probe output to whether a cancel is needed.
+func paneInMode(probeOut string) bool {
+	return strings.TrimSpace(probeOut) == "1"
+}
+
+// ensureNoMode is the pre-send mode guard: keys sent into a pane that is in a
+// mode are consumed as mode key bindings — send-keys exits 0 and nothing
+// reaches the application (a pane a human left scrolled up in copy-mode
+// silently eats a delivery). Probe `#{pane_in_mode}` and cancel the mode when
+// set, so the send that follows lands at the live prompt. Mode commands
+// (`send-keys -X`) are not blocked by a read-only client, so the guard works
+// even where ordinary sends need the writable-client workaround.
+func ensureNoMode(server, paneID string) error {
+	out, stderr, err := RunCmd("tmux", InModeArgs(server, paneID)...)
+	if err != nil {
+		return StderrError(fmt.Errorf("pane %s: %w", paneID, err), stderr)
+	}
+	if !paneInMode(out) {
+		return nil
+	}
+	if _, stderr, err := RunCmd("tmux", CancelModeArgs(server, paneID)...); err != nil {
+		return StderrError(fmt.Errorf("pane %s: cancel mode: %w", paneID, err), stderr)
+	}
+	return nil
+}
+
 // SendLiteral sends text to a pane as literal characters, submitting nothing.
 // Server-first, matching SendLiteralArgs (see Capture on why the pairs share
-// one order).
+// one order). Runs the pre-send mode guard first (see ensureNoMode); the
+// guard lives at this seam rather than in runSend because every Go sender
+// funnels through SendLiteral/SendKey and runSend has no server in hand.
 func SendLiteral(server, paneID, text string) error {
+	if err := ensureNoMode(server, paneID); err != nil {
+		return err
+	}
 	return runSend(SendLiteralArgs(server, paneID, text), paneID, text)
 }
 
 // SendKey sends a single named key (e.g. "Enter", "C-u") to a pane.
-// Server-first, matching SendKeyArgs.
+// Server-first, matching SendKeyArgs. Runs the pre-send mode guard first
+// (see ensureNoMode).
 func SendKey(server, paneID, key string) error {
+	if err := ensureNoMode(server, paneID); err != nil {
+		return err
+	}
 	return runSend(SendKeyArgs(server, paneID, key), paneID, key)
 }
 
