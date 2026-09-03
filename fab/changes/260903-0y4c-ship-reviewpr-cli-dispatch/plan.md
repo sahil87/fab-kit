@@ -32,7 +32,8 @@
 
   | Observed | Action |
   |----------|--------|
-  | `done` + result `status: failure` | Existing row: STOP with the reported error; stage stays `active` for user retry |
+  | `done` + ship result `status: failure` | Existing row: STOP with the reported `reason`; stage stays `active` for user retry |
+  | `done` + review-pr result `outcome: failure` | Existing row: STOP with the reported `reason`; stage stays `active` for user retry |
   | `done` + review-pr result `outcome: timeout` | Existing timeout row: stage deliberately left `active`, report the exact pending message, stop |
   | `done` + review-pr result `outcome: no-reviews` | Successful no-op — stage finished `done` by the worker |
   | `failed` / `failed (no-result)` / `orphaned` | Canon recovery table (`_preamble.md` § CLI-Adapter Dispatch) — pointer, not restatement |
@@ -75,6 +76,8 @@
   status: success            # worker/infra outcome
   outcome: success           # success | failure | no-reviews | timeout — the Step 6 outcome class
   summary: "3 comments triaged: 2 fixed, 1 deferred"
+  # on outcome: failure only:
+  reason: "no PR found on this branch"
   ```
 
   The `status` vs `outcome` split mirrors the existing `status` vs `verdict` split for review:
@@ -119,7 +122,8 @@
   (would fork `/git-pr`'s behavior by caller and require a larger refactor of its Step 0/4/6
   internals). *Introduced by 0y4c.*
 - **Decision**: The review-pr result file carries the four-class `outcome`
-  (success | failure | no-reviews | timeout) alongside `status`. **Why**: the timeout is an
+  (success | failure | no-reviews | timeout) alongside `status`, plus `reason` on
+  `outcome: failure`. **Why**: the timeout is an
   outcome, not an infra failure — it must map to the existing leave-active + pending-message path;
   reusing git-pr-review's own Step 6 class set adds no new taxonomy. **Rejected**: overloading
   `status: failure` for timeout (would route a healthy outcome into the recovery/restart budget).
@@ -149,7 +153,7 @@
 - [x] A-001 R1: fab-fff Step 4 branches on `dispatch:` presence; native branch text is behavior-identical to today's; CLI branch references (never restates) the canon procedure
 - [x] A-002 R2: fab-fff Step 5 branches identically; synchronous-poll directive present in the dispatched prompt text on all arms
 - [x] A-003 R3: the Behavior note's delta is self-managed transitions only, not the dispatch arm
-- [x] A-004 R4: Error Handling maps `status: failure` / `outcome: timeout` / `outcome: no-reviews` / infra states to existing outcomes with no new recovery rules
+- [x] A-004 R4: Error Handling maps ship `status: failure` / review-pr `outcome: failure` / `outcome: timeout` / `outcome: no-reviews` / infra states to existing outcomes with no new recovery rules
 - [x] A-005 R5, R6: all three fab-continue rows branch; only-if-still-active guards and the failed-row `start` recovery unchanged
 - [x] A-006 R7: `_preamble.md` obligations carry ship/review-pr schemas + the carve-out, stated once (owner), with sites pointing
 
@@ -179,7 +183,7 @@
 
 | # | Grade | Decision | Rationale | Scores |
 |---|-------|----------|-----------|--------|
-| 1 | Confident | Ship result schema carries `pr_url` + failure `reason`; review-pr carries four-class `outcome` | Mirrors each skill's existing return contract ("Returns PR URL or error"; Step 6's outcome classes) — no new taxonomy | S:70 R:75 A:80 D:75 |
+| 1 | Confident | Ship result schema carries `pr_url` + failure `reason`; review-pr carries four-class `outcome` + failure `reason` | Mirrors each skill's existing return contract ("Returns PR URL or error"; Step 6's outcome classes) — no new taxonomy | S:70 R:75 A:80 D:75 |
 | 2 | Confident | git-pr.md / git-pr-review.md themselves need at most a dispatched-form note (obligations ride the dispatch prompt, not the skill files) | The prompt composer (fab-fff/fab-continue) owns the obligations; the skills' standalone behavior is unchanged | S:65 R:80 A:75 D:70 |
 | 3 | Certain | `_pipeline.md` § Stage Dispatch Procedure itself is NOT extended to ship/review-pr (fab-fff Steps 4–5 stay driver-local, mirroring today's structure) | The bracket's procedure is scoped to apply/review/hydrate by design; fab-fff owns its Steps 4–5 text — structure preserved | S:80 R:85 A:90 D:85 |
 | 4 | Certain | `_preamble.md`'s reap table needs no wording change — ship/review-pr fall under the "every other stage" immediate-reap row literally | The row is exhaustive by complement (everything but apply); verified at § CLI-Adapter Dispatch step 3 during T005 | S:85 R:90 A:95 D:90 |

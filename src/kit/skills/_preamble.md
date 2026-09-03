@@ -497,6 +497,8 @@ Per `docs/specs/harness-adapters.md` § Dispatch-prompt obligations, **whatever 
    status: success            # the WORKER/infra outcome
    outcome: success           # success | failure | no-reviews | timeout — the Step 6 outcome class
    summary: "3 comments triaged: 2 fixed, 1 deferred"
+   # on outcome: failure only:
+   reason: "no PR found on this branch"
    ```
 
    The **`status` vs `verdict` split is load-bearing**: a completed review with `verdict: fail` is dispatch-state `done` (result present) — the orchestrator then takes the normal review-fail path. Dispatch-state `failed` is reserved for worker/infrastructure failure. The review-pr **`status` vs `outcome` split mirrors it**: `outcome: failure` and `outcome: timeout` are dispatch-state `done` (result present), never dispatch-state `failed` — a timeout maps to the orchestrator's existing leave-`active` + pending-message path, not the restart budget.

@@ -105,8 +105,11 @@ delivery-mechanism-varies rule) carries:
   # review-pr
   stage: review-pr
   status: success
-  outcome: done              # done | timeout — the Copilot-poll timeout is an OUTCOME, not a failure
+  outcome: success           # success | failure | no-reviews | timeout — git-pr-review's Step 6
+                             # outcome classes; the Copilot-poll timeout is an OUTCOME, not a failure
   summary: "2 findings fixed, review resolved"
+  # on outcome: failure only:
+  reason: "no PR found on this branch"
   ```
 
 - **Obligation 2** — the standard subagent context files (already required of every dispatch).
@@ -130,7 +133,8 @@ retry story:
 
 | Observed | Meaning | Action |
 |----------|---------|--------|
-| `done` + result `status: failure` | git-pr/git-pr-review reported failure | Existing path: STOP with the reported error; the stage remains `active` for user retry |
+| `done` + ship result `status: failure` | git-pr reported failure | Existing path: STOP with the reported error; the stage remains `active` for user retry |
+| `done` + review-pr result `outcome: failure` | git-pr-review reported failure | Existing path: STOP with the result's reported `reason`; the stage remains `active` for user retry |
 | `done` + review-pr result `outcome: timeout` | Copilot poll exhausted | Existing pending-message outcome (fab-fff Error Handling), verbatim |
 | `failed` / `failed (no-result)` / `orphaned` | Worker/infra states | Canon recovery table (`_preamble.md` § CLI-Adapter Dispatch): one-restart budget, logs surfacing, escalation — no new rules |
 
@@ -203,7 +207,7 @@ retry story:
 | 2 | Confident | Dispatched ship/review-pr workers keep self-managed transitions; no block-contract transition prohibition; harness-adapters gains a stage-scoped carve-out | Discussed — matches today's native-subagent form ("Handles fab status integration internally"); alternative (orchestrator-owned transitions) rejected as a larger git-pr refactor | S:80 R:55 A:75 D:75 |
 | 3 | Confident | Dispatched form gains obligations 1+3 (result file, terminal refresh); minimal schemas mirror existing stage shapes, exact fields settled at plan | Discussed — the result file is the pane arm's sole completion signal, non-negotiable; field detail is reversible plan work | S:75 R:70 A:80 D:80 |
 | 4 | Certain | Light lane untouched — ship/review-pr stay inline there | Discussed — inline stages are by-design no-dispatch (`_pipeline.md` § Light Lane) | S:85 R:85 A:90 D:95 |
-| 5 | Confident | Failure mapping: result `status: failure` ⇒ existing STOP-with-error path (stage stays active); infra states per canon recovery table; review-pr timeout is an outcome, not a failure | Direction discussed; row detail derived from existing fab-fff Error Handling + `_preamble.md` recovery canon | S:70 R:65 A:75 D:70 |
+| 5 | Confident | Failure mapping: ship result `status: failure` / review-pr result `outcome: failure` ⇒ existing STOP-with-error path (stage stays active); infra states per canon recovery table; review-pr timeout is an outcome, not a failure | Direction discussed; row detail derived from existing fab-fff Error Handling + `_preamble.md` recovery canon | S:70 R:65 A:75 D:70 |
 | 6 | Certain | No Go/runtime change — `fab dispatch` is stage-generic | Verified in-session: stageRoles carries ship/review-pr (agent.go:304); live `fab agent ship -o yaml` returned a pane mapping; no stage allowlist in dispatch | S:80 R:90 A:95 D:90 |
 | 7 | Certain | Reap timing: ship/review-pr panes reap immediately at done-read; never named/continued | The canon's "every other stage" reap row literally covers them; Worker Continuation is apply-scoped by design | S:70 R:80 A:85 D:85 |
 | 8 | Confident | Synchronous-poll directive retained verbatim in the dispatched review-pr prompt on all arms | Still load-bearing on the native arm; harmlessly moot on the pane arm — removing it per-arm would fork the prompt content rule | S:60 R:75 A:60 D:55 |
