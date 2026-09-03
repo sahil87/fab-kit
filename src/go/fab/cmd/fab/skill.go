@@ -60,7 +60,7 @@ Not to be confused with fab's own kit-skills (the /fab-* markdown prompts that
 			return cobra.NoArgs(cmd, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 1 {
+			if len(args) == 1 && args[0] == "topics" {
 				// `fab skill topics`: fab ships zero topic pages, so the
 				// standard's mandated output is zero bytes on stdout, exit 0.
 				return nil
