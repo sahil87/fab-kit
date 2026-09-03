@@ -32,7 +32,9 @@ Four words, each with exactly one meaning:
 | **Tier 1 / Tier 2** | Agent **depth**: Tier 1 is the agents a user talks to (a `fab agent` session, the operator, a `fab batch` worker); Tier 2 is the agents pipeline stages dispatch to. |
 
 "Tier" means depth and *only* depth. A watchable pane worker is still Tier 2 — the defining property
-is "owes a result artifact and owns no transitions", not "never spoken to".
+is "owes a result artifact and owns no transitions", not "never spoken to". (Ship/review-pr workers
+excepted on the transition half — they self-manage their own stage's transitions; see
+[`harness-adapters.md`](harness-adapters.md) § Dispatch-prompt obligations.)
 
 ---
 
@@ -710,11 +712,15 @@ inherited session model now resolve a role like every other:
 
 - **`/fab-continue`'s ship and review-pr rows.** These delegate to `/git-pr` and `/git-pr-review`, and
   resolve `fab agent ship -o yaml` / `fab agent review-pr -o yaml` before
-  dispatching that sub-agent — surfacing the required YAML keys and applying the two seams — **mirroring
+  dispatching that worker — surfacing the required YAML keys, then **branching on `dispatch:` key
+  presence like every other dispatch site**: absent ⇒ the native arm applies the two seams (empty ⇒
+  omit); present ⇒ the CLI adapter per `_preamble.md` § CLI-Adapter Dispatch — **mirroring
   `/fab-fff`'s full-lane Steps 4–5 exactly** (in the light lane those steps run inline with no
   YAML resolution). This closes the caller asymmetry where `/fab-fff` resolved a role for
-  ship/review-pr but plain `/fab-continue` did not. `/git-pr` and `/git-pr-review` still self-manage their own
-  `fab status` transitions — only the model/effort seam is added.
+  ship/review-pr but plain `/fab-continue` did not. `/git-pr` and `/git-pr-review` self-manage their own
+  `fab status` transitions on every arm — their dispatch prompts carry the result-file and
+  terminal-refresh obligations but not the block-contract transition prohibition (the carve-out is
+  owned by [`harness-adapters.md`](harness-adapters.md) § Dispatch-prompt obligations).
 - **`/fab-proceed`'s prefix steps.** The prefix-step dispatches were previously exempt ("no
   stage resolution — they dispatch at the inherited model). They now resolve a **role by name**
   (the resolver accepts a role name positionally, the same path `fab agent <role>` uses — no Go change):

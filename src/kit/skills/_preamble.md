@@ -417,7 +417,7 @@ Escalation surfaces per-mode evidence, sends `rk notify` only behind the fail-si
 - Automatic mode passes no flag: `fab dispatch` re-resolves the configured `dispatch.mode` against current capabilities and environment. Force `--pane` or `--headless` on `restart` only for a one-shot override; the flags are mutually exclusive and forced prerequisites hard-error. `fab dispatch open` needs neither — it IS the pane entry, so pane is explicit there and a missing prerequisite hard-errors rather than descending. Automatic selection descends softly, never ascends, and surfaces `mode: <rung> (preferred)` or `mode: <rung> (descended: <reason>[; <reason>])`. Reasons are exactly `pane unavailable: no tmux`, `pane unavailable: tmux unreachable`, `pane unavailable: no interactive_command`, and `native unavailable`; combinations preserve ladder order. If re-resolution lands on native, `fab dispatch` errors before writing state and tells the caller to re-run `fab agent <stage> -o yaml` and use native dispatch when `dispatch:` is absent; if it lands on pane, `start` errors the same way and names `open`.
 - Pane mode reaches only `running` / `done` / `orphaned`; `failed` and `failed (no-result)` are unreachable without an exit-code channel. It inherits the same prompt, wait, recovery, and one-restart budget, and the same reap handling at the stage-aware moment step 3 fixes.
 - Pane output is tmux scrollback, not `{stage}.log`. Use `fab pane capture [-L <server>] <pane>` for peek/escalation — the socket rides `fab dispatch status <change> <stage> --json` (the `server` key) and the exact socket-included command is printed by `fab dispatch logs <change> <stage>`. A non-`ready` `fab dispatch ready` report carries the pane and its socket inline, so the gate needs no separate lookup.
-- Steering is contract-neutral: the worker still owes `{stage}-result.yaml` and terminal `fab status refresh <change>`, runs no transition command, and the orchestrator owns all transitions. Pane placement, column/sibling mechanics, identities, fallbacks, and the `opened …` / `delivered …` output forms live only in `_cli-fab.md` § fab dispatch.
+- Steering is contract-neutral: the worker still owes `{stage}-result.yaml` and terminal `fab status refresh <change>`, runs no transition command, and the orchestrator owns all transitions (ship/review-pr workers excepted — they self-manage their own stage's transitions; § Dispatch-Prompt Obligations). Pane placement, column/sibling mechanics, identities, fallbacks, and the `opened …` / `delivered …` output forms live only in `_cli-fab.md` § fab dispatch.
 
 #### The pane readiness gate
 
@@ -481,13 +481,35 @@ Per `docs/specs/harness-adapters.md` § Dispatch-prompt obligations, **whatever 
    summary: "updated docs/memory/runtime/dispatch.md, regenerated indexes"
    ```
 
-   The **`status` vs `verdict` split is load-bearing**: a completed review with `verdict: fail` is dispatch-state `done` (result present) — the orchestrator then takes the normal review-fail path. Dispatch-state `failed` is reserved for worker/infrastructure failure.
+   ```yaml
+   # ship (mirrors "returns PR URL or error")
+   stage: ship
+   status: success            # success | failure — the WORKER/infra outcome
+   pr_url: "https://github.com/{owner}/{repo}/pull/{N}"
+   summary: "committed, pushed, draft PR created"
+   # on failure only:
+   reason: "push rejected: …"
+   ```
+
+   ```yaml
+   # review-pr (mirrors git-pr-review's four-class Step 6 outcome)
+   stage: review-pr
+   status: success            # the WORKER/infra outcome
+   outcome: success           # success | failure | no-reviews | timeout — the Step 6 outcome class
+   summary: "3 comments triaged: 2 fixed, 1 deferred"
+   # on outcome: failure only:
+   reason: "no PR found on this branch"
+   ```
+
+   The **`status` vs `verdict` split is load-bearing**: a completed review with `verdict: fail` is dispatch-state `done` (result present) — the orchestrator then takes the normal review-fail path. Dispatch-state `failed` is reserved for worker/infrastructure failure. The review-pr **`status` vs `outcome` split mirrors it**: `outcome: failure` and `outcome: timeout` are dispatch-state `done` (result present), never dispatch-state `failed` — a timeout maps to the orchestrator's existing leave-`active` + pending-message path, not the restart budget.
 2. **Carry the standard subagent context files** — `fab/project/config.yaml`, `fab/project/constitution.md`, and (optional) `context.md` / `code-quality.md` / `code-review.md` (§ Standard Subagent Context). Already true for native prompts; the CLI prompt content MUST carry the same instruction — a worker on a fresh harness has no other awareness of project principles. **This obligation binds every *dispatch***; a **continuation** message to an already-running named worker carries obligations 1 and 3 only, because the worker already holds the context files (§ Worker Continuation).
 3. **End with a terminal `fab status refresh <change>` epilogue** (the worker substitutes the 4-char change ID it was dispatched with) so the worker recomputes state from artifacts after finishing (the 3a pull-based recompute). This is the sole `fab status` command a dispatched block runs — see the block-contract carve-out below.
 
 **Delivery mechanism varies; the obligations do not.** *How* the prompt reaches the worker is adapter-specific — the dispatched prompt itself (native), the command's **stdin** (headless CLI), or a **prompt file** plus a one-line **pointer** to it that `fab dispatch deliver` types into the interactive worker after `open` (pane). Compose the **dispatch** prompt content **identically in every case**: the pane worker that follows its pointer is reading the same block prompt, with the same three obligations above. Nothing about the prompt is written differently for the pane arm; only `fab dispatch` chooses how it is handed over. (A continuation message is not a dispatch — see obligation 2's carve-out.)
 
 **Block-contract carve-out.** The universal block-contract line the dispatch sites carry — "do NOT run `fab status` commands; return results only" — is refined to prohibit `fab status` **transition** commands (`start`/`advance`/`finish`/`reset`/`fail`/`skip`) while **REQUIRING** the terminal `fab status refresh <change>`: refresh is a pull-based recompute, not a transition, so it does not violate the invariant that **the orchestrator (sequencer) owns all transitions**. Every adapter's block prompt carries this carve-out — including a pane dispatch, where a user may converse with the worker mid-stage: **steering is contract-neutral**, so a steered worker still owes its result file and its terminal refresh, and still never runs a transition command.
+
+**Self-managing stages (ship/review-pr).** Dispatched **ship** and **review-pr** workers (`/fab-fff` Steps 4–5, `/fab-continue`'s ship/review-pr rows) are exempt from the transition prohibition above: they self-manage their **own** stage's `fab status` start/finish/fail exactly as the standalone `/git-pr` / `/git-pr-review` skills do, on every adapter — their prompts carry obligations 1–3 but NOT the prohibition. The orchestrator still owns sequencing and never runs a transition for a stage whose worker owns it; the dispatching rows' only-if-still-active guards are the reconciliation seam. Steering stays contract-neutral for these workers too — a steered ship/review-pr pane worker still owes its result file and terminal refresh.
 
 ---
 

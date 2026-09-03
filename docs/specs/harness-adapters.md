@@ -380,6 +380,15 @@ same result-file, context-file, and refresh-epilogue obligations, that the other
 directly. A **continuation** message is not a dispatch and carries obligations 1 and 3 only — see
 obligation 2's carve-out above.
 
+**Self-managing stages (ship/review-pr).** The block-contract transition prohibition — a dispatched
+worker runs no `fab status` transition command; the orchestrator owns every transition — is scoped to
+the `/fab-continue`-behavior workers (apply, review, hydrate). Dispatched **ship** and **review-pr**
+workers self-manage their **own** stage's `fab status` start/finish/fail on every adapter, exactly as
+the standalone `/git-pr` / `/git-pr-review` skills do; the orchestrator owns sequencing and never runs
+a transition for a stage whose worker owns it (the dispatching rows' only-if-still-active guards are
+the reconciliation seam). Obligations 1–3 bind these workers unchanged, and a Copilot-poll timeout is
+an `outcome: timeout` **result** (dispatch-state `done`), never an infra failure.
+
 ### The five-state machine (every adapter observes a subset of it)
 
 A dispatched stage is in exactly one of five states, and the **state strings are the cross-adapter
@@ -530,7 +539,8 @@ The pane mode's reason for existing is that a human MAY converse with the worker
 
 - The worker still owes `{stage}-result.yaml`, still ends with the terminal `fab status refresh <change>`
   epilogue, and still runs **no `fab status` transition command** — the orchestrator owns every
-  transition, exactly as for the other two adapters.
+  transition, exactly as for the other two adapters (ship/review-pr workers excepted — they
+  self-manage their own stage's transitions; § Dispatch-prompt obligations).
 - Steering is human input into a worker's context, no different in kind from answering a native
   sub-agent's question mid-run. It is distinct from the **pre-delivery** keystrokes the readiness gate
   may send (§ Recovery → *Bounded carve-out*), which reach a pane that is not yet a worker.

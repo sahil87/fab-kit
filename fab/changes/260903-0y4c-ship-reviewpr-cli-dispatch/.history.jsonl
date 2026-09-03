@@ -1,0 +1,14 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-03T06:35:25Z"}
+{"args":"Wire the ship and review-pr dispatch sites (fab-fff Steps 4–5 and /fab-continue's ship/review-pr rows) through the CLI-adapter dispatch branch so a resolved dispatch: mapping is honored — pane/headless git-pr and git-pr-review workers with self-managed transitions plus result-file and refresh obligations — instead of silently inheriting the session model when agent.workers is a non-native provider","cmd":"fab-new","event":"command","ts":"2026-09-03T06:35:25Z"}
+{"delta":"+4.3","event":"confidence","score":4.3,"trigger":"calc-score","ts":"2026-09-03T06:37:56Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-03T06:41:32Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-03T06:41:51Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-03T06:53:48Z"}
+{"event":"review","result":"failed","ts":"2026-09-03T06:57:52Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-03T06:57:52Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-03T06:59:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-03T07:01:38Z"}
+{"event":"review","result":"passed","ts":"2026-09-03T07:01:38Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-03T07:05:22Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-09-03T07:06:37Z"}
+{"event":"review","result":"passed","ts":"2026-09-03T07:15:35Z"}
