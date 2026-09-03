@@ -933,10 +933,10 @@ Emits the shell-completion script for the given shell on stdout — the `tu`-sty
 ## fab skill
 
 ```
-fab skill
+fab skill [topics]
 ```
 
-Prints the fab **agent skill bundle** — a one-page, static, agent-first usage briefing (when to reach for fab, a capabilities map keyed to subcommands, composition patterns, the stdout/exit-code contracts, gotchas) to stdout as **raw markdown, byte-identical** to the repo's canonical `docs/site/skill.md`. **stderr empty on success, exit 0**, no rendering/pager/framing (an agent consumes the bytes directly). Takes no args/flags (`cobra.NoArgs`); an argued invocation is a usage error → exit `2` via the binary-wide `run()` classification. Config-independent — works outside a fab repo.
+Prints the fab **agent skill bundle** — a one-page, static, agent-first usage briefing (when to reach for fab, a capabilities map keyed to subcommands, composition patterns, the stdout/exit-code contracts, gotchas) to stdout as **raw markdown, byte-identical** to the repo's canonical `docs/site/skill.md`. **stderr empty on success, exit 0**, no rendering/pager/framing (an agent consumes the bytes directly). The single accepted positional is the standard's **reserved topic `topics`**: `fab skill topics` enumerates the tool's content-topic names one per line, raw to stdout, stderr empty, exit 0 — and fab ships **zero topic pages**, so the output is empty (zero bytes), the standard's scriptable "zero topics" answer. `topics` is a machine affordance reserved by the shll `skill` standard in every tool's topic namespace, never a content topic — it is deliberately not a cobra child command, so it appears in neither `fab skill --help` nor the `help-dump` tree. Any other positional remains a usage error → exit `2` via the binary-wide `run()` classification. No flags. Config-independent — works outside a fab repo.
 
 This is the shll toolkit-wide `skill` standard (contract: shll `docs/site/standards/skill.md`; sibling of the machine-readable `help-dump` contract). The bundle is embedded into the `fab-go` binary at build time (fab-go's first `go:embed`), so it is offline and version-locked to the release — the sync + drift-guard pattern `shll standards` established: a committed copy at `src/go/fab/cmd/fab/skill.md`, refreshed from the canonical `docs/site/skill.md` by `scripts/sync-skill.sh` (`//go:generate` pointer), pinned byte-honest by `TestSkillEmbedMatchesCanonical`. Because `docs/site/**` is the pulled site surface, the same page renders at `shll.ai/tools/fab-kit/skill` for free.
 

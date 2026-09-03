@@ -1,0 +1,10 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-03T06:04:36Z"}
+{"args":"Add the reserved 'fab skill topics' verb mandated by the shll toolkit skill standard — empty stdout, empty stderr, exit 0 (fab ships zero topic pages)","cmd":"fab-new","event":"command","ts":"2026-09-03T06:04:36Z"}
+{"delta":"+4.3","event":"confidence","score":4.3,"trigger":"calc-score","ts":"2026-09-03T06:06:38Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-03T06:08:02Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-03T06:09:24Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-03T06:11:34Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-03T06:14:22Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-03T06:17:19Z"}
+{"event":"review","result":"passed","ts":"2026-09-03T06:17:19Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-03T06:18:30Z"}

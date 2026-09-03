@@ -1,0 +1,55 @@
+id: psgm
+name: 260903-psgm-fab-skill-topics-verb
+created: 2026-09-03T06:04:36Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 4
+    acceptance_count: 10
+    acceptance_completed: 10
+confidence:
+    certain: 5
+    confident: 2
+    tentative: 1
+    unresolved: 0
+    score: 4.3
+    fuzzy: true
+    dimensions:
+        signal: 80.6
+        reversibility: 79.4
+        competence: 82.5
+        disambiguation: 78.8
+stage_metrics:
+    intake: {started_at: "2026-09-03T06:04:36Z", driver: fab-new, iterations: 1, completed_at: "2026-09-03T06:11:34Z"}
+    apply: {started_at: "2026-09-03T06:11:34Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-03T06:14:22Z"}
+    review: {started_at: "2026-09-03T06:14:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-03T06:17:19Z"}
+    hydrate: {started_at: "2026-09-03T06:17:19Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-03T06:18:30Z"}
+    ship: {started_at: "2026-09-03T06:18:30Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-09-03T06:18:30Z"
+    computed_at_stage: hydrate
+summary: fab skill accepts the reserved topics positional — empty enumeration (zero topic pages), exit 0, per the shll skill standard
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-09-03T06:18:30Z
