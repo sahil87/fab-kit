@@ -25,9 +25,13 @@ var skillBundle []byte
 // bundle for an agent using an installed fab from any repo. It prints the
 // embedded bundle as raw markdown to stdout, byte-identical to the repo's
 // canonical docs/site/skill.md, with empty stderr and exit 0. Static-only: the
-// bytes never vary with environment or session. Takes no args (cobra.NoArgs) —
-// an argued invocation is a usage error classified to exit 2 by main()'s run()
-// helper (no bespoke exit-code handling here).
+// bytes never vary with environment or session. The single accepted positional
+// is the standard's reserved topic `topics` (a machine affordance, deliberately
+// not a cobra child command so it never surfaces in --help or the help-dump
+// tree): it enumerates the tool's content topics one per line, and fab ships
+// zero topic pages, so it prints nothing and exits 0. Any other positional is a
+// usage error classified to exit 2 by main()'s run() helper (no bespoke
+// exit-code handling here).
 func skillCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "skill",
@@ -46,8 +50,21 @@ bytes directly.
 
 Not to be confused with fab's own kit-skills (the /fab-* markdown prompts that
 'fab sync' deploys to .claude/skills/) — this command prints one static page.`,
-		Args: cobra.NoArgs,
+		// Accept zero args (print the bundle) or exactly the reserved topic
+		// `topics`; anything else falls through to cobra.NoArgs so the error
+		// shape stays cobra's default unknown-argument usage error.
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 && args[0] == "topics" {
+				return nil
+			}
+			return cobra.NoArgs(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 && args[0] == "topics" {
+				// `fab skill topics`: fab ships zero topic pages, so the
+				// standard's mandated output is zero bytes on stdout, exit 0.
+				return nil
+			}
 			return runSkill(cmd.OutOrStdout())
 		},
 	}

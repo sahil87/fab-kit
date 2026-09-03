@@ -38,7 +38,7 @@ func TestSkill_StdoutByteIdentical(t *testing.T) {
 // TestSkill_EmptyStderrThroughCobra drives the assembled command and asserts the
 // standard's success contract: stdout carries the bundle, stderr is empty, and
 // the run succeeds. Driving through the real cobra command (not just runSkill)
-// also proves the bare invocation with cobra.NoArgs is accepted.
+// also proves the bare invocation passes the custom Args validator.
 func TestSkill_EmptyStderrThroughCobra(t *testing.T) {
 	cmd := skillCmd()
 	var stdout, stderr bytes.Buffer
@@ -56,9 +56,10 @@ func TestSkill_EmptyStderrThroughCobra(t *testing.T) {
 	}
 }
 
-// TestSkill_RejectsArgs asserts an argued invocation is a usage error. cobra.NoArgs
-// returns an error before RunE runs, which main()'s run() classifies as exit 2 —
-// the standard says `fab skill` takes no args/flags.
+// TestSkill_RejectsArgs asserts an unknown positional is still a usage error.
+// The custom Args validator accepts only zero args or exactly `topics` (the
+// standard's reserved topic); anything else falls through to cobra.NoArgs,
+// which errors before RunE runs and is classified as exit 2 by main()'s run().
 func TestSkill_RejectsArgs(t *testing.T) {
 	cmd := skillCmd()
 	var stdout, stderr bytes.Buffer
@@ -69,6 +70,28 @@ func TestSkill_RejectsArgs(t *testing.T) {
 	cmd.SetArgs([]string{"unexpected"})
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("`fab skill unexpected` should be a usage error, got nil")
+	}
+}
+
+// TestSkill_TopicsEmptyContract pins the reserved `topics` verb from the toolkit
+// skill standard: `fab skill topics` enumerates content topics one per line, and
+// fab ships zero topic pages, so the mandated output is exactly zero bytes on
+// stdout, empty stderr, and success (exit 0) — a scriptable "zero topics" answer
+// rather than a usage error.
+func TestSkill_TopicsEmptyContract(t *testing.T) {
+	cmd := skillCmd()
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SetArgs([]string{"topics"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("`fab skill topics` err = %v", err)
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("`fab skill topics` stdout = %q, want zero bytes (fab ships no topic pages)", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("`fab skill topics` wrote to stderr: %q", stderr.String())
 	}
 }
 
