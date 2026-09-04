@@ -18,21 +18,28 @@ func dispatchReadyCmd() *cobra.Command {
 			"command is still a shell (the provider binary has not taken the tty yet), it\n" +
 			"reports `booting` and types NOTHING — a shell in cooked mode echoes typed\n" +
 			"characters by itself, so the sentinel would echo for a reason that has nothing\n" +
-			"to do with an agent being ready. Only once a non-shell process owns the pane\n" +
-			"does the echo-and-stability probe run.\n\n" +
-			"That probe is purely MECHANICAL — it types a sentinel literally, checks whether\n" +
-			"the sentinel echoed, clears it with C-u, and looks at whether the screen is\n" +
-			"still moving. It carries no table of known dialogs, presses no other key, and\n" +
-			"answers nothing: dialog text is a version treadmill, and a half-matched pattern\n" +
-			"pressing Enter into an unknown screen is worse than stalling.\n\n" +
-			"  ready    the sentinel echoed — hand the worker its prompt with `fab dispatch deliver`\n" +
-			"  booting  the pane is still a shell, or no echo on a blank/changing screen —\n" +
-			"           wait and re-probe\n" +
+			"to do with an agent being ready. This takeover precondition runs ahead of BOTH\n" +
+			"classification arms, and rk is never invoked while it holds.\n\n" +
+			"Past the precondition the classification is purely MECHANICAL and two-arm: when\n" +
+			"a sentinel-capable run-kit is on PATH (probed from `rk mux await --help`, cached\n" +
+			"once per process) it delegates to `rk mux await --ready` under a bounded timeout\n" +
+			"and maps rk's report; any unexpected rk failure fails OPEN to the raw arm with\n" +
+			"one stderr warning per process. The raw-tmux fallback types a sentinel literally,\n" +
+			"checks whether the sentinel echoed, clears it with C-u, and looks at whether the\n" +
+			"screen is still moving. Neither arm carries a table of known dialogs, presses\n" +
+			"any other key, or answers anything: dialog text is a version treadmill, and a\n" +
+			"half-matched pattern pressing Enter into an unknown screen is worse than stalling.\n\n" +
+			"  ready    the pane accepts typed input (rk's state-present or sentinel echo, or\n" +
+			"           the raw arm's echoed sentinel) — hand the worker its prompt with\n" +
+			"           `fab dispatch deliver`\n" +
+			"  booting  the pane is still a shell, rk's bounded await timed out, or no echo on\n" +
+			"           a blank/changing screen — wait and re-probe\n" +
 			"  parked   no echo on a stable screen — a dialog, survey, login wall, or wedged\n" +
 			"           process is holding the input; the snippet below shows what\n\n" +
 			"Deciding what a parked screen wants is the orchestrator's judgment, which is\n" +
-			"why every non-ready report carries the pane, its socket, and a capture snippet.\n" +
-			"All three answers exit 0 — the report string is the sole discriminator, as with\n" +
+			"why every non-ready report carries the pane, its socket, and a capture snippet\n" +
+			"(fab's own capture on both arms). All three answers exit 0 — the report string\n" +
+			"is the sole discriminator, as with\n" +
 			"`fab dispatch wait`. Re-running the probe is always safe.",
 		Example: `  fab dispatch ready b91h apply`,
 		Args:    cobra.ExactArgs(2),

@@ -1,0 +1,14 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-04T16:50:23Z"}
+{"args":"Agent-messaging Part D: gate delegation (gap 5) — delegate the dispatch/pane readiness gate's mechanical classification to rk mux await --ready, rk-gated with raw-tmux fallback","cmd":"fab-new","event":"command","ts":"2026-09-04T16:50:23Z"}
+{"delta":"+4.1","event":"confidence","score":4.1,"trigger":"calc-score","ts":"2026-09-04T16:52:14Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-04T17:09:21Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-04T17:10:03Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-04T17:27:16Z"}
+{"event":"review","result":"failed","ts":"2026-09-04T17:32:52Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-04T17:32:52Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-04T17:38:09Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-04T17:42:24Z"}
+{"event":"review","result":"passed","ts":"2026-09-04T17:42:24Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-04T17:46:07Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-09-04T17:47:30Z"}
+{"event":"review","result":"passed","ts":"2026-09-04T17:59:18Z"}
