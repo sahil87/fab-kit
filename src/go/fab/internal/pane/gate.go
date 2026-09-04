@@ -34,13 +34,16 @@ import (
 // silently discards). The gate therefore first asks who owns the pane
 // (`#{pane_current_command}` — the same foreground-command signal the
 // operator's agent_exited delta keys on): a shell foreground classifies
-// `booting` with NO keystroke sent at all. Post-takeover, classification is
-// purely ECHO- and STABILITY-based — send a sentinel, see whether it appears,
-// see whether the screen is still moving. It carries NO table of known
-// dialogs, because dialog text is a version treadmill and a half-matched
-// pattern pressing Enter into an unknown screen is worse than stalling.
-// Deciding what a `parked` screen wants is the orchestrator's judgment, over
-// the snippet this file returns.
+// `booting` with NO keystroke sent at all. Post-takeover, the mechanical
+// classification runs in two arms: it DELEGATES to `rk mux await --ready`
+// when a sentinel-capable run-kit is on PATH (gate_rk.go — "fab consumes,
+// never reimplements", docs/specs/agent-messaging.md), and falls back to
+// fab's own ECHO- and STABILITY-based probe when rk is absent, too old, or
+// fails unexpectedly (fail-open, one stderr warning per process). Neither arm
+// carries a table of known dialogs, because dialog text is a version
+// treadmill and a half-matched pattern pressing Enter into an unknown screen
+// is worse than stalling. Deciding what a `parked` screen wants is the
+// orchestrator's judgment, over the snippet this file returns.
 
 // Readiness is the gate's classification of a pane. The values are the exact
 // strings `fab pane ready` and `fab dispatch ready` print — they are the report
@@ -136,9 +139,13 @@ func (t tmuxPaneIO) SendKey(paneID, key string) error {
 
 // Gate runs the readiness probe and the delivery choreography against one tmux
 // server. The delay fields are populated by NewGate; a zero delay simply skips
-// its sleep, which is what makes the choreography instant under test.
+// its sleep, which is what makes the choreography instant under test. Server is
+// the tmux socket name the delegated rk arm threads to `rk mux await -L` (empty
+// = the default socket); it duplicates tmuxPaneIO's own copy because the rk
+// argv builder sits outside the IO interface.
 type Gate struct {
 	IO        PaneIO
+	Server    string
 	Settle    time.Duration
 	Stability time.Duration
 	Busy      time.Duration
@@ -149,6 +156,7 @@ type Gate struct {
 func NewGate(server string) *Gate {
 	return &Gate{
 		IO:        tmuxPaneIO{server: server},
+		Server:    server,
 		Settle:    settleDelay,
 		Stability: stabilityDelay,
 		Busy:      busyDelay,
@@ -196,8 +204,26 @@ func DeriveReadiness(echoed bool, first, second string) Readiness {
 // shell echoes typed characters by itself, so the sentinel would echo for a
 // reason that has nothing to do with readiness. That path reports `booting`
 // and sends NOTHING, regardless of echo; the echo is the untrustworthy
-// signal and is not consulted. Only once a non-shell process owns the pane
-// does the sentinel/echo/stability choreography run.
+// signal and is not consulted. The precondition runs ahead of BOTH
+// classification arms below — rk's await deliberately classifies a cooked-
+// shell echo as ready (terminals-are-one-standard), which for a dispatch pane
+// is exactly the false-ready this guard exists to close, so rk is never
+// invoked while a shell owns the pane.
+//
+// Past the precondition the classification runs in TWO ARMS. When a sentinel-
+// capable run-kit is on PATH (see gate_rk.go), the mechanical classification
+// delegates to `rk mux await --ready` (probeRK): state-present and sentinel-
+// echo both report `ready`, `parked` and a bound-expiry `running` report
+// `parked`/`booting` with a FAB-CAPTURED snippet, and `gone` surfaces as the
+// ordinary dead-pane error. Any unexpected rk failure fails OPEN to the raw
+// arm with one stderr warning per process. The raw-tmux arm (the rk-less
+// fallback, and the whole classifier when rk is absent) is purely ECHO- and
+// STABILITY-based — send a sentinel, see whether it appears, see whether the
+// screen is still moving. Neither arm carries a table of known dialogs,
+// because dialog text is a version treadmill and a half-matched pattern
+// pressing Enter into an unknown screen is worse than stalling. Deciding what
+// a `parked` screen wants is the orchestrator's judgment, over the snippet
+// this file returns.
 //
 // It is READ-MOSTLY and idempotent (Constitution III): the only thing it
 // writes to the pane is the sentinel, which is typed literally, never
@@ -210,11 +236,20 @@ func (g *Gate) Probe(paneID string) (Readiness, string, error) {
 		return "", "", err
 	}
 	if IsShellCommand(cmd) {
-		snippet, err := g.IO.Capture(paneID, captureLines)
+		return g.bootingSnippet(paneID)
+	}
+	// rk arm: the delegated classifier. It runs ONLY here — past the takeover
+	// precondition — so its sentinel is never typed into a cooked-mode shell.
+	if rkSentinelCapable() {
+		state, snippet, handled, err := g.probeRK(paneID)
 		if err != nil {
 			return "", "", err
 		}
-		return ReadyBooting, Snippet(snippet), nil
+		if handled {
+			return state, snippet, nil
+		}
+		// handled=false is the fail-open path (warnRKFallback already warned):
+		// the raw-tmux arm below classifies this same probe.
 	}
 	if err := g.IO.SendLiteral(paneID, ReadySentinel); err != nil {
 		return "", "", err
@@ -252,6 +287,75 @@ func (g *Gate) Probe(paneID string) (Readiness, string, error) {
 		return ReadyReady, "", nil
 	}
 	return DeriveReadiness(false, after, settled), Snippet(settled), nil
+}
+
+// probeRK is the delegated classification: one bounded `rk mux await --ready`
+// call whose report maps onto the frozen Readiness contract. handled=false
+// (with err=nil) is the fail-open case — an unexpected rk failure or an
+// unparsable report — and the caller falls through to the raw-tmux arm for the
+// same probe; a CLASSIFIED outcome is an answer and is never re-classified by
+// the fallback (that would double-type the sentinel).
+//
+//	rk outcome                          → fab result
+//	ready %N (state|echo), exit 0       → ready, no snippet
+//	parked %N, exit 0                   → parked + fab-captured snippet
+//	running (timeout), exit 0           → booting + fab-captured snippet
+//	gone %N, exit 1                     → the dead-pane error (not a classification)
+//	any other exit / unparsable stdout  → fail-open (one stderr warning per process)
+//
+// Non-`ready` snippets come from fab's OWN Capture+Snippet path (one extra
+// capture), never rk's stderr, so the `--- last N lines ---` report form and
+// the --json snippet field stay byte-identical on both arms.
+func (g *Gate) probeRK(paneID string) (state Readiness, snippet string, handled bool, err error) {
+	out, rkStderr, runErr := rkAwaitRunner(paneID, g.Server)
+	token := rkReportToken(out)
+	switch {
+	case runErr == nil && token == string(ReadyReady):
+		return ReadyReady, "", true, nil
+	case runErr == nil && token == string(ReadyParked):
+		snippet, err := g.captureSnippet(paneID)
+		if err != nil {
+			return "", "", false, err
+		}
+		return ReadyParked, snippet, true, nil
+	case runErr == nil && token == "running":
+		snippet, err := g.captureSnippet(paneID)
+		if err != nil {
+			return "", "", false, err
+		}
+		return ReadyBooting, snippet, true, nil
+	case runErr != nil && token == "gone":
+		// The pane died (rk's contract: `gone` exits 1 — the non-zero exit is
+		// load-bearing, so an exit-0 `gone` token would fall through to
+		// fail-open): the same refusal the identity check produces, on the
+		// existing dead-pane error path — rk's answer is honored, never
+		// re-classified by the fallback.
+		return "", "", false, &PaneNotFoundError{Pane: paneID}
+	default:
+		warnRKFallback(paneID, runErr, rkStderr)
+		return "", "", false, nil
+	}
+}
+
+// captureSnippet is the non-`ready` evidence fetch: one capture through the
+// same Snippet path every arm reports, so the orchestrator's judgment material
+// is identical however the classification was reached.
+func (g *Gate) captureSnippet(paneID string) (string, error) {
+	capture, err := g.IO.Capture(paneID, captureLines)
+	if err != nil {
+		return "", err
+	}
+	return Snippet(capture), nil
+}
+
+// bootingSnippet is the takeover precondition's report: `booting` with the
+// current screen as evidence, nothing typed.
+func (g *Gate) bootingSnippet(paneID string) (Readiness, string, error) {
+	snippet, err := g.captureSnippet(paneID)
+	if err != nil {
+		return "", "", err
+	}
+	return ReadyBooting, snippet, nil
 }
 
 // Deliver types pointer into a pane and VERIFIES that it landed: readiness

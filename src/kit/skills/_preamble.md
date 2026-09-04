@@ -421,7 +421,7 @@ Escalation surfaces per-mode evidence, sends `rk notify` only behind the fail-si
 
 #### The pane readiness gate
 
-Step 1's pane branch is **open → gate → deliver**, and only then step 2's `wait`. It exists because a freshly spawned agent TUI is not necessarily ready to be typed at: it may still be booting, or parked behind a trust dialog, a survey, or a login wall. Classifying that screen is mechanical (the runtime's job); deciding what it wants is judgment (yours).
+Step 1's pane branch is **open → gate → deliver**, and only then step 2's `wait`. It exists because a freshly spawned agent TUI is not necessarily ready to be typed at: it may still be booting, or parked behind a trust dialog, a survey, or a login wall. Classifying that screen is mechanical (the runtime's job — delegated to `rk mux await --ready` when a sentinel-capable rk is on PATH, fail-open to fab's own raw-tmux probe; mechanics owned by `_cli-fab.md` § fab dispatch ready); deciding what it wants is judgment (yours).
 
 1. **`fab dispatch open <change> <stage>`** with the full stage prompt on stdin. The pane opens; nothing is delivered.
 2. **Loop `fab dispatch ready <change> <stage>`** and branch on the reported word. Every non-`ready` report carries the pane, its socket, and a capture snippet, so you never need a second capture call.

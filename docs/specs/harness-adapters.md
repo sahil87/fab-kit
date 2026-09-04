@@ -37,6 +37,13 @@
 > **superseded**: verified delivery and the decoupling of pane capability from a provider's
 > positional-prompt grammar outweigh the boot race, which the choreography now handles explicitly with a
 > readiness precondition and a retry. Same explicit-amendment route as above.
+>
+> **Amended by `260904-b4j7-gate-delegation-rk-await-ready`** — the readiness gate's **mechanical
+> classification delegates to run-kit**. When a sentinel-capable `rk` is on PATH, `fab dispatch ready`
+> (and the `fab pane ready` primitive it binds) classifies via `rk mux await --ready` instead of typing
+> its own sentinel — per the agent-messaging spec's ownership split ("fab consumes, never
+> reimplements"). The shell-foreground takeover precondition, the fail-open raw-tmux fallback, and every
+> report/exit-code MUST below are unchanged and bind both arms. Same explicit-amendment route as above.
 
 Fab runs a six-stage pipeline (`intake → apply → review → hydrate → ship → review-pr`). Every
 post-intake stage is executed by **dispatching a worker** in a fresh context that returns a structured
@@ -161,11 +168,12 @@ the worker its prompt are two separate events with a decision between them, so t
 | Verb | Does | Reports |
 |------|------|---------|
 | `fab dispatch open <change> <stage>` | spawns the pane from the composed `interactive_command` **verbatim** and persists the stdin prompt to `{stage}-prompt.md`; delivers **nothing** | `opened <id>/<stage> (…)` |
-| `fab dispatch ready <change> <stage>` | mechanically probes whether the pane accepts typed input — gated on **agent takeover**: a shell foreground classifies `booting` with nothing typed | `ready` \| `booting` \| `parked` (+ pane, socket, capture snippet) |
+| `fab dispatch ready <change> <stage>` | mechanically probes whether the pane accepts typed input — gated on **agent takeover**: a shell foreground classifies `booting` with nothing typed; past takeover the classification delegates to `rk mux await --ready` when a sentinel-capable rk is on PATH (fail-open to fab's own raw-tmux classifier) | `ready` \| `booting` \| `parked` (+ pane, socket, capture snippet) |
 | `fab dispatch deliver <change> <stage> [--prompt-file <p>]` | types the prompt pointer and verifies it landed | `delivered <id>/<stage> (…)` |
 
 **Implementation layering — primitives vs. bindings (260810-1lah).** The readiness classifier (the
-mechanical gate: agent-takeover precondition, typed sentinel, echo check, `C-u` clear), the
+mechanical gate: agent-takeover precondition, then the rk-delegated or raw-tmux classification arm —
+typed sentinel, echo check, `C-u` clear on the raw arm), the
 wrap-tolerant echo-verify delivery
 choreography, and the tmux pane mechanics live in `internal/pane` as **pane-addressed primitives**,
 exposed as `fab pane open` / `fab pane ready` / `fab pane deliver` for driving any pane by id with no
@@ -276,13 +284,28 @@ Mechanics, all fixed by this spec:
   pane's foreground command (`#{pane_current_command}`) is still a shell, the provider binary has not
   taken the tty, and a cooked-mode shell echoes typed characters by itself — so the gate MUST report
   `booting` and MUST type NOTHING, because the sentinel would echo for a reason that has nothing to do
-  with an agent being ready. Only once a non-shell process owns the pane does it classify **purely** by
-  typing a sentinel literally (never submitted, always cleared with `C-u`) and reading captures: the
+  with an agent being ready. This takeover precondition runs fab-side AHEAD of both classification
+  arms: rk's await deliberately classifies a cooked-shell echo as ready (terminals-are-one-standard),
+  which for a dispatch pane is exactly the false-ready the precondition exists to close, so rk MUST
+  NOT be invoked while a shell owns the pane. Past the precondition the classification runs in **two
+  arms**. The **rk arm** is preferred: when a sentinel-capable run-kit is on PATH — probed from the
+  binary (`rk mux await --help` mentions the `parked` report; never a version compare, cached at most
+  once per process) — the gate MUST delegate the mechanical classification to `rk mux await --ready
+  <pane>` under a bounded internal timeout and map rk's report onto the frozen contract: `ready`
+  (state-present or sentinel echo) ⇒ `ready`; `parked` ⇒ `parked`; a timeout `running` ⇒ `booting`;
+  `gone` ⇒ the dead-pane error (not a classification). Any OTHER rk outcome — an unexpected non-zero
+  exit or an unparsable report — MUST fail OPEN to the raw arm for that probe with at most one stderr
+  warning per process; a classified rk outcome is an answer and MUST NOT be re-classified by the
+  fallback. The **raw-tmux arm** is the rk-less fallback and MUST stay byte-identical: classify
+  **purely** by typing a sentinel literally (never submitted, always cleared with `C-u`) and reading
+  captures: the
   sentinel echoed ⇒ `ready`; no echo on a blank or still-changing screen ⇒ `booting`; no echo on a
-  stable screen ⇒ `parked`. It MUST carry **no table of known dialogs** — dialog text is a version
+  stable screen ⇒ `parked`. Both arms MUST carry **no table of known dialogs** — dialog text is a
+  version
   treadmill, and a half-matched pattern pressing Enter into an unknown screen is worse than stalling —
-  and it MUST answer nothing itself. Every non-`ready` report MUST carry the pane, its socket, and a
-  capture snippet, because deciding what a parked screen wants belongs to the orchestrator. All three
+  and MUST answer nothing themselves. Every non-`ready` report MUST carry the pane, its socket, and a
+  capture snippet (fab's own capture on BOTH arms — rk's stderr formatting is not contract), because
+  deciding what a parked screen wants belongs to the orchestrator. All three
   classifications are a successful observation (the `wait`-timeout precedent); non-zero exit is
   reserved for real errors. The gate's budget, escalation classes, and login-wall rule are skill-side
   policy in `_preamble.md` § CLI-Adapter Dispatch, exactly as the recovery policy is.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -205,4 +206,76 @@ func TestPaneReady_JSON(t *testing.T) {
 			t.Errorf("server = %v (present %v), want JSON null", s, ok)
 		}
 	})
+}
+
+// TestPaneReady_RKGoneExits2 pins the delegated arm's dead-pane mapping end to
+// end: with a sentinel-capable rk on PATH (a stub) reporting `gone` for the
+// pane, `fab pane ready` exits 2 — the documented dead-pane path — not the
+// generic-failure 3. The pane stays ALIVE for the whole run (ValidatePane and
+// the takeover precondition both pass against it); only rk's report is
+// scripted, which is exactly the "pane died mid-await" case the mapping
+// exists for. The in-handler os.Exit requires the child-process re-exec (the
+// TestPaneVerbExitCodes pattern).
+func TestPaneReady_RKGoneExits2(t *testing.T) {
+	if os.Getenv("FAB_PANE_READY_RK_HELPER") == "1" {
+		args := os.Args
+		for i, a := range args {
+			if a == "--" {
+				args = args[i+1:]
+				break
+			}
+		}
+		cmd := paneCmd()
+		cmd.SilenceUsage = true
+		cmd.SilenceErrors = true
+		cmd.SetArgs(args)
+		if err := cmd.Execute(); err != nil {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not available")
+	}
+	// A live NON-shell pane (readyPaneCommand's foreground is `cat`): the
+	// takeover precondition passes and the rk arm engages.
+	server := "fabtest-paneready-rkgone"
+	_, paneID := newTmuxPane(t, server, readyPaneCommand, 80)
+
+	// The stub rk answers the capability probe (its help mentions `parked`)
+	// and reports the pane `gone` (exit 1) on the delegated await.
+	bin := t.TempDir()
+	stub := `#!/bin/sh
+if [ "$1 $2 $3" = "mux await --help" ]; then
+	printf 'echo = ready, no echo = parked\n'
+	exit 0
+fi
+if [ "$1 $2 $3" = "mux await --ready" ]; then
+	echo "gone $4"
+	exit 1
+fi
+exit 1
+`
+	if err := os.WriteFile(filepath.Join(bin, "rk"), []byte(stub), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	child := exec.Command(os.Args[0], "-test.run=^TestPaneReady_RKGoneExits2$", "--", "ready", paneID, "-L", server)
+	child.Env = append(os.Environ(),
+		"FAB_PANE_READY_RK_HELPER=1",
+		"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"),
+	)
+	out, err := child.CombinedOutput()
+	got := 0
+	if err != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			t.Fatalf("child failed to run: %v (%s)", err, out)
+		}
+		got = exitErr.ExitCode()
+	}
+	if got != 2 {
+		t.Errorf("exit = %d, want 2 — rk's gone is the dead-pane path (output: %s)", got, out)
+	}
 }
