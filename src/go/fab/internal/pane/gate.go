@@ -332,7 +332,7 @@ func (g *Gate) probeRK(paneID string) (state Readiness, snippet string, handled 
 		// re-classified by the fallback.
 		return "", "", false, &PaneNotFoundError{Pane: paneID}
 	default:
-		warnRKFallback(paneID, runErr, rkStderr)
+		warnRKFallback(paneID, g.Server, runErr, rkStderr)
 		return "", "", false, nil
 	}
 }

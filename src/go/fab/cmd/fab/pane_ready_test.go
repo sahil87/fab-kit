@@ -264,6 +264,9 @@ exit 1
 	child := exec.Command(os.Args[0], "-test.run=^TestPaneReady_RKGoneExits2$", "--", "ready", paneID, "-L", server)
 	child.Env = append(os.Environ(),
 		"FAB_PANE_READY_RK_HELPER=1",
+		// Opt out of TestMain's not-capable rk stub (which would shadow this
+		// test's stub in the child re-exec) and into the delegated arm.
+		"FAB_TEST_RK_ARM=1",
 		"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"),
 	)
 	out, err := child.CombinedOutput()

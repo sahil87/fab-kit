@@ -132,8 +132,10 @@ var rkWarn = func(format string, args ...interface{}) {
 // classifies the probe instead. rk's stderr is the child's own diagnostic (the
 // StderrError convention); it is surfaced ONLY here — classification snippets
 // stay fab-captured on both arms so the report contract never couples to rk's
-// stderr formatting.
-func warnRKFallback(paneID string, err error, stderr []byte) {
+// stderr formatting. A non-default server is named in the warning: the same
+// pane id lives on every socket, so "failed for %17" alone is ambiguous when
+// the delegated arm was aimed at `-L <server>`.
+func warnRKFallback(paneID, server string, err error, stderr []byte) {
 	rkWarnMu.Lock()
 	already := rkWarned
 	rkWarned = true
@@ -141,12 +143,16 @@ func warnRKFallback(paneID string, err error, stderr []byte) {
 	if already {
 		return
 	}
+	target := paneID
+	if server != "" {
+		target = fmt.Sprintf("%s on server %s", paneID, server)
+	}
 	msg := strings.TrimSpace(string(stderr))
 	if err != nil && msg != "" {
-		rkWarn("rk gate delegation failed for %s (%v: %s); falling back to the raw-tmux classifier", paneID, err, msg)
+		rkWarn("rk gate delegation failed for %s (%v: %s); falling back to the raw-tmux classifier", target, err, msg)
 	} else if err != nil {
-		rkWarn("rk gate delegation failed for %s (%v); falling back to the raw-tmux classifier", paneID, err)
+		rkWarn("rk gate delegation failed for %s (%v); falling back to the raw-tmux classifier", target, err)
 	} else {
-		rkWarn("rk gate delegation returned an unparsable report for %s; falling back to the raw-tmux classifier", paneID)
+		rkWarn("rk gate delegation returned an unparsable report for %s; falling back to the raw-tmux classifier", target)
 	}
 }

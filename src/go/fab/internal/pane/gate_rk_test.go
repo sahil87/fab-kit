@@ -325,6 +325,38 @@ func TestProbeRKWarningFiresOncePerProcess(t *testing.T) {
 	}
 }
 
+// TestProbeRKFailOpenNamesTheServer pins the fail-open warning's socket
+// context: a non-default server is named (the same pane id lives on every
+// socket, so the bare pane id is ambiguous), the default socket adds nothing.
+func TestProbeRKFailOpenNamesTheServer(t *testing.T) {
+	t.Run("named server", func(t *testing.T) {
+		forceRKCapable(t, true)
+		stubRKAwait(t, "", []byte("boom\n"), fmt.Errorf("exit status 127"))
+		warnings := captureRKWarnings(t)
+		io := newFakeIO("$ " + ReadySentinel)
+		g := testGate(io)
+		g.Server = "work"
+		if _, _, err := g.Probe("%17"); err != nil {
+			t.Fatalf("Probe: %v", err)
+		}
+		if len(*warnings) != 1 || !strings.Contains((*warnings)[0], "%17 on server work") {
+			t.Errorf("warnings = %v, want one warning naming the pane AND the server", *warnings)
+		}
+	})
+	t.Run("default socket", func(t *testing.T) {
+		forceRKCapable(t, true)
+		stubRKAwait(t, "", []byte("boom\n"), fmt.Errorf("exit status 127"))
+		warnings := captureRKWarnings(t)
+		io := newFakeIO("$ " + ReadySentinel)
+		if _, _, err := testGate(io).Probe("%17"); err != nil {
+			t.Fatalf("Probe: %v", err)
+		}
+		if len(*warnings) != 1 || strings.Contains((*warnings)[0], "server") {
+			t.Errorf("warnings = %v, want one warning with no server label on the default socket", *warnings)
+		}
+	})
+}
+
 // TestProbeRKNeverRunsWhileAShellOwnsThePane pins the load-bearing ordering:
 // the takeover precondition runs AHEAD of the rk arm. rk's await deliberately
 // classifies a cooked-shell echo as ready (terminals-are-one-standard), which
