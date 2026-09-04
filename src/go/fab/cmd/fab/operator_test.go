@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -49,10 +50,22 @@ func TestOperatorCmd_Structure(t *testing.T) {
 	}
 }
 
+// stubNoRK forces the built-in launcher arm for tests that exercise it: the
+// delegation probe answers false regardless of what the host machine carries
+// on PATH. Without the pin, a dev box with a capable rk installed would take
+// the delegation branch and syscall.Exec would replace the TEST PROCESS.
+func stubNoRK(t *testing.T) {
+	t.Helper()
+	prev := rkOperatorPath
+	rkOperatorPath = func() (string, bool) { return "", false }
+	t.Cleanup(func() { rkOperatorPath = prev })
+}
+
 // TestRunOperator_NoTmux verifies the $TMUX guard returns an error through
 // RunE (previously os.Exit(1), which killed the test process) so main.go's
 // central handler formats it as `ERROR: not inside a tmux session`.
 func TestRunOperator_NoTmux(t *testing.T) {
+	stubNoRK(t)
 	t.Setenv("TMUX", "")
 
 	cmd := operatorCmd()
@@ -71,6 +84,7 @@ func TestRunOperator_NoTmux(t *testing.T) {
 }
 
 func TestRunOperator_WorkersOverride(t *testing.T) {
+	stubNoRK(t)
 	root := t.TempDir()
 	chdirTestEnv(t, root, map[string]string{"TMUX": "/tmp/tmux-test/default,123,0"})
 
@@ -119,6 +133,7 @@ printf '%s\n' "$@" >> ` + capture,
 }
 
 func TestRunOperator_WorkersOverrideDoesNotRelaunchExistingSingleton(t *testing.T) {
+	stubNoRK(t)
 	root := t.TempDir()
 	chdirTestEnv(t, root, map[string]string{"TMUX": "/tmp/tmux-test/default,123,0"})
 
@@ -156,6 +171,116 @@ printf '%s\n' "$@" >> ` + capture
 	}
 	if out.String() != "Switched to existing operator tab.\n" {
 		t.Errorf("stdout = %q", out.String())
+	}
+}
+
+// TestRKOperatorPath_ProbeAgainstStubbedBinary runs the REAL probe (LookPath +
+// `rk operator --help` + token check) against stub rk scripts on an isolated
+// PATH: capable (help carries --workers), incapable (exit 0 without the token
+// — an rk whose operator predates the flag), failing (non-zero help), and
+// absent (empty PATH).
+func TestRKOperatorPath_ProbeAgainstStubbedBinary(t *testing.T) {
+	cases := []struct {
+		name   string
+		script string // empty = no rk on PATH
+		want   bool
+	}{
+		{"capable", "#!/bin/sh\necho 'Usage: rk operator [--workers <provider>]'\n", true},
+		{"token missing", "#!/bin/sh\necho 'Usage: rk operator'\n", false},
+		{"help fails", "#!/bin/sh\nexit 1\n", false},
+		{"absent", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			bin := t.TempDir()
+			if tc.script != "" {
+				if err := os.WriteFile(filepath.Join(bin, "rk"), []byte(tc.script), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Setenv("PATH", bin)
+			path, ok := rkOperatorPath()
+			if ok != tc.want {
+				t.Errorf("rkOperatorPath() ok = %v, want %v", ok, tc.want)
+			}
+			if tc.want && path != filepath.Join(bin, "rk") {
+				t.Errorf("rkOperatorPath() path = %q, want %q", path, filepath.Join(bin, "rk"))
+			}
+		})
+	}
+}
+
+// TestRunOperator_DelegatesToRK verifies the delegation branch: with a capable
+// rk, bare `fab operator` execs `rk operator` — argv carries --workers exactly
+// when the flag was supplied, the environment passes through, and fab's own
+// $TMUX precondition is skipped (rk owns its preconditions; TMUX is left unset
+// here to prove the built-in guard never runs).
+func TestRunOperator_DelegatesToRK(t *testing.T) {
+	cases := []struct {
+		name     string
+		args     []string
+		wantArgv []string
+	}{
+		{"bare", nil, []string{"rk", "operator"}},
+		{"workers pass-through", []string{"--workers", "kimi"}, []string{"rk", "operator", "--workers", "kimi"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("TMUX", "")
+			prevProbe, prevExec := rkOperatorPath, execOperator
+			t.Cleanup(func() { rkOperatorPath, execOperator = prevProbe, prevExec })
+			rkOperatorPath = func() (string, bool) { return "/fake/bin/rk", true }
+			var gotPath string
+			var gotArgv, gotEnv []string
+			execOperator = func(path string, argv []string, env []string) error {
+				gotPath, gotArgv, gotEnv = path, argv, env
+				return nil
+			}
+
+			cmd := operatorCmd()
+			cmd.SetOut(&bytes.Buffer{})
+			cmd.SetErr(&bytes.Buffer{})
+			cmd.SetArgs(tc.args)
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("operator delegation: %v", err)
+			}
+			if gotPath != "/fake/bin/rk" {
+				t.Errorf("exec path = %q, want %q", gotPath, "/fake/bin/rk")
+			}
+			if strings.Join(gotArgv, " ") != strings.Join(tc.wantArgv, " ") {
+				t.Errorf("exec argv = %v, want %v", gotArgv, tc.wantArgv)
+			}
+			if len(gotEnv) == 0 {
+				t.Error("exec env is empty, want os.Environ() passed through")
+			}
+		})
+	}
+}
+
+// TestRunOperator_DelegationExecErrorPropagates pins the no-fallback rule: a
+// failing exec after a passing probe surfaces the error — the built-in
+// launcher is never retried (rk may already have mutated tmux state).
+func TestRunOperator_DelegationExecErrorPropagates(t *testing.T) {
+	prevProbe, prevExec := rkOperatorPath, execOperator
+	t.Cleanup(func() { rkOperatorPath, execOperator = prevProbe, prevExec })
+	rkOperatorPath = func() (string, bool) { return "/fake/bin/rk", true }
+	execCalls := 0
+	execOperator = func(path string, argv []string, env []string) error {
+		execCalls++
+		return fmt.Errorf("exec rk: permission denied")
+	}
+
+	cmd := operatorCmd()
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "permission denied") {
+		t.Fatalf("err = %v, want the exec error surfaced", err)
+	}
+	if execCalls != 1 {
+		t.Errorf("exec called %d times, want exactly 1 (no retry)", execCalls)
 	}
 }
 
