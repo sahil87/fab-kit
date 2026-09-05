@@ -3,6 +3,7 @@
 
 ## 2026-09-05
 - **Update** [agent-primitives](/runtime/agent-primitives.md) — Bare 'fab operator' delegates the launch to a capable 'rk operator' (side-effect-free probe, --workers on argv, exec process replacement); built-in launcher stays as the rk-absent fallback (rkop)
+- **Update** [operator](/runtime/operator.md) — Operator spawn target-session: _rk-*/own-session hard exclusion + evidence-ordered inference (monitored → pane-map affinity → §8 setting → structural dominance), default-and-announce with §8 auto-set, ask/escalate only when genuinely torn (cx52)
 - **Update** [operator](/runtime/operator.md) — Bare 'fab operator' delegates the launch to a capable 'rk operator' (side-effect-free probe, --workers on argv, exec process replacement); built-in launcher stays as the rk-absent fallback (rkop)
 - **Update** [providers-and-profiles](/runtime/providers-and-profiles.md) — Bare 'fab operator' delegates the launch to a capable 'rk operator' (side-effect-free probe, --workers on argv, exec process replacement); built-in launcher stays as the rk-absent fallback (rkop)
 
