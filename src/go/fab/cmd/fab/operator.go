@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
@@ -20,7 +21,16 @@ func operatorCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "operator",
 		Short: "Launch operator in a dedicated tmux tab (singleton)",
-		RunE:  runOperator,
+		Long: `Launch the /fab-operator coordinator in a dedicated tmux window
+(one per tmux server).
+
+When run-kit is installed and its 'rk operator' is capable, the launch is
+delegated to 'rk operator' (role-marked singleton window, provider-agnostic
+typed kickoff), with --workers passed through — rk then owns the launch
+preconditions and validates the value. Without rk, fab's built-in launcher
+runs: switch to an existing window named 'operator' anywhere on the server,
+or create one running the operator-role session command with '/fab-operator'.`,
+		RunE: runOperator,
 	}
 	cmd.Flags().String("workers", "", "set FAB_AGENT_WORKERS in the launched operator tab")
 	cmd.AddCommand(
@@ -38,7 +48,62 @@ func operatorCmd() *cobra.Command {
 	return cmd
 }
 
+// rkOperatorHelpToken is the capability discriminant in `rk operator --help`:
+// `--workers` is exactly the flag the delegated launch passes through, so its
+// presence in the help output — not the subcommand's bare exit 0, and never
+// the version string — is what makes an installed rk delegatable (a bottle
+// can predate a same-version source change; an early `rk operator` without
+// the flag must fall through).
+const rkOperatorHelpToken = "--workers"
+
+// rkOperatorPath is the injectable capability-probe seam for the launcher
+// delegation: it answers where rk is and whether its `operator` subcommand is
+// capable. Deliberately side-effect-free (`--help` opens no windows) — the
+// delegated action mutates tmux state, so attempt-is-the-probe (the pane-map
+// enumeration style) could leave a half-created window behind a fallback. rk
+// absent (LookPath) or an incapable help both answer false silently: the
+// built-in launcher is the degradation, never an error (cli-layering
+// delegation rule 2). Package-level var so tests stub the seam (the
+// rkAwaitRunner / execAgent precedent).
+var rkOperatorPath = func() (string, bool) {
+	path, err := exec.LookPath("rk")
+	if err != nil {
+		return "", false
+	}
+	out, _, err := pane.RunCmd("rk", "operator", "--help")
+	if err != nil || !strings.Contains(out, rkOperatorHelpToken) {
+		return "", false
+	}
+	return path, true
+}
+
+// execOperator is the process-replacement seam for the delegated launch (the
+// execAgent precedent in agent.go).
+var execOperator = syscall.Exec
+
 func runOperator(cmd *cobra.Command, args []string) error {
+	// Delegation branch (cli-layering rules 1–2): launching the operator
+	// window is tmux SUBSTRATE work — role-marked singleton
+	// (@rk_win_role=operator wins over a merely-renamed window), readiness-
+	// gated TYPED kickoff (provider-agnostic; a positional kickoff is
+	// claude-only) — so a capable rk owns it. fab keeps the choreography (the
+	// operator subcommand family) and remains the launcher when rk is absent.
+	// From a passing probe onward rk owns the WHOLE launch, including its own
+	// preconditions ($TMUX, fab on PATH) and the --workers charset validation,
+	// so fab's checks below are deliberately not duplicated on this path. The
+	// --workers value rides argv, not the FAB_AGENT_WORKERS env prefix — rk
+	// composes the env for the agent it launches. Exec replaces the process:
+	// the only fab-visible failure is the exec syscall itself, and it is
+	// surfaced, never fallen back on (rk may already have mutated tmux state;
+	// retrying with the built-in launcher risks a duplicate operator window).
+	if rkPath, ok := rkOperatorPath(); ok {
+		argv := []string{"rk", "operator"}
+		if workers, set := workersOverride(cmd); set {
+			argv = append(argv, "--workers", workers)
+		}
+		return execOperator(rkPath, argv, os.Environ())
+	}
+
 	w := cmd.OutOrStdout()
 
 	// Must be inside tmux
