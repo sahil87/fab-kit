@@ -105,6 +105,8 @@ func mustParseDefaults(data []byte) *config.Config {
 func init() {
 	config.DefaultDispatchMode = builtinDefaults.Dispatch.Mode
 	config.DefaultDispatchColumnWidth = builtinDefaults.Dispatch.ColumnWidth
+	config.DefaultDispatchMinCols = builtinDefaults.Dispatch.MinCols
+	config.DefaultDispatchMinRows = builtinDefaults.Dispatch.MinRows
 	// Dispatch.ReapDone is a *bool (see config.DispatchConfig): defaults.yaml
 	// ships the value and TestDefaultsFileDispatchBlockIsPinned pins it non-nil,
 	// so a nil here means a hand-trimmed embedded file — leave config's var at

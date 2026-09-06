@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "`fab dispatch {start,open,ready,deliver,restart,status,wait,logs,kill,reap,clean}` manages headless and pane stage workers: pane open/ready/deliver (including resume), headless start, preference-bounded pane → native → headless descent, valid user providers that omit interactive grammar, identity-checked pane liveness (the `pane_pid` restart-alias discriminator), state layout, observation, recovery, placement, and reaping."
+description: "`fab dispatch {start,open,ready,deliver,restart,status,wait,logs,kill,reap,clean}` manages headless and pane stage workers: pane open/ready/deliver (including resume), headless start, preference-bounded pane → native → headless descent, valid user providers that omit interactive grammar, identity-checked pane liveness (the `pane_pid` restart-alias discriminator), state layout, observation, recovery, placement (the column invariant and its `min_cols`/`min_rows` geometry floor), and reaping."
 ---
 # fab dispatch
 
@@ -266,6 +266,15 @@ The **server filter is exact equality**, because a pane ID is per-**socket** rat
 
 **The column invariant.** The first worker splits the dispatcher's own pane `-h`, **carving** the Left/Right column at `dispatch.column_width` percent (default 35, so the agent the user is watching keeps the rest); every later worker splits the last live recorded worker `-v`, stacking **inside** that column, unsized. Only the carving split is ever sized — sizing a stacking split would fight the user's own resizes within the column. fab issues **no `select-layout`**, never rearranges user-made panes, and never re-touches the vertical Left/Right separator once carved. This is a **creation-time rule, not an enforcement loop**: an already-mangled window is left alone until its panes die.
 
+**The geometry floor gates the split.** tmux sizes a window to its most recent viewing client (`window-size latest`), so a viewer-shrunk window (a phone attachment) can make a `column_width` percent of it a pane no agent TUI can run in — tmux happily grants the split, and the worker dead-ends there (its composer reflows until the readiness sentinel wraps, and `rk mux await --ready` reads `parked`). Before the split is executed, the launch SHALL probe the geometry of the split target's window — one `tmux display-message -p -t <target> -F '#{window_width} #{window_height} #{pane_width} #{pane_height}'` (`pane.ProbeGeometry`, riding the shared `RunCmd`/`WithServer` helpers) — and price the planned worker pane via the **pure** `dispatch.SplitBelowFloor(placement, geometry, columnWidth, minCols, minRows)`:
+
+| Planned split | Worker width | Worker height |
+|---------------|--------------|---------------|
+| **carve** (`-h` off the dispatcher) | `window_width × column_width / 100` | `window_height` |
+| **stack** (`-v` under a sibling) | the sibling pane's width (the existing column) | the sibling pane's height **halved** (tmux even-splits an unsized `-v`) |
+
+A pane below **either** floor (`dispatch.min_cols` / `dispatch.min_rows`, defaults **80 cols × 20 rows**, scope `both`; a dimension exactly at the floor passes) demotes the launch to a **manually-sized detached window** — `pane.OpenManualWindow`, which runs `new-window -d` printing both ids, then `set-option -w window-size manual` and `resize-window -x 200 -y 50` (the **ManualWindowCols/ManualWindowRows constants** — config would be speculative surface; the floor pair is the policy knob). The demotion warns on stderr naming the measured window, the requested placement, the failing dimension, and the action: `warning: window 127x16 too narrow for a 35% column (44 cols < 80): opening worker in its own window` (height-limited variants read `too short … (N rows < M)`; the stacked variants say `a stacked split`). Sizing follow-up failures after a successful `new-window` are non-fatal warnings, and the report keeps the window form (`pane %N, window fab-{id}-{stage}`) — downstream is shape-blind. Both probe failure and unparseable geometry are **fail-open**: the launch proceeds with today's split byte-for-byte, warning-free, and never demotes on unmeasured evidence. When the floor passes, the split argv sequence — sibling stack, sized carve, unsized retry — is byte-for-byte unchanged.
+
 The decision is a `pane.SplitPlacement{Target, Direction, SizePercent}` returned by `SplitTarget(server, dispatcherPane, repoRoot, columnWidth)`, whose pure halves — `lastRecordedPane` (the intersection), `splitPlacement` (the decision) — plus `internal/pane`'s `splitArgs` (the argv renderer) are table-testable without a tmux server or a record tree, matching `SelectMode`/`DerivePaneState`'s shape in the package. The width is read from config in the cobra layer (`cfg.GetDispatchColumnWidth()`; see [_shared/configuration.md](/_shared/configuration.md) § `dispatch`) and rides the placement, so the "size the carve, never a stack" rule exists in exactly one place.
 
 `SplitTarget` is `internal/dispatch`'s whole exported placement surface — the decision returns `internal/pane`'s exported `SplitPlacement`, whose tmux flags (`splitRight`/`splitBelow`/`sizeFlag`) and argv composer (`splitArgs`) stay package-scope in `internal/pane`, as does the sibling probe in `internal/dispatch`. The cobra layer reads a placement only through `SplitPlacement.Describe()` — the stacked-column wording its degraded-probe warning prints — so no caller handles a raw `-h`/`-v`.
@@ -298,6 +307,13 @@ One consequence is deliberate: when the **dispatcher is itself a pane worker** (
 - **THEN** the split argv carries `-h -l 35%` and the dispatcher keeps ~65% of the window width
 - **AND** GIVEN a second worker stacking under it, that argv carries `-v` and no `-l`
 - **AND** GIVEN a tmux that rejects the size, the split is retried unsized, the worker still launches, and stderr carries the one-line warning
+
+#### Scenario: a below-floor split demotes to a manually-sized window
+
+- **GIVEN** a dispatcher in a viewer-shrunk 127x16 window, `dispatch.column_width` 35, floor 80x20
+- **WHEN** `fab dispatch open <change> <stage>` launches a pane worker
+- **THEN** no split occurs: the worker opens in its own detached window with `window-size manual` resized to 200x50, stderr carries `warning: window 127x16 too narrow for a 35% column (44 cols < 80): opening worker in its own window`, and the record carries the new pane's ID exactly as the window shape always has
+- **AND** GIVEN a geometry probe that fails or returns unparseable output, the sized split runs exactly as without the floor — no demotion, no warning, no dispatch failure
 
 ### Requirement: Prompt delivery is post-spawn, verified, and send-keys-only in pane mode
 
@@ -706,6 +722,26 @@ Steering by a *human* is unrestricted; the *pipeline*'s access to a worker's key
 **Rejected**: Returning only the set and swallowing errors (a corrupt record then degrades placement invisibly, against the warn-only contract). Returning only the error and dropping the set (loses a usable answer for a partial failure). Warning on an absent tree (the common case is not a problem).
 
 *Introduced by*: 260807-g4a5-pane-worker-column-invariant
+
+### The geometry floor prices the planned split after `SplitTarget`, and demotes to a manually-sized window
+
+**Decision**: The floor verdict (`SplitBelowFloor`) is a pure function in `internal/dispatch` evaluated by `launchPane` AFTER `SplitTarget` resolves the placement: the cobra layer probes the target's window geometry (`pane.ProbeGeometry`), the pure decision prices the planned worker pane against `dispatch.min_cols`/`min_rows`, and a below-floor verdict opens the worker via `pane.OpenManualWindow` — a detached `new-window` pinned by `window-size manual` + `resize-window` to the `ManualWindowCols`/`ManualWindowRows` constants (200x50) — with a stderr warning naming the measured geometry, the computed dimension vs. the floor, and the action.
+
+**Why**: The verdict depends on WHICH split was planned (carve vs. stack, and the stack's sibling dimensions), which only exists after `SplitTarget`. Keeping the decision pure and the probe/demotion in the cobra layer preserves the package's pure-policy/mechanics split (the `SelectMode` precedent: env and probe I/O live in the cobra layer). The manually-sized detached window is exactly the escape an operator improvises by hand from a viewer-shrunk window (`window-size latest` means the most recent viewer — a phone — sets the size); automating it inside the existing shape ladder keeps every other behavior byte-for-byte. The size is a constant because the floor pair is the policy knob and the escape window's size has no demonstrated tuning need.
+
+**Rejected**: Folding the floor into `SelectPaneShape` — it runs before the sibling probe, so it cannot price the stacking case, and it would need geometry inputs threaded through `resolveMode` where no tmux probe belongs. `dispatch.window_cols`/`window_rows` config keys — speculative surface; addable later without migration if a need appears.
+
+*Introduced by*: 260906-cxe0-pane-dispatch-geometry-floor
+
+### Geometry-probe failure is fail-open to the split
+
+**Decision**: A failed or unparseable geometry probe proceeds with today's split byte-for-byte (no demotion, no demotion warning), and never fails the dispatch.
+
+**Why**: Placement is cosmetic and must never fail an otherwise-launchable dispatch (the package's standing posture); demoting on an unmeasured window would change layout on flaky evidence — every transient tmux hiccup would reroute the worker.
+
+**Rejected**: Demote-on-unknown — safer against tiny windows but changes layout for every transient probe failure, violating the fine-geometry byte-for-byte guarantee.
+
+*Introduced by*: 260906-cxe0-pane-dispatch-geometry-floor
 
 ### Observation is a blocking `wait` over an internal derivation tick, not an fsnotify watch
 

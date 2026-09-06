@@ -497,7 +497,7 @@ dispatch:
 
 The **managed fence** in every project's `config.yaml` scaffolds only the advertised fields, and on the
 agent side that is exactly the two knobs (plus `dispatch.mode` / `dispatch.column_width` /
-`dispatch.reap_done`).
+`dispatch.min_cols` / `dispatch.min_rows` / `dispatch.reap_done`).
 `agent.profiles` and the whole `providers:` table are `advertise: false`: still documented in
 `fab config explain` (YAML + `--json`) and in [`config.md`](config.md), but no longer ~90 commented
 lines in every repo. Users pick a provider per depth; the machinery is there when they need it.

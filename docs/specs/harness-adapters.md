@@ -209,7 +209,10 @@ Mechanics, all fixed by this spec:
     **stacked right column**: `-v` (unsized) off the **last live sibling worker pane** in that window
     when one exists (stacking under the newest worker), else `-h -l <n>%` off `$TMUX_PANE` — **carving**
     the column at `dispatch.column_width` (default 35), so the dispatching agent keeps the rest of the
-    window rather than being halved.
+    window rather than being halved. Before the split runs, the planned worker pane is priced against
+    the **`dispatch.min_cols`/`dispatch.min_rows` geometry floor** (defaults 80/20): a pane that would
+    land below either bound opens as a **manually-sized detached window** instead, with a
+    reason-naming warning; a failed geometry probe keeps the split (fail-open).
 
     **Sibling detection MUST key on the dispatch records, never on pane titles.** The probe intersects
     the pane IDs recorded across the checkout's `.fab-dispatch/*/{stage}.yaml` records with the

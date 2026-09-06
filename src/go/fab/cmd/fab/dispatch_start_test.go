@@ -721,14 +721,30 @@ func TestDispatchStart_RefusesAnAutomaticPaneLanding(t *testing.T) {
 // is only reachable without `--server`, so the dispatch must find the server
 // through tmux's own default-socket resolution under this TMUX_TMPDIR — exactly as
 // a real agent's dispatch inside its own tmux session does.
+//
+// The 400x60 session size is chosen against the GEOMETRY FLOOR (the
+// dispatch.min_cols/min_rows split demotion): every split-path subtest must price
+// ABOVE the floor so it exercises the split, not the fallback window — including
+// the configured-20%-width case (20% of 400 = 80 cols, exactly AT the floor, which
+// passes) and the stacking case (a halved 60-row sibling = 30 rows). A smaller
+// fixture would silently demote every launch to the window shape and the split
+// assertions would be testing the fallback.
 func startPrivateTmuxWithPane(t *testing.T) (tmuxScoped func(args ...string) (string, error), dispatcherPane string) {
+	t.Helper()
+	return startPrivateTmuxWithPaneSize(t, 400, 60)
+}
+
+// startPrivateTmuxWithPaneSize is startPrivateTmuxWithPane with an explicit
+// session size, for tests that must price the geometry floor in BOTH directions
+// (a too-small window demotes the split to a manually-sized window).
+func startPrivateTmuxWithPaneSize(t *testing.T, x, y int) (tmuxScoped func(args ...string) (string, error), dispatcherPane string) {
 	t.Helper()
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("tmux not available")
 	}
 	socketDir := tmuxSocketDir(t, "default")
 	t.Setenv("TMUX_TMPDIR", socketDir)
-	if out, err := exec.Command("tmux", "new-session", "-d", "-s", "s", "-x", "200", "-y", "50").CombinedOutput(); err != nil {
+	if out, err := exec.Command("tmux", "new-session", "-d", "-s", "s", "-x", strconv.Itoa(x), "-y", strconv.Itoa(y)).CombinedOutput(); err != nil {
 		t.Skipf("could not start tmux server (%v): %s", err, strings.TrimSpace(string(out)))
 	}
 	privateSocket := filepath.Join(socketDir, "tmux-"+strconv.Itoa(os.Getuid()), "default")

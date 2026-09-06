@@ -692,7 +692,7 @@ func TestRender_FenceAdvertisesDispatchColumnWidth(t *testing.T) {
 
 	out, _ := render("project:\n    name: t\n", fields, ProjectTarget(""), "2.15.0")
 	_, fenceBody, _ := sliceFence(t, out)
-	if !strings.Contains(fenceBody, "# dispatch.mode / dispatch.column_width / dispatch.reap_done") {
+	if !strings.Contains(fenceBody, "# dispatch.mode / dispatch.column_width / dispatch.min_cols / dispatch.min_rows /") {
 		t.Errorf("fence must advertise the un-overridden dispatch.column_width field (named in the shared dispatch header).\n--- fence ---\n%s", fenceBody)
 	}
 	wantScaffold := "#   column_width: " + strconv.Itoa(config.DefaultDispatchColumnWidth)
@@ -700,7 +700,7 @@ func TestRender_FenceAdvertisesDispatchColumnWidth(t *testing.T) {
 		t.Errorf("fence must scaffold %q.\n--- fence ---\n%s", wantScaffold, fenceBody)
 	}
 	if n := strings.Count(fenceBody, "# dispatch:"); n != 1 {
-		t.Errorf("fence carries %d `# dispatch:` parents, want exactly 1 (both dispatch keys share one block)", n)
+		t.Errorf("fence carries %d `# dispatch:` parents, want exactly 1 (all dispatch keys share one block)", n)
 	}
 
 	// Overridden: the whole block is live above the fence, so neither dispatch key
@@ -715,11 +715,11 @@ func TestRender_FenceAdvertisesDispatchColumnWidth(t *testing.T) {
 	}
 }
 
-// TestRender_FenceAdvertisesDispatchReapDone: `dispatch.reap_done` is the third key
+// TestRender_FenceAdvertisesDispatchReapDone: `dispatch.reap_done` is the last key
 // under the shared `dispatch:` segment, so it reaches the fence the same way
-// `column_width` does — no Segment of its own, one commented parent for all three.
+// `column_width` does — no Segment of its own, one commented parent for all five.
 // The guard checks the properties that shape depends on (the scaffold line is
-// present, and the parent count is STILL exactly one now that a third key shares
+// present, and the parent count is STILL exactly one now that five keys share
 // it), plus the override suppression. Runs over the SHIPPED registry, so it is the
 // guard that the new key reaches every user's config.yaml on the next
 // `fab config upgrade`.
@@ -728,7 +728,7 @@ func TestRender_FenceAdvertisesDispatchReapDone(t *testing.T) {
 
 	out, _ := render("project:\n    name: t\n", fields, ProjectTarget(""), "2.15.0")
 	_, fenceBody, _ := sliceFence(t, out)
-	if !strings.Contains(fenceBody, "# dispatch.mode / dispatch.column_width / dispatch.reap_done") {
+	if !strings.Contains(fenceBody, "# dispatch.reap_done") {
 		t.Errorf("fence must advertise the un-overridden dispatch.reap_done field (named in the shared dispatch header).\n--- fence ---\n%s", fenceBody)
 	}
 	wantScaffold := "#   reap_done: " + strconv.FormatBool(config.DefaultDispatchReapDone)
@@ -736,7 +736,7 @@ func TestRender_FenceAdvertisesDispatchReapDone(t *testing.T) {
 		t.Errorf("fence must scaffold %q.\n--- fence ---\n%s", wantScaffold, fenceBody)
 	}
 	if n := strings.Count(fenceBody, "# dispatch:"); n != 1 {
-		t.Errorf("fence carries %d `# dispatch:` parents, want exactly 1 (all three dispatch keys share one block)", n)
+		t.Errorf("fence carries %d `# dispatch:` parents, want exactly 1 (all five dispatch keys share one block)", n)
 	}
 
 	// Overridden: the whole block is live above the fence, so no dispatch key is
@@ -747,6 +747,46 @@ func TestRender_FenceAdvertisesDispatchReapDone(t *testing.T) {
 	}
 	_, fenceBody2, _ := sliceFence(t, out2)
 	if strings.Contains(fenceBody2, "dispatch.reap_done") {
+		t.Errorf("fence must omit the already-overridden dispatch field.\n--- fence ---\n%s", fenceBody2)
+	}
+}
+
+// TestRender_FenceAdvertisesDispatchGeometryFloor: `dispatch.min_cols` /
+// `dispatch.min_rows` are the geometry-floor keys under the shared `dispatch:`
+// segment — no Segment of their own, one commented parent for all five keys. The
+// guard checks the scaffold lines are present (an empty-Segment row is skipped
+// outright by renderFence), the single-parent property holds, and an override
+// suppresses the advertisement. Runs over the SHIPPED registry, so it is the
+// guard that the new keys reach every user's config.yaml on the next
+// `fab config upgrade`.
+func TestRender_FenceAdvertisesDispatchGeometryFloor(t *testing.T) {
+	fields := fieldsForTest(t)
+
+	out, _ := render("project:\n    name: t\n", fields, ProjectTarget(""), "2.15.0")
+	_, fenceBody, _ := sliceFence(t, out)
+	if !strings.Contains(fenceBody, "dispatch.min_cols / dispatch.min_rows") {
+		t.Errorf("fence must advertise the un-overridden dispatch floor fields (named in the shared dispatch header).\n--- fence ---\n%s", fenceBody)
+	}
+	for _, wantScaffold := range []string{
+		"#   min_cols: " + strconv.Itoa(config.DefaultDispatchMinCols),
+		"#   min_rows: " + strconv.Itoa(config.DefaultDispatchMinRows),
+	} {
+		if !strings.Contains(fenceBody, wantScaffold) {
+			t.Errorf("fence must scaffold %q.\n--- fence ---\n%s", wantScaffold, fenceBody)
+		}
+	}
+	if n := strings.Count(fenceBody, "# dispatch:"); n != 1 {
+		t.Errorf("fence carries %d `# dispatch:` parents, want exactly 1 (all five dispatch keys share one block)", n)
+	}
+
+	// Overridden: the whole block is live above the fence, so no dispatch key is
+	// re-advertised (override detection is top-level-key scoped).
+	out2, _ := render("dispatch:\n    min_cols: 100\n", fields, ProjectTarget(""), "2.15.0")
+	if !strings.Contains(out2, "min_cols: 100") {
+		t.Errorf("a live dispatch override must be preserved verbatim.\n--- got ---\n%s", out2)
+	}
+	_, fenceBody2, _ := sliceFence(t, out2)
+	if strings.Contains(fenceBody2, "dispatch.min_cols") {
 		t.Errorf("fence must omit the already-overridden dispatch field.\n--- fence ---\n%s", fenceBody2)
 	}
 }

@@ -67,15 +67,15 @@ Every default that has a canonical Go symbol is referenced from it, not copied: 
 command from `agent.DefaultInteractiveCommand`, the per-role profiles via `agent.DefaultProfile` over
 `agent.RoleNames()`, the stage names via `agent.StageNames()`. Those symbols are projections of one
 values file, not independent constants: the built-in tier's values — the two depth knobs' `claude`,
-the three `dispatch` defaults (`mode: native`, `column_width: 35`, `reap_done: true`), and the four
+the five `dispatch` defaults (`mode: native`, `column_width: 35`, `min_cols: 80`, `min_rows: 20`, `reap_done: true`), and the four
 providers' capability grammars and role fills — live in `src/go/fab/defaults.yaml`,
-embedded into the binary via `go:embed` and parsed once. The three dispatch values reach
+embedded into the binary via `go:embed` and parsed once. The five dispatch values reach
 `internal/config` through its exported `DefaultDispatchMode` / `DefaultDispatchColumnWidth` /
-`DefaultDispatchReapDone`, which are **package-level vars carrying no literal of their own**, assigned
+`DefaultDispatchMinCols` / `DefaultDispatchMinRows` / `DefaultDispatchReapDone`, which are **package-level vars carrying no literal of their own**, assigned
 by `internal/agent`'s `init()` from the parsed `defaults.yaml`. The push direction is cycle-forced:
 agent imports config, so config can never read the values back from agent — assigning into config at
 init is the only direction the import graph allows. The nil-safe accessors
-(`GetDispatchMode`/`GetDispatchColumnWidth`/`GetDispatchReapDone`) and every other consumer read the
+(`GetDispatchMode`/`GetDispatchColumnWidth`/`GetDispatchMinCols`/`GetDispatchMinRows`/`GetDispatchReapDone`) and every other consumer read the
 same exported symbols as before. The registry construction fails loud
 (returns an error rather than emitting a degraded reference) if a role reported by `RoleNames()` does not
 resolve through `DefaultProfile`, or a row has an empty description or
@@ -101,13 +101,13 @@ always denotes a real built-in value (today: the `providers` row's **four built-
 claude/codex/agy/kimi, each with its capability grammar and per-role fills except kimi, which
 deliberately ships none (`260808-rpsr`) — the resolved
 `agent.profiles` defaults, the two depth knobs' `claude`, `dispatch.mode`'s `native`,
-`dispatch.column_width`'s `35`, and `dispatch.reap_done`'s `true`); every other row is `null`.
-**The three `dispatch` rows are
+`dispatch.column_width`'s `35`, `dispatch.min_cols`' `80`, `dispatch.min_rows`' `20`, and `dispatch.reap_done`'s `true`); every other row is `null`.
+**The five `dispatch` rows are
 the convention's boundary cases and are deliberately not `null`**: mode is a real string default,
 `native`; for width an absent YAML int is indistinguishable from `0` (which the accessor reads as
-unset, alongside every other out-of-`1..99` value); and reap has a real `true` default. Each carries a
+unset, alongside every other out-of-`1..99` value); the floor pair follows the same absent-reads-as-unset posture; and reap has a real `true` default. Each carries a
 built-in value the cascade genuinely bottoms out at, not a typed-empty placeholder.
-`dispatch.reap_done` is the sharpest of the three and the one that forced a **struct-level** answer as
+`dispatch.reap_done` is the sharpest of the five and the one that forced a **struct-level** answer as
 well as a registry one: its built-in default is **`true`**, so the Go zero value means the *opposite* of
 the default, and a plain `bool` would have made an absent key indistinguishable from an explicit
 `reap_done: false` — silently disabling reaping for every project that never sets the key. It is
@@ -170,7 +170,7 @@ Generated files carry the diet form so a project's `config.yaml` stays scannable
 under the same top-level key, the segment belongs to the *first* of them and documents them all; the
 rest carry an **empty** segment (`project.name` owns the `project:` block for `project.description` and
 `project.linear_workspace`; `dispatch.mode` owns the `dispatch:` block for
-`dispatch.column_width` **and** `dispatch.reap_done`). This is not an optimisation but a correctness requirement: the reference and
+`dispatch.column_width`, `dispatch.min_cols`, `dispatch.min_rows` **and** `dispatch.reap_done`). This is not an optimisation but a correctness requirement: the reference and
 the managed fence render these blocks **commented**, with the documented instruction to uncomment a
 whole block, so two separately-uncommentable `# dispatch:` parents would collide into a duplicate YAML
 key. It also matches the fence generator, whose override detection is top-level-key scoped: a live
@@ -189,15 +189,15 @@ repo's suggestion" is the intended answer.
 
 | scope | Meaning | Fields |
 |-------|---------|--------|
-| `both` | Overridable in either the project or the system layer (preference-class). | `agent.session`, `agent.workers`, `agent.profiles`, `providers`, `dispatch.mode`, `dispatch.column_width`, `dispatch.reap_done`, `autopilot.merge_mode` |
+| `both` | Overridable in either the project or the system layer (preference-class). | `agent.session`, `agent.workers`, `agent.profiles`, `providers`, `dispatch.mode`, `dispatch.column_width`, `dispatch.min_cols`, `dispatch.min_rows`, `dispatch.reap_done`, `autopilot.merge_mode` |
 | `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `consolidate.detectors`, and (conservative default) `stage_hooks` |
 | `system` | Overridable only in the system layer. | *(none today; the value exists for completeness and [Change 2])* |
 
 The one field the decision-6 taxonomy does not enumerate (`stage_hooks`) defaults to `project`
 — the conservative choice, since system-visibility is opt-in per the same rationale. `dispatch`
 (`dispatch.mode`, the pane/native/headless preference ceiling; `dispatch.column_width`, the pane-worker column's
-width; `dispatch.reap_done`, whether a finished worker's pane is reclaimed) is `both` by the same
-reasoning that puts `agent`/`providers` there: all three keys express how the
+width; `dispatch.min_cols`/`dispatch.min_rows`, the split geometry floor; `dispatch.reap_done`, whether a finished worker's pane is reclaimed) is `both` by the same
+reasoning that puts `agent`/`providers` there: all five keys express how the
 **operator** prefers to launch and observe stage workers on **this machine** — the adapter ceiling, how
 much of the window that pane takes, and whether a done worker's pane lingers — not what the repo's
 pipeline means, so they must be settable once
@@ -278,7 +278,7 @@ model, at [Change 3]'s `fab config upgrade` time, every field is one of:
 
 `advertise: true` marks the C-eligible fields — the optional override surfaces a project has typically
 *not* set live: `agent.session`, `agent.workers`, `dispatch.mode`, `dispatch.column_width`,
-`dispatch.reap_done`, `autopilot.merge_mode`, `checklist.extra_categories`,
+`dispatch.min_cols`, `dispatch.min_rows`, `dispatch.reap_done`, `autopilot.merge_mode`, `checklist.extra_categories`,
 `consolidate.detectors`, `true_impact_exclude`, `stage_hooks`, `test_paths`. `advertise: false` marks the init-seeded identity fields
 (`project.*`, `source_paths`), which are written live at `fab config init --project` time and not
 re-advertised in the fence. (`fab_version` is no longer a config-file field — it left `config.yaml` for

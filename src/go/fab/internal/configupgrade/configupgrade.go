@@ -161,6 +161,9 @@ var knownGeneratedSystemParagraphDigests = map[string]struct{}{
 	// digests are already above.)
 	"fe4bd2e1bbd7d22925c18de88e1af87d1ebc559aaf68714a580dbf5bf5e691e6": {},
 	"83980382a95ac269fe61b66d07d36fd9d072455b6ee7c20dc0377043232b6e69": {},
+	// Current dispatch advert with the min_cols/min_rows geometry-floor keys
+	// (260906-cxe0).
+	"264976f8cdf453e6782a52451d6b45b4f0ffb0deaa0aaca1a600f9558a8a2f48": {},
 }
 
 // fenceHeaderComment returns the explanatory preamble emitted at the top of a

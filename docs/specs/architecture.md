@@ -326,6 +326,12 @@ agent:
 # left/right separator is never touched again. Out-of-range values (and an absent
 # key, indistinguishable from 0) resolve to the default. Scope `both`.
 #
+# dispatch.min_cols / dispatch.min_rows (optional, defaults 80/20) — the GEOMETRY
+# FLOOR for the split shape: the planned worker pane is priced from the window
+# geometry before splitting, and a pane below either bound opens as a manually-sized
+# detached window instead (with a reason-naming warning). A dimension exactly at the
+# floor passes; absent/zero/negative resolves to the default. Scope `both`.
+#
 # dispatch.reap_done (optional, default true) — whether `fab dispatch reap`
 # reclaims a DONE pane worker's tmux pane. A pane worker never exits on completion
 # (it writes its result file and sits at its prompt), so without reaping every
@@ -336,6 +342,8 @@ agent:
 dispatch:
   mode: native
   column_width: 35
+  min_cols: 80
+  min_rows: 20
   reap_done: true
 
 # Optional pre/post shell commands honored by `fab status` (pre gates `start`,

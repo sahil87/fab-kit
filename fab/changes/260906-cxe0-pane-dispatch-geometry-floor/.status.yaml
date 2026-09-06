@@ -1,0 +1,55 @@
+id: cxe0
+name: 260906-cxe0-pane-dispatch-geometry-floor
+created: 2026-09-06T03:12:51Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 10
+    acceptance_count: 16
+    acceptance_completed: 16
+confidence:
+    certain: 7
+    confident: 2
+    tentative: 0
+    unresolved: 0
+    score: 4.9
+    fuzzy: true
+    dimensions:
+        signal: 78.9
+        reversibility: 85.0
+        competence: 87.8
+        disambiguation: 83.3
+stage_metrics:
+    intake: {started_at: "2026-09-06T03:12:51Z", driver: fab-new, iterations: 1, completed_at: "2026-09-06T03:15:27Z"}
+    apply: {started_at: "2026-09-06T03:15:27Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-06T03:40:05Z"}
+    review: {started_at: "2026-09-06T03:40:05Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-06T03:44:31Z"}
+    hydrate: {started_at: "2026-09-06T03:44:31Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-06T03:47:36Z"}
+    ship: {started_at: "2026-09-06T03:47:36Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-09-06T03:47:36Z"
+    computed_at_stage: hydrate
+summary: Pane dispatch geometry floor — splits priced against dispatch.min_cols/min_rows (80x20) before carving; below-floor workers open in a manually-sized detached 200x50 window with a reason-naming warning; geometry probe is fail-open
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-09-06T03:47:36Z

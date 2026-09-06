@@ -23,10 +23,10 @@
 // agent.ResolveProvider over agent.ProviderNames (so the provider SET is derived
 // too, not a hand-maintained name list), the per-role default profiles via
 // agent.DefaultProfile over agent.RoleNames, the pipeline stage names via
-// agent.StageNames, and the dispatch defaults (mode, column width, reap_done) via
-// the config.DefaultDispatch* vars — which carry no literal: internal/agent's
-// init() fills them from defaults.yaml's dispatch: block, the single value
-// source (260809-wll4). The dynamic segments (providers, agent, stage_hooks)
+// agent.StageNames, and the dispatch defaults (mode, column width, min_cols,
+// min_rows, reap_done) via the config.DefaultDispatch* vars — which carry no
+// literal: internal/agent's init() fills them from defaults.yaml's dispatch:
+// block, the single value source (260809-wll4). The dynamic segments (providers, agent, stage_hooks)
 // interpolate those same symbols when the row is built, so the reference text
 // carries no literal copy of any value. The providers SEGMENT still names the
 // four built-ins one by one (via agent.DefaultInteractiveCommand and the
@@ -68,17 +68,17 @@
 // would leak an implementation detail with no cascade meaning. A non-nil Default
 // therefore always denotes a real built-in value (the four built-in providers'
 // command grammars AND their per-role fills, the resolved per-role profiles, the
-// two depth knobs' built-in provider, and all three dispatch defaults — the
+// two depth knobs' built-in provider, and all five dispatch defaults — the
 // config.DefaultDispatch* vars, filled from defaults.yaml per above).
 // The convention still governs WITHIN a provider: codex's and agy's fill maps are
 // SPARSE, so a role fab-kit ships no fill for is simply absent rather than emitted
 // as an empty object — and kimi, which ships no fills at all, projects no fill map
-// rather than an empty one. The three dispatch rows are the convention's
+// rather than an empty one. The five dispatch rows are the convention's
 // boundary cases: mode carries its real string default, and an absent yaml int is
 // indistinguishable from 0 (which the accessor therefore reads as unset), so each
 // carries its real built-in value rather than
 // the typed-empty placeholder the convention forbids. reap_done is the sharpest of
-// the three — its default is TRUE, so the config struct models it as a *bool to
+// the five — its default is TRUE, so the config struct models it as a *bool to
 // keep an explicit false distinguishable from absent. See docs/specs/config.md
 // § Default semantics.
 //
@@ -558,13 +558,40 @@ checklist:
 			// canonical config symbol, never a literal copy.
 			Default:     config.DefaultDispatchColumnWidth,
 			Kind:        configvalue.KindInt,
-			Description: "Pane-worker column width, in percent of the window, applied by the column-carving `-h` split that opens a pane-mode stage worker beside its dispatching agent (`split-window -h -l <n>%`). Only that first split is sized — later workers stack inside the column with unsized `-v` splits. Out-of-range values (and an absent key) resolve to the default. Scope both — settable once machine-wide, where it outranks the project file. Default 35.",
+			Description: "Pane-worker column width, in percent of the window, applied by the column-carving `-h` split that opens a pane-mode stage worker beside its dispatching agent (`split-window -h -l <n>%`). Only that first split is sized — later workers stack inside the column with unsized `-v` splits. A computed column (or stacked row height) below the dispatch.min_cols / dispatch.min_rows floor opens the worker in a manually-sized window instead of splitting. Out-of-range values (and an absent key) resolve to the default. Scope both — settable once machine-wide, where it outranks the project file. Default 35.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
 			// Rendered inline in the dispatch.mode Segment (dispatch is one YAML
 			// block, so a second `# dispatch:` block would collide if a reader
 			// uncommented both); this row carries no Segment of its own. Same pattern
 			// as project.description / project.linear_workspace.
+		},
+		{
+			Key: "dispatch.min_cols",
+			// The geometry floor's width half — a real built-in value sourced from
+			// the canonical config symbol, never a literal copy. Positive values
+			// pass; absent/zero/negative resolve to the default (an absent yaml int
+			// is indistinguishable from 0), and there is no upper clamp.
+			Default:     config.DefaultDispatchMinCols,
+			Kind:        configvalue.KindInt,
+			Description: "Geometry floor, in columns, for pane-mode split placement: before a split is carved or stacked, the planned worker pane's width is computed from the window geometry (a carving split yields window_width × dispatch.column_width / 100), and a pane narrower than this floor opens as a manually-sized detached window instead of splitting. A dimension exactly at the floor passes. Scope both — settable once machine-wide, where it outranks the project file. Default 80.",
+			Scope:       ScopeBoth,
+			Advertise:   true,
+			// Rendered inline in the dispatch.mode Segment, same as
+			// dispatch.column_width; this row carries no Segment of its own.
+		},
+		{
+			Key: "dispatch.min_rows",
+			// The geometry floor's height half — same posture as min_cols: a real
+			// built-in value from the canonical config symbol, positive values pass,
+			// absent/zero/negative resolve to the default.
+			Default:     config.DefaultDispatchMinRows,
+			Kind:        configvalue.KindInt,
+			Description: "Geometry floor, in rows, for pane-mode split placement: a stacking split yields half the sibling pane's height (tmux even-splits an unsized `-v`), and a pane shorter than this floor opens as a manually-sized detached window instead of splitting. A dimension exactly at the floor passes. Scope both — settable once machine-wide, where it outranks the project file. Default 20.",
+			Scope:       ScopeBoth,
+			Advertise:   true,
+			// Rendered inline in the dispatch.mode Segment, same as
+			// dispatch.column_width; this row carries no Segment of its own.
 		},
 		{
 			Key: "dispatch.reap_done",
@@ -929,19 +956,21 @@ func agentSegment(roles []roleRow) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// dispatchSegment renders the whole `dispatch:` block — ALL THREE keys under it,
+// dispatchSegment renders the whole `dispatch:` block — ALL FIVE keys under it,
 // since `dispatch` is one YAML block and two separately-uncommentable `# dispatch:`
 // parents would collide into a duplicate key. dispatch.mode is the preferred
 // descent-ladder rung; dispatch.column_width sizes the worker column;
-// dispatch.reap_done reclaims a done worker's pane. All three interpolate the
-// canonical config.DefaultDispatchMode / config.DefaultDispatchColumnWidth /
-// config.DefaultDispatchReapDone vars — no literal copy — which internal/agent's
-// init() fills from defaults.yaml's dispatch: block, the single value source
-// (260809-wll4).
+// dispatch.min_cols / dispatch.min_rows are the geometry floor below which a split
+// demotes to a manually-sized window; dispatch.reap_done reclaims a done worker's
+// pane. All five interpolate the canonical config.DefaultDispatchMode /
+// config.DefaultDispatchColumnWidth / config.DefaultDispatchMinCols /
+// config.DefaultDispatchMinRows / config.DefaultDispatchReapDone vars — no literal
+// copy — which internal/agent's init() fills from defaults.yaml's dispatch: block,
+// the single value source (260809-wll4).
 //
-// The dispatch.column_width and dispatch.reap_done registry rows therefore carry no
-// Segment of their own — the project.name / project.description precedent for
-// multiple keys in one block.
+// The dispatch.column_width, dispatch.min_cols, dispatch.min_rows, and
+// dispatch.reap_done registry rows therefore carry no Segment of their own — the
+// project.name / project.description precedent for multiple keys in one block.
 func dispatchSegment() string {
 	return "# dispatch.mode — preferred stage-worker adapter: pane, native, or headless.\n" +
 		"# Resolution starts at the preference and DESCENDS pane → native → headless,\n" +
@@ -962,9 +991,26 @@ func dispatchSegment() string {
 		"# never touched again. An absent key — or a value outside 1..99 — resolves to\n" +
 		"# the default (an absent yaml int is indistinguishable from 0, and 0/100 are\n" +
 		"# degenerate widths). A tmux too old for `-l <n>%` (pre-3.1) degrades to an\n" +
-		"# unsized split with a warning rather than failing the dispatch. Scope `both`,\n" +
+		"# unsized split with a warning rather than failing the dispatch. A computed\n" +
+		"# worker pane below the dispatch.min_cols / dispatch.min_rows floor opens in a\n" +
+		"# manually-sized window instead of splitting. Scope `both`,\n" +
 		"# so it is settable once machine-wide in ~/.fab-kit/config.yaml, where it\n" +
 		"# outranks the project file.\n" +
+		"#\n" +
+		"# dispatch.min_cols / dispatch.min_rows — the GEOMETRY FLOOR for pane-mode split\n" +
+		"# placement. tmux sizes a window to its most recent viewing client\n" +
+		"# (window-size latest), so a small viewer (a phone) can shrink the window until\n" +
+		"# a column_width percent of it is a pane no agent TUI can run in. Before a\n" +
+		"# split is carved or stacked the planned worker pane is priced from the window\n" +
+		"# geometry — a carving split yields window_width × column_width / 100 columns\n" +
+		"# and the window's height; a stacking split yields the column's width and half\n" +
+		"# the sibling pane's height — and a pane below EITHER floor opens as a\n" +
+		"# manually-sized detached window instead (the launch warns, naming the reason).\n" +
+		"# A dimension exactly AT the floor passes. Absent, zero, or negative values\n" +
+		"# resolve to the defaults; there is no upper clamp — a floor larger than any\n" +
+		"# window simply always demotes. Scope `both`, settable once machine-wide in\n" +
+		"# ~/.fab-kit/config.yaml, where it outranks the project file. Defaults " +
+		strconv.Itoa(config.DefaultDispatchMinCols) + " cols / " + strconv.Itoa(config.DefaultDispatchMinRows) + " rows.\n" +
 		"#\n" +
 		"# dispatch.reap_done — whether `fab dispatch reap` reclaims a DONE pane-mode\n" +
 		"# worker's tmux pane. A pane worker never exits on completion (it writes\n" +
@@ -981,6 +1027,8 @@ func dispatchSegment() string {
 		"# dispatch:\n" +
 		"#   mode: " + config.DefaultDispatchMode + "\n" +
 		"#   column_width: " + strconv.Itoa(config.DefaultDispatchColumnWidth) + "\n" +
+		"#   min_cols: " + strconv.Itoa(config.DefaultDispatchMinCols) + "\n" +
+		"#   min_rows: " + strconv.Itoa(config.DefaultDispatchMinRows) + "\n" +
 		"#   reap_done: " + strconv.FormatBool(config.DefaultDispatchReapDone)
 }
 
@@ -1081,20 +1129,26 @@ func agentShortSegment() string {
 }
 
 // dispatchShortSegment is the file-bound short form of dispatchSegment — same
-// fully-commented `dispatch:` block (one parent for all three keys), diet header.
+// fully-commented `dispatch:` block (one parent for all five keys), diet header.
 // Values interpolate the same canonical config.DefaultDispatch* vars.
 func dispatchShortSegment() string {
 	return shortAdvert(ScopeBoth,
-		"dispatch.mode / dispatch.column_width / dispatch.reap_done — stage-dispatch\n"+
-			"mode (pane → native → headless, descending), the pane-worker column width\n"+
-			"in percent, and done-pane reaping.",
+		"dispatch.mode / dispatch.column_width / dispatch.min_cols / dispatch.min_rows /\n"+
+			"dispatch.reap_done — stage-dispatch mode (pane → native → headless,\n"+
+			"descending), the pane-worker column width in percent, the split geometry\n"+
+			"floor (below it the worker opens in a manually-sized window), and done-pane\n"+
+			"reaping.",
 		"dispatch.mode",
 		"dispatch.mode <pane|native|headless>",
 		"dispatch.column_width <percent>",
+		"dispatch.min_cols <cols>",
+		"dispatch.min_rows <rows>",
 		"dispatch.reap_done <true|false>") +
 		"# dispatch:\n" +
 		"#   mode: " + config.DefaultDispatchMode + "\n" +
 		"#   column_width: " + strconv.Itoa(config.DefaultDispatchColumnWidth) + "\n" +
+		"#   min_cols: " + strconv.Itoa(config.DefaultDispatchMinCols) + "\n" +
+		"#   min_rows: " + strconv.Itoa(config.DefaultDispatchMinRows) + "\n" +
 		"#   reap_done: " + strconv.FormatBool(config.DefaultDispatchReapDone)
 }
 

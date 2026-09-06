@@ -43,6 +43,8 @@ func TestResolveKey(t *testing.T) {
 		{key: "stage_hooks.apply.pre", wantOK: true, wantField: "stage_hooks", wantOwner: "stage_hooks", wantKind: configvalue.KindString},
 		{key: "source_paths", wantOK: true, wantField: "source_paths", wantOwner: "source_paths", wantKind: configvalue.KindSequence},
 		{key: "dispatch.column_width", wantOK: true, wantField: "dispatch.column_width", wantOwner: "dispatch.mode", wantKind: configvalue.KindInt},
+		{key: "dispatch.min_cols", wantOK: true, wantField: "dispatch.min_cols", wantOwner: "dispatch.mode", wantKind: configvalue.KindInt},
+		{key: "dispatch.min_rows", wantOK: true, wantField: "dispatch.min_rows", wantOwner: "dispatch.mode", wantKind: configvalue.KindInt},
 		{key: "project", wantOK: true, wantField: "project.name", wantOwner: "project.name", wantKind: configvalue.KindMapping},
 		{key: "agent", wantOK: true, wantField: "agent.session", wantOwner: "agent.session", wantKind: configvalue.KindMapping},
 		{key: "agent.profiles.review", wantOK: true, wantField: "agent.profiles", wantOwner: "agent.session", wantKind: configvalue.KindMapping},

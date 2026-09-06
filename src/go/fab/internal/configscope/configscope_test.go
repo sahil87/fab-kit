@@ -53,6 +53,8 @@ func TestDottedKeys(t *testing.T) {
 		"consolidate.detectors",
 		"dispatch.mode",
 		"dispatch.column_width",
+		"dispatch.min_cols",
+		"dispatch.min_rows",
 		"dispatch.reap_done",
 		"agent.session",
 		"agent.workers",

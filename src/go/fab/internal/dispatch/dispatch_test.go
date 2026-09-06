@@ -541,6 +541,117 @@ func stubTmux(t *testing.T, body string) {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
+// TestSplitBelowFloor pins the geometry-floor verdict as a pure decision: the
+// planned worker size follows the two placement formulas (carve = window width ×
+// columnWidth / 100 by window height; stack = the sibling column's width by half
+// the sibling's height), a dimension exactly AT the floor passes, and a demotion
+// warning names the measured window, the failing dimension against the floor, and
+// the action. The motivating case is a 127x16 viewer-shrunk window at
+// column_width 35: the 44-column carve trips the floor and demotes.
+func TestSplitBelowFloor(t *testing.T) {
+	tests := []struct {
+		name        string
+		place       pane.SplitPlacement
+		geo         pane.Geometry
+		columnWidth int
+		minCols     int
+		minRows     int
+		wantBelow   bool
+		wantWarning string
+	}{
+		{
+			"carve: the motivating 127x16 viewer-shrunk window demotes",
+			pane.SplitPlacement{Target: "%1", Direction: pane.SplitRight, SizePercent: 35},
+			pane.Geometry{WindowWidth: 127, WindowHeight: 16, PaneWidth: 127, PaneHeight: 16}, 35, 80, 20,
+			true, "window 127x16 too narrow for a 35% column (44 cols < 80): opening worker in its own window",
+		},
+		{
+			"carve: exactly at the floor passes",
+			pane.SplitPlacement{Target: "%1", Direction: pane.SplitRight, SizePercent: 40},
+			pane.Geometry{WindowWidth: 200, WindowHeight: 20, PaneWidth: 200, PaneHeight: 20}, 40, 80, 20,
+			false, "",
+		},
+		{
+			"carve: one column below the floor demotes",
+			pane.SplitPlacement{Target: "%1", Direction: pane.SplitRight, SizePercent: 40},
+			pane.Geometry{WindowWidth: 200, WindowHeight: 20, PaneWidth: 200, PaneHeight: 20}, 40, 81, 20,
+			true, "window 200x20 too narrow for a 40% column (80 cols < 81): opening worker in its own window",
+		},
+		{
+			"carve: ample geometry proceeds unchanged",
+			pane.SplitPlacement{Target: "%1", Direction: pane.SplitRight, SizePercent: 35},
+			pane.Geometry{WindowWidth: 240, WindowHeight: 60, PaneWidth: 240, PaneHeight: 60}, 35, 80, 20,
+			false, "",
+		},
+		{
+			"carve: height below the floor demotes, naming rows",
+			pane.SplitPlacement{Target: "%1", Direction: pane.SplitRight, SizePercent: 35},
+			pane.Geometry{WindowWidth: 240, WindowHeight: 19, PaneWidth: 240, PaneHeight: 19}, 35, 80, 20,
+			true, "window 240x19 too short for a 35% column (19 rows < 20): opening worker in its own window",
+		},
+		{
+			"carve: both dimensions below floor names the width",
+			pane.SplitPlacement{Target: "%1", Direction: pane.SplitRight, SizePercent: 35},
+			pane.Geometry{WindowWidth: 100, WindowHeight: 10, PaneWidth: 100, PaneHeight: 10}, 35, 80, 20,
+			true, "window 100x10 too narrow for a 35% column (35 cols < 80): opening worker in its own window",
+		},
+		{
+			"stack: height-limited demotes (tmux even-splits an unsized -v)",
+			pane.SplitPlacement{Target: "%2", Direction: pane.SplitBelow},
+			pane.Geometry{WindowWidth: 240, WindowHeight: 30, PaneWidth: 84, PaneHeight: 30}, 35, 80, 20,
+			true, "window 240x30 too short for a stacked split (15 rows < 20): opening worker in its own window",
+		},
+		{
+			"stack: width-limited demotes (the existing column is the width)",
+			pane.SplitPlacement{Target: "%2", Direction: pane.SplitBelow},
+			pane.Geometry{WindowWidth: 240, WindowHeight: 60, PaneWidth: 79, PaneHeight: 60}, 35, 80, 20,
+			true, "window 240x60 too narrow for a stacked split (79 cols < 80): opening worker in its own window",
+		},
+		{
+			"stack: both dimensions fine proceeds unchanged",
+			pane.SplitPlacement{Target: "%2", Direction: pane.SplitBelow},
+			pane.Geometry{WindowWidth: 240, WindowHeight: 60, PaneWidth: 84, PaneHeight: 41}, 35, 80, 20,
+			false, "",
+		},
+		{
+			"stack: half-height exactly at the floor passes",
+			pane.SplitPlacement{Target: "%2", Direction: pane.SplitBelow},
+			pane.Geometry{WindowWidth: 240, WindowHeight: 40, PaneWidth: 80, PaneHeight: 40}, 35, 80, 20,
+			false, "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			below, warning := SplitBelowFloor(tt.place, tt.geo, tt.columnWidth, tt.minCols, tt.minRows)
+			if below != tt.wantBelow {
+				t.Errorf("SplitBelowFloor() below = %v, want %v", below, tt.wantBelow)
+			}
+			if warning != tt.wantWarning {
+				t.Errorf("SplitBelowFloor() warning = %q, want %q", warning, tt.wantWarning)
+			}
+		})
+	}
+}
+
+// TestPlannedWorkerSize pins the two placement formulas independently of the
+// verdict: a carve is window-proportional (integer percent, floored), a stack
+// inherits the sibling column's width and halves the sibling's height.
+func TestPlannedWorkerSize(t *testing.T) {
+	cols, rows := plannedWorkerSize(
+		pane.SplitPlacement{Target: "%1", Direction: pane.SplitRight, SizePercent: 35},
+		pane.Geometry{WindowWidth: 127, WindowHeight: 16}, 35)
+	if cols != 44 || rows != 16 {
+		t.Errorf("carve of 127x16 at 35%% = %dx%d, want 44x16", cols, rows)
+	}
+
+	cols, rows = plannedWorkerSize(
+		pane.SplitPlacement{Target: "%2", Direction: pane.SplitBelow},
+		pane.Geometry{WindowWidth: 240, WindowHeight: 60, PaneWidth: 84, PaneHeight: 41}, 35)
+	if cols != 84 || rows != 20 {
+		t.Errorf("stack under an 84x41 sibling = %dx%d, want 84x20 (height halved, floored)", cols, rows)
+	}
+}
+
 func TestModeAccessors(t *testing.T) {
 	headless := &Dispatch{PID: 10, PGID: 10, SpawnCmd: "codex exec", StartedAt: "t"}
 	if headless.IsPane() {
