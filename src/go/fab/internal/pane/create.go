@@ -103,6 +103,89 @@ func OpenWindow(server, name, dir, cmd string) (paneID string, err error) {
 		"new-window", "-P", "-F", "#{pane_id}", "-n", name, "-c", dir, cmd)
 }
 
+// OpenManualWindow creates a tmux window named name with cwd dir running cmd —
+// DETACHED and MANUALLY SIZED — and returns the new window's PANE ID.
+//
+// This is the geometry-floor fallback shape (see internal/dispatch's
+// SplitBelowFloor): when the planned split would land the worker below
+// dispatch.min_cols / dispatch.min_rows — the viewer-shrunk-window case, where
+// tmux sizes a window to its most recent viewing client (window-size latest) —
+// the worker gets its own window pinned to a size no viewer can shrink.
+//
+// The sequence is three commands:
+//
+//	tmux new-window -d -P -F '#{pane_id} #{window_id}' -n <name> -c <dir> <cmd>
+//	tmux set-option -w -t <window_id> window-size manual
+//	tmux resize-window -t <window_id> -x 200 -y 50
+//
+// `-d` keeps the user's view where it is (the operator's pane is the one being
+// watched); `window-size manual` + `resize-window` decouple the window from
+// viewer sizing. The size is a CONSTANT (ManualWindowCols x ManualWindowRows),
+// not config: the floor pair is the policy knob, and the escape window's size
+// has no demonstrated tuning need.
+//
+// Only the new-window failure is an error. The two sizing follow-ups run after
+// the worker is already running and identified by pane ID, so their failures are
+// NON-FATAL warnings — the same posture as OpenSplitPane's title-set failure.
+//
+// Existing OpenWindow callers keep their current signature and behavior: the
+// manual sizing applies ONLY to this floor-triggered fallback.
+//
+// cmd is passed as new-window's shell-command argument, so — exactly as in
+// OpenWindow — it is the WHOLE left-hand side including its own shell
+// expansions, which expand at invocation inside the new window.
+func OpenManualWindow(server, name, dir, cmd string) (paneID string, warnings []error, err error) {
+	out, stderr, err := RunCmd("tmux", WithServer(server, manualWindowArgs(name, dir, cmd)...)...)
+	if err != nil {
+		return "", nil, StderrError(fmt.Errorf("tmux new-window: %w", err), stderr)
+	}
+	fields := strings.Fields(out)
+	if len(fields) != 2 {
+		return "", nil, fmt.Errorf("tmux new-window reported %q for %q, want a pane id and a window id", strings.TrimSpace(out), name)
+	}
+	paneID, windowID := fields[0], fields[1]
+	if _, stderr, terr := RunCmd("tmux", WithServer(server, windowSizeManualArgs(windowID)...)...); terr != nil {
+		warnings = append(warnings, StderrError(
+			fmt.Errorf("could not pin window %s to manual sizing: %w", windowID, terr), stderr))
+	}
+	if _, stderr, terr := RunCmd("tmux", WithServer(server, resizeWindowArgs(windowID)...)...); terr != nil {
+		warnings = append(warnings, StderrError(
+			fmt.Errorf("could not resize window %s to %dx%d: %w", windowID, ManualWindowCols, ManualWindowRows, terr), stderr))
+	}
+	return paneID, warnings, nil
+}
+
+// The fallback window's manual size. Named constants, not config (code-quality's
+// no-magic-numbers rule): the dispatch.min_cols / dispatch.min_rows pair is the
+// policy knob; the escape window's size has no demonstrated tuning need.
+const (
+	// ManualWindowCols is the width the floor-fallback window is resized to.
+	ManualWindowCols = 200
+	// ManualWindowRows is the height the floor-fallback window is resized to.
+	ManualWindowRows = 50
+)
+
+// manualWindowArgs composes the `tmux new-window` argv for OpenManualWindow
+// (without the `-L <server>` prefix, which WithServer adds): DETACHED, printing
+// BOTH the new pane's and the new window's id so the sizing follow-ups can
+// target the window and no follow-up lookup can race a fast-exiting worker.
+func manualWindowArgs(name, dir, cmd string) []string {
+	return []string{"new-window", "-d", "-P", "-F", "#{pane_id} #{window_id}", "-n", name, "-c", dir, cmd}
+}
+
+// windowSizeManualArgs pins a window's size to manual, decoupling it from the
+// most-recent-viewer sizing (window-size latest) that the geometry floor exists
+// to escape.
+func windowSizeManualArgs(windowID string) []string {
+	return []string{"set-option", "-w", "-t", windowID, "window-size", "manual"}
+}
+
+// resizeWindowArgs sizes a manually-sized window to the fallback constants.
+func resizeWindowArgs(windowID string) []string {
+	return []string{"resize-window", "-t", windowID,
+		"-x", strconv.Itoa(ManualWindowCols), "-y", strconv.Itoa(ManualWindowRows)}
+}
+
 // OpenSplitPane executes an already-resolved SplitPlacement to create the worker's
 // pane, titles it, and returns the new pane's ID. Unlike OpenWindow the worker lands
 // in the SAME tmux window as the split target — the two-tier hierarchy's inner tier.

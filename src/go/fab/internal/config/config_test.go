@@ -973,6 +973,8 @@ func TestEnvNameForKey(t *testing.T) {
 	for key, want := range map[string]string{
 		"agent.workers":         "FAB_AGENT_WORKERS",
 		"dispatch.column_width": "FAB_DISPATCH_COLUMN_WIDTH",
+		"dispatch.min_cols":     "FAB_DISPATCH_MIN_COLS",
+		"dispatch.min_rows":     "FAB_DISPATCH_MIN_ROWS",
 	} {
 		if got := envNameForKey(key); got != want {
 			t.Errorf("envNameForKey(%q) = %q, want %q", key, got, want)
@@ -1580,6 +1582,113 @@ func TestGetDispatchColumnWidth_NilAndEmptyConfig(t *testing.T) {
 	}
 	if got := (&Config{}).GetDispatchColumnWidth(); got != DefaultDispatchColumnWidth {
 		t.Errorf("empty-config GetDispatchColumnWidth() = %d, want %d", got, DefaultDispatchColumnWidth)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// dispatch.min_cols / dispatch.min_rows — the pane-split geometry floor (scope `both`).
+// ---------------------------------------------------------------------------
+
+// TestLoad_DispatchMinCols: a positive value parses and is reported verbatim; an
+// ABSENT key, 0, or a negative resolves to DefaultDispatchMinCols (an absent yaml
+// int is indistinguishable from an explicit 0). Unlike column_width there is NO
+// upper bound — a floor larger than any window simply always demotes to the
+// manually-sized window shape.
+func TestLoad_DispatchMinCols(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"positive value parses", "dispatch:\n  min_cols: 100\n", 100},
+		{"absent key ⇒ default", "project:\n  name: t\n", DefaultDispatchMinCols},
+		{"absent width beside a live mode ⇒ default", "dispatch:\n  mode: pane\n", DefaultDispatchMinCols},
+		{"explicit 0 reads as unset ⇒ default", "dispatch:\n  min_cols: 0\n", DefaultDispatchMinCols},
+		{"negative ⇒ default", "dispatch:\n  min_cols: -10\n", DefaultDispatchMinCols},
+		{"very large floor parses (no upper clamp)", "dispatch:\n  min_cols: 500\n", 500},
+		{"1 is valid", "dispatch:\n  min_cols: 1\n", 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isolateSystemConfig(t)
+			fabRoot := writeProjectConfig(t, tt.body)
+			cfg, err := Load(fabRoot)
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if got := cfg.GetDispatchMinCols(); got != tt.want {
+				t.Errorf("GetDispatchMinCols() = %d, want %d (config %q)", got, tt.want, tt.body)
+			}
+		})
+	}
+}
+
+// TestLoad_DispatchMinRows: same validation posture as min_cols — positive values
+// pass verbatim, absent/zero/negative resolve to DefaultDispatchMinRows.
+func TestLoad_DispatchMinRows(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"positive value parses", "dispatch:\n  min_rows: 30\n", 30},
+		{"absent key ⇒ default", "project:\n  name: t\n", DefaultDispatchMinRows},
+		{"absent height beside a live sibling ⇒ default", "dispatch:\n  min_cols: 100\n", DefaultDispatchMinRows},
+		{"explicit 0 reads as unset ⇒ default", "dispatch:\n  min_rows: 0\n", DefaultDispatchMinRows},
+		{"negative ⇒ default", "dispatch:\n  min_rows: -5\n", DefaultDispatchMinRows},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isolateSystemConfig(t)
+			fabRoot := writeProjectConfig(t, tt.body)
+			cfg, err := Load(fabRoot)
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if got := cfg.GetDispatchMinRows(); got != tt.want {
+				t.Errorf("GetDispatchMinRows() = %d, want %d (config %q)", got, tt.want, tt.body)
+			}
+		})
+	}
+}
+
+// TestGetDispatchMinColsRows_NilAndEmptyConfig: both accessors are nil-safe and
+// report the built-in defaults for a zero Config — the values every caller falls
+// back to when config could not be loaded at all.
+func TestGetDispatchMinColsRows_NilAndEmptyConfig(t *testing.T) {
+	var nilCfg *Config
+	if got := nilCfg.GetDispatchMinCols(); got != DefaultDispatchMinCols {
+		t.Errorf("nil-config GetDispatchMinCols() = %d, want %d", got, DefaultDispatchMinCols)
+	}
+	if got := nilCfg.GetDispatchMinRows(); got != DefaultDispatchMinRows {
+		t.Errorf("nil-config GetDispatchMinRows() = %d, want %d", got, DefaultDispatchMinRows)
+	}
+	if got := (&Config{}).GetDispatchMinCols(); got != DefaultDispatchMinCols {
+		t.Errorf("empty-config GetDispatchMinCols() = %d, want %d", got, DefaultDispatchMinCols)
+	}
+	if got := (&Config{}).GetDispatchMinRows(); got != DefaultDispatchMinRows {
+		t.Errorf("empty-config GetDispatchMinRows() = %d, want %d", got, DefaultDispatchMinRows)
+	}
+}
+
+// TestCascade_DispatchMinColsFromSystemLayer: `dispatch` is scope `both`, so a
+// personal floor set once in ~/.fab-kit/config.yaml reaches every repo and OUTRANKS
+// a project-file value (the TestCascade_DispatchColumnWidthFromSystemLayer
+// precedent).
+func TestCascade_DispatchMinColsFromSystemLayer(t *testing.T) {
+	home := isolateSystemConfig(t)
+	writeSystemConfig(t, home, "dispatch:\n  min_cols: 100\n  min_rows: 30\n")
+	fabRoot := writeProjectConfig(t, "dispatch:\n  min_cols: 60\n")
+
+	cfg, err := Load(fabRoot)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.GetDispatchMinCols(); got != 100 {
+		t.Errorf("system-layer min_cols = %d, want 100 (scope `both`, not pruned)", got)
+	}
+	if got := cfg.GetDispatchMinRows(); got != 30 {
+		t.Errorf("system-layer min_rows = %d, want 30 (scope `both`, not pruned)", got)
 	}
 }
 

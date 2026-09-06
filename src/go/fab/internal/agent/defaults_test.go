@@ -263,7 +263,7 @@ func TestPackageTablesMatchDefaultsFile(t *testing.T) {
 	}
 }
 
-// TestDefaultsFileDispatchBlockIsPinned is the ONE place the three built-in
+// TestDefaultsFileDispatchBlockIsPinned is the ONE place the five built-in
 // dispatch default values are asserted in Go (260809-wll4). The dispatch: block
 // of defaults.yaml is their single value source — internal/config's
 // DefaultDispatch* vars carry no literal and are filled from this file by this
@@ -280,13 +280,19 @@ func TestDefaultsFileDispatchBlockIsPinned(t *testing.T) {
 	if cfg.Dispatch.ColumnWidth != 35 {
 		t.Errorf("TestDefaultsFileDispatchBlockIsPinned: defaults.yaml dispatch.column_width = %d, pinned %d — defaults.yaml is the canonical source; intentional bump? update this pin too", cfg.Dispatch.ColumnWidth, 35)
 	}
+	if cfg.Dispatch.MinCols != 80 {
+		t.Errorf("TestDefaultsFileDispatchBlockIsPinned: defaults.yaml dispatch.min_cols = %d, pinned %d — defaults.yaml is the canonical source; intentional bump? update this pin too", cfg.Dispatch.MinCols, 80)
+	}
+	if cfg.Dispatch.MinRows != 20 {
+		t.Errorf("TestDefaultsFileDispatchBlockIsPinned: defaults.yaml dispatch.min_rows = %d, pinned %d — defaults.yaml is the canonical source; intentional bump? update this pin too", cfg.Dispatch.MinRows, 20)
+	}
 	if cfg.Dispatch.ReapDone == nil || !*cfg.Dispatch.ReapDone {
 		t.Errorf("TestDefaultsFileDispatchBlockIsPinned: defaults.yaml dispatch.reap_done = %v, pinned true (non-nil) — defaults.yaml is the canonical source; intentional bump? update this pin too", cfg.Dispatch.ReapDone)
 	}
 }
 
 // TestConfigDispatchDefaultsMatchDefaultsFile guards the injection wiring
-// (260809-wll4): internal/config's three DefaultDispatch* vars must equal the
+// (260809-wll4): internal/config's five DefaultDispatch* vars must equal the
 // values this package's init() parsed out of defaults.yaml. The vars carry no
 // literal, so a broken (or never-run) init push leaves every consumer of the
 // accessors on Go zero values while this file stays the canonical source — fail
@@ -299,6 +305,12 @@ func TestConfigDispatchDefaultsMatchDefaultsFile(t *testing.T) {
 	}
 	if config.DefaultDispatchColumnWidth != cfg.Dispatch.ColumnWidth {
 		t.Errorf("TestConfigDispatchDefaultsMatchDefaultsFile: config.DefaultDispatchColumnWidth = %d, defaults.yaml dispatch.column_width = %d — the init() push in agent.go is broken; fix the wiring, defaults.yaml stays canonical", config.DefaultDispatchColumnWidth, cfg.Dispatch.ColumnWidth)
+	}
+	if config.DefaultDispatchMinCols != cfg.Dispatch.MinCols {
+		t.Errorf("TestConfigDispatchDefaultsMatchDefaultsFile: config.DefaultDispatchMinCols = %d, defaults.yaml dispatch.min_cols = %d — the init() push in agent.go is broken; fix the wiring, defaults.yaml stays canonical", config.DefaultDispatchMinCols, cfg.Dispatch.MinCols)
+	}
+	if config.DefaultDispatchMinRows != cfg.Dispatch.MinRows {
+		t.Errorf("TestConfigDispatchDefaultsMatchDefaultsFile: config.DefaultDispatchMinRows = %d, defaults.yaml dispatch.min_rows = %d — the init() push in agent.go is broken; fix the wiring, defaults.yaml stays canonical", config.DefaultDispatchMinRows, cfg.Dispatch.MinRows)
 	}
 	wantReapDone := false
 	if cfg.Dispatch.ReapDone != nil {

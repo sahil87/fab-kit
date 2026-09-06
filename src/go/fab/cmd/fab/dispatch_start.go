@@ -199,11 +199,14 @@ func paneDispatchError(stage, provider string) error {
 // runDispatchLaunch once config is loaded — resolveMode has no config in hand. It
 // rides this struct anyway because it is the third input to the same placement
 // decision, and threading it as yet another launchPane parameter would only widen an
-// already-wide signature.
+// already-wide signature. minCols/minRows are the same: the geometry floor the
+// planned split is priced against, filled from config beside columnWidth.
 type paneTarget struct {
 	shape          dispatch.PaneShape
 	dispatcherPane string
 	columnWidth    int
+	minCols        int
+	minRows        int
 }
 
 func dispatchStartCmd() *cobra.Command {
@@ -341,10 +344,12 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 		return nativeDispatchError(stage, profile.Provider)
 	}
 
-	// The third placement input (the other two are env-derived, resolved in
+	// The placement inputs from CONFIG (the others are env-derived, resolved in
 	// resolveMode). Filled here because this is the first point config exists;
 	// ignored entirely outside the split shape.
 	target.columnWidth = cfg.GetDispatchColumnWidth()
+	target.minCols = cfg.GetDispatchMinCols()
+	target.minRows = cfg.GetDispatchMinRows()
 
 	// Validate pane mode BEFORE composing any command and before any state write,
 	// so a pane path that cannot proceed leaves no partial dispatch behind — and,
@@ -594,6 +599,13 @@ func missingCommandError(stage, providerName, field string) error {
 // clobbered by the harness running in the worker) plus the configured column width
 // on the carving split only. Both of its non-fatal outcomes come back as warnings.
 //
+// The GEOMETRY FLOOR runs after SplitTarget: the planned worker pane is priced
+// against the measured window geometry (pane.ProbeGeometry) and the configured
+// dispatch.min_cols / dispatch.min_rows, and a below-floor verdict DEMOTES the
+// launch to a manually-sized detached window (pane.OpenManualWindow) with a
+// stderr warning naming the reason — the viewer-shrunk-window escape. The probe
+// is fail-open: an unreadable geometry proceeds with the split byte-for-byte.
+//
 // Both shapes record the SAME identity string in rec.Window and both are keyed by
 // pane ID afterwards, so status/kill/capture need no shape awareness.
 func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoot, id, stage, server string, target paneTarget) (string, error) {
@@ -614,18 +626,47 @@ func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoo
 			fmt.Fprintf(cmd.ErrOrStderr(), "warning: worker-column placement probe failed (%v); %s\n",
 				probeErr, place.Describe())
 		}
-		var warnings []error
-		paneID, warnings, err = pane.OpenSplitPane(server, place, title, repoRoot, resolvedCmd)
-		// Cosmetic-only failures (a size tmux would not take, a title it would not
-		// set): the worker is running and its pane ID — the real identity — is
-		// already recorded, so these warn rather than aborting.
-		for _, w := range warnings {
-			fmt.Fprintf(cmd.ErrOrStderr(), "warning: %v\n", w)
+		// The GEOMETRY FLOOR: price the planned split against the measured window
+		// before carving — tmux sizes a window to its most recent viewing client
+		// (window-size latest), so a viewer-shrunk window would otherwise grant a
+		// split no agent TUI can run in. Below the floor the worker opens as a
+		// manually-sized detached window instead, with a warning naming the
+		// reason. The probe is FAIL-OPEN: an unreadable geometry keeps today's
+		// split behavior byte-for-byte, warning-free — placement is cosmetic and
+		// must never fail or reroute an otherwise-launchable dispatch.
+		demoted := false
+		if geo, geoErr := pane.ProbeGeometry(server, place.Target); geoErr == nil {
+			if below, warning := dispatch.SplitBelowFloor(place, geo,
+				target.columnWidth, target.minCols, target.minRows); below {
+				fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", warning)
+				var warnings []error
+				paneID, warnings, err = pane.OpenManualWindow(server, title, repoRoot, resolvedCmd)
+				// Sizing failures after a successful new-window are cosmetic: the
+				// worker is running and its pane ID is already in hand.
+				for _, w := range warnings {
+					fmt.Fprintf(cmd.ErrOrStderr(), "warning: %v\n", w)
+				}
+				if err != nil {
+					return "", err
+				}
+				report = fmt.Sprintf("pane %s, window %s", paneID, title)
+				demoted = true
+			}
 		}
-		if err != nil {
-			return "", err
+		if !demoted {
+			var warnings []error
+			paneID, warnings, err = pane.OpenSplitPane(server, place, title, repoRoot, resolvedCmd)
+			// Cosmetic-only failures (a size tmux would not take, a title it would not
+			// set): the worker is running and its pane ID — the real identity — is
+			// already recorded, so these warn rather than aborting.
+			for _, w := range warnings {
+				fmt.Fprintf(cmd.ErrOrStderr(), "warning: %v\n", w)
+			}
+			if err != nil {
+				return "", err
+			}
+			report = fmt.Sprintf("pane %s, split, title %s", paneID, title)
 		}
-		report = fmt.Sprintf("pane %s, split, title %s", paneID, title)
 	} else {
 		paneID, err = pane.OpenWindow(server, title, repoRoot, resolvedCmd)
 		if err != nil {

@@ -303,3 +303,62 @@ func splitPlacement(sibling, dispatcherPane string, columnWidth int) pane.SplitP
 	}
 	return pane.SplitPlacement{Target: sibling, Direction: pane.SplitBelow}
 }
+
+// SplitBelowFloor is the GEOMETRY-FLOOR decision — the pure verdict that keeps a
+// pane-mode split out of a window too small for an agent TUI. Given the resolved
+// placement, the measured geometry (internal/pane's ProbeGeometry, read by the
+// cobra layer), the configured column width, and the floor pair, it computes the
+// worker pane the split would YIELD and reports whether either dimension lands
+// below its floor:
+//
+//	carving split (SplitRight) — cols = window width × columnWidth / 100 (the
+//	                             formula splitArgs renders as `-l <n>%`),
+//	                             rows = window height
+//	stacking split (SplitBelow) — cols = the sibling pane's width (the existing
+//	                              column), rows = the sibling pane's height / 2
+//	                              (tmux even-splits an unsized `-v`)
+//
+// A dimension exactly AT the floor passes. tmux sizes a window to its most recent
+// viewing client (window-size latest), so a phone-attached viewer can shrink the
+// dispatcher's window until a columnWidth percent of it is a pane no agent TUI
+// can run in — tmux happily grants the split, and the worker dead-ends there. The
+// floor converts that silent dead-end into an explicit demotion: the caller opens
+// the worker in a manually-sized window instead (pane.OpenManualWindow) and emits
+// the returned warning.
+//
+// Like SelectMode/SelectPaneShape/splitPlacement it is a PURE function — no tmux
+// probe, no I/O — so the whole table is testable; the geometry read stays in the
+// cobra layer, and a probe failure never reaches here at all (the launch proceeds
+// with the split, fail-open).
+//
+// The warning names the measured window, the requested placement, the failing
+// dimension against the floor, and the action — the reason the layout differs
+// from the requested shape. When BOTH dimensions fail the width is named: it is
+// the dimension the column invariant owns, and the one the motivating case (a
+// viewer-shrunk window) trips first.
+func SplitBelowFloor(place pane.SplitPlacement, geo pane.Geometry, columnWidth, minCols, minRows int) (below bool, warning string) {
+	cols, rows := plannedWorkerSize(place, geo, columnWidth)
+	shape := "a stacked split"
+	if place.Direction == pane.SplitRight {
+		shape = fmt.Sprintf("a %d%% column", columnWidth)
+	}
+	if cols < minCols {
+		return true, fmt.Sprintf("window %dx%d too narrow for %s (%d cols < %d): opening worker in its own window",
+			geo.WindowWidth, geo.WindowHeight, shape, cols, minCols)
+	}
+	if rows < minRows {
+		return true, fmt.Sprintf("window %dx%d too short for %s (%d rows < %d): opening worker in its own window",
+			geo.WindowWidth, geo.WindowHeight, shape, rows, minRows)
+	}
+	return false, ""
+}
+
+// plannedWorkerSize computes the dimensions the worker pane would have if place
+// were executed — the arithmetic half of SplitBelowFloor, kept separate so the
+// two formulas have one home.
+func plannedWorkerSize(place pane.SplitPlacement, geo pane.Geometry, columnWidth int) (cols, rows int) {
+	if place.Direction == pane.SplitRight {
+		return geo.WindowWidth * columnWidth / 100, geo.WindowHeight
+	}
+	return geo.PaneWidth, geo.PaneHeight / 2
+}

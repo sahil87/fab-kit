@@ -221,3 +221,120 @@ func TestPaneCreatorsNeverShellWrap(t *testing.T) {
 		}
 	}
 }
+
+// TestManualWindowArgv pins the three-command sequence of the geometry-floor
+// fallback window: a DETACHED new-window printing BOTH ids (the pane id is the
+// dispatch's identity, the window id targets the sizing follow-ups), then
+// `window-size manual` (decoupling the window from most-recent-viewer sizing),
+// then the resize to the named constants. No test needs a tmux server — the
+// composers are pure.
+func TestManualWindowArgv(t *testing.T) {
+	got := manualWindowArgs("fab-abcd-apply", "/repo", "claude 'go'")
+	want := []string{"new-window", "-d", "-P", "-F", "#{pane_id} #{window_id}",
+		"-n", "fab-abcd-apply", "-c", "/repo", "claude 'go'"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("manualWindowArgs = %q, want %q", got, want)
+	}
+
+	got = windowSizeManualArgs("@7")
+	want = []string{"set-option", "-w", "-t", "@7", "window-size", "manual"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("windowSizeManualArgs = %q, want %q", got, want)
+	}
+
+	got = resizeWindowArgs("@7")
+	want = []string{"resize-window", "-t", "@7", "-x", "200", "-y", "50"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("resizeWindowArgs = %q, want %q", got, want)
+	}
+	if ManualWindowCols != 200 || ManualWindowRows != 50 {
+		t.Errorf("manual window constants = %dx%d, pinned 200x50 (intentional change? update the pin)", ManualWindowCols, ManualWindowRows)
+	}
+}
+
+// TestOpenManualWindow covers the full three-call choreography over a stub tmux:
+// the new-window runs detached and prints both ids, and the two sizing follow-ups
+// target the WINDOW id in order. The returned identity is the PANE id, matching
+// every other creator.
+func TestOpenManualWindow(t *testing.T) {
+	argLog := filepath.Join(t.TempDir(), "argv.log")
+	t.Setenv("ARGLOG", argLog)
+	stubTmux(t, `echo "$@" >> "$ARGLOG"
+case "$1" in new-window) echo "%42 @7" ;; esac
+exit 0`)
+
+	paneID, warnings, err := OpenManualWindow("", "fab-abcd-apply", "/repo", "cmd")
+	if err != nil {
+		t.Fatalf("OpenManualWindow: %v", err)
+	}
+	if paneID != "%42" {
+		t.Errorf("pane id = %q, want %q", paneID, "%42")
+	}
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %v, want none on the happy path", warnings)
+	}
+
+	log, err := os.ReadFile(argLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := strings.Split(strings.TrimSpace(string(log)), "\n")
+	if len(calls) != 3 {
+		t.Fatalf("want 3 tmux calls (new-window, set-option, resize-window), got %d: %v", len(calls), calls)
+	}
+	if !strings.Contains(calls[0], "new-window -d") {
+		t.Errorf("first call = %q, want the DETACHED new-window", calls[0])
+	}
+	if !strings.Contains(calls[1], "set-option -w -t @7 window-size manual") {
+		t.Errorf("second call = %q, want window-size manual on the new window", calls[1])
+	}
+	if !strings.Contains(calls[2], "resize-window -t @7 -x 200 -y 50") {
+		t.Errorf("third call = %q, want the manual resize of the new window", calls[2])
+	}
+}
+
+// TestOpenManualWindow_SizingFailureIsNonFatal: a failed set-option or
+// resize-window AFTER a successful new-window warns without failing the dispatch
+// — the worker is already running and identified by pane ID (the OpenSplitPane
+// title-set precedent).
+func TestOpenManualWindow_SizingFailureIsNonFatal(t *testing.T) {
+	stubTmux(t, `case "$1" in
+  new-window) echo "%42 @7"; exit 0 ;;
+  set-option) echo "no such option" >&2; exit 1 ;;
+  resize-window) echo "can't resize" >&2; exit 1 ;;
+esac
+exit 0`)
+
+	paneID, warnings, err := OpenManualWindow("", "fab-abcd-apply", "/repo", "cmd")
+	if err != nil {
+		t.Fatalf("sizing failures must not fail the dispatch: %v", err)
+	}
+	if paneID != "%42" {
+		t.Errorf("pane id = %q, want %q (the worker's identity survives the sizing failure)", paneID, "%42")
+	}
+	if len(warnings) != 2 {
+		t.Fatalf("want both sizing failures as warnings, got %d: %v", len(warnings), warnings)
+	}
+	if !strings.Contains(warnings[0].Error(), "manual sizing") || !strings.Contains(warnings[1].Error(), "resize") {
+		t.Errorf("warnings must name the failed follow-ups, got %v", warnings)
+	}
+}
+
+// TestOpenManualWindow_NewWindowFailureIsAnError: the create itself failing is a
+// genuine launch failure — an error with no pane id and no sizing follow-ups (a
+// blind continuation would size the wrong window).
+func TestOpenManualWindow_NewWindowFailureIsAnError(t *testing.T) {
+	stubTmux(t, `echo "no server running" >&2
+exit 1`)
+
+	paneID, _, err := OpenManualWindow("", "fab-abcd-apply", "/repo", "cmd")
+	if err == nil {
+		t.Fatal("a failing new-window must be an error")
+	}
+	if paneID != "" {
+		t.Errorf("pane id = %q, want empty on a failed create", paneID)
+	}
+	if !strings.Contains(err.Error(), "no server running") {
+		t.Errorf("error = %v, want the child's stderr surfaced", err)
+	}
+}

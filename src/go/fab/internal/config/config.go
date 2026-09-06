@@ -236,7 +236,22 @@ type ProjectConfig struct {
 // preserves the leave-the-pane-alone behavior for anyone who wants a done worker's
 // scrollback.
 //
-// It is a *bool, unlike its two siblings, because its default is TRUE: the Go zero
+// MinCols/MinRows are the GEOMETRY FLOOR for the pane-mode split shape: before a
+// split is carved (or stacked), the planned worker pane's dimensions are computed
+// from the measured window geometry, and a pane that would land below either bound
+// opens as a manually-sized detached WINDOW instead. tmux sizes a window to its
+// most recent viewing client (window-size latest), so a phone-attached viewer can
+// shrink the window until a column_width percent of it is a pane no agent TUI can
+// run in; the floor converts that silent dead-end into an explicit fallback.
+//
+// ReapDone is the DONE-WORKER REAPING policy read by `fab dispatch reap`: a
+// pane-mode worker never exits on completion (it writes its result file and sits at
+// its prompt), so without reaping every finished stage holds its slice of the carved
+// column for the rest of the run. Default TRUE — space-reclaimed; setting it false
+// preserves the leave-the-pane-alone behavior for anyone who wants a done worker's
+// scrollback.
+//
+// It is a *bool, unlike its siblings, because its default is TRUE: the Go zero
 // value would then mean the OPPOSITE of the default, making an absent key
 // indistinguishable from an explicit `reap_done: false` and silently disabling
 // reaping for every project that never sets the key. nil = unset = the default; a
@@ -248,6 +263,8 @@ type ProjectConfig struct {
 type DispatchConfig struct {
 	Mode        string `yaml:"mode"`
 	ColumnWidth int    `yaml:"column_width"`
+	MinCols     int    `yaml:"min_cols"`
+	MinRows     int    `yaml:"min_rows"`
 	ReapDone    *bool  `yaml:"reap_done"`
 }
 
@@ -262,8 +279,8 @@ type AutopilotConfig struct {
 	MergeMode string `yaml:"merge_mode"`
 }
 
-// The three built-in dispatch defaults. They are VARS carrying NO literal values
-// because they no longer own a value: the single value source for all three is the
+// The five built-in dispatch defaults. They are VARS carrying NO literal values
+// because they no longer own a value: the single value source for all five is the
 // `dispatch:` block of the module-root embedded defaults.yaml (parsed by internal/agent), and internal/agent's
 // init() assigns the parsed values into these vars (260809-wll4). The push runs
 // agent → config because agent imports config — config cannot read the values back
@@ -288,6 +305,15 @@ var (
 	// accessor below and internal/configref's registry row read, so the default
 	// exists once.
 	DefaultDispatchColumnWidth int
+
+	// DefaultDispatchMinCols and DefaultDispatchMinRows are the built-in
+	// dispatch.min_cols / dispatch.min_rows — the geometry floor below which a
+	// planned split demotes to a manually-sized window. Like
+	// DefaultDispatchColumnWidth they are the canonical symbols both the
+	// accessors below and internal/configref's registry rows read, so each
+	// default exists once.
+	DefaultDispatchMinCols int
+	DefaultDispatchMinRows int
 
 	// DefaultDispatchReapDone is the built-in dispatch.reap_done — whether a done
 	// pane-mode worker's tmux pane is reclaimed by `fab dispatch reap`. Like
@@ -1002,6 +1028,38 @@ func (c *Config) GetDispatchColumnWidth() int {
 		return w
 	}
 	return DefaultDispatchColumnWidth
+}
+
+// GetDispatchMinCols returns dispatch.min_cols — the minimum worker-pane width a
+// planned pane-mode split may yield before the launch demotes to a manually-sized
+// window — or DefaultDispatchMinCols when unset or invalid (nil-safe).
+//
+// Like GetDispatchColumnWidth, an absent yaml int is indistinguishable from an
+// explicit 0, so 0 and negatives read as unset and resolve to the default. Unlike
+// the column width there is NO upper-bound clamp: a floor larger than any real
+// window simply always demotes, which degrades gracefully to the window shape.
+func (c *Config) GetDispatchMinCols() int {
+	if c == nil {
+		return DefaultDispatchMinCols
+	}
+	if v := c.Dispatch.MinCols; v > 0 {
+		return v
+	}
+	return DefaultDispatchMinCols
+}
+
+// GetDispatchMinRows returns dispatch.min_rows — the minimum worker-pane height a
+// planned pane-mode split may yield before the launch demotes to a manually-sized
+// window — or DefaultDispatchMinRows when unset or invalid (nil-safe). The
+// validation posture matches GetDispatchMinCols: ≤0 reads as unset; no upper bound.
+func (c *Config) GetDispatchMinRows() int {
+	if c == nil {
+		return DefaultDispatchMinRows
+	}
+	if v := c.Dispatch.MinRows; v > 0 {
+		return v
+	}
+	return DefaultDispatchMinRows
 }
 
 // GetDispatchReapDone returns dispatch.reap_done — whether `fab dispatch reap`

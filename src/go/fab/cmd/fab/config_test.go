@@ -592,7 +592,7 @@ func TestConfigExplainVisibleAliasAndKeyedSelection(t *testing.T) {
 		t.Fatalf("keyed explain --json: %v", err)
 	}
 	var rows []map[string]any
-	if err := json.Unmarshal([]byte(jsonOut.String()), &rows); err != nil || len(rows) != 3 {
+	if err := json.Unmarshal([]byte(jsonOut.String()), &rows); err != nil || len(rows) != 5 {
 		t.Fatalf("keyed JSON should return the owning dispatch rows: len=%d err=%v\n%s", len(rows), err, jsonOut.String())
 	}
 
@@ -1215,6 +1215,8 @@ func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
 		"agent.workers":         true,
 		"dispatch.mode":         true, // string: the built-in mode IS a real default, not "absent"
 		"dispatch.column_width": true, // int: an absent yaml int reads as unset, so the built-in width is real
+		"dispatch.min_cols":     true, // int: the geometry floor's width half — same absent-reads-as-unset posture
+		"dispatch.min_rows":     true, // int: the geometry floor's height half
 		"dispatch.reap_done":    true, // bool defaulting TRUE — modeled as *bool so absent ≠ false
 		"autopilot.merge_mode":  true, // string: the built-in merge mode IS a real default, not "absent"
 	}

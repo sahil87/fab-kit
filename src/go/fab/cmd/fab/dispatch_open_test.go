@@ -839,3 +839,56 @@ func TestDispatchOpen_NoTmuxPaneKeepsTheNewWindowShape(t *testing.T) {
 		t.Errorf("tmux window name = %q, want %q — an unset $TMUX_PANE must keep the new-window shape", windowName, title)
 	}
 }
+
+// TestDispatchOpen_BelowFloorDemotesToSizedWindow is the geometry floor end-to-end
+// (the motivating case): a dispatcher in an 80x24 window would carve a 28-column
+// worker at the default 35% — below the 80x20 floor — so the launch must NOT split.
+// The worker opens in its own DETACHED window pinned to the manual 200x50 size, the
+// demotion warning names the measured geometry, the computed column, the floor, and
+// the action, and the record carries the pane identity exactly as the window shape
+// always has.
+func TestDispatchOpen_BelowFloorDemotesToSizedWindow(t *testing.T) {
+	repoRoot, id := setupDispatchRepoWithCommands(t, "", `sh -c 'sleep 30' _`)
+	tmuxScoped, dispatcherPane := startPrivateTmuxWithPaneSize(t, 80, 24)
+	dir := dispatch.DirFor(repoRoot, id)
+	dispatcherWindow := paneWindow(t, tmuxScoped, dispatcherPane)
+
+	_, stderr, err := runOpenCapturingStderr(t, "apply prompt", "abcd", "apply")
+	if err != nil {
+		t.Fatalf("a below-floor split must demote to a window, not fail: %v", err)
+	}
+	wantWarning := "window 80x24 too narrow for a 35% column (28 cols < 80): opening worker in its own window"
+	if !strings.Contains(stderr, "warning: "+wantWarning) {
+		t.Errorf("stderr = %q, want the demotion warning %q", stderr, wantWarning)
+	}
+
+	rec, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load apply: %v", err)
+	}
+	if !rec.IsPane() || !pane.PaneAlive(rec.Pane, "") {
+		t.Fatalf("the demoted worker must be a live pane dispatch, got %+v", *rec)
+	}
+
+	// Demoted: the worker is NOT in the dispatcher's window...
+	workerWindow := paneWindow(t, tmuxScoped, rec.Pane)
+	if workerWindow == dispatcherWindow {
+		t.Error("the worker landed in the dispatcher's window; a below-floor split must open its own window")
+	}
+	if got := paneFormat(t, tmuxScoped, rec.Pane, "#W"); got != dispatch.WindowName(id, "apply") {
+		t.Errorf("worker window name = %q, want %q", got, dispatch.WindowName(id, "apply"))
+	}
+	// ...and its window is manually sized to the fallback constants, immune to the
+	// viewer sizing that shrank the dispatcher's window.
+	if got := paneInt(t, tmuxScoped, rec.Pane, "#{window_width}"); got != pane.ManualWindowCols {
+		t.Errorf("worker window width = %d, want the manual %d", got, pane.ManualWindowCols)
+	}
+	if got := paneInt(t, tmuxScoped, rec.Pane, "#{window_height}"); got != pane.ManualWindowRows {
+		t.Errorf("worker window height = %d, want the manual %d", got, pane.ManualWindowRows)
+	}
+
+	// The dispatcher's window is untouched: no column was carved out of it.
+	if got := paneInt(t, tmuxScoped, dispatcherPane, "#{pane_width}"); got != 80 {
+		t.Errorf("dispatcher pane width = %d, want 80 (no carve happened)", got)
+	}
+}

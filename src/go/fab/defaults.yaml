@@ -39,18 +39,23 @@ agent:
   workers: claude
 
 # dispatch — the built-in stage-dispatch defaults, and the SINGLE VALUE SOURCE
-# for all three: internal/agent's init() pushes these parsed values into
+# for all five: internal/agent's init() pushes these parsed values into
 # internal/config's DefaultDispatchMode / DefaultDispatchColumnWidth /
-# DefaultDispatchReapDone vars, which carry no literal of their own (the push
-# runs agent → config because agent imports config; the reverse would cycle).
-# No Go file holds a copy — TestDefaultsFileDispatchBlockIsPinned pins these
-# values and TestConfigDispatchDefaultsMatchDefaultsFile guards the push, so a
-# drift or a broken wiring names itself in the failure output. reap_done is
-# parsed as a *bool (see config.DispatchConfig): an absent key must stay
-# distinguishable from an explicit false, which a plain bool cannot do.
+# DefaultDispatchReapDone / DefaultDispatchMinCols / DefaultDispatchMinRows
+# vars, which carry no literal of their own (the push runs agent → config
+# because agent imports config; the reverse would cycle). No Go file holds a
+# copy — TestDefaultsFileDispatchBlockIsPinned pins these values and
+# TestConfigDispatchDefaultsMatchDefaultsFile guards the push, so a drift or a
+# broken wiring names itself in the failure output. reap_done is parsed as a
+# *bool (see config.DispatchConfig): an absent key must stay distinguishable
+# from an explicit false, which a plain bool cannot do. min_cols/min_rows are
+# the geometry floor: a split that would land the worker below them demotes to
+# a manually-sized window instead.
 dispatch:
   mode: native
   column_width: 35
+  min_cols: 80
+  min_rows: 20
   reap_done: true
 
 # autopilot.merge_mode — the built-in merge-mode default for `fab operator
