@@ -1,0 +1,13 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-08T16:58:24Z"}
+{"args":"Fold skill prefix into fab agent resolution; retire fab skill-prompt (stacked on 260908-tfzn / PR #649)","cmd":"fab-new","event":"command","ts":"2026-09-08T16:58:24Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-09-08T17:00:44Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-09-08T17:00:59Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-08T17:02:02Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-08T17:03:31Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-08T17:04:28Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-08T17:10:19Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-08T17:15:01Z"}
+{"event":"review","result":"passed","ts":"2026-09-08T17:15:01Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-08T17:16:16Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-09-08T17:17:31Z"}
+{"event":"review","result":"passed","ts":"2026-09-08T17:23:27Z"}

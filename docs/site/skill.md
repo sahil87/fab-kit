@@ -52,9 +52,6 @@ One line per capability, keyed to its command:
   no-op for every other dispatch).
 - **Panes / operator** — `fab pane {map,capture,send,process,window-name}` inspects and
   drives tmux panes; `fab operator` launches the coordination tab.
-- **Skill prompts** — `fab skill-prompt <skill> [arguments] --provider <receiver>`
-  renders a bare skill invocation for the receiving agent. Use `--repo <path>` instead
-  for a fresh default-role launch, and `--shell-quote` when embedding it in a shell command.
 - **Config** — `fab config {show,explain,set,unset,init,upgrade}` inspects and
   surgically updates `config.yaml`; `show <key> --origin` gives provenance and
   `reference` remains a compatibility alias for `explain`.

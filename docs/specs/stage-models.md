@@ -587,7 +587,9 @@ pipeline skills consume the YAML surface above.
 3. **Emit verbatim — NO validation** (see § No validation). fab does not check the provider, model, or
    effort against any provider's accepted set; it echoes the resolved strings as-is.
 4. Output: structured YAML carrying `provider`, full `model`, `model_alias`, `effort`, composed
-   `command`, `template`, `fill_mode`, per-field `source`, and an optional `dispatch:` mapping.
+   `command`, `template`, `fill_mode`, per-field `source`, an optional `dispatch:` mapping, and a
+   trailing `skill_prefix` (`$` for `codex`, `/` otherwise — the receiving harness's explicit
+   skill-invocation prefix).
    `model_alias` carries the native Agent-tool alias for recognized Claude IDs and is empty for
    non-Claude IDs. `dispatch:` is derived by the `dispatch.mode` descent ladder: native omits the key;
    pane/headless include a labelled `rung` and their composed `command`. Key presence remains the only

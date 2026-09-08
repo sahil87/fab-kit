@@ -2,6 +2,17 @@ package agent
 
 import "testing"
 
+func TestSkillPrefix(t *testing.T) {
+	for _, tc := range []struct{ provider, want string }{
+		{"codex", "$"}, {"claude", "/"}, {"agy", "/"}, {"kimi", "/"},
+		{"custom", "/"}, {"", "/"}, {"codex-wrapper", "/"}, {"Codex", "/"},
+	} {
+		if got := SkillPrefix(tc.provider); got != tc.want {
+			t.Errorf("SkillPrefix(%q) = %q, want %q", tc.provider, got, tc.want)
+		}
+	}
+}
+
 func TestSkillPrompt(t *testing.T) {
 	for _, tc := range []struct{ provider, prefix string }{
 		{"codex", "$"}, {"claude", "/"}, {"agy", "/"}, {"kimi", "/"},
