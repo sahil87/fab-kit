@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-08T15:08:52Z"}
+{"args":"Fix fab-kit skill invocation rendering: Codex uses dollar prefix; every other agent uses slash. Cover batch launches, fallback operator launcher, and operator routing; leave run-kit and heartbeat/delivery portability out of scope.","cmd":"fab-new","event":"command","ts":"2026-09-08T15:08:52Z"}
+{"delta":"+5.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-09-08T15:09:50Z"}
+{"cmd":"fab-ff","event":"command","ts":"2026-09-08T15:10:52Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-09-08T15:10:52Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-09-08T15:21:04Z"}
+{"event":"review","result":"failed","ts":"2026-09-08T15:30:42Z"}
+{"action":"re-entry","driver":"fab-ff","event":"stage-transition","stage":"apply","ts":"2026-09-08T15:30:42Z"}
+{"action":"re-entry","driver":"fab-ff","event":"stage-transition","stage":"review","ts":"2026-09-08T15:30:58Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"hydrate","ts":"2026-09-08T15:38:18Z"}
+{"event":"review","result":"passed","ts":"2026-09-08T15:38:18Z"}
+{"action":"enter","driver":"fab-ff","event":"stage-transition","stage":"ship","ts":"2026-09-08T15:38:58Z"}

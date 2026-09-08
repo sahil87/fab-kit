@@ -8,9 +8,8 @@ import (
 )
 
 // defaultRoleSpawnCommand composes the worker session command for `fab batch
-// new`/`switch`: the default role's provider interactive_command (resolved by
-// spawn.Command, which reads providers.<default-role.provider>.interactive_command over
-// fab-kit's built-in claude provider and falls back to spawn.DefaultSpawnCommand)
+// new`/`switch`: the default role's provider interactive_command (falling back
+// to spawn.DefaultSpawnCommand when absent)
 // with the default role's {model}/{effort} SUBSTITUTED via internal/spawn. Workers
 // spawn WITH a profile (the former placeholder-stripping print path is gone).
 // Substitution resolves every placeholder, so no literal {model}/{effort} braces
@@ -18,7 +17,8 @@ import (
 //
 // `default` is a Tier-1 (session) role, so which provider it lands on is the
 // agent.session knob's call — a batch worker is an agent the user talks to.
-func defaultRoleSpawnCommand(configPath string) string {
+// The returned provider identifies the command actually launched, including fallback.
+func defaultRoleSpawnCommand(configPath string) (command, provider string) {
 	cfg, err := config.LoadPath(configPath)
 	if err != nil {
 		cfg = nil // nil-safe accessors below deliver the built-in fallbacks
@@ -26,12 +26,17 @@ func defaultRoleSpawnCommand(configPath string) string {
 
 	// RoleDefault is always a known role (drift-guarded), so ResolveRole only
 	// errors on a truly unknown role — impossible for the constant RoleDefault.
-	profile, err := agent.ResolveRole(cfg, agent.RoleDefault)
+	command, profile, err := roleSessionCommand(cfg, agent.RoleDefault)
 	if err != nil {
 		profile, _ = agent.DefaultProfile(agent.RoleDefault)
 	}
 
-	return spawn.WithProfile(spawn.Command(configPath), profile.Model, profile.Effort)
+	provider = profile.Provider
+	if command == "" {
+		command = spawn.WithProfile(spawn.DefaultSpawnCommand, profile.Model, profile.Effort)
+		provider = "claude"
+	}
+	return command, provider
 }
 
 func batchCmd() *cobra.Command {

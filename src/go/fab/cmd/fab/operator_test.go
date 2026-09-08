@@ -431,7 +431,7 @@ func TestOperatorSpawnMatchesAgentRolePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("agent operator --print: %v", err)
 	}
-	if viaOperator := operatorSpawnCommand(); viaOperator != strings.TrimSuffix(viaAgent, "\n") {
+	if viaOperator, _ := operatorSpawnCommand(); viaOperator != strings.TrimSuffix(viaAgent, "\n") {
 		t.Errorf("operator tab composes %q but `fab agent operator` composes %q — the two paths have drifted",
 			viaOperator, strings.TrimSuffix(viaAgent, "\n"))
 	}

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/shellquote"
@@ -95,7 +96,7 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag, quietF
 	// (workers finally spawn WITH a profile). Substitution resolves all
 	// placeholders so no literal braces reach the tmux new-window shell command.
 	configPath := filepath.Join(fabRoot, "project", "config.yaml")
-	spawnCmd := defaultRoleSpawnCommand(configPath)
+	spawnCmd, provider := defaultRoleSpawnCommand(configPath)
 	workers, workersSet := workersOverride(cmd)
 
 	// Process each change
@@ -137,7 +138,7 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag, quietF
 		wtPath := strings.TrimSpace(wtOut)
 
 		// Open tmux window
-		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single("/fab-switch "+match))
+		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single(agent.SkillPrompt(provider, "fab-switch", match)))
 		shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
 		// Interactive spawn: the shell fallback keeps the pane (and its cwd)
 		// alive as the user's interactive shell after the agent exits.

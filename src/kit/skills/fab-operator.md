@@ -117,12 +117,14 @@ This single preflight probe covers every later `wt create` call site; none is in
 
 ### Pre-Send Validation
 
+**Skill routing:** every explicit skill send in this file uses `_cli-agents.md` § Skill Prompts. Slash-form names in the routing vocabulary identify skills; they are not literal wire payloads. Render for the receiver before sending.
+
 Before sending keys to any pane, run the two-step gate in **`_cli-agents.md` § Pre-Send Validation** (pane exists via a refreshed pane map → agent state fits the send intent per the three-state `@rk_pane_agent_state` read — the same mode-aware gate `rk mux send` enforces), then apply the operator's own policy on its outcome plus the two operator-specific checks:
 
 1. **Pane gone** (gate step 1 fails) — report "Pane for {change} is gone." Do not send.
 2. **Agent not `idle`** (gate step 2) — the operator does **not** silently proceed. If `active` or `waiting`: "{change} is {state}. Sending may corrupt its work / cut across a pending human answer. Send anyway?" — send only on explicit confirmation, and keep the confirmed send gated: with rk installed (`command -v rk`), a `waiting` target rides `rk mux send --answer`, an `active` target requires `rk mux send --force` (the deliberate skip-everything override); with rk absent, the confirmed send is raw `tmux send-keys` behind the operator's own state gate just performed. If unknown (`—`, no `@rk_pane_agent_state` on the pane): the agent isn't instrumented; confirm before sending (plain send then warns-and-sends — no override needed). Only `idle` sends unattended. *(This routed-command confirm policy is unchanged by `--answer` — the flag swaps the mechanism after confirmation, not the ask; the auto-answer flow in §5 is the unattended `--answer` consumer.)*
-3. **Check change is active** — if the target change isn't the active change in that tab, send `/fab-switch <change>` first.
-4. **Check branch alignment** — if the tab's git branch doesn't match the change folder name, send `/git-branch` to align it.
+3. **Check change is active** — if the target change isn't the active change in that tab, send the rendered `fab-switch` invocation with `<change>` first.
+4. **Check branch alignment** — if the tab's git branch doesn't match the change folder name, send the rendered `git-branch` invocation to align it.
 
 When a send appears to land but the agent never starts working, apply the **delivery probe** in `_cli-agents.md` § Delivery Probe (the printed-prompt trap: probe with a literal sentinel, `C-u`, retype, Enter, confirm via a working indicator) rather than re-sending blind.
 
@@ -538,14 +540,14 @@ The spawn sequence is:
 
    **Guard:** switch only an already-existing change, from the just-created worktree CWD, and fail soft. Raw/backlog forms wait for `/fab-new` Step 10; the dedicated worktree owns its own pointer, and the embedded transient override preserves correctness if activation fails.
 5. **Resolve dependencies** — if the change has a non-empty `depends_on` list, resolve it per repo: same-repo deps cherry-pick into the worktree, cross-repo deps are ordering-only barriers (see Dependency Resolution below)
-6. **Read the target repo's session command** — compose it per `_cli-agents.md` § Spawn Composition, in the **role-addressed** form with the target repo named: `fab agent --print --repo <target-repo>`. The operator-specific rule: **always pass `--repo <target-repo>`** — do NOT use the operator's own `config.yaml`, since each repo may configure a different provider/session command. (The provider-addressed form documented there is for ad-hoc cross-provider sessions, not operator worker spawns, which must carry the target repo's `default`-role profile.)
-7. **Open agent tab** — open the composed command per `_cli-agents.md` § Spawn Composition ("Open it in a pane", incl. the one-prompt/no-`&&`-chaining rule), targeted at step 2's session and with the operator's window-marker name. The command carries the interactive shell fallback owned there (`; exec "$SHELL"` — the why is the owner's, not restated here):
+6. **Read the target repo's session command** — compose it per `_cli-agents.md` § Spawn Composition, in the **role-addressed** form with the target repo named: `fab agent --print --repo <target-repo>`. Use the same target repo in the renderer's `--repo` mode per `_cli-agents.md` § Skill Prompts. The operator-specific rule: **always pass `--repo <target-repo>`** — do NOT use the operator's own `config.yaml`, since each repo may configure a different provider/session command. (The provider-addressed form documented there is for ad-hoc cross-provider sessions, not operator worker spawns, which must carry the target repo's `default`-role profile.)
+7. **Open agent tab** — render the selected skill and arguments per `_cli-agents.md` § Skill Prompts in its spawn-embedding form, then open the composed command per § Spawn Composition, targeted at step 2's session and with the operator's window-marker name. The command carries the interactive shell fallback owned there (`; exec "$SHELL"` — the why is the owner's, not restated here):
 
    ```sh
-   tmux new-window -t '<session>:' -P -F '#{session_name} #{pane_id}' -n "»<wt>" -c <worktree-path> "<spawn_cmd> '<command>'; exec \"\$SHELL\""
+   tmux new-window -t '<session>:' -P -F '#{session_name} #{pane_id}' -n "»<wt>" -c <worktree-path> "$spawn_cmd $fab_skill_token; exec \"\$SHELL\""
    ```
 
-   (where `<session>` is the target session from step 2, `<wt>` is the worktree name from step 3, and `<spawn_cmd>` is the target repo's command from step 6). **Shell-escape the session name before embedding it** — it can come from the natural-language §8 setting or an arbitrary tmux session name, so raw interpolation inside double quotes would let an embedded `$()`/backtick execute; the single-quoted `-t` keeps such text literal, and a name containing a single quote must itself be escaped, never interpolated raw. `-P -F` prints the landed `#{session_name}` and `#{pane_id}` — step 8's enrollment consumes both, and the printed session confirms where the window actually landed. A missing `-t` target errors loudly at spawn (tmux refuses an absent session); surface it per normal error handling — never silently retry against the ambient session.
+   (where `<session>` is the target session from step 2, `<wt>` is the worktree name from step 3, `$spawn_cmd` is the target repo's command from step 6, and `$fab_skill_token` is the shell-quoted renderer output). **Shell-escape the session name before embedding it** — it can come from the natural-language §8 setting or an arbitrary tmux session name, so raw interpolation inside double quotes would let an embedded `$()`/backtick execute; the single-quoted `-t` keeps such text literal, and a name containing a single quote must itself be escaped, never interpolated raw. `-P -F` prints the landed `#{session_name}` and `#{pane_id}` — step 8's enrollment consumes both, and the printed session confirms where the window actually landed. A missing `-t` target errors loudly at spawn (tmux refuses an absent session); surface it per normal error handling — never silently retry against the ambient session.
 8. **Enroll in monitored set** — unconditionally and silently via `fab operator enroll`, passing step 7's printed values as `--pane <pane-id> --session <session-name>` (plus repo, stage, branch, and dependencies — the `branch_map` pair rides the same command; contract in `_cli-fab.md` § fab operator); then apply §4 Enrollment's window prefix; never ask whether to monitor
 
 Window markers (`»` / `›`) key on server-global pane IDs.
@@ -631,9 +633,9 @@ Dependencies are declared through three conversational paths, all of which coexi
 
 Every form runs §6's target-repo + target-session → worktree → guarded activation → dependencies → target-repo session command → tab → enrollment sequence:
 
-1. **Existing change:** use the monitored/`branch_map` repo and embed `/fab-fff <change>` as the single prompt per `_cli-agents.md` § Spawn Composition; the transient override targets the pipeline and spawn step 4 activates the pointer.
-2. **Raw text** (for example, "fix login after password reset"): use the named repo (default operator launch repo) and embed `/fab-new <shell_escaped_description>`. Shell-escape the raw description; never insert it unescaped. The existence guard skips activation until `/fab-new` creates and activates the change at Step 10.
-3. **Backlog ID or Linear issue:** resolve it first (optional `idea` lookup per `_cli-external.md` § Delegation and binary gate), then embed `/fab-new <id>`. The existence guard skips activation and `/fab-new` owns it.
+1. **Existing change:** use the monitored/`branch_map` repo and select skill `fab-fff` with argument `<change>` and render it per `_cli-agents.md` § Skill Prompts; the transient override targets the pipeline and spawn step 4 activates the pointer.
+2. **Raw text** (for example, "fix login after password reset"): use the named repo (default operator launch repo) and select skill `fab-new` with the raw description as its argument string; render it per `_cli-agents.md` § Skill Prompts. The existence guard skips activation until `/fab-new` creates and activates the change at Step 10.
+3. **Backlog ID or Linear issue:** resolve it first (optional `idea` lookup per `_cli-external.md` § Delegation and binary gate), then select skill `fab-new` with argument `<id>` through the same rendering procedure. The existence guard skips activation and `/fab-new` owns it.
 
 On completion (all three): PR ready, optionally archive. Both raw text and backlog paths use `/fab-new` to generate a proper intake with traceability. `/fab-new` captures the raw input in the intake's Origin section — the user just says "fix [description]" and the operator does the rest.
 
@@ -709,7 +711,7 @@ The operator works each change through the pipeline. Pre-send validation (§3) a
 
 1. **Gate** — check confidence score **before anything spawns**. If below threshold, flag and wait — no worktree, no tab, no dispatch for a below-threshold change
 2. **Spawn** — run the §6 spawn sequence steps 1–3 (establish the change's target repo and target session, create worktree in the repo; `--reuse` for respawns)
-3. **Resolve dependencies + open tab + enroll** — §6 spawn sequence steps 4–8 (existence-guarded pointer activation, same-repo cherry-pick / cross-repo ordering-only barriers per Dependency Resolution). Step 7's `<command>` is the change's pipeline command — `/fab-fff <change>` (or the appropriate command for its current stage) — so the dispatch happens **once, at spawn**; do NOT send the command again after the tab opens
+3. **Resolve dependencies + open tab + enroll** — §6 spawn sequence steps 4–8 (existence-guarded pointer activation, same-repo cherry-pick / cross-repo ordering-only barriers per Dependency Resolution). Step 7's skill selection is `fab-fff` with argument `<change>` (or the appropriate skill for its current stage), rendered through the shared procedure — so the dispatch happens **once, at spawn**; do NOT send the command again after the tab opens
 4. **Monitor** — normal tick detection handles progress
 5. **Record** — when the current change is satisfied per § Dependency Resolution **Dependency satisfied** (its `completion` delta observed **and** its PR URL collected), run `fab operator autopilot advance` (the binary moves `current` to `completed` and promotes the next entry) and collect the PR URL. The `{ branch, repo }` pair is already in `branch_map` — `enroll` recorded it at spawn
 6. **Spawn next** — only after item 5's satisfaction check; repeat from item 1 using § Queue ordering and § Dependency Resolution; embed its command at spawn
@@ -816,7 +818,7 @@ On each tick (step 3), for each enabled watch:
 2. **Deduplicate** — skip items in `known` **plus** `completed` lists (an item that reached `stop_stage` moves from `known` to `completed` but may still match the query — it MUST NOT be respawned). On success: `fab operator watch checked <name>` (sets `last_checked`, clears `last_error`).
 3. **Evaluate instructions** — apply trigger conditions, label filters, concurrency limits (count monitored entries with `spawned_by: <watch-name>`), and any other criteria from `instructions`
 4. **Act** — for each item that passes:
-   - Run the §6 spawn sequence with the watch's `target_repo` as the target repo, sending the appropriate initial command (e.g., `/fab-new DEV-123`)
+   - Run the §6 spawn sequence with the watch's `target_repo` as the target repo, rendering the appropriate initial skill invocation (e.g., `fab-new` with argument `DEV-123`)
    - Enroll via `fab operator enroll` with `repo` (= `target_repo`), `session`, `stop_stage`, and `spawned_by` from the watch
    - `fab operator watch seen <name> <item-id>` (only after successful spawn — the binary appends idempotently and enforces the 200-cap)
 5. **Report** — `"Watch linear-bugs: DEV-1024 — Fix auth redirect (72m old). Spawning."`
