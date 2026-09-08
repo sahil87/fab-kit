@@ -70,9 +70,10 @@
 // command grammars AND their per-role fills, the resolved per-role profiles, the
 // two depth knobs' built-in provider, and all five dispatch defaults — the
 // config.DefaultDispatch* vars, filled from defaults.yaml per above).
-// The convention still governs WITHIN a provider: codex's and agy's fill maps are
-// SPARSE, so a role fab-kit ships no fill for is simply absent rather than emitted
-// as an empty object — and kimi, which ships no fills at all, projects no fill map
+// The convention still governs WITHIN a provider: agy's fill map is SPARSE, so a
+// role fab-kit ships no fill for is simply absent rather than emitted as an empty
+// object (codex's map is dense, so every role projects) — and kimi, which ships no
+// fills at all, projects no fill map
 // rather than an empty one. The five dispatch rows are the convention's
 // boundary cases: mode carries its real string default, and an absent yaml int is
 // indistinguishable from 0 (which the accessor therefore reads as unset), so each
@@ -258,8 +259,8 @@ type providerProfileDefault struct {
 // Native is capability data rather than a provider-name inference. That
 // matches the registry's empty-default convention: a non-nil Default always denotes
 // a real built-in value, so an absent key means "fab-kit ships none", not "empty" —
-// which is also why a sparse fill map (codex, agy) omits the roles it does not
-// fill rather than emitting empty objects for them.
+// which is also why a sparse fill map (agy) omits the roles it does not fill
+// rather than emitting empty objects for them.
 //
 // The DEPRECATED flat fill (providers.<name>.model/.effort) is deliberately not
 // projected: no built-in carries it, and it exists only as a read-time alias for
@@ -650,7 +651,7 @@ checklist:
 			Key:         "providers",
 			Default:     providers,
 			Kind:        configvalue.KindMapping,
-			Description: "Named agent capability grammars: four built-in providers with per-role fills on the kit-release cadence. Each provider MAY carry interactive_command (pane/session), headless_command (headless stage task), and native (native Agent-tool capability); presence describes how and never selects dispatch mode. Command fields are never merged or substituted for one another. profiles supplies {model}/{effort} placeholders with precedence invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty. Fill roster: claude ships all six role fills, codex and agy sparse maps whose `default` entry is the cross-role fallback, and kimi NO fills at all (its -m takes a user-config model alias, so the empty model drops the flag and the CLI's own default_model applies). Provider names are opaque, user-chosen strings.",
+			Description: "Named agent capability grammars: four built-in providers with per-role fills on the kit-release cadence. Each provider MAY carry interactive_command (pane/session), headless_command (headless stage task), and native (native Agent-tool capability); presence describes how and never selects dispatch mode. Command fields are never merged or substituted for one another. profiles supplies {model}/{effort} placeholders with precedence invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty. Fill roster: claude and codex ship all six role fills (dense maps), agy a sparse map whose `default` entry is the cross-role fallback, and kimi NO fills at all (its -m takes a user-config model alias, so the empty model drops the flag and the CLI's own default_model applies). Provider names are opaque, user-chosen strings.",
 			Scope:       ScopeBoth,
 			// Demoted from the managed fence (260806-j9nh) for the same reason as
 			// agent.profiles: naming a built-in in a knob needs no providers: block at
@@ -784,9 +785,10 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#\n" +
 		"# fab-kit ships FOUR built-in providers — claude (the default), codex, agy and\n" +
 		"# kimi — so `agent.workers: codex` needs no providers: block at all. claude, codex\n" +
-		"# and agy carry per-role fills, and every role still resolves a model suited to it;\n" +
-		"# the non-claude maps are SPARSE: a role absent from one takes that provider's\n" +
-		"# `default` entry. Those fills are refreshed at KIT-RELEASE cadence and pass through\n" +
+		"# and agy carry per-role fills, and every role still resolves a model suited to it.\n" +
+		"# claude's and codex's maps are dense (every role pins its own model); agy's is\n" +
+		"# SPARSE: a role absent from it takes agy's `default` entry. Those fills are\n" +
+		"# refreshed at KIT-RELEASE cadence and pass through\n" +
 		"# unvalidated — override one with providers.<name>.profiles.<role>.model to pin a\n" +
 		"# newer model. kimi deliberately ships NO fills (see its note below), so it\n" +
 		"# resolves an empty model and the -m flag drops out.\n" +

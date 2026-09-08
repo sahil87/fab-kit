@@ -130,15 +130,26 @@ providers:
     # matching claude's shipped `--permission-mode bypassPermissions` posture.
     interactive_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
     headless_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
-    # Sparse: a role absent here resolves the `default` entry, so hydrate gets
-    # the frontier model at `high` without a row of its own. The codex CLI takes
-    # a concrete model SLUG (no alias mechanism), so these are pinned IDs and
-    # are the rows to bump when the catalog moves.
+    # The codex CLI takes a concrete catalog SLUG (`-m`, no alias mechanism), so
+    # these are pinned IDs and the rows to bump when the catalog moves — verify a
+    # slug against the INSTALLED binary's cached catalog (~/.codex/models_cache.json:
+    # slug, priority, description, supported reasoning levels), never from memory.
+    #
+    # DENSE on purpose: every role pins its own model, so a `default` bump never
+    # silently repoints another role (the pre-wcib effort-only doing/review rows
+    # took their model from `default`). Author and critic deliberately run
+    # DIFFERENT models — doing writes on the top catalog model, review reads on
+    # another — so the reviewer does not share the author's blind spots.
+    #
+    # Effort ceiling: never ship `ultra` (codex: "automatic task delegation" — a
+    # worker spawning its own sub-agents breaks the single-worker dispatch
+    # contract); `max` is an explicit-override level only.
     profiles:
-      default:  { model: gpt-5.6-sol,  effort: high }
+      default:  { model: gpt-6-astra,  effort: high }
+      doing:    { model: gpt-6-astra,  effort: high }
+      review:   { model: gpt-5.6-sol,  effort: xhigh }
+      hydrate:  { model: gpt-5.6-sol,  effort: high }
       operator: { model: gpt-5.6-luna, effort: medium }
-      doing:    { effort: xhigh }        # model inherits `default`
-      review:   { effort: xhigh }
       fast:     { model: gpt-5.6-luna, effort: low }
   agy:
     # Antigravity CLI. Model IDs embed the reasoning effort (e.g. gemini-3.1-pro-high),

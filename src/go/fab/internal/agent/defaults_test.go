@@ -107,6 +107,29 @@ func TestDefaultsFileProviders(t *testing.T) {
 		}
 	}
 
+	// codex's map is DENSE by policy (260908-wcib): every role pins its own model,
+	// so a `default` bump never silently repoints another role through the
+	// per-field merge. An effort-only codex row is the shape this rejects. agy is
+	// exempt (its model-only sparse map is its documented shape) and kimi is
+	// asserted empty below.
+	codex := cfg.Providers[providerCodex]
+	assertSameKeys(t, "providers."+providerCodex+".profiles", roleKeys(codex.Profiles), RoleNames())
+	for _, role := range RoleNames() {
+		fill, ok := codex.Profiles[role]
+		if !ok {
+			continue // already reported by assertSameKeys
+		}
+		if fill.Model == "" {
+			t.Errorf("defaults.yaml providers.codex.profiles.%s has no model — codex fills are dense by policy: every role pins its own catalog slug", role)
+		}
+		if fill.Effort == "" {
+			t.Errorf("defaults.yaml providers.codex.profiles.%s has no effort", role)
+		}
+		if fill.Effort == "ultra" {
+			t.Errorf("defaults.yaml providers.codex.profiles.%s ships effort=ultra — automatic task delegation breaks the single-worker dispatch contract", role)
+		}
+	}
+
 	// kimi ships NO fills — the deliberate no-fills built-in. Asserting the absence
 	// (rather than skipping kimi) is what keeps a well-meaning pinned `k3` row from
 	// landing unreviewed and breaking every custom-provider install.

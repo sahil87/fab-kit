@@ -601,26 +601,39 @@ func TestResolveAgentOverrideFullTriple(t *testing.T) {
 // the BUILT-IN one. Without that fold, shipping codex fills would silently shadow
 // this pinned model with fab-kit's.
 //
-// The effort still comes from codex's built-in `doing` fill: the flat spelling is a
-// `default`-ROLE value, and a role-specific entry outranks the default entry — the
-// same precedence a user writing `profiles.default.effort` by hand would get.
+// The flat spelling is a `default`-ROLE value, so the stage exercised is `intake`
+// (→ the `default` role). Since 260908-wcib codex's map is dense, so on any other
+// stage the built-in ROLE fill outranks the folded value — asserted for `apply`
+// below — the same precedence a user writing `profiles.default` by hand would get.
+// The effort still comes from the built-in fill: the flat spelling pinned only the
+// model.
 func TestResolveAgentOverrideProviderTakesFill(t *testing.T) {
 	resolveAgentTestRepo(t, `providers:
   codex:
     model: gpt-5.3-codex
-    effort: high
 `)
 	codex, _ := agent.ResolveProvider(nil, "codex")
-	effort := codex.Profiles[agent.RoleDoing].Effort
+	effort := codex.Profiles[agent.RoleDefault].Effort
 
-	out, err := runResolveAgentCmd(t, "apply", "--provider", "codex")
+	out, err := runResolveAgentCmd(t, "intake", "--provider", "codex")
 	if err != nil {
-		t.Fatalf("resolve-agent apply --provider codex: %v", err)
+		t.Fatalf("resolve-agent intake --provider codex: %v", err)
 	}
 	want := "model=gpt-5.3-codex\neffort=" + effort + "\nprovider=codex\n" +
 		"dispatch=codex exec --dangerously-bypass-approvals-and-sandbox -m gpt-5.3-codex -c model_reasoning_effort=" + effort + "\n"
 	if out != want {
 		t.Errorf("output = %q, want the user's flat-fill model to beat the built-in %q", out, want)
+	}
+
+	doing := codex.Profiles[agent.RoleDoing]
+	out, err = runResolveAgentCmd(t, "apply", "--provider", "codex")
+	if err != nil {
+		t.Fatalf("resolve-agent apply --provider codex: %v", err)
+	}
+	want = "model=" + doing.Model + "\neffort=" + doing.Effort + "\nprovider=codex\n" +
+		"dispatch=codex exec --dangerously-bypass-approvals-and-sandbox -m " + doing.Model + " -c model_reasoning_effort=" + doing.Effort + "\n"
+	if out != want {
+		t.Errorf("output = %q, want the built-in doing fill to outrank the flat alias %q", out, want)
 	}
 }
 

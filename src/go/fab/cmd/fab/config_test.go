@@ -868,7 +868,8 @@ func TestConfigReferenceProviderBlocksParse(t *testing.T) {
 // 260806-j9nh and completed by 260806-ywkx: the providers block documents the
 // PER-ROLE `profiles` fill map and the fill precedence, and the registry row's
 // Default exposes EVERY built-in's fills — claude's six roles (moved off the agent
-// side by j9nh) plus codex's and agy's sparse maps (shipped by ywkx). kimi ships no
+// side by j9nh) plus codex's dense map and agy's sparse one (shipped by ywkx,
+// codex densified by 260908-wcib). kimi ships no
 // fills at all, so it must project none. What the projection still refuses is the
 // DEPRECATED flat pair, on every provider.
 func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
@@ -895,8 +896,8 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 	// the JSON projection below: those fill lines ARE the user-facing half of
 	// R7, and without this assertion they can be dropped from providersSegment with
 	// the whole suite staying green. Expectations are DERIVED from ResolveProvider,
-	// shaped by the same omitempty rule the renderer applies — so codex's
-	// effort-only rows and agy's model-only rows are both pinned, a fill bump in
+	// shaped by the same omitempty rule the renderer applies — so codex's dense
+	// model+effort rows and agy's model-only rows are both pinned, a fill bump in
 	// defaults.yaml moves both sides together, and no model ID is written as a
 	// literal here.
 	//
