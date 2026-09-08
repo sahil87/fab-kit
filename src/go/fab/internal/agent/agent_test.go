@@ -56,8 +56,10 @@ func TestResolveDefaults(t *testing.T) {
 // resolved stage profile must be unchanged by that move.
 //
 // When you bump a default: edit defaults.yaml, then update this table to match.
-// Every doc mirror is guarded separately by TestMirrorDocsMatchDefaultProfiles /
-// TestCLIFabReferenceListsDefaultRoles.
+// The one doc mirror that spells these IDs (docs/specs/stage-models.md § Default
+// role profiles) is guarded separately by TestDocTablesMatchAgentMaps; the rendered
+// config reference derives its fill lines from ResolveProvider and is guarded by
+// TestConfigReferenceDocumentsProviderFill in cmd/fab.
 func TestDefaultRoleProfilesArePinned(t *testing.T) {
 	pinned := map[string]Profile{
 		RoleDefault:  {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
@@ -88,21 +90,30 @@ func TestDefaultRoleProfilesArePinned(t *testing.T) {
 // resolves through the claude-defaulted depth knobs), so without this table a
 // catalog bump would land unreviewed.
 //
-// The tables are SPARSE, exactly as defaults.yaml is — a role absent here must be
-// absent there, so the cross-role fallback through the provider's `default` entry
-// stays the shipped shape rather than an accident of enumeration. kimi's EMPTY
-// table is pinned for the same reason (260808-rpsr): shipping it a fill is the
-// change that must be deliberate, not the change that slips through.
+// Each table has exactly the SHAPE defaults.yaml ships — a role absent here must be
+// absent there — so the shape itself is what a bump reviews, not an accident of
+// enumeration. codex's map is DENSE by policy (260908-wcib): every role pins its own
+// model, so a `default` bump never silently repoints doing/review/hydrate the way
+// the earlier effort-only rows did (TestDefaultsFileProviders enforces the
+// density). agy's map stays sparse (its non-`fast` roles fall back to `default`),
+// and kimi's EMPTY table is pinned for the same reason (260808-rpsr): shipping it a
+// fill is the change that must be deliberate, not the change that slips through.
 //
 // When you bump a fill: edit defaults.yaml, then update this table to match. The
-// doc mirrors are guarded separately by TestMirrorDocsMatchDefaultProfiles.
+// spec's inline providers sample is shape-only (IDs elided) and unguarded by
+// design; the rendered config reference is guarded by
+// TestConfigReferenceDocumentsProviderFill in cmd/fab.
 func TestNonClaudeProviderFillsArePinned(t *testing.T) {
 	pinned := map[string]map[string]config.ProviderProfile{
+		// codex: concrete catalog slugs read from the installed CLI's cache
+		// (~/.codex/models_cache.json). Author (doing) and critic (review) run
+		// DIFFERENT models on purpose; no row ships `ultra`.
 		providerCodex: {
-			RoleDefault:  {Model: "gpt-5.6-sol", Effort: "high"},
+			RoleDefault:  {Model: "gpt-6-astra", Effort: "high"},
+			RoleDoing:    {Model: "gpt-6-astra", Effort: "high"},
+			RoleReview:   {Model: "gpt-5.6-sol", Effort: "xhigh"},
+			RoleHydrate:  {Model: "gpt-5.6-sol", Effort: "high"},
 			RoleOperator: {Model: "gpt-5.6-luna", Effort: "medium"},
-			RoleDoing:    {Effort: "xhigh"},
-			RoleReview:   {Effort: "xhigh"},
 			RoleFast:     {Model: "gpt-5.6-luna", Effort: "low"},
 		},
 		// Model-only: agy's model IDs embed the reasoning level as an ID SUFFIX
@@ -689,6 +700,12 @@ func captureStderr(t *testing.T) func() string {
 // replace. Were it read as a rung below profiles.default instead — its shape before
 // fab-kit shipped a non-claude default — a pre-migration config's pinned model would
 // be silently shadowed by fab-kit's shipped one.
+//
+// Since 260908-wcib codex's map is DENSE, so the only role the flat alias still
+// reaches is `default` itself (intake maps there); every other role's built-in ROLE
+// fill outranks the folded value, exactly as a hand-written profiles.default would
+// be outranked. Both halves are asserted: the alias wins on `default`, and a role
+// fill wins over it on apply/hydrate (the upgrade note in stage-models.md).
 func TestFlatProviderFillBeatsBuiltInDefault(t *testing.T) {
 	builtin, _ := ResolveProvider(nil, providerCodex)
 	if builtin.Profiles[RoleDefault].Model == "" {
@@ -697,19 +714,32 @@ func TestFlatProviderFillBeatsBuiltInDefault(t *testing.T) {
 
 	// A pre-migration config carrying ONLY the flat spelling.
 	cfg := &config.Config{
-		Agent:     config.AgentConfig{Workers: providerCodex},
+		Agent:     config.AgentConfig{Session: providerCodex, Workers: providerCodex},
 		Providers: map[string]config.ProviderConfig{providerCodex: {Model: "my-pinned-model"}},
 	}
-	got, err := Resolve(cfg, "hydrate") // hydrate has no codex fill of its own → the default entry
+	got, err := Resolve(cfg, "intake") // intake → the `default` role, the alias's target
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
 	if got.Model != "my-pinned-model" {
-		t.Errorf("Resolve(hydrate) model = %q, want the user's flat pin — a built-in profiles.default must not shadow it", got.Model)
+		t.Errorf("Resolve(intake) model = %q, want the user's flat pin — a built-in profiles.default must not shadow it", got.Model)
 	}
 	// The effort the user did NOT pin still comes from the built-in fill (per-field).
 	if got.Effort != builtin.Profiles[RoleDefault].Effort {
-		t.Errorf("Resolve(hydrate) effort = %q, want the built-in %q (the flat fill pinned only the model)", got.Effort, builtin.Profiles[RoleDefault].Effort)
+		t.Errorf("Resolve(intake) effort = %q, want the built-in %q (the flat fill pinned only the model)", got.Effort, builtin.Profiles[RoleDefault].Effort)
+	}
+
+	// A built-in ROLE fill outranks the folded alias: with codex's dense map, the
+	// flat spelling no longer reaches apply (doing) or hydrate.
+	for _, stage := range []string{"apply", "hydrate"} {
+		role, _ := RoleForStage(stage)
+		got, err := Resolve(cfg, stage)
+		if err != nil {
+			t.Fatalf("Resolve(%s): %v", stage, err)
+		}
+		if want := builtin.Profiles[role].Model; got.Model != want {
+			t.Errorf("Resolve(%s) model = %q, want the built-in %s fill %q — a shipped role fill outranks the flat alias", stage, got.Model, role, want)
+		}
 	}
 
 	// The user's OWN profiles.default still beats their flat fill — the modern
@@ -719,12 +749,12 @@ func TestFlatProviderFillBeatsBuiltInDefault(t *testing.T) {
 		Model:    "my-pinned-model",
 		Profiles: map[string]config.ProviderProfile{RoleDefault: {Model: "my-modern-model"}},
 	}
-	got, err = Resolve(cfg, "hydrate")
+	got, err = Resolve(cfg, "intake")
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
 	if got.Model != "my-modern-model" {
-		t.Errorf("Resolve(hydrate) model = %q, want profiles.default to beat the flat alias", got.Model)
+		t.Errorf("Resolve(intake) model = %q, want profiles.default to beat the flat alias", got.Model)
 	}
 }
 

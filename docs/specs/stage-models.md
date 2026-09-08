@@ -233,8 +233,8 @@ fab-kit ships **four built-in providers** — `claude` (the default), `codex`, `
 `providers:` block of the module-root embedded `defaults.yaml`.
 
 The sample below is **shape-only**: it shows the command grammars and the per-provider fill SHAPE
-(which roles each map carries, and whether a row is model+effort, effort-only, or model-only), with
-the model IDs elided. This spec states shipped model IDs in exactly one place — the four-column table
+(which roles each map carries, and whether its rows are model+effort or model-only), with the model
+IDs elided. This spec states shipped model IDs in exactly one place — the four-column table
 in § Default role profiles, which covers `claude` and is drift-guarded. For the live values of every
 provider, read `src/go/fab/defaults.yaml` (canonical), or render them:
 
@@ -260,11 +260,12 @@ providers:
   codex:
     interactive_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
     headless_command: 'codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
-    profiles:                                 # sparse — an absent role takes `default`
+    profiles:                                 # dense — every role pins its own model (no inheritance from `default`)
       default:  { model: ..., effort: ... }
+      doing:    { model: ..., effort: ... }
+      review:   { model: ..., effort: ... }   # a DIFFERENT model from doing — the critic never shares the author's blind spots
+      hydrate:  { model: ..., effort: ... }
       operator: { model: ..., effort: ... }
-      doing:    { effort: ... }               # effort only — model inherits `default`
-      review:   { effort: ... }
       fast:     { model: ..., effort: ... }
   agy:
     interactive_command: 'agy --dangerously-skip-permissions --model {model}'
@@ -278,11 +279,25 @@ providers:
     # NO profiles: kimi's -m takes a user-config model alias, not a catalog ID.
 ```
 
-**Three of the four carry fills.** The maps are SPARSE for the non-claude providers: a role absent
-from a provider's map resolves that provider's `default` entry, so codex's `hydrate` lands on
-codex's `default` model and effort, and agy's non-`fast` roles on agy's `default` model,
-without a row of their own. (The merge is per FIELD, so codex's `doing`/`review` rows — effort only —
-take their model from `default` too.)
+**Three of the four carry fills.** claude's and codex's maps are DENSE — every role carries its own
+model and effort, so no shipped row leans on the cross-role fallback. agy's map is SPARSE: a role
+absent from it resolves agy's `default` entry, so agy's non-`fast` roles land on agy's `default`
+model without a row of their own. The per-FIELD merge rule still exists (a user override carrying
+`effort` only takes its model from the provider's `default`), but no shipped codex row relies on it.
+
+**Why these codex fills** (role-relative; `fab config explain providers` prints the live IDs). `default`
+and `doing` take the catalog's top model at `high` — `default` is the judgment-heavy session role, `doing`
+the execution that must not err. `review` deliberately runs a **different** model from `doing`, at `xhigh`
+(the highest effort fab ships on any codex role): a critic on the author's own model shares the author's blind spots, and
+the 2026-08-10 four-provider comparison (`docs/findings/`) recorded reviewer strictness tracking the
+worker model on every arm. `hydrate` takes that second model at `high` — sweep-heavy memory prose where
+it performed well. `operator` and `fast` take the cheap model. The map is dense so a `default` bump
+never silently repoints another role, which is exactly what the earlier effort-only `doing`/`review`
+rows did. Two effort rules: codex's `ultra` level ("maximum reasoning with automatic task delegation")
+is **never shipped** — a worker spawning its own sub-agents breaks the single-worker dispatch contract
+and the `{stage}-result.yaml` protocol — and `max` is an explicit-override level only. Known
+limitation: per-model codex pricing was not available when the table was set, so the tier ladder is
+**inferred** from codex's own model descriptions and priority order, not measured.
 
 **All four are pane-capable.** Each built-in ships an `interactive_command`; agy's exact grammar is
 `agy --dangerously-skip-permissions --model {model}`. A fresh agy workspace can park at an interactive
@@ -333,10 +348,10 @@ Consequences:
   `agent.profiles.<role>.provider`, or `fab agent --provider codex` / the deprecated `fab resolve-agent <stage>
   --provider codex` all work on a fresh project. A `providers:` block is for *overriding* a grammar or
   a fill, not for registering these providers.
-- **Role differentiation survives a provider swap.** `agent.workers: codex` resolves `xhigh` for
-  apply/review and codex's cheaper `fast` model at `low` for ship — which is the whole point of keying
-  fills by role. Shipping no fills resolved an *empty* model identically for all four, silently
-  flattening the taxonomy.
+- **Role differentiation survives a provider swap.** `agent.workers: codex` runs apply on codex's top
+  catalog model, review on a *different* model at `xhigh`, and ship on
+  the cheaper `fast` model at `low` — which is the whole point of keying fills by role. Shipping no
+  fills resolved an *empty* model identically for all four, silently flattening the taxonomy.
 - **A built-in provider is inert until named.** Adding the rows changes no default behavior (both
   depth knobs ship `claude`), which is why presence=intent — the rule that keeps behavior-changing
   config commented — does not force the table out of Go.
@@ -375,7 +390,7 @@ Verify a fill against the **installed** binary rather than from memory — `_cli
 recipes records what to run per CLI. The fills are never seeded into a user's `config.yaml`: they live
 in the binary, so an upgrade refreshes them and no project pins rot in place.
 
-> **Decision lineage — `260731-ho9y` → `260805-j3cm` → `260806-ywkx`.** ho9y shipped the non-claude providers as
+> **Decision lineage — `260731-ho9y` → `260805-j3cm` → `260806-ywkx` → `260908-wcib`.** ho9y shipped the non-claude providers as
 > *uncomment-to-opt-in template text* and recorded "no new built-in providers are added in Go". j3cm
 > reversed that narrowly, for **grammar strings only**, explicitly keeping model IDs out ("non-claude
 > model IDs rot at CLI cadence, so they belong in config, not in a release"). ywkx completes the
@@ -383,7 +398,9 @@ in the binary, so an upgrade refreshes them and no project pins rot in place.
 > anything whose presence changes behavior ships commented — and it is *preserved*, because a built-in
 > provider is inert until a knob, role override, or flag names it. What is retired is the rot argument,
 > on the four grounds above plus release cadence: fab-kit ships every few days, so users see refreshed
-> suggestions at kit cadence rather than CLI cadence.
+> suggestions at kit cadence rather than CLI cadence. wcib is the first catalog refresh under the ywkx
+> policy: the codex fills followed the installed CLI's catalog (verified from its cached model list) and
+> the map went dense so a `default` bump can never again repoint another role silently.
 
 **Provider names are opaque — fab NEVER infers a provider from a model string** (`claude-*` → claude
 would need a provider registry, which the no-validation/provider-neutrality contract refuses).
@@ -863,6 +880,16 @@ meaning or went inert** — the `doing` override still governs apply and review-
 that shipped as an **upgrade note, not a migration**: a project that wants hydrate to keep tracking its
 old `doing` value adds an `agent.profiles.hydrate:` override with that value.
 
+### Upgrade note — the dense codex map (no migration)
+
+Before 260908-wcib, codex's shipped `doing`/`review` rows carried effort only and `hydrate` had no row,
+so the deprecated flat `providers.codex.model` (an alias for `profiles.default` — § Fill precedence)
+reached those three roles through the per-field merge. After it, every codex row pins a model, so a
+flat `model` reaches only the `default` role. A project that relied on the flat spelling to steer
+`doing`/`review`/`hydrate` should write the modern per-role spelling
+`providers.codex.profiles.<role>.model`. **No config key changed and nothing on disk restructures**, so
+this is an upgrade note, not a migration — the same precedent as the hydrate split above.
+
 ---
 
 ## Foreground limitation (advisory only)
@@ -900,10 +927,11 @@ mirrors of `src/go/fab/defaults.yaml` (§ Default role profiles, via the knobs a
 `src/go/fab/internal/agent/agent.go` (§ The fixed stage → role mapping). The code side is canonical. A
 test in that package (`TestDocTablesMatchAgentMaps`) parses both tables from this doc and fails if
 either disagrees with the code — same pattern as `TestDocTablesMatchScoringMaps` for
-`docs/specs/change-types.md`. `TestMirrorDocsMatchDefaultProfiles` covers the second shape this doc
-carries: the inline-YAML `providers.<name>.profiles` samples in § Built-in providers — every
-fill line is checked against the provider whose block it sits in, so every filled built-in's sample is
-guarded, not just claude's.
+`docs/specs/change-types.md`. The inline-YAML `providers.<name>.profiles` samples in § Built-in
+providers are **shape-only** (IDs elided) and deliberately unguarded — they show which roles each map
+carries, not what the rows resolve to; the rendered `fab config explain providers` output derives its
+fill lines from `ResolveProvider` and is guarded by `TestConfigReferenceDocumentsProviderFill` in
+`cmd/fab`. The non-claude fill values themselves are pinned by `TestNonClaudeProviderFillsArePinned`.
 
 The embedded data file has its own guard: a YAML typo is no longer a compile error, so
 `TestDefaultsFileIsWellFormed` (and its siblings in `defaults_test.go`) parse `defaults.yaml`

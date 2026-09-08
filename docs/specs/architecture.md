@@ -233,8 +233,8 @@ checklist:
 # profiles.<role>.{model, effort}, supplying the {model}/{effort} placeholders when
 # that provider plays that role (precedence: invocation flag > agent.profiles.<role>
 # field > profiles.<role> > profiles.default > empty; the `default` entry is the
-# provider's cross-role fallback, so the sparse non-claude maps are well-defined for
-# the roles they omit).
+# provider's cross-role fallback, so a sparse map such as agy's is well-defined for
+# the roles it omits; claude's and codex's maps are dense).
 # So naming any built-in needs no providers: block at all. All four blocks below
 # render LIVE and uniformly (one `#` deep in a fence); hoisting one PINS its fills
 # against kit-release refreshes — prefer a single-field override.
@@ -278,7 +278,7 @@ providers:
   codex:
     interactive_command: codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
     headless_command: codex exec --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}
-    profiles:                            # sparse — run `fab config explain` for the live values
+    profiles:                            # dense — all six roles; run `fab config explain` for the live values
       default: { model: <model-id>, effort: <effort> }   # example: shape only
   agy:
     interactive_command: agy --dangerously-skip-permissions --model {model}   # no {effort}: reasoning rides the model suffix

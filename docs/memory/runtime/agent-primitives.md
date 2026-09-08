@@ -94,7 +94,7 @@ The grammar facts each entry pins today: claude is headless via the `-p` **flag*
 
 - **GIVEN** a session that needs a valid `--model` value for codex
 - **WHEN** it reads the codex dictionary entry
-- **THEN** it finds a discovery recipe to run against the installed binary (`codex --version`, then `codex --help` / `codex exec --help` for `-m`), not a hardcoded list
+- **THEN** it finds a discovery recipe to run against the installed binary (`codex --version`, then `codex --help` / `codex exec --help` for `-m`, plus the CLI's cached catalog at `~/.codex/models_cache.json` — slug, priority, description, supported reasoning levels), not a hardcoded list
 
 ### Requirement: The codex MCP bridge is `codex mcp-server`
 

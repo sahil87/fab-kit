@@ -119,8 +119,8 @@ real value that survives the merge, but the loader's merged tree carries no buil
 absent.
 The same rule governs the **per-role fills** inside the `providers` default: a built-in's `profiles`
 map is projected whenever it ships real fills (`260806-ywkx`), which three of the four do. The
-convention applies one level down instead — claude's map is exhaustive (all six roles), while codex's
-and agy's are **sparse**, and a role fab-kit ships no fill for is **omitted entirely** rather than
+convention applies one level down instead — claude's and codex's maps are exhaustive (all six roles),
+while agy's is **sparse**, and a role fab-kit ships no fill for is **omitted entirely** rather than
 emitted as an empty object, since that would assert a built-in fill that deliberately does not exist
 (the omitted roles resolve the provider's `default` entry). `kimi` is that rule taken to its limit
 (`260808-rpsr`): it ships **no** fills at all — its `-m` takes a user-config model alias, so any pinned

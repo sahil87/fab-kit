@@ -1,0 +1,18 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-08T14:33:14Z"}
+{"args":"Refresh the built-in codex per-role model fills in src/go/fab/defaults.yaml (providers.codex.profiles) to the current codex catalog: gpt-6-astra as default/doing @ high, gpt-5.6-sol for review @ xhigh and hydrate @ high, gpt-5.6-luna for operator @ medium and fast @ low; every role carries an explicit model (no silent inheritance of default). Data + test + spec-mirror change; change_type feat.","cmd":"fab-new","event":"command","ts":"2026-09-08T14:33:14Z"}
+{"delta":"+3.6","event":"confidence","score":3.6,"trigger":"calc-score","ts":"2026-09-08T14:38:03Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-08T14:39:17Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-08T14:41:11Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-08T14:41:30Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-08T14:49:25Z"}
+{"event":"review","result":"failed","ts":"2026-09-08T15:03:46Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-08T15:03:46Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-08T15:05:43Z"}
+{"event":"review","result":"failed","ts":"2026-09-08T15:17:13Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-08T15:17:13Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-08T15:17:42Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-08T15:28:48Z"}
+{"event":"review","result":"passed","ts":"2026-09-08T15:28:48Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-08T15:30:18Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-09-08T15:32:16Z"}
+{"event":"review","result":"passed","ts":"2026-09-08T15:37:45Z"}

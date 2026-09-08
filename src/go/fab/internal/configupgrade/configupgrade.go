@@ -164,6 +164,9 @@ var knownGeneratedSystemParagraphDigests = map[string]struct{}{
 	// Current dispatch advert with the min_cols/min_rows geometry-floor keys
 	// (260906-cxe0).
 	"264976f8cdf453e6782a52451d6b45b4f0ffb0deaa0aaca1a600f9558a8a2f48": {},
+	// Current providers advert: the fill-roster prose now calls codex's map dense
+	// and only agy's sparse (260908-wcib).
+	"1890978e77061f64dddd12fc7c19759b5fee1c3196f061ce1b13d5bd1a35107f": {},
 }
 
 // fenceHeaderComment returns the explanatory preamble emitted at the top of a
