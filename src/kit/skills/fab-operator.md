@@ -6,7 +6,7 @@ helpers: [_cli-agents, _cli-fab, _cli-external]
 
 # /fab-operator
 
-> Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
+> Read the `_preamble` skill first (deployed to `.agents/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
 ## Contents
 

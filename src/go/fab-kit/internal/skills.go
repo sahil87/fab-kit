@@ -37,7 +37,7 @@ type agentConfig struct {
 // deploySkills deploys skill files to agent-specific directories.
 // Returns a non-nil error when any agent's deployment had write failures,
 // so Sync exits non-zero instead of reporting stale skills as success.
-func deploySkills(repoRoot, kitDir string) error {
+func deploySkills(repoRoot, kitDir string, claudeAvailable bool) error {
 	// Collect canonical skill list
 	skillsDir := filepath.Join(kitDir, "skills")
 	skills := listSkills(skillsDir)
@@ -45,20 +45,28 @@ func deploySkills(repoRoot, kitDir string) error {
 		return nil
 	}
 
-	// Define agent configurations. The directory-format targets deploy on every
-	// sync; OpenCode's flat command target remains gated on its CLI. Deploying
+	// Define agent configurations. The portable .agents target deploys on every
+	// sync; brand-specific targets are gated on their CLIs. Deploying
 	// additional per-brand copies for CLIs that read `.agents/skills` is what
 	// produced duplicate-skill conflict warnings, so one target per skill set is
 	// the invariant to keep.
 	agents := []agentConfig{
-		{Label: "Claude Code", BaseDir: filepath.Join(repoRoot, ".claude", "skills"), Format: "directory", Mode: "copy", AlwaysOn: true},
+		{Label: "Claude Code", CLIs: []string{"claude"}, BaseDir: filepath.Join(repoRoot, ".claude", "skills"), Format: "directory", Mode: "copy"},
 		{Label: "OpenCode", CLIs: []string{"opencode"}, BaseDir: filepath.Join(repoRoot, ".opencode", "commands"), Format: "flat", Mode: "copy"},
 		{Label: "Agents dir", BaseDir: filepath.Join(repoRoot, ".agents", "skills"), Format: "directory", Mode: "copy", AlwaysOn: true},
 	}
 
 	var errs []error
 	for _, agent := range agents {
-		if !agent.AlwaysOn && !agentAvailable(agent.CLIs...) {
+		available := agent.AlwaysOn
+		if !available {
+			if len(agent.CLIs) == 1 && agent.CLIs[0] == "claude" {
+				available = claudeAvailable // Shared with the scaffold walk by Sync.
+			} else {
+				available = agentAvailable(agent.CLIs...)
+			}
+		}
+		if !available {
 			fmt.Printf("Skipping %s: %s\n", agent.Label, missingCLIs(agent.CLIs))
 			continue
 		}

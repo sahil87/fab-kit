@@ -468,7 +468,7 @@ For the full taxonomy — confidence thresholds, expected decision counts, keywo
 ```
 
 The fragment ships **no agent-directory ignores**. Instead, each deploy target
-(`.claude/skills/`, `.agents/skills/`, `.opencode/commands/`) carries a generated
+(`.agents/skills/` always, `.claude/skills/` when `claude` is available, `.opencode/commands/` when `opencode` is available) carries a generated
 `.gitignore` written by `fab sync` listing exactly the skills fab deployed there —
 so fab's copies are ignored while everything else in those directories (your own
 skills, agents, settings) is committable. The fragment also carries
@@ -484,21 +484,21 @@ The `.fab-*` gitignore pattern also covers transient dirs like `.fab-dispatch/`.
 
 **What to ignore** (local state):
 - `.fab-status.yaml` (and transient `.fab-dispatch/`) — per-developer working state
-- Fab's deployed skill copies in agent deployment folders (`.claude/skills/`, etc.) — regenerated from the kit cache, ignored via each folder's generated `.gitignore`
+- Fab's deployed skill copies in agent deployment folders (`.agents/skills/` always, `.claude/skills/` when `claude` is available, etc.) — regenerated from the kit cache, ignored via each folder's generated `.gitignore`
 
 ---
 
 ## Agent Integration
 
-`fab sync` deploys skills from the kit cache (`~/.fab-kit/versions/<version>/kit/skills/`) to two always-on directory targets and one detection-gated flat target.
+`fab sync` deploys skills from the kit cache (`~/.fab-kit/versions/<version>/kit/skills/`) to the always-on portable directory and two CLI-gated brand targets.
 
 | Agent target | Deployment | Form | Activation |
 |--------------|------------|------|------------|
-| Claude Code | `.claude/skills/{name}/SKILL.md` | Directory-based **copies** | Every sync |
+| Claude Code | `.claude/skills/{name}/SKILL.md` | Directory-based **copies** | `claude` available |
 | OpenCode (`opencode`) | `.opencode/commands/{name}.md` | Flat-file copies | When `opencode` is available |
 | Agents dir | `.agents/skills/{name}/SKILL.md` | Directory-based copies | Every sync |
 
-`.agents/skills/` is the **generic** workspace directory: codex, agy and kimi all discover skills there natively, so none of them gets a per-brand directory. That one-target-per-skill-set rule is deliberate — deploying the same skills to both a generic and a per-brand directory is what makes a CLI that reads both report every skill twice. `FAB_AGENTS` can override availability for the gated OpenCode row in tests and CI, but it cannot suppress either always-on directory target.
+`.agents/skills/` is the **generic** workspace directory: codex, agy and kimi all discover skills there natively, so none of them gets a per-brand directory. That one-target-per-skill-set rule is deliberate — deploying the same skills to both a generic and a per-brand directory is what makes a CLI that reads both report every skill twice. `FAB_AGENTS` can override availability for the gated Claude Code and OpenCode rows in tests and CI, but it cannot suppress `.agents/skills/`. The Claude gate is computed once per sync and also controls `.claude/` scaffold writes (including settings permissions) and legacy agent cleanup; when closed, sync preserves existing `.claude/` content and creates none.
 
 All `*.md` skill files are deployed, including underscore partials (`_preamble.md`, `_generation.md`, `_review.md`, `_srad.md`, `_pipeline.md`, `_intake.md`, `_cli-fab.md`, `_cli-external.md`, `_cli-agents.md`), which carry `user-invocable: false` frontmatter to prevent direct invocation. The skill prompt files are agent-agnostic markdown; only the deployment locations and formats differ per agent.
 
@@ -540,11 +540,11 @@ Multiple versions coexist; each repo pins its own via `fab/.fab-version`. Auto-d
 ```
 
 `fab init` requires a git repository and fails before any download or write
-otherwise. `fab sync` is re-runnable: it deploys skills to the two always-on
-directory targets and any available gated targets,
-scaffolds workspace files, and stamps version markers from the cache. It does
-not register hooks or write `.claude/settings.local.json`; migrations clean any
-legacy hook entries across worktrees.
+otherwise. `fab sync` is re-runnable: it deploys skills to the always-on
+`.agents/skills/` directory and any available CLI-gated brand targets,
+scaffolds workspace files, and stamps version markers from the cache. When `claude` is available, its scaffold merges permissions into
+`.claude/settings.local.json`. Sync registers no hooks; migrations clean legacy
+hook entries across worktrees.
 
 ### Updating
 
@@ -629,5 +629,5 @@ Skills loading context will naturally scope to the relevant section based on wha
 | `fab/changes/` (flat) | Fine — changes reference affected packages in their plan |
 | `docs/memory/` (domain-based) | Already monorepo-friendly |
 | `fab/project/constitution.md` | Shared principles apply repo-wide; use sections for package-specific conventions if needed |
-| `.claude/skills/` | One skill set per repo — correct for a single `fab/` |
+| `.claude/skills/` (when `claude` is available), `.agents/skills/` (always) | One skill set per repo — correct for a single `fab/` |
 | Git branches | Repo-wide by nature — matches single `fab/` model |

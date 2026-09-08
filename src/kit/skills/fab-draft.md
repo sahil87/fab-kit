@@ -6,7 +6,7 @@ helpers: [_generation, _srad, _intake]
 
 # /fab-draft <description>
 
-> Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
+> Read the `_preamble` skill first (deployed to `.agents/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
 ---
 
@@ -35,7 +35,7 @@ If no description: ask *"What change do you want to make?"*
 
 ### Steps 0–9: Create the Intake
 
-Read `.claude/skills/_intake/SKILL.md` and execute the **Create-Intake Procedure** (Steps 0–9) with:
+Read `.agents/skills/_intake/SKILL.md` and execute the **Create-Intake Procedure** (Steps 0–9) with:
 
 - **`{questioning-mode} = interactive`** — Step 8 asks the user via SRAD (no fixed cap; conversational mode when 5+ Unresolved). Same intake-creation behavior as `/fab-new`.
 

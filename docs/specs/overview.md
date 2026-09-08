@@ -5,7 +5,7 @@
 ## Design Principles
 
 ### 1. Pure Prompt Play
-All workflow logic lives in markdown skill files that any AI agent can execute — no build steps, no runtime frameworks. The kit (skills, templates, migrations) is distributed via the system cache (`~/.fab-kit/versions/<version>/kit/`, managed by the `fab` binary from `brew install fab-kit`) and deployed into projects as `.claude/skills/` copies by `fab sync`.
+All workflow logic lives in markdown skill files that any AI agent can execute — no build steps, no runtime frameworks. The kit (skills, templates, migrations) is distributed via the system cache (`~/.fab-kit/versions/<version>/kit/`, managed by the `fab` binary from `brew install fab-kit`) and deployed into projects as `.agents/skills/` copies unconditionally and `.claude/skills/` copies when `claude` is available by `fab sync`.
 
 ### 2. Memory Is the Source of Truth
 Code serves documentation, not the other way around. The memory files (`docs/memory/`) are the source of truth for what the system does and why it works the way it does.

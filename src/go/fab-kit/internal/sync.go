@@ -90,6 +90,9 @@ func Sync(systemVersion, kitVersion string, shimOnly, projectOnly bool) error {
 			kitDir = CachedKitDir(fabVersion)
 		}
 
+		// Share the Claude gate across scaffolding and skill deployment.
+		claudeAvailable := agentAvailable("claude")
+
 		// Step 4: Workspace scaffolding from the resolved kit.
 		if err := scaffoldDirectories(repoRoot, fabDir, kitDir, fabVersion); err != nil {
 			return fmt.Errorf("scaffolding failed: %w", err)
@@ -97,19 +100,21 @@ func Sync(systemVersion, kitVersion string, shimOnly, projectOnly bool) error {
 
 		scaffoldDir := filepath.Join(kitDir, "scaffold")
 		if dirExists(scaffoldDir) {
-			if err := scaffoldTreeWalk(scaffoldDir, repoRoot); err != nil {
+			if err := scaffoldTreeWalk(scaffoldDir, repoRoot, claudeAvailable); err != nil {
 				return fmt.Errorf("scaffold tree-walk failed: %w", err)
 			}
 		}
 
-		deployErr = deploySkills(repoRoot, kitDir)
+		deployErr = deploySkills(repoRoot, kitDir, claudeAvailable)
 
 		// No hook registration: fab no longer produces agent-state, so the whole
 		// `fab hook` command family (and hook sync) was removed. Settings-side
 		// cleanup of any lingering `fab hook …` entries is handled by the
 		// 2.13.6-to-2.14.0 migration, not by sync.
 
-		cleanLegacyAgents(repoRoot, kitDir)
+		if claudeAvailable {
+			cleanLegacyAgents(repoRoot, kitDir)
+		}
 
 		// Step 5: Direnv allow
 		runDirenvAllow(repoRoot)

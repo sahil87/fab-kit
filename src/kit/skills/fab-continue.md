@@ -6,9 +6,9 @@ helpers: [_srad]
 
 # /fab-continue [<change-name>] [<stage>]
 
-> Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
+> Read the `_preamble` skill first (deployed to `.agents/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
-> **Stage-conditional helpers** (see `_preamble.md` § Skill Helper Declaration): `_generation` and `_review` are deliberately NOT in this skill's frontmatter `helpers:`. Read `.claude/skills/_generation/SKILL.md` only when generating an artifact (apply entry with no `plan.md`, or intake-`active` regeneration), and `.claude/skills/_review/SKILL.md` only when entering Review Behavior. Hydrate, ship, review-pr, and apply-resumes need neither.
+> **Stage-conditional helpers** (see `_preamble.md` § Skill Helper Declaration): `_generation` and `_review` are deliberately NOT in this skill's frontmatter `helpers:`. Read `.agents/skills/_generation/SKILL.md` only when generating an artifact (apply entry with no `plan.md`, or intake-`active` regeneration), and `.agents/skills/_review/SKILL.md` only when entering Review Behavior. Hydrate, ship, review-pr, and apply-resumes need neither.
 
 ---
 
@@ -77,7 +77,7 @@ Ship and review-pr are the local delta: they resolve their roles, then delegate 
 | Derived stage | State | Action |
 |---------------|-------|--------|
 | `intake` | `ready` | finish intake (auto-activates apply) → run the apply sequencer: `fab agent apply -o yaml` → dispatch the apply sub-agent (its entry sub-step generates `plan.md` — including its `## Requirements` — then runs tasks) → on success `finish <change> apply fab-continue` (auto-activates review) |
-| `intake` | `active` | generate intake if missing (read `.claude/skills/_generation/SKILL.md` first — Intake Generation Procedure) → advance to `ready` (main session — no dispatch) |
+| `intake` | `active` | generate intake if missing (read `.agents/skills/_generation/SKILL.md` first — Intake Generation Procedure) → advance to `ready` (main session — no dispatch) |
 | `apply` | `active`/`ready` | `fab agent apply -o yaml` → dispatch the apply sub-agent (entry: generate `plan.md` if absent; main: run tasks) → on completion run `finish <change> apply fab-continue` (auto-activates review) |
 | `review` | `active`/`ready` | `fab agent review -o yaml` → read `change_type` from the change's `.status.yaml` (e.g. `grep '^change_type:' fab/changes/<change>/.status.yaml` — preflight does not emit it) and carry it in the block dispatch prompt (the review worker's parsimony/deletion-candidate skip condition keys on it) → dispatch the single review sub-agent (which reads `_review.md` at entry and runs the whole review inline) → it returns one unified findings set + pass/fail. Pass: run `finish <change> review fab-continue` (auto-activates hydrate). Fail: run `fail <change> review` then `reset <change> apply fab-continue`, then present the § Verdict rework menu (Path A) |
 | `review` | `failed` | *(Keys on `progress.review == failed` via the guard above. Preflight does surface a parked failure — `display_stage`/`display_state` read `review`/`failed` via DisplayStage's failed tier — but the derived routing `stage` lands on the next pending stage, so the progress map is the reliable key.)* Run `reset <change> apply fab-continue` (the same post-fail reset the Verdict fail path runs — review cascades to `pending`, apply re-activates), then present the rework menu (Review Behavior § Verdict, **Fail** options table) directly and stop for the user's choice — do NOT re-run review first |
@@ -128,7 +128,7 @@ Apply runs as **two sub-steps in a single dispatch**: a Plan Generation entry su
 ### Plan Generation (entry sub-step)
 
 1. **If `plan.md` already exists** with at least a `## Tasks` heading: skip generation entirely. Resumability path — the existing plan is authoritative; user-edited entries are preserved. To force regeneration, the user MUST delete `plan.md` before re-running `/fab-continue`.
-2. **Otherwise**: read `.claude/skills/_generation/SKILL.md` (if not already loaded), then invoke the **Plan Generation Procedure**. Write `plan.md` to the change folder. `fab status refresh` recomputes `plan.generated`, `plan.task_count`, and `plan.acceptance_count` on `.status.yaml`, self-healed at the next `advance`/`finish`/`preflight` — no manual call needed.
+2. **Otherwise**: read `.agents/skills/_generation/SKILL.md` (if not already loaded), then invoke the **Plan Generation Procedure**. Write `plan.md` to the change folder. `fab status refresh` recomputes `plan.generated`, `plan.task_count`, and `plan.acceptance_count` on `.status.yaml`, self-healed at the next `advance`/`finish`/`preflight` — no manual call needed.
 3. Apply MUST ignore the `## Acceptance` section during the main sub-step — that section is consumed by review.
 
 ### Pattern Extraction
@@ -173,7 +173,7 @@ Plan Generation sub-step is skipped when `plan.md` already exists (idempotent on
 
 > **This section is the review block — it always runs in a dispatched sub-agent** per the sub-agent dispatch contract in Normal Flow Step 1. **The dispatched review worker IS the single review agent**: it reads `_review.md` at entry and executes that file's Shared Review Dispatch inline itself — it does not dispatch any further sub-agent. Its job: review the diff and **return** pass/fail + prioritized must-fix / should-fix / nice-to-have findings. **Findings are the block's return value, not conversation.** It takes no §Verdict-style decision itself and never branches on caller. Who acts on a fail verdict is the orchestrator's concern: the interactive § Verdict menu below (Path A, run by the manual `/fab-continue` sequencer) or `_pipeline.md`'s autonomous Auto-Rework Loop (Paths B/C/D). The § Verdict transitions below are the sequencer's actions on the returned verdict.
 
-The review worker reads `.claude/skills/_review/SKILL.md` (if not already loaded), then executes its **Shared Review Dispatch** end-to-end (Review Mode → Preconditions → Review Agent Dispatch → Findings & Verdict), running the whole review inline. The `_review.md` skill defines the merged procedure (plan-conformance steps + holistic-diff focus areas), preconditions, structured output format, pass/fail rule, and the verbatim framing line the worker reads there — no separate prompt carrier is needed for the framing. The **`change_type`** input the parsimony/deletion-candidate skip condition keys on is supplied by the sequencer in the block dispatch prompt (see Normal Flow Step 1's review dispatch), not read by this block.
+The review worker reads `.agents/skills/_review/SKILL.md` (if not already loaded), then executes its **Shared Review Dispatch** end-to-end (Review Mode → Preconditions → Review Agent Dispatch → Findings & Verdict), running the whole review inline. The `_review.md` skill defines the merged procedure (plan-conformance steps + holistic-diff focus areas), preconditions, structured output format, pass/fail rule, and the verbatim framing line the worker reads there — no separate prompt carrier is needed for the framing. The **`change_type`** input the parsimony/deletion-candidate skip condition keys on is supplied by the sequencer in the block dispatch prompt (see Normal Flow Step 1's review dispatch), not read by this block.
 
 ### Verdict
 

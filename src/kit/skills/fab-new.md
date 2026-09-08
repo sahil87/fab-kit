@@ -6,7 +6,7 @@ helpers: [_generation, _srad, _intake]
 
 # /fab-new <description>
 
-> Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
+> Read the `_preamble` skill first (deployed to `.agents/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
 ## Contents
 
@@ -61,7 +61,7 @@ Two cases the criteria deliberately separate: a **follow-up tweak to a change st
 
 ### Steps 0–9: Create the Intake
 
-Read `.claude/skills/_intake/SKILL.md` and execute the **Create-Intake Procedure** (Steps 0–9 — parse input, slug, gap analysis, create change, conversation context mining, generate `intake.md`, verify change type, confidence, SRAD question selection, advance to ready) with:
+Read `.agents/skills/_intake/SKILL.md` and execute the **Create-Intake Procedure** (Steps 0–9 — parse input, slug, gap analysis, create change, conversation context mining, generate `intake.md`, verify change type, confidence, SRAD question selection, advance to ready) with:
 
 - **`{questioning-mode} = interactive`** — Step 8 asks the user via SRAD (no fixed cap; conversational mode when 5+ Unresolved). This is `/fab-new`'s existing intake-creation behavior.
 

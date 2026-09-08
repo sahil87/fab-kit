@@ -23,7 +23,7 @@ The same mechanics also run **record-free** as the provider-generic `fab pane` v
 #### Scenario: a session needs to drive another agent CLI
 
 - **GIVEN** a skill or ad-hoc session that must spawn, prompt, peek at, or await an agent CLI
-- **WHEN** it reads `.claude/skills/_cli-agents/SKILL.md`
+- **WHEN** it reads `.agents/skills/_cli-agents/SKILL.md`
 - **THEN** it finds the five procedures plus the provider dictionary, and no operator-orchestration content
 
 ### Requirement: Five agent-interaction procedures
