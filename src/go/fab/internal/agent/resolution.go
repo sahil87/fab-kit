@@ -45,6 +45,11 @@ type Resolution struct {
 	FillMode   string              `yaml:"fill_mode"`
 	Source     Source              `yaml:"source"`
 	Dispatch   *DispatchResolution `yaml:"dispatch,omitempty"`
+	// SkillPrefix is SkillPrefix(Provider) — the receiving harness's explicit
+	// skill-invocation prefix. Always present and always last (dispatch is
+	// omitempty) so every consumer finds it at the same place; the Lines
+	// projection deliberately never carries it.
+	SkillPrefix string `yaml:"skill_prefix"`
 }
 
 // Lines projects a resolution onto fab resolve-agent's byte-stable line

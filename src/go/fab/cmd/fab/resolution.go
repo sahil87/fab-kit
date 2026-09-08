@@ -83,9 +83,10 @@ func composeAgentResolution(cfg *config.Config, request resolutionRequest) (agen
 		Effort:   profile.Effort,
 		Command:  command,
 
-		Template: template,
-		FillMode: fillMode,
-		Source:   source,
+		Template:    template,
+		FillMode:    fillMode,
+		Source:      source,
+		SkillPrefix: agent.SkillPrefix(profile.Provider),
 	}
 	if alias := agent.ModelAlias(profile.Model); alias != profile.Model {
 		resolution.ModelAlias = alias

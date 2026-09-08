@@ -30,8 +30,9 @@ delegated to 'rk operator' (role-marked singleton window, provider-agnostic
 typed kickoff), with --workers passed through — rk then owns the launch
 preconditions and validates the value. Without rk, fab's built-in launcher
 runs: switch to an existing window named 'operator' anywhere on the server,
-or create one running the operator-role session command with its rendered
-fab-operator skill prompt (see 'fab skill-prompt').`,
+or create one running the operator-role session command with its fab-operator
+skill prompt, prefixed for the launched provider (the skill_prefix key of
+'fab agent operator -o yaml').`,
 		RunE: runOperator,
 	}
 	cmd.Flags().String("workers", "", "set FAB_AGENT_WORKERS in the launched operator tab")

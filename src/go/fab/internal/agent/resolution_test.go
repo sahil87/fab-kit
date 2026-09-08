@@ -30,6 +30,11 @@ func TestResolutionLines(t *testing.T) {
 	if got, want := (Resolution{Model: "gpt-5"}).Lines(true), "model=gpt-5\n"; got != want {
 		t.Errorf("non-Claude alias projection = %q, want %q", got, want)
 	}
+	// skill_prefix rides the YAML projection only; the deprecated-compat line
+	// protocol is byte-stable and must never grow a prefix line.
+	if got, want := (Resolution{Provider: "codex", SkillPrefix: "$"}).Lines(false), "model=\nprovider=codex\n"; got != want {
+		t.Errorf("skill_prefix leaked into Lines: %q, want %q", got, want)
+	}
 }
 
 func TestResolveRoleWithSource(t *testing.T) {

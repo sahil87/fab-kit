@@ -98,28 +98,14 @@ tmux new-window -n "<name>" -c "<dir>" "<composed-cmd> '<initial-prompt>'; exec 
 
 #### Skill Prompts
 
-For an explicit skill invocation, render the **bare skill name plus arguments** with `fab skill-prompt` (syntax/defaults/output contract: `_cli-fab.md` § fab skill-prompt). This procedure applies to both initial prompts and skill commands routed into existing panes.
+An explicit skill invocation is `<prefix><skill>[ <arguments>]`, where the prefix belongs to the **receiving** harness: `codex` ⇒ `$`, every other or unknown provider ⇒ `/`. `internal/agent.SkillPrefix` owns the rule; `fab agent … -o yaml` exposes it as `skill_prefix` (`_cli-fab.md` § fab agent). This applies to initial prompts and to skill commands routed into existing panes.
 
-1. **Select the receiver**. For a fresh default-role launch composed with `fab agent --print --repo <target-repo>`, use the renderer's `--repo <target-repo>` mode; it resolves the same provider without requiring stage-dispatch capabilities. For other fresh roles, use the provider already resolved for that launch. For an existing pane, inspect the live agent process via § Peek's process command; use the interactive harness executable, including a child beneath a wrapper shell. Do not identify it from prompt text, a nested tool worker, the operator's own provider, a model ID, or the repo's current default. If identity is unknown, pass an empty provider to use the renderer's default. This does not bypass the caller's state/confirmation gate.
-2. **Render for the destination**. For an existing-pane send, capture a shell-quoted token and decode that token into a variable before the normal send mechanism. The closing quote preserves trailing argument newlines through command substitution:
-
-   ```sh
-   fab_skill_token=$(fab skill-prompt --provider "$receiver_provider" --shell-quote "$skill_name" -- "$skill_args")
-   eval "fab_skill_prompt=$fab_skill_token"
-   # Decode only the renderer's shell-quoted output; then apply the pre-send gate.
-   # With rk present:
-   rk mux send "$target_pane" "$fab_skill_prompt"
-   ```
-
-   For spawn embedding, use `--shell-quote` (with `--repo "$target_repo"` instead of `--provider` for default-role repo launches) and interpolate its output **without adding another pair of quotes around the token** into the new-window command string:
-
-   ```sh
-   fab_skill_token=$(fab skill-prompt --provider "$receiver_provider" --shell-quote "$skill_name" -- "$skill_args")
-   tmux new-window -n "$window_name" -c "$worktree_path" "$spawn_cmd $fab_skill_token; exec \"\$SHELL\""
-   ```
-
-   `$spawn_cmd` is the resolved command from Spawn Composition. Expansion from these variables is not recursively evaluated by the invoking shell; the token's quoting protects the prompt when the window shell parses it. Apply the caller's session/socket targeting as usual. Never embed a literal dollar-prefixed skill inside an outer double-quoted shell string.
-3. **Keep message types distinct**. Render explicit skill invocations only. Ordinary prompts, answers, keys, `Read <path> and execute it.` pointers, and native TUI controls such as `/loop` or `/clear` use their own contracts and are not transformed.
+1. **Identify the receiver.**
+   - *Fresh default-role spawn* (composed with `fab agent --print --repo <target-repo>`): read `skill_prefix` from the same repo's resolution — `fab agent default -o yaml --repo <target-repo>` — alongside `command`. One query supplies both the session command and the prefix; do not resolve the provider a second way.
+   - *Other fresh roles*: the `skill_prefix` of the resolution already made for that launch (`fab agent <role> -o yaml`).
+   - *Existing pane*: the live agent process per § Peek's process-tree command; the interactive harness executable — including a child beneath a wrapper shell — is the receiver. Never identify it from prompt text, a nested tool worker, the operator's own provider, a model ID, or the repo's current default. Unknown ⇒ `/`. This does not bypass the caller's state/confirmation gate.
+2. **Compose and quote once.** Render `<prefix><skill>[ <arguments>]` with the arguments verbatim, then shell-quote the whole prompt as **one token** exactly like any other initial prompt — § Spawn Composition's spawn-embedding rule for a new window, the normal send mechanism (`rk mux send <pane> "<prompt>"`) plus the pre-send gate for an existing pane. Never embed a literal `$`-prefixed skill inside an outer double-quoted shell string.
+3. **Keep message types distinct.** Only explicit skill invocations take a prefix. Ordinary prompts, answers, keys, `Read <path> and execute it.` pointers, and native TUI controls such as `/loop` or `/clear` use their own contracts and are not transformed.
 
 ### Pre-Send Validation
 

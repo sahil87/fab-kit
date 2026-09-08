@@ -36,7 +36,6 @@ metadata:
 - fab help-dump
 - fab operator
 - fab agent
-- fab skill-prompt
 - fab batch
 - Common Error Messages
 
@@ -1249,7 +1248,7 @@ Singleton tmux-tab launcher for `/fab-operator`.
 
 **rk delegation (checked first)**: when a **capable** run-kit is on PATH, the bare command hands the ENTIRE launch to `rk operator` — fab execs it (process replacement), appending `--workers <v>` iff the flag was supplied. Capability is probed side-effect-free: `exec.LookPath("rk")` + `rk operator --help` exiting 0 with `--workers` in its output (the flag fab passes through is the discriminant — the binary is probed, never the version string). rk then owns the whole launch: its own preconditions (`$TMUX`, fab on PATH — fab's own `$TMUX` check is skipped on this path), the role-marked singleton (`@rk_win_role=operator` wins over a merely-named window), launcher resolution via `fab agent operator --print`, the provider-agnostic **typed** kickoff, and `--workers` validation (rk restricts the value to letters, digits, `_`, `-` — a usage error, exit 2; a **behavior delta** from the fallback's verbatim pass-through). A failed probe (rk absent, or present without a capable `operator`) falls through **silently** to the built-in launcher below; a failure AFTER a passing probe is surfaced, never fallen back on (rk may have mutated tmux state — retrying risks a duplicate operator window). The operator **subcommand family is never delegated** — choreography stays in fab.
 
-**Built-in launcher (the rk-absent fallback)**: Requires `$TMUX` (else exit 1, `ERROR: not inside a tmux session`). The singleton check is an **exact, server-wide** window-name match: `tmux list-windows -a` enumerated and compared exactly (never tmux target resolution, whose prefix/glob fallback would let e.g. `operator-logs` mask the real check; `-a` enforces the one-operator-per-SERVER invariant across sessions). If a window named exactly `operator` exists anywhere on the server → select it by window ID, switching the client to its session when needed (`Switched to existing operator tab.`); else create the window running `{operator-session-command} {shell-quoted fab-operator prompt}` (`Launched operator.`). The prompt uses § fab skill-prompt with the launched provider, including Claude when command resolution falls back to the built-in.
+**Built-in launcher (the rk-absent fallback)**: Requires `$TMUX` (else exit 1, `ERROR: not inside a tmux session`). The singleton check is an **exact, server-wide** window-name match: `tmux list-windows -a` enumerated and compared exactly (never tmux target resolution, whose prefix/glob fallback would let e.g. `operator-logs` mask the real check; `-a` enforces the one-operator-per-SERVER invariant across sessions). If a window named exactly `operator` exists anywhere on the server → select it by window ID, switching the client to its session when needed (`Switched to existing operator tab.`); else create the window running `{operator-session-command} {shell-quoted fab-operator prompt}` (`Launched operator.`). The prompt is rendered by `internal/agent.SkillPrompt` for the launched provider (`$` for `codex`, `/` otherwise — including Claude when command resolution falls back to the built-in).
 
 **`--workers <provider>`** on the fallback path is launch sugar for the new-window path: the shell command is prefixed with the safely quoted assignment `FAB_AGENT_WORKERS='<provider>'`. The value passes through verbatim with no provider lookup or validation (on the delegated path it rides argv instead and rk validates — see above). When the singleton already exists, selection is unchanged and no new environment can be injected.
 
@@ -1455,6 +1454,7 @@ Common to all forms:
   | `fill_mode` | `template` when placeholders are substituted, otherwise `append`. |
   | `source` | Nested `provider`, `model`, and `effort` provenance using the actual precedence-rung names; an empty value denotes inherit/no supplying rung. |
   | `dispatch` | Omitted exactly when the native rung is selected; otherwise contains labelled `rung: pane\|headless` and its fully substituted `command`. |
+  | `skill_prefix` | Explicit-skill-invocation prefix for the resolved provider: `$` for `codex`, `/` for every other provider (built-in, custom, or unknown). Always present and always the last key (`dispatch` is omitted for native). Skill consumers compose `<skill_prefix><skill>[ <args>]`; `_cli-agents.md` § Skill Prompts owns receiver selection and quoting, `internal/agent.SkillPrefix` owns the rule. |
 
   YAML output alone derives dispatch. It implies print, accepts only `yaml`, and is mutually exclusive with `--print` and `-t`; `--print`, exec, and `-t` remain unchanged.
 - **`--headless`**: resolves the provider's `headless_command` instead of `interactive_command`. Valid only with the three print sinks (`--print`, `-t`, `-o yaml`) — exec of a headless command is a usage error. A provider with no `headless_command` hard-errors naming the config key (`configure providers.<name>.headless_command`).
@@ -1477,34 +1477,6 @@ The procedural knowledge for *using* the composed command — opening it in a tm
 
 ---
 
-## fab skill-prompt
-
-```sh
-fab skill-prompt <skill> [arguments] [--provider <name>|--repo <path>] [--shell-quote|--json]
-```
-
-Read-only skill invocation renderer; config-free unless `--repo` is supplied. Provider `codex` uses `$<skill>`; **every other provider**, including Claude, other built-ins, custom/unregistered names, and empty/omitted names, uses `/<skill>`. Provider matching is exact. The provider names the **receiver**, never inferred from the sender's config, executable string, or model ID.
-
-`--repo <path>` is for a **fresh default-role launch**: resolve the same target-repo session provider as `fab agent --print --repo <path>`, honoring the config cascade and default-role override without selecting a stage-dispatch adapter. It is mutually exclusive with `--provider` and requires a nonempty path. Existing-pane callers use `--provider` with live receiver identity instead.
-
-`<skill>` is a bare ASCII name: letter/underscore first, then letters/digits/hyphens/underscores; prefixed names and paths are usage errors. `[arguments]` is one optional string, preserved verbatim with one separating space when nonempty. Use `--` before an argument string beginning with `-`.
-
-- Default stdout: raw prompt plus newline. Nothing is sent or launched.
-- `--shell-quote`: the prompt as one POSIX shell-quoted token, via `internal/shellquote.Single`; safe to embed in a shell command. Do not wrap the returned token in another pair of quotes.
-- `--json`: `{provider, skill, prompt}`; mutually exclusive with `--shell-quote`.
-- Exit 0: rendered; exit 1: config/read or output failure; exit 2: invalid usage. Successful stderr is empty.
-
-```sh
-fab skill-prompt --provider codex fab-fff ab12
-# $fab-fff ab12
-fab skill-prompt --provider custom --shell-quote fab-new 'Fix $HOME handling'
-# '/fab-new Fix $HOME handling'
-```
-
-`internal/agent.SkillPrompt` owns rendering for the CLI and batch/fallback-operator launchers. `_cli-agents.md` § Skill Prompts owns receiver selection and shell/send composition for skill consumers. Arbitrary text, native TUI controls, and prompt-file pointers bypass this renderer.
-
----
-
 ## fab batch
 
 Multi-target operations: `fab batch <new|switch|archive> [flags] [targets...]`.
@@ -1515,7 +1487,7 @@ Multi-target operations: `fab batch <new|switch|archive> [flags] [targets...]`.
 | `switch` | `[--list] [--all] [--quiet\|-q] [--workers <provider>] [changes...]`; no args ⇒ `--list` | Resolve active changes in-process, create branch worktrees, run rendered `fab-switch` with `{change}`; `--all` excludes `archive/` | Same launch guards; empty set errors `ERROR: No changes found.` Resolver and `wt` errors warn-and-skip with specific/child stderr. Quiet suppresses progress but not list/data output or stderr |
 | `archive` | `[--yes\|-y] [--dry-run] [--quiet\|-q] [changes...]` | Archive `hydrate: done\|skipped` changes in-process via `ArchiveWithBacklog`; no agent, tmux, `wt`, or fab-on-PATH dependency | Uses the consent matrix below. `--dry-run --yes` is mutually exclusive. Quiet suppresses progress only, never consent, data, stderr, or footer |
 
-`new` uses `wt create --non-interactive --worktree-name {id}`, window `fab-{id}`, and `{worker-session-command} {shell-quoted fab-new prompt}`. Initial skill prompts use § fab skill-prompt with the actual launched provider (including Claude when command resolution falls back to the built-in). Both launchers compose the default-role provider `interactive_command` through `internal/spawn`, substituting templated `{model}`/`{effort}` or appending them for a plain command; no placeholders reach tmux. Missing `wt` exits 1 after the tmux guard with `ERROR: wt is required for 'fab batch new' — install it via: brew install sahil87/tap/wt` (or `'fab batch switch'`); missing tmux is `ERROR: not inside a tmux session`.
+`new` uses `wt create --non-interactive --worktree-name {id}`, window `fab-{id}`, and `{worker-session-command} {shell-quoted fab-new prompt}`. Initial skill prompts are rendered by `internal/agent.SkillPrompt` for the actual launched provider (`$` for `codex`, `/` otherwise — including Claude when command resolution falls back to the built-in). Both launchers compose the default-role provider `interactive_command` through `internal/spawn`, substituting templated `{model}`/`{effort}` or appending them for a plain command; no placeholders reach tmux. Missing `wt` exits 1 after the tmux guard with `ERROR: wt is required for 'fab batch new' — install it via: brew install sahil87/tap/wt` (or `'fab batch switch'`); missing tmux is `ERROR: not inside a tmux session`.
 
 On `new` and `switch`, **`--workers <provider>`** safely prefixes every tmux shell command with `FAB_AGENT_WORKERS='<provider>'`. Embedded single quotes are shell-escaped; the value is otherwise passed through without provider validation. Omitting the flag leaves the launch command byte-for-byte unchanged.
 

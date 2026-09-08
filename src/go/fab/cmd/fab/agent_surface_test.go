@@ -269,8 +269,8 @@ func TestAgentOutputYAMLStageSelector(t *testing.T) {
 		t.Errorf("-o yaml document should carry a command key, got:\n%s", out)
 	}
 	keys := yamlKeys(t, out)
-	if len(keys) != 11 {
-		t.Errorf("-o yaml native resolution must emit the eleven non-dispatch keys, got %d: %v", len(keys), keys)
+	if len(keys) != 12 {
+		t.Errorf("-o yaml native resolution must emit the twelve non-dispatch keys, got %d: %v", len(keys), keys)
 	}
 }
 
@@ -294,8 +294,8 @@ func TestAgentOutputYAMLRoleSelector(t *testing.T) {
 		}
 	}
 	keys := yamlKeys(t, out)
-	if len(keys) != 11 {
-		t.Errorf("-o yaml native role resolution must emit the eleven non-dispatch keys, got %d: %v", len(keys), keys)
+	if len(keys) != 12 {
+		t.Errorf("-o yaml native role resolution must emit the twelve non-dispatch keys, got %d: %v", len(keys), keys)
 	}
 }
 
@@ -311,8 +311,8 @@ func TestAgentOutputYAMLBareProviderForm(t *testing.T) {
 		}
 	}
 	keys := yamlKeys(t, out)
-	if len(keys) != 12 {
-		t.Errorf("-o yaml non-native provider resolution must emit all twelve keys, got %d: %v", len(keys), keys)
+	if len(keys) != 13 {
+		t.Errorf("-o yaml non-native provider resolution must emit all thirteen keys, got %d: %v", len(keys), keys)
 	}
 }
 
@@ -353,6 +353,7 @@ source:
     provider: agent.profiles.doing
     model: providers.oracle.profiles.doing
     effort: providers.oracle.profiles.doing
+skill_prefix: /
 `,
 		},
 		{
@@ -387,6 +388,7 @@ source:
 dispatch:
     rung: headless
     command: oracle exec -m gpt-5 -e xhigh
+skill_prefix: /
 `,
 		},
 		{
@@ -422,6 +424,7 @@ source:
 dispatch:
     rung: pane
     command: oracle tui -m claude-haiku-4-5-20251001 -e medium
+skill_prefix: /
 `,
 		},
 		{
@@ -451,6 +454,34 @@ source:
 dispatch:
     rung: headless
     command: oracle exec
+skill_prefix: /
+`,
+		},
+		{
+			name: "codex provider carries the dollar skill prefix",
+			config: `dispatch:
+  mode: native
+providers:
+  codex:
+    interactive_command: "codex tui -m {model} -e {effort}"
+    native: true
+`,
+			args: []string{"yaml", "--provider", "codex", "--model", "gpt-x", "--effort", "high"},
+			want: `selector: ""
+kind: provider
+role: ""
+provider: codex
+model: gpt-x
+effort: high
+command: codex tui -m gpt-x -e high
+model_alias: ""
+template: codex tui -m {model} -e {effort}
+fill_mode: template
+source:
+    provider: flag
+    model: flag
+    effort: flag
+skill_prefix: $
 `,
 		},
 	}
