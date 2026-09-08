@@ -240,9 +240,8 @@ type Profile struct {
 //     capability, so mode resolution runs its stages on the CLI adapters.
 //   - agy — interactive AND headless commands plus its own SPARSE per-role fills (a
 //     role absent from the map resolves that provider's `default` entry). Naming it
-//     resolves with zero
-//     providers config; it declares no native capability, so mode resolution runs
-//     its stages on the CLI adapters.
+//     resolves with zero providers config; it declares no native capability, so
+//     mode resolution runs its stages on the CLI adapters.
 //   - kimi — interactive AND headless commands, and deliberately NO fills: its -m
 //     takes a user-config model alias rather than a catalog ID, so the empty model
 //     drops the -m pair and the CLI's own default_model applies. It declares no
