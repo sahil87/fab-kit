@@ -67,7 +67,7 @@ Every default that has a canonical Go symbol is referenced from it, not copied: 
 command from `agent.DefaultInteractiveCommand`, the per-role profiles via `agent.DefaultProfile` over
 `agent.RoleNames()`, the stage names via `agent.StageNames()`. Those symbols are projections of one
 values file, not independent constants: the built-in tier's values — the two depth knobs' `claude`,
-the five `dispatch` defaults (`mode: native`, `column_width: 35`, `min_cols: 80`, `min_rows: 20`, `reap_done: true`), and the four
+the five `dispatch` defaults (`mode: native`, `column_width: 40`, `min_cols: 60`, `min_rows: 20`, `reap_done: true`), and the four
 providers' capability grammars and role fills — live in `src/go/fab/defaults.yaml`,
 embedded into the binary via `go:embed` and parsed once. The five dispatch values reach
 `internal/config` through its exported `DefaultDispatchMode` / `DefaultDispatchColumnWidth` /
@@ -101,7 +101,7 @@ always denotes a real built-in value (today: the `providers` row's **four built-
 claude/codex/agy/kimi, each with its capability grammar and per-role fills except kimi, which
 deliberately ships none (`260808-rpsr`) — the resolved
 `agent.profiles` defaults, the two depth knobs' `claude`, `dispatch.mode`'s `native`,
-`dispatch.column_width`'s `35`, `dispatch.min_cols`' `80`, `dispatch.min_rows`' `20`, and `dispatch.reap_done`'s `true`); every other row is `null`.
+`dispatch.column_width`'s `40`, `dispatch.min_cols`' `60`, `dispatch.min_rows`' `20`, and `dispatch.reap_done`'s `true`); every other row is `null`.
 **The five `dispatch` rows are
 the convention's boundary cases and are deliberately not `null`**: mode is a real string default,
 `native`; for width an absent YAML int is indistinguishable from `0` (which the accessor reads as

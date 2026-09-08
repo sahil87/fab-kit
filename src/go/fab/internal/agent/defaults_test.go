@@ -300,11 +300,11 @@ func TestDefaultsFileDispatchBlockIsPinned(t *testing.T) {
 	if cfg.Dispatch.Mode != "native" {
 		t.Errorf("TestDefaultsFileDispatchBlockIsPinned: defaults.yaml dispatch.mode = %q, pinned %q — defaults.yaml is the canonical source; intentional bump? update this pin too", cfg.Dispatch.Mode, "native")
 	}
-	if cfg.Dispatch.ColumnWidth != 35 {
-		t.Errorf("TestDefaultsFileDispatchBlockIsPinned: defaults.yaml dispatch.column_width = %d, pinned %d — defaults.yaml is the canonical source; intentional bump? update this pin too", cfg.Dispatch.ColumnWidth, 35)
+	if cfg.Dispatch.ColumnWidth != 40 {
+		t.Errorf("TestDefaultsFileDispatchBlockIsPinned: defaults.yaml dispatch.column_width = %d, pinned %d — defaults.yaml is the canonical source; intentional bump? update this pin too", cfg.Dispatch.ColumnWidth, 40)
 	}
-	if cfg.Dispatch.MinCols != 80 {
-		t.Errorf("TestDefaultsFileDispatchBlockIsPinned: defaults.yaml dispatch.min_cols = %d, pinned %d — defaults.yaml is the canonical source; intentional bump? update this pin too", cfg.Dispatch.MinCols, 80)
+	if cfg.Dispatch.MinCols != 60 {
+		t.Errorf("TestDefaultsFileDispatchBlockIsPinned: defaults.yaml dispatch.min_cols = %d, pinned %d — defaults.yaml is the canonical source; intentional bump? update this pin too", cfg.Dispatch.MinCols, 60)
 	}
 	if cfg.Dispatch.MinRows != 20 {
 		t.Errorf("TestDefaultsFileDispatchBlockIsPinned: defaults.yaml dispatch.min_rows = %d, pinned %d — defaults.yaml is the canonical source; intentional bump? update this pin too", cfg.Dispatch.MinRows, 20)

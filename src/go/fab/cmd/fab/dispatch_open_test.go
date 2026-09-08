@@ -841,8 +841,8 @@ func TestDispatchOpen_NoTmuxPaneKeepsTheNewWindowShape(t *testing.T) {
 }
 
 // TestDispatchOpen_BelowFloorDemotesToSizedWindow is the geometry floor end-to-end
-// (the motivating case): a dispatcher in an 80x24 window would carve a 28-column
-// worker at the default 35% — below the 80x20 floor — so the launch must NOT split.
+// (the motivating case): a dispatcher in an 80x24 window would carve a 32-column
+// worker at the default 40% — below the 60x20 floor — so the launch must NOT split.
 // The worker opens in its own DETACHED window pinned to the manual 200x50 size, the
 // demotion warning names the measured geometry, the computed column, the floor, and
 // the action, and the record carries the pane identity exactly as the window shape
@@ -857,7 +857,7 @@ func TestDispatchOpen_BelowFloorDemotesToSizedWindow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a below-floor split must demote to a window, not fail: %v", err)
 	}
-	wantWarning := "window 80x24 too narrow for a 35% column (28 cols < 80): opening worker in its own window"
+	wantWarning := "window 80x24 too narrow for a 40% column (32 cols < 60): opening worker in its own window"
 	if !strings.Contains(stderr, "warning: "+wantWarning) {
 		t.Errorf("stderr = %q, want the demotion warning %q", stderr, wantWarning)
 	}

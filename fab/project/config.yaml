@@ -55,8 +55,8 @@ true_impact_exclude:
 # Full prose: fab config explain dispatch.mode
 # dispatch:
 #   mode: native
-#   column_width: 35
-#   min_cols: 80
+#   column_width: 40
+#   min_cols: 60
 #   min_rows: 20
 #   reap_done: true
 #
