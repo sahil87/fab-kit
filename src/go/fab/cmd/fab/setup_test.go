@@ -383,7 +383,7 @@ func TestSetupWizard_AdvancedOptInAsksAllKeys(t *testing.T) {
 	for _, prompt := range []string{
 		"agent.profiles.operator.provider [(inherit agent.session)]:",
 		"agent.profiles.review.provider [(inherit agent.workers)]:",
-		"dispatch.column_width [35]:",
+		"dispatch.column_width [40]:",
 		"dispatch.reap_done [true]:",
 	} {
 		if !strings.Contains(out, prompt) {

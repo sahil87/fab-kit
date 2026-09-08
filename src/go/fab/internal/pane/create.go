@@ -350,7 +350,7 @@ func (p SplitPlacement) Describe() string {
 //
 // The size argument is emitted only when the placement carries one — which, by
 // SplitPlacement's contract, means only for a column-carving split. It is rendered
-// as a PERCENTAGE (`-l 35%`) so the column scales with the window rather than
+// as a PERCENTAGE (`-l 40%`) so the column scales with the window rather than
 // pinning a cell count that would be wrong on the next resize.
 func splitArgs(place SplitPlacement, dir, cmd string) []string {
 	args := []string{"split-window", place.Direction, "-t", place.Target}

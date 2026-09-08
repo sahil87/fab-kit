@@ -1562,13 +1562,13 @@ func TestCascade_DispatchColumnWidthFromSystemLayer(t *testing.T) {
 
 	home2 := isolateSystemConfig(t)
 	writeSystemConfig(t, home2, "dispatch:\n  column_width: 25\n")
-	projRoot := writeProjectConfig(t, "dispatch:\n  column_width: 40\n")
+	projRoot := writeProjectConfig(t, "dispatch:\n  column_width: 45\n")
 	cfg2, err := Load(projRoot)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 	if got := cfg2.GetDispatchColumnWidth(); got != 25 {
-		t.Errorf("column_width = %d, want the system's 25 to beat the project's 40", got)
+		t.Errorf("column_width = %d, want the system's 25 to beat the project's 45", got)
 	}
 }
 

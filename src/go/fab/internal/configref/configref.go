@@ -554,12 +554,12 @@ checklist:
 		{
 			Key: "dispatch.column_width",
 			// Like mode, a real built-in value rather than "no default": the
-			// cascade bottoms out at 35, and an absent yaml int is indistinguishable
+			// cascade bottoms out at 40, and an absent yaml int is indistinguishable
 			// from 0, so the accessor treats out-of-range as unset. Sourced from the
 			// canonical config symbol, never a literal copy.
 			Default:     config.DefaultDispatchColumnWidth,
 			Kind:        configvalue.KindInt,
-			Description: "Pane-worker column width, in percent of the window, applied by the column-carving `-h` split that opens a pane-mode stage worker beside its dispatching agent (`split-window -h -l <n>%`). Only that first split is sized — later workers stack inside the column with unsized `-v` splits. A computed column (or stacked row height) below the dispatch.min_cols / dispatch.min_rows floor opens the worker in a manually-sized window instead of splitting. Out-of-range values (and an absent key) resolve to the default. Scope both — settable once machine-wide, where it outranks the project file. Default 35.",
+			Description: "Pane-worker column width, in percent of the window, applied by the column-carving `-h` split that opens a pane-mode stage worker beside its dispatching agent (`split-window -h -l <n>%`). Only that first split is sized — later workers stack inside the column with unsized `-v` splits. A computed column (or stacked row height) below the dispatch.min_cols / dispatch.min_rows floor opens the worker in a manually-sized window instead of splitting. Out-of-range values (and an absent key) resolve to the default. Scope both — settable once machine-wide, where it outranks the project file. Default 40.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
 			// Rendered inline in the dispatch.mode Segment (dispatch is one YAML
@@ -575,7 +575,7 @@ checklist:
 			// is indistinguishable from 0), and there is no upper clamp.
 			Default:     config.DefaultDispatchMinCols,
 			Kind:        configvalue.KindInt,
-			Description: "Geometry floor, in columns, for pane-mode split placement: before a split is carved or stacked, the planned worker pane's width is computed from the window geometry (a carving split yields window_width × dispatch.column_width / 100), and a pane narrower than this floor opens as a manually-sized detached window instead of splitting. A dimension exactly at the floor passes. Scope both — settable once machine-wide, where it outranks the project file. Default 80.",
+			Description: "Geometry floor, in columns, for pane-mode split placement: before a split is carved or stacked, the planned worker pane's width is computed from the window geometry (a carving split yields window_width × dispatch.column_width / 100), and a pane narrower than this floor opens as a manually-sized detached window instead of splitting. A dimension exactly at the floor passes. Scope both — settable once machine-wide, where it outranks the project file. Default 60.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
 			// Rendered inline in the dispatch.mode Segment, same as
