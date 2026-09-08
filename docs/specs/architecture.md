@@ -564,9 +564,11 @@ Multi-change operations are `fab batch` subcommands (`fab batch <new|switch|arch
 
 | Subcommand | Purpose | Creates per target |
 |------------|---------|--------------------|
-| `fab batch new` | Create changes from pending backlog items | Worktree + tmux tab running `/fab-new <description>` |
-| `fab batch switch` | Switch to existing changes | Worktree + tmux tab running `/fab-switch <change>` |
+| `fab batch new` | Create changes from pending backlog items | Worktree + tmux tab running rendered `fab-new` with `<description>` |
+| `fab batch switch` | Switch to existing changes | Worktree + tmux tab running rendered `fab-switch` with `<change>` |
 | `fab batch archive` | Archive completed changes (`hydrate: done\|skipped`) | Mechanical in-process archive (move, `.fab-dispatch/{id}/` deletion, index, backlog, pointer) — no worktree, no tmux tab, no spawned agent |
+
+Initial skill prompts use the shared `fab skill-prompt` renderer with the receiving provider. The renderer uses `$` for Codex and `/` for every other or unknown provider; launch commands quote the complete prompt as one shell argument. The fallback operator launcher shares this renderer.
 
 ---
 

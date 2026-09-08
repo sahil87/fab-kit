@@ -15,6 +15,7 @@ metadata:
 - Scope Boundary
 - Half A — Agent-Interaction Procedures
   - Spawn Composition
+    - Skill Prompts
   - Pre-Send Validation
   - Delivery Probe (the printed-prompt trap)
   - Peek
@@ -89,11 +90,36 @@ tmux new-window -n "<name>" -c "<dir>" "<composed-cmd> '<initial-prompt>'; exec 
 - The composed command is the *whole* left-hand side — including any shell expansions it carries (e.g. `$(basename "$(pwd)")`), which expand at invocation inside the new window.
 - **The trailing `; exec "$SHELL"` is the interactive shell fallback, and it is canonical for every interactive spawn** (a session a human may type into). tmux runs the shell-command argument via its `default-shell -c`; with a second command after `;`, that wrapper shell cannot exec-optimise the agent away, so the agent runs as its child. On Linux the non-interactive wrapper remains the foreground process-group leader for the child's entire life, so `#{pane_current_command}` reports the wrapper shell even while the agent is live. See `_cli-fab.md` § `fab operator tick-start` for the operator's exit-detection semantics. When the agent exits for any reason (`/exit`, crash, a `C-c` too many), the wrapper `exec`s `$SHELL` — a fresh interactive (non-login) shell (rc files run, a prompt is drawn over the agent's last screen) in the same pane, same cwd. The tab, its scrollback, and its position survive. **Scope rule: interactive spawns only.** `fab dispatch open` pane workers and `fab pane open` are excluded — their `running`/`done`/`orphaned` state machine treats pane death as the worker's terminal event, so a surviving fallback shell would read as a live worker. (In Go, the suffix is owned by `internal/spawn.WithShellFallback` — no call site spells it literally.)
 - **`new-window` without `-t` targets the *ambient* session** — the session of the pane running the command. A caller whose own session differs from where the window should land must pass `-t '<session>:'` (the trailing colon selects the session's next free window index); an untargeted spawn from elsewhere lands the window in the caller's session silently. Which session is the right target is the caller's policy, not this file's.
-- The initial prompt is embedded **at spawn** as a single quoted argument. Shell-escape any user-supplied text before embedding it.
-- **One prompt, one leading command.** The embedded string is delivered as a single prompt to the agent, where `&&` is *not* a shell operator and an agent harness reads at most one leading `/command` — so an `&&`-joined pair of slash commands does not run two commands; the tail is swallowed into the first command's argument. Embed exactly one command; if a second step is genuinely required, run it as a synchronous CLI call before opening the window, or as a separate Enter-terminated send afterwards.
+- The initial prompt is embedded **at spawn** as a single quoted argument. For skill invocations, use § Skill Prompts; shell-escape any other user-supplied prompt before embedding it.
+- **One prompt, one leading command.** The embedded string is delivered as a single prompt to the agent, where `&&` is *not* a shell operator and a skill prompt carries one leading invocation rendered per § Skill Prompts — so an `&&`-joined pair of skill invocations does not run two commands; the tail is swallowed into the first command's argument. Embed exactly one command; if a second step is genuinely required, run it as a synchronous CLI call before opening the window, or as a separate Enter-terminated send afterwards.
 - **Embedding at spawn also sidesteps the printed-prompt trap** (§ Delivery Probe): the trap needs a *pre-existing* input buffer to mistake printed output for, and a window created with its prompt already attached has none. Prefer spawn-embedding over "open the window, then send the prompt" whenever the prompt is known up front **and the send is one you can afford not to verify** — a one-shot argument either is or is not ingested, and you cannot tell which. Where that matters, verify instead of embedding: `fab pane ready` → `fab pane deliver --text` mechanizes exactly that sequence (echo-checked send, submit, screen-advance confirm — § Delivery Probe), with the manual recipe as the fallback for non-fab driving. That is exactly the trade the pane dispatch adapter makes (below).
 
 > **Pipeline consumer**: `fab dispatch open <change> <stage>` (the interactive-pane dispatch adapter — `_cli-fab.md` § fab dispatch, contract in `docs/specs/harness-adapters.md`) is built on this procedure's LAUNCH half only. It composes the resolved provider's `interactive_command` and opens it **verbatim, with no prompt attached** — because a multi-thousand-token stage prompt cannot ride argv, and a positional one-shot cannot be verified. The prompt arrives afterwards as a **one-line pointer** typed by `fab dispatch deliver` behind the `fab dispatch ready` gate, which is the adapter's own answer to the printed-prompt trap: an echo-checked send beats an unverifiable spawn argument. Since 260810-1lah the dispatch verbs are thin record-keeping bindings over this section's own primitives — `fab pane open`/`ready`/`deliver` — so adapter and procedure share one gate and one delivery choreography. Completion detection follows § Await's "prefer asking for an artifact over a screen pattern" rule (the worker's `{stage}-result.yaml`).
+
+#### Skill Prompts
+
+For an explicit skill invocation, render the **bare skill name plus arguments** with `fab skill-prompt` (syntax/defaults/output contract: `_cli-fab.md` § fab skill-prompt). This procedure applies to both initial prompts and skill commands routed into existing panes.
+
+1. **Select the receiver**. For a fresh default-role launch composed with `fab agent --print --repo <target-repo>`, use the renderer's `--repo <target-repo>` mode; it resolves the same provider without requiring stage-dispatch capabilities. For other fresh roles, use the provider already resolved for that launch. For an existing pane, inspect the live agent process via § Peek's process command; use the interactive harness executable, including a child beneath a wrapper shell. Do not identify it from prompt text, a nested tool worker, the operator's own provider, a model ID, or the repo's current default. If identity is unknown, pass an empty provider to use the renderer's default. This does not bypass the caller's state/confirmation gate.
+2. **Render for the destination**. For an existing-pane send, capture a shell-quoted token and decode that token into a variable before the normal send mechanism. The closing quote preserves trailing argument newlines through command substitution:
+
+   ```sh
+   fab_skill_token=$(fab skill-prompt --provider "$receiver_provider" --shell-quote "$skill_name" -- "$skill_args")
+   eval "fab_skill_prompt=$fab_skill_token"
+   # Decode only the renderer's shell-quoted output; then apply the pre-send gate.
+   # With rk present:
+   rk mux send "$target_pane" "$fab_skill_prompt"
+   ```
+
+   For spawn embedding, use `--shell-quote` (with `--repo "$target_repo"` instead of `--provider` for default-role repo launches) and interpolate its output **without adding another pair of quotes around the token** into the new-window command string:
+
+   ```sh
+   fab_skill_token=$(fab skill-prompt --provider "$receiver_provider" --shell-quote "$skill_name" -- "$skill_args")
+   tmux new-window -n "$window_name" -c "$worktree_path" "$spawn_cmd $fab_skill_token; exec \"\$SHELL\""
+   ```
+
+   `$spawn_cmd` is the resolved command from Spawn Composition. Expansion from these variables is not recursively evaluated by the invoking shell; the token's quoting protects the prompt when the window shell parses it. Apply the caller's session/socket targeting as usual. Never embed a literal dollar-prefixed skill inside an outer double-quoted shell string.
+3. **Keep message types distinct**. Render explicit skill invocations only. Ordinary prompts, answers, keys, `Read <path> and execute it.` pointers, and native TUI controls such as `/loop` or `/clear` use their own contracts and are not transformed.
 
 ### Pre-Send Validation
 

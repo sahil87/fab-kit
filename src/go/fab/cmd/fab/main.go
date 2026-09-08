@@ -44,6 +44,7 @@ func newRootCmd() *cobra.Command {
 		memoryIndexCmd(),
 		shellInitCmd(),
 		skillCmd(),
+		skillPromptCmd(),
 		helpDumpCmd(),
 		setupCmd(),
 	)

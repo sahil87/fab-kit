@@ -1092,6 +1092,8 @@ User invokes /fab-help
 
 ## `/fab-operator`
 
+Explicit skill sends and spawn prompts follow `_cli-agents.md` § Skill Prompts via `fab skill-prompt`, using the receiving agent identity. Slash-form skill names in this specification identify the skill; the renderer supplies the receiving harness's prefix. Answers, prompt-file pointers, and native TUI controls follow their own contracts.
+
 **Purpose**: Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across every session on its tmux server (per tick via `fab operator tick-start --diff --quiet`, on demand via `fab pane map --all-sessions`), routes commands and prompt answers via `rk mux send` (plain / `--answer`; `command -v rk`-gated, raw `tmux send-keys` behind the operator's own state gate when rk is absent), auto-answers routine prompts, drives autopilot queues, and spawns dependency-aware agents. Started via `fab operator` (a singleton tmux tab named `operator`, one per tmux server).
 
 **Context**: A deliberate exception to the always-load layer — loads only `config.yaml`, `constitution.md`, and `context.md` (optional). It runs no `fab preflight` and never reads change artifacts, keeping a long-lived context window reserved for coordination state. Declares `helpers: [_cli-agents, _cli-fab, _cli-external]`.

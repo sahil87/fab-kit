@@ -1,0 +1,56 @@
+id: tfzn
+name: 260908-tfzn-fix-agent-skill-prefix
+created: 2026-09-08T15:08:52Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: active
+plan:
+    generated: true
+    task_count: 3
+    acceptance_count: 10
+    acceptance_completed: 10
+confidence:
+    certain: 4
+    confident: 0
+    tentative: 0
+    unresolved: 0
+    score: 5.0
+    fuzzy: true
+    dimensions:
+        signal: 93.8
+        reversibility: 93.8
+        competence: 95.0
+        disambiguation: 93.8
+stage_metrics:
+    intake: {started_at: "2026-09-08T15:08:52Z", driver: fab-new, iterations: 1, completed_at: "2026-09-08T15:10:52Z"}
+    apply: {started_at: "2026-09-08T15:30:42Z", driver: fab-ff, iterations: 2, completed_at: "2026-09-08T15:30:58Z"}
+    review: {started_at: "2026-09-08T15:30:58Z", driver: fab-ff, iterations: 2, completed_at: "2026-09-08T15:38:18Z"}
+    hydrate: {started_at: "2026-09-08T15:38:18Z", driver: fab-ff, iterations: 1, completed_at: "2026-09-08T15:38:58Z"}
+    ship: {started_at: "2026-09-08T15:38:58Z", driver: fab-ff, iterations: 1, completed_at: "2026-09-08T15:48:46Z"}
+    review-pr: {started_at: "2026-09-08T15:48:46Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/649
+true_impact:
+    added: 661
+    deleted: 46
+    net: 615
+    excluding:
+        added: 407
+        deleted: 33
+        net: 374
+    tests:
+        added: 200
+        deleted: 1
+        net: 199
+    computed_at: "2026-09-08T15:48:46Z"
+    computed_at_stage: ship
+summary: Render skill prompts for the receiving agent across batch launches and operator routing.
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-09-08T15:48:46Z

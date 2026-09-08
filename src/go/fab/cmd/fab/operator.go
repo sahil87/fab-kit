@@ -13,6 +13,7 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/shellquote"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 	"github.com/spf13/cobra"
 )
@@ -29,7 +30,8 @@ delegated to 'rk operator' (role-marked singleton window, provider-agnostic
 typed kickoff), with --workers passed through — rk then owns the launch
 preconditions and validates the value. Without rk, fab's built-in launcher
 runs: switch to an existing window named 'operator' anywhere on the server,
-or create one running the operator-role session command with '/fab-operator'.`,
+or create one running the operator-role session command with its rendered
+fab-operator skill prompt (see 'fab skill-prompt').`,
 		RunE: runOperator,
 	}
 	cmd.Flags().String("workers", "", "set FAB_AGENT_WORKERS in the launched operator tab")
@@ -163,10 +165,10 @@ func runOperator(cmd *cobra.Command, args []string) error {
 	// empty config, and agent.ResolveRole/ResolveProvider then degrade to fab-kit's
 	// built-in operator profile + built-in claude provider — a no-fab/ launch is
 	// fully defaulted.
-	spawnCmd := operatorSpawnCommand()
+	spawnCmd, provider := operatorSpawnCommand()
 
 	// Create new tab running the operator skill
-	shellCmd := fmt.Sprintf("%s '/fab-operator'", spawnCmd)
+	shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single(agent.SkillPrompt(provider, "fab-operator", "")))
 	workers, workersSet := workersOverride(cmd)
 	shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
 	// Interactive spawn: the shell fallback keeps the pane (and its cwd) alive
@@ -211,7 +213,8 @@ func findWindowExact(out, name string) (windowID string, found bool) {
 // defaulted. A provider without an interactive_command falls back to
 // spawn.DefaultSpawnCommand (still profile-substituted) rather than erroring — the
 // operator must always launch.
-func operatorSpawnCommand() string {
+// The provider follows the actual command, including the Claude fallback.
+func operatorSpawnCommand() (command, provider string) {
 	// With a fab/ project, the project tier participates. Without one, fall back
 	// to the PROJECT-FREE cascade rather than to a nil config: env > system >
 	// built-in defaults. A nil config would silently discard the user's
@@ -246,10 +249,12 @@ func operatorSpawnCommand() string {
 		// Degrade to the built-in operator profile rather than fail to launch.
 		profile, _ = agent.DefaultProfile(agent.RoleOperator)
 	}
+	provider = profile.Provider
 	if cmd == "" {
 		cmd = spawn.WithProfile(spawn.DefaultSpawnCommand, profile.Model, profile.Effort)
+		provider = "claude"
 	}
-	return cmd
+	return cmd, provider
 }
 
 // gitRepoRoot returns the git repo root for the current directory. On

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/backlog"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
@@ -93,7 +94,7 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 	// into a tmux new-window shell command; substitution resolves all placeholders
 	// so no literal braces reach tmux.
 	configPath := filepath.Join(fabRoot, "project", "config.yaml")
-	spawnCmd := defaultRoleSpawnCommand(configPath)
+	spawnCmd, provider := defaultRoleSpawnCommand(configPath)
 	workers, workersSet := workersOverride(cmd)
 
 	// Process each ID. Launch failures (wt create, tmux new-window) are
@@ -137,7 +138,7 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 
 		// Open tmux window. The worktree already exists at this point, so a
 		// launch failure names it as the recovery/cleanup hint.
-		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single("/fab-new "+content))
+		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single(agent.SkillPrompt(provider, "fab-new", content)))
 		shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
 		// Interactive spawn: the shell fallback keeps the pane (and its cwd)
 		// alive as the user's interactive shell after the agent exits.

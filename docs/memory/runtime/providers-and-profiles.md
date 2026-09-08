@@ -380,6 +380,8 @@ Provider-form rules (the **bare** `--provider <name>` form — selector forms ta
 - **An unknown provider name** is a non-zero-exit **lookup** failure listing the available names (`agent.ProviderNames`: fab-kit's built-in table ∪ the project's `providers:` keys via `config.ProviderNames`, sorted). Listing resolvable *names* is not validation of a command's *content* — resolved strings still pass through verbatim.
 - A provider that resolves but carries no valid command slot yields a config-key hint error — `configure providers.<name>.interactive_command` by default, or `configure providers.<name>.headless_command` when `--headless` is set — on either addressing path.
 
+Skill-bearing session launchers retain the receiving provider alongside the composed command. Batch new/switch and the built-in operator launcher use the shared [skill prompt renderer](/runtime/agent-primitives.md); a Claude executable fallback also sets the rendering provider to Claude. For fresh default-role launches, `fab skill-prompt --repo <path>` resolves the same role without selecting a dispatch adapter. Its explicit `--provider` mode performs no config lookup and accepts custom or unknown receiver names.
+
 The procedural knowledge for *using* a composed command — opening it in a tmux window, delivering a prompt, peeking, awaiting — plus the per-provider invocation grammar and model-discovery recipes live in the `_cli-agents` helper: see [agent-primitives.md](/runtime/agent-primitives.md).
 
 #### Scenario: a stage selector and selector+`--provider` re-resolve
