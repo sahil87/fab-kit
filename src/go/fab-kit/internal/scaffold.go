@@ -135,7 +135,9 @@ func scaffoldTreeWalk(scaffoldDir, repoRoot string, claudeAvailable bool) error 
 		}
 
 		dest := filepath.Join(repoRoot, destPath)
-		os.MkdirAll(filepath.Dir(dest), 0755)
+		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+			return err
+		}
 
 		if isFragment {
 			if strings.HasSuffix(fileName, ".json") {
