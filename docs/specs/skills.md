@@ -19,7 +19,7 @@ As of 1.10.0 the `spec` stage and the separate `spec.md` artifact are removed. R
 
 ## Skill Helpers (`helpers:` Frontmatter)
 
-Every skill MAY declare additional helper files it needs to load via a `helpers:` frontmatter list. The agent reads each declared helper's `.claude/skills/{helper}/SKILL.md` after reading `_preamble` and before executing the skill body.
+Every skill MAY declare additional helper files it needs to load via a `helpers:` frontmatter list. The agent reads each declared helper's `.agents/skills/{helper}/SKILL.md` after reading `_preamble` and before executing the skill body.
 
 **Allowed values** (8): `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`.
 
@@ -205,7 +205,7 @@ Skills MUST end their output with a `Next:` line suggesting the available follow
 Adding a skill to the kit touches eight integration points. Work through all of them — drift in any one is invisible until an agent hits it.
 
 1. **Frontmatter fields** — `name` (matches the filename) and `description` (the one-liner agents use for model invocation — name the actual behavior, including non-obvious modes like draft PRs or `--none` flags). Internal partials additionally set `user-invocable: false`, `disable-model-invocation: true`, and `metadata.internal: true`.
-2. **Preamble-read line** — the body opens with the standard blockquote: ``> Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.``
+2. **Preamble-read line** — the body opens with the standard blockquote: ``> Read the `_preamble` skill first (deployed to `.agents/skills/` via `fab sync`). Then follow its instructions before proceeding.``
 3. **`helpers:` declaration** — list any additional partials the skill needs (`_generation`, `_review`, `_cli-fab`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`) in frontmatter; skills without the list load only `_preamble`. See § Skill Helpers.
 4. **`Next:` line** — the skill's output ends with a state-derived `Next:` line per `_preamble.md` § Next Steps Convention (or documents an explicit opt-out, as `fab-discuss` and `fab-operator` do).
 5. **Error Handling + Key Properties tables** — the body closes with the two standard tables (skill-specific errors only; idempotency, write surface, stage effects).
@@ -238,7 +238,8 @@ When called without arguments, `/fab-setup` runs the full bootstrap: invokes `fa
 - `docs/memory/index.md` — initial memory index (via `fab sync`)
 - `docs/specs/index.md` — specifications index (via `fab sync`)
 - `fab/changes/` — empty, ready for change folders (via `fab sync`)
-- `.claude/skills/` — deployed skill copies from the kit cache (via `fab sync`)
+- `.agents/skills/` — always-on deployed skill copies from the kit cache (via `fab sync`)
+- `.claude/skills/` — deployed copies when `claude` is available
 
 **Delegation pattern**: `fab sync` handles non-interactive structural setup
 (directories, scaffolding, skill deployment, and `.envrc`/`.gitignore`
@@ -406,7 +407,7 @@ User invokes /docs-hydrate-memory [sources...|folders...|backfill]
 
 ```text
 User invokes /fab-new <description>
-├─ Read: _preamble.md, .claude/skills/_intake/SKILL.md (+helpers)
+├─ Read: _preamble.md, .agents/skills/_intake/SKILL.md (+helpers)
 ├─ Micro-Change Backstop (Step -1): all three micro criteria hold → inline confirm; decline → STOP (nothing created)
 ├─ Create-Intake Procedure Steps 0–9 (interactive — see `_intake.md`)
 ├─ Bash: fab change switch "{name}"
@@ -447,7 +448,7 @@ User invokes /fab-new <description>
 
 ```text
 User invokes /fab-draft <description>
-├─ Read: _preamble.md, .claude/skills/_intake/SKILL.md (+helpers)
+├─ Read: _preamble.md, .agents/skills/_intake/SKILL.md (+helpers)
 └─ Create-Intake Procedure Steps 0–9 (interactive — see `_intake.md`); STOP after Step 9 (no activation, no branch)
 ```
 

@@ -5,7 +5,7 @@ description: "Identify structural gaps between memory and specs, propose concise
 
 # /docs-hydrate-specs
 
-> Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
+> Read the `_preamble` skill first (deployed to `.agents/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
 ---
 

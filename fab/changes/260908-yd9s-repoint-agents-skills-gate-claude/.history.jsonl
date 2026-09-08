@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-08T16:59:27Z"}
+{"args":"Repoint fab-internal skill read-paths from .claude/skills/ to .agents/skills/, re-gate the .claude deploy target and settings.local.json scaffold on the claude CLI, docs sweep + tests; follow-up to PR #647","cmd":"fab-new","event":"command","ts":"2026-09-08T16:59:27Z"}
+{"delta":"+4.9","event":"confidence","score":4.9,"trigger":"calc-score","ts":"2026-09-08T17:01:34Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-08T17:02:35Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-08T17:03:40Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-08T17:04:02Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-08T17:14:14Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-08T17:19:19Z"}
+{"event":"review","result":"passed","ts":"2026-09-08T17:19:19Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-08T17:21:15Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-09-08T17:25:21Z"}
+{"event":"review","result":"passed","ts":"2026-09-08T17:33:17Z"}

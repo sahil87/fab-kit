@@ -97,7 +97,7 @@ func scaffoldDirectories(repoRoot, fabDir, kitDir, kitVersion string) error {
 }
 
 // scaffoldTreeWalk walks the scaffold directory and dispatches by filename convention.
-func scaffoldTreeWalk(scaffoldDir, repoRoot string) error {
+func scaffoldTreeWalk(scaffoldDir, repoRoot string, claudeAvailable bool) error {
 	var files []string
 	err := filepath.Walk(scaffoldDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -130,8 +130,14 @@ func scaffoldTreeWalk(scaffoldDir, repoRoot string) error {
 			destPath = filepath.Join(dirPart, fileName)
 		}
 
+		if !claudeAvailable && (destPath == ".claude" || strings.HasPrefix(destPath, ".claude"+string(filepath.Separator))) {
+			continue
+		}
+
 		dest := filepath.Join(repoRoot, destPath)
-		os.MkdirAll(filepath.Dir(dest), 0755)
+		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+			return err
+		}
 
 		if isFragment {
 			if strings.HasSuffix(fileName, ".json") {

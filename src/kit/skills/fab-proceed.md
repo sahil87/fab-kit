@@ -5,7 +5,7 @@ description: "Context-aware orchestrator — detects state, runs prefix steps (f
 
 # /fab-proceed
 
-Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
+Read the `_preamble` skill first (deployed to `.agents/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
 > `/fab-proceed` follows `_preamble.md` conventions but skips preflight/context loading itself — it delegates all pipeline context loading to `/fab-fff`.
 
@@ -171,7 +171,7 @@ Runs when the dispatch table selects the create-new path (`_intake`): either sub
 
 1. Synthesize a description from the conversation (see Conversation Context Synthesis below). The synthesis MUST NOT pull from bypassed drafts — only the live conversation is the source.
 2. **Resolve and dispatch** per the prefix-step role table above.
-3. Dispatch subagent: read `.claude/skills/_intake/SKILL.md`, execute the **Create-Intake Procedure** with `{questioning-mode} = promptless-defer` and the synthesized description. `promptless-defer` is the defer-and-surface contract per `_srad.md` § Critical Rule (promptless-dispatch carve-out): the procedure asks NO questions; any would-be-asked decision lands in the intake's `## Assumptions` table as an Unresolved row with Rationale `Deferred — promptless dispatch`, and is listed in the subagent result. The procedure stops at intake `ready`; it does NOT activate or branch (those are `/fab-new`'s tail) — the `/fab-switch`/`/git-branch` prefix steps are dispatched separately per the dispatch table.
+3. Dispatch subagent: read `.agents/skills/_intake/SKILL.md`, execute the **Create-Intake Procedure** with `{questioning-mode} = promptless-defer` and the synthesized description. `promptless-defer` is the defer-and-surface contract per `_srad.md` § Critical Rule (promptless-dispatch carve-out): the procedure asks NO questions; any would-be-asked decision lands in the intake's `## Assumptions` table as an Unresolved row with Rationale `Deferred — promptless dispatch`, and is listed in the subagent result. The procedure stops at intake `ready`; it does NOT activate or branch (those are `/fab-new`'s tail) — the `/fab-switch`/`/git-branch` prefix steps are dispatched separately per the dispatch table.
 4. Capture the created change folder name **and any deferred Unresolved decisions** from the subagent result
 5. **Surface deferred decisions**: before delegating to `/fab-fff`, emit one line per deferred decision (informational — `/fab-proceed` stays zero-prompt). The intake gate is the structural backstop: deferred Unresolved rows penalize the gate per `_preamble.md` § Confidence Scoring; a genuine unknown (scored with honestly-low dimensions) fails it and the pipeline stops normally for the user to resolve via `/fab-clarify`.
 
@@ -180,7 +180,7 @@ Runs when the dispatch table selects the create-new path (`_intake`): either sub
 Runs when the dispatch table selects `/fab-switch` (substantive + clearly relevant, or empty/thin + ≥1 intake).
 
 1. **Resolve and dispatch** per the prefix-step role table above.
-2. Dispatch subagent: read `.claude/skills/fab-switch/SKILL.md`, invoke `fab change switch "<change-name>"`
+2. Dispatch subagent: read `.agents/skills/fab-switch/SKILL.md`, invoke `fab change switch "<change-name>"`
 3. Capture the switch confirmation from the subagent result
 
 #### git-branch Dispatch
@@ -188,7 +188,7 @@ Runs when the dispatch table selects `/fab-switch` (substantive + clearly releva
 Runs when the dispatch table selects `/git-branch`: the branch-mismatch row (active change, branch doesn't match), the `/fab-switch`-prefixed relevant-intake rows, and the `_intake`-prefixed create-new rows (which chain `/git-branch` after `/fab-switch` — see the dispatch-table note above).
 
 1. **Resolve and dispatch** per the prefix-step role table above.
-2. Dispatch subagent: read `.claude/skills/git-branch/SKILL.md`, follow its behavior for the active change
+2. Dispatch subagent: read `.agents/skills/git-branch/SKILL.md`, follow its behavior for the active change
 3. Capture the branch creation/checkout result from the subagent result
 
 ### Conversation Context Synthesis

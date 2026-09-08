@@ -32,7 +32,7 @@ This skill runs two distinct kinds of pass with **different scoping rules**:
 
 ## Pre-flight
 
-1. Read the `_*.md` partials (deployed to `.claude/skills/`) — derive the set by globbing `src/kit/skills/_*.md`, never from a hardcoded list (it drifts as partials are added). In a consumer or batch pass they are read-only shared reference context; in a dedicated partial pass, the explicitly named partial is the target and the others remain reference context. Anything fully defined in a partial does NOT need re-explaining inside individual skills.
+1. Read the `_*.md` partials (deployed to `.agents/skills/`) — derive the set by globbing `src/kit/skills/_*.md`, never from a hardcoded list (it drifts as partials are added). In a consumer or batch pass they are read-only shared reference context; in a dedicated partial pass, the explicitly named partial is the target and the others remain reference context. Anything fully defined in a partial does NOT need re-explaining inside individual skills.
 2. If a specific skill was requested, verify the file exists. If not, STOP with: `Skill not found: src/kit/skills/{skill-name}.md`
 
 ---

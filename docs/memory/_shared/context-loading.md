@@ -34,9 +34,9 @@ The only universal helper beyond the 7 project files is `_preamble.md`. Addition
 
 ### Skill Helper Declaration (Opt-In)
 
-Skills declare additional helper files via the `helpers:` frontmatter list. Allowed values (eight): `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`. The agent MUST read `.claude/skills/{helper}/SKILL.md` for each declared helper after reading `_preamble` and before executing the skill body.
+Skills declare additional helper files via the `helpers:` frontmatter list. Allowed values (eight): `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`. The agent MUST read `.agents/skills/{helper}/SKILL.md` for each declared helper after reading `_preamble` and before executing the skill body.
 
-**Stage-conditional loading** (260611-zc9m): a skill MAY instead load a helper at its point of use via an explicit in-body read instruction (e.g., "read `.claude/skills/_review/SKILL.md` before entering Review Behavior"). Frontmatter `helpers:` declares unconditional pre-body loads; in-body read instructions declare conditional ones — a helper loaded this way is intentionally absent from the frontmatter list, so the frontmatter contract stays honest. `/fab-continue` is the sole current user: `_generation` at apply entry / intake-`active` regeneration, `_review` at Review Behavior entry (see [pipeline/execution-skills.md](/pipeline/execution-skills.md)).
+**Stage-conditional loading** (260611-zc9m): a skill MAY instead load a helper at its point of use via an explicit in-body read instruction (e.g., "read `.agents/skills/_review/SKILL.md` before entering Review Behavior"). Frontmatter `helpers:` declares unconditional pre-body loads; in-body read instructions declare conditional ones — a helper loaded this way is intentionally absent from the frontmatter list, so the frontmatter contract stays honest. `/fab-continue` is the sole current user: `_generation` at apply entry / intake-`active` regeneration, `_review` at Review Behavior entry (see [pipeline/execution-skills.md](/pipeline/execution-skills.md)).
 
 Current mapping:
 

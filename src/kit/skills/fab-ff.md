@@ -6,7 +6,7 @@ helpers: [_generation, _review, _srad, _pipeline]
 
 # /fab-ff [<change-name>] [--force] [--light|--full]
 
-> Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
+> Read the `_preamble` skill first (deployed to `.agents/skills/` via `fab sync`). Then follow its instructions before proceeding.
 
 ---
 

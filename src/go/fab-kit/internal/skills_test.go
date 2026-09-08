@@ -86,15 +86,15 @@ func TestDeploySkills_GenericDirForNonCodexCLI(t *testing.T) {
 
 			repoRoot := t.TempDir()
 			t.Setenv("FAB_AGENTS", cli)
-			if err := deploySkills(repoRoot, kitDir); err != nil {
+			if err := deploySkills(repoRoot, kitDir, agentAvailable("claude")); err != nil {
 				t.Fatalf("deploySkills: %v", err)
 			}
 
 			if _, err := os.Stat(filepath.Join(repoRoot, ".agents", "skills", "fab-new", "SKILL.md")); err != nil {
 				t.Errorf("%s must deploy to the generic .agents/skills directory: %v", cli, err)
 			}
-			if _, err := os.Stat(filepath.Join(repoRoot, ".claude", "skills", "fab-new", "SKILL.md")); err != nil {
-				t.Errorf("Claude Code target must deploy unconditionally: %v", err)
+			if _, err := os.Stat(filepath.Join(repoRoot, ".claude")); !os.IsNotExist(err) {
+				t.Errorf("Claude Code target must not deploy without claude: %v", err)
 			}
 			// No per-brand directory for any of the generic-dir CLIs — one target
 			// per skill set is what makes duplicate discovery impossible.
@@ -107,7 +107,7 @@ func TestDeploySkills_GenericDirForNonCodexCLI(t *testing.T) {
 	}
 }
 
-func TestDeploySkills_AlwaysOnTargetsWithNoCLIs(t *testing.T) {
+func TestDeploySkills_AlwaysOnTargetWithNoCLIs(t *testing.T) {
 	kitDir := t.TempDir()
 	os.MkdirAll(filepath.Join(kitDir, "skills"), 0755)
 	os.WriteFile(filepath.Join(kitDir, "skills", "fab-new.md"), []byte("# New\n"), 0644)
@@ -117,13 +117,12 @@ func TestDeploySkills_AlwaysOnTargetsWithNoCLIs(t *testing.T) {
 
 	var err error
 	out := captureStdout(t, func() {
-		err = deploySkills(repoRoot, kitDir)
+		err = deploySkills(repoRoot, kitDir, agentAvailable("claude"))
 	})
 	if err != nil {
 		t.Fatalf("deploySkills: %v", err)
 	}
 	for _, target := range []string{
-		filepath.Join(repoRoot, ".claude", "skills", "fab-new", "SKILL.md"),
 		filepath.Join(repoRoot, ".agents", "skills", "fab-new", "SKILL.md"),
 	} {
 		if _, err := os.Stat(target); err != nil {
@@ -135,6 +134,12 @@ func TestDeploySkills_AlwaysOnTargetsWithNoCLIs(t *testing.T) {
 	}
 	if !strings.Contains(out, "Skipping OpenCode: opencode not found in PATH") {
 		t.Errorf("expected gated-target skip message, got:\n%s", out)
+	}
+	if _, err := os.Stat(filepath.Join(repoRoot, ".claude")); !os.IsNotExist(err) {
+		t.Errorf("gated Claude target must not deploy without claude: %v", err)
+	}
+	if !strings.Contains(out, "Skipping Claude Code: claude not found in PATH") {
+		t.Errorf("expected Claude skip message, got: %s", out)
 	}
 	if strings.Contains(out, "Warning:") {
 		t.Errorf("no global warning should follow successful always-on deployments, got:\n%s", out)
@@ -499,13 +504,13 @@ func TestDeploySkills_PropagatesAgentFailure(t *testing.T) {
 	os.WriteFile(filepath.Join(kitDir, "skills", "fab-new.md"), []byte("# New\n"), 0644)
 
 	repoRoot := t.TempDir()
-	// .claude exists read-only so the always-on Claude Code target fails.
+	// .claude exists read-only so the enabled Claude Code target fails.
 	claudeDir := filepath.Join(repoRoot, ".claude")
 	os.MkdirAll(claudeDir, 0755)
 	roDir(t, claudeDir)
 
-	t.Setenv("FAB_AGENTS", "foreign-agent")
-	err := deploySkills(repoRoot, kitDir)
+	t.Setenv("FAB_AGENTS", "claude")
+	err := deploySkills(repoRoot, kitDir, agentAvailable("claude"))
 	if err == nil {
 		t.Fatal("expected deploySkills to propagate the agent deployment failure (Sync must exit non-zero)")
 	}

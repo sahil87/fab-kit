@@ -49,7 +49,8 @@ docs/site/skill.md. Raw markdown, no rendering, no pager: an agent consumes the
 bytes directly.
 
 Not to be confused with fab's own kit-skills (the /fab-* markdown prompts that
-'fab sync' deploys to .claude/skills/) — this command prints one static page.`,
+'fab sync' deploys to .agents/skills/ unconditionally and to .claude/skills/
+when claude is available) — this command prints one static page.`,
 		// Accept zero args (print the bundle) or exactly the reserved topic
 		// `topics`; anything else falls through to cobra.NoArgs so the error
 		// shape stays cobra's default unknown-argument usage error.

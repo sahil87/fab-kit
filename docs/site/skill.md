@@ -108,8 +108,8 @@ whole pipeline gated on the single intake confidence gate).
 - **`fab` is two binaries.** The router forwards `init`, `upgrade-repo`, `sync`, `update`,
   `doctor`, and `migrations-status` to the `fab-kit` workspace binary; everything else goes
   to the version-pinned `fab-go` engine. You never call `fab-kit`/`fab-go` directly.
-- **`.claude/skills/` (and `.agents/`, `.opencode/`) are deployed copies.** `fab sync`
-  overwrites them from the kit. Never hand-edit a deployed skill — your edit is lost on the
+- **Agent directories hold deployed copies.** `fab sync` always writes `.agents/skills/`;
+  `.claude/skills/` requires `claude`, and `.opencode/commands/` requires `opencode`. Never hand-edit a deployed skill — your edit is lost on the
   next sync. In the fab-kit repo itself, the canonical source is `src/kit/skills/`.
 - **`fab skill` ≠ fab's kit-skills.** *This* command (the toolkit-standard bundle you are
   reading) is unrelated to fab's own "skills" — the `/fab-*` markdown prompts `fab sync`

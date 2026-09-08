@@ -5,7 +5,7 @@ description: "Set up a new project, manage config/constitution, or apply version
 
 # /fab-setup [subcommand]
 
-> Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.
+> Read the `_preamble` skill first (deployed to `.agents/skills/` via `fab sync`). Then follow its instructions before proceeding.
 > **Exception**: `/fab-setup` has subcommand-specific context loading:
 > - **bare / config / constitution**: Skip the "Always Load" context layer if files don't exist (first-run). Load them only if they already exist (re-run scenario).
 > - **migrations**: Load `fab/project/config.yaml` (MUST exist). Skip Change Context loading — migrations operate on project-level files, not a specific change.
@@ -91,7 +91,7 @@ Run `fab sync`. The command owns all non-interactive structural setup in one ide
 - **Skeleton files** (copy-if-absent from `$(fab kit-path)/scaffold/`): `fab/project/context.md`, `fab/project/code-quality.md`, `fab/project/code-review.md`, `docs/memory/index.md`, `docs/specs/index.md` (creating `docs/memory/` and `docs/specs/` as needed)
 - **Directories**: `fab/changes/`, `fab/changes/archive/`, `fab/changes/.gitkeep`
 - **`fab/.kit-migration-version`** (see 1d)
-- **Skill deployment**: verifies and repairs regular-file copies from the cache kit at `.claude/skills/{name}/SKILL.md` (replacing stale symlinks)
+- **Skill deployment**: verifies and repairs regular-file copies from the cache kit at `.agents/skills/{name}/SKILL.md` (replacing stale symlinks)
 - **`.gitignore`**: line-ensure merge of the kit's fragment (adds `.fab-*`, which covers `.fab-status.yaml`)
 
 **Sync-failure guard**: if `fab sync` exits non-zero, STOP immediately and surface its output — do not continue the bootstrap. (Sync requires a resolvable pinned version in `fab/.fab-version`, which `fab init` stamps.)
@@ -113,7 +113,7 @@ Found kit v{VERSION}. Initializing project...
 {config.yaml + constitution.md interactive creation}
 Created: fab/project/config.yaml
 Created: fab/project/constitution.md
-{fab sync report — scaffold files, fab/changes/ (+ archive), fab/.kit-migration-version ({version}), skills to .claude/skills/, .gitignore merge (.fab-*)}
+{fab sync report — scaffold files, fab/changes/ (+ archive), fab/.kit-migration-version ({version}), skills to .agents/skills/, .gitignore merge (.fab-*)}
 fab/ initialized successfully.
 
 Next: {per state table — initialized}

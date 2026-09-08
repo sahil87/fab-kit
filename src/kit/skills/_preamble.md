@@ -9,7 +9,7 @@ metadata:
 # Shared Context Preamble
 
 > This file defines shared conventions for all Fab skills. Each skill file should begin with:
-> ``Read the `_preamble` skill first (deployed to `.claude/skills/` via `fab sync`). Then follow its instructions before proceeding.``
+> ``Read the `_preamble` skill first (deployed to `.agents/skills/` via `fab sync`). Then follow its instructions before proceeding.``
 
 ## Contents
 
@@ -122,9 +122,9 @@ helpers: [_generation, _review, _srad, _pipeline]
 
 **Implicit** (never list): `_preamble` itself is loaded universally.
 
-**Semantics**: After reading `_preamble` and before executing the skill body, the agent MUST read `.claude/skills/{helper}/SKILL.md` for each declared helper. Skills that declare no `helpers:` list (or an empty list) load only `_preamble`.
+**Semantics**: After reading `_preamble` and before executing the skill body, the agent MUST read `.agents/skills/{helper}/SKILL.md` for each declared helper. Skills that declare no `helpers:` list (or an empty list) load only `_preamble`.
 
-**Stage-conditional loading**: A skill MAY instead load a helper at its point of use via an explicit in-body read instruction (e.g., "read `.claude/skills/_review/SKILL.md` before entering Review Behavior"). Frontmatter `helpers:` declares unconditional pre-body loads; in-body read instructions declare conditional ones — a helper loaded this way is intentionally absent from the frontmatter list. `/fab-continue` uses this for `_generation` (apply entry / intake regeneration) and `_review` (review stage).
+**Stage-conditional loading**: A skill MAY instead load a helper at its point of use via an explicit in-body read instruction (e.g., "read `.agents/skills/_review/SKILL.md` before entering Review Behavior"). Frontmatter `helpers:` declares unconditional pre-body loads; in-body read instructions declare conditional ones — a helper loaded this way is intentionally absent from the frontmatter list. `/fab-continue` uses this for `_generation` (apply entry / intake regeneration) and `_review` (review stage).
 
 ---
 
@@ -271,7 +271,7 @@ Orchestrator skills (`/fab-ff`, `/fab-fff`, and the prefix-step orchestrator `/f
 
 **Dispatch pattern** — each subagent prompt includes:
 
-1. The skill file to read (deployed to `.claude/skills/{skill}/SKILL.md`)
+1. The skill file to read (deployed to `.agents/skills/{skill}/SKILL.md`)
 2. The specific behavior section to follow (e.g., "Apply Behavior", "Auto Mode")
 3. The change ID for resolution
 4. The expected return format

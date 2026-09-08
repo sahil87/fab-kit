@@ -17,7 +17,7 @@ func TestScaffoldTreeWalk_CopyIfAbsent(t *testing.T) {
 	os.WriteFile(filepath.Join(scaffoldDir, "docs", "memory", "index.md"), []byte("# Index\n"), 0644)
 
 	// Run tree-walk
-	if err := scaffoldTreeWalk(scaffoldDir, repoRoot); err != nil {
+	if err := scaffoldTreeWalk(scaffoldDir, repoRoot, true); err != nil {
 		t.Fatalf("scaffoldTreeWalk failed: %v", err)
 	}
 
@@ -42,7 +42,7 @@ func TestScaffoldTreeWalk_CopyIfAbsentSkip(t *testing.T) {
 	os.WriteFile(filepath.Join(repoRoot, "existing.md"), []byte("user content\n"), 0644)
 
 	// Run tree-walk
-	if err := scaffoldTreeWalk(scaffoldDir, repoRoot); err != nil {
+	if err := scaffoldTreeWalk(scaffoldDir, repoRoot, true); err != nil {
 		t.Fatalf("scaffoldTreeWalk failed: %v", err)
 	}
 
@@ -221,7 +221,7 @@ func TestScaffoldTreeWalk_PropagatesFragmentWriteError(t *testing.T) {
 	}
 	os.WriteFile(filepath.Join(scaffoldDir, "blocker", "fragment-.gitignore"), []byte("node_modules/\n"), 0644)
 
-	err := scaffoldTreeWalk(scaffoldDir, repoRoot)
+	err := scaffoldTreeWalk(scaffoldDir, repoRoot, true)
 	if err == nil {
 		t.Fatal("expected scaffoldTreeWalk to propagate the fragment write error, got nil")
 	}
@@ -673,5 +673,30 @@ func TestScaffoldDirectories_MissingKitVersionFails(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "VERSION") {
 		t.Errorf("expected kit VERSION read error, got: %v", err)
+	}
+}
+
+func TestScaffoldTreeWalk_ClaudeGatePreservesOtherDestinations(t *testing.T) {
+	scaffoldDir := t.TempDir()
+	repoRoot := t.TempDir()
+	for _, rel := range []string{".claude/fragment-settings.local.json", ".claude/nested/config.md", ".claude-other/config.md", "docs/config.md"} {
+		path := filepath.Join(scaffoldDir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("scaffold\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := scaffoldTreeWalk(scaffoldDir, repoRoot, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(repoRoot, ".claude")); !os.IsNotExist(err) {
+		t.Errorf("Claude scaffold must be skipped before creating directories: %v", err)
+	}
+	for _, rel := range []string{".claude-other/config.md", "docs/config.md"} {
+		if _, err := os.Stat(filepath.Join(repoRoot, filepath.FromSlash(rel))); err != nil {
+			t.Errorf("unrelated destination %s must still deploy: %v", rel, err)
+		}
 	}
 }

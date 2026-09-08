@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -40,7 +41,7 @@ func prependPrereqShims(t *testing.T) {
 
 // setupSyncRepo creates a real git repo with a fab project config, chdirs
 // into it, and populates a HOME-rooted "dev" kit cache (VERSION, two skills,
-// a scaffold with one copy-if-absent file and one line-ensure fragment).
+// a scaffold with copy-if-absent, line-ensure, and Claude permissions files).
 func setupSyncRepo(t *testing.T) string {
 	t.Helper()
 	requireGit(t)
@@ -57,6 +58,7 @@ func setupSyncRepo(t *testing.T) string {
 	for _, d := range []string{
 		filepath.Join(kitDir, "skills"),
 		filepath.Join(kitDir, "scaffold", "docs", "specs"),
+		filepath.Join(kitDir, "scaffold", ".claude"),
 	} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			t.Fatal(err)
@@ -74,6 +76,8 @@ func setupSyncRepo(t *testing.T) string {
 	writeOrFatal(filepath.Join(kitDir, "skills", "fab-help.md"), "# /fab-help\n", 0644)
 	writeOrFatal(filepath.Join(kitDir, "scaffold", "docs", "specs", "index.md"), "# Specs Index\n", 0644)
 	writeOrFatal(filepath.Join(kitDir, "scaffold", "fragment-.gitignore"), "# managed entries\n.claude/\n", 0644)
+
+	writeOrFatal(filepath.Join(kitDir, "scaffold", ".claude", "fragment-settings.local.json"), `{ "permissions": { "allow": ["Bash(fab *)"] } }`, 0644)
 
 	// Project config (existing-project shape) + an idempotent project sync script.
 	if err := os.MkdirAll(filepath.Join(repo, "fab", "project"), 0755); err != nil {
@@ -219,15 +223,17 @@ func TestSync_FullRunProducesExpectedTree(t *testing.T) {
 		t.Errorf("expected 'Done.' in output, got:\n%s", out)
 	}
 
-	// Skills deployed for the claude agent (directory format).
-	for _, skill := range []string{"fab-new", "fab-help"} {
-		data, err := os.ReadFile(filepath.Join(repo, ".claude", "skills", skill, "SKILL.md"))
-		if err != nil {
-			t.Errorf("skill %s not deployed: %v", skill, err)
-			continue
-		}
-		if !strings.Contains(string(data), skill) {
-			t.Errorf("deployed %s content mismatch: %q", skill, data)
+	// Both the enabled Claude target and the portable target get full copies.
+	for _, target := range []string{".claude", ".agents"} {
+		for _, skill := range []string{"fab-new", "fab-help"} {
+			data, err := os.ReadFile(filepath.Join(repo, target, "skills", skill, "SKILL.md"))
+			if err != nil {
+				t.Errorf("%s skill %s not deployed: %v", target, skill, err)
+				continue
+			}
+			if string(data) != "# /"+skill+"\n" {
+				t.Errorf("deployed %s content mismatch: %q", skill, data)
+			}
 		}
 	}
 
@@ -243,11 +249,10 @@ func TestSync_FullRunProducesExpectedTree(t *testing.T) {
 		}
 	}
 
-	// No hook registration: the `fab hook` command family was removed, so sync
-	// no longer writes .claude/settings.local.json (settings cleanup is handled
-	// by the 2.13.6-to-2.14.0 migration, not by sync).
-	if _, err := os.Stat(filepath.Join(repo, ".claude", "settings.local.json")); !os.IsNotExist(err) {
-		t.Errorf("sync must not create settings.local.json (hook registration removed); stat err=%v", err)
+	// Claude permissions come from scaffolding, independently of removed hooks.
+	settings, err := os.ReadFile(filepath.Join(repo, ".claude", "settings.local.json"))
+	if err != nil || !strings.Contains(string(settings), "Bash(fab *)") {
+		t.Errorf("expected scaffold permissions, got %q: %v", settings, err)
 	}
 
 	// Project sync script ran.
@@ -255,7 +260,7 @@ func TestSync_FullRunProducesExpectedTree(t *testing.T) {
 		t.Errorf("expected project sync script marker: %v", err)
 	}
 
-	// Generated manifests: both always-on directory targets get a
+	// Generated manifests: both enabled directory targets get a
 	// whole-file-owned .gitignore listing exactly the deployed skills.
 	wantManifest := manifestHeaderSkills + "/.gitignore\n/fab-help/\n/fab-new/\n"
 	for _, target := range []string{
@@ -264,7 +269,7 @@ func TestSync_FullRunProducesExpectedTree(t *testing.T) {
 	} {
 		manifest, err := os.ReadFile(target)
 		if err != nil {
-			t.Errorf("always-on target must get a generated manifest at %s: %v", target, err)
+			t.Errorf("enabled target must get a generated manifest at %s: %v", target, err)
 			continue
 		}
 		if string(manifest) != wantManifest {
@@ -510,5 +515,59 @@ func TestCleanLegacyAgents_NoAgentsDirIsNoop(t *testing.T) {
 	cleanLegacyAgents(repo, kitDir)
 	if _, err := os.Stat(filepath.Join(repo, ".claude")); !os.IsNotExist(err) {
 		t.Error("cleanLegacyAgents must not create .claude/")
+	}
+}
+
+func TestSync_WithoutClaude(t *testing.T) {
+	for _, agents := range []string{"codex", "", "opencode"} {
+		t.Run(agents, func(t *testing.T) {
+			repo := setupSyncRepo(t)
+			t.Setenv("FAB_AGENTS", agents)
+			if err := Sync("dev", "dev", false, false); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(filepath.Join(repo, ".claude")); !os.IsNotExist(err) {
+				t.Errorf("sync without claude must not create .claude/: %v", err)
+			}
+			for _, skill := range []string{"fab-new", "fab-help"} {
+				data, err := os.ReadFile(filepath.Join(repo, ".agents", "skills", skill, "SKILL.md"))
+				if err != nil || string(data) != "# /"+skill+"\n" {
+					t.Errorf("portable skill %s: %q, %v", skill, data, err)
+				}
+			}
+			manifest, err := os.ReadFile(filepath.Join(repo, ".agents", "skills", ".gitignore"))
+			if err != nil || string(manifest) != manifestHeaderSkills+"/.gitignore\n/fab-help/\n/fab-new/\n" {
+				t.Errorf("portable manifest: %q, %v", manifest, err)
+			}
+			_, err = os.Stat(filepath.Join(repo, ".opencode", "commands", "fab-new.md"))
+			if agents == "opencode" && err != nil || agents != "opencode" && !os.IsNotExist(err) {
+				t.Errorf("OpenCode gate with FAB_AGENTS=%q: %v", agents, err)
+			}
+		})
+	}
+}
+
+func TestSync_WithoutClaudePreservesExistingTree(t *testing.T) {
+	repo := setupSyncRepo(t)
+	if err := Sync("dev", "dev", false, false); err != nil {
+		t.Fatal(err)
+	}
+	claudeDir := filepath.Join(repo, ".claude")
+	for _, rel := range []string{"skills/fab-new/SKILL.md", "skills/stale/SKILL.md", "agents/fab-new.md", "settings.local.json"} {
+		path := filepath.Join(claudeDir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("user content\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before := snapshotTree(t, claudeDir)
+	t.Setenv("FAB_AGENTS", "codex")
+	if err := Sync("dev", "dev", false, false); err != nil {
+		t.Fatal(err)
+	}
+	if after := snapshotTree(t, claudeDir); !reflect.DeepEqual(before, after) {
+		t.Errorf("sync without claude changed existing tree: before=%v after=%v", before, after)
 	}
 }
