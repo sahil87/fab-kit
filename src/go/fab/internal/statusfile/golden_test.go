@@ -2,7 +2,7 @@ package statusfile
 
 // Golden byte-stability tests for the yaml-mediated .status.yaml write path
 // (260612-tb6f, F41). The .status.yaml emit format is a documented stability
-// surface: skills and orchestrators parse it, and `fab memory-index`-style
+// surface: skills and orchestrators parse it, and `fab docs-index`-style
 // byte-stability is the contract that keeps diffs quiet. These tests pin the
 // exact bytes yaml.v3 produces for a representative, fully-populated document
 // so that any yaml-library change (e.g., a goccy/go-yaml evaluation) has an

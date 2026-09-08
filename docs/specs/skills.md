@@ -358,10 +358,10 @@ User invokes /docs-hydrate-memory [sources...|folders...|backfill]
 ├─ Ingest (URLs/.md): WebFetch/Read sources → Write topic files from template + index stubs → self-check → regen
 ├─ Generate (folders/none): Glob/Read codebase → gap report → Write from template + index stubs → self-check → regen
 └─ Backfill (keyword / reorg dispatch): re-scan for missing description: → Edit: prepend frontmatter (body preserved, idempotent); regen deferred when reorg-dispatched
-   (regen = Bash: fab memory-index --check refuse-guard → fab memory-index)
+   (regen = Bash: fab docs-index docs/memory --check refuse-guard → fab docs-index docs/memory)
 ```
 
-**Tools**: Read/Glob/Grep/WebFetch (sources, codebase scan, memory re-scan, `templates/memory.md` shape), Write/Edit (new memory files + index stubs; backfilled frontmatter), Bash (`fab memory-index --check` refuse-guard; `fab memory-index` regen).
+**Tools**: Read/Glob/Grep/WebFetch (sources, codebase scan, memory re-scan, `templates/memory.md` shape), Write/Edit (new memory files + index stubs; backfilled frontmatter), Bash (`fab docs-index docs/memory --check` refuse-guard; `fab docs-index docs/memory` regen).
 
 **Sub-agents**: None — backfill mode is dispatched by `/docs-reorg-memory`; this skill spawns none.
 
@@ -506,13 +506,13 @@ User invokes /fab-continue [change-name] [stage]
 │  APPLY (dispatched): no plan.md → Write plan.md; per unchecked task: Edit/Write sources → Bash: tests → check off plan.md → finish apply
 │  REVIEW (dispatched; worker reads _review.md, runs review inline): read diff/plan/source/memory → tests → unified findings
 │    pass → finish review + set-acceptance / fail → fail review + reset apply (rework options)
-│  HYDRATE (dispatched): Write/Edit docs/memory/** → set-summary → fab memory-index → finish hydrate
+│  HYDRATE (dispatched): Write/Edit docs/memory/** → set-summary → fab docs-index docs/memory → finish hydrate
 │  SHIP: delegate to /git-pr <change>
 │  REVIEW-PR: delegate to /git-pr-review <change> (timeout → stage left active)
 └─ Output: summary + Next: line
 ```
 
-**Tools**: Read (preamble, templates, artifacts, source, memory), Write (`plan.md`, memory files), Edit (plan checkboxes, memory), Bash (`fab status` transitions, `fab preflight`, `fab memory-index`, tests), Agent (review sub-agent).
+**Tools**: Read (preamble, templates, artifacts, source, memory), Write (`plan.md`, memory files), Edit (plan checkboxes, memory), Bash (`fab status` transitions, `fab preflight`, `fab docs-index docs/memory`, tests), Agent (review sub-agent).
 
 **Sub-agents**: Single review sub-agent (reads `_review.md`, runs the review inline; returns one unified findings set).
 
@@ -1176,7 +1176,7 @@ User invokes /docs-hydrate-specs [domain]
 **Prerequisite**: `docs/memory/index.md` must exist and `docs/memory/` must contain at least one domain with `.md` files besides `index.md`.
 
 **Behavior**:
-1. Read all memory files — extract headings, section summaries, approximate line counts. One `fab memory-index --check --json` call feeds three consumers: `losses[]` (compatibility detection), `warnings[]` `file-size` (Shape Report over-size file rows), `warnings[]` `unsorted-nonempty` (`_unsorted/` triage); older-binary ⇒ prose fallback / read-pass line counts / folder listing
+1. Read all memory files — extract headings, section summaries, approximate line counts. One `fab docs-index docs/memory --check --json` call feeds three consumers: `losses[]` (compatibility detection), `warnings[]` `file-size` (Shape Report over-size file rows), `warnings[]` `unsorted-nonempty` (`_unsorted/` triage); older-binary ⇒ prose fallback / read-pass line counts / folder listing
 2. Identify themes (up to 10) with cohesion assessment (concentrated / scattered); detect **duplicate coverage** — the same topic in 2+ files (near-identical filenames/descriptions, same filename in two domains, heavy heading overlap) → `## Duplicate Coverage` table (remediation: `merge-file` or `move-section`; cross-references the open single-sourcing seam audit, not scope)
 3. Diagnose current structure — a **Shape Report** flagging over-width/over-depth/under-floor **folders AND over-size topic files** (~400 lines / ~15KB → `split-file` candidates when ≥2 topic clusters; long-but-cohesive reported, not split); an `_unsorted/` triage (per-file `move`-to-domain default / `delete` with per-file confirmation; `_unsorted/` keeps its bounds exemption)
 4. Propose reorganization with a Migration Map (`Kind` ∈ `move-section` / `split-domain` / `merge-domain` / `flatten` / `move` / `split-file` / `merge-file`) + a Link Impact note for every move-bearing migration. `split-file` fans one multi-topic file into ≥2 topic files (verbatim bodies — restyling stays `/docs-distill-memory`'s; new `type: memory` + change-id-free `description:`; anchored inbound links follow their heading, un-anchored retarget to the dominant-topic file, ambiguity → abort escape). `merge-file` folds a duplicate-coverage file into a canonical sibling
@@ -1190,13 +1190,13 @@ User invokes /docs-hydrate-specs [domain]
 
 ```text
 User invokes /docs-reorg-memory
-├─ Pre-flight; Read: all memory files + one Bash: fab memory-index --check --json (feeds compatibility, shape, _unsorted/, completion chain)
+├─ Pre-flight; Read: all memory files + one Bash: fab docs-index docs/memory --check --json (feeds compatibility, shape, _unsorted/, completion chain)
 ├─ Diagnose: Shape Report + compatibility + duplicate coverage + _unsorted/ triage → propose reorg → approval gate
 ├─ [compat approved] Write: _shared/removed-domains.md; dispatch /docs-hydrate-memory backfill
-└─ [approved] per migration: Write/Edit moves/splits/merges + link rewrites → Bash: fab memory-index → verify (no lost headings/dangling links) → Next: /docs-distill-memory with flagged counts
+└─ [approved] per migration: Write/Edit moves/splits/merges + link rewrites → Bash: fab docs-index docs/memory → verify (no lost headings/dangling links) → Next: /docs-distill-memory with flagged counts
 ```
 
-**Tools**: Read (all memory files and indexes), Write/Edit (approved moves/splits/merges, link rewrites, tombstone file, `_unsorted/` triage), Bash (one `fab memory-index --check --json` — four consumers; `fab memory-index` regen), Agent (dispatch `/docs-hydrate-memory` backfill during compatibility orchestration).
+**Tools**: Read (all memory files and indexes), Write/Edit (approved moves/splits/merges, link rewrites, tombstone file, `_unsorted/` triage), Bash (one `fab docs-index docs/memory --check --json` — four consumers; `fab docs-index docs/memory` regen), Agent (dispatch `/docs-hydrate-memory` backfill during compatibility orchestration).
 
 **Sub-agents**: `/docs-hydrate-memory` (backfill mode) — synthesizes `description:` frontmatter; defer-regen so reorg owns the single regen.
 
@@ -1213,28 +1213,28 @@ User invokes /docs-reorg-memory
 **Arguments**: `<domain>` is **optional**. Named explicitly, it forces a full read of that one domain (survey skipped) and runs the one-domain flow once (no loop). Omitted, it runs **survey mode** — a cheap heuristic scan across all domains that reports per-domain candidate counts, builds a flagged-domain worklist, and then **loops every flagged domain sequentially** in `docs/memory/index.md` domain-table order, running the one-domain flow (full read → per-file report → per-domain approval → apply → regen) as the loop body per domain (main session, no per-domain dispatch); or reports the terminal all-distilled case when nothing is flagged. No-arg no longer aborts and no longer stops after one domain.
 
 **Behavior**:
-1. **Survey mode (no-arg only)**: a single `fab memory-index --check --json` call (the canonical machine surface, not an agent-side grep) counts flagged files per domain (in `docs/memory/index.md` domain-table order) by aggregating four finding kinds — `malformed[]` `description-change-id` + `description-over-cap` (blocking) and `warnings[]` `description-length` (501–1000 advisory) + `narration-density`; a file with multiple findings counts once, a sub-domain file rolls up to its domain (first path segment), and the check's exit code does NOT gate the survey (a missing `type: memory` is not a survey signal). Older-binary fallback (no `--json`/`warnings`): the legacy grep of three classes (`description:` over the 500-char cap, change-ids in `description:`, body narration markers) + an "upgrade fab" warning. Report per-domain counts with the heuristic caveat, build the flagged-domain worklist, then **loop every flagged domain sequentially** (index-table order) — the survey runs **once**, no re-survey between domains — running the one-domain flow (steps 2–5) as the loop body per domain in the main session. A **skipped** domain stays untouched and the loop continues; an already-distilled worklist domain reports "already distilled" and continues; an exit-2 within one domain follows per-domain handling without swallowing the rest; the terminal state is all-distilled or a skipped/remaining summary. If nothing is flagged, report "all domains distilled (survey heuristic)" with the caveat and stop. An explicit `<domain>` skips this step and runs the one-domain flow once (no loop).
+1. **Survey mode (no-arg only)**: a single `fab docs-index docs/memory --check --json` call (the canonical machine surface, not an agent-side grep) counts flagged files per domain (in `docs/memory/index.md` domain-table order) by aggregating four finding kinds — `malformed[]` `description-change-id` + `description-over-cap` (blocking) and `warnings[]` `description-length` (501–1000 advisory) + `narration-density`; a file with multiple findings counts once, a sub-domain file rolls up to its domain (first path segment), and the check's exit code does NOT gate the survey (a missing `type: memory` is not a survey signal). Sampled advisories trigger the same read-only grep survey, merged with complete blocking findings, so omitted domains are not mistaken for clean. Older-binary fallback (no `--json`/`warnings`): the legacy grep of three classes (`description:` over the 500-char cap, change-ids in `description:`, body narration markers) + an "upgrade fab" warning. Report per-domain counts with the heuristic caveat, build the flagged-domain worklist, then **loop every flagged domain sequentially** (index-table order) — the survey runs **once**, no re-survey between domains — running the one-domain flow (steps 2–5) as the loop body per domain in the main session. A **skipped** domain stays untouched and the loop continues; an already-distilled worklist domain reports "already distilled" and continues; an exit-2 within one domain follows per-domain handling without swallowing the rest; the terminal state is all-distilled or a skipped/remaining summary. If nothing is flagged, report "all domains distilled (survey heuristic)" with the caveat and stop. An explicit `<domain>` skips this step and runs the one-domain flow once (no loop).
 2. Read the resolved domain's topic files read-only; classify transition narration, superseded-state prose, `description:` defects (over-cap, change-ids), **change-id heading suffixes** (strip, registry-gated), **byte-identical duplicate blocks** (dedup; near-duplicates flagged, never auto-merged), **Design-Decisions changelog bullets** (rewrite to four-field or remove pure history; never fabricate rationale), **embedded operational TODOs** (relocate → `fab/backlog.md`), rationale-carrying narration (relocate), and allowed provenance (keep)
 3. Report per-file proposed rewrites (before/after for the non-obvious; every relocation shown, incl. TODO → backlog relocations; near-duplicates flagged not auto-merged); state per file whether content is deleted vs. relocated and where deleted content is already recorded
 4. User confirmation — apply all, cherry-pick specific files, or skip
-5. On approval, rewrite bodies to present truth (removing narration, stripping change-id heading suffixes, deduping byte-identical blocks, rewriting DD changelog bullets, relocating rationale into Design Decisions `Why`/`Rejected`, preserving trailing `(change-id)` + `*Introduced by*`), relocate operational TODOs to `fab/backlog.md` (never delete; create with a `# Backlog` header when absent), fix `description:` frontmatter, then regenerate indexes via `fab memory-index` — consulting `fab memory-index --check` first and refusing on exit 2 (destructive loss)
+5. On approval, rewrite bodies to present truth (removing narration, stripping change-id heading suffixes, deduping byte-identical blocks, rewriting DD changelog bullets, relocating rationale into Design Decisions `Why`/`Rejected`, preserving trailing `(change-id)` + `*Introduced by*`), relocate operational TODOs to `fab/backlog.md` (never delete; create with a `# Backlog` header when absent), fix `description:` frontmatter, then regenerate indexes via `fab docs-index docs/memory` — consulting `fab docs-index docs/memory --check` first and refusing on exit 2 (destructive loss)
 6. Emit a **dynamic `Next:` line** reporting surveyed **skipped/remaining** domains (with flagged-file counts, in index.md order) as a follow-up targeted-run pointer, or "all domains distilled" when none remain. It reports surveyed truth; it **no longer drives per-domain re-invocation** (the no-arg loop already processes every flagged domain in one invocation). No-arg reflects the initial survey minus every domain fully distilled this run (a skipped/partially-cherry-picked domain stays listed while still flagged); an explicit `<domain>` runs the survey at completion to populate it.
 
-**Key properties**: No active change required. `<domain>` optional (named = single-domain full-read override, no loop; omitted = survey mode + all-domains loop). One domain per **approval/apply unit**, iterated within a single invocation — a property of the analysis+apply/approval unit, not the invocation (each domain is read-in-full, reported, approved, and rewritten as its own unit; a no-arg invocation loops that unit over every flagged domain, an explicit `<domain>` runs it once; the per-domain approval gate is retained, no bulk approval). Idempotent (an already-distilled domain proposes nothing; a fully-distilled tree surveys clean so the no-arg loop's worklist is empty; `fab memory-index` is byte-stable). Rationale is relocated, never deleted; deletion is confined to narration recorded elsewhere (log.md/git/archive), and **never fabricated** when rewriting a DD bullet. `_shared/removed-domains.md` is exempt (§3.3 tombstone carve-out). The generated files `index.md`/`log.md` are never hand-edited; `log.seed.md` is a curated read-only seed input (never written by the generator) that distillation excludes like a ledger. Writes one file outside `docs/memory/` — `fab/backlog.md` (operational-TODO relocation). Moves no files, auto-merges no near-/cross-file duplicates (structural moves + cross-file merges belong to `/docs-reorg-memory`).
+**Key properties**: No active change required. `<domain>` optional (named = single-domain full-read override, no loop; omitted = survey mode + all-domains loop). One domain per **approval/apply unit**, iterated within a single invocation — a property of the analysis+apply/approval unit, not the invocation (each domain is read-in-full, reported, approved, and rewritten as its own unit; a no-arg invocation loops that unit over every flagged domain, an explicit `<domain>` runs it once; the per-domain approval gate is retained, no bulk approval). Idempotent (an already-distilled domain proposes nothing; a fully-distilled tree surveys clean so the no-arg loop's worklist is empty; `fab docs-index docs/memory` is byte-stable). Rationale is relocated, never deleted; deletion is confined to narration recorded elsewhere (log.md/git/archive), and **never fabricated** when rewriting a DD bullet. `_shared/removed-domains.md` is exempt (§3.3 tombstone carve-out). The generated files `index.md`/`log.md` are never hand-edited; `log.seed.md` is a curated read-only seed input (never written by the generator) that distillation excludes like a ledger. Writes one file outside `docs/memory/` — `fab/backlog.md` (operational-TODO relocation). Moves no files, auto-merges no near-/cross-file duplicates (structural moves + cross-file merges belong to `/docs-reorg-memory`).
 
 
 **Flow**:
 
 ```text
 User invokes /docs-distill-memory [<domain>]
-├─ [omitted] Survey: Bash: fab memory-index --check --json → flagged-domain worklist → per-domain loop in main session; [none flagged] STOP
+├─ [omitted] Survey: Bash: fab docs-index docs/memory --check --json → flagged-domain worklist → per-domain loop in main session; [none flagged] STOP
 ├─ [given] skip survey, full read of that one domain (no loop); Pre-flight: index.md + ≥1 topic file
 ├─ Read: domain files + $(fab kit-path)/reference/fkf.md → classify (narration / superseded prose / description: defects / duplicates / DD changelog bullets / TODOs / rationale)
 ├─ Report → approval gate → [declined] stop, no mutation
-└─ [approved] Edit rewrites; relocate TODOs → fab/backlog.md; then once: Bash: fab memory-index --check → fab memory-index; Next: remaining flagged domains
+└─ [approved] Edit rewrites; relocate TODOs → fab/backlog.md; then once: Bash: fab docs-index docs/memory --check → fab docs-index docs/memory; Next: remaining flagged domains
 ```
 
-**Tools**: Read (domain files + fkf.md reference; survey JSON output), Edit/Write (approved present-truth rewrites; TODO relocation into `fab/backlog.md`), Bash (`fab memory-index --check --json` survey; refuse-guarded `--check` + `fab memory-index` regen).
+**Tools**: Read (domain files + fkf.md reference; survey JSON output), Edit/Write (approved present-truth rewrites; TODO relocation into `fab/backlog.md`), Bash (`fab docs-index docs/memory --check --json` survey; refuse-guarded `--check` + `fab docs-index docs/memory` regen).
 
 **Sub-agents**: None — runs inline, including the no-arg all-domains loop.
 
@@ -1244,7 +1244,7 @@ User invokes /docs-distill-memory [<domain>]
 
 **Purpose**: Analyze spec files for themes and propose a reorganization plan. Read-only by default — files only moved/rewritten with explicit user approval.
 
-**Context**: `docs/specs/index.md` and all spec files. Does NOT require `.fab-status.yaml`, config, or constitution.
+**Context**: `docs/specs/index.md` and all spec files. Reads optional project config for docs-index root selection; does NOT require `.fab-status.yaml` or constitution.
 
 **Prerequisite**: `docs/specs/index.md` must exist and `docs/specs/` must contain at least one `.md` file besides `index.md`.
 
@@ -1252,8 +1252,8 @@ User invokes /docs-distill-memory [<domain>]
 1. Read all spec files — extract headings, section summaries, approximate line counts
 2. Identify themes (up to 10) with cohesion assessment (concentrated / scattered)
 3. Diagnose current structure — what works, pain points, missing connections
-4. Propose reorganization with migration map and updated index preview
-5. User confirmation — apply all, cherry-pick specific migrations, or skip
+4. Propose reorganization with migration map and navigation layout
+5. User confirmation — apply all, cherry-pick specific migrations, or skip; after approved moves, regenerate configured specs navigation using the `_cli-fab` § fab docs-index procedure (unconfigured roots retain manually maintained navigation).
 
 **Key properties**: No active change required. No git operations. Idempotent. Spec files modified only with explicit confirmation.
 
@@ -1264,10 +1264,10 @@ User invokes /docs-distill-memory [<domain>]
 User invokes /docs-reorg-specs
 ├─ Pre-flight; Read: all spec files (recursing subfolders)
 ├─ Propose reorganization → approval gate
-└─ [approved] Write/Edit: moved files (bytes verbatim) + Edit: docs/specs/index.md (hand-rewritten)
+└─ [approved] Write/Edit: approved moves → configured docs-index --check guard + regen; otherwise manual navigation
 ```
 
-**Tools**: Read (all spec files and index), Write/Edit (approved reorganizations).
+**Tools**: Read (all spec files, index, optional config), Write/Edit (approved reorganizations), Bash (`fab docs-index docs/specs --check` and regeneration).
 
 **Sub-agents**: None.
 
@@ -1431,7 +1431,7 @@ User invokes /code-dedupe [scope]
 ├─ Gather: branch/status/log, gh pr view → {pr_state}, default branch, fab status get-issues
 ├─ Guards: detached HEAD / on default branch / {pr_state} MERGED → STOP
 ├─ 3a Commit: expected-area guard for untracked files → git add -u + in-area untracked → commit
-├─ 3a-bis (if {has_fab} + committed): Bash: fab memory-index → commit docs/memory drift (no --amend)
+├─ 3a-bis (if {has_fab} + committed): Bash: fab docs-index docs/memory → commit docs/memory drift (no --amend)
 ├─ 3b Push; 3c Create PR (no OPEN PR): Read intake → Bash: fab pr-meta → ## Meta block → gh pr create --draft (--fill fallback)
 ├─ 3d Retrofit ## Meta onto existing OPEN PR (idempotent prepend)
 └─ 4a–4c: fab status add-pr + finish ship stage; commit + push .status.yaml/.history.jsonl

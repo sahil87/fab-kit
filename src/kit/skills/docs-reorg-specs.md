@@ -25,9 +25,14 @@ Read all spec files in `docs/specs/`, identify themes (up to 10), and propose a 
 
 ### Human-Curated Spec Rules
 
-> **Specs are human-curated (a fab-kit design principle), which drives two rules:**
-> 1. **No compatibility/backfill step.** Unlike `/docs-reorg-memory` (which detects pre-fab-kit memory trees missing `description:` frontmatter and orchestrates a frontmatter backfill), `/docs-reorg-specs` has **no** compatibility or frontmatter-backfill step. There is no specs-index generator (no counterpart to `fab memory-index`); the specs index is hand-rewritten (Step 5), so a spec missing frontmatter breaks nothing downstream — there is no compatibility contract to violate, and no generated-index model for specs. Do not "fix the asymmetry" by adding a specs backfill — it would invent a non-problem and push specs toward the generated-index model the human-curated principle rejects.
-> 2. **Frontmatter-neutral moves — no FKF on specs.** FKF (`type: memory` + `description:`) governs `docs/memory/` **only**; specs are out of FKF scope and stay frontmatter-free. When this skill moves a spec it MUST NOT stamp, add, or synthesize `type:` / `description:` frontmatter — a moved spec carries exactly the bytes it had before (only its path and the `index.md` row change). This mirrors `/docs-reorg-memory`'s frontmatter-*preserving* moves: memory moves keep FKF frontmatter, spec moves add none. Spec links stay ordinary repo-relative; the index stays hand-rewritten.
+> **Specs remain human-curated; navigation may be generated.**
+> 1. **Generated navigation, no required backfill.** For configured roots, `fab docs-index docs/specs`
+> owns index generation. Consult `_cli-fab` § fab docs-index for landing ownership, seed-import,
+> sparse-description handling, superseded patterns, and the exit-2 guard. No frontmatter
+> backfill is required to index specs.
+> 2. **Frontmatter-neutral moves.** Moving a spec MUST NOT stamp, add, or synthesize
+> `type:` / `description:` frontmatter. Keep its bytes, updating links only when the
+> approved reorganization requires it. FKF applies to memory, not spec content.
 
 ---
 
@@ -42,7 +47,7 @@ If either fails, STOP with appropriate message.
 
 ## Context Loading
 
-Loads `docs/specs/index.md` and every `.md` file in `docs/specs/`. Does NOT require `.fab-status.yaml`, config, or constitution.
+Loads `docs/specs/index.md` and every `.md` file in `docs/specs/`. Also reads `fab/project/config.yaml` when present to determine whether `docs/specs` is configured in `docs_index.roots`. Does NOT require `.fab-status.yaml` or constitution.
 
 ---
 
@@ -80,8 +85,8 @@ Brief assessment (5-7 bullets max): what works well, pain points (too large, too
 | # | Section | From | To | Rationale |
 |---|---------|------|----|-----------|
 
-## Updated index.md Preview
-(markdown preview)
+## Navigation Plan
+(folder/landing layout; generator output is not hand-authored)
 ```
 
 Constraints: prefer fewer files, preserve existing names, keep files under ~300 lines, say so if current structure is fine.
@@ -90,7 +95,7 @@ Constraints: prefer fewer files, preserve existing names, keep files under ~300 
 
 Options: **Apply all**, **Cherry-pick** (select specific migrations), **Skip** (keep analysis only).
 
-On approval: execute migrations (a moved spec keeps its exact bytes — no FKF frontmatter stamped, per Human-Curated Spec Rules rule 2), rewrite `docs/specs/index.md`, verify no headings lost, present change summary.
+On approval: execute migrations under Human-Curated Spec Rules rule 2. For a configured specs root, regenerate navigation using the `_cli-fab` § fab docs-index procedure referenced in rule 1. For an unconfigured root, retain the human-maintained index and update its approved navigation manually; include adding the root configuration in a future proposal if generation is desired. Verify no headings or links were lost, then present the change summary.
 
 ---
 
@@ -131,5 +136,5 @@ If no changes needed: `Current structure is well-organized — no reorganization
 | Requires active change? | No |
 | Idempotent? | Yes |
 | Modifies spec files? | Yes — only with explicit confirmation; a moved spec keeps its exact bytes (no FKF stamped — Human-Curated Spec Rules rule 2) |
-| Stamps FKF frontmatter? | No — never adds `type:`/`description:` to a spec; no `fab specs-index` generator and no generated-index model for specs (Human-Curated Spec Rules rules 1–2) |
-| Requires config/constitution? | No |
+| Stamps FKF frontmatter? | No — see Human-Curated Spec Rules rule 2 |
+| Requires config/constitution? | Reads optional config for generator root selection; no constitution requirement |

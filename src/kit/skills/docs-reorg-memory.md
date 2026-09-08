@@ -21,7 +21,7 @@ description: "Analyze memory files for themes and suggest reorganization. Read-o
 
 Read all memory files across all domains in `docs/memory/`, identify themes (up to 10), diagnose **tree shape** (folder fan-out/depth **and** over-size files), detect **duplicate coverage** (the same topic in 2+ files), triage `_unsorted/` staging, and propose a reorganization plan. Read-only by default — files only moved/rewritten with explicit user approval.
 
-As the **memory rebalancer**, the skill proposes `split-file` / `merge-file` operations and domain splits, merges, or flattening when the ideal-shape bounds below are exceeded. On approval it performs the moves, rewrites affected **bundle-relative** links, and regenerates indexes via `fab memory-index`.
+As the **memory rebalancer**, the skill proposes `split-file` / `merge-file` operations and domain splits, merges, or flattening when the ideal-shape bounds below are exceeded. On approval it performs the moves, rewrites affected **bundle-relative** links, and regenerates indexes via `fab docs-index docs/memory`.
 
 > **FKF-aware moves (`$(fab kit-path)/reference/fkf.md` §7).** Memory↔memory links are **bundle-relative** (`](/{domain}[/{sub}]/{file}.md)`, resolved from `docs/memory/`), so a move updates the path-after-`/` only when the target changes domain/sub-domain. Every move MUST **preserve the moved file's FKF frontmatter** (`type: memory` + `description:`) verbatim — never strip or regenerate it.
 
@@ -42,7 +42,7 @@ Bounds are **soft SHOULD guidance**, not hard gates — a folder at 13 files is 
 
 ### Sub-Domain Addressing (External)
 
-A split creates `docs/memory/{domain}/{sub-domain}/{topic}.md`. Sub-domains are **first-class, externally addressed**: the rest of fab refers to a sub-domain file as `{domain}/{sub-domain}/{file-name}` (the flat `{domain}/{file-name}` form remains valid for un-split domains). `fab memory-index` generates a `{domain}/{sub-domain}/index.md` for every sub-domain and references it from the parent domain index, so the selective-load walk is: domain index → sub-domain index → file (see `_preamble` § Memory File Lookup).
+A split creates `docs/memory/{domain}/{sub-domain}/{topic}.md`. Sub-domains are **first-class, externally addressed**: the rest of fab refers to a sub-domain file as `{domain}/{sub-domain}/{file-name}` (the flat `{domain}/{file-name}` form remains valid for un-split domains). `fab docs-index docs/memory` generates a `{domain}/{sub-domain}/index.md` for every sub-domain and references it from the parent domain index, so the selective-load walk is: domain index → sub-domain index → file (see `_preamble` § Memory File Lookup).
 
 ---
 
@@ -67,27 +67,29 @@ Loads `docs/memory/index.md`, all domain (and sub-domain) `index.md` files, and 
 
 Read `docs/memory/index.md` and every domain directory (recursing into sub-domain folders). For each memory file: extract `##`/`###` headings, brief section summaries, and approximate line count. For each folder, record its **topic-file count** (excluding `index.md`) and its **depth** in folder levels relative to `docs/memory/` (a domain is depth 1, a sub-domain depth 2). Exclude `_shared/` and `_unsorted/` from shape measurement.
 
-**Compatibility detection (pre-fab-kit tree) — mechanical, via `fab memory-index --check --json`.** Detection of the three ways a hand-curated, pre-fab-kit tree diverges from the convention `fab memory-index` depends on is a **Go primitive**, not prose the agent re-derives. Run:
+**Compatibility detection (pre-fab-kit tree) — mechanical, via `fab docs-index docs/memory --check --json`.** Detection of the three ways a hand-curated, pre-fab-kit tree diverges from the convention `fab docs-index docs/memory` depends on is a **Go primitive**, not prose the agent re-derives. Run:
 
 ```sh
-fab memory-index --check --json
+fab docs-index docs/memory --check --json
 ```
 
-and read its exit code + JSON loss report (see `_cli-fab` § fab memory-index):
+and read its exit code + JSON loss report (see `_cli-fab` § fab docs-index):
 
-- **Exit 0** (clean) / **exit 1** (benign drift): **no compatibility findings** — nothing to relocate or backfill. Skip the Compatibility report (Step 3) entirely. This is the born-compatible fab-kit case.
+- **Exit 0** (clean) / **exit 1** (benign drift): **no compatibility findings** — nothing to relocate or backfill. Skip the Compatibility report (Step 3) entirely. For first-run adoption semantics, consult `_cli-fab` § fab docs-index.
 - **Exit 2** (destructive loss): the JSON `losses[]` enumerates each divergence by `category` — `description` (a curated description that would regenerate to `—`), `tombstone` (a row whose `docs/memory/`-relative link target is absent on disk — the removal-history rows the generator drops; external/absolute links are already excluded by the primitive), and `grouping` (a custom structural heading in the root `index.md` the domains-only regen would flatten). Each loss carries `path` (the index file) and `detail` (the lost text / dropped link target / flattened heading). Map these directly into the findings report (Step 3); tombstone candidates are still **surfaced for explicit user confirmation** before any relocation (Step 5).
 
 The primitive is the single source of truth for what regen would destroy — reorg consumes its classification rather than re-implementing `frontmatter.Field` semantics, tombstone heuristics, or the flatten rule in prose. Record the parsed findings alongside the shape measurements; they feed the findings report in Step 3.
 
-**One call feeds three consumers.** The same `fab memory-index --check --json` invocation additionally records the report's **`warnings[]`** array — the advisory machine surface — alongside the `losses[]` compatibility findings:
+**Sampled advisories.** Follow `_cli-fab` § fab docs-index's sampling contract: when the advisory list is sampled, measure file-size candidates during the existing read-all-files pass and list `_unsorted/` directly, as in the advisory fallback below. Compatibility detection still uses the complete `losses[]` array.
+
+**One call feeds three consumers.** The same `fab docs-index docs/memory --check --json` invocation additionally records the report's **`warnings[]`** array — the advisory machine surface — alongside the `losses[]` compatibility findings:
 
 - **`file-size`** findings (a topic file over ~400 lines OR ~15KB, carrying `count` = lines and `bytes`) → the **Shape Report file rows** (split candidates, Step 3).
 - **`unsorted-nonempty`** finding (a non-empty `docs/memory/_unsorted/`) → the **`_unsorted/` staging triage** pass (Step 3/4).
 
-So one call feeds compatibility detection (`losses[]`), the file-split Shape Report rows (`warnings[]` `file-size`), and the `_unsorted/` triage (`warnings[]` `unsorted-nonempty`). Record all three alongside the shape/theme measurements. The **completion chain to `/docs-distill-memory`** (§ Output) reuses this **same** call's `malformed[]` + `warnings[]` output once more at completion — a fourth reuse, no second `fab memory-index` call.
+So one call feeds compatibility detection (`losses[]`), the file-split Shape Report rows (`warnings[]` `file-size`), and the `_unsorted/` triage (`warnings[]` `unsorted-nonempty`). Record all three alongside the shape/theme measurements. The **completion chain to `/docs-distill-memory`** (§ Output) reuses this **same** call's `malformed[]` + `warnings[]` output once more at completion — a fourth reuse, no second `fab docs-index docs/memory` call.
 
-> **Older-binary fallback.** If `fab memory-index` does not support `--check`'s loss tiers / `--json` (an older binary — `--json` is unknown, the exit code is binary clean/dirty with no tier 2, or the `warnings` key is absent), fall back to the **legacy prose detection** during the read-all-files pass: a topic file with no frontmatter or no `description:` key is a missing-description finding (`frontmatter.Field` semantics); a row in an existing index whose `docs/memory/`-relative link target is absent on disk is a tombstone candidate (relative-target-absent is the primary signal, strikethrough `~~...~~` a non-required corroborating hint, external/absolute links excluded); a `### Apps`/`### Packages`-style heading in the root `index.md` beyond the domains-only table is a custom-grouping finding. **The `warnings[]` consumers also fall back**: file-size split candidates are measured from the read-all-files pass's approximate line counts (Step 1 already records them); `_unsorted/` staging is read by a direct `docs/memory/_unsorted/` folder listing. Then warn the user to upgrade `fab` so detection becomes mechanical.
+> **Older-binary fallback.** First follow `_cli-fab` § fab docs-index’s version-skew fallback; the legacy behavior below applies only if that also lacks the required surface.  If `fab docs-index docs/memory` does not support `--check`'s loss tiers / `--json` (an older binary — `--json` is unknown, the exit code is binary clean/dirty with no tier 2, or the `warnings` key is absent), fall back to the **legacy prose detection** during the read-all-files pass: a topic file with no frontmatter or no `description:` key is a missing-description finding (`frontmatter.Field` semantics); a row in an existing index whose `docs/memory/`-relative link target is absent on disk is a tombstone candidate (relative-target-absent is the primary signal, strikethrough `~~...~~` a non-required corroborating hint, external/absolute links excluded); a `### Apps`/`### Packages`-style heading in the root `index.md` beyond the domains-only table is a custom-grouping finding. **The `warnings[]` consumers also fall back**: file-size split candidates are measured from the read-all-files pass's approximate line counts (Step 1 already records them); `_unsorted/` staging is read by a direct `docs/memory/_unsorted/` folder listing. Then warn the user to upgrade `fab` so detection becomes mechanical.
 
 ### Step 2: Identify Themes (up to 10)
 
@@ -135,13 +137,13 @@ is within bounds, skip to "structure is fine".
 ## Compatibility (pre-fab-kit memory tree detected)
 
 - 12 topic files lack `description:` frontmatter (will render as — on regen)
-- 6 tombstone rows reference removed folders (will be dropped by fab memory-index)
+- 6 tombstone rows reference removed folders (will be dropped by fab docs-index docs/memory)
 - Grouped layout (Apps / Packages / Cross-cutting) will flatten to a domains-only table
 
 Proposed remediation (on approval):
   1. Relocate tombstone rows → docs/memory/_shared/removed-domains.md
   2. Backfill description: frontmatter (12 files, via docs-hydrate-memory)
-  3. Rebalance + regenerate indexes (fab memory-index)
+  3. Rebalance + regenerate indexes (fab docs-index docs/memory)
 ```
 
 List the tombstone candidates explicitly (with their source index and link target) so the user can confirm them before relocation — un-struck candidates especially, since they are the easiest to misjudge.
@@ -212,7 +214,7 @@ A link from a moved file to a sibling that did NOT move needs no rewrite (the §
 
 Constraints: prefer fewer files per domain; preserve existing domain names where possible; keep files under ~300 lines (`split-file` targets ~300 for its new files); respect the Ideal Shape Bounds (split over-width, merge under-floor, flatten over-depth) but only when a genuine cluster justifies it; never **split/merge/flatten** `_shared`/`_unsorted` (they keep their bounds exemption — but `_unsorted/` staged files ARE triaged per-file via the `_unsorted/` triage pass: `move` to a domain, or `delete` with per-file confirmation); say so if the current structure is fine.
 
-> **Index previews are NOT hand-authored here.** Indexes are a generated artifact — `fab memory-index` writes them. The proposal shows the *post-migration folder layout*, not a hand-rolled index preview; the actual `index.md` files (domain and sub-domain tiers) are regenerated on apply (Step 5).
+> **Index previews are NOT hand-authored here.** Indexes are a generated artifact — `fab docs-index docs/memory` writes them. The proposal shows the *post-migration folder layout*, not a hand-rolled index preview; the actual `index.md` files (domain and sub-domain tiers) are regenerated on apply (Step 5).
 
 ### Step 5: User Confirmation & Apply
 
@@ -220,17 +222,17 @@ Options: **Apply all**, **Cherry-pick** (select specific migrations), **Skip** (
 
 #### Compatibility orchestration (when Step 1 found a pre-fab-kit divergence)
 
-When the Compatibility report (Step 3) listed findings, the proposed remediation runs **only on explicit user approval** (reorg's existing posture). **If the user declines, report the compatibility findings and stop without mutating any file** — no `removed-domains.md` written, no backfill dispatched, no `fab memory-index` run; the user keeps their hand-curated tree intact. On approval, run the remediation in this **strict order**, *before* the normal rebalance/regenerate of the approved structural migrations below:
+When the Compatibility report (Step 3) listed findings, the proposed remediation runs **only on explicit user approval** (reorg's existing posture). **If the user declines, report the compatibility findings and stop without mutating any file** — no `removed-domains.md` written, no backfill dispatched, no `fab docs-index docs/memory` run; the user keeps their hand-curated tree intact. On approval, run the remediation in this **strict order**, *before* the normal rebalance/regenerate of the approved structural migrations below:
 
 1. **Relocate tombstones → `docs/memory/_shared/removed-domains.md`.** reorg authors this **single mechanical file** — the **only** per-file content-authoring action reorg performs, bounded to mechanical row relocation and explicitly NOT per-file description synthesis:
-   - A leading `description:` frontmatter one-liner **free of change-ids** (a routing signal, FKF §3.2 — so the file round-trips through `fab memory-index` like any topic file), then an H1, then the **user-confirmed tombstone rows lifted verbatim from the old index** — preserving the change IDs that explain each removal in the **body rows** (a verbatim tombstone row is a citation-carrying record of a removal, not transition narration; the ban is on change-ids in the `description:` frontmatter, not on these body citations).
+   - A leading `description:` frontmatter one-liner **free of change-ids** (a routing signal, FKF §3.2 — so the file round-trips through `fab docs-index docs/memory` like any topic file), then an H1, then the **user-confirmed tombstone rows lifted verbatim from the old index** — preserving the change IDs that explain each removal in the **body rows** (a verbatim tombstone row is a citation-carrying record of a removal, not transition narration; the ban is on change-ids in the `description:` frontmatter, not on these body citations).
    - **Merge-not-duplicate**: if `docs/memory/_shared/removed-domains.md` already exists, merge the new tombstone rows without duplicating any row already present (match on the row's identifying content). A re-run with no new tombstones leaves the file byte-stable (idempotency — a fab-kit design principle).
 2. **Dispatch backfill to `/docs-hydrate-memory`** as a **general-purpose sub-agent** (per `_preamble.md` § Subagent Dispatch — pass the standard subagent context, the 5 project files). The dispatch prompt:
    - Instructs the sub-agent to run `/docs-hydrate-memory`'s **backfill mode** over the tree, **naming the operation** ("backfill this tree — add `description:` frontmatter to files missing it") — it does **NOT** pass a file manifest; backfill **re-scans `docs/memory/` itself** (the loose, idempotent seam). Synthesis lives there, not in reorg.
-   - **Signals the reorg-dispatched (defer-regen) caller form** so backfill does NOT run `fab memory-index` — reorg owns the single regen in step 3.
-3. **Rebalance + regenerate.** After backfill returns, run reorg's existing split/merge/flatten logic for any approved structural migrations (the per-migration apply below — whose item 4 runs `fab memory-index`). **The backfill sub-agent ran zero regens** (it was dispatched defer-regen), so reorg owns the regeneration. If there are **no** structural migrations (compatibility findings only), run `fab memory-index` **once** here directly to pick up the new `description:` frontmatter, the `removed-domains.md` row, and the regenerated indexes. Either way the tree is regenerated exactly once after backfill, never by the sub-agent. (`fab memory-index` is byte-stable, so an extra idempotent run is harmless — but the contract is one regen, owned by reorg.)
+   - **Signals the reorg-dispatched (defer-regen) caller form** so backfill does NOT run `fab docs-index docs/memory` — reorg owns the single regen in step 3.
+3. **Rebalance + regenerate.** After backfill returns, run reorg's existing split/merge/flatten logic for any approved structural migrations (the per-migration apply below — whose item 4 runs `fab docs-index docs/memory`). **The backfill sub-agent ran zero regens** (it was dispatched defer-regen), so reorg owns the regeneration. If there are **no** structural migrations (compatibility findings only), run `fab docs-index docs/memory` **once** here directly to pick up the new `description:` frontmatter, the `removed-domains.md` row, and the regenerated indexes. Either way the tree is regenerated exactly once after backfill, never by the sub-agent. (`fab docs-index docs/memory` is byte-stable, so an extra idempotent run is harmless — but the contract is one regen, owned by reorg.)
 
-> The `description:` frontmatter on `removed-domains.md` (step 1) is authored **before** this regeneration, the same stub-before-index discipline reorg already uses for new sub-domains — so `fab memory-index` reads its description and lists `_shared/removed-domains.md` like any topic file. (`_shared/` is width-exempt, so it is never flagged or split.)
+> The `description:` frontmatter on `removed-domains.md` (step 1) is authored **before** this regeneration, the same stub-before-index discipline reorg already uses for new sub-domains — so `fab docs-index docs/memory` reads its description and lists `_shared/removed-domains.md` like any topic file. (`_shared/` is width-exempt, so it is never flagged or split.)
 
 After this orchestration completes (or if there were no compatibility findings), proceed with the normal per-migration apply for any approved structural migrations:
 
@@ -238,9 +240,9 @@ On approval, for each approved migration:
 
 1. **Move files / sections, preserving FKF frontmatter.** Execute approved moves using `git mv` semantics when available. A moved file keeps `type: memory` and `description:` byte-for-byte. Apply the canonical § `split-file` rules to file splits; for `merge-file`, move B's unique sections into A and delete the emptied B.
 2. **Rewrite bundle-relative links** broken by the move — every link in the proposal's **Link Impact** note. Edit each link's path-after-`/` to the moved file's new bundle path (`](/{new-domain}[/{sub}]/{file}.md)`), preserving any `#anchor`. A link to a sibling whose bundle path did NOT change needs no edit (§7). The guard below confirms no `](/…)` memory link dangles.
-3. **Author `description:` frontmatter** — the single hand-curated index field. For any new topic file a split creates, add a `description:` frontmatter line (copy or synthesize from the source file's existing description) **alongside `type: memory`** (the FKF constant — stamp it on any genuinely new topic file so it is FKF-conforming; a *moved* file already carries it from step 1). Any `description:` you author **carries no change-ids** — it is a routing signal, not a provenance record (FKF §3.2). For each **new sub-domain**, create a **stub `index.md` BEFORE `fab memory-index` runs (step 4)**: the stub is only the `description:` frontmatter block (a one-liner summarizing the cluster), nothing else — the same stub-before-index pattern as `/docs-hydrate-memory` (FKF §5 stub-before-index). Step 4's regeneration fills in the generated body and round-trips the description.
-4. **Regenerate indexes (and logs)**: run `fab memory-index`. It rewrites the root, every domain `index.md`, AND every sub-domain `index.md` from folder contents (including the new sub-domain reference rows in the parent), and regenerates each folder's `log.md` (merging any `log.seed.md` seed input beneath the git-projected entries — FKF §6). Generated content is never hand-edited (see the Index-previews blockquote above) — the `description:` frontmatter from step 3 (including the sub-domain stubs) is the only hand-curated part.
-5. **Verify (no-dangling-link guard).** Confirm no headings were lost AND no broken bundle-relative link remains. **A remaining dangling `](/…)` memory link is a hard block** — do NOT finalize that migration until every broken link is rewritten. Report any dangling link found and the file it is in. **Abort escape**: if a dangling link cannot be rewritten (its target is genuinely gone, or the correct target is ambiguous), abort that migration instead of blocking indefinitely — roll back its moves and link rewrites (restore original paths), re-run `fab memory-index`, report the rollback, and continue with the remaining approved migrations.
+3. **Author `description:` frontmatter** — the single hand-curated index field. For any new topic file a split creates, add a `description:` frontmatter line (copy or synthesize from the source file's existing description) **alongside `type: memory`** (the FKF constant — stamp it on any genuinely new topic file so it is FKF-conforming; a *moved* file already carries it from step 1). Any `description:` you author **carries no change-ids** — it is a routing signal, not a provenance record (FKF §3.2). For each **new sub-domain**, create a **stub `index.md` BEFORE `fab docs-index docs/memory` runs (step 4)**: the stub is only the `description:` frontmatter block (a one-liner summarizing the cluster), nothing else — the same stub-before-index pattern as `/docs-hydrate-memory` (FKF §5 stub-before-index). Step 4's regeneration fills in the generated body and round-trips the description.
+4. **Regenerate indexes (and logs)**: run `fab docs-index docs/memory`. It rewrites the root, every domain `index.md`, AND every sub-domain `index.md` from folder contents (including the new sub-domain reference rows in the parent), and regenerates each folder's `log.md` (merging any `log.seed.md` seed input beneath the git-projected entries — FKF §6). Generated content is never hand-edited (see the Index-previews blockquote above) — the `description:` frontmatter from step 3 (including the sub-domain stubs) is the only hand-curated part.
+5. **Verify (no-dangling-link guard).** Confirm no headings were lost AND no broken bundle-relative link remains. **A remaining dangling `](/…)` memory link is a hard block** — do NOT finalize that migration until every broken link is rewritten. Report any dangling link found and the file it is in. **Abort escape**: if a dangling link cannot be rewritten (its target is genuinely gone, or the correct target is ambiguous), abort that migration instead of blocking indefinitely — roll back its moves and link rewrites (restore original paths), re-run `fab docs-index docs/memory`, report the rollback, and continue with the remaining approved migrations.
 
 Apply § `split-file`'s anchored/unanchored link and ambiguity rules. A
 `merge-file` rewrites every inbound link from emptied B to canonical A.
@@ -267,7 +269,7 @@ Scanned {D} domains, {N} memory files ({L} total lines).
 Apply this reorganization? (apply all / cherry-pick / skip)
 ```
 
-After apply: `Reorganization complete: {M} sections moved, {F} files moved, {SF} files split, {MF} files merged, {S} files modified, {C} files/sub-domains created, {L2} links rewritten, {D2} domains split/merged, {UT} _unsorted/ files triaged ({UD} deleted). Indexes regenerated via fab memory-index; no dangling links.`
+After apply: `Reorganization complete: {M} sections moved, {F} files moved, {SF} files split, {MF} files merged, {S} files modified, {C} files/sub-domains created, {L2} links rewritten, {D2} domains split/merged, {UT} _unsorted/ files triaged ({UD} deleted). Indexes regenerated via fab docs-index docs/memory; no dangling links.`
 
 When compatibility remediation ran, also report: `Compatibility migration: {T} tombstone rows relocated to _shared/removed-domains.md, {B} files backfilled with description: frontmatter (via docs-hydrate-memory sub-agent).` When the user declined remediation: `Compatibility findings reported; tree left intact (no files mutated).`
 
@@ -291,7 +293,7 @@ Next: /docs-distill-memory (N files flagged across M domains), or /fab-new
 
 When N = 0 (nothing flagged), omit the count-bearing pointer and emit the normal completion `Next:` (e.g. `Next: /fab-new`).
 
-When Step 1 uses its older-binary fallback, omit unavailable counts and emit a
+When Step 1 uses its older-binary fallback or receives sampled advisories, omit unavailable counts and emit a
 plain `Next: /docs-distill-memory, or /fab-new`; never fabricate counts.
 
 ---
@@ -304,8 +306,8 @@ plain `Next: /docs-distill-memory, or /fab-new`; never fabricate counts.
 | No memory domains or files besides indexes | Abort: "Nothing to reorganize." |
 | File write/move fails during apply | Report error, roll back that migration, continue |
 | Content verification fails | Warn, show missing heading, ask to proceed |
-| `fab memory-index` unavailable (older binary) | Warn; fall back to hand-updating affected `index.md` files (legacy path) and tell the user to upgrade `fab` |
-| `fab memory-index --check --json` machine surface unavailable | Use Step 1's older-binary fallback |
+| `fab docs-index docs/memory` and its `_cli-fab` version-skew fallback unavailable (older binary) | Warn; fall back to hand-updating affected `index.md` files (legacy path) and tell the user to upgrade `fab` |
+| `fab docs-index docs/memory --check --json` machine surface unavailable | Use Step 1's older-binary fallback |
 | `split-file` with no dominant topic AND un-anchored inbound links (ambiguous retarget) | Take the abort escape (Step 5 Verify item): roll back that migration, regenerate indexes, continue with the rest |
 | `_unsorted/` triage `delete` proposal | Apply **only after explicit per-file confirmation**; never batch-delete staged files. `move` proposals ride the normal per-migration apply |
 | Broken bundle-relative link remains after a move | **Hard block** — report the dangling `](/…)` link; do not finalize that migration until it is rewritten. If it cannot be rewritten, take the abort escape defined in Step 5's Verify item (apply item 5): roll back that migration, regenerate indexes, continue with the rest |
@@ -329,5 +331,5 @@ plain `Next: /docs-distill-memory, or /fab-new`; never fabricate counts.
 | Orchestrates a pre-fab-kit compatibility migration? | Yes — detect, approve, relocate, backfill, regenerate; see Steps 1 and 5 |
 | Dispatches sub-agents? | Yes — `/docs-hydrate-memory` compatibility backfill; see Step 5 |
 | Link rewriting | Skill-driven from `## Link Impact`; see Step 5 |
-| Indexes hand-edited? | No — `fab memory-index` regenerates every tier; see Step 5 |
+| Indexes hand-edited? | No — `fab docs-index docs/memory` regenerates every tier; see Step 5 |
 | Chains to `/docs-distill-memory`? | Yes — completion reuses Step 1 warnings for counts; see Output |

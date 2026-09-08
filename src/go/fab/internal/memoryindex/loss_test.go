@@ -390,3 +390,20 @@ func TestRelMemoryTarget(t *testing.T) {
 		}
 	}
 }
+
+func TestClassifyEscapedPipeLabels(t *testing.T) {
+	for _, tc := range []struct {
+		name, rendered, detail string
+		category               LossCategory
+	}{
+		{"description", `| [A\|B](topic.md) | — |`, `Curated\|description`, LossDescription},
+		{"tombstone", "", "topic.md", LossTombstone},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := Classify([]CheckTarget{{Path: "docs/specs/index.md", Existing: `| [A\|B](topic.md) | Curated\|description |`, Rendered: tc.rendered}}, func(string) bool { return false })
+			if r.Tier != TierDestructiveLoss || len(r.Losses) != 1 || r.Losses[0].Category != tc.category || r.Losses[0].Detail != tc.detail {
+				t.Fatalf("escaped pipe evaded loss classification: %+v", r)
+			}
+		})
+	}
+}

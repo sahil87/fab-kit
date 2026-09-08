@@ -28,15 +28,15 @@ Hydrate `docs/memory/` from external sources or from codebase analysis.
 
 - **Ingest mode** (URLs, `.md` files): Fetches/reads sources, identifies domains and topics, creates or merges memory files, maintains indexes.
 - **Generate mode** (folders, no arguments): Scans codebase for undocumented areas, presents interactive gap report, generates memory files.
-- **Backfill mode** (`backfill` keyword, or dispatched by `/docs-reorg-memory`): Re-scans an existing `docs/memory/` tree for topic files that lack `description:` frontmatter and adds the FKF frontmatter (`type: memory` + `description:`) — **body-preserving** (only prepends/edits leading frontmatter; never strips an existing `## Changelog` body). Used to migrate a pre-fab-kit, hand-curated tree to the fab-kit convention so `fab memory-index` stops rendering `—` for every row. Unlike generate mode (which *creates* files from source-code gaps), backfill *adds frontmatter to existing* files.
+- **Backfill mode** (`backfill` keyword, or dispatched by `/docs-reorg-memory`): Re-scans an existing `docs/memory/` tree for topic files that lack `description:` frontmatter and adds the FKF frontmatter (`type: memory` + `description:`) — **body-preserving** (only prepends/edits leading frontmatter; never strips an existing `## Changelog` body). Used to migrate a pre-fab-kit, hand-curated tree to the fab-kit convention so routing descriptions live alongside their source documents. Unlike generate mode (which *creates* files from source-code gaps), backfill *adds frontmatter to existing* files.
 
 Mode is determined automatically by argument type (ingest/generate) or by the explicit `backfill` keyword / reorg dispatch. Safe to run repeatedly — content is merged as current truth: the affected topic section is rewritten to current truth (not appended as a change-keyed delta), which neither duplicates existing entries nor overwrites manually-added content; backfill skips files that already have `description:`.
 
 ### Index Ownership
 
-Index files (`index.md` at the root, domain, and sub-domain tiers) are **generated artifacts** — `fab memory-index` is their single writer. The one hand-curated field is the `description:` frontmatter (on topic files and on domain/sub-domain indexes). When a new domain or sub-domain is created, its `index.md` **stub** — only the `description:` frontmatter one-liner, nothing else — is created **before** `fab memory-index` runs; the command fills in the generated body and round-trips the description. Never hand-edit generated index rows. Both modes below follow this model.
+Index files (`index.md` at the root, domain, and sub-domain tiers) are **generated artifacts** — `fab docs-index docs/memory` is their single writer. The one hand-curated field is the `description:` frontmatter (on topic files and on domain/sub-domain indexes). When a new domain or sub-domain is created, its `index.md` **stub** — only the `description:` frontmatter one-liner, nothing else — is created **before** `fab docs-index docs/memory` runs; the command fills in the generated body and round-trips the description. Never hand-edit generated index rows. Both modes below follow this model.
 
-> **Refuse-before-regen guard (destructive-loss).** Before any `fab memory-index` regeneration step below, consult `fab memory-index --check`: on **exit 2** (destructive loss — a curated description would regenerate to `—`, a tombstone row would drop, or a custom grouping would flatten), **refuse to regenerate** and surface the pointer `→ run /docs-reorg-memory to remediate (it relocates removal-history rows to _shared/removed-domains.md and backfills description: frontmatter via /docs-hydrate-memory) before regenerating.` (`/docs-reorg-memory` is the orchestrator for all three tier-2 categories — it relocates tombstone rows itself and dispatches *this* skill's backfill mode; backfill alone does NOT relocate tombstones.) **No-op on born-compatible fab-kit trees** (always exit 0/1, never 2 — not dead code); it fires only on a pre-fab-kit tree reached via ingest/generate before backfill. Backfill mode itself only adds frontmatter, never destroys, so by the time *it* regenerates the guard is already a no-op.
+> **Refuse-before-regen guard (destructive-loss).** Before any `fab docs-index docs/memory` regeneration step below, consult `fab docs-index docs/memory --check`: on **exit 2** (destructive loss — a curated description would regenerate to `—`, a tombstone row would drop, or a custom grouping would flatten), **refuse to regenerate** and surface the pointer `→ run /docs-reorg-memory to remediate (it relocates removal-history rows to _shared/removed-domains.md and backfills description: frontmatter via /docs-hydrate-memory) before regenerating.` (`/docs-reorg-memory` is the orchestrator for all three tier-2 categories — it relocates tombstone rows itself and dispatches *this* skill's backfill mode; backfill alone does NOT relocate tombstones.) For first-run adoption semantics, consult `_cli-fab` § fab docs-index; the guard remains necessary for later navigation losses.
 
 ---
 
@@ -96,7 +96,7 @@ For each source: identify **domains** (logical topic areas) and **topics** withi
 
 For each topic:
 1. Create `docs/memory/{domain}/` if needed
-2. Create `docs/memory/{domain}/index.md` if needed — a stub carrying only the `description:` frontmatter one-liner for the domain, created before Step 4 runs (`fab memory-index` reads it into the root index row — see Index Ownership). When placing a topic into a sub-domain, likewise create the `docs/memory/{domain}/{sub-domain}/index.md` stub if needed
+2. Create `docs/memory/{domain}/index.md` if needed — a stub carrying only the `description:` frontmatter one-liner for the domain, created before Step 4 runs (`fab docs-index docs/memory` reads it into the root index row — see Index Ownership). When placing a topic into a sub-domain, likewise create the `docs/memory/{domain}/{sub-domain}/index.md` stub if needed
 3. If target file doesn't exist → read `$(fab kit-path)/templates/memory.md`,
    create its full topic-file skeleton, and apply the FKF authoring rules below.
 4. If target file exists → merge the affected section as current truth under the
@@ -119,7 +119,7 @@ For each topic:
   repo-relative or absolute.
 
 **Shape bounds (SHOULD guidance)** when placing topics into domains:
-- Aim for **~5–12 topic files per folder**. Past ~12, `fab memory-index` warns — consider a sub-domain.
+- Aim for **~5–12 topic files per folder**. Past ~12, `fab docs-index docs/memory` warns — consider a sub-domain.
 - **Max depth 3**: `docs/memory/{domain}/{sub-domain}/{topic}.md`.
 - Introduce a sub-domain **only reactively**, when a cohesive cluster of **≥8 files** exists. Never pre-build hierarchy.
 - Reserved domains `_shared/` (cross-cutting) and `_unsorted/` (staging) are exempt from the width bound.
@@ -128,9 +128,9 @@ For each topic:
 
 Re-read every memory file you created or merged **this run** and strip any transition phrasing just introduced — no "renamed / now / previously / no longer / was `old.value`" narration, no change-keyed delta paragraph left below an older paragraph on the same topic, no change-ids in headings — and confirm each touched file's `description:` still routes (one line, ≤500 chars, change-id-free, FKF §3.2). This is a self-review of *this run's own writes*, **not** a corpus sweep (draining pre-existing debt across the tree is `/docs-distill-memory`'s job). A merge that already rewrote each section to current truth leaves nothing to strip — the check is the safety net for narration reflexively introduced during the write. (Generate mode runs the identical check on the files it generated.)
 
-### Step 4: Regenerate Indexes (`fab memory-index`)
+### Step 4: Regenerate Indexes (`fab docs-index docs/memory`)
 
-Run `fab memory-index` once to regenerate the root (domains-only), every domain index, and every sub-domain index from folder contents + `description:` frontmatter (the single writer — see Index Ownership; never hand-edit rows). On any merge conflict in a generated `docs/memory/**/index.md` or `log.md`, do **not** hand-merge: resolve the topic files, re-run `fab memory-index`, take its output wholesale (FKF §5). The index carries no dates — it is a pure function of content. Any non-fatal shape warnings it prints to stderr are advisory (over-wide / over-deep folders, and a 501–1000-char over-length `description:`); note the two `description:` escalations are **blocking**, not advisory — a change-id in `description:` and a gross over-cap value (> 1000 chars, 2× the 500 soft cap) fail `--check` (FKF §3.2).
+Run `fab docs-index docs/memory` once to regenerate the root (domains-only), every domain index, and every sub-domain index from folder contents + `description:` frontmatter (the single writer — see Index Ownership; never hand-edit rows). On any merge conflict in a generated `docs/memory/**/index.md` or `log.md`, do **not** hand-merge: resolve the topic files, re-run `fab docs-index docs/memory`, take its output wholesale (FKF §5). The index carries no dates — it is a pure function of content. Any non-fatal shape warnings it prints to stderr are advisory (over-wide / over-deep folders, and a 501–1000-char over-length `description:`); note the two `description:` escalations are **blocking**, not advisory — a change-id in `description:` and a gross over-cap value (> 1000 chars, 2× the 500 soft cap) fail `--check` (FKF §3.2).
 
 ---
 
@@ -188,19 +188,19 @@ Run the same post-hydrate self-check as ingest Step 3.5, scoped to the files gen
 
 ### Step 4: Regenerate Indexes
 
-Same as ingest mode Step 4 — run `fab memory-index` to regenerate the root (domains-only), domain, and sub-domain indexes from folder contents + frontmatter. Do not hand-edit index rows (and never hand-merge a generated index/log conflict — resolve topic files, re-run, take wholesale, FKF §5).
+Same as ingest mode Step 4 — run `fab docs-index docs/memory` to regenerate the root (domains-only), domain, and sub-domain indexes from folder contents + frontmatter. Do not hand-edit index rows (and never hand-merge a generated index/log conflict — resolve topic files, re-run, take wholesale, FKF §5).
 
 ---
 
 ## Backfill Mode Behavior
 
-Backfill migrates an **existing** hand-curated `docs/memory/` tree (typically pre-fab-kit) to the convention `fab memory-index` depends on: each topic file leads with a `description:` frontmatter line. Without it, the generator (which reads descriptions exclusively from frontmatter) renders `—` for every row, wiping curated descriptions on the first regen. Backfill is the one-time fix. It is invoked directly (`/docs-hydrate-memory backfill`) or dispatched by `/docs-reorg-memory` as the second step of its compatibility orchestration.
+Backfill migrates an **existing** hand-curated `docs/memory/` tree (typically pre-fab-kit) to the convention `fab docs-index docs/memory` depends on: each topic file leads with a `description:` frontmatter line. Backfill authors durable per-file routing descriptions when desired; it is not required for first-run generation. For seed-import and sparse-description behavior, consult `_cli-fab` § fab docs-index. It is invoked directly (`/docs-hydrate-memory backfill`) or dispatched by `/docs-reorg-memory` as the second step of its compatibility orchestration.
 
 > **Scope**: Backfill is a **pure frontmatter operation** — it adds the FKF frontmatter (`type: memory` + `description:`) to existing files and creates missing `description:`-only index stubs. It does NOT detect or relocate tombstone rows, flatten custom groupings, move files, or strip existing `## Changelog` bodies; those structural concerns belong to `/docs-reorg-memory` (and the `## Changelog` strip to FKF migration Change 4). The body of every file is preserved byte-for-byte. **Backfill is exempt from the ingest/generate Step 3.5 post-hydrate self-check** — that step edits bodies (stripping transition phrasing), which the body-preserving contract forbids; backfill applies only the change-id-free `description:` rule of FKF §3.2 (Step 2), never the body-style rules of §3.3.
 
 ### Step 1: Re-scan `docs/memory/` (no caller manifest)
 
-Backfill **walks `docs/memory/` itself** to find every topic file (a non-`index.md` `.md` file) lacking a `description:` frontmatter field — it does **not** receive a file list from its caller. This holds for both forms: the direct-user invocation and the reorg dispatch (reorg's prompt names the operation — "backfill this tree" — not the files). A file with no frontmatter, or frontmatter without a `description:` key, counts as missing (the same `frontmatter.Field` semantics `fab memory-index` uses). The walk is the loose, idempotent seam between the two independently-invocable skills.
+Backfill **walks `docs/memory/` itself** to find every topic file (a non-`index.md` `.md` file) lacking a `description:` frontmatter field — it does **not** receive a file list from its caller. This holds for both forms: the direct-user invocation and the reorg dispatch (reorg's prompt names the operation — "backfill this tree" — not the files). A file with no frontmatter, or frontmatter without a `description:` key, counts as missing (the same `frontmatter.Field` semantics `fab docs-index docs/memory` uses). The walk is the loose, idempotent seam between the two independently-invocable skills.
 
 ### Step 2: Synthesize and write `description:` frontmatter (body-preserving)
 
@@ -213,14 +213,14 @@ For each discovered topic file missing `description:`:
 
 ### Step 3: Create missing index stubs (stub-before-index)
 
-For any domain/sub-domain folder lacking an `index.md` (or whose `index.md` lacks `description:`), create the `description:`-only `index.md` **stub** the same way ingest/generate modes do — only the `description:` frontmatter one-liner, nothing else, created **before** any index regeneration (see Index Ownership above). This gives `fab memory-index` the domain description to read.
+For any domain/sub-domain folder lacking an `index.md` (or whose `index.md` lacks `description:`), create the `description:`-only `index.md` **stub** the same way ingest/generate modes do — only the `description:` frontmatter one-liner, nothing else, created **before** any index regeneration (see Index Ownership above). This gives `fab docs-index docs/memory` the domain description to read.
 
 ### Step 4: Caller-aware index regeneration
 
-Backfill is **caller-aware** about `fab memory-index`:
+Backfill is **caller-aware** about `fab docs-index docs/memory`:
 
-- **Dispatched by `/docs-reorg-memory`** (the dispatch prompt carries the reorg-dispatched / defer-regen signal): do **NOT** run `fab memory-index`. reorg runs it exactly once at the end of its orchestration (after rebalance), so a regen here would be redundant work and would race reorg's single regen.
-- **Invoked directly by a user** (no reorg signal): run `fab memory-index` as the final step, exactly like ingest and generate modes — root (domains-only) + every domain + every sub-domain index, regenerated from folder contents + frontmatter.
+- **Dispatched by `/docs-reorg-memory`** (the dispatch prompt carries the reorg-dispatched / defer-regen signal): do **NOT** run `fab docs-index docs/memory`. reorg runs it exactly once at the end of its orchestration (after rebalance), so a regen here would be redundant work and would race reorg's single regen.
+- **Invoked directly by a user** (no reorg signal): run `fab docs-index docs/memory` as the final step, exactly like ingest and generate modes — root (domains-only) + every domain + every sub-domain index, regenerated from folder contents + frontmatter.
 
 ---
 
@@ -232,8 +232,8 @@ Canonical format (ingest mode):
 Hydrating memory from {N} source(s)...
 Fetched: {title} ({source type})
 Created: docs/memory/{domain}/{topic}.md
-Updated: docs/memory/{domain}/index.md   (via fab memory-index)
-Updated: docs/memory/index.md            (via fab memory-index)
+Updated: docs/memory/{domain}/index.md   (via fab docs-index docs/memory)
+Updated: docs/memory/index.md            (via fab docs-index docs/memory)
 Hydration complete — {N} files created, {M} updated.
 ```
 
@@ -248,13 +248,13 @@ Skipped:    docs/memory/{domain}/{other}.md   (already has description:)
 Backfill complete — {N} files backfilled, {M} skipped, {S} index stubs created.
 ```
 
-When dispatched by reorg, backfill appends `(index regen deferred to caller)`; when invoked directly, it runs `fab memory-index` and appends the regenerated-index lines like the other modes.
+When dispatched by reorg, backfill appends `(index regen deferred to caller)`; when invoked directly, it runs `fab docs-index docs/memory` and appends the regenerated-index lines like the other modes.
 
 ---
 
 ## Idempotency
 
-Safe to re-run. New files created on first run, merged on subsequent. Existing content preserved. Indexes are regenerated by `fab memory-index` (byte-stable — a re-run with no content change produces no index diff). `[INFERRED]` markers and manual edits to memory files survive re-generation; index files are generated artifacts and are not hand-edited.
+Safe to re-run. New files created on first run, merged on subsequent. Existing content preserved. Indexes are regenerated by `fab docs-index docs/memory` (byte-stable — a re-run with no content change produces no index diff). `[INFERRED]` markers and manual edits to memory files survive re-generation; index files are generated artifacts and are not hand-edited.
 
 **Backfill mode** is idempotent on file presence of `description:`: files that already carry a `description:` field are skipped, so a second backfill pass over an already-converted tree is a no-op (no frontmatter rewrites, no body changes, byte-stable index). Backfill never touches a file's body — only its leading frontmatter — so re-running cannot corrupt or lose curated content.
 
@@ -271,7 +271,7 @@ Safe to re-run. New files created on first run, merged on subsequent. Existing c
 | Source URL unreachable / content unreadable | Report error, continue with remaining |
 | Domain/file already exists | Use/merge (don't recreate) |
 | Backfill: file already has `description:` | Skip (idempotent) — never overwrite an existing description |
-| Backfill: every topic file already has `description:` | Report `No files missing description: frontmatter — tree is already on the convention.` and stop (no regen when reorg-dispatched; a direct invocation may still run `fab memory-index`, which is a no-op) |
+| Backfill: every topic file already has `description:` | Report `No files missing description: frontmatter — tree is already on the convention.` and stop (no regen when reorg-dispatched; a direct invocation may still run `fab docs-index docs/memory`, which is a no-op) |
 
 ---
 

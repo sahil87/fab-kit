@@ -58,8 +58,8 @@ When you cannot tell whether a narration line encodes durable intent, treat it a
 
 ### Generated files & the tombstone exemption
 
-- **Never hand-edit generated files** — `index.md` (root / domain / sub-domain tiers) and `log.md` are written solely by `fab memory-index` (FKF §5, §6). This skill regenerates them via `fab memory-index` after applying rewrites; it never edits their rows.
-- **`log.seed.md` is a curated read-only SEED INPUT, not a generated file** — `fab memory-index` *reads* it during the seed-merge but never *writes* it (like `description:` frontmatter, it is a gathered input; the generator stays the sole writer of `log.md`). It is nonetheless **excluded from distillation**: its body *is* a citation-carrying seed ledger of pre-FKF history in the §6.2 entry format, not topic-file prose — the same exclusion posture as `removed-domains.md` below. Skip it entirely; never rewrite it.
+- **Never hand-edit generated files** — `index.md` (root / domain / sub-domain tiers) and `log.md` are written solely by `fab docs-index docs/memory` (FKF §5, §6). This skill regenerates them via `fab docs-index docs/memory` after applying rewrites; it never edits their rows.
+- **`log.seed.md` is a curated read-only SEED INPUT, not a generated file** — `fab docs-index docs/memory` *reads* it during the seed-merge but never *writes* it (like `description:` frontmatter, it is a gathered input; the generator stays the sole writer of `log.md`). It is nonetheless **excluded from distillation**: its body *is* a citation-carrying seed ledger of pre-FKF history in the §6.2 entry format, not topic-file prose — the same exclusion posture as `removed-domains.md` below. Skip it entirely; never rewrite it.
 - **`docs/memory/_shared/removed-domains.md` is EXEMPT** from rewrite — the §3.3 tombstone carve-out: its body *is* removal records, a citation-carrying tombstone ledger, not transition narration. Skip it entirely. (fab-kit's own tree has no such file; the exemption matters in user projects, where `/docs-reorg-memory` authors it.)
 
 ---
@@ -94,9 +94,9 @@ This section is the skill-file override the `_preamble.md` §1 contract keys on 
 - Every topic file in the target domain (recursing into sub-domains) — the rewrite subjects.
 - `$(fab kit-path)/reference/fkf.md` — the shipped normative extract (§3.2 `description` rules incl. the 500-char cap and change-id ban; §3.3 present-truth body style incl. the tombstone carve-out). Read it so every proposed rewrite cites the deployed rule, not a remembered one.
 
-**Survey mode reads the machine surface up front, not the corpus.** On a no-arg invocation (Behavior Step 0), *before* any domain's full read the survey runs a single `fab memory-index --check --json` and reads its JSON `malformed[]`/`warnings[]` arrays to count flagged files per domain — it does **not** read every topic file's frontmatter and body. This is the canonical machine-surface path; only the **older-binary fallback** (Step 0) reverts to the legacy all-domains read-only grep scan (each domain's `index.md` + enough of every topic file's `description:` and body to run the narration-marker grep, recursing sub-domains, honoring the distillation exclusion set). Either way the all-domains survey is not a full Step 1 read; the full read is confined to each domain as the loop (Behavior Step 6) reaches it. An explicit `<domain>` skips the survey and reads only the target-domain set above.
+**Survey mode reads the machine surface up front, not the corpus.** On a no-arg invocation (Behavior Step 0), *before* any domain's full read the survey runs a single `fab docs-index docs/memory --check --json` and reads its JSON `malformed[]`/`warnings[]` arrays to count flagged files per domain — it does **not** read every topic file's frontmatter and body. This is the canonical machine-surface path; the **older-binary or sampled-output fallback** (Step 0) reverts to the legacy all-domains read-only grep scan (each domain's `index.md` + enough of every topic file's `description:` and body to run the narration-marker grep, recursing sub-domains, honoring the distillation exclusion set). Either way the all-domains survey is not a full Step 1 read; the full read is confined to each domain as the loop (Behavior Step 6) reaches it. An explicit `<domain>` skips the survey and reads only the target-domain set above.
 
-For the `fab memory-index --check --json` shape (the `malformed[]`/`warnings[]` kinds the survey aggregates), the exit tiers, and the refuse-before-regen pointer, consult **`_cli-fab` § fab memory-index** by in-body pointer (below) — it is not pre-loaded.
+For the `fab docs-index docs/memory --check --json` shape (the `malformed[]`/`warnings[]` kinds the survey aggregates), the exit tiers, and the refuse-before-regen pointer, consult **`_cli-fab` § fab docs-index** by in-body pointer (below) — it is not pre-loaded.
 
 ---
 
@@ -108,7 +108,7 @@ Runs **only when `<domain>` was omitted**. An explicit `<domain>` skips this ste
 
 The survey is a **cheap machine-surface read** over every domain — it does NOT do the full Step 1 read. Its job is to rank the flagged domains and drive the all-domains loop, not to classify exhaustively; the full read still runs once per domain inside the loop. It reports per domain in the order of `docs/memory/index.md`'s domain table (deterministic, matches the user-facing landscape).
 
-**Signal source: one `fab memory-index --check --json` invocation.** The survey runs `fab memory-index --check --json` **once** and consumes its structured output — the **canonical** signal source (`_cli-fab` § fab memory-index), not an agent-side grep of frontmatter and bodies. Per-domain **flagged-file counts** aggregate from four finding kinds — the same §3.2/§3.3 defect classes distillation fixes:
+**Signal source: one `fab docs-index docs/memory --check --json` invocation.** The survey runs `fab docs-index docs/memory --check --json` **once** and consumes its structured output — the **canonical** signal source (`_cli-fab` § fab docs-index), not an agent-side grep of frontmatter and bodies. Per-domain **flagged-file counts** aggregate from four finding kinds — the same §3.2/§3.3 defect classes distillation fixes:
 
 1. `malformed[]` kind **`description-change-id`** — a `description:` carrying a registry-gated change-id (§3.2 ban, enforced/blocking).
 2. `malformed[]` kind **`description-over-cap`** — a `description:` over the 1000-rune blocking cap (§3.2).
@@ -121,7 +121,9 @@ The survey is a **cheap machine-surface read** over every domain — it does NOT
 
 A **missing `type: memory` is NOT a survey signal** — the full read (Step 1 / Step 4) stamps it once a domain is selected, so it does not affect ranking.
 
-**Older-binary fallback.** When `fab memory-index --check --json` is unavailable, or its output lacks the `warnings` key (an older binary that predates the machine surface), the survey **falls back to the legacy agent-side grep heuristics verbatim** — the three §3.2/§3.3 classes below — and **warns the user to upgrade `fab`** (mirroring `/docs-reorg-memory`'s Step 1 older-binary fallback posture):
+**Sampled-output fallback.** If the report is sampled (see `_cli-fab` § fab docs-index), run the same read-only grep survey described below across all domains and merge its findings with the complete `malformed[]` findings before building the worklist. Label the counts heuristic; do not infer an empty domain from an omitted advisory or recommend a binary upgrade for normal sampling.
+
+**Older-binary fallback.** First follow `_cli-fab` § fab docs-index’s version-skew fallback; the legacy behavior below applies only if that also lacks the required surface.  When `fab docs-index docs/memory --check --json` is unavailable, or its output lacks the `warnings` key (an older binary that predates the machine surface), the survey **falls back to the legacy agent-side grep heuristics verbatim** — the three §3.2/§3.3 classes below — and **warns the user to upgrade `fab`** (mirroring `/docs-reorg-memory`'s Step 1 older-binary fallback posture):
 
 1. **`description:` over the 500-char cap** — a frontmatter `description:` value longer than 500 characters (§3.2).
 2. **change-ids in `description:`** — a `description:` carrying a `— xu0k`-style suffix or a `(d9rs)`-style citation (§3.2 bans them).
@@ -202,12 +204,12 @@ Never touch `index.md` / `log.md` (Step 5 regenerates them), `log.seed.md` (a cu
 
 After applying rewrites, regenerate the generated files — **never hand-edit them** (FKF §5).
 
-1. **Consult `fab memory-index --check` first** (the refuse-before-regen guard `/docs-hydrate-memory` also carries; exit tiers in `_cli-fab` § fab memory-index):
+1. **Consult `fab docs-index docs/memory --check` first** (the refuse-before-regen guard `/docs-hydrate-memory` also carries; exit tiers in `_cli-fab` § fab docs-index):
    - **Exit 0** (clean) / **exit 1** (benign drift) → proceed to regenerate.
-   - **Exit 2** (destructive loss) → **refuse to regenerate** and surface the pointer `→ run /docs-reorg-memory to remediate (it relocates removal-history rows to _shared/removed-domains.md and backfills description: frontmatter via /docs-hydrate-memory) before regenerating.` This is a **no-op for born-compatible fab-kit trees** (always exit 0/1, never 2 — not dead code); it is defense-in-depth for a pre-fab-kit tree reaching this skill.
-2. **Regenerate** via `fab memory-index` — it rewrites the `index.md` tiers (root domains-only, domain, sub-domain) and each folder's `log.md`, from two distinct derivations: the **index tiers** are a pure function of folder contents + each file's `description:` frontmatter (content-only, no dates), while each **`log.md`** is the C-lite join of git history + per-change `.status.yaml` `summary:` fields (freeze-on-write, append-only — the existing log is authoritative; only new `(file-base, change-id)` entries are appended, and any `log.seed.md` is merged beneath). Take its output wholesale; never hand-merge a generated file (FKF §5). `fab memory-index` is byte-stable, so a no-op re-run produces no index diff.
+   - **Exit 2** (destructive loss) → **refuse to regenerate** and surface the pointer `→ run /docs-reorg-memory to remediate (it relocates removal-history rows to _shared/removed-domains.md and backfills description: frontmatter via /docs-hydrate-memory) before regenerating.` For first-run adoption semantics, consult `_cli-fab` § fab docs-index; retain the guard for subsequent navigation losses.
+2. **Regenerate** via `fab docs-index docs/memory` — it rewrites the `index.md` tiers (root domains-only, domain, sub-domain) and each folder's `log.md`, from two distinct derivations: the **index tiers** are a pure function of folder contents + each file's `description:` frontmatter (content-only, no dates), while each **`log.md`** is the C-lite join of git history + per-change `.status.yaml` `summary:` fields (freeze-on-write, append-only — the existing log is authoritative; only new `(file-base, change-id)` entries are appended, and any `log.seed.md` is merged beneath). Take its output wholesale; never hand-merge a generated file (FKF §5). `fab docs-index docs/memory` is byte-stable, so a no-op re-run produces no index diff.
 
-Heed any non-fatal shape/length warnings `fab memory-index` prints — a still-over-cap `description:` warning (501–1000 chars, advisory) is a signal to trim further. Note the two `description:` escalations are **blocking**, not advisory: a change-id in `description:`, or a gross over-cap value (> 1000 chars, 2× the 500 soft cap), fails `--check` (FKF §3.2) — so a distillation run that leaves either in place will not regenerate clean.
+Heed any non-fatal shape/length warnings `fab docs-index docs/memory` prints — a still-over-cap `description:` warning (501–1000 chars, advisory) is a signal to trim further. Note the two `description:` escalations are **blocking**, not advisory: a change-id in `description:`, or a gross over-cap value (> 1000 chars, 2× the 500 soft cap), fails `--check` (FKF §3.2) — so a distillation run that leaves either in place will not regenerate clean.
 
 ### Step 6: All-domains loop (no-arg only)
 
@@ -262,7 +264,7 @@ Distilling docs/memory/{domain}/ ({i} of {M}) — reading {N} topic files (read-
 Apply these rewrites? (apply all / cherry-pick / skip)
 
 # Applied outcome
-{domain} distilled — {F} files rewritten, {D} narration lines removed, {H} change-id heading suffixes stripped, {B} byte-identical blocks deduped ({N} near-duplicates flagged), {DD} DD changelog bullets rewritten, {T} TODOs relocated → fab/backlog.md, {R} rationale blocks relocated to Design Decisions, {C} descriptions capped/de-id'd. Indexes regenerated via fab memory-index; no generated file hand-edited.
+{domain} distilled — {F} files rewritten, {D} narration lines removed, {H} change-id heading suffixes stripped, {B} byte-identical blocks deduped ({N} near-duplicates flagged), {DD} DD changelog bullets rewritten, {T} TODOs relocated → fab/backlog.md, {R} rationale blocks relocated to Design Decisions, {C} descriptions capped/de-id'd. Indexes regenerated via fab docs-index docs/memory; no generated file hand-edited.
 
 # No-change / skipped outcomes
 No rewrites proposed — {domain} is already distilled (present-truth).
@@ -277,7 +279,7 @@ Next: all domains distilled (survey heuristic) — /docs-reorg-memory or /fab-ne
 Next: skipped/remaining — /docs-distill-memory _shared (2 files flagged), /docs-distill-memory runtime (1 file flagged); or /docs-reorg-memory, /fab-new
 ```
 
-No-change and skipped outcomes continue the loop; skipped or partially cherry-picked domains remain in the terminal summary. If `fab memory-index --check` exits 2, report that domain's refuse-before-regen pointer, preserve applied rewrites, and handle remaining domains per Step 6.
+No-change and skipped outcomes continue the loop; skipped or partially cherry-picked domains remain in the terminal summary. If `fab docs-index docs/memory --check` exits 2, report that domain's refuse-before-regen pointer, preserve applied rewrites, and handle remaining domains per Step 6.
 
 The dynamic `Next:` reflects the initial survey minus fully distilled domains. For explicit-`<domain>` mode, survey at completion. List remaining domains in `docs/memory/index.md` order with flagged-file counts for targeted follow-up.
 
@@ -292,9 +294,9 @@ The dynamic `Next:` reflects the initial survey minus fully distilled domains. F
 | Domain folder missing / no topic files (explicit `<domain>`) | Abort: "Domain '{domain}' not found (or has no topic files). Available: {list domain folders}." |
 | Ambiguous domain (matches >1 folder) | Abort: "'{domain}' matches {N} domains: {list}. Name one." |
 | Multiple domains passed | Abort: "One domain per named run — run /docs-distill-memory with no argument to loop every flagged domain (each still approved on its own), or name a single domain." |
-| `fab memory-index --check --json` unavailable / no `warnings` key (older binary) — **survey mode** | Fall back to the legacy agent-side grep heuristics (the three §3.2/§3.3 classes) verbatim and warn to upgrade `fab`; the survey still runs (Behavior Step 0 older-binary fallback) |
-| `fab memory-index --check` exit 2 (destructive loss) | Refuse to regenerate; surface the `→ run /docs-reorg-memory to remediate …` pointer (no-op on born-compatible fab-kit trees — not dead code). *(Survey mode does NOT gate on exit code — exit 2 still surveys.)* |
-| `fab memory-index` unavailable (older binary) — **regeneration** | Warn; the rewrites are applied but indexes are not regenerated — tell the user to upgrade `fab` and re-run `fab memory-index` |
+| `fab docs-index docs/memory --check --json` unavailable / no `warnings` key (older binary) — **survey mode** | Fall back to the legacy agent-side grep heuristics (the three §3.2/§3.3 classes) verbatim and warn to upgrade `fab`; the survey still runs (Behavior Step 0 older-binary fallback) |
+| `fab docs-index docs/memory --check` exit 2 (destructive loss) | Refuse to regenerate; surface the `→ run /docs-reorg-memory to remediate …` pointer (normally a no-op on clean generated trees — not dead code). *(Survey mode does NOT gate on exit code — exit 2 still surveys.)* |
+| `fab docs-index docs/memory` and its `_cli-fab` version-skew fallback unavailable (older binary) — **regeneration** | Warn; the rewrites are applied but indexes are not regenerated — tell the user to upgrade `fab` and re-run `fab docs-index docs/memory` |
 
 ---
 
@@ -313,8 +315,8 @@ The dynamic `Next:` reflects the initial survey minus fully distilled domains. F
 | Preserves provenance? | Yes — trailing `(change-id)` citations and `*Introduced by*` fields are kept; change-ids are stripped from `description:` frontmatter (§3.2) and from heading text (§3.3 — kept as a trailing body citation when provenance matters) |
 | Auto-merges near-duplicates? | No — only **byte-identical** within-file blocks are auto-removed; near-duplicates are flagged for manual review. Cross-file duplicate coverage belongs to /docs-reorg-memory |
 | Moves files? | No — this skill rewrites in place; structural moves (incl. cross-file splits/merges) belong to /docs-reorg-memory |
-| Idempotent? | Yes — an already-distilled domain proposes nothing; a fully-distilled tree surveys clean so the no-arg loop's worklist is empty (terminal all-distilled); `fab memory-index` regeneration is byte-stable (Constitution III) |
-| Indexes hand-edited? | No — regenerated by `fab memory-index`; honors the refuse-before-regen `--check` exit-2 guard |
+| Idempotent? | Yes — an already-distilled domain proposes nothing; a fully-distilled tree surveys clean so the no-arg loop's worklist is empty (terminal all-distilled); `fab docs-index docs/memory` regeneration is byte-stable (Constitution III) |
+| Indexes hand-edited? | No — regenerated by `fab docs-index docs/memory`; honors the refuse-before-regen `--check` exit-2 guard |
 
 ---
 

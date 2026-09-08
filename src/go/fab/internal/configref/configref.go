@@ -680,6 +680,16 @@ checklist:
 			ShortSegment: autopilotShortSegment(),
 		},
 		{
+			Key:          "docs_index.roots",
+			Default:      config.DefaultDocsIndexRoots(),
+			Kind:         configvalue.KindSequence,
+			Description:  "Documentation roots processed by fab docs-index. Each root has path (repo-relative), index_file (index.md), also_accept ([]), log (false), max_depth (3, advisory only), and superseded ([] glob patterns). Without docs_index, docs/memory is implicit with log true. Accepted alternate landings preserve prose outside generated blocks; primary landings are generated whole files. First-run curated navigation is imported automatically.",
+			Scope:        ScopeProject,
+			Advertise:    true,
+			Segment:      docsIndexSegment,
+			ShortSegment: docsIndexSegment,
+		},
+		{
 			Key:          "stage_hooks",
 			Default:      nil,
 			Kind:         configvalue.KindMapping,
@@ -1621,3 +1631,16 @@ func renderJSONFields(fields []Field) (string, error) {
 	}
 	return buf.String(), nil
 }
+
+const docsIndexSegment = `# docs_index.roots — documentation roots for fab docs-index. [project]
+# Full prose: fab config explain docs_index.roots
+# docs_index:
+#   roots:
+#     - path: docs/memory
+#       index_file: index.md
+#       log: true
+#       max_depth: 3
+#     # - path: docs/specs
+#     #   also_accept: [README.md]
+#     #   superseded: ["**/archive/**"]
+`

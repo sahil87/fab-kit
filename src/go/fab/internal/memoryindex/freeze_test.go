@@ -385,7 +385,7 @@ func TestFreeze_TC10_LoomRegression(t *testing.T) {
 
 // --- --check redesign: superset PASS / missing FAIL / hand-edit FAIL -------
 //
-// `fab memory-index --check` byte-compares the on-disk log.md (Existing) against
+// `fab docs-index --check` byte-compares the on-disk log.md (Existing) against
 // the freeze-on-write merge GatherLogs(repo, fab, false) produces (Rendered).
 // These tests exercise that exact seam — the content relationship the cmd's
 // Classify byte-compare reads — plus assert Classify keeps a log.md drift in the

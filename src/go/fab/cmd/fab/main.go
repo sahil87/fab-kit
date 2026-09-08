@@ -41,6 +41,7 @@ func newRootCmd() *cobra.Command {
 		kitPathCmd(),
 		impactCmd(),
 		prMetaCmd(),
+		docsIndexCmd(),
 		memoryIndexCmd(),
 		shellInitCmd(),
 		skillCmd(),
@@ -84,7 +85,7 @@ func markRunReached(cmd *cobra.Command, reached *bool) {
 // resolved command's RunE begins, so `reached` is still false. Operational
 // errors originate from inside a RunE (`reached` is true) and stay exit 1.
 //
-// Domain-specific in-handler exit codes (pane 2/3, memory-index 0/1/2) call
+// Domain-specific in-handler exit codes (pane 2/3, docs-index 0/1/2) call
 // os.Exit directly from within their RunE and so bypass this mapping entirely —
 // their codes are preserved unchanged (the no-renumbering coexistence rule).
 func run(args []string, outW, errW io.Writer) int {

@@ -33,7 +33,7 @@ A `docs/memory/` tree conforms to **FKF v0.1** if all of the following hold:
 1. Every non-reserved `.md` file carries a parseable YAML frontmatter block.
 2. Every such block contains `type: memory` and a non-empty `description`.
 3. Reserved filenames — `index.md` and `log.md` — follow their generated structures (§5, §6) and
-   are written only by `fab memory-index`.
+   are written only by `fab docs-index docs/memory`.
 4. Cross-links between memory files use the bundle-relative form (§7).
 
 Items 1–2 are the OKF conformance floor (specialized: `type` is fixed, `description` is promoted
@@ -76,9 +76,9 @@ routes on it. It is the one hand-curated frontmatter field — authored by every
 scalar and SHOULD stay at or below **500 characters** — the unit is **characters (runes)**, measured
 on the value *after quote-stripping*. Detail (requirements, design decisions, prose) belongs in the
 file BODY (`## Overview`, `## Requirements`, `## Design Decisions`), never in the description. The cap
-enforces in **two tiers**: `fab memory-index` emits a **non-fatal advisory** stderr warning for a
+enforces in **two tiers**: `fab docs-index docs/memory` emits a **non-fatal advisory** stderr warning for a
 description in the **501–1000** range (over the soft cap — a trim nag that never fails
-`fab memory-index --check`), and **BLOCKS** — fails `--check`, joining the blocking class below — for a
+`fab docs-index docs/memory --check`), and **BLOCKS** — fails `--check`, joining the blocking class below — for a
 **gross over-cap** description strictly longer than **1000 characters** (2× the soft cap; the
 advisory-only posture demonstrably failed — 33×/50×-cap descriptions shipped straight through the nag).
 
@@ -90,7 +90,7 @@ extracted first sentence degrades the routing signal).
 **No change-ids in `description:` (enforced/blocking).** The description MUST NOT carry change-ids —
 neither a trailing `— xu0k`-style suffix nor a `(d9rs)`-style citation. It is a routing signal, not a
 provenance record; change-id citations belong in the body (§3.3), never in the description. This ban
-is **enforced**: `fab memory-index` **BLOCKS** (fails `--check`, joining the blocking class below) on a
+is **enforced**: `fab docs-index docs/memory` **BLOCKS** (fails `--check`, joining the blocking class below) on a
 `description:` carrying a **registry-gated** change-id — a full `YYMMDD-XXXX-slug` folder-name token
 whose registered folder matches, or a bare registered 4-char id (the same false-positive-free registry
 gating the `log.md` change-id attribution uses, so `code`/`yaml`/any unregistered 4-char word never
@@ -99,7 +99,7 @@ trips it). Detection covers topic files and domain/sub-domain `index.md` stubs a
 > **Blocking content class (§3.2 escalations + malformed frontmatter).** Because the index reads the
 > `description:` frontmatter verbatim, an *offending* description silently propagates into the
 > generated row (the drift check alone cannot catch it — committed byte-identical to regenerated).
-> `fab memory-index` treats **four** signatures as **BLOCKING** — they make `fab memory-index --check`
+> `fab docs-index docs/memory` treats **four** signatures as **BLOCKING** — they make `fab docs-index docs/memory --check`
 > **fail (exit ≥ 1) independent of index drift**, enumerating the offending file(s): (a) an
 > **unclosed frontmatter block** (opens `---` with no subsequent standalone `---`); (b) a
 > `description:` value that **starts with a quote but fails quote-stripping** (an unterminated quote,
@@ -167,7 +167,7 @@ not how it came to be:
   folders (the full design) — the body carries only what IS. Consolidating a section to current
   truth (dropping the superseded description) is the correct edit, not a loss. (Sole sanctioned
   exception: `_shared/removed-domains.md`, whose body *is* removal records — a citation-carrying
-  tombstone ledger, not transition narration — protected by the `fab memory-index --check` tier-2
+  tombstone ledger, not transition narration — protected by the `fab docs-index docs/memory --check` tier-2
   tombstone-loss guard and the `docs-reorg-memory` carve-out that authors it.)
 - **Provenance is citation-only, and headings carry none.** The sole permitted provenance in a body
   is a trailing `(change-id)` citation and the `*Introduced by*: {change-name}` field on a Design
@@ -206,11 +206,11 @@ unknown frontmatter keys on round-trip and MUST NOT reject a file for carrying t
 ## 5. Index Files (`index.md`) — generated
 
 Every directory holding ≥1 non-index `.md` carries a generated `index.md`. **All index tiers are
-generated artifacts written solely by `fab memory-index`** — agents never hand-edit index rows.
+generated artifacts written solely by `fab docs-index docs/memory`** — agents never hand-edit index rows.
 The render is a pure function of folder contents + each file's `description:` frontmatter — so
 the output is **byte-stable / idempotent**: two branches cannot produce conflicting
 hand-edits to the same row, and any residual textual conflict auto-resolves by re-running
-`fab memory-index` post-merge.
+`fab docs-index docs/memory` post-merge.
 
 > FKF is stricter than OKF here: OKF permits hand-written, auto-generated, *or*
 > consumer-synthesized indexes. FKF **forbids** hand-editing — generation is the single writer.
@@ -234,7 +234,7 @@ The **one curated input** to index generation is the `description:` frontmatter 
 and on domain/sub-domain index files. Everything else in an index is derived.
 
 > **Stub-before-index.** When a new domain/sub-domain is created, its `index.md` **stub**
-> (carrying only `description:` frontmatter) is written **before** `fab memory-index` runs; the
+> (carrying only `description:` frontmatter) is written **before** `fab docs-index docs/memory` runs; the
 > command fills the generated body and round-trips the description. This is the Index Ownership
 > model — it avoids the contradiction of one step hand-editing an index the next step both
 > generates and forbids editing.
@@ -248,16 +248,16 @@ generated file.** The procedure is mechanical:
 
 1. Resolve the conflicts in the **topic files** only (and any `.status.yaml` / `log.seed.md` seed
    inputs the generation reads) — never in the `index.md` / `log.md` itself.
-2. **Re-run `fab memory-index`.**
+2. **Re-run `fab docs-index docs/memory`.**
 3. Take its output **wholesale** as the resolution (`git add` the regenerated index/log files).
 
-`fab memory-index --check` at review-pr backstops staleness. Byte-stability makes the
+`fab docs-index docs/memory --check` at review-pr backstops staleness. Byte-stability makes the
 regenerate-wholesale resolution *always correct*, so there is never a reason to reconcile a
 generated file by hand.
 
 > **Optional `.gitattributes` merge-driver (non-normative aside — documentation only).** A project MAY
 > reduce the friction by registering a custom merge driver that resolves generated index/log conflicts
-> by taking either side and deferring to the next `fab memory-index` regen. It is **not auto-installed**
+> by taking either side and deferring to the next `fab docs-index docs/memory` regen. It is **not auto-installed**
 > (no tooling change, no migration) — a convenience opted into by hand:
 >
 > ```gitattributes
@@ -265,11 +265,11 @@ generated file by hand.
 > docs/memory/**/log.md   merge=fab-regen
 > ```
 > ```sh
-> git config merge.fab-regen.name "fab memory-index regenerates this"
+> git config merge.fab-regen.name "fab docs-index docs/memory regenerates this"
 > git config merge.fab-regen.driver "true"   # accept either side; regen fixes it
 > ```
 >
-> The driver only *suppresses the conflict marker*; the mandatory `fab memory-index` re-run (step 2)
+> The driver only *suppresses the conflict marker*; the mandatory `fab docs-index docs/memory` re-run (step 2)
 > then produces the correct bytes — it does **not** replace the regenerate step.
 
 **`fkf_version` on the root index** — see §8.
@@ -279,7 +279,7 @@ generated file by hand.
 ## 6. Log Files (`log.md`) — generated (C-lite)
 
 Each domain and sub-domain folder carries a generated `log.md` recording that folder's change
-history. **`log.md` is a generated artifact written solely by `fab memory-index`** (same
+history. **`log.md` is a generated artifact written solely by `fab docs-index docs/memory`** (same
 single-writer, byte-stable discipline as `index.md`). It replaces the per-file `## Changelog`
 tables that FKF removes from memory files (§3.3).
 
@@ -301,7 +301,7 @@ under that commit's date, carrying the file, the change's `summary`, and the cha
 
 ```markdown
 # Log — {domain}
-<!-- Generated by `fab memory-index` from git history + per-change summaries. Do not hand-edit. -->
+<!-- Generated by `fab docs-index` from git history + per-change summaries. Do not hand-edit. -->
 
 ## 2026-06-13
 - **Update** [migrations](/distribution/migrations.md) — surfaces the optional `agent.tiers`
@@ -331,7 +331,7 @@ summary: "surfaces the optional agent.tiers per-stage-model override as a commen
 
 - Written once during the change (authored at hydrate, or carried from the intake), via the fab
   CLI — single-change-touched, so conflict-free.
-- Read by `fab memory-index` when generating `log.md`.
+- Read by `fab docs-index docs/memory` when generating `log.md`.
 - Absence degrades gracefully: a change with no `summary` projects with the change slug in place of
   the descriptive line.
 
@@ -406,7 +406,7 @@ fkf_version: "0.1"
 ```
 
 FKF emits **`fkf_version`**, not OKF's `okf_version`, because an FKF bundle is a *superset* of
-OKF — claiming bare `okf_version` would under-state what the bundle guarantees. `fab memory-index`
+OKF — claiming bare `okf_version` would under-state what the bundle guarantees. `fab docs-index docs/memory`
 writes `fkf_version` into the root index on generation.
 
 Minor versions add backward-compatible features; major versions may break. Per OKF, consumers

@@ -351,6 +351,7 @@ var ValidAutopilotMergeModes = []string{"cherry-pick-ladder", "merge-auto", "sta
 // documented per-caller fallbacks make this safe for
 // malformed configs — a deliberate, recorded semantic for the consolidation.
 type Config struct {
+	DocsIndex         *DocsIndexConfig     `yaml:"docs_index"`
 	StageHooks        map[string]StageHook `yaml:"stage_hooks"`
 	TrueImpactExclude []string             `yaml:"true_impact_exclude"`
 	TestPaths         []string             `yaml:"test_paths"`

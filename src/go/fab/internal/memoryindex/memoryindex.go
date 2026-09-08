@@ -1,25 +1,8 @@
-// Package memoryindex deterministically (re)generates the docs/memory index
-// files: the root docs/memory/index.md (domains-only) and every
-// docs/memory/{domain}/index.md (file rows). It is the deterministic
-// counterpart to the hand-maintained index rows that previously lived in the
-// hydrate / docs-reorg-memory skill prose — reading the same inputs (each
-// memory file's H1 + `description:` frontmatter) and emitting the exact same
-// markdown on every run so the indexes stop drifting and stop generating merge
-// conflicts on the hot per-row cells. The index is a pure function of content
-// (file names + descriptions + structure) — no git dates — so its output is
-// branch-independent and idempotent; per-folder change history (the "when")
-// lives in the freeze-on-write log.md instead.
-//
-// Rendering is split into pure functions that take structured inputs and
-// return markdown (RenderRoot / RenderDomain), plus a Gather orchestrator that
-// performs the I/O (directory walk, file reads, git shelling). This mirrors
-// internal/prmeta and keeps the byte-for-byte render contract unit-testable
-// without git fixtures.
-//
-// It also walks the whole tree anyway, so it cheaply computes per-folder file
-// counts and depth and returns non-fatal shape-bound warnings (the "C-detect"
-// half of the memory-tree-shape work). Warnings never affect the rendered
-// index output — they are advisory only, keeping the index byte-stable.
+// Package memoryindex implements deterministic navigation for configured
+// documentation roots. GatherRoot supplies the root-aware docs-index command;
+// RenderRoot and RenderDomain are pure renderers, and Classify guards destructive
+// navigation loss. FKF logs remain an opt-in, freeze-on-write projection.
+// Gather and GatherLogs retain the memory-shaped API over the same walker.
 package memoryindex
 
 import (
@@ -32,6 +15,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/frontmatter"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/statusfile"
@@ -162,10 +146,11 @@ var reservedDomains = map[string]bool{
 
 // FileEntry is one non-index .md file within a domain folder.
 type FileEntry struct {
+	Label string
+	Link  string
 	// Base is the file name without the .md extension (the link target stem).
 	Base string
-	// Title is the H1 of the file (first `# ` line); unused in the rendered
-	// row today but gathered for parity/diagnostics.
+	// Title is the file H1, used as the row label when description is missing.
 	Title string
 	// Description is the `description:` frontmatter value; "" → rendered as the
 	// missing-cell fallback.
@@ -178,6 +163,9 @@ type FileEntry struct {
 // a domain dir holding its own topic files) — the file-row contract is
 // identical at either tier, so RenderDomain renders both.
 type DomainData struct {
+	Generic bool // generic roots escape table cells; memory preserves its byte contract
+	Link    string
+	Note    string
 	// Name is the folder name (e.g. "fab-workflow" for a domain, "runtime" for
 	// a sub-domain).
 	Name string
@@ -190,15 +178,14 @@ type DomainData struct {
 	Description string
 	// Files are the (sub-)domain's topic files, sorted lexicographically by Base.
 	Files []FileEntry
-	// SubDomains are the child sub-domain folders (one level down) that hold at
-	// least one topic file, sorted lexicographically by Name. Empty for a
-	// sub-domain (recursion is one level only — deeper nesting is a depth
-	// warning, not a generated index tier) and for a flat domain.
+	// SubDomains are content-bearing child folders, recursively populated and
+	// sorted lexicographically by Name. Empty for a leaf folder.
 	SubDomains []DomainData
 }
 
 // DomainRow is one row of the root (domains-only) index.
 type DomainRow struct {
+	Link        string
 	Name        string // folder name; link target is {Name}/index.md
 	Description string // curated one-liner; "" → missing-cell fallback
 }
@@ -217,6 +204,7 @@ type RootData struct {
 // (malformed-description), the matched change-id (description-change-id), or the
 // broken link target (broken-link).
 type Warning struct {
+	Limit  int    // per-root advisory depth limit; zero uses the memory default
 	Path   string // repo-relative folder/file path the finding is about
 	Kind   string // one of the Kind* constants
 	Count  int    // file count (width) | description rune length | marker count | line count
@@ -228,11 +216,17 @@ type Warning struct {
 // String formats the warning line written to stderr.
 func (w Warning) String() string {
 	switch w.Kind {
+	case KindMissingDescription:
+		return fmt.Sprintf("⚠ %s has no description: — using H1 and placeholder", w.Path)
 	case KindWidth:
 		return fmt.Sprintf("⚠ %s has %d topic files (soft bound: ~%d) — consider splitting into sub-domains",
 			w.Path, w.Count, WidthWarnThreshold)
 	case KindDepth:
-		return fmt.Sprintf("⚠ %s is nested %d levels deep (max: %d) — consider flattening", w.Path, w.Depth, MaxDepth)
+		limit := w.Limit
+		if limit == 0 {
+			limit = MaxDepth
+		}
+		return fmt.Sprintf("⚠ %s is nested %d levels deep (max: %d) — consider flattening", w.Path, w.Depth, limit)
 	case KindMalformedFence:
 		return fmt.Sprintf("✖ %s has malformed frontmatter — unclosed frontmatter block (no closing `---`)", w.Path)
 	case KindMalformedDescription:
@@ -284,7 +278,7 @@ func RenderRoot(d RootData) string {
 	b.WriteString(">\n")
 	b.WriteString("> Contrast with [`docs/specs/index.md`](../specs/index.md): specs are *pre-implementation* —\n")
 	b.WriteString("> what you planned. Specs capture conceptual design intent and are human-curated.\n\n")
-	b.WriteString("> **Generated by `fab memory-index`** — do not hand-edit. Re-run after any memory write;\n")
+	b.WriteString("> **Generated by `fab docs-index`** — do not hand-edit. Re-run after any memory write;\n")
 	b.WriteString("> the output is byte-stable. Per-file descriptions live in each file's `description:` frontmatter.\n\n")
 	b.WriteString("> **New here?** Start with the [README](../../README.md) for setup and a walkthrough. For terminology, see the [Glossary](../specs/glossary.md).\n\n")
 	b.WriteString("| Domain | Description |\n")
@@ -294,7 +288,11 @@ func RenderRoot(d RootData) string {
 		if desc == "" {
 			desc = missingCell
 		}
-		fmt.Fprintf(&b, "| [%s](%s/index.md) | %s |\n", dr.Name, dr.Name, desc)
+		link := dr.Link
+		if link == "" {
+			link = dr.Name + "/index.md"
+		}
+		fmt.Fprintf(&b, "| [%s](%s) | %s |\n", dr.Name, link, desc)
 	}
 	return b.String()
 }
@@ -310,7 +308,7 @@ func RenderDomain(d DomainData) string {
 		fmt.Fprintf(&b, "---\ndescription: %q\n---\n", d.Description)
 	}
 	fmt.Fprintf(&b, "# %s\n\n", d.Title)
-	b.WriteString("> **Generated by `fab memory-index`** — do not hand-edit. Descriptions come from each file's `description:` frontmatter.\n\n")
+	b.WriteString("> **Generated by `fab docs-index`** — do not hand-edit. Descriptions come from each file's `description:` frontmatter.\n\n")
 	b.WriteString("| File | Description |\n")
 	b.WriteString("|------|-------------|\n")
 	for _, f := range d.Files {
@@ -318,7 +316,18 @@ func RenderDomain(d DomainData) string {
 		if desc == "" {
 			desc = missingCell
 		}
-		fmt.Fprintf(&b, "| [%s](%s.md) | %s |\n", f.Base, f.Base, desc)
+		label := f.Label
+		if label == "" {
+			label = f.Base
+		}
+		link := f.Link
+		if link == "" {
+			link = f.Base + ".md"
+		}
+		fmt.Fprintf(&b, "| [%s](%s) | %s |\n", renderDescription(label, d.Generic), link, renderDescription(desc, d.Generic))
+	}
+	if d.Note != "" {
+		fmt.Fprintf(&b, "\n%s\n", d.Note)
 	}
 	// Sub-domain references — emitted only when sub-domains exist, so a flat
 	// domain index renders byte-identically to the pre-recursion output. Mirrors
@@ -332,183 +341,32 @@ func RenderDomain(d DomainData) string {
 			if desc == "" {
 				desc = missingCell
 			}
-			fmt.Fprintf(&b, "| [%s](%s/index.md) | %s |\n", sd.Name, sd.Name, desc)
+			link := sd.Link
+			if link == "" {
+				link = sd.Name + "/index.md"
+			}
+			fmt.Fprintf(&b, "| [%s](%s) | %s |\n", sd.Name, link, renderDescription(desc, d.Generic))
 		}
 	}
 	return b.String()
 }
 
-// Gather walks docs/memory/ under repoRoot and reads every input the index
-// renderers need: each domain's topic files (H1 + `description:` frontmatter)
-// and a domain description for the root row. It also computes the non-fatal
-// shape warnings. Returns (root, domains, warnings, err). A missing
-// docs/memory/ directory is a hard error; everything else degrades gracefully
-// (missing frontmatter renders as the missing-cell fallback).
-//
-// domains is sorted lexicographically by Name; each domain's Files are sorted
-// lexicographically by Base — so the output is deterministic and byte-stable.
+// Gather is the memory-shaped compatibility API over the root-aware walker.
 func Gather(repoRoot string) (RootData, []DomainData, []Warning, error) {
-	memRoot := filepath.Join(repoRoot, "docs", "memory")
-	entries, err := os.ReadDir(memRoot)
+	cfg := config.DefaultDocsIndexRoots()[0]
+	w := docWalk{repo: repoRoot, root: filepath.Join(repoRoot, "docs", "memory"), cfg: cfg, reg: gatherChangeRegistry(filepath.Join(repoRoot, "fab"))}
+	tree, err := w.walk(w.root, false, 0)
 	if err != nil {
 		return RootData{}, nil, nil, fmt.Errorf("docs/memory not found under %s: %w", repoRoot, err)
 	}
-
+	root := RootData{}
 	var domains []DomainData
-	var root RootData
-	var warnings []Warning
-
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		domainName := e.Name()
-		domainDir := filepath.Join(memRoot, domainName)
-
-		files := gatherFiles(domainDir)
-		subDomains := gatherSubDomains(domainDir)
-		desc := domainDescription(domainDir)
-		domains = append(domains, DomainData{
-			Name:        domainName,
-			Title:       domainTitle(domainDir, domainName),
-			Description: desc,
-			Files:       files,
-			SubDomains:  subDomains,
-		})
-		root.Domains = append(root.Domains, DomainRow{
-			Name:        domainName,
-			Description: desc,
-		})
-
-		// Width warnings — reserved-exempt — for the domain and each sub-domain.
-		// Depth warnings walk the whole subtree once below.
-		if !reservedDomains[domainName] && len(files) > WidthWarnThreshold {
-			warnings = append(warnings, Warning{
-				Path:  filepath.ToSlash(filepath.Join("docs", "memory", domainName)),
-				Kind:  KindWidth,
-				Count: len(files),
-			})
-		}
-		// _unsorted staging presence (advisory): staging should trend to empty,
-		// so ANY topic file present is the signal. _unsorted keeps its width
-		// exemption (above) — this is a presence signal, not a shape bound.
-		if domainName == "_unsorted" && len(files) > 0 {
-			warnings = append(warnings, Warning{
-				Path:  filepath.ToSlash(filepath.Join("docs", "memory", domainName)),
-				Kind:  KindUnsorted,
-				Count: len(files),
-			})
-		}
-		for _, sd := range subDomains {
-			if len(sd.Files) > WidthWarnThreshold {
-				warnings = append(warnings, Warning{
-					Path:  filepath.ToSlash(filepath.Join("docs", "memory", domainName, sd.Name)),
-					Kind:  KindWidth,
-					Count: len(sd.Files),
-				})
-			}
-		}
-		warnings = append(warnings, depthWarnings(memRoot, domainDir)...)
+	for _, child := range tree.children {
+		domains = append(domains, child.data)
+		root.Domains = append(root.Domains, DomainRow{Name: child.data.Name, Description: child.data.Description})
 	}
-
-	// Frontmatter validation + description/body/link/staging warnings — a
-	// read-only pass over every topic file and every index.md stub read for a
-	// description. It never touches the rendered output (byte-stability, intake
-	// #3); it only produces stderr/exit-code warnings. Walked separately from
-	// the render gather so the render path stays untouched. The change registry
-	// (fab/changes/* + archive/**) is gathered ONCE here and threaded into the
-	// pass so the registry-gated change-id checks (description blocking + body
-	// narration meter) resolve tokens without a per-file registry walk. fabRoot
-	// is derived from repoRoot the same way the cmd derives repoRoot from
-	// fabRoot (repoRoot = filepath.Dir(fabRoot)); a missing fab/changes yields an
-	// empty registry (gatherChangeRegistry degrades gracefully — no false
-	// change-id matches, exactly the born-FKF / test-tree case).
-	reg := gatherChangeRegistry(filepath.Join(repoRoot, "fab"))
-	warnings = append(warnings, frontmatterWarnings(memRoot, reg)...)
-
-	sort.Slice(domains, func(i, j int) bool { return domains[i].Name < domains[j].Name })
-	sort.Slice(root.Domains, func(i, j int) bool { return root.Domains[i].Name < root.Domains[j].Name })
-	sort.Slice(warnings, func(i, j int) bool {
-		if warnings[i].Path != warnings[j].Path {
-			return warnings[i].Path < warnings[j].Path
-		}
-		if warnings[i].Kind != warnings[j].Kind {
-			return warnings[i].Kind < warnings[j].Kind
-		}
-		// Detail tiebreaks same-(path,kind) warnings (e.g. multiple broken links
-		// in one file) so the order is fully deterministic / byte-stable.
-		return warnings[i].Detail < warnings[j].Detail
-	})
-
-	return root, domains, warnings, nil
-}
-
-// gatherFiles reads the topic files (non-index .md) directly under domainDir,
-// sorted lexicographically by base name.
-//
-// index.md and log.md are both generated, single-writer artifacts — not topic
-// files — so they are skipped. (gatherLogEntries applies the identical skip;
-// excluding log.md here is what keeps a freshly-generated tree idempotent: a
-// second `fab memory-index` run must not read the just-written log.md back as a
-// topic row and add a spurious `[log](log.md)` line to the domain index.)
-func gatherFiles(domainDir string) []FileEntry {
-	dirEntries, err := os.ReadDir(domainDir)
-	if err != nil {
-		return nil
-	}
-	var files []FileEntry
-	for _, de := range dirEntries {
-		if de.IsDir() {
-			continue
-		}
-		name := de.Name()
-		if !strings.HasSuffix(name, ".md") || name == "index.md" || name == "log.md" || name == seedFileName {
-			continue
-		}
-		path := filepath.Join(domainDir, name)
-		base := strings.TrimSuffix(name, ".md")
-		files = append(files, FileEntry{
-			Base:        base,
-			Title:       readH1(path),
-			Description: frontmatter.Field(path, "description"),
-		})
-	}
-	sort.Slice(files, func(i, j int) bool { return files[i].Base < files[j].Base })
-	return files
-}
-
-// gatherSubDomains reads the immediate child directories of domainDir that hold
-// at least one non-index topic file and returns a DomainData per sub-domain,
-// sorted lexicographically by Name. Recursion is one level only: a sub-domain's
-// own SubDomains field is left empty — deeper nesting is surfaced as a depth
-// warning, not an additional generated index tier (the depth-3 bound is
-// {domain}/{sub-domain}/{topic}.md). An empty sub-folder (no .md) yields no
-// entry, so it never produces a spurious index.
-func gatherSubDomains(domainDir string) []DomainData {
-	dirEntries, err := os.ReadDir(domainDir)
-	if err != nil {
-		return nil
-	}
-	var subs []DomainData
-	for _, de := range dirEntries {
-		if !de.IsDir() {
-			continue
-		}
-		subName := de.Name()
-		subDir := filepath.Join(domainDir, subName)
-		files := gatherFiles(subDir)
-		if len(files) == 0 {
-			continue // no topic files → not a sub-domain, no index to generate
-		}
-		subs = append(subs, DomainData{
-			Name:        subName,
-			Title:       domainTitle(subDir, subName),
-			Description: domainDescription(subDir),
-			Files:       files,
-		})
-	}
-	sort.Slice(subs, func(i, j int) bool { return subs[i].Name < subs[j].Name })
-	return subs
+	sortWarnings(w.warnings)
+	return root, domains, w.warnings, nil
 }
 
 // domainTitle reads the existing domain index.md H1 if present (preserving a
@@ -518,14 +376,6 @@ func domainTitle(domainDir, domainName string) string {
 		return h1
 	}
 	return titleCase(domainName) + " Documentation"
-}
-
-// domainDescription reads the `description:` frontmatter of the domain's
-// index.md if present (the curated one-liner for the root row); otherwise "".
-// Because RenderDomain round-trips this value back into the generated
-// index.md's frontmatter, it survives regeneration.
-func domainDescription(domainDir string) string {
-	return frontmatter.Field(filepath.Join(domainDir, "index.md"), "description")
 }
 
 // readH1 returns the first `# ` heading text in the file, or "".
@@ -601,7 +451,9 @@ const gitLogFormat = "%x00%ad%x1f%s"
 // emit no log.md. core.quotepath=off keeps non-ASCII paths unquoted so map keys
 // match filesystem paths. --name-status carries the per-commit status column
 // the log's verb derivation needs.
-func loadGitDates(repoRoot string) *gitDates {
+func loadGitDates(repoRoot string) *gitDates { return loadGitDatesForRoot(repoRoot, "docs/memory") }
+
+func loadGitDatesForRoot(repoRoot, rootPath string) *gitDates {
 	topCmd := exec.Command("git", "rev-parse", "--show-toplevel")
 	if repoRoot != "" {
 		topCmd.Dir = repoRoot
@@ -614,7 +466,7 @@ func loadGitDates(repoRoot string) *gitDates {
 
 	logCmd := exec.Command("git", "-c", "core.quotepath=off", "log",
 		"--date=short", "--format="+gitLogFormat,
-		"--name-status", "--", "docs/memory")
+		"--name-status", "--", rootPath)
 	if repoRoot != "" {
 		logCmd.Dir = repoRoot
 	}
@@ -920,47 +772,24 @@ type LogTarget struct {
 // the result is nil only when no folder has any frozen/seed/git entry at all.
 //
 // rebuild selects the freeze-on-write mode (R6): false (the default,
-// `fab memory-index`) reads each existing log.md and appends-only; true
-// (`fab memory-index --rebuild`) discards the frozen state and re-projects every
+// `fab docs-index`) reads each existing log.md and appends-only; true
+// (`fab docs-index --rebuild`) discards the frozen state and re-projects every
 // log.md from current git (destructive). --check passes rebuild=false so the
 // rendered content is the freeze-on-write merge the classifier byte-compares
 // against (R7–R9).
 func GatherLogs(repoRoot, fabRoot string, rebuild bool) ([]LogTarget, error) {
-	memRoot := filepath.Join(repoRoot, "docs", "memory")
-	entries, err := os.ReadDir(memRoot)
+	targets, _, err := GatherRoot(repoRoot, fabRoot, config.DefaultDocsIndexRoots()[0], rebuild)
 	if err != nil {
-		return nil, fmt.Errorf("docs/memory not found under %s: %w", repoRoot, err)
+		return nil, err
 	}
-
-	// dates may be nil when git is entirely unavailable (non-repo, git missing):
-	// the git-projection surface then degrades to empty, but any per-folder
-	// log.seed.md still produces a log.md (seed entries are git-independent — the
-	// pre-FKF history they preserve has no live git/`.status.yaml` to project from).
-	dates := loadGitDates(repoRoot)
-	reg := gatherChangeRegistry(fabRoot)
-
-	var targets []LogTarget
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		domainName := e.Name()
-		domainDir := filepath.Join(memRoot, domainName)
-
-		// Domain-tier log.
-		if t, ok := buildLogTarget(repoRoot, dates, reg, domainDir, domainName, "", rebuild); ok {
-			targets = append(targets, t)
-		}
-		// Sub-domain logs (one level down, mirroring the index tiers).
-		for _, sd := range gatherSubDomains(domainDir) {
-			subDir := filepath.Join(domainDir, sd.Name)
-			if t, ok := buildLogTarget(repoRoot, dates, reg, subDir, domainName+"/"+sd.Name, sd.Title, rebuild); ok {
-				targets = append(targets, t)
-			}
+	var logs []LogTarget
+	for _, t := range targets {
+		if t.IsLog {
+			logs = append(logs, LogTarget{Path: t.Path, Content: t.Content})
 		}
 	}
-	sort.Slice(targets, func(i, j int) bool { return targets[i].Path < targets[j].Path })
-	return targets, nil
+	sort.Slice(logs, func(i, j int) bool { return logs[i].Path < logs[j].Path })
+	return logs, nil
 }
 
 // buildLogTarget assembles one folder's LogData → log.md target under the
@@ -985,7 +814,7 @@ func GatherLogs(repoRoot, fabRoot string, rebuild bool) ([]LogTarget, error) {
 // Under rebuild the existing log is DISCARDED and every entry re-projected from
 // current git (the pre-freeze behavior, made explicit and destructive — R6),
 // with the seed merged beneath as at bootstrap.
-func buildLogTarget(repoRoot string, dates *gitDates, reg map[string]changeMeta, folderDir, bundleRel, titleOverride string, rebuild bool) (LogTarget, bool) {
+func buildLogTarget(repoRoot string, dates *gitDates, reg map[string]changeMeta, folderDir, bundleRel, titleOverride string, rebuild bool, landings ...string) (LogTarget, bool) {
 	logPath := filepath.Join(folderDir, "log.md")
 
 	// Existing frozen log — authoritative on a normal run, discarded under rebuild.
@@ -998,7 +827,7 @@ func buildLogTarget(repoRoot string, dates *gitDates, reg map[string]changeMeta,
 	bootstrap := len(existing) == 0
 
 	// Project live git; the unattributable branch is gated to bootstrap / rebuild.
-	projected := gatherLogEntries(repoRoot, dates, reg, folderDir, bundleRel, bootstrap || rebuild)
+	projected := gatherLogEntries(repoRoot, dates, reg, folderDir, bundleRel, bootstrap || rebuild, landings...)
 
 	// Append-only merge: existing entries are immutable; only NEW attributable
 	// (FileBase, ChangeID) pairs are appended (R1/R2). At bootstrap/rebuild the
@@ -1111,10 +940,13 @@ func sortLogEntries(entries []LogEntry) {
 // log.md it is false, and new unattributable commits are simply not projected
 // (the frozen lines already on disk are preserved by the caller's append-only
 // merge; re-projecting a squash-reworded subject would otherwise churn the log).
-func gatherLogEntries(repoRoot string, dates *gitDates, reg map[string]changeMeta, folderDir, bundleRel string, projectUnattributable bool) []LogEntry {
+func gatherLogEntries(repoRoot string, dates *gitDates, reg map[string]changeMeta, folderDir, bundleRel string, projectUnattributable bool, landings ...string) []LogEntry {
 	dirEntries, err := os.ReadDir(folderDir)
 	if err != nil {
 		return nil
+	}
+	if len(landings) == 0 {
+		landings = []string{"index.md"}
 	}
 	var entries []LogEntry
 	for _, de := range dirEntries {
@@ -1122,7 +954,17 @@ func gatherLogEntries(repoRoot string, dates *gitDates, reg map[string]changeMet
 			continue
 		}
 		name := de.Name()
-		if !strings.HasSuffix(name, ".md") || name == "index.md" || name == "log.md" || name == seedFileName {
+		if !strings.HasSuffix(name, ".md") || name == "log.md" || name == seedFileName {
+			continue
+		}
+		landing := false
+		for _, n := range landings {
+			if name == n {
+				landing = true
+				break
+			}
+		}
+		if landing {
 			continue
 		}
 		base := strings.TrimSuffix(name, ".md")
@@ -1191,101 +1033,6 @@ func gitRelPath(dates *gitDates, repoRoot, path string) string {
 		return filepath.ToSlash(rel)
 	}
 	return filepath.ToSlash(path)
-}
-
-// depthWarnings walks domainDir for any .md file whose depth under docs/memory/
-// exceeds MaxDepth and returns a warning per offending directory (deduped).
-func depthWarnings(memRoot, domainDir string) []Warning {
-	seen := map[string]bool{}
-	var out []Warning
-	_ = filepath.Walk(domainDir, func(p string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !strings.HasSuffix(p, ".md") {
-			return nil
-		}
-		rel, relErr := filepath.Rel(memRoot, p)
-		if relErr != nil {
-			return nil
-		}
-		// depth = number of path segments under docs/memory/ counting the file.
-		// {domain}/{topic}.md = 2; {domain}/{sub}/{topic}.md = 3; deeper warns.
-		depth := len(strings.Split(filepath.ToSlash(rel), "/"))
-		if depth <= MaxDepth {
-			return nil
-		}
-		dir := filepath.ToSlash(filepath.Join("docs", "memory", filepath.Dir(rel)))
-		if seen[dir] {
-			return nil
-		}
-		seen[dir] = true
-		out = append(out, Warning{Path: dir, Kind: KindDepth, Depth: depth})
-		return nil
-	})
-	return out
-}
-
-// frontmatterWarnings walks docs/memory/ and returns, per .md file, the
-// blocking + advisory findings that need a read-only content pass. The pass is
-// read-only and never affects rendered output (byte-stability, intake #3):
-//
-//   - Description findings (both topic files AND domain/sub-domain index.md
-//     stubs — a corrupted/over-cap/change-id-laden domain description mangles
-//     the root row exactly as one on a topic file mangles a domain row):
-//     malformed-frontmatter (via internal/frontmatter.Validate), the blocking
-//     registry-gated change-id finding, and the length findings (advisory
-//     501–1000 vs. blocking gross over-cap > 1000, mutually exclusive).
-//   - Topic-file BODY findings (topic files only — index.md is a generated
-//     stub, never a concept document): narration-marker density, size, and
-//     broken bundle-relative links.
-//
-// log.md / log.seed.md are generated/curated log inputs, never concept
-// documents, so they are skipped entirely.
-func frontmatterWarnings(memRoot string, reg map[string]changeMeta) []Warning {
-	var out []Warning
-	_ = filepath.Walk(memRoot, func(p string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !strings.HasSuffix(p, ".md") {
-			return nil
-		}
-		name := filepath.Base(p)
-		if name == "log.md" || name == seedFileName {
-			return nil // generated/curated log inputs — not concept documents
-		}
-		relPath := filepath.ToSlash(filepath.Join("docs", "memory", relOrBase(memRoot, p)))
-		isIndex := name == "index.md"
-
-		// Description findings — inspected on both topic files and index.md stubs,
-		// only when the file actually opens a frontmatter block (a body-only file
-		// degrades gracefully; the root index.md often carries no description stub).
-		if frontmatter.HasFrontmatter(p) {
-			for _, f := range frontmatter.Validate(p) {
-				switch f.Kind {
-				case frontmatter.KindUnclosedFence:
-					out = append(out, Warning{Path: relPath, Kind: KindMalformedFence})
-				case frontmatter.KindQuoteStripFailure:
-					out = append(out, Warning{Path: relPath, Kind: KindMalformedDescription, Detail: f.Detail})
-				}
-			}
-			if desc := frontmatter.Field(p, "description"); desc != "" {
-				// Blocking change-id in the description (registry-gated §3.2 ban).
-				if ids := scanChangeIDs(desc, reg); len(ids) > 0 {
-					out = append(out, Warning{Path: relPath, Kind: KindDescriptionChangeID, Detail: strings.Join(ids, ", ")})
-				}
-				// Length: gross over-cap (> 1000) BLOCKS; 501–1000 stays advisory —
-				// mutually exclusive so a >1000 description is not double-reported.
-				if n := utf8.RuneCountInString(desc); n > DescriptionBlockingLenThreshold {
-					out = append(out, Warning{Path: relPath, Kind: KindDescriptionOverCap, Count: n})
-				} else if n > DescriptionLenWarnThreshold {
-					out = append(out, Warning{Path: relPath, Kind: KindDescriptionLength, Count: n})
-				}
-			}
-		}
-
-		// Topic-file BODY findings — index.md is a generated stub, never scanned.
-		if !isIndex {
-			out = append(out, topicBodyWarnings(memRoot, p, relPath, reg)...)
-		}
-		return nil
-	})
-	return out
 }
 
 // topicBodyWarnings returns the advisory body findings for one topic file:
@@ -1434,4 +1181,57 @@ func relOrBase(memRoot, p string) string {
 		return filepath.ToSlash(rel)
 	}
 	return filepath.Base(p)
+}
+
+func sourceWarnings(memRoot, p, relPath string, reg map[string]changeMeta, fkf, isIndex bool) []Warning {
+	var out []Warning
+	// Description findings — inspected on both topic files and index.md stubs,
+	// only when the file actually opens a frontmatter block (a body-only file
+	// degrades gracefully; the root index.md often carries no description stub).
+	if frontmatter.HasFrontmatter(p) {
+		for _, f := range frontmatter.Validate(p) {
+			switch f.Kind {
+			case frontmatter.KindUnclosedFence:
+				out = append(out, Warning{Path: relPath, Kind: KindMalformedFence})
+			case frontmatter.KindQuoteStripFailure:
+				out = append(out, Warning{Path: relPath, Kind: KindMalformedDescription, Detail: f.Detail})
+			}
+		}
+		if desc := frontmatter.Field(p, "description"); desc != "" {
+			// Blocking change-id in the description (registry-gated §3.2 ban).
+			if ids := scanChangeIDs(desc, reg); fkf && len(ids) > 0 {
+				out = append(out, Warning{Path: relPath, Kind: KindDescriptionChangeID, Detail: strings.Join(ids, ", ")})
+			}
+			// Length: gross over-cap (> 1000) BLOCKS; 501–1000 stays advisory —
+			// mutually exclusive so a >1000 description is not double-reported.
+			if n := utf8.RuneCountInString(desc); fkf && n > DescriptionBlockingLenThreshold {
+				out = append(out, Warning{Path: relPath, Kind: KindDescriptionOverCap, Count: n})
+			} else if n > DescriptionLenWarnThreshold {
+				out = append(out, Warning{Path: relPath, Kind: KindDescriptionLength, Count: n})
+			}
+		}
+	}
+
+	// Topic-file BODY findings — index.md is a generated stub, never scanned.
+	if !isIndex {
+		for _, w := range topicBodyWarnings(memRoot, p, relPath, reg) {
+			// Narration and bundle-root link semantics belong to FKF only.
+			if fkf || w.Kind != KindNarrationDensity && w.Kind != KindBrokenLink {
+				out = append(out, w)
+			}
+		}
+	}
+
+	return out
+}
+
+func escapeCell(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "\n", " "), "|", "\\|")
+}
+
+func renderDescription(s string, generic bool) string {
+	if generic {
+		return escapeCell(s)
+	}
+	return s
 }

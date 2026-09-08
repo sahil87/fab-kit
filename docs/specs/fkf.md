@@ -114,13 +114,13 @@ docs/memory/                         # bundle root
 - Reserved domains `_shared/` (cross-cutting) and `_unsorted/` (staging) are width-exempt.
 
 **Shape bounds (SHOULD guidance, advisory — never enforced):** ~12 topic files per folder (soft
-upper bound; `fab memory-index` warns over it), ~5 lower floor before a sub-domain earns its own
-index, max depth 3. These surface as non-fatal `fab memory-index` warnings and the
+upper bound; `fab docs-index docs/memory` warns over it), ~5 lower floor before a sub-domain earns its own
+index, max depth 3. These surface as non-fatal `fab docs-index docs/memory` warnings and the
 `docs-reorg-memory` Shape Report. Acting on them (split/merge/flatten) is `docs-reorg-memory`'s
 job; the index command only detects and warns.
 
 **Present-truth debt meters (SHOULD guidance, advisory — never enforced).** Alongside the shape
-bounds, `fab memory-index` emits per-topic-file advisory warnings that measure distillation debt and
+bounds, `fab docs-index docs/memory` emits per-topic-file advisory warnings that measure distillation debt and
 staging hygiene — the standing meters an audit would otherwise have to run by hand. None affects the
 exit code (unlike the §3.2 blocking escalations): **narration-marker density** (transition stems
 `no longer`/`previously`/`renamed`/`supersed` plus registry-gated change-id tokens in the body that
@@ -143,7 +143,7 @@ and warns, and (with `--check --json`) surfaces them on the additive `warnings` 
 
 > **Why regenerate, never hand-merge (§5).** Hand-merging a generated file is the failure mode
 > the merge policy exists to prevent — it is how a corrupted row gets carried from one branch onto
-> another. `fab memory-index --check` at review-pr backstops staleness: a hand-merged or
+> another. `fab docs-index docs/memory --check` at review-pr backstops staleness: a hand-merged or
 > forgotten-regen index surfaces as drift there. This is the operational counterpart to the
 > byte-stability guarantee — byte-stability makes the regenerate-wholesale resolution *always
 > correct*, so there is never a reason to reconcile a generated file by hand.
@@ -161,7 +161,7 @@ and warns, and (with `--check --json`) surfaces them on the additive `warnings` 
 > agent needs for archaeology ("where did `cssMarker` go?") and migration-trajectory questions.
 > C-lite keeps the descriptive line **and** stays conflict-free, because the line lives in the
 > per-change `.status.yaml`, not in the shared `log.md`. The cost is one curated line per change
-> and generator plumbing in `fab memory-index`.
+> and generator plumbing in `fab docs-index docs/memory`.
 
 > **Why freeze-on-write generation (§6.4).** A pure projection of *live* git history is not
 > deterministic — squash-merge rewrites commit subjects and counts, and branch-deletion makes the
@@ -196,16 +196,16 @@ and warns, and (with `--check --json`) surfaces them on the additive `warnings` 
 
 ## 9. Non-Scope: `docs/specs/`
 
-FKF governs `docs/memory/` only. `docs/specs/` is **out of scope** and unchanged:
+FKF governs `docs/memory/` only. `docs/specs/` is **out of scope**:
 
-- Specs remain **human-curated** and MUST NOT be auto-generated or overwritten by tooling
+- Spec content remains **human-curated** and MUST NOT be auto-generated or overwritten by tooling; index/navigation generation is permitted by Constitution VI
   (a fab-kit design principle).
-- Specs carry **no frontmatter** and are deliberately flat and free-form.
+- Specs need no FKF frontmatter and may use arbitrary nesting.
 
-The one idea FKF's neighbours may borrow independently is **generated index files** — a
-`fab specs-index` style generator for `docs/specs/index.md` would be a separate, optional
-convenience and is **not** part of FKF. Adopting FKF frontmatter (`type`/`description`) on specs
-would require a constitution amendment and is explicitly **not** proposed here.
+Configured specs navigation uses `fab docs-index docs/specs`, sharing the generator while
+keeping `log: false`. Root configuration, accepted landings, seed adoption, and superseded
+patterns are documented in [config.md](config.md#documentation-index-roots). This does not
+adopt FKF topic-writing rules or require a description backfill on specification content.
 
 ---
 
@@ -218,7 +218,7 @@ Moving the existing `docs/memory/` tree onto FKF is a data migration with these 
 2. **Strip the `## Changelog` section** from every memory file (the per-file changelog tables) and
    **generate per-folder `log.md`** from git history + the new `summary:` field.
 3. **Convert memory↔memory cross-links** from relative to bundle-relative (`/...`).
-4. **Teach `fab memory-index`** to: stamp `type: memory` (template), emit `log.md` (C-lite
+4. **Teach `fab docs-index docs/memory`** to: stamp `type: memory` (template), emit `log.md` (C-lite
    projection joining git history + `.status.yaml` `summary`), write `fkf_version` into the root
    index, and validate/round-trip the FKF frontmatter.
 5. **Add the `.status.yaml` `summary:` field** + its migration file (`src/kit/migrations/`).
@@ -241,5 +241,5 @@ a folder missing `log.md` degrades gracefully rather than breaking consumers.
 | **Concept document / memory file** | A `{domain}[/{sub-domain}]/{topic}.md` file: FKF frontmatter + markdown body. |
 | **Reserved filename** | `index.md` / `log.md` — generated, single-writer, not concept documents. |
 | **C-lite** | The `log.md` generation model: git history (when/which/id) joined with a per-change `.status.yaml` `summary:` line (what), generated — descriptive *and* conflict-free. |
-| **Stub-before-index** | Creating a new folder's `index.md` `description:`-only stub before `fab memory-index` runs (Index Ownership model). |
+| **Stub-before-index** | Creating a new folder's `index.md` `description:`-only stub before `fab docs-index docs/memory` runs (Index Ownership model). |
 | **Bundle-relative link** | A memory↔memory link beginning with `/`, resolved from `docs/memory/`. |

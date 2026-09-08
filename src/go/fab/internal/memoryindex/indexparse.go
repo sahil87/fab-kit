@@ -66,9 +66,23 @@ func rowsByTarget(rows []indexRow) map[string]indexRow {
 }
 
 // splitTableRow splits a `| a | b | c |` line into trimmed cells, dropping the
-// leading/trailing empty cells produced by the boundary pipes.
+// leading/trailing empty cells produced by the boundary pipes. A pipe is a
+// separator only after an even number of backslashes; escapes stay verbatim.
 func splitTableRow(line string) []string {
-	parts := strings.Split(line, "|")
+	var parts []string
+	start, slashes := 0, 0
+	for i := 0; i < len(line); i++ {
+		if line[i] == '|' && slashes%2 == 0 {
+			parts = append(parts, line[start:i])
+			start = i + 1
+		}
+		if line[i] == '\\' {
+			slashes++
+		} else {
+			slashes = 0
+		}
+	}
+	parts = append(parts, line[start:])
 	// Drop the empty first/last segments from the boundary pipes.
 	if len(parts) > 0 && strings.TrimSpace(parts[0]) == "" {
 		parts = parts[1:]

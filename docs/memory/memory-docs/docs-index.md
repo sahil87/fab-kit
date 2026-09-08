@@ -1,0 +1,96 @@
+---
+type: memory
+description: "The root-agnostic `fab docs-index [<root-path>]` generator — `docs_index.roots` config (path/index_file/also_accept/log/max_depth/superseded), arbitrary-depth recursion, landing-file ownership (whole-file vs marker-delimited block), superseded pointer+count rendering, seed-import first-run adoption, bounded advisory reporting, FKF machinery scoped to log:true roots. `fab memory-index` survives as a deprecated memory-only alias."
+---
+# Docs Index
+
+**Domain**: memory-docs
+
+## Overview
+
+`fab docs-index [<root-path>] [--check] [--json] [--rebuild]` is the deterministic docs-index generator (Go: `cmd/fab/memory_index.go` + `internal/memoryindex/`), generalized from the memory-only generator to run over any configured documentation root. With no argument it processes every `docs_index.roots` entry; a positional argument selects one configured root (an unconfigured path errors naming the config key; there is no `--root`). With no `docs_index` configuration the implicit root is `{path: docs/memory, index_file: index.md, log: true, max_depth: 3}` and output is byte-identical to the pre-generalization generator. `fab memory-index` remains as a deprecated memory-only alias (one stderr deprecation notice, JSON stdout clean, kept for at least one minor version). The full command contract — flags, exit tiers, JSON shape, glob syntax, older-binary version-skew fallback — lives in `$(fab kit-path)/skills/_cli-fab.md` § fab docs-index; the memory-root index/log ownership contract lives in [templates](/memory-docs/templates.md) and [hydrate](/memory-docs/hydrate.md) § Index Ownership Model; the specs-root adoption in [specs-index](/memory-docs/specs-index.md).
+
+## Requirements
+
+### Configured Roots (`docs_index.roots`)
+
+`docs_index.roots` is a project-scoped config sequence registered with `fab config explain` metadata (default/description/scope/advertise). Per-root fields: `path` (required, repo-root-relative), `index_file` (default `index.md` — the generated landing filename), `also_accept` (default empty — alternative landing filenames such as `README.md`), `log` (default `false`; the implicit zero-config memory root defaults it `true` — opt-in FKF `log.md` freeze-on-write), `max_depth` (default `3` — soft-warn depth bound), `superseded` (default empty — glob patterns marking superseded material). Overlapping or duplicate roots are rejected. Schema detail: [config.md](../../specs/config.md) § `docs_index.roots`.
+
+### Arbitrary-Depth Recursion
+
+The generator recurses to arbitrary depth: every content-bearing folder gets a generated landing file and the parent index links child folders. `max_depth` is an advisory bound only — a deeper tree warns on stderr and still generates; it never truncates traversal and never fails generation.
+
+### Landing-File Ownership
+
+An `index_file` landing is a whole generated file. A folder whose existing landing file matches `also_accept` keeps it: the generated index table is written into a marker-delimited block (`<!-- fab docs-index:generated:start -->` / `:end -->`) inside that file, prose outside the block is human-owned and byte-preserved, and no neighboring `index_file` is created. Only generated index files/blocks are rewritten — everything else in the tree is human-owned.
+
+### Missing Descriptions Degrade Gracefully
+
+A file without `description:` frontmatter in a generic root emits a row labelled by its H1 with a `—` placeholder description plus an advisory warning — never a generation failure, and the generator never invents a description. (The legacy memory render keeps filename-stem labels for byte compatibility.)
+
+### Superseded Subtree Rendering
+
+`superseded` is a list of root-relative slash globs (`**` spans directories; `*`, `?`, bracket classes within a segment; literal brackets escaped, e.g. YAML-quoted `'**/\[archived\]-*'`) naming the **status**, not the rendering. A path matching any pattern is superseded; everything else is current:
+
+- **At the parent index** the whole superseded subtree is one row — folder name, a summary (`{N} superseded versions ({v1}–{vN}), {M} files` for versioned children with numeric version bounds; otherwise `Superseded — {M} files`) — with no per-file rows.
+- **At the superseded folder's own index**: one row per immediate child folder (`Superseded` plus the child's own landing-stub `description:` when present) with a file count. Per-file rows are never emitted inside a superseded subtree.
+- **Descriptions are never read from files inside a superseded subtree** — only counts and folder names (the walk skips file reads under superseded paths).
+- A `superseded` pattern matching an individual **file** folds into its parent folder's `{K} superseded files` count note — no per-file rows anywhere.
+- When a live subtree becomes superseded, regeneration removes its obsolete generated descendant landings and logs (an alternate landing loses only its generated block; human prose and seed inputs remain), and `--check` reports the configured retirement as benign drift.
+
+### Seed-Import First-Run Adoption
+
+On the first generation over a root with pre-existing hand-curated landing files, the generator reads the existing curated index rows/descriptions and imports them into the generated output — seeding placeholder descriptions from curated rows where files lack `description:` — so nothing curated is lost and the tier-2 destructive-loss guard does not trip. Imported navigation stays in an explicit curated region, preserving custom grouping, prose, and historical rows; later regenerations retain full destructive-loss detection. No adopt/force flag and no mandatory frontmatter backfill — an existing repo has to do nothing.
+
+### Bounded Warning Reporting
+
+Advisory reporting is bounded: details are capped at **5 per kind across all selected roots**, on stderr and in the JSON `warnings` array; stderr prints an `… and N more (M total)` summary per truncated kind, and the additive `warnings_total` integer counts all JSON-eligible advisories before sampling. Width/depth shape warnings remain stderr-only and are excluded from `warnings_total`. Blocking findings and losses are never sampled. A sampled `warnings` list is not an exhaustive inventory — consumers treat derived counts as lower bounds when `warnings_total > len(warnings)`. Advisory kinds: `description-length`, `missing-description`, `narration-density`, `file-size`, `unsorted-nonempty`, `broken-link`.
+
+### FKF Machinery Scoped to `log: true` Roots
+
+FKF-specific machinery applies only to `log: true` (memory-shaped) roots: `fkf_version` root frontmatter, per-folder `log.md` freeze-on-write generation, `log.seed.md` seed-merge, C-lite joins, `_shared/`/`_unsorted/` reserved-domain exemptions, the FKF §3.2 blocking description escalations (registry-gated change-id in `description:`, gross over-cap >1000 runes), and the narration-density / bundle-relative broken-link diagnostics. A `log: false` root generates indexes and no `log.md`, keeps the generic malformed-frontmatter blocking class and the generic size/length/missing-description advisories, and never interprets site-root links as FKF bundle paths. `--rebuild` is meaningful only for `log:`-enabled roots.
+
+### Safety Contract, Generalized Per Root
+
+Output remains byte-stable / idempotent — a pure function of content, no git dates on the index side — across all roots. `--check` keeps the graded exits **0** clean / **1** benign drift / **2** destructive loss with worst-root aggregation across roots, the blocking floor at 1 (independent of drift, never tier-2), and the `--json` report keys `tier`/`drift`/`losses`/`malformed`/`warnings` (additive keys allowed, none removed or renamed). The tier-2 destructive-loss detectors (curated-description wipe, tombstone drop, custom-grouping flatten) apply to every root, and the refuse-before-regen guards in `/docs-hydrate-memory`, `/docs-reorg-memory`, `/docs-distill-memory`, and `/fab-continue` hydrate continue to key on exit 2 unchanged (see [hydrate](/memory-docs/hydrate.md) § Refuse-Before-Regen Guard).
+
+### Deprecated Alias
+
+`fab memory-index` runs the new code against the `docs/memory` root only, with the same flags, printing a one-line deprecation notice to **stderr** (never stdout — `--json` consumers parse stdout). It is retained for at least one minor version; removal is a future change. Kit skills never rely on the alias except inside older-binary version-skew fallback prose — the one sanctioned in-kit use; additional-root generation cannot fall back through the alias. See [migrations](/distribution/migrations.md) for the nothing-to-do migration note.
+
+## Design Decisions
+
+### One Generalized Generator, Not a Fork
+
+**Decision**: Generalize the existing memory-index generator to configurable roots rather than writing a second generator for spec trees.
+**Why**: Forking diverges and loses the hardened safety machinery — the graded `--check` exit codes, blocking-vs-advisory split, destructive-loss classifier, freeze-on-write logs — that multiple changes built. Generalizing preserves byte-stable navigable indexes, drift detection, and merge-conflict immunity for every doc root.
+**Rejected**: A second, specs-specific generator (duplicated safety machinery, divergence); leaving spec trees hand-indexed (staleness and hot-row merge conflicts — the failure mode the generator exists to kill).
+*Introduced by*: 260908-flt3-root-agnostic-docs-index
+
+### Status-Named Knob, Pattern List
+
+**Decision**: The config knob is `superseded:` — named for the folder/path **status** — taking a list of glob patterns that may match folders or files.
+**Why**: Superseded material in a real tree is marked several ways at once (`archive/` subtrees, `[archived]-`-prefixed filenames, `Z`-prefix folder conventions); a pattern list accepts all of them, and file-level matches fold into the parent folder's count so no per-file rows appear anywhere. Naming the status mechanizes a rule the repo already records in its versioning docs (superseded versions are kept and point forward) rather than encoding one rendering choice.
+**Rejected**: A rendering-named knob (`collapse:`) — names a side-effect, not the concept; a single hardcoded `archive/` marker — silently misses content marked the other ways.
+*Introduced by*: 260908-flt3-root-agnostic-docs-index
+
+### Seed-Import Over an Adopt Flag
+
+**Decision**: First-run adoption over a hand-curated root is automatic seed-import — curated rows/descriptions are read into the generated output, with no adopt/force flag and no refuse-until-backfill step.
+**Why**: An existing repo then has to do nothing: nothing curated is lost, and the tier-2 destructive-loss guard does not trip on a tree the generator has never seen. The imported navigation stays visible in an explicit curated region instead of a hidden sidecar or topic-body rewrites.
+**Rejected**: An explicit adopt/force flag (a mandatory manual step every existing repo would trip over); refuse-until-backfill (blocks first use and couples adoption to a frontmatter migration generic roots don't need — sparse-description trees degrade gracefully by design).
+*Introduced by*: 260908-flt3-root-agnostic-docs-index
+
+### Generated Navigation Carved Out of Human-Curated Specs (Constitution VI)
+
+**Decision**: Constitution VI (1.7.0) permits tooling-generated index/navigation files inside `docs/specs/` while specification content stays human-curated; prose outside marker-delimited generated blocks remains human-owned. This repo dogfoods the carve-out with a configured `docs/specs` root (`log: false`, `also_accept: [README.md]`, `max_depth: 8`, `superseded: ["**/archive/**"]`).
+**Why**: A generated index table is a navigation aid — it authors no specification content, so the specs-are-human-curated principle is preserved while spec trees gain byte-stable indexes, drift detection, and merge-conflict immunity.
+**Rejected**: Keeping the recorded no-generator stance (spec trees stay hand-indexed or fork the generator); generating into spec topic files themselves (would author content, not navigation).
+*Introduced by*: 260908-flt3-root-agnostic-docs-index
+
+### Package Name Kept (`internal/memoryindex`)
+
+**Decision**: The Go package keeps its `internal/memoryindex` name with a root-aware API (`GatherRoot`, `docsindex.go`, `superseded.go`, `adoption.go`) rather than renaming to `internal/docsindex`.
+**Why**: The existing render, classifier, and FKF utilities are reusable as-is; a package rename churns imports and history while adding no behavior.
+**Rejected**: Rename to `internal/docsindex` — clean but pure churn.
+*Introduced by*: 260908-flt3-root-agnostic-docs-index
