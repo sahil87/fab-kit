@@ -190,7 +190,7 @@ repo's suggestion" is the intended answer.
 | scope | Meaning | Fields |
 |-------|---------|--------|
 | `both` | Overridable in either the project or the system layer (preference-class). | `agent.session`, `agent.workers`, `agent.profiles`, `providers`, `dispatch.mode`, `dispatch.column_width`, `dispatch.min_cols`, `dispatch.min_rows`, `dispatch.reap_done`, `autopilot.merge_mode` |
-| `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `consolidate.detectors`, and (conservative default) `stage_hooks` |
+| `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `consolidate.detectors`, `docs_index.roots`, and (conservative default) `stage_hooks` |
 | `system` | Overridable only in the system layer. | *(none today; the value exists for completeness and [Change 2])* |
 
 The one field the decision-6 taxonomy does not enumerate (`stage_hooks`) defaults to `project`
@@ -627,7 +627,7 @@ header — the key was not removed; the layer ignores it. Before
 writing, the reconciled document is **validated as YAML** and a run that would produce an unparseable
 file is **refused** (the original left untouched) rather than bricking the repo. A live field matching a
 registry row's `renamed_from` is **carried** to the new key mechanically (value verbatim), replacing the
-per-rename hand-written-migration pattern. Output is byte-stable and idempotent (the `fab memory-index`
+per-rename hand-written-migration pattern. Output is byte-stable and idempotent (the `fab docs-index`
 discipline — golden + idempotence tests); the write is atomic (`internal/atomicfile`). After this change,
 `internal/configupgrade` is the **only writing engine** for existing `config.yaml` files: `upgrade`
 owns whole-file reconciliation while `set`/`unset` use its surgical path splice and the same fence
@@ -700,3 +700,62 @@ detectable and is added interactively by `/fab-setup`). An empty-seed `fab confi
 The former `TestConfigReferenceSupersetsScaffoldKeys` guard is re-anchored to a registry-internal
 invariant (the init-seeded key set ⊆ the registry key set), since there is no scaffold file to compare
 against.
+
+
+## Documentation index roots
+
+`docs_index.roots` is a project-scoped, advertised sequence registered with `fab config explain`.
+Its real built-in default is one memory root, not null. With no `docs_index` configuration:
+
+```yaml
+docs_index:
+  roots:
+    - path: docs/memory
+      index_file: index.md
+      log: true
+      max_depth: 3
+```
+
+Explicit entries replace the implicit list. Each entry has:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `path` | required | Repo-relative root; duplicate/overlapping roots and parent escapes are rejected |
+| `index_file` | `index.md` | Whole-file generated landing filename |
+| `also_accept` | `[]` | Existing alternate landings, in preference order after `index_file`; their generated table is marker-delimited and outside prose is byte-preserved |
+| `log` | `false` | Enable memory-shaped FKF logs, seeds, metadata, reserved domains and description escalations |
+| `max_depth` | `3` | Advisory nesting bound; traversal always recurses to arbitrary depth |
+| `superseded` | `[]` | Root-relative shell globs with recursive `**`; historical folders get pointer/count summaries and an immediate-child index, individual files fold into their folder's count |
+
+For specs, append an entry such as:
+
+```yaml
+    - path: docs/specs
+      index_file: index.md
+      also_accept: [README.md]
+      log: false
+      max_depth: 8
+      superseded: ["**/archive/**", "**/Z*/**", '**/\[archived\]-*']
+```
+
+`fab docs-index` processes every configured root; `fab docs-index docs/specs` selects one.
+There is no `--root` flag; an unconfigured positional path errors naming `docs_index.roots`.
+`--check`, `--json`, and `--rebuild` remain available. Checks aggregate the worst root's
+0/1/2 drift tier; blocking findings independently floor exit at 1. Missing descriptions
+use H1 + `—` with an advisory in generic roots; legacy memory retains filename-stem labels. First-run curated navigation is automatically seed-imported,
+including descriptions, grouping and historical rows, so adoption does not trip tier 2.
+Subsequent destructive loss remains guarded. Index content is deterministic and date-free.
+
+Changing a live subtree to superseded retires obsolete generated descendant indexes
+and logs; alternate landings keep their outside prose and seed inputs remain untouched.
+`--check` reports this configured retirement as benign drift without writing.
+
+The deprecated `fab memory-index` alias processes memory only with one stderr notice and
+is retained for at least one minor version. Existing memory-only projects need no changes;
+the first generation changes generated-by headers to the new command name.
+
+Advisory reporting for `docs-index` is capped at five details per kind across the
+selected roots, on stderr and in JSON `warnings`. Stderr reports omitted counts;
+`warnings_total` gives the number of JSON-eligible advisories before sampling.
+Width/depth remain stderr-only and are excluded from that total. Blocking findings
+and losses remain complete, and the exit tiers are unaffected by advisory sampling.

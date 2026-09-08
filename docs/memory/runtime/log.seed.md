@@ -1,5 +1,5 @@
 # Log (seed) — Runtime
-<!-- Seed input for `fab memory-index` (FKF §6 seed-merge): pre-FKF `## Changelog`
+<!-- Seed input for `fab docs-index docs/memory` (FKF §6 seed-merge): pre-FKF `## Changelog`
      rows preserved verbatim at the oovf cutover (DECISION b). Merged BENEATH the
      git-projected entries on every regen; this file is curated input, not generated
      output. Edit only to correct a preserved historical entry. -->

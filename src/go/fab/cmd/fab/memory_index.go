@@ -5,225 +5,225 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/memoryindex"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/spf13/cobra"
 )
 
-func memoryIndexCmd() *cobra.Command {
-	var check bool
-	var jsonOut bool
-	var rebuild bool
+func docsIndexCmd() *cobra.Command   { return newDocsIndexCmd(false) }
+func memoryIndexCmd() *cobra.Command { return newDocsIndexCmd(true) }
 
+func newDocsIndexCmd(alias bool) *cobra.Command {
+	var check, jsonOut, rebuild bool
 	cmd := &cobra.Command{
-		Use:   "memory-index",
-		Short: "Deterministically (re)generate docs/memory index files",
-		Long: "Regenerates the root docs/memory/index.md (domains-only, with the " +
-			"FKF fkf_version: \"0.1\" frontmatter), every docs/memory/{domain}/index.md " +
-			"(file rows + a Sub-Domains reference table when sub-domains exist), and " +
-			"every docs/memory/{domain}/{sub-domain}/index.md (file rows) from folder " +
-			"contents, reading each file's H1 + `description:` frontmatter. The index " +
-			"is a pure function of content (no git dates), so its output is " +
-			"branch-independent and idempotent. It also emits a per-folder FKF " +
-			"log.md (C-lite change history: one batched git-log pass joined with each " +
-			"change's .status.yaml summary, change-id recovered from the git history " +
-			"and gated against the fab/changes registry; unattributable commits " +
-			"degrade gracefully). log.md uses FREEZE-ON-WRITE generation: the existing " +
-			"log.md is authoritative and write-once — regeneration reads it back and " +
-			"APPENDS only new entries keyed on (file-base, change-id); existing entries " +
-			"are never reworded or re-dated, and a NEW unattributable commit (no " +
-			"registry change-id — a migration, a direct-main edit) is NOT projected " +
-			"after first write (frozen, not re-projected), so a squash + branch-delete " +
-			"that rewrites history no longer churns the log. Output is byte-stable / " +
-			"idempotent across runs, so the indexes and logs stop drifting and stop " +
-			"generating merge conflicts. Also emits non-fatal stderr warnings when a " +
-			"folder exceeds the soft width bound (~12 files) or depth 3 (reserved " +
-			"domains _shared/ and _unsorted/ are width-exempt). --rebuild is the " +
-			"destructive escape hatch: it discards the frozen state and re-projects " +
-			"every log.md from current git (the pre-freeze behavior, opt-in) — for a " +
-			"corrupted log or a deliberate re-baseline. Also emits non-fatal stderr " +
-			"warnings, split into a BLOCKING class (fails --check) and an ADVISORY " +
-			"class (never affects the exit code). BLOCKING: malformed frontmatter (an " +
-			"unclosed `---` block or a `description:` value that fails quote-stripping " +
-			"— e.g. a glued closing fence), a `description:` carrying a registry-gated " +
-			"change-id (the FKF §3.2 ban, enforced), and a `description:` over 1000 " +
-			"runes (2× the 500 soft cap — gross over-cap). ADVISORY: an over-long " +
-			"`description:` in the 501–1000 range (trim nag), per-topic-file " +
-			"narration-marker density (transition stems + registry-gated change-id tokens, at ≥5 " +
-			"— the distillation-debt meter), per-topic-file size (>400 lines or >15KB), " +
-			"a non-empty _unsorted/ staging folder, and broken bundle-relative " +
-			"memory↔memory links. With --check, writes nothing and classifies index " +
-			"drift by severity in the exit code: 0 = clean, 1 = benign drift (regen " +
-			"changes content but destroys nothing — e.g. an improved `description:`, or " +
-			"any log.md / FKF frontmatter drift; for log.md a benign FAIL means the " +
-			"committed log is missing a projected attributable (file-base, change-id) " +
-			"entry, or a frozen line was hand-edited render-unstably — a committed log " +
-			"that is a valid SUPERSET of the freeze-on-write merge PASSES), 2 = " +
-			"destructive loss (regen would wipe a curated description, drop a tombstone " +
-			"row, or flatten a custom grouping — index-only categories). The BLOCKING " +
-			"class is a separate signal from the drift tier: any blocking finding " +
-			"FLOORS the --check exit at 1 (enumerating the offending file(s) with a " +
-			"fix-the-file pointer) even when index drift is clean (tier 0). It is NOT a " +
-			"tier-2 destructive-loss category, so the hydrate/reorg refuse-before-regen " +
-			"guards (which fire only on exit 2) are unaffected; exit 2 still wins when a " +
-			"tier-2 loss co-occurs. The ADVISORY warnings never fail --check " +
-			"(blocking blocks, advisory nags). --json emits the loss report " +
-			"machine-readably (with --check), including an additive `malformed` array " +
-			"(blocking findings) and an additive `warnings` array (advisory findings) " +
-			"alongside the unchanged `tier`/`drift`/`losses` keys.",
-		Args: cobra.NoArgs,
+		Use:   "docs-index [root-path]",
+		Short: "Deterministically regenerate configured documentation indexes",
+		Long: `Regenerates every docs_index.roots entry, or one configured positional root.
+Without configuration, processes docs/memory with index.md, log:true, max_depth:3.
+Each root supports path, index_file (index.md), also_accept ([]), log (false),
+max_depth (3), and superseded ([] glob patterns). Traversal has arbitrary depth;
+max_depth and missing descriptions are advisory warnings, never hard failures.
+A missing description uses the file H1 and —, never invented text. The legacy
+memory format retains filename-stem labels to preserve zero-config bytes.
+
+Primary index_file landings are generated whole files. An existing also_accept
+landing (e.g. README.md) receives only a marker-delimited generated block; prose
+outside it stays human-owned and byte-preserved. First-run curated navigation is
+seed-imported automatically. Generated files/blocks are tool-owned. Output is
+content-derived, byte-stable and idempotent, with no git dates in indexes.
+
+Superseded globs (e.g. **/archive/**) produce one parent pointer/count and one
+index of child versions; no topic descriptions are read inside superseded trees.
+Obsolete generated descendant indexes and logs are removed when a live subtree
+becomes superseded; alternate landings retain prose outside their removed blocks.
+This explicit retirement is benign drift under --check. Seeds stay unchanged.
+File matches fold into their folder's superseded count. Escape literal brackets
+in glob patterns (e.g. **/\[archived\]-*); Z-prefix folders can use **/Z*/**.
+
+Only log:true roots use FKF metadata, reserved domains and freeze-on-write log.md:
+existing entries stay authoritative, new (file-base, change-id) entries append,
+and log.seed.md merges beneath. --rebuild discards frozen logs and re-projects
+from git; it is ignored with --check and irrelevant for log:false roots.
+
+--check writes nothing: 0 clean, 1 benign drift, 2 destructive index loss
+(curated description wipe, tombstone drop, custom grouping flatten). Worst root
+wins. Blocking malformed frontmatter floors the exit at 1; FKF change-id and
+>1000-rune description escalations apply only to log:true roots. Shape, size,
+missing-description, narration-density (FKF roots), and length advisories never fail a clean check. --json keeps
+tier/drift/losses/malformed/warnings and adds warnings_total (all JSON advisories
+before sampling). Advisory details are capped at 5 per kind across all selected
+roots on stderr and in JSON; stderr states how many were omitted. Width/depth
+remain stderr-only and are excluded from warnings_total. Blocking findings remain
+complete. Refuse-before-regen guards key on exit 2.`,
+		Example: "  fab docs-index\n  fab docs-index docs/specs --check --json\n  fab docs-index docs/memory --rebuild",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if alias {
+				fmt.Fprintln(cmd.ErrOrStderr(), "fab memory-index is deprecated; use fab docs-index docs/memory (alias retained for at least one minor version).")
+			}
 			fabRoot, err := resolve.FabRoot()
 			if err != nil {
 				return err
 			}
-			repoRoot := filepath.Dir(fabRoot)
-
-			root, domains, warnings, err := memoryindex.Gather(repoRoot)
+			cfg, err := config.Load(fabRoot)
 			if err != nil {
 				return err
 			}
-
-			// Warnings are advisory — always to stderr, never fatal, never
-			// affecting the written index output.
-			for _, w := range warnings {
-				fmt.Fprintln(cmd.ErrOrStderr(), w.String())
-			}
-
-			memRoot := filepath.Join(repoRoot, "docs", "memory")
-			targets := make([]indexTarget, 0, len(domains)+1)
-			targets = append(targets, indexTarget{
-				path:    filepath.Join(memRoot, "index.md"),
-				content: memoryindex.RenderRoot(root),
-			})
-			for _, d := range domains {
-				targets = append(targets, indexTarget{
-					path:    filepath.Join(memRoot, d.Name, "index.md"),
-					content: memoryindex.RenderDomain(d),
-				})
-				// Each sub-domain gets its own generated index one level down.
-				for _, sd := range d.SubDomains {
-					targets = append(targets, indexTarget{
-						path:    filepath.Join(memRoot, d.Name, sd.Name, "index.md"),
-						content: memoryindex.RenderDomain(sd),
-					})
-				}
-			}
-
-			// FKF per-folder log.md targets (C-lite — git history + per-change
-			// summaries). Gathered from the SAME batched git pass + the change
-			// registry. When git history is unavailable the git-projection surface
-			// degrades to empty, but existing frozen log.md and/or log.seed.md
-			// entries still emit targets (freeze-on-write — GatherLogs nets to no
-			// targets only when no folder has any frozen/seed/git entry).
-			// They flow through the same byte-stable write / --check loops as the
-			// indexes, but are classified as benign-drift-only (isLog) so the
-			// index-row loss detectors never false-positive on log list content.
-			//
-			// Freeze-on-write (R6): a write run honors --rebuild (re-project
-			// destructively when set). A --check run always uses rebuild=false so the
-			// rendered content is the freeze-on-write merge the classifier compares
-			// against (R7–R9) — --check never re-projects, so --check --rebuild would
-			// be meaningless and is treated as a plain --check.
-			logTargets, err := memoryindex.GatherLogs(repoRoot, fabRoot, rebuild && !check)
+			roots, err := cfg.GetDocsIndexRoots()
 			if err != nil {
 				return err
 			}
-			for _, lt := range logTargets {
-				targets = append(targets, indexTarget{path: lt.Path, content: lt.Content, isLog: true})
+			selected := ""
+			if len(args) > 0 {
+				selected = filepath.ToSlash(filepath.Clean(args[0]))
 			}
-
-			if check {
-				// Build the classifier inputs from the same targets the write
-				// path uses — reusing the rendered-vs-existing comparison, never
-				// duplicating it. LinkBase is the index file's directory relative
-				// to docs/memory/ (""/<domain>/<domain>/<sub>); memExists checks
-				// a docs/memory/-relative path on disk for tombstone detection.
-				checkTargets := make([]memoryindex.CheckTarget, 0, len(targets))
-				for _, t := range targets {
-					existing, _ := os.ReadFile(t.path)
-					linkBase := filepath.ToSlash(filepath.Dir(rel(memRoot, t.path)))
-					if linkBase == "." {
-						linkBase = ""
-					}
-					checkTargets = append(checkTargets, memoryindex.CheckTarget{
-						Path:     rel(repoRoot, t.path),
-						Existing: string(existing),
-						Rendered: t.content,
-						IsRoot:   t.path == filepath.Join(memRoot, "index.md"),
-						IsLog:    t.isLog,
-						LinkBase: linkBase,
-					})
-				}
-				memExists := func(relPath string) bool {
-					_, statErr := os.Stat(filepath.Join(memRoot, filepath.FromSlash(relPath)))
-					return statErr == nil
-				}
-				report := memoryindex.Classify(checkTargets, memExists)
-				// Feed the gathered warnings into the report, split by class:
-				//   - BLOCKING findings (malformed frontmatter + the two
-				//     description escalations) → report.Malformed, so `--check`
-				//     blocks on them independent of index drift (the loom case is
-				//     byte-clean drift but corrupt/over-cap/change-id-laden source).
-				//   - ADVISORY findings (density / size / _unsorted / broken links)
-				//     → report.Warnings, the additive machine surface — never
-				//     affecting the exit code.
-				for _, w := range warnings {
-					if w.IsBlocking() {
-						report.Malformed = append(report.Malformed, memoryindex.MalformedFinding{
-							Kind:   w.Kind,
-							Path:   w.Path,
-							Detail: w.Detail,
-						})
-						continue
-					}
-					// Advisory kinds carried on the JSON `warnings` array. Width
-					// and depth are advisory shape bounds that predate the machine
-					// surface and are stderr-only, so they are NOT emitted here —
-					// only the mxgu debt-meter kinds plus the 501–1000 description-
-					// length nag join the array (the length nag rides `warnings`
-					// as the canonical signal source the /docs-distill-memory survey
-					// consumes — 260718-dsrx — instead of an agent-side frontmatter
-					// re-check).
-					switch w.Kind {
-					case memoryindex.KindDescriptionLength, memoryindex.KindNarrationDensity,
-						memoryindex.KindFileSize, memoryindex.KindUnsorted, memoryindex.KindBrokenLink:
-						report.Warnings = append(report.Warnings, memoryindex.WarningFinding{
-							Kind:   w.Kind,
-							Path:   w.Path,
-							Count:  w.Count,
-							Bytes:  w.Bytes,
-							Detail: w.Detail,
-						})
+			if alias {
+				selected = "docs/memory"
+			}
+			if selected != "" {
+				var matches []config.DocsIndexRoot
+				for _, r := range roots {
+					if r.Path == selected {
+						matches = append(matches, r)
 					}
 				}
-				return emitCheckReport(cmd, report, jsonOut)
-			}
-
-			written := 0
-			for _, t := range targets {
-				existing, _ := os.ReadFile(t.path)
-				if string(existing) == t.content {
-					continue // byte-stable — skip the write so mtime/no-op diff stays clean
+				if len(matches) == 0 && alias {
+					matches = config.DefaultDocsIndexRoots()
 				}
-				if err := os.WriteFile(t.path, []byte(t.content), 0o644); err != nil {
-					return fmt.Errorf("writing %s: %w", t.path, err)
+				if len(matches) == 0 {
+					return fmt.Errorf("root %q is not configured; add it to docs_index.roots", selected)
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "Updated: %s\n", rel(repoRoot, t.path))
-				written++
+				roots = matches
 			}
-			if written == 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), "Memory indexes already up to date.")
-			}
-			return nil
+			return runDocsIndex(cmd, filepath.Dir(fabRoot), fabRoot, roots, check, jsonOut, rebuild)
 		},
 	}
-
-	cmd.Flags().BoolVar(&check, "check", false, "Write nothing; encode index-drift severity in the exit code (0 clean / 1 benign drift / 2 destructive loss). Blocking source findings (malformed frontmatter, a change-id in `description:`, or a `description:` over 1000 runes) floor the exit at 1 independent of drift")
-	cmd.Flags().BoolVar(&jsonOut, "json", false, "With --check, emit the loss report as JSON on stdout (suppresses human-readable text); includes an additive `malformed` array (blocking findings) and an additive `warnings` array carrying the advisory kinds — description-length (the 501–1000 nag), narration-density, file-size, unsorted-nonempty, broken-link")
-	cmd.Flags().BoolVar(&rebuild, "rebuild", false, "DESTRUCTIVE: discard the frozen log.md state and re-project every log.md from current git (the pre-freeze behavior, opt-in). Ignored with --check (which never writes)")
+	if alias {
+		cmd.Use = "memory-index"
+		cmd.Short = "Deprecated alias for docs-index docs/memory"
+		cmd.Args = cobra.NoArgs
+	}
+	cmd.Flags().BoolVar(&check, "check", false, "Write nothing; exit 0 clean / 1 benign drift or blocking findings / 2 destructive loss")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "With --check, emit tier/drift/losses/malformed/warnings as JSON")
+	cmd.Flags().BoolVar(&rebuild, "rebuild", false, "DESTRUCTIVE: rebuild frozen logs for log:true roots; ignored with --check")
 	return cmd
+}
+
+func runDocsIndex(cmd *cobra.Command, repo, fabRoot string, roots []config.DocsIndexRoot, check, jsonOut, rebuild bool) error {
+	report := memoryindex.Classify(nil, nil)
+	var all []memoryindex.Target
+	var allWarnings []memoryindex.Warning
+	for _, root := range roots {
+		targets, warnings, err := memoryindex.GatherRoot(repo, fabRoot, root, rebuild && !check)
+		if err != nil {
+			return err
+		}
+		all = append(all, targets...)
+		allWarnings = append(allWarnings, warnings...)
+		r := classifyDocsRoot(repo, root, targets)
+		if r.Tier > report.Tier {
+			report.Tier = r.Tier
+		}
+		report.Drift = report.Drift || r.Drift
+		report.Losses = append(report.Losses, r.Losses...)
+	}
+	reportDocsWarnings(cmd, &report, allWarnings)
+	if check {
+		return emitCheckReport(cmd, report, jsonOut)
+	}
+	written := 0
+	for _, t := range all {
+		existing, err := os.ReadFile(t.Path)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if t.Remove {
+			if err := os.Remove(t.Path); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("removing %s: %w", t.Path, err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Removed: %s\n", rel(repo, t.Path))
+			written++
+			continue
+		}
+		if string(existing) == t.Content {
+			continue
+		}
+		if err := os.WriteFile(t.Path, []byte(t.Content), 0644); err != nil {
+			return fmt.Errorf("writing %s: %w", t.Path, err)
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Updated: %s\n", rel(repo, t.Path))
+		written++
+	}
+	if written == 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "Documentation indexes already up to date.")
+	}
+	return nil
+}
+
+// Advisory samples are capped per kind across the entire invocation, rather
+// than resetting at each root. Gathering stays complete for rendering and checks.
+const docsWarningLimit = 5
+
+func reportDocsWarnings(cmd *cobra.Command, report *memoryindex.LossReport, warnings []memoryindex.Warning) {
+	counts := map[string]int{}
+	for _, w := range warnings {
+		if w.IsBlocking() {
+			fmt.Fprintln(cmd.ErrOrStderr(), w.String())
+			report.Malformed = append(report.Malformed, memoryindex.MalformedFinding{Kind: w.Kind, Path: w.Path, Detail: w.Detail})
+			continue
+		}
+		counts[w.Kind]++
+		if counts[w.Kind] <= docsWarningLimit {
+			fmt.Fprintln(cmd.ErrOrStderr(), w.String())
+		}
+		if w.Kind == memoryindex.KindWidth || w.Kind == memoryindex.KindDepth {
+			continue // Shape warnings retain their stderr-only contract.
+		}
+		report.WarningsTotal++
+		if counts[w.Kind] <= docsWarningLimit {
+			report.Warnings = append(report.Warnings, memoryindex.WarningFinding{Kind: w.Kind, Path: w.Path, Count: w.Count, Bytes: w.Bytes, Detail: w.Detail})
+		}
+	}
+	var truncated []string
+	for kind, count := range counts {
+		if count > docsWarningLimit {
+			truncated = append(truncated, kind)
+		}
+	}
+	sort.Strings(truncated)
+	for _, kind := range truncated {
+		fmt.Fprintf(cmd.ErrOrStderr(), "warning: [%s] … and %d more (%d total)\n", kind, counts[kind]-docsWarningLimit, counts[kind])
+	}
+}
+
+func classifyDocsRoot(repo string, root config.DocsIndexRoot, targets []memoryindex.Target) memoryindex.LossReport {
+	base := filepath.Join(repo, filepath.FromSlash(root.Path))
+	inputs := make([]memoryindex.CheckTarget, 0, len(targets))
+	cleanupDrift := false
+	for _, t := range targets {
+		existing, _ := os.ReadFile(t.Path)
+		if t.SupersededCleanup {
+			cleanupDrift = cleanupDrift || t.Remove || string(existing) != t.Content
+			continue // Explicit superseded configuration retires only tool-owned output.
+		}
+		linkBase := filepath.ToSlash(filepath.Dir(rel(base, t.Path)))
+		if linkBase == "." {
+			linkBase = ""
+		}
+		inputs = append(inputs, memoryindex.CheckTarget{Path: rel(repo, t.Path), Existing: string(existing), Rendered: t.Content, IsRoot: t.IsRoot, IsLog: t.IsLog, LinkBase: linkBase})
+	}
+	report := memoryindex.Classify(inputs, func(p string) bool { _, err := os.Stat(filepath.Join(base, filepath.FromSlash(p))); return err == nil })
+	if cleanupDrift {
+		report.Drift = true
+		if report.Tier < memoryindex.TierBenignDrift {
+			report.Tier = memoryindex.TierBenignDrift
+		}
+	}
+	return report
 }
 
 // remediationPointer is the remediation pointer appended to the tier-2 human
@@ -303,7 +303,7 @@ func emitCheckReport(cmd *cobra.Command, report memoryindex.LossReport, jsonOut 
 			for _, l := range report.Losses {
 				fmt.Fprintf(err, "  [%s] %s: %s\n", l.Category, l.Path, l.Detail)
 			}
-			fmt.Fprintln(err, remediationPointer)
+			fmt.Fprintln(err, lossRemediation(report))
 		}
 		os.Exit(2)
 		return nil // unreachable — tier 2 wins over the malformed floor
@@ -321,9 +321,9 @@ func emitCheckReport(cmd *cobra.Command, report memoryindex.LossReport, jsonOut 
 		// blocking finding so callers surfacing only the error text are not misled
 		// into treating it as mere staleness (mirrors the tier-0 blocking branch).
 		if hasMalformed {
-			return fmt.Errorf("memory index out of date and %s — regenerate, then fix the file(s) above and re-run `fab memory-index`", blockingLabel)
+			return fmt.Errorf("documentation index out of date and %s — regenerate, then fix the file(s) above and re-run `fab docs-index`", blockingLabel)
 		}
-		return fmt.Errorf("memory index out of date — run `fab memory-index`")
+		return fmt.Errorf("documentation index out of date — run `fab docs-index`")
 	default:
 		// Tier 0 (no index drift). If there is a blocking finding, block anyway —
 		// the whole point is that source problems must FAIL --check independent of
@@ -333,7 +333,7 @@ func emitCheckReport(cmd *cobra.Command, report memoryindex.LossReport, jsonOut 
 				os.Exit(1)
 				return nil // unreachable
 			}
-			return fmt.Errorf("%s — fix the file(s) above and re-run `fab memory-index`", blockingLabel)
+			return fmt.Errorf("%s — fix the file(s) above and re-run `fab docs-index`", blockingLabel)
 		}
 		return nil
 	}
@@ -353,15 +353,20 @@ func reportHasMalformedFrontmatter(report memoryindex.LossReport) bool {
 	return false
 }
 
-type indexTarget struct {
-	path    string
-	content string
-	isLog   bool // a log.md target — benign-drift-only (no destructive-loss detectors)
-}
-
 func rel(repoRoot, path string) string {
 	if r, err := filepath.Rel(repoRoot, path); err == nil {
 		return filepath.ToSlash(r)
 	}
 	return path
+}
+
+// Keep the memory remediation contract, while pointing generic-root callers at
+// their own navigation instead of unrelated memory files.
+func lossRemediation(report memoryindex.LossReport) string {
+	for _, loss := range report.Losses {
+		if !strings.HasPrefix(loss.Path, "docs/memory/") {
+			return "→ preserve the reported descriptions, historical rows, and grouping in their configured root; re-run `fab docs-index <root-path> --check` before regenerating."
+		}
+	}
+	return remediationPointer
 }

@@ -31,7 +31,7 @@ metadata:
 - fab skill
 - fab impact
 - fab pr-meta
-- fab memory-index
+- fab docs-index
 - fab fab-help
 - fab help-dump
 - fab operator
@@ -53,7 +53,7 @@ The `fab-go` binary (everything the router does not dispatch to `fab-kit`) follo
 
 Classification follows execution phase, never message text: cobra failures before `RunE` exit `2`; errors from inside `RunE` exit `1`. The testable `run()` helper records whether execution began, and no path inspects stderr to classify.
 
-**Coexistence with in-handler domain schemes (no renumbering)**: the pane family (`2` = pane missing, `3` = other tmux failure) and `fab memory-index --check` (`0`/`1`/`2`, `2` = destructive loss) set their non-1 codes via `os.Exit` *inside* the handler, which bypasses `main()`'s usage/operational mapping entirely — their codes are unchanged. For those subcommands exit `2` is therefore intentionally ambiguous between "usage error" (at parse time) and the domain meaning (in-handler); this is documented per subcommand, which principle №4 sanctions, rather than renumbered (renumbering would break the pinned pane test and downstream consumers). A usage error is a static caller bug fixable at authoring time, not a runtime condition scripts branch on, and stderr wording disambiguates.
+**Coexistence with in-handler domain schemes (no renumbering)**: the pane family (`2` = pane missing, `3` = other tmux failure) and `fab docs-index --check` (`0`/`1`/`2`, `2` = destructive loss) set their non-1 codes via `os.Exit` *inside* the handler, which bypasses `main()`'s usage/operational mapping entirely — their codes are unchanged. For those subcommands exit `2` is therefore intentionally ambiguous between "usage error" (at parse time) and the domain meaning (in-handler); this is documented per subcommand, which principle №4 sanctions, rather than renumbered (renumbering would break the pinned pane test and downstream consumers). A usage error is a static caller bug fixable at authoring time, not a runtime condition scripts branch on, and stderr wording disambiguates.
 
 ### Workspace Command Exit Semantics
 
@@ -87,7 +87,7 @@ All commands accept the unified `<change>`: 4-char ID (`yobi`), folder substring
 
 ### Commands covered in `_preamble` Common fab Commands
 
-`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab pane`, `fab doctor`, `fab migrations-status`, `fab kit-path`, `fab setup`, `fab shell-init`, `fab skill`, `fab impact`, `fab pr-meta`, `fab memory-index`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab agent`, `fab batch`) and extended flag details for the above.
+`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab pane`, `fab doctor`, `fab migrations-status`, `fab kit-path`, `fab setup`, `fab shell-init`, `fab skill`, `fab impact`, `fab pr-meta`, `fab docs-index`, `fab fab-help`, `fab help-dump`, `fab operator`, `fab agent`, `fab batch`) and extended flag details for the above.
 
 ---
 
@@ -519,7 +519,7 @@ Reconciliation, under the A/B/C field-category model:
 - **Unknown fields parked, never deleted**: a live key no longer in the registry is parked in a `# removed in … (parked by fab config upgrade — delete when done):` block below the fence, its value serialized — appended exactly once, never regenerated away.
 - **Renames carried mechanically**: a live field matching a registry row's `renamed_from` is carried to the new key, value verbatim (empty on every row today). A carry is **skipped** (and reported) if the target key is already live, so it never emits a duplicate top-level key.
 
-**Byte-stable and idempotent** — running a mode twice yields byte-identical files (the `fab memory-index` discipline). Before writing, each reconciled document is **validated as YAML** and a run that would produce an unparseable file is **refused** (original left untouched). Writes are atomic (`internal/atomicfile`). Bare/`--project` and `--all` require a fab repo; `--system` does not. `cobra.NoArgs`. `fab upgrade-repo` **auto-runs** the bare project form after sync (fail-open: if the installed fab-go predates the subcommand, it prints a reminder and the upgrade continues).
+**Byte-stable and idempotent** — running a mode twice yields byte-identical files (the `fab docs-index` discipline). Before writing, each reconciled document is **validated as YAML** and a run that would produce an unparseable file is **refused** (original left untouched). Writes are atomic (`internal/atomicfile`). Bare/`--project` and `--all` require a fab repo; `--system` does not. `cobra.NoArgs`. `fab upgrade-repo` **auto-runs** the bare project form after sync (fail-open: if the installed fab-go predates the subcommand, it prints a reminder and the upgrade continues).
 
 **`--check` — the drift probe.** Composes with every target mode and computes exactly the same reconciliation (`configupgrade.Check` shares `Upgrade`'s render/validate path, so the probe can never disagree with a real run about what would change) but **writes nothing**: it prints the would-change report — the same report lines the applying run prints — and exits non-zero (operational, exit 1) when the selected file has drifted: a stale fence kit-version stamp, unparked removed keys, a missing fence, or any rendered-content delta — including a missing config file, which a real run would create. `--all --check` exits non-zero when either layer drifts and zero only when both are clean. On a clean target it prints `already up to date`; files remain byte-identical.
 
@@ -1027,166 +1027,88 @@ Consumers: `/git-pr` Step 3c (renders the PR body `## Meta` block, pasted verbat
 
 ---
 
-## fab memory-index
+## fab docs-index
 
+```bash
+fab docs-index [<root-path>] [--check] [--json] [--rebuild]
 ```
-fab memory-index [--check [--json]] [--rebuild]
-```
 
-Deterministically (re)generates the `docs/memory/` index **and log** files so agents never
-hand-edit them — the deterministic replacement for the hand-maintained index rows (and per-file
-`## Changelog` tables) that previously lived in the hydrate / `docs-reorg-memory` skill prose.
-Modeled on `fab pr-meta` (pure `RenderRoot`/`RenderDomain`/`RenderLog` + a `Gather` I/O
-orchestrator in `internal/memoryindex`), so the output is byte-for-byte stable across runs and
-stops the per-row / per-changelog-row merge conflicts on the hot `description` cells. The index
-is a pure function of content (no git dates), so it is branch-independent and idempotent. It
-produces the generated half of the **FKF** format (Fab Knowledge Format — see
-`$(fab kit-path)/reference/fkf.md`): per-folder `log.md`, the `type: memory` round-trip mechanism, and the
-root-index `fkf_version` frontmatter.
+With no argument, processes all `docs_index.roots`; a positional argument selects one
+configured path. An unconfigured path errors naming `docs_index.roots`. There is no `--root`.
+Without `docs_index`, the implicit root is `{path: docs/memory, index_file: index.md,
+log: true, max_depth: 3}`. Other explicit roots default to `index_file: index.md`,
+`also_accept: []`, `log: false`, `max_depth: 3`, and `superseded: []`. Inspect schema/defaults
+with `fab config explain docs_index.roots`.
 
-What it writes:
-- **Root `docs/memory/index.md`** — **domains-only** (`| Domain | Description |`), prefixed with
-  the FKF `fkf_version: "0.1"` frontmatter block (the **only** `index.md` permitted frontmatter
-  beyond the generator's own output — FKF §8; no domain/sub-domain index carries it). The legacy
-  inlined per-file "Memory Files" column is dropped (it silently drifts). Each domain row's
-  Description is read from that domain `index.md`'s `description:` frontmatter.
-- **Every `docs/memory/{domain}/index.md`** — file rows (`| File | Description |`)
-  for each non-`index` `.md` file, plus a `description:` frontmatter line carrying the domain's
-  curated one-liner (round-tripped so the root row survives regen). When the domain contains
-  sub-domains, a `## Sub-Domains` table is appended referencing each (`[sub](sub/index.md)`) —
-  emitted only when sub-domains exist, so a flat domain index is byte-identical to before.
-- **Every `docs/memory/{domain}/{sub-domain}/index.md`** — a sub-domain is a folder one level
-  under a domain dir holding ≥1 non-`index` `.md`. It gets its own generated index using the
-  same file-row contract as a domain index (relative `[file](file.md)` links are correct from
-  the sub-domain folder). Recursion is one level only: `{domain}/{sub-domain}/{topic}.md`
-  (depth 3, the max bound). Deeper nesting is surfaced as a depth warning, not an extra index
-  tier. An empty sub-folder (no `.md`) is skipped — no spurious index.
-- **A per-folder `log.md`** (FKF §6, **C-lite**) for every domain **and** sub-domain folder that
-  has attributable git history — `# Log — {Title}` + a `Do not hand-edit` generated-comment
-  header, then date-grouped (`## YYYY-MM-DD`, newest first) entries. Each entry is an optional
-  leading bold **verb** (`**Creation**` / `**Deprecation**` / `**Update**`, derived from the
-  commit's git name-status: `A`→Creation, `D`→Deprecation, `M`/`R`/`C`→Update; omitted when
-  ambiguous), a **bundle-relative** link `[base](/{domain}[/{sub}]/base.md)` (beginning with `/`,
-  FKF §7), the change's one-line **summary**, and the `(change-id)` in parens. A folder with no
-  attributable history is skipped (no empty `log.md`). `log.md` is a single-writer generated
-  artifact, same discipline as `index.md` — it replaces the per-file `## Changelog` tables FKF
-  removes.
-- **Freeze-on-write `log.md` (FKF §6.4).** Existing entries are authoritative and immutable;
-  regeneration parses them and appends newly discovered attributable entries only. Dedup uses
-  `(file-base, change-id)`, not commit hash; existing unattributable entries stay verbatim and new
-  unattributable commits are not projected after first write. First generation is the same append
-  path over an empty log, not a separate mode, and `log.seed.md` still merges beneath projection.
-  The rationale and full grammar are canonical in `$(fab kit-path)/reference/fkf.md` §6.4.
-- **Seed-merge (FKF §6 — `log.seed.md`).** A folder MAY carry a curated `log.seed.md` sidecar in
-  the §6.2 entry format (`## YYYY-MM-DD` headings + `- {**Verb** }[base](/bundle/rel.md) — summary
-  ({id})` lines). It is a **read-only input** — like `description:` frontmatter — never written by
-  the generator, so the single-writer discipline holds (`fab memory-index` remains the sole writer
-  of `log.md`; the seed is just another gathered input). Its entries are parsed and **merged
-  beneath the git-projected entries** into the generated `log.md`: unioned by date (newest first;
-  within a date the git-projected lines render before the seed lines), de-duplicating any seed entry
-  byte-equal to a projected one. The merge is **idempotent** — a seed entry that already matches a
-  projected entry is dropped, so a re-run is byte-stable and `--check` stays clean. The seed
-  preserves its OWN authored dates (independent of git), which is why it can carry pre-FKF history
-  that no live `.status.yaml` `summary:` could regenerate (the oovf cutover seeds the pre-FKF
-  `## Changelog` rows here — DECISION b). A folder whose only history is a `log.seed.md` (no
-  attributable git commits) still emits a `log.md`; `log.seed.md` is excluded from topic-file
-  gathering (never an index row), exactly like `index.md` / `log.md`.
-- **`type: memory` frontmatter** is **preserved** (round-tripped) when present on a file the
-  generator owns — `fab memory-index` ships the *mechanism* only. It does **not** author or
-  bulk-stamp `type:` into topic files. Authoring is the memory writers' job: the canonical
-  memory-file template (`$(fab kit-path)/templates/memory.md`) carries the `type: memory`
-  constant, which hydrate and `/docs-hydrate-memory` stamp onto the new files they author, and
-  `docs-reorg-memory` stamps onto any genuinely new topic file a split creates — while
-  **preserving** the `type: memory`/`description:` frontmatter byte-for-byte on moved files
-  (a move never re-stamps; FKF §3.1, §7). Bulk-stamping the existing tree is a separate,
-  later FKF-adoption change — `fab memory-index` provides the preserve-when-present round-trip,
-  not the authoring.
+The generator recurses to arbitrary depth. `max_depth` is an advisory bound, never a
+traversal limit. Missing descriptions in generic roots produce the file H1 plus `—` and an advisory;
+legacy memory keeps filename-stem labels for byte compatibility;
+existing curated descriptions are seed-imported on first use, without an adoption flag.
+Imported navigation stays in an explicit curated region, preserving custom grouping,
+prose and historical rows. Later loss checks still protect generated navigation.
 
-Data sourcing (all read by the command itself):
-- Each topic file's **H1** (first `# ` line) and **`description:` frontmatter** (via
-  `internal/frontmatter`). A file with no `description:` renders `—` in that cell (never errors).
-- The **`log.md` history** comes from ONE batched
-  `git log --date=short --name-status -- docs/memory` pass (newest-first): the log takes the
-  full per-path commit list (date + subject + name-status) — no per-file `git log` spawns. The
-  **index** consumes none of this — it carries no dates (a pure function of content), so the
-  batched pass now serves `log.md` only. When the whole batched pass fails, **no
-  `log.md` is written** (the log surface degrades to absent, never an error).
-- The **`log.md` summary + change-id** are joined from two sources, neither hand-edited (FKF §6):
-  each change's `.status.yaml` **`summary:`** field (the *what* — set via `fab status
-  set-summary`; absent → the change **slug** is projected instead, FKF §6.3), and the
-  **change-id** recovered from the commit and **gated against the change registry**
-  (`fab/changes/*` + `fab/changes/archive/**` give the canonical `(id, folder)` set). The id is
-  recovered from a `{YYMMDD}-{XXXX}-{slug}` (or registered `{XXXX}`) token in the commit message.
-  The merge-commit branch token (`Merge pull request #N from owner/<folder>`) is the **only
-  recoverable token shape**, and it is effective **only on legacy true-merge history** — against
-  this repo's now-squash-merged history it recovers ≈0 change-ids in practice, so most entries
-  take the degraded path. A commit that resolves to no registered change (a direct edit on
-  `main`, pre-FKF history, or — the common case here — a squash-merge whose subject is
-  `feat: … (#NNN)` with no branch token) **degrades gracefully**: the `(change-id)` token is
-  **omitted** and the descriptive line falls back to the **commit subject** (still a
-  conflict-free git projection), or to `—` when even that is empty.
+**Ownership:** `index_file` landings are whole generated files. An existing `also_accept`
+landing (for example `README.md`) receives a table inside
+`<!-- fab docs-index:generated:start -->` / `<!-- fab docs-index:generated:end -->`.
+Prose outside that block stays human-owned and byte-preserved; no neighboring `index_file`
+is created. Only generated index files/blocks are rewritten; spec topic content stays
+human-curated. Take generated output wholesale after resolving source-file conflicts.
 
-Shape warnings (non-fatal, stderr — the "detect" half of the memory-tree-shape work):
-- `⚠ docs/memory/<domain> has <N> topic files (soft bound: ~12) — consider splitting into sub-domains`
-  when a folder holds more than ~12 topic files.
-- `⚠ docs/memory/<domain>/<sub>/<deep> is nested <N> levels deep (max: 3) — consider flattening`
-  when nesting exceeds 3 levels under `docs/memory/`.
-- Reserved domains **`_shared/`** and **`_unsorted/`** are **exempt** from the width warning.
-- Warnings are advisory: they never block, never modify files, and never affect the byte-stable
-  index output (so a regen-with-warnings is still idempotent).
+`superseded` is a list of root-relative slash globs: `**` spans directories, `*` and `?`
+match within a segment, and bracket classes follow shell-glob syntax. Use
+`"**/archive/**"` for archive subtrees, `"**/Z*/**"` for Z-prefix folders, and YAML
+single-quoted `'**/\[archived\]-*'` for literal `[archived]-` filenames. Superseded
+folders produce one parent pointer/count, then one index of immediate child versions;
+no per-file rows or topic descriptions are read inside. Individual file matches fold
+into the parent folder's superseded-file count. Version summaries use numeric bounds.
+When a live subtree becomes superseded, regeneration removes its obsolete generated
+descendant landings and logs (including the boundary folder's log). Alternate landings
+lose only their generated blocks; human prose and seed inputs remain. `--check` reports
+this configured retirement as benign drift and writes nothing.
 
-Content findings are gathered once and printed to stderr on write and `--check`; they never alter byte-stable rendered output.
+Only `log: true` roots use FKF metadata, reserved-domain exemptions, description
+escalations and per-folder `log.md`. For the log/seed/freeze-on-write contract consult
+`$(fab kit-path)/reference/fkf.md` §6. `--rebuild` discards frozen logs and rebuilds from
+git, with seed merging; ignored under `--check`, irrelevant to `log: false` roots.
 
-| Severity | Marker | Fires when | Affects `--check` exit |
-|----------|--------|------------|------------------------|
-| BLOCKING `✖` | `✖ … has malformed frontmatter — unclosed frontmatter block (no closing \`---\`)` | Line 1 opens `---` with no later standalone close, including glued-fence corruption | Floors at 1 independent of drift |
-| BLOCKING `✖` | `✖ … has malformed frontmatter — \`description:\` value fails quote-stripping (unterminated quote): <value>` | A quoted description lacks its matching closing quote | Floors at 1 |
-| BLOCKING `✖` | `✖ … \`description:\` carries a change-id (registry match: <id>) — descriptions are routing signals; move citations to the body (FKF §3.2)` | Full folder token or bare 4-char ID matches the change registry; unregistered words never match | Floors at 1 |
-| BLOCKING `✖` | `✖ … has a <N>-character \`description:\` (blocking cap: 1000, soft cap: 500) — trim to a one-liner; detail belongs in the file body` | Description exceeds 1000 runes | Floors at 1 |
-| ADVISORY `⚠` | `⚠ … has a <N>-character \`description:\` (soft cap: 500) — trim to a one-liner; detail belongs in the file body` | Description is 501–1000 runes; JSON kind `description-length`, `count` = runes | Never |
-| ADVISORY `⚠` | `⚠ … has <N> narration markers (threshold: 5) — distillation debt; consider /docs-distill-memory` | Topic body has ≥5 transition stems or registry IDs outside trailing citations / `*Introduced by*:` | Never |
-| ADVISORY `⚠` | `⚠ … is <N> lines / <K>KB (soft cap: ~400 lines / ~15KB) — consider splitting; see /docs-reorg-memory` | Topic file exceeds 400 lines or 15KB | Never |
-| ADVISORY `⚠` | `⚠ docs/memory/_unsorted holds <N> staged file(s) — triage into domains (staging should trend to empty)` | `_unsorted/` contains at least one topic file | Never |
-| ADVISORY `⚠` | `⚠ … links to <target> — target does not exist` | Topic-file bundle-relative link resolves missing under `docs/memory/`; fenced and inline code are skipped | Never |
+| Exit under `--check` | Meaning | Consumer action |
+|---|---|---|
+| 0 | Byte-clean, no blocking findings | No regeneration needed |
+| 1 | Benign drift or independent blocking floor | Regenerate drift; fix blocking source findings |
+| 2 | Destructive loss: description wipe, dropped tombstone, or flattened custom grouping | Refuse regeneration; preserve/remediate the reported navigation first |
 
-Frontmatter findings and the description-length advisory run on topic files and domain/sub-domain `index.md` stubs. Narration, size, and broken-link meters run only on topic files (`index.md` / `log.md` / `log.seed.md` excluded); `_unsorted` is per-folder.
+Worst root wins. Malformed frontmatter blocks at exit ≥1; for `log: true`, registry-gated
+change-ids and descriptions over 1000 runes also block. Advisory findings never fail a
+byte-clean check. The exit-2 refuse-before-regen guard is unchanged: blocking findings
+remain separate from tier-2 losses. An operational error (missing root, invalid root
+configuration, read/write error) returns 1. Parse-time usage errors return 2 under the
+binary-wide convention; distinguish those from a valid `--check`'s loss report.
 
-Flags:
-- `--check` — write nothing; byte-compare every rendered index and `log.md`, classify index-only destructive loss, and apply the independent blocking floor from the severity table. Advisory findings never affect exit. `log.md` drift is always benign.
-- `--json` (with `--check`) — emit the loss report as a single JSON object on **stdout** and
-  suppress the human-readable text; the exit code is unchanged. Mirrors the `fab pane` /
-  `fab migrations-status` `--json` convention (snake_case). Shape:
-  `{"tier": 0|1|2, "drift": bool, "losses": [{"category": "description"|"tombstone"|"grouping", "path": "<repo-rel index>", "detail": "<lost text | dropped link target | flattened heading>"}], "malformed": [{"kind": "malformed-fence"|"malformed-description"|"description-change-id"|"description-over-cap", "path": "<repo-rel file>", "detail": "<offending value | matched change-id, omitted for fence/over-cap>"}], "warnings": [{"kind": "description-length"|"narration-density"|"file-size"|"unsorted-nonempty"|"broken-link", "path": "<repo-rel file/folder>", "count": <N — rune length for description-length; line count for file-size; marker count for narration-density; staged-file count for unsorted-nonempty>, "bytes": <N — file-size findings only, omitted otherwise>, "detail": "<broken link target, omitted otherwise>"}]}`.
-  The `malformed` array (blocking findings) and `warnings` array (advisory findings) are **additive**:
-  `/docs-reorg-memory` compatibility detection continues to branch on `tier` and read `losses`, and
-  the five advisory kinds share one `warnings[]` array. `losses`, `malformed`, and `warnings` are always
-  present (empty arrays, never `null`).
-- `--rebuild` — **DESTRUCTIVE** FKF §6.4 escape hatch: discard frozen `log.md` state and re-project from git, including unattributable commits; use only for corruption or deliberate re-baseline. Seed merge still applies. `--check` ignores it and compares the non-destructive merge. The re-baseline migration probes `fab memory-index --help` before running `fab memory-index --rebuild`; `$(fab kit-path)/reference/fkf.md` owns the rationale.
+`--json` with `--check` emits a single stdout object with `tier`, `drift`, `losses`,
+`malformed` (blocking), and `warnings` (advisory). All three arrays are present, never null.
+Loss entries have `category`, `path`, `detail`; malformed entries have `kind`, `path`,
+optional `detail`; warning entries have `kind`, `path`, `count`, optional `bytes`/`detail`.
+Advisory kinds are `description-length`, `missing-description`, `narration-density`,
+`file-size`, `unsorted-nonempty`, and `broken-link`; width/depth warnings remain stderr-only.
+Narration-density and bundle-relative broken-link diagnostics apply only to `log: true` roots.
+Advisory details are capped at 5 per kind across all selected roots, on stderr and
+in the JSON `warnings` array. Stderr prints an "… and N more (M total)" summary for
+each truncated kind. The additive `warnings_total` integer counts all JSON-eligible
+advisories before sampling (including those omitted); width/depth remain stderr-only
+and are excluded from that total. Blocking findings and losses remain complete.
+A sampled list is not an exhaustive per-file or per-domain inventory; consumers
+must treat counts derived from it as lower bounds when `warnings_total` exceeds
+`len(warnings)`. Warnings and alias deprecation notices never contaminate JSON stdout.
 
-Tiered `--check` exit codes (loss is a strict subset of drift):
+Memory-only operations select `fab docs-index docs/memory`; shipping may run bare
+`fab docs-index` to refresh every configured root.
 
-| Exit | Tier | Fires when | Consumer action |
-|------|------|------------|-----------------|
-| `0` | Clean | Every index and `log.md` matches regeneration and no blocking finding exists | No regeneration |
-| `1` | Benign drift / blocking floor | Regeneration changes but destroys nothing (including every `log.md` and root `fkf_version` drift), or a blocking content finding exists. Freeze-on-write accepts a committed log that is a valid superset; failure means a projected attributable pair is missing or a frozen line is render-unstable | CI/pre-commit fails on ≥1; fix the source file for blocking findings |
-| `2` | Destructive loss | Index-only: curated description would become `—`; tombstone target is absent (external/absolute excluded); or root custom grouping would flatten. `log.md` never reaches tier 2 | Enumerate losses and print `→ run /docs-reorg-memory to remediate (it relocates removal-history rows to _shared/removed-domains.md and backfills description: frontmatter via /docs-hydrate-memory) before regenerating.` Hydrate/reorg refuse only on `== 2` |
-
-> **Precedence:** exit-2 destructive loss beats the independent blocking floor; blocking findings are still enumerated, do not extend `losses[]`, and never fire the exit-2 refuse guards. A born-compatible tree cannot reach tier 2 unless it first acquires legacy structural debt.
->
-> **Compatibility:** the `--json` key stays `malformed` for the four blocking kinds; `losses`, `malformed`, and `warnings` remain present as arrays.
-
-Other exit codes:
-- non-zero (1) — an operational error: `docs/memory/` not found (or another `Gather` failure), or a
-  write failed. `Gather` runs before the `--check` branch, so a `--check` run also exits 1 on these —
-  the exit-1 / exit-2 *tier* codes above apply only once gather succeeds and the comparison runs.
-  Writes happen only on non-`--check` runs, so a write failure is non-`--check`-only.
-
-**Usage-error coexistence**: the `--check` tier-`2` (destructive loss) is an in-handler `os.Exit(2)` that bypasses the binary-wide usage/operational mapping (§ Exit-Code Convention). A *usage* error on `memory-index` — a bad flag or arg-count violation — instead exits `2` at parse time, before the handler runs. Both use code `2`, so it is ambiguous between "usage error" (parse-time) and "destructive loss" (in-handler `--check`) — disambiguate on stderr; the tiered `--check` scheme is not renumbered, and the hydrate guard's tier-2 branch is unaffected (it only ever runs `--check`, which reaches the handler).
-
-Consumers: the hydrate skills (`/docs-hydrate-memory` Step 4 + its refuse-before-regen guard,
-`/fab-continue` hydrate + its defense-in-depth guard) and `/docs-reorg-memory` (compatibility
-detection via `--check --json`, index regen after diagnosis) — all call `fab memory-index`
-instead of hand-maintaining index rows.
+**Older-binary version-skew fallback:** If the binary lacks `docs-index`, memory-only
+callers may use `fab memory-index` with the same flags. It is the deprecated memory-only
+alias, retained for at least one minor version, emitting one stderr notice on current
+binaries. If the older alias also lacks the requested machine surface, use the calling
+skill's documented legacy fallback and warn to upgrade `fab`. Additional-root generation
+requires the new command; it cannot fall back through the alias.
 
 ---
 

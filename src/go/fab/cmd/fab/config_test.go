@@ -1210,6 +1210,7 @@ func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
 	// The only rows with a real built-in default today. Every other row is
 	// "no built-in default" and MUST render as JSON null (not [], {}, or "").
 	hasDefault := map[string]bool{
+		"docs_index.roots":      true, // implicit memory root is a real built-in default
 		"providers":             true,
 		"agent.profiles":        true,
 		"agent.session":         true, // the knob's built-in value IS claude, not "absent"

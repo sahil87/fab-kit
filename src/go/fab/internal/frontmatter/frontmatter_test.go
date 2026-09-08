@@ -115,7 +115,7 @@ description: 'Single quoted value'
 func TestField_AfterOversizedLineFound(t *testing.T) {
 	// The old scanner aborted on a >64KB frontmatter line, reporting every
 	// later field as silently absent — dropping skills from fab help
-	// listings and descriptions from fab memory-index.
+	// listings and descriptions from fab docs-index.
 	long := strings.Repeat("x", 70*1024)
 	path := writeTestFile(t, "---\nname: fab-test\nnotes: \""+long+"\"\ndescription: \"Found me\"\n---\n# Content")
 

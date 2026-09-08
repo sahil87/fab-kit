@@ -80,6 +80,7 @@ var keyScopes = map[string]Scope{
 	// is the operator's standing merge-topology preference, not repo semantics.
 	"autopilot":   ScopeBoth,
 	"stage_hooks": ScopeProject,
+	"docs_index":  ScopeProject,
 }
 
 // dottedKeys is the ordered set of configref registry keys. The config loader
@@ -111,6 +112,7 @@ var dottedKeys = []string{
 	"agent.profiles",
 	"providers",
 	"autopilot.merge_mode",
+	"docs_index.roots",
 	"stage_hooks",
 }
 

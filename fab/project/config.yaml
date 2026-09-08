@@ -1,3 +1,15 @@
+docs_index:
+    roots:
+        - path: docs/memory
+          index_file: index.md
+          log: true
+          max_depth: 3
+        - path: docs/specs
+          index_file: index.md
+          also_accept: [README.md]
+          log: false
+          max_depth: 8
+          superseded: ["**/archive/**"]
 project:
     description: FAB Kit — Tooling for Specification-Driven Development
     linear_workspace: null

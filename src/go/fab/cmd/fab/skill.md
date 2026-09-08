@@ -55,8 +55,10 @@ One line per capability, keyed to its command:
 - **Config** — `fab config {show,explain,set,unset,init,upgrade}` inspects and
   surgically updates `config.yaml`; `show <key> --origin` gives provenance and
   `reference` remains a compatibility alias for `explain`.
-- **Memory** — `fab memory-index [--check [--json]]` regenerates `docs/memory/` indexes and
-  per-folder logs deterministically (never hand-edit them).
+- **Documentation** — `fab docs-index [root-path] [--check [--json]]` regenerates configured
+  roots (default `docs/memory`); FKF logs are opt-in. Accepted README landings preserve prose
+  outside generated blocks. Advisories: 5/kind; JSON `warnings_total` counts before sampling.
+  `memory-index` is a deprecated memory-only alias (stderr notice).
 - **Batch** — `fab batch {new,switch,archive}` fans changes out across worktree tmux tabs.
 - **Workspace lifecycle** — `fab {init,sync,upgrade-repo,update,doctor,migrations-status}`
   (these route to the `fab-kit` binary — see Gotchas).
@@ -91,7 +93,7 @@ whole pipeline gated on the single intake confidence gate).
   diagnostics and progress go to stderr. A command that succeeds writes only its data.
 - **`--json`** is available on the machine-readable query surfaces — the `fab status`
   read-only queries (all but `progress-line`), `fab pane map`, `fab config explain`,
-  `fab dispatch status`, and `fab memory-index --check` — with additive, stable keys.
+  `fab dispatch status`, and `fab docs-index --check` — with additive, stable keys.
   `fab preflight` and `fab resolve` emit YAML/plain text and take no JSON flag.
 - **Exit codes** follow the toolkit convention for `fab-go` commands: **`0`** success,
   **`1`** operational failure (missing change, failed preflight, below-gate, tmux/gh/fs
@@ -99,7 +101,7 @@ whole pipeline gated on the single intake confidence gate).
   subcommand, mutually-exclusive flags). Classification is by execution phase, not message
   text — a malformed invocation never reaches its handler.
 - **Special in-handler codes coexist** (not renumbered): `fab pane` verbs use `2` = pane
-  missing, `3` = other tmux failure; `fab memory-index --check` uses `0`/`1`/`2` with
+  missing, `3` = other tmux failure; `fab docs-index --check` uses `0`/`1`/`2` with
   `2` = destructive loss; `fab sync` and `fab migrations-status` use `3` = "not a
   fab-managed repo" (a branchable "not applicable here", distinct from the generic `1`).
 

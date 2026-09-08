@@ -185,7 +185,7 @@ Each subcommand operates independently — they can be invoked directly without 
 *Introduced by*: 260212-h9k3-fab-init-family
 
 ### Templates in Scaffold Files
-**Decision**: `config.yaml` and `constitution.md` templates live as standalone files in `$(fab kit-path)/scaffold/` rather than as inline code blocks in `fab-setup.md`. `/fab-setup` reads from these files and substitutes placeholders. Index templates (`memory-index.md`, `specs-index.md`) are also referenced from scaffold files, eliminating duplicated inline copies.
+**Decision**: `config.yaml` and `constitution.md` templates live as standalone files in `$(fab kit-path)/scaffold/` rather than as inline code blocks in `fab-setup.md`. `/fab-setup` reads from these files and substitutes placeholders. Index templates (`src/kit/scaffold/docs/memory/index.md`, `src/kit/scaffold/docs/specs/index.md`) are also referenced from scaffold files, eliminating duplicated inline copies.
 **Why**: Prevents drift between inline templates and actual schema expectations. Aligns with Constitution V (Portability) — `.kit/` owns its templates as inspectable, diffable files. Single source of truth for both `fab-kit sync` and `/fab-setup`.
 **Rejected**: Keeping inline templates — two sources of truth that can diverge when the config schema evolves.
 *Introduced by*: 260217-17pe-DEV-1046-scaffold-setup-templates

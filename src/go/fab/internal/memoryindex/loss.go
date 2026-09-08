@@ -1,6 +1,6 @@
 package memoryindex
 
-// Destructive-loss classification for `fab memory-index --check`.
+// Destructive-loss classification for `fab docs-index --check`.
 //
 // The existing --check branch already computes the rendered-vs-existing drift
 // per index file (a string compare). What it cannot do is *classify* that
@@ -124,6 +124,9 @@ type LossReport struct {
 	// Warnings enumerates the ADVISORY findings (density / size / _unsorted /
 	// broken links). Additive; never affects the exit code. Empty-never-null.
 	Warnings []WarningFinding `json:"warnings"`
+	// WarningsTotal counts all JSON-eligible advisories before per-kind sampling.
+	// Shape warnings remain stderr-only. Blocking findings remain in Malformed.
+	WarningsTotal int `json:"warnings_total"`
 }
 
 // CheckTarget is one index file's comparison inputs: its repo-relative path,
@@ -134,7 +137,7 @@ type CheckTarget struct {
 	Path string
 	// Existing is the current on-disk content ("" if the file is absent).
 	Existing string
-	// Rendered is the content `fab memory-index` would write.
+	// Rendered is the content `fab docs-index` would write.
 	Rendered string
 	// IsRoot marks the root docs/memory/index.md (grouping detection only runs
 	// there — domain/sub-domain indexes have no custom-grouping category).
@@ -225,7 +228,11 @@ func descriptionLosses(t CheckTarget) []Loss {
 // never count — they are intentional outbound links, not generated rows.
 func tombstoneLosses(t CheckTarget, memExists func(relPath string) bool) []Loss {
 	var out []Loss
+	rendered := rowsByTarget(parseIndexRows(t.Rendered))
 	for _, ex := range parseIndexRows(t.Existing) {
+		if _, kept := rendered[ex.Target]; kept {
+			continue
+		}
 		rel, ok := relMemoryTarget(t.LinkBase, ex.Target)
 		if !ok {
 			continue // external / absolute / unparseable → never a tombstone
@@ -241,7 +248,14 @@ func tombstoneLosses(t CheckTarget, memExists func(relPath string) bool) []Loss 
 // that the generated domains-only output omits — they flatten on regen.
 func groupingLosses(t CheckTarget) []Loss {
 	var out []Loss
+	rendered := map[string]bool{}
+	for _, h := range parseStructuralHeadings(t.Rendered) {
+		rendered[h] = true
+	}
 	for _, h := range parseStructuralHeadings(t.Existing) {
+		if rendered[h] {
+			continue
+		}
 		out = append(out, Loss{Category: LossGrouping, Path: t.Path, Detail: h})
 	}
 	return out

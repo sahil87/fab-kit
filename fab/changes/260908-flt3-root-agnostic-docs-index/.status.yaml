@@ -1,0 +1,55 @@
+id: flt3
+name: 260908-flt3-root-agnostic-docs-index
+created: 2026-09-08T14:29:13Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 14
+    acceptance_count: 34
+    acceptance_completed: 34
+confidence:
+    certain: 9
+    confident: 8
+    tentative: 0
+    unresolved: 0
+    score: 3.2
+    fuzzy: true
+    dimensions:
+        signal: 92.4
+        reversibility: 69.1
+        competence: 74.1
+        disambiguation: 74.7
+stage_metrics:
+    intake: {started_at: "2026-09-08T14:29:13Z", driver: fab-new, iterations: 1, completed_at: "2026-09-08T14:55:06Z"}
+    apply: {started_at: "2026-09-08T17:11:58Z", driver: fab-fff, iterations: 4, completed_at: "2026-09-08T17:15:27Z"}
+    review: {started_at: "2026-09-08T17:15:27Z", driver: fab-fff, iterations: 4, completed_at: "2026-09-08T17:22:20Z"}
+    hydrate: {started_at: "2026-09-08T17:22:20Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-08T17:27:37Z"}
+    ship: {started_at: "2026-09-08T17:27:37Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-09-08T17:27:37Z"
+    computed_at_stage: hydrate
+summary: 'Generalized memory-index into root-agnostic fab docs-index: docs_index.roots config, superseded rendering, seed-import adoption, bounded warnings; memory-index kept as deprecated alias; specs root dogfooded'
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-09-08T17:27:37Z

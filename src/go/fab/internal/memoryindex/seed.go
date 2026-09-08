@@ -11,7 +11,7 @@ package memoryindex
 // The seed is a per-folder sidecar file `log.seed.md` in the FKF §6.2 entry
 // format. It is an INPUT — curated, like `description:` frontmatter — never the
 // generated output, so the single-writer / byte-stable discipline (FKF §5/§6) is
-// preserved: `fab memory-index` stays the sole writer of log.md, the seed is just
+// preserved: `fab docs-index` stays the sole writer of log.md, the seed is just
 // another gathered input it reads (never writes). This file holds the pure half
 // (parseSeedLog + mergeSeedEntries); the read-from-disk wiring lives in
 // memoryindex.go's GatherLogs/buildLogTarget alongside the other I/O.
@@ -20,7 +20,7 @@ import (
 	"strings"
 )
 
-// seedFileName is the per-folder seed sidecar `fab memory-index` reads (never
+// seedFileName is the per-folder seed sidecar `fab docs-index` reads (never
 // writes). It sits alongside the generated log.md; it is excluded from topic-file
 // gathering exactly as index.md / log.md are.
 const seedFileName = "log.seed.md"

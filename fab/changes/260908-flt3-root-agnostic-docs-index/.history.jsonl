@@ -1,0 +1,26 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-08T14:29:13Z"}
+{"args":"Generalize fab memory-index into a root-agnostic doc-index generator: configurable roots (docs/specs etc.), rename to fab docs-index with deprecated memory-index alias, arbitrary depth, README.md landing files, graceful missing-description degradation, superseded-subtree pointer+count rendering, preserve byte-stability/--check/--json/refuse-before-regen, per-root opt-in log.md, config schema + migration note + internal caller updates + tests","cmd":"fab-new","event":"command","ts":"2026-09-08T14:29:13Z"}
+{"delta":"+0.0","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-09-08T14:33:26Z"}
+{"delta":"+0.0","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-09-08T14:34:19Z"}
+{"delta":"+0.0","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-09-08T14:35:55Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-08T14:36:03Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-09-08T14:40:47Z"}
+{"delta":"+2.1","event":"confidence","score":2.1,"trigger":"calc-score","ts":"2026-09-08T14:47:34Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-09-08T14:50:35Z"}
+{"delta":"+1.1","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-09-08T14:53:09Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-08T14:54:27Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-08T14:55:06Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-08T15:30:15Z"}
+{"event":"review","result":"failed","ts":"2026-09-08T15:59:27Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-08T15:59:27Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-08T16:10:21Z"}
+{"cmd":"_review","event":"command","ts":"2026-09-08T16:12:13Z"}
+{"event":"review","result":"failed","ts":"2026-09-08T16:40:52Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-08T16:40:52Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-08T16:48:04Z"}
+{"event":"review","result":"failed","ts":"2026-09-08T17:11:58Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-08T17:11:58Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-08T17:15:27Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-08T17:22:20Z"}
+{"event":"review","result":"passed","ts":"2026-09-08T17:22:20Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-08T17:27:37Z"}
