@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 11
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-09-08T17:14:14Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-08T17:19:19Z"}
     hydrate: {started_at: "2026-09-08T17:19:19Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-08T17:21:15Z"}
     ship: {started_at: "2026-09-08T17:21:15Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-08T17:25:21Z"}
-    review-pr: {started_at: "2026-09-08T17:25:21Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-09-08T17:25:21Z", driver: git-pr, iterations: 1, completed_at: "2026-09-08T17:33:17Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/652
 change_type_source: explicit
@@ -54,4 +54,4 @@ true_impact:
     computed_at_stage: ship
 summary: Repointed fab-internal skill read paths to .agents/skills/ and re-gated .claude/skills + .claude/settings.local.json on the claude CLI (one shared gate); .agents/skills stays the always-on cross-client target
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-09-08T17:25:21Z
+last_updated: 2026-09-08T17:33:17Z
