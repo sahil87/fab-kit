@@ -26,11 +26,12 @@ const (
 // agentConfig describes how to deploy skills to a specific AI agent — or, for the
 // generic `.agents/skills` directory, to the set of CLIs that read it.
 type agentConfig struct {
-	Label   string   // display name
-	CLIs    []string // candidate commands; the target deploys when ANY is on PATH
-	BaseDir string   // target directory relative to repo root
-	Format  string   // "directory" or "flat"
-	Mode    string   // "copy" or "symlink"
+	Label    string   // display name
+	CLIs     []string // candidate commands; gated targets deploy when ANY is on PATH
+	BaseDir  string   // target directory relative to repo root
+	Format   string   // "directory" or "flat"
+	Mode     string   // "copy" or "symlink"
+	AlwaysOn bool     // deploy without consulting CLI availability
 }
 
 // deploySkills deploys skill files to agent-specific directories.
@@ -44,21 +45,20 @@ func deploySkills(repoRoot, kitDir string) error {
 		return nil
 	}
 
-	// Define agent configurations. `.agents/skills` is the GENERIC workspace
-	// directory: codex, agy and kimi all discover skills there natively, so it
-	// deploys once when any of them is installed. Deploying a per-brand copy for
-	// those CLIs as well is what produced duplicate-skill conflict warnings, so one
-	// target per skill set is the invariant to keep.
+	// Define agent configurations. The directory-format targets deploy on every
+	// sync; OpenCode's flat command target remains gated on its CLI. Deploying
+	// additional per-brand copies for CLIs that read `.agents/skills` is what
+	// produced duplicate-skill conflict warnings, so one target per skill set is
+	// the invariant to keep.
 	agents := []agentConfig{
-		{Label: "Claude Code", CLIs: []string{"claude"}, BaseDir: filepath.Join(repoRoot, ".claude", "skills"), Format: "directory", Mode: "copy"},
+		{Label: "Claude Code", BaseDir: filepath.Join(repoRoot, ".claude", "skills"), Format: "directory", Mode: "copy", AlwaysOn: true},
 		{Label: "OpenCode", CLIs: []string{"opencode"}, BaseDir: filepath.Join(repoRoot, ".opencode", "commands"), Format: "flat", Mode: "copy"},
-		{Label: "Agents dir", CLIs: []string{"codex", "agy", "kimi"}, BaseDir: filepath.Join(repoRoot, ".agents", "skills"), Format: "directory", Mode: "copy"},
+		{Label: "Agents dir", BaseDir: filepath.Join(repoRoot, ".agents", "skills"), Format: "directory", Mode: "copy", AlwaysOn: true},
 	}
 
-	agentsFound := 0
 	var errs []error
 	for _, agent := range agents {
-		if !agentAvailable(agent.CLIs...) {
+		if !agent.AlwaysOn && !agentAvailable(agent.CLIs...) {
 			fmt.Printf("Skipping %s: %s\n", agent.Label, missingCLIs(agent.CLIs))
 			continue
 		}
@@ -79,11 +79,6 @@ func deploySkills(repoRoot, kitDir string) error {
 				errs = append(errs, werr)
 			}
 		}
-		agentsFound++
-	}
-
-	if agentsFound == 0 {
-		fmt.Println("Warning: No agent CLIs found in PATH. Skills were not deployed to any agent.")
 	}
 
 	return errors.Join(errs...)
@@ -108,10 +103,7 @@ func listSkills(skillsDir string) []string {
 	return skills
 }
 
-// agentAvailable reports whether ANY of the candidate CLIs is available. A target
-// with a single candidate is the common case; the generic `.agents/skills` target
-// passes the several CLIs that read that directory, and one of them being present
-// is enough to deploy it.
+// agentAvailable reports whether ANY of the candidate CLIs is available.
 // Respects FAB_AGENTS env var override, which likewise matches any candidate.
 func agentAvailable(clis ...string) bool {
 	if fabAgents, ok := os.LookupEnv("FAB_AGENTS"); ok {
@@ -134,11 +126,8 @@ func agentAvailable(clis ...string) bool {
 }
 
 // missingCLIs renders the "why this target was skipped" clause, matching the
-// phrasing to the number of candidates. Only the generic `.agents/skills` target
-// is gated on more than one CLI, so "none of claude found in PATH" would be a
-// grammatical wart on every single-candidate target — and the plural form still
-// has to name every candidate, since that list IS the actionable part (a user
-// with none installed learns what would enable the target).
+// phrasing to the number of candidates. The plural form names every candidate,
+// since that list is the actionable part for a skipped target.
 func missingCLIs(clis []string) string {
 	if len(clis) == 1 {
 		return clis[0] + " not found in PATH"

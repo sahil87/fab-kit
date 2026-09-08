@@ -33,10 +33,14 @@ project/
 ├── docs/
 │   ├── memory/                     # Post-implementation source of truth (domain folders + generated indexes)
 │   └── specs/                      # Pre-implementation design intent (human-curated)
-└── .claude/                        # Agent skill deployments (ignored via generated .claude/skills/.gitignore)
+├── .claude/                        # Always-on Claude Code skill deployment
+│   └── skills/
+│       └── fab-new/
+│           └── SKILL.md            # Copy deployed by `fab sync` from the kit cache
+└── .agents/                        # Always-on cross-client Agent Skills deployment
     └── skills/
         └── fab-new/
-            └── SKILL.md            # Copy deployed by `fab sync` from the kit cache
+            └── SKILL.md            # Same canonical skill, deployed independently
 ```
 
 In the **fab-kit dev repo**, `src/kit/` is the canonical source for all kit content (skills in `src/kit/skills/`, templates in `src/kit/templates/`, migrations, scaffold), and `src/go/` holds the Go binaries. Releases package `src/kit/` into the per-version cache archives — projects never carry a `.kit/` directory.
@@ -486,15 +490,15 @@ The `.fab-*` gitignore pattern also covers transient dirs like `.fab-dispatch/`.
 
 ## Agent Integration
 
-Skills are deployed to each detected agent by `fab sync`, sourcing from the kit cache (`~/.fab-kit/versions/<version>/kit/skills/`). Deployment is conditional — each agent's CLI is checked via PATH lookup before syncing.
+`fab sync` deploys skills from the kit cache (`~/.fab-kit/versions/<version>/kit/skills/`) to two always-on directory targets and one detection-gated flat target.
 
-| Agent | Deployment | Form |
-|-------|-----------|------|
-| Claude Code (`claude`) | `.claude/skills/{name}/SKILL.md` | Directory-based **copies** |
-| OpenCode (`opencode`) | `.opencode/commands/{name}.md` | Flat-file copies |
-| Agents dir (`codex`, `agy`, `kimi`) | `.agents/skills/{name}/SKILL.md` | Directory-based copies |
+| Agent target | Deployment | Form | Activation |
+|--------------|------------|------|------------|
+| Claude Code | `.claude/skills/{name}/SKILL.md` | Directory-based **copies** | Every sync |
+| OpenCode (`opencode`) | `.opencode/commands/{name}.md` | Flat-file copies | When `opencode` is available |
+| Agents dir | `.agents/skills/{name}/SKILL.md` | Directory-based copies | Every sync |
 
-`.agents/skills/` is the **generic** workspace directory: codex, agy and kimi all discover skills there natively, so it deploys once when **any** of them is on PATH and none of them gets a per-brand directory. That one-target-per-skill-set rule is deliberate — deploying the same skills to both a generic and a per-brand directory is what makes a CLI that reads both report every skill twice.
+`.agents/skills/` is the **generic** workspace directory: codex, agy and kimi all discover skills there natively, so none of them gets a per-brand directory. That one-target-per-skill-set rule is deliberate — deploying the same skills to both a generic and a per-brand directory is what makes a CLI that reads both report every skill twice. `FAB_AGENTS` can override availability for the gated OpenCode row in tests and CI, but it cannot suppress either always-on directory target.
 
 All `*.md` skill files are deployed, including underscore partials (`_preamble.md`, `_generation.md`, `_review.md`, `_srad.md`, `_pipeline.md`, `_intake.md`, `_cli-fab.md`, `_cli-external.md`, `_cli-agents.md`), which carry `user-invocable: false` frontmatter to prevent direct invocation. The skill prompt files are agent-agnostic markdown; only the deployment locations and formats differ per agent.
 
@@ -536,7 +540,8 @@ Multiple versions coexist; each repo pins its own via `fab/.fab-version`. Auto-d
 ```
 
 `fab init` requires a git repository and fails before any download or write
-otherwise. `fab sync` is re-runnable: it deploys skills to detected agents,
+otherwise. `fab sync` is re-runnable: it deploys skills to the two always-on
+directory targets and any available gated targets,
 scaffolds workspace files, and stamps version markers from the cache. It does
 not register hooks or write `.claude/settings.local.json`; migrations clean any
 legacy hook entries across worktrees.

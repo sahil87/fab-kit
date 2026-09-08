@@ -32,33 +32,33 @@ func TestAgentAvailable_FABAgentsOverride(t *testing.T) {
 	if agentAvailable("opencode") {
 		t.Error("expected opencode to NOT be available when FAB_AGENTS is set without it")
 	}
+
+	t.Setenv("FAB_AGENTS", "opencode")
+	if !agentAvailable("opencode") {
+		t.Error("expected the gated OpenCode target to be available via FAB_AGENTS")
+	}
 }
 
-// TestAgentAvailable_AnyCandidate: the generic `.agents/skills` target names the
-// several CLIs that read that directory, and ONE of them being declared is enough.
-// Without any-match semantics a kimi-only or agy-only workspace would silently get
-// no skills deployed at all.
+// TestAgentAvailable_AnyCandidate pins the helper's any-match semantics for gated
+// targets with more than one candidate.
 func TestAgentAvailable_AnyCandidate(t *testing.T) {
-	generic := []string{"codex", "agy", "kimi"}
+	candidates := []string{"alpha", "beta", "gamma"}
 
-	for _, only := range generic {
+	for _, only := range candidates {
 		t.Setenv("FAB_AGENTS", only)
-		if !agentAvailable(generic...) {
-			t.Errorf("with FAB_AGENTS=%q, the generic target must deploy — any candidate suffices", only)
+		if !agentAvailable(candidates...) {
+			t.Errorf("with FAB_AGENTS=%q, any matching candidate must be available", only)
 		}
 	}
 
 	t.Setenv("FAB_AGENTS", "claude opencode")
-	if agentAvailable(generic...) {
-		t.Error("with no generic-directory CLI declared, the generic target must be skipped")
+	if agentAvailable(candidates...) {
+		t.Error("with no matching candidate declared, the target must be unavailable")
 	}
 }
 
-// TestMissingCLIs: the skip message adapts to the candidate count. Only the generic
-// `.agents/skills` target is gated on more than one CLI, so the plural "none of"
-// phrasing would read as a wart on the single-candidate targets — but it must still
-// name EVERY candidate when there are several, since that list is what tells a user
-// with none installed what would enable the target.
+// TestMissingCLIs pins skip-message wording for single- and multi-candidate
+// gated targets.
 func TestMissingCLIs(t *testing.T) {
 	if got, want := missingCLIs([]string{"claude"}), "claude not found in PATH"; got != want {
 		t.Errorf("missingCLIs(single) = %q, want %q — a one-candidate target reads oddly as \"none of\"", got, want)
@@ -75,11 +75,8 @@ func TestMissingCLIs(t *testing.T) {
 	}
 }
 
-// TestDeploySkills_GenericDirForNonCodexCLI is the change's headline distribution
-// behavior (260808-rpsr): agy and kimi read the GENERIC `.agents/skills` directory
-// natively, so they deploy there and get NO per-brand directory of their own. The
-// per-brand `.gemini/skills` target that used to exist is what made every synced
-// skill appear twice to that CLI, which is the warning class this asserts is gone.
+// TestDeploySkills_GenericDirForNonCodexCLI pins the one-target-per-skill-set
+// invariant: the generic directory deploys without creating per-brand copies.
 func TestDeploySkills_GenericDirForNonCodexCLI(t *testing.T) {
 	for _, cli := range []string{"agy", "kimi"} {
 		t.Run(cli, func(t *testing.T) {
@@ -96,6 +93,9 @@ func TestDeploySkills_GenericDirForNonCodexCLI(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(repoRoot, ".agents", "skills", "fab-new", "SKILL.md")); err != nil {
 				t.Errorf("%s must deploy to the generic .agents/skills directory: %v", cli, err)
 			}
+			if _, err := os.Stat(filepath.Join(repoRoot, ".claude", "skills", "fab-new", "SKILL.md")); err != nil {
+				t.Errorf("Claude Code target must deploy unconditionally: %v", err)
+			}
 			// No per-brand directory for any of the generic-dir CLIs — one target
 			// per skill set is what makes duplicate discovery impossible.
 			for _, brandDir := range []string{".gemini", ".agy", ".kimi", ".codex"} {
@@ -104,6 +104,40 @@ func TestDeploySkills_GenericDirForNonCodexCLI(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestDeploySkills_AlwaysOnTargetsWithNoCLIs(t *testing.T) {
+	kitDir := t.TempDir()
+	os.MkdirAll(filepath.Join(kitDir, "skills"), 0755)
+	os.WriteFile(filepath.Join(kitDir, "skills", "fab-new.md"), []byte("# New\n"), 0644)
+
+	repoRoot := t.TempDir()
+	t.Setenv("FAB_AGENTS", "foreign-agent")
+
+	var err error
+	out := captureStdout(t, func() {
+		err = deploySkills(repoRoot, kitDir)
+	})
+	if err != nil {
+		t.Fatalf("deploySkills: %v", err)
+	}
+	for _, target := range []string{
+		filepath.Join(repoRoot, ".claude", "skills", "fab-new", "SKILL.md"),
+		filepath.Join(repoRoot, ".agents", "skills", "fab-new", "SKILL.md"),
+	} {
+		if _, err := os.Stat(target); err != nil {
+			t.Errorf("always-on target was not deployed: %s: %v", target, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(repoRoot, ".opencode", "commands")); !os.IsNotExist(err) {
+		t.Errorf("gated OpenCode target must not deploy without opencode: %v", err)
+	}
+	if !strings.Contains(out, "Skipping OpenCode: opencode not found in PATH") {
+		t.Errorf("expected gated-target skip message, got:\n%s", out)
+	}
+	if strings.Contains(out, "Warning:") {
+		t.Errorf("no global warning should follow successful always-on deployments, got:\n%s", out)
 	}
 }
 
@@ -465,12 +499,12 @@ func TestDeploySkills_PropagatesAgentFailure(t *testing.T) {
 	os.WriteFile(filepath.Join(kitDir, "skills", "fab-new.md"), []byte("# New\n"), 0644)
 
 	repoRoot := t.TempDir()
-	// .claude exists read-only so MkdirAll(.claude/skills) fails for the claude agent.
+	// .claude exists read-only so the always-on Claude Code target fails.
 	claudeDir := filepath.Join(repoRoot, ".claude")
 	os.MkdirAll(claudeDir, 0755)
 	roDir(t, claudeDir)
 
-	t.Setenv("FAB_AGENTS", "claude")
+	t.Setenv("FAB_AGENTS", "foreign-agent")
 	err := deploySkills(repoRoot, kitDir)
 	if err == nil {
 		t.Fatal("expected deploySkills to propagate the agent deployment failure (Sync must exit non-zero)")

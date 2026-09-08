@@ -255,23 +255,25 @@ func TestSync_FullRunProducesExpectedTree(t *testing.T) {
 		t.Errorf("expected project sync script marker: %v", err)
 	}
 
-	// Generated manifest: the fired claude target gets a whole-file-owned
-	// .gitignore listing exactly the deployed skills; skipped targets get none.
-	manifest, err := os.ReadFile(filepath.Join(repo, ".claude", "skills", ".gitignore"))
-	if err != nil {
-		t.Fatalf("fired target must get a generated manifest: %v", err)
-	}
+	// Generated manifests: both always-on directory targets get a
+	// whole-file-owned .gitignore listing exactly the deployed skills.
 	wantManifest := manifestHeaderSkills + "/.gitignore\n/fab-help/\n/fab-new/\n"
-	if string(manifest) != wantManifest {
-		t.Errorf("manifest content mismatch:\n--- want ---\n%s\n--- got ---\n%s", wantManifest, manifest)
-	}
-	for _, skipped := range []string{
+	for _, target := range []string{
+		filepath.Join(repo, ".claude", "skills", ".gitignore"),
 		filepath.Join(repo, ".agents", "skills", ".gitignore"),
-		filepath.Join(repo, ".opencode", "commands", ".gitignore"),
 	} {
-		if _, err := os.Stat(skipped); !os.IsNotExist(err) {
-			t.Errorf("skipped target must not get a manifest: %s", skipped)
+		manifest, err := os.ReadFile(target)
+		if err != nil {
+			t.Errorf("always-on target must get a generated manifest at %s: %v", target, err)
+			continue
 		}
+		if string(manifest) != wantManifest {
+			t.Errorf("manifest content mismatch at %s:\n--- want ---\n%s\n--- got ---\n%s", target, wantManifest, manifest)
+		}
+	}
+	opencodeManifest := filepath.Join(repo, ".opencode", "commands", ".gitignore")
+	if _, err := os.Stat(opencodeManifest); !os.IsNotExist(err) {
+		t.Errorf("skipped target must not get a manifest: %s", opencodeManifest)
 	}
 
 	// cleanLegacyAgents scoping: skill-named legacy file removed, custom kept.
