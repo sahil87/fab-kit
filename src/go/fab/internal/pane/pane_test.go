@@ -825,7 +825,7 @@ func TestRunCmdContext_DeadlineKillsChild(t *testing.T) {
 	if err == nil {
 		t.Fatal("RunCmdContext past-deadline sleep: err = nil, want non-nil")
 	}
-	if elapsed := time.Since(start); elapsed > 5*time.Second {
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
 		t.Fatalf("RunCmdContext returned after %v, want within the deadline", elapsed)
 	}
 }
