@@ -650,7 +650,8 @@ func TestStateDir(t *testing.T) {
 }
 
 // TestSlugify verifies the socket-path slug is filesystem-safe, deterministic,
-// and collision-free for distinct socket paths.
+// and collision-free for distinct socket paths. Cross-repo contract: run-kit
+// mirrors this exact rule to locate the file for display (see slugify).
 func TestSlugify(t *testing.T) {
 	tests := []struct {
 		name string

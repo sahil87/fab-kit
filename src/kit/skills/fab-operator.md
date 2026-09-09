@@ -14,6 +14,7 @@ helpers: [_cli-agents, _cli-fab, _cli-external]
 - 2. Startup
 - 3. Safety
 - 4. The Clock
+  - Mute and Lease
 - 5. Auto-Nudge
 - 6. Coordination Patterns
 - 7. Watches
@@ -93,15 +94,17 @@ This single preflight probe covers every later `wt create` call site; none is in
 1. Run `fab operator state` to read (or create, on first run) the server-keyed operator state file — the binary derives the path and persists the empty skeleton when missing; the operator never computes the path or hand-creates the file (`_cli-fab.md` § fab operator state). Old repo-rooted `.fab-operator.yaml` files are not read or migrated
 2. Restore monitored set, autopilot queue, branch_map, and notes from the file (this is what makes §4 Post-Compaction Reload lossless)
 3. Run `fab pane map --all-sessions` and display the output (all sessions on this server, not just the operator's own)
-4. Verify the clock — fail-silent, gated on `command -v rk`: run `rk cron list` and look for the operator-tick entry (the one `rk operator` seeds — §4 The Clock). Absent rk, a failing `rk cron list` (a pre-cron rk), or a missing entry is a degraded state, never an error. No loop is started — the entry (or the §4 Degraded Fallback) is the whole clock story
+4. Verify the clock — fail-silent, gated on `command -v rk`: run `rk cron list --json` and look for the operator-tick entry (the one `rk operator` seeds — §4 The Clock) and its mute state (`muted` is the effective state — an indefinite mute or a live lease; `muted_until`, unix seconds, is present only while a lease is live). When the entry is `muted` while `fab operator state` (step 1) shows tracked work — monitored entries, watches, an active autopilot, or an open `kind: coordination` note — issue `rk cron mute <id> --off` to unmute it (§4 Mute and Lease). Absent rk, a failing `rk cron list --json` (a pre-cron rk), or a missing entry is a degraded state, never an error. No loop is started — the entry (or the §4 Degraded Fallback) is the whole clock story
 5. Output the ready line **with the clock status** — the agent copies the literal later, never composes one:
 
    ```
    Operator ready. Clock: rk cron "operator tick" (backoff 60s–30m, wakes on agent-state-change)
+   Operator ready. Clock: rk cron "operator tick" (backoff 60s–30m, wakes on agent-state-change) · muted
+   Operator ready. Clock: rk cron "operator tick" (backoff 60s–30m, wakes on agent-state-change) · muted until <HH:MM>
    Operator ready. Clock: none — run `rk operator` to seed the cron entry, or (Claude Code only) start the fallback: /loop 3m "operator tick"
    ```
 
-   (first form when step 4 found the entry; second form when it did not or rk is absent)
+   (first form when step 4 found the entry unmuted — or just unmuted it; the ` · muted` form when the entry is `muted` with no `muted_until`; the ` · muted until <HH:MM>` form when `muted_until` is present, rendered as local HH:MM; the `Clock: none` form when step 4 found no entry or rk is absent)
 
 ---
 
@@ -157,25 +160,31 @@ The operator's cadence is **not owned by this skill** — it is run-kit substrat
 The seeded entry's shape (reference summary — schema and semantics are owned by the cron spec, not restated here):
 
 ```yaml
-schedule: { kind: backoff, anchor: operator-idle, min: 60s, max: 30m }
+schedule: { kind: backoff, min: 60s, max: 30m }
 wake_on: { event: agent-state-change, scope: server, debounce: 10s }
-suppress_while: [operator-loop-fresh, nothing-tracked]
 target: { kind: role, role: operator }
 payload: "operator tick"
 deliver: immediate
 if_absent: respawn
+respawn: ["rk", "operator", "-L", "{server}"]   # caller-supplied argv; {server} substituted by rk at fire time
 pinned: true
 ```
 
-**Ownership.** `rk operator` seeds the entry idempotently at launch; this skill never creates or mutates it — `rk cron` verbs (`list`/`add`/`rm`/`mute`) are the user's. The `backoff` anchor is the operator's idle epoch joined against rk's delivery log, so the entry's own deliveries do not reset the ladder (the anchor-join rule — cron spec § Schedules); the schedule is a pure function of the anchor and survives daemon restarts.
+**Ownership.** `rk operator` seeds the entry idempotently at launch; the tracked-set verbs — `fab operator enroll`/`remove`, `watch add`/`rm`, `autopilot start`/`stop`/`advance`-to-exhaustion, `note add --kind coordination`/`resolve` — mute/unmute it via `rk cron mute <id>` / `--off`; `rk cron add`/`rm` and the schedule stay the user's.
 
-**How the union predicate covers the retired loop behaviors** (cron spec § Schedules, union predicates and guards):
+**How the union predicate covers the retired loop behaviors** (cron spec § Schedules, union predicates):
 
 - `wake_on: agent-state-change` (10s debounce) ≻ the retired tightened waiting-agent cadence: a `waiting` flip fires a tick within seconds instead of within a poll interval.
-- `suppress_while: [nothing-tracked]` ≻ the retired stop-when-empty rule: while `monitored`, `watches`, and `autopilot` are all empty, fires are skipped silently.
-- `suppress_while: [operator-loop-fresh]` — staleness arbitration on `last_tick_at` in the operator state file: keeps the cron silent while a not-yet-reloaded operator still runs the retired in-session loop, so the migration never double-ticks.
-- `backoff` (`60s`→`30m`, anchored on operator idle) ≻ the retired fixed-interval heartbeat: quick cadence while the operator is freshly active, relaxing as it idles.
+- The tracked-set verbs mute/unmute the entry ≻ the retired stop-when-empty rule: an empty tracked set (no monitored entries, watches, active autopilot, or open merge-sequence `coordination` note) mutes the entry; the first thing tracked unmutes it.
+- `backoff` (`60s`→`30m`) ≻ the retired fixed-interval heartbeat: quick cadence while the operator is freshly active, relaxing as it idles.
 - `target: role=operator` + `if_absent: respawn` ≻ session-bound liveness: the entry outlives the pane, resolves the operator window at fire time, and a dead operator is relaunched via `rk operator` (a respawn's first delivery is the `/fab-operator` kickoff, never a bare tick; bare payloads resume from the second fire).
+
+### Mute and Lease
+
+- The skill **MAY** use `rk cron mute <id> --for <dur>` for a user-requested bounded quiet window (e.g. "hold the ticks for 30 minutes" → `--for 30m`); the lease auto-expires — no unmute call is needed.
+- The skill **MUST** never leave an indefinite mute behind while work is tracked — the tracked-set verbs enforce the tracked-set half (their `--off` clears any standing mute or lease); this rule covers a manual `rk cron mute <id>` a user or the operator typed.
+- `rk cron mute <id> --off` clears both a mute and a lease.
+- The lease is a bounded snooze, not a heartbeat — nothing renews it since the in-session loop is retired.
 
 ### Tick Payload
 
@@ -326,7 +335,7 @@ On each tick:
 4. **Autopilot dispatch** — if an autopilot queue is active, run the next autopilot action (§6); if a merge sequence is in progress, run its per-tick check (§6 Auto-Merge Choreography). Autopilot-driven changes are visible in the frame via `▶`.
 5. **Removals** — ack the level-triggered deltas from step 1: remove completed changes (`completion` delta observed), dead panes, mismatched panes, and exited agents (the pane survives as a shell — kill it only when respawning, per §3 Bounded Retries) from the monitored set via `fab operator remove`. The event stops re-emitting once the entry is gone.
 6. **Observed-field updates** — the per-tick `stage`/`agent` baseline write is owned by `tick-start --diff` (step 1): on the diff path the skill does **no** per-tick `fab operator update` stage/agent bookkeeping (a hand-written baseline would make the next diff under-report). `fab operator update <change-id>` stays for non-baseline field edits (e.g. `stop_stage`; the binary touches `last_transition` on a stage change). There is no whole-file persist step — every action above already persisted through its own verb.
-7. **Clock lifecycle** — none to manage: no step starts, stops, or re-establishes any clock. Quiescence is the entry's `nothing-tracked` suppress guard and cadence adaptation is its backoff + `wake_on` union predicate (§4 The Clock) — both evaluated by rk, not the tick
+7. **Clock lifecycle** — none to manage in the tick: the tracked-set verbs mute/unmute the entry as a side effect of their state mutation (§4 Mute and Lease); cadence adaptation is the entry's backoff + `wake_on` union predicate — evaluated by rk, not the tick
 
 Actions (nudges, removals, autopilot progress) render as an *italic* footnote line below the frame as they happen, `·`-separated, keeping them visually subordinate to the table frame:
 
@@ -792,7 +801,7 @@ All five rules are MUSTs:
 4. **Persisted sequence.** Starting a merge sequence MUST write a `kind: coordination` note (`fab operator note add --kind coordination`) recording, **per repo-sequence**, the sequence, current position, and armed PR (a multi-repo merge-all runs one armed PR per repo-sequence — rule 1 — so the note's prose carries one line per sequence) — an armed PR **outlives the operator** (it survives compaction, `/clear`, crash, and abandonment), so the sequence must not live only in conversation. Update the note as the sequence advances (`fab operator note update`) and resolve it at sequence end (`fab operator note resolve`). A restarted operator re-orients from the note (§2 Init) and resumes verification/arming.
 5. **Disarm on halt.** Any halt or escalation — CI failure, stall, conflict — MUST run `gh pr merge --disable-auto` on the remaining armed PRs of the **halted sequences**: the failing repo's sub-sequence plus its transitive cross-repo dependent cone, matching the halt-dependents-only policy (which assumes unstarted merges stay unstarted — armed auto-merge violates that without the disarm). Independent sub-sequences keep their armed PRs and continue. A user "stop" is global and disarms every armed PR.
 
-**Per tick while a merge sequence is in progress** (an open merge-sequence `coordination` note): check **each** armed PR (one per repo-sequence) — merged (timeline event) → report, advance that sequence's position in the note, and arm its next PR per rule 1 (readying a draft per rule 2); unmerged → run rule 3's checks and count toward its stall threshold. This check rides the normal tick (§4 Tick Behavior step 4), so merge-all consumes no foreground attention between arms. **Known gap (run-kit follow-up):** an in-progress merge sequence still needs ticks, but the seeded entry's `nothing-tracked` suppress guard covers only `monitored`, `watches`, and `autopilot` — an open merge-sequence `coordination` note is not tracked state to the guard. At merge-all time the autopilot queue is exhausted and the monitored set is typically empty, so ticks may be suppressed precisely when this tick-verify work is pending. Extending the guard (e.g. to open merge-sequence coordination notes) is owned by run-kit's cron spec; fab-kit applies no workaround.
+**Per tick while a merge sequence is in progress** (an open merge-sequence `coordination` note): check **each** armed PR (one per repo-sequence) — merged (timeline event) → report, advance that sequence's position in the note, and arm its next PR per rule 1 (readying a draft per rule 2); unmerged → run rule 3's checks and count toward its stall threshold. This check rides the normal tick (§4 Tick Behavior step 4), so merge-all consumes no foreground attention between arms. An open merge-sequence `coordination` note is tracked state to the mute logic — `note add --kind coordination` unmutes the entry, `note resolve` may mute it (§4 Mute and Lease) — so ticks keep coming for the whole armed sequence; there is no gap and no run-kit follow-up.
 
 ---
 
@@ -889,6 +898,6 @@ These settings are session-scoped and reset on compaction, `/clear`, or session 
 | Requires a git repo? | No — `fab operator` opens its window in the repo root inside a repo, else `os.Getwd()` (neutral parent dir). Errors only if both fail |
 | Requires a `fab/` project? | No — session command comes from the project's `providers.claude.interactive_command` when `fab/` is resolvable, else `spawn.DefaultSpawnCommand` (the template `claude --permission-mode bypassPermissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`). No project `providers`/`agent:` block is read on a `fab/`-less launch |
 | Coordinating-agent model | Operator role — `fab operator` resolves the `operator` role (`agent.ResolveRole`; a Tier-1 role, so the `agent.session` knob picks its provider), reads that provider's `interactive_command`, injects the profile via `spawn.WithProfile` (**substitutes** into a `{model}`/`{effort}` template — the built-in claude default is templated — or **appends** `--model`/`--effort` to a plain command carrying no placeholder); falls back to the built-in operator profile + built-in claude provider on any failure (incl. no resolvable `fab/` project) |
-| Cadence | rk cron operator-tick entry — union predicate (idle-anchored backoff `60s`→`30m` + `wake_on: agent-state-change`; `operator-loop-fresh`/`nothing-tracked` suppress guards), seeded by `rk operator` and never mutated by the skill (§4 The Clock); Claude-only `/loop` fallback when the entry cannot exist (§4 Degraded Fallback); quiet ticks render the one-line compact frame (§4 Status Frame Format); tick payload is the bare `operator tick` — never a slash command (§4 Tick Payload) |
+| Cadence | rk cron operator-tick entry — union predicate (backoff `60s`→`30m` + `wake_on: agent-state-change`), seeded by `rk operator`; the tracked-set verbs mute/unmute it via `rk cron mute`, lease = bounded snooze (§4 The Clock, §4 Mute and Lease); Claude-only `/loop` fallback when the entry cannot exist (§4 Degraded Fallback); quiet ticks render the one-line compact frame (§4 Status Frame Format); tick payload is the bare `operator tick` — never a slash command (§4 Tick Payload) |
 | Uses the operator state file? | Yes — monitored set + autopilot queue + branch map + notes persistence in the server-keyed path (§2 Init step 1); reads via `fab operator state`, every mutation through a `fab operator` verb — never a hand-write (§4 doctrine) |
 | Multi-repo / multi-session? | Yes — one operator per tmux server spans all its sessions and repos via the `(session, repo, pane)` addressing tuple |

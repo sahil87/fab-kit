@@ -1,3 +1,13 @@
 {"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-09T08:16:56Z"}
 {"args":"Operator drives the rk cron clock explicitly — mute/unmute on tracked-set transitions, lease as bounded snooze, docs realigned to the guard-free entry","cmd":"fab-new","event":"command","ts":"2026-09-09T08:16:56Z"}
 {"delta":"+1.7","event":"confidence","score":1.7,"trigger":"calc-score","ts":"2026-09-09T08:22:02Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-09-09T12:26:25Z"}
+{"delta":"+2.6","event":"confidence","score":4.3,"trigger":"calc-score","ts":"2026-09-09T12:31:19Z"}
+{"delta":"+0.3","event":"confidence","score":4.6,"trigger":"calc-score","ts":"2026-09-09T12:47:34Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-09T12:48:39Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-09T12:50:25Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-09T12:54:46Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-09T13:09:57Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-09T13:12:56Z"}
+{"event":"review","result":"passed","ts":"2026-09-09T13:12:56Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-09T13:16:22Z"}

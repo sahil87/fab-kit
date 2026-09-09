@@ -1111,13 +1111,13 @@ Explicit skill sends and spawn prompts follow `_cli-agents.md` § Skill Prompts,
 **Flow**:
 
 ```text
-Started via `fab operator`; cadence is run-kit's seeded operator-tick cron entry delivering bare `operator tick` firings (payload: never a slash command; Claude-only /loop fallback when the entry cannot exist)
+Started via `fab operator`; cadence is run-kit's seeded, guard-free operator-tick cron entry delivering bare `operator tick` firings — muted/unmuted by the tracked-set verbs (`rk cron mute <id>` / `--off`); lease (`--for`) = bounded snooze (payload: never a slash command; Claude-only /loop fallback when the entry cannot exist)
 ├─ Tick: Bash: fab operator tick-start --diff --quiet (snapshot + deltas + fleet or fleet_summary; re-derive before every action: Bash: fab pane map --all-sessions — never trust cached values)
 ├─ Auto-answer routine agent questions (rk mux send --answer); nudge stalled agents; route commands via rk mux send (raw tmux send-keys fallback)
 └─ Drive autopilot queues (/fab-new → /fab-fff); spawn each task in a fresh worktree
 ```
 
-**Tools**: Bash (`fab operator tick-start`, `fab pane questions`, `fab pane map`, `rk mux send` (`command -v rk`-gated; raw `tmux send-keys` when rk is absent), `wt create`); cadence delivered by run-kit's `rk cron` operator-tick entry (`Skill (/loop)` only as the Claude fallback clock); helpers `_cli-agents`, `_cli-fab`, `_cli-external`.
+**Tools**: Bash (`fab operator tick-start`, `fab pane questions`, `fab pane map`, `rk mux send` (`command -v rk`-gated; raw `tmux send-keys` when rk is absent), `wt create`); cadence delivered by run-kit's guard-free `rk cron` operator-tick entry, muted/unmuted by the tracked-set verbs; the skill's own rk uses are `rk cron list --json` (clock verification) and `rk cron mute --for` (a user-requested bounded quiet window) (`Skill (/loop)` only as the Claude fallback clock); helpers `_cli-agents`, `_cli-fab`, `_cli-external`.
 
 **Sub-agents**: None (spawns agent sessions, not sub-agents).
 

@@ -259,8 +259,12 @@ func runOperatorTickStartDiff(cmd *cobra.Command, quiet bool) error {
 
 	// ONE mutation: tick bookkeeping AND the monitored-baseline update land in
 	// the same load → typed edit → atomic save — --diff is the authoritative
-	// baseline writer for the monitored entries' observed fields.
-	err := mutateOperatorState(func(data map[string]interface{}) error {
+	// baseline writer for the monitored entries' observed fields. The edge-
+	// triggered clock sync is disabled here: the reconcile below is the
+	// level-wise form, so one tick never issues two mutes.
+	var postState map[string]interface{}
+	err := mutateOperatorStateClock(func(data map[string]interface{}) error {
+		postState = data
 		tickCount = nextTickCount(data)
 		data["tick_count"] = tickCount
 		data["last_tick_at"] = nowStr
@@ -288,9 +292,17 @@ func runOperatorTickStartDiff(cmd *cobra.Command, quiet bool) error {
 		diffMonitored(monitored, rows, agentAlive, &out, nowStr)
 		data["monitored"] = monitored
 		return nil
-	})
+	}, false)
 	if err != nil {
 		return err
+	}
+
+	// Loud-direction reconcile: a tick arriving on an untracked state is the
+	// drift signal — the entry should be muted (a flip's rk call may have
+	// failed silently). Skipped entirely on a tracked state, and
+	// muteOperatorClockIfUntracked itself skips an already-muted entry.
+	if postState != nil {
+		muteOperatorClockIfUntracked(postState)
 	}
 
 	return emitTickDiffDoc(cmd.OutOrStdout(), out, quiet, tickCount, now)

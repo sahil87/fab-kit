@@ -292,6 +292,11 @@ func stateDir() (string, error) {
 // literal "-" from the source — so distinct socket paths produce distinct slugs
 // (e.g. "/tmp/tmux-1000/default" → "tmp-tmux--1000-default" and
 // "/tmp/tmux/1000/default" → "tmp-tmux-1000-default" no longer collide).
+//
+// Cross-repo contract: run-kit mirrors this exact slug rule to locate the
+// operator state file for display (◉ watched rows, `⚠ operator stale`), pinned
+// in run-kit's docs/specs/cron.md. fab-kit owns the file and the rule —
+// renaming the file or changing the rule requires a coordinated run-kit change.
 func slugify(s string) string {
 	s = strings.ReplaceAll(s, "-", "--")
 	s = strings.TrimPrefix(s, string(os.PathSeparator))
@@ -306,7 +311,8 @@ func slugify(s string) string {
 
 // serverSlug derives a filesystem-safe slug from the tmux socket path. It falls
 // back to "default" when tmux cannot be queried (the operator must still
-// function if the #{socket_path} query fails).
+// function if the #{socket_path} query fails). Cross-repo contract: run-kit
+// mirrors this derivation to find the file for display — see slugify.
 func serverSlug(server string) string {
 	out, err := exec.Command("tmux", pane.WithServer(server, "display-message", "-p", "#{socket_path}")...).Output()
 	if err != nil {
@@ -320,6 +326,11 @@ func serverSlug(server string) string {
 // with MkdirAll (0o755). The path is keyed by the tmux socket (via serverSlug)
 // so cross-repo coordination state has a stable, server-scoped home rather than
 // living at a repo-rooted .fab-operator.yaml.
+//
+// Cross-repo contract: run-kit reads this file for DISPLAY only (◉ watched
+// rows, `⚠ operator stale`), mirroring slugify's rule to locate it (pinned in
+// run-kit's docs/specs/cron.md). fab-kit owns the file and the slug rule —
+// renaming either requires a coordinated run-kit change.
 func StatePath(server string) (string, error) {
 	base, err := stateDir()
 	if err != nil {
