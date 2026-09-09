@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "Pre-implementation specs and their generated navigation: configured docs-index roots, seed-import adoption, human-owned topic content, bootstrap/context integration, and per-skill Flow skeletons in skills.md."
+description: "Pre-implementation specs and their generated navigation: configured docs-index roots, every file type indexed, manual-block adoption, human-owned topic content, bootstrap/context integration, and per-skill Flow skeletons in skills.md."
 ---
 # Specs Index
 
@@ -34,12 +34,19 @@ Spec files are written and maintained by humans. Navigation indexes may be gener
 walks arbitrary nesting, respects accepted README landings, and emits advisories for
 missing descriptions. A missing description uses the H1 and `—`; no backfill is required.
 
-First generation imports curated navigation, preserving descriptions, custom grouping,
-and historical rows. Primary `index_file` landings are whole generated files. Accepted
+First generation imports existing navigation rows into the always-emitted **manual
+block** — the hand-managed region every primary landing carries — preserving
+descriptions, custom grouping, and historical rows (the rule is owned by
+[docs-index](/memory-docs/docs-index.md) § Manual Block, not restated here). The index
+lists **every file type**: non-markdown files get rows (label/description from whatever
+the type carries), and a folder holding only non-markdown files becomes a sub-domain
+with its own generated landing. Primary `index_file` landings are whole generated files. Accepted
 alternate landings contain a marker-delimited table; outside prose remains byte-preserved.
 Superseded patterns collapse historical subtrees into pointers/counts and per-version rows.
 The exit-2 loss guard protects later regeneration. Specification topic files acquire no
-FKF fields or generated logs from indexing.
+FKF fields or generated logs from indexing. This repo's specs root landing keeps its 18
+seed-imported manual rows: those specs lack `description:` frontmatter, so removing the
+rows would trip the tier-2 loss guard — they stay until the specs carry descriptions.
 
 `/docs-reorg-specs` uses the configured generator after approved moves. Unconfigured roots
 retain manually maintained navigation. Constitution VI permits generated navigation while
@@ -59,7 +66,7 @@ Each user-invocable skill's section in `docs/specs/skills.md` carries a condense
 
 ### Generated Navigation for Curated Specs
 **Decision**: Generate navigation for configured documentation roots, with first-run seed-import and preserved prose outside accepted landing blocks.
-**Why**: Navigation can be deterministic without authoring specification content; adoption must preserve curated routing and history.
+**Why**: Navigation can be deterministic without authoring specification content; adoption must preserve existing routing and history.
 **Rejected**: A separate specs generator (duplicated safety machinery); compulsory frontmatter backfill (sparse-description trees can degrade gracefully); overwriting accepted README prose.
 *Introduced by*: 260908-flt3-root-agnostic-docs-index
 

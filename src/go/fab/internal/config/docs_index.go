@@ -17,6 +17,10 @@ type DocsIndexRoot struct {
 	Log        bool     `yaml:"log" json:"log"`
 	MaxDepth   int      `yaml:"max_depth" json:"max_depth"`
 	Superseded []string `yaml:"superseded,omitempty" json:"superseded,omitempty"`
+	// Exclude lists root-relative slash globs (same syntax as Superseded) for
+	// files or folders the walker must not index at all: not a row, not a
+	// count, not a landing. The index is the tree minus these.
+	Exclude []string `yaml:"exclude,omitempty" json:"exclude,omitempty"`
 	// NavNote is the root landing's navigation note (free-text markdown):
 	// empty renders nothing, non-empty renders verbatim on the root landing.
 	NavNote string `yaml:"nav_note,omitempty" json:"nav_note,omitempty"`

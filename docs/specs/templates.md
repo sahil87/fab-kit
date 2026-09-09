@@ -517,7 +517,8 @@ difference into two tiers:
 - **Tier 1 — benign drift** (exit 1): the committed artifact is merely stale. Regenerate and
   commit. All `log.md` differences stay tier 1 by construction — a log is a git projection, not
   a row table, so the index-only detectors are skipped for it.
-- **Tier 2 — destructive loss** (exit 2): regeneration would *drop* curated content — a
+- **Tier 2 — destructive loss** (exit 2): regeneration would *drop* hand-managed/historical
+  content — a
   description that would regenerate to `—`, a tombstone row whose link target is gone, or a
   custom structural heading the domains-only root render would flatten. Tier 2 fires the
   refuse-before-regen guards in hydrate and `docs-reorg-memory`.

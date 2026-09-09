@@ -5,7 +5,7 @@ package memoryindex
 // The existing --check branch already computes the rendered-vs-existing drift
 // per index file (a string compare). What it cannot do is *classify* that
 // drift: distinguish a benign improvement (a better description) from a
-// destructive loss (a curated description wiped to "—", a tombstone row
+// destructive loss (a hand-managed description wiped to "—", a tombstone row
 // silently dropped, a custom grouping flattened). This file adds that
 // classifier as pure functions — the mechanical form of the three prose
 // signals 5ewp's /docs-reorg-memory detected by eye.
@@ -26,7 +26,7 @@ type LossCategory string
 const (
 	// LossDescription: an existing index row renders a non-empty description
 	// but the regenerated row would render "—" (the file lacks `description:`
-	// frontmatter) — curated text wiped on regen.
+	// frontmatter) — hand-managed text wiped on regen.
 	LossDescription LossCategory = "description"
 	// LossTombstone: an existing index row whose docs/memory/-relative link
 	// target is absent on disk — the generator (which lists only on-disk
@@ -57,7 +57,7 @@ const (
 	TierClean Tier = 0
 	// TierBenignDrift — regen would change something but destroys nothing.
 	TierBenignDrift Tier = 1
-	// TierDestructiveLoss — regen would wipe curated/historical content.
+	// TierDestructiveLoss — regen would wipe hand-managed/historical content.
 	TierDestructiveLoss Tier = 2
 )
 
@@ -202,15 +202,15 @@ func Classify(targets []CheckTarget, memExists func(relPath string) bool) LossRe
 }
 
 // descriptionLosses reports every existing row whose description cell is a
-// real (non-empty, non-"—") curated value but whose regenerated counterpart
-// for the same link target renders "—" — the curated text is wiped on regen.
+// real (non-empty, non-"—") hand-managed value but whose regenerated counterpart
+// for the same link target renders "—" — the hand-written text is wiped on regen.
 func descriptionLosses(t CheckTarget) []Loss {
 	rendered := rowsByTarget(parseIndexRows(t.Rendered))
 	var out []Loss
 	for _, ex := range parseIndexRows(t.Existing) {
 		exDesc := strings.TrimSpace(ex.Description)
 		if exDesc == "" || exDesc == missingCell {
-			continue // nothing curated to lose
+			continue // nothing hand-managed to lose
 		}
 		rRow, ok := rendered[ex.Target]
 		if !ok {

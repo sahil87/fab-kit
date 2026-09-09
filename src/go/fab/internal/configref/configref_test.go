@@ -198,3 +198,24 @@ func TestShortSegmentsCarryScopeAnnotationsAndRealExplainKeys(t *testing.T) {
 		t.Fatal("no ShortSegments — the file-bound renderers would render nothing")
 	}
 }
+
+// TestDocsIndexRootsRowDocumentsExclude pins the registry row for the manual
+// block rename + exclude field: the description must document exclude and the
+// manual block (never the retired "curated" block wording), and the segment
+// must carry a commented exclude example.
+func TestDocsIndexRootsRowDocumentsExclude(t *testing.T) {
+	fields, err := FieldsForKey("docs_index.roots")
+	if err != nil || len(fields) != 1 {
+		t.Fatalf("FieldsForKey: %v (%d rows)", err, len(fields))
+	}
+	row := fields[0]
+	if !strings.Contains(row.Description, "exclude") || !strings.Contains(row.Description, "manual block") {
+		t.Errorf("description must document exclude and the manual block: %s", row.Description)
+	}
+	if strings.Contains(row.Description, "curated") {
+		t.Errorf("description must drop the curated block wording: %s", row.Description)
+	}
+	if !strings.Contains(row.Segment, "#     #   exclude:") {
+		t.Errorf("segment must carry a commented exclude example:\n%s", row.Segment)
+	}
+}

@@ -726,6 +726,7 @@ Explicit entries replace the implicit list. Each entry has:
 | `log` | `false` | Enable memory-shaped FKF logs, seeds, metadata, reserved domains and description escalations |
 | `max_depth` | `3` | Advisory nesting bound; traversal always recurses to arbitrary depth |
 | `superseded` | `[]` | Root-relative shell globs with recursive `**`; historical folders get pointer/count summaries and an immediate-child index, individual files fold into their folder's count |
+| `exclude` | `[]` | Root-relative slash globs (same syntax as `superseded`); a matching file produces no row/count and a matching folder is not walked at all — the index is the tree minus `exclude` |
 | `nav_note` | `""` | Root-landing navigation note (free-text markdown). Unset or empty renders nothing; non-empty renders verbatim on the root landing. The generator emits no navigation links of its own |
 
 For specs, append an entry such as:
@@ -737,14 +738,21 @@ For specs, append an entry such as:
       log: false
       max_depth: 8
       superseded: ["**/archive/**", "**/Z*/**", '**/\[archived\]-*']
+      exclude: ["assets/**"]
 ```
 
 `fab docs-index` processes every configured root; `fab docs-index docs/specs` selects one.
 There is no `--root` flag; an unconfigured positional path errors naming `docs_index.roots`.
 `--check`, `--json`, and `--rebuild` remain available. Checks aggregate the worst root's
 0/1/2 drift tier; blocking findings independently floor exit at 1. Missing descriptions
-use H1 + `—` with an advisory in generic roots; legacy memory retains filename-stem labels. First-run curated navigation is automatically seed-imported,
-including descriptions, grouping and historical rows, so adoption does not trip tier 2.
+use H1 + `—` with an advisory in generic roots (the advisory fires only for `.md` and
+HTML files, the types that can carry a description); legacy memory retains filename-stem
+labels. Every primary (`index_file`) landing carries a hand-managed manual block
+(`<!-- fab docs-index:manual:start -->` / `<!-- fab docs-index:manual:end -->`) —
+always emitted, even empty, preserved verbatim across regenerations, and read under the
+legacy `:curated:` marker spelling for one version — for rows the generator cannot
+produce (non-markdown descriptions, external links, custom groupings), so hand-managed
+navigation does not trip tier 2.
 Subsequent destructive loss remains guarded. Index content is deterministic and date-free.
 
 Changing a live subtree to superseded retires obsolete generated descendant indexes
