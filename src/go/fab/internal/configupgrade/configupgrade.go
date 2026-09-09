@@ -164,9 +164,11 @@ var knownGeneratedSystemParagraphDigests = map[string]struct{}{
 	// Dispatch advert with the min_cols/min_rows geometry-floor keys
 	// (260906-cxe0).
 	"264976f8cdf453e6782a52451d6b45b4f0ffb0deaa0aaca1a600f9558a8a2f48": {},
-	// Current dispatch advert with the raised column_width 40 / lowered
-	// min_cols 60 defaults.
+	// Dispatch advert with the column_width 40 / min_cols 60 defaults (PR #654).
 	"372e807b3f7aa2e3def89a213565f4966d88d9314be343cda07bf4ece603ab27": {},
+	// Current dispatch advert with the column_width 45 / min_cols 50 defaults
+	// (260909-tdij).
+	"e4a2622f4043fb0f0c459f51eab6711005c273fd711a89e415ad359e42aec582": {},
 	// Current providers advert: the fill-roster prose now calls codex's map dense
 	// and only agy's sparse (260908-wcib).
 	"1890978e77061f64dddd12fc7c19759b5fee1c3196f061ce1b13d5bd1a35107f": {},

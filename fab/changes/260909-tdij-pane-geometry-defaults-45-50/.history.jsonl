@@ -1,0 +1,19 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-09T06:07:20Z"}
+{"args":"Lower pane-dispatch geometry defaults so 120-column tmux windows enter pane mode: change shipped defaults in src/go/fab/defaults.yaml to column_width: 45 and min_cols: 50 (from 40/60 set in PR #654). Zero Go logic change — value substitution only, following the exact footprint of commit 614cb822 (defaults.yaml, pinned drift-guard tests, new configupgrade fence-advert digest, configref descriptions, pane/create.go comment, docs/memory + docs/specs restatements, _cli-fab.md, _preamble.md, regenerated fab/project/config.yaml fence). Recompute worked doc examples so they stay arithmetically true at 45/50.","cmd":"fab-new","event":"command","ts":"2026-09-09T06:07:20Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-09-09T06:10:10Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-09-09T06:10:43Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-09T06:11:37Z"}
+{"cmd":"git-branch","event":"command","ts":"2026-09-09T06:12:20Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-09T06:13:03Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-09T06:13:03Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-09T06:18:15Z"}
+{"event":"review","result":"failed","ts":"2026-09-09T06:22:15Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-09T06:22:15Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-09T06:23:03Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-09T06:25:46Z"}
+{"event":"review","result":"passed","ts":"2026-09-09T06:25:46Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-09T06:26:48Z"}
+{"cmd":"git-pr","event":"command","ts":"2026-09-09T06:27:15Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-09-09T06:28:59Z"}
+{"cmd":"git-pr-review","event":"command","ts":"2026-09-09T06:29:16Z"}
+{"event":"review","result":"passed","ts":"2026-09-09T06:34:43Z"}

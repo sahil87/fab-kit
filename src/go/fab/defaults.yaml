@@ -53,8 +53,8 @@ agent:
 # a manually-sized window instead.
 dispatch:
   mode: native
-  column_width: 40
-  min_cols: 60
+  column_width: 45
+  min_cols: 50
   min_rows: 20
   reap_done: true
 

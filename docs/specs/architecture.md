@@ -323,14 +323,14 @@ agent:
 # includes the selected pane/headless rung and command otherwise. Scope `both`, so it is settable once
 # machine-wide in ~/.fab-kit/config.yaml, where it outranks the project file.
 #
-# dispatch.column_width (optional, default 40) — width, in percent of the window, of
+# dispatch.column_width (optional, default 45) — width, in percent of the window, of
 # the pane-worker column. The first worker CARVES the column out of the dispatching
 # agent's pane (`split-window -h -l <n>%`), so the agent you are watching keeps the
 # rest; later workers stack inside that column with unsized `-v` splits and the
 # left/right separator is never touched again. Out-of-range values (and an absent
 # key, indistinguishable from 0) resolve to the default. Scope `both`.
 #
-# dispatch.min_cols / dispatch.min_rows (optional, defaults 60/20) — the GEOMETRY
+# dispatch.min_cols / dispatch.min_rows (optional, defaults 50/20) — the GEOMETRY
 # FLOOR for the split shape: the planned worker pane is priced from the window
 # geometry before splitting, and a pane below either bound opens as a manually-sized
 # detached window instead (with a reason-naming warning). A dimension exactly at the
@@ -345,8 +345,8 @@ agent:
 # false to keep a done worker's pane and its scrollback. Scope `both`.
 dispatch:
   mode: native
-  column_width: 40
-  min_cols: 60
+  column_width: 45
+  min_cols: 50
   min_rows: 20
   reap_done: true
 
