@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 16
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-09-09T07:09:24Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-09T07:15:47Z"}
     hydrate: {started_at: "2026-09-09T07:15:47Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-09T07:21:18Z"}
     ship: {started_at: "2026-09-09T07:21:18Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-09T07:23:54Z"}
-    review-pr: {started_at: "2026-09-09T07:23:54Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-09-09T07:23:54Z", driver: git-pr, iterations: 1, completed_at: "2026-09-09T07:30:40Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/658
 change_type_source: explicit
@@ -54,4 +54,4 @@ true_impact:
     computed_at_stage: ship
 summary: documents docs-index all-file-types topics, per-type metadata, the exclude glob, and the always-emitted manual block (curated→manual rename); neutralizes block-sense 'curated' wording across memory
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-09-09T07:23:54Z
+last_updated: 2026-09-09T07:30:40Z
