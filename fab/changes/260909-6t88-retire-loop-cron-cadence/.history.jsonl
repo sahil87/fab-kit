@@ -1,0 +1,9 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-09T00:22:53Z"}
+{"args":"Wave 4 C10 replacement posture from run-kit cron-clock plan: fab-operator.md §4 rewrite — retire /loop + Adaptive cadence in favor of the cron entry's union predicate; ready-line copy; pulse-plan supersession cleanup; provider-neutral per the 2026-09-09 narrowing note","cmd":"fab-new","event":"command","ts":"2026-09-09T00:22:53Z"}
+{"delta":"+2.6","event":"confidence","score":2.6,"trigger":"calc-score","ts":"2026-09-09T00:26:04Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-09T00:27:25Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-09T00:37:56Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-09T00:48:23Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-09T00:51:31Z"}
+{"event":"review","result":"passed","ts":"2026-09-09T00:51:31Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-09T00:57:13Z"}

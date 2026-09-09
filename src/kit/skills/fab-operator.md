@@ -13,14 +13,14 @@ helpers: [_cli-agents, _cli-fab, _cli-external]
 - 1. Principles
 - 2. Startup
 - 3. Safety
-- 4. The Loop
+- 4. The Clock
 - 5. Auto-Nudge
 - 6. Coordination Patterns
 - 7. Watches
 - 8. Configuration
 - 9. Key Properties
 
-Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across all sessions on its tmux server (per tick via `fab operator tick-start --diff --quiet`, on demand via `fab pane map --all-sessions`), routes commands and answers via `rk mux send` when rk is installed (`command -v rk`-gated — plain for command routing, `--answer` for prompt answers, `--key` for key-name input), degrading to raw `tmux send-keys` behind its own §3 state gate when rk is absent — never an error — and monitors progress via `/loop`. Spans multiple repos and sessions on one server. The loop is the heart of the operator.
+Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across all sessions on its tmux server (per tick via `fab operator tick-start --diff --quiet`, on demand via `fab pane map --all-sessions`), routes commands and answers via `rk mux send` when rk is installed (`command -v rk`-gated — plain for command routing, `--answer` for prompt answers, `--key` for key-name input), degrading to raw `tmux send-keys` behind its own §3 state gate when rk is absent — never an error — and takes its cadence from run-kit's operator-tick cron entry, whose `operator tick` deliveries are the heartbeat (§4). Spans multiple repos and sessions on one server.
 
 Start via `fab operator` (singleton tmux tab named `operator`). When a capable run-kit is on PATH, the bare command delegates the entire launch to `rk operator` (capability-probed, fail-open on absence — `_cli-fab.md` § fab operator owns the delegation contract); the built-in launcher below is the rk-absent fallback. That fallback requires **neither a git repo nor a resolvable `fab/` project** — matching the per-server, cross-repo singleton model, whose natural launch point is a neutral parent directory (e.g. `~/code`). Its exact degraded behavior (window cwd, session command, `operator`-role model resolution and built-in defaults) is documented in `_cli-fab.md` § fab operator and is the canonical §9 Key Properties rows below.
 
@@ -93,15 +93,15 @@ This single preflight probe covers every later `wt create` call site; none is in
 1. Run `fab operator state` to read (or create, on first run) the server-keyed operator state file — the binary derives the path and persists the empty skeleton when missing; the operator never computes the path or hand-creates the file (`_cli-fab.md` § fab operator state). Old repo-rooted `.fab-operator.yaml` files are not read or migrated
 2. Restore monitored set, autopilot queue, branch_map, and notes from the file (this is what makes §4 Post-Compaction Reload lossless)
 3. Run `fab pane map --all-sessions` and display the output (all sessions on this server, not just the operator's own)
-4. If any tracked items exist (monitored set, autopilot queue, watches, or an in-progress merge sequence — an open merge-sequence `coordination` note), start the single loop per §4 Adaptive cadence, using the literal from §4 Loop Prompt
-5. Output the ready line **with the loop literal** — the agent copies it later, never composes one:
+4. Verify the clock — fail-silent, gated on `command -v rk`: run `rk cron list` and look for the operator-tick entry (the one `rk operator` seeds — §4 The Clock). Absent rk, a failing `rk cron list` (a pre-cron rk), or a missing entry is a degraded state, never an error. No loop is started — the entry (or the §4 Degraded Fallback) is the whole clock story
+5. Output the ready line **with the clock status** — the agent copies the literal later, never composes one:
 
    ```
-   Operator ready. Loop active (3m) — /loop 3m "operator tick"
-   Operator ready. Loop idle — start with /loop 3m "operator tick" on first enrollment
+   Operator ready. Clock: rk cron "operator tick" (backoff 60s–30m, wakes on agent-state-change)
+   Operator ready. Clock: none — run `rk operator` to seed the cron entry, or (Claude Code only) start the fallback: /loop 3m "operator tick"
    ```
 
-   (first form when step 4 started the loop, with `{interval}` = the active cadence, `3m` or `90s`; second form when nothing is tracked yet)
+   (first form when step 4 found the entry; second form when it did not or rk is absent)
 
 ---
 
@@ -150,43 +150,52 @@ When `fab resolve` fails during a **user-initiated** action (not monitoring tick
 
 ---
 
-## 4. The Loop
+## 4. The Clock
 
-The loop is the operator's heartbeat — a `/loop` whose prompt is the bare `operator tick` (§ Loop Prompt) that runs as long as the monitored set is non-empty, an autopilot queue is active, any watch is configured, or a merge sequence is in progress (an open merge-sequence `coordination` note — §6 Auto-Merge Choreography rule 4). When all four are empty, stop the loop. The loop starts when the first change is enrolled, an autopilot queue begins, a watch is created, or a merge sequence starts — always as `/loop 3m "operator tick"` (§ Loop Prompt). A user prompt can also restart it.
+The operator's cadence is **not owned by this skill** — it is run-kit substrate the skill documents and verifies, exactly like `@rk_pane_agent_state`. The clock is the **operator-tick cron entry** seeded idempotently by `rk operator` (one per tmux server); run-kit's `docs/specs/cron.md` is the entry's design authority. Ticks arrive as the bare text `operator tick` delivered into the operator pane, for **every** provider (Claude, codex, gemini, …) — no provider-specific in-session clock is the primary cadence.
 
-**Adaptive cadence.** The heartbeat interval is **not fixed** — it adapts to whether any monitored agent is `waiting` (blocked on a human):
+The seeded entry's shape (reference summary — schema and semantics are owned by the cron spec, not restated here):
 
-- **Normal cadence: `3m`** (the default). Used when no monitored agent is `waiting` (or input-waiting).
-- **Tightened cadence: `90s`** (§8, overridable). The moment a tick detects **any** monitored agent in the **`waiting`** Agent-column state (the pane's `@rk_pane_agent_state` is `waiting` — the agent is blocked on a permission prompt / menu / elicitation), the operator tightens the heartbeat to bound worst-case detection/pickup latency. `waiting` is the primary, event-driven trigger; capture-based §5 menu detection is the fallback for uninstrumented panes (`—`). When a later tick finds no monitored agent `waiting` (or menu-waiting), it relaxes back to `3m`.
-- **One-loop invariant.** Adapting cadence means **re-establishing the single loop at the new interval** (e.g. restart `/loop 90s "operator tick"`), never running two loops concurrently (`_cli-external.md` § /loop — "one loop at a time"). The operator changes the interval of *the* loop; it does not add a second.
-- **Autopilot composition.** Autopilot has no cadence of its own — a driving queue rides the same single `3m`/`90s` loop (§6 actions run at tick step 4). This section is the only cadence owner.
-
-### Loop Prompt
-
-The exact invocations — **copy one of these, never compose your own**:
-
-```
-/loop 3m "operator tick"
-/loop 90s "operator tick"
+```yaml
+schedule: { kind: backoff, anchor: operator-idle, min: 60s, max: 30m }
+wake_on: { event: agent-state-change, scope: server, debounce: 10s }
+suppress_while: [operator-loop-fresh, nothing-tracked]
+target: { kind: role, role: operator }
+payload: "operator tick"
+deliver: immediate
+if_absent: respawn
+pinned: true
 ```
 
-The first is the normal cadence; the second is the tightened cadence (Adaptive cadence above, §8). The lines are comment-free on purpose — anything after the closing quote would ride into the slash command.
+**Ownership.** `rk operator` seeds the entry idempotently at launch; this skill never creates or mutates it — `rk cron` verbs (`list`/`add`/`rm`/`mute`) are the user's. The `backoff` anchor is the operator's idle epoch joined against rk's delivery log, so the entry's own deliveries do not reset the ladder (the anchor-join rule — cron spec § Schedules); the schedule is a pure function of the anchor and survives daemon restarts.
 
-The loop prompt **MUST be the bare text `operator tick`**. It **MUST NOT** be `/fab-operator` or any other slash command. Reason: a slash command macro-expands its full source into the turn on **every** firing — this file alone is ~21k tokens, so a `/fab-operator` loop prompt re-pays the whole skill each tick (~400k tokens/hour at `3m`) and exhausts the context window in roughly ten ticks. The tick procedure (§4 Tick Behavior) is already in context; the prompt only needs to *name* it.
+**How the union predicate covers the retired loop behaviors** (cron spec § Schedules, union predicates and guards):
 
-`/loop` also has a **self-paced (dynamic) mode** with no fixed interval, where the model hands a wakeup prompt back each tick. Either mode is permitted; in dynamic mode the wakeup prompt handed back **MUST likewise be the bare `operator tick`** — the same rule applied to the string the agent returns rather than the string it typed.
+- `wake_on: agent-state-change` (10s debounce) ≻ the retired tightened waiting-agent cadence: a `waiting` flip fires a tick within seconds instead of within a poll interval.
+- `suppress_while: [nothing-tracked]` ≻ the retired stop-when-empty rule: while `monitored`, `watches`, and `autopilot` are all empty, fires are skipped silently.
+- `suppress_while: [operator-loop-fresh]` — staleness arbitration on `last_tick_at` in the operator state file: keeps the cron silent while a not-yet-reloaded operator still runs the retired in-session loop, so the migration never double-ticks.
+- `backoff` (`60s`→`30m`, anchored on operator idle) ≻ the retired fixed-interval heartbeat: quick cadence while the operator is freshly active, relaxing as it idles.
+- `target: role=operator` + `if_absent: respawn` ≻ session-bound liveness: the entry outlives the pane, resolves the operator window at fire time, and a dead operator is relaunched via `rk operator` (a respawn's first delivery is the `/fab-operator` kickoff, never a bare tick; bare payloads resume from the second fire).
+
+### Tick Payload
+
+A tick's text **MUST be the bare text `operator tick`** — never `/fab-operator` or any other slash command. The rule binds the cron entry's `payload`, any manually typed tick, and the fallback loop's prompt (§ Degraded Fallback below). Reason: a slash command macro-expands its full source into the turn on **every** firing — this file alone is ~21k tokens, so a `/fab-operator` payload re-pays the whole skill each tick and exhausts the context window in roughly ten ticks. The tick procedure (§4 Tick Behavior) is already in context; the payload only needs to *name* it.
 
 Recovery when this procedure is no longer in context: § Post-Compaction Reload.
 
+### Degraded Fallback (no cron entry)
+
+When the operator-tick entry cannot exist — rk absent, or an installed rk predating `rk cron` (probe: `command -v rk`, then `rk cron list` failing) — a **Claude Code** operator MAY run `/loop 3m "operator tick"` as the fallback clock; invocation mechanics (syntax, the one-loop-at-a-time rule, the self-paced mode) live in `_cli-external.md` § /loop, and the bare-prompt rule above applies unchanged. A non-Claude operator has no automatic cadence in that state — the ready line (§2 Init step 5) says so. **Never both:** the fallback runs only when no live entry exists, never alongside one.
+
 ### Post-Compaction Reload
 
-**Trigger** — a tick (`operator tick`) arrives and §4 Tick Behavior is not in context: the agent cannot see the numbered Snapshot → Auto-nudge → Watches → Autopilot → Removals → Observed-field updates → Loop lifecycle list. Typical causes: harness auto-compaction of a long session, a fresh session resumed from a conversation summary, a user `/clear`.
+**Trigger** — a tick (`operator tick`) arrives and §4 Tick Behavior is not in context: the agent cannot see the numbered Snapshot → Auto-nudge → Watches → Autopilot → Removals → Observed-field updates → Clock lifecycle list. Typical causes: harness auto-compaction of a long session, a fresh session resumed from a conversation summary, a user `/clear`. Cron-delivered ticks keep arriving regardless of session health, so this trigger is guaranteed to fire eventually.
 
 **Procedure**:
 
-1. Run `/fab-operator` exactly **once** — this reloads the skill body and its helpers and re-runs §2 Startup including Init (state file re-read via `fab operator state`, `fab pane map --all-sessions`, loop re-establishment per § Loop Prompt).
+1. Run `/fab-operator` exactly **once** — this reloads the skill body and its helpers and re-runs §2 Startup including Init (state file re-read via `fab operator state`, `fab pane map --all-sessions`, clock verification per §2 Init step 4).
 2. Treat the tick that triggered the reload as consumed — the next tick's `fab operator tick-start --diff` re-emits every level-triggered delta (§4 Tick Behavior step 1), so nothing durable is lost.
-3. Continue with bare `operator tick` firings. **Never** put `/fab-operator` into the loop prompt as a way to "stay reloaded" — that is the failure mode this procedure replaces.
+3. Continue with bare `operator tick` firings. **Never** put `/fab-operator` into a tick payload (or the fallback loop prompt) as a way to "stay reloaded" — that is the failure mode this procedure replaces.
 
 **Durable state** — monitored set, autopilot queue, `branch_map`, watches, and notes all live in the server-keyed operator state file and survive compaction, `/clear`, crash, and restart; only §8 session-scoped settings and in-conversation context are lost.
 
@@ -317,7 +326,7 @@ On each tick:
 4. **Autopilot dispatch** — if an autopilot queue is active, run the next autopilot action (§6); if a merge sequence is in progress, run its per-tick check (§6 Auto-Merge Choreography). Autopilot-driven changes are visible in the frame via `▶`.
 5. **Removals** — ack the level-triggered deltas from step 1: remove completed changes (`completion` delta observed), dead panes, mismatched panes, and exited agents (the pane survives as a shell — kill it only when respawning, per §3 Bounded Retries) from the monitored set via `fab operator remove`. The event stops re-emitting once the entry is gone.
 6. **Observed-field updates** — the per-tick `stage`/`agent` baseline write is owned by `tick-start --diff` (step 1): on the diff path the skill does **no** per-tick `fab operator update` stage/agent bookkeeping (a hand-written baseline would make the next diff under-report). `fab operator update <change-id>` stays for non-baseline field edits (e.g. `stop_stage`; the binary touches `last_transition` on a stage change). There is no whole-file persist step — every action above already persisted through its own verb.
-7. **Loop lifecycle** — stop when no tracked state remains (monitored set, autopilot queue, watches, in-progress merge sequence); otherwise apply §4 Adaptive cadence — the single cadence owner, autopilot included — re-establishing the loop with a § Loop Prompt literal when the interval changes
+7. **Clock lifecycle** — none to manage: no step starts, stops, or re-establishes any clock. Quiescence is the entry's `nothing-tracked` suppress guard and cadence adaptation is its backoff + `wake_on` union predicate (§4 The Clock) — both evaluated by rk, not the tick
 
 Actions (nudges, removals, autopilot progress) render as an *italic* footnote line below the frame as they happen, `·`-separated, keeping them visually subordinate to the table frame:
 
@@ -401,13 +410,13 @@ Example (this is the literal markdown the operator emits, shown fenced here only
 
 ### Idle Message
 
-Between ticks, the operator displays an idle message with the current time and next-tick time:
+Between ticks, the operator displays an idle message with the current time and the last tick's time:
 
 ```
-Waiting for next tick. Time: 08:26 · next tick: 08:29
+Waiting for next tick. Time: 08:26 · last tick: 08:23 (tick #47)
 ```
 
-Run `fab operator time --interval {interval}` (where `{interval}` is the **currently active** loop interval — `3m` normally, `90s` when the cadence is tightened per §4 Adaptive cadence) to get the `now:` and `next:` values to fill in the message. A tightened cadence therefore shows the nearer next-tick time. This lets the user gauge staleness at a glance without scrolling to the last tick frame.
+Run `fab operator time` for the `now:` value; the last-tick reference is the previous tick header's `now: HH:MM` / `tick: N` lines. There is no computed next-tick time — the entry's backoff rung is rk-derived, not skill-known (§4 The Clock). The message lets the user gauge staleness at a glance without scrolling to the last tick frame.
 
 The idle message is the **only other per-tick output** besides the frame (and the action footnote when an action happened): nothing else — no restating the tick document, no echoing `candidates:`, no per-candidate "no question detected" lines.
 
@@ -417,7 +426,7 @@ The idle message is the **only other per-tick output** besides the frame (and th
 
 The operator auto-answers routine prompts from monitored agents. The per-tick question-detection population (tick step 2) is each `waiting` agent (the primary signal — see below) plus, as a fallback, each idle agent. The `questions` sweep's capture-based patterns **remain applicable** to `active`/unknown (`—`) panes — an uninstrumented harness, or a mid-turn prompt not yet flipped to `waiting` — via an on-demand `fab pane questions --panes <id>` call, but those panes are **not swept every tick**; the per-tick sweep is `waiting`+idle only.
 
-**The `waiting` Agent-column state is the primary signal.** When a monitored pane's `@rk_pane_agent_state` is `waiting`, the agent is blocked on a human (permission prompt / menu / elicitation) — this is event-driven and covers all instrumented harnesses (Claude/codex/copilot/gemini), so it is the first-class trigger for both the tightened cadence (§4) and question detection here. A `waiting` pane MUST be capture-scanned and run through the answer model, with each **idle** pane as the per-tick fallback (the population stated above).
+**The `waiting` Agent-column state is the primary signal.** When a monitored pane's `@rk_pane_agent_state` is `waiting`, the agent is blocked on a human (permission prompt / menu / elicitation) — this is event-driven and covers all instrumented harnesses (Claude/codex/copilot/gemini), so it is the first-class trigger for question detection here; it also feeds the clock — a `waiting` flip fires a tick within seconds via the entry's `wake_on` (§4 The Clock). A `waiting` pane MUST be capture-scanned and run through the answer model, with each **idle** pane as the per-tick fallback (the population stated above).
 
 ### Question Detection
 
@@ -440,7 +449,7 @@ Evaluate in order:
 
 ### Non-Blocking Strategic Handling
 
-Strategic handling MUST NOT block the loop: decide out-of-band, continue with the next monitored change in the same tick, and detect any asynchronous user resolution on a later tick.
+Strategic handling MUST NOT block the tick: decide out-of-band, continue with the next monitored change in the same tick, and detect any asynchronous user resolution on a later tick.
 
 | Classification | Action | Notify | Watchdog |
 |----------------|--------|--------|----------|
@@ -462,7 +471,7 @@ leaves open a Strategic prompt. Use the default `rk notify` command and gate in
 - **`PushNotification`** (built-in Claude Code harness tool) — zero infra, no topic secret to leak, headless-safe; a *personal* push to the user's Claude apps, not a shared searchable feed. Good "just ping me" fallback.
 - **Slack MCP** (`mcp__claude_ai_Slack__slack_send_message`) — searchable channel feed, mobile push; caveat: an interactively-authed MCP may be **absent in headless/cron** runs, so it cannot be a headless default.
 
-**All notify sends fail silently** (the fallback path matches `rk notify`'s contract per `_preamble.md` § Run-Kit (rk) Reference). A notification that cannot be delivered (server unreachable, channel down, no subscriptions, `curl`/tool missing) MUST NOT crash or stall the loop — the operator logs one line and keeps ticking.
+**All notify sends fail silently** (the fallback path matches `rk notify`'s contract per `_preamble.md` § Run-Kit (rk) Reference). A notification that cannot be delivered (server unreachable, channel down, no subscriptions, `curl`/tool missing) MUST NOT crash or stall the operator — it logs one line and keeps ticking.
 
 ### Sending Auto-Answers
 
@@ -473,7 +482,7 @@ Before the send: run the §3 pre-send gate (`_cli-agents.md` § Pre-Send Validat
 ### Idle Auto-Default on Strategic Escalations
 
 - **Timer:** only the left-open Strategic/no-default row starts a hardcoded 30m real-time timer at its log line; no state-file field, override, or env setting exposes it. The background timer never blocks ticks and fires on the first later tick crossing the threshold.
-- **Reset:** any terminal display change — agent output, user keystroke, or redraw — resets the pane-idle clock; §4 supplies sub-minute observation.
+- **Reset:** any terminal display change — agent output, user keystroke, or redraw — resets the pane-idle clock; the entry's cadence (§4) supplies sufficiently frequent observation.
 - **Answer/scope:** send a visibly stated default (`(default: 2)`, `Press enter for 2`, `[2]`), else `1`. Auto-picked Strategic prompts and rule-6 cannot-determine escalations are hard-excluded regardless of idle duration.
 
 ### Logging
@@ -483,7 +492,7 @@ Before the send: run the §3 pre-send gate (`_cli-agents.md` § Pre-Send Validat
 - Left-open strategic (no defensible default): `"{change}: strategic '{summary}' left open · notified. Please respond."`
 - Escalation (rule 6 — cannot determine keystrokes): `"{change}: can't determine answer for '{summary}'. Please respond."`
 - Auto-default (after 30m idle on a left-open strategic prompt): `"{change}: auto-defaulted after 30m idle: '{summary}' → {answer}"`
-- Notification send failure (fail-silent — logged, loop continues): `"{change}: notify failed ({channel}). Continuing."`
+- Notification send failure (fail-silent — logged, ticking continues): `"{change}: notify failed ({channel}). Continuing."`
 
 ---
 
@@ -554,7 +563,7 @@ Window markers (`»` / `›`) key on server-global pane IDs.
 
 ### Dependency Resolution
 
-**Dependency satisfied.** A `depends_on` entry is satisfied when the dependency's **pipeline has completed** — its monitored entry has emitted (or would emit) a `completion` delta: `review-pr` done/skipped when its `stop_stage` is null, or at/past its `stop_stage` — **and**, for a same-repo dependency with a null `stop_stage`, its PR exists (`gh pr view <dep-branch> --json url` succeeds, so the branch is pushed and stable). Neither enrollment, a `branch_map` entry, nor the branch being minted is satisfaction — all three exist from the moment the dep's agent spawns. An unsatisfied dependency **holds the spawn** in both tiers, re-checked on each tick, logging `"{change}: waiting on dependency {dep} ({dep.repo}) to complete."`. Every consumer below (both tiers, the autopilot loop, watches) gates on this definition.
+**Dependency satisfied.** A `depends_on` entry is satisfied when the dependency's **pipeline has completed** — its monitored entry has emitted (or would emit) a `completion` delta: `review-pr` done/skipped when its `stop_stage` is null, or at/past its `stop_stage` — **and**, for a same-repo dependency with a null `stop_stage`, its PR exists (`gh pr view <dep-branch> --json url` succeeds, so the branch is pushed and stable). Neither enrollment, a `branch_map` entry, nor the branch being minted is satisfaction — all three exist from the moment the dep's agent spawns. An unsatisfied dependency **holds the spawn** in both tiers, re-checked on each tick, logging `"{change}: waiting on dependency {dep} ({dep.repo}) to complete."`. Every consumer below (both tiers, the autopilot queue, watches) gates on this definition.
 
 Dependency resolution is **two-tier**, split by repo. Each entry in `depends_on` is classified by comparing the dependency's `repo` (from its `branch_map` `{ branch, repo }` pair, or the dep's monitored entry) against **this change's** `repo`:
 
@@ -577,7 +586,7 @@ Dependency resolution is **two-tier**, split by repo. Each entry in `depends_on`
 
    `origin/{default_branch}` is the cherry-pick base in step 3 below. Fetching first prevents a stale base even on correctly-defaulted repos; resolving the name makes autopilot usable on repos whose default branch isn't `main`.
 
-0.5. **Readiness gate** — for each same-repo change ID still in the monitored set, check it is satisfied per **Dependency satisfied** above. If any is not, hold the spawn (no branch lookup, no cherry-pick) and let the loop re-check on subsequent ticks. A dep that has left the monitored set (present only in `branch_map`) was removed on its own `completion` and passes this gate. The `stacked-prs` variant below inherits this gate.
+0.5. **Readiness gate** — for each same-repo change ID still in the monitored set, check it is satisfied per **Dependency satisfied** above. If any is not, hold the spawn (no branch lookup, no cherry-pick) and let subsequent ticks re-check. A dep that has left the monitored set (present only in `branch_map`) was removed on its own `completion` and passes this gate. The `stacked-prs` variant below inherits this gate.
 
 1. **Resolve same-repo dependency branches** — For each same-repo change ID, look up its branch:
    - First from the monitored entry's `branch` field (if the dep is still active).
@@ -613,7 +622,7 @@ Dependency resolution is **two-tier**, split by repo. Each entry in `depends_on`
       Log: `"{change}: cherry-pick conflict with dependency {dep-change}. Escalating."`
       Escalate to user. Do not proceed without the dependency content. Bounded retry: 0 (§3).
 
-**Cross-repo resolution.** For each cross-repo dependency, do not cherry-pick. Instead, before spawning, verify the dependency is satisfied per **Dependency satisfied** above. If it is not, hold the spawn and let the loop re-check on subsequent ticks; spawn once every cross-repo barrier clears, logging the wait with the shared line from that definition.
+**Cross-repo resolution.** For each cross-repo dependency, do not cherry-pick. Instead, before spawning, verify the dependency is satisfied per **Dependency satisfied** above. If it is not, hold the spawn and let subsequent ticks re-check; spawn once every cross-repo barrier clears, logging the wait with the shared line from that definition.
 
 **Same-repo resolution (`stacked-prs` mode).** Steps 1–3 are skipped for same-repo dependencies — the dependent's branch is created off its nearest same-repo predecessor's *branch* at the §6 spawn sequence's worktree/branch step instead of off `origin/{default_branch}` (the probe-and-route per `_cli-external.md` § wt: existing dep branch → `wt create --checkout <dep-branch>` route). The squashed `"operator: cherry-pick"` commit does not exist for same-repo deps in this mode. After `/git-pr` creates the dependent's PR, the operator retargets its base to the dependency's branch: `gh pr edit <pr> --base <dep-branch>` (`/git-pr` itself is unchanged and mode-unaware). The merge-all choreography for the stack lives under Ordered Merge below. Dependency-branch drift after a dependent PR exists (a dep's review-pr rework moving its branch) is out of scope — the same exposure exists in the cherry-pick model; conflicts surface at merge-all and escalate.
 
@@ -783,7 +792,7 @@ All five rules are MUSTs:
 4. **Persisted sequence.** Starting a merge sequence MUST write a `kind: coordination` note (`fab operator note add --kind coordination`) recording, **per repo-sequence**, the sequence, current position, and armed PR (a multi-repo merge-all runs one armed PR per repo-sequence — rule 1 — so the note's prose carries one line per sequence) — an armed PR **outlives the operator** (it survives compaction, `/clear`, crash, and abandonment), so the sequence must not live only in conversation. Update the note as the sequence advances (`fab operator note update`) and resolve it at sequence end (`fab operator note resolve`). A restarted operator re-orients from the note (§2 Init) and resumes verification/arming.
 5. **Disarm on halt.** Any halt or escalation — CI failure, stall, conflict — MUST run `gh pr merge --disable-auto` on the remaining armed PRs of the **halted sequences**: the failing repo's sub-sequence plus its transitive cross-repo dependent cone, matching the halt-dependents-only policy (which assumes unstarted merges stay unstarted — armed auto-merge violates that without the disarm). Independent sub-sequences keep their armed PRs and continue. A user "stop" is global and disarms every armed PR.
 
-**Per tick while a merge sequence is in progress** (an open merge-sequence `coordination` note): check **each** armed PR (one per repo-sequence) — merged (timeline event) → report, advance that sequence's position in the note, and arm its next PR per rule 1 (readying a draft per rule 2); unmerged → run rule 3's checks and count toward its stall threshold. This check rides the normal tick (§4 Tick Behavior step 4), so merge-all consumes no foreground attention between arms — and a merge sequence in progress is by itself a loop run-condition (§4): at merge-all time the autopilot queue is exhausted and the monitored set is typically empty, so without this condition the loop might not even be running to do the tick-verify work.
+**Per tick while a merge sequence is in progress** (an open merge-sequence `coordination` note): check **each** armed PR (one per repo-sequence) — merged (timeline event) → report, advance that sequence's position in the note, and arm its next PR per rule 1 (readying a draft per rule 2); unmerged → run rule 3's checks and count toward its stall threshold. This check rides the normal tick (§4 Tick Behavior step 4), so merge-all consumes no foreground attention between arms. **Known gap (run-kit follow-up):** an in-progress merge sequence still needs ticks, but the seeded entry's `nothing-tracked` suppress guard covers only `monitored`, `watches`, and `autopilot` — an open merge-sequence `coordination` note is not tracked state to the guard. At merge-all time the autopilot queue is exhausted and the monitored set is typically empty, so ticks may be suppressed precisely when this tick-verify work is pending. Extending the guard (e.g. to open merge-sequence coordination notes) is owned by run-kit's cron spec; fab-kit applies no workaround.
 
 ---
 
@@ -854,11 +863,11 @@ The isolation unit is the **tmux server**. There is exactly **one operator per t
 
 | Setting | Default | Override via natural language |
 |---------|---------|------------------------------|
-| Loop interval | 3m | "check every {N}m" |
 | Stuck threshold | 15m | "flag agents stuck for more than {N}m" |
-| Waiting/menu heartbeat | 90s | "tighten to {N}s when an agent is on a menu" |
 | Spawn target session | inferred (§6 step 2 evidence tiers; auto-set on each announced inference) | "spawn into session {name}" |
 | Notify channel | `rk` (run-kit Web Push; auto-fallback when `rk` absent) | "notify via ntfy topic {topic}" / "notify via discord {url}" / "notify via push" |
+
+Cadence is not a session setting — it is the cron entry's to tune via `rk cron` (§4 The Clock).
 
 These settings are session-scoped and reset on compaction, `/clear`, or session restart (§4 Post-Compaction Reload); they are not operator-state-file fields. The **strategic auto-default threshold is hardcoded at 30m** (§5) — there is deliberately **no** setting for it.
 
@@ -880,6 +889,6 @@ These settings are session-scoped and reset on compaction, `/clear`, or session 
 | Requires a git repo? | No — `fab operator` opens its window in the repo root inside a repo, else `os.Getwd()` (neutral parent dir). Errors only if both fail |
 | Requires a `fab/` project? | No — session command comes from the project's `providers.claude.interactive_command` when `fab/` is resolvable, else `spawn.DefaultSpawnCommand` (the template `claude --permission-mode bypassPermissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`). No project `providers`/`agent:` block is read on a `fab/`-less launch |
 | Coordinating-agent model | Operator role — `fab operator` resolves the `operator` role (`agent.ResolveRole`; a Tier-1 role, so the `agent.session` knob picks its provider), reads that provider's `interactive_command`, injects the profile via `spawn.WithProfile` (**substitutes** into a `{model}`/`{effort}` template — the built-in claude default is templated — or **appends** `--model`/`--effort` to a plain command carrying no placeholder); falls back to the built-in operator profile + built-in claude provider on any failure (incl. no resolvable `fab/` project) |
-| Uses `/loop`? | Yes — adaptive heartbeat: `3m` normally, tightens to `90s` (§8) when any monitored agent is `waiting` (`@rk_pane_agent_state`) or menu-waiting (capture fallback), relaxes back to `3m`; one loop at a time; runs while any tracked state remains — monitored set, autopilot queue, watches, or an in-progress merge sequence (§4); quiet ticks render the one-line compact frame (§4 Status Frame Format); loop prompt is the bare `operator tick` — never a slash command (§4 Loop Prompt) |
+| Cadence | rk cron operator-tick entry — union predicate (idle-anchored backoff `60s`→`30m` + `wake_on: agent-state-change`; `operator-loop-fresh`/`nothing-tracked` suppress guards), seeded by `rk operator` and never mutated by the skill (§4 The Clock); Claude-only `/loop` fallback when the entry cannot exist (§4 Degraded Fallback); quiet ticks render the one-line compact frame (§4 Status Frame Format); tick payload is the bare `operator tick` — never a slash command (§4 Tick Payload) |
 | Uses the operator state file? | Yes — monitored set + autopilot queue + branch map + notes persistence in the server-keyed path (§2 Init step 1); reads via `fab operator state`, every mutation through a `fab operator` verb — never a hand-write (§4 doctrine) |
 | Multi-repo / multi-session? | Yes — one operator per tmux server spans all its sessions and repos via the `(session, repo, pane)` addressing tuple |

@@ -1102,7 +1102,7 @@ Explicit skill sends and spawn prompts follow `_cli-agents.md` § Skill Prompts,
 **Key properties**:
 - **Coordinates, never executes** — all pipeline work is spawned into a freshly created worktree agent (`wt create --non-interactive`), never run in the operator's own pane. Operational maintenance (merge PR, archive, delete worktree) is the one direct-execution exception.
 - **Pipeline-first routing** — new work always enters through `/fab-new` then a pipeline command; raw inline implementation instructions are never dispatched to agent panes.
-- **State is re-derived, never remembered** — live state is re-queried before every action; continuity across compaction or `/clear` comes from the server-keyed operator state file (a one-shot `/fab-operator` reload re-loads the procedure; the loop prompt itself stays the bare `operator tick`).
+- **State is re-derived, never remembered** — live state is re-queried before every action; continuity across compaction or `/clear` comes from the server-keyed operator state file (a one-shot `/fab-operator` reload re-loads the procedure; the tick payload itself stays the bare `operator tick`).
 - Ends with its own status frame rather than a `Next:` line.
 
 **Full spec**: [operator.md](operator.md) (the top-level behavioral spec). The agent-CLI mechanics it builds on — spawn composition, pre-send validation, delivery probe, peek, await — live in `_cli-agents.md`; this skill owns *when and whether* to use them (confirmation tiers, retry budgets, repo targeting, enrollment, dependency resolution, autopilot).
@@ -1111,13 +1111,13 @@ Explicit skill sends and spawn prompts follow `_cli-agents.md` § Skill Prompts,
 **Flow**:
 
 ```text
-Started via `fab operator`; runs a continuous /loop cycle (prompt: bare `operator tick`, never a slash command)
+Started via `fab operator`; cadence is run-kit's seeded operator-tick cron entry delivering bare `operator tick` firings (payload: never a slash command; Claude-only /loop fallback when the entry cannot exist)
 ├─ Tick: Bash: fab operator tick-start --diff --quiet (snapshot + deltas + fleet or fleet_summary; re-derive before every action: Bash: fab pane map --all-sessions — never trust cached values)
 ├─ Auto-answer routine agent questions (rk mux send --answer); nudge stalled agents; route commands via rk mux send (raw tmux send-keys fallback)
 └─ Drive autopilot queues (/fab-new → /fab-fff); spawn each task in a fresh worktree
 ```
 
-**Tools**: Bash (`fab operator tick-start`, `fab pane questions`, `fab pane map`, `rk mux send` (`command -v rk`-gated; raw `tmux send-keys` when rk is absent), `wt create`), Skill (`/loop`); helpers `_cli-agents`, `_cli-fab`, `_cli-external`.
+**Tools**: Bash (`fab operator tick-start`, `fab pane questions`, `fab pane map`, `rk mux send` (`command -v rk`-gated; raw `tmux send-keys` when rk is absent), `wt create`); cadence delivered by run-kit's `rk cron` operator-tick entry (`Skill (/loop)` only as the Claude fallback clock); helpers `_cli-agents`, `_cli-fab`, `_cli-external`.
 
 **Sub-agents**: None (spawns agent sessions, not sub-agents).
 
