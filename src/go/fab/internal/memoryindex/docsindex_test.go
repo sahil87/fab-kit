@@ -390,6 +390,26 @@ func TestDocsIndexNavNoteGenericRoot(t *testing.T) {
 	})
 }
 
+// TestDocsIndexNavNotePipeSequence covers a nav_note containing an inline
+// "| " sequence: the manual block must land after the whole note, immediately
+// before the first table — never mid-note.
+func TestDocsIndexNavNotePipeSequence(t *testing.T) {
+	note := "> Compare A | B in the table below, or use | inline."
+
+	repo := t.TempDir()
+	c := specsRoot()
+	c.NavNote = note
+	docWrite(t, repo, "docs/specs/area/topic.md", "---\ndescription: A topic\n---\n# Topic\n")
+	targets, _ := docGather(t, repo, c)
+	root := docContent(t, targets, "specs/index.md")
+	anchor := note + "\n\n"
+	i := strings.Index(root, anchor)
+	if i < 0 || !strings.HasPrefix(root[i+len(anchor):], manualStart) {
+		t.Fatalf("manual block must follow the full nav_note:\n%s", root)
+	}
+	docIdempotent(t, repo, c, targets)
+}
+
 // TestDocsIndexNavNoteLegacyRoot covers nav_note on the legacy memory root
 // through the full gather: set renders the note verbatim, empty (or unset)
 // renders no nav line, and both converge on regeneration.
