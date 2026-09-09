@@ -683,7 +683,7 @@ checklist:
 			Key:          "docs_index.roots",
 			Default:      config.DefaultDocsIndexRoots(),
 			Kind:         configvalue.KindSequence,
-			Description:  "Documentation roots processed by fab docs-index. Each root has path (repo-relative), index_file (index.md), also_accept ([]), log (false), max_depth (3, advisory only), superseded ([] glob patterns), and nav_note (\"\"). nav_note is the root landing's navigation note (free-text markdown): unset or empty renders nothing, a non-empty string renders verbatim on the root landing. Without docs_index, docs/memory is implicit with log true. Accepted alternate landings preserve prose outside generated blocks; primary landings are generated whole files. First-run curated navigation is imported automatically.",
+			Description:  "Documentation roots processed by fab docs-index. Each root has path (repo-relative), index_file (index.md), also_accept ([]), log (false), max_depth (3, advisory only), superseded ([] glob patterns), exclude ([] glob patterns), and nav_note (\"\"). Every regular file under a root is indexed except landings, log files, dotfiles, symlinks, and exclude matches — the index is the tree minus exclude. nav_note is the root landing's navigation note (free-text markdown): unset or empty renders nothing, a non-empty string renders verbatim on the root landing. Without docs_index, docs/memory is implicit with log true. Accepted alternate landings preserve prose outside generated blocks; primary landings are generated whole files, each carrying one hand-managed manual block preserved verbatim on regeneration (first-run hand-written navigation is seed-imported into it).",
 			Scope:        ScopeProject,
 			Advertise:    true,
 			Segment:      docsIndexSegment,
@@ -1643,5 +1643,6 @@ const docsIndexSegment = `# docs_index.roots — documentation roots for fab doc
 #     # - path: docs/specs
 #     #   also_accept: [README.md]
 #     #   superseded: ["**/archive/**"]
+#     #   exclude: ["assets/**"]  # files/folders never indexed: no row, no count, no landing
 #     #   nav_note: "> **New here?** …"  # optional root-landing note, rendered verbatim; omitted when unset
 `

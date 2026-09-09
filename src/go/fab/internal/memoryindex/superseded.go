@@ -30,7 +30,9 @@ func matchGlob(pattern, name string) bool {
 	return match(p, n)
 }
 
-func supersededPath(patterns []string, name string) bool {
+// matchAny reports whether name matches any of the root-relative slash glob
+// patterns — the single matcher shared by superseded and exclude.
+func matchAny(patterns []string, name string) bool {
 	for _, p := range patterns {
 		if matchGlob(p, name) {
 			return true
@@ -39,17 +41,17 @@ func supersededPath(patterns []string, name string) bool {
 	return false
 }
 
-func validateGlobs(patterns []string) error {
+func validateGlobs(field string, patterns []string) error {
 	for _, p := range patterns {
 		if p == "" || strings.HasPrefix(p, "/") {
-			return fmt.Errorf("docs_index.roots.superseded: invalid relative glob %q", p)
+			return fmt.Errorf("docs_index.roots.%s: invalid relative glob %q", field, p)
 		}
 		for _, segment := range strings.Split(p, "/") {
 			if segment == ".." {
-				return fmt.Errorf("docs_index.roots.superseded: parent traversal in %q", p)
+				return fmt.Errorf("docs_index.roots.%s: parent traversal in %q", field, p)
 			}
 			if _, err := path.Match(segment, ""); err != nil {
-				return fmt.Errorf("docs_index.roots.superseded: %q: %w", p, err)
+				return fmt.Errorf("docs_index.roots.%s: %q: %w", field, p, err)
 			}
 		}
 	}

@@ -25,17 +25,25 @@ func newDocsIndexCmd(alias bool) *cobra.Command {
 		Long: `Regenerates every docs_index.roots entry, or one configured positional root.
 Without configuration, processes docs/memory with index.md, log:true, max_depth:3.
 Each root supports path, index_file (index.md), also_accept ([]), log (false),
-max_depth (3), superseded ([] glob patterns), and nav_note ('' — the root
-landing's navigation note, rendered verbatim when set). Traversal has arbitrary depth;
+max_depth (3), superseded ([] glob patterns), exclude ([] glob patterns — files
+or folders the walker never indexes: the index is the tree minus these), and
+nav_note ('' — the root landing's navigation note, rendered verbatim when set).
+Every regular file under a root is a row (only landings, log files, dotfiles,
+symlinks, and exclude matches are skipped); markdown rows read description:
+frontmatter, HTML rows read <title> (label) and <meta name="description">
+(description — a title is never a description), and every other type lists its
+filename with —. Traversal has arbitrary depth;
 max_depth and missing descriptions are advisory warnings, never hard failures.
 A missing description uses the file H1 and —, never invented text. The legacy
 memory format retains filename-stem labels to preserve zero-config bytes.
 
-Primary index_file landings are generated whole files. An existing also_accept
-landing (e.g. README.md) receives only a marker-delimited generated block; prose
-outside it stays human-owned and byte-preserved. First-run curated navigation is
-seed-imported automatically. Generated files/blocks are tool-owned. Output is
-content-derived, byte-stable and idempotent, with no git dates in indexes.
+Primary index_file landings are generated whole files carrying one hand-managed
+manual block (preserved verbatim on regeneration) for rows the generator cannot
+produce; first-run hand-written navigation is seed-imported into it. An existing
+also_accept landing (e.g. README.md) receives only a marker-delimited generated
+block; prose outside it stays human-owned and byte-preserved. Generated
+files/blocks are tool-owned. Output is content-derived, byte-stable and
+idempotent, with no git dates in indexes.
 
 Superseded globs (e.g. **/archive/**) produce one parent pointer/count and one
 index of child versions; no topic descriptions are read inside superseded trees.
@@ -51,7 +59,7 @@ and log.seed.md merges beneath. --rebuild discards frozen logs and re-projects
 from git; it is ignored with --check and irrelevant for log:false roots.
 
 --check writes nothing: 0 clean, 1 benign drift, 2 destructive index loss
-(curated description wipe, tombstone drop, custom grouping flatten). Worst root
+(description wipe, tombstone drop, custom grouping flatten). Worst root
 wins. Blocking malformed frontmatter floors the exit at 1; FKF change-id and
 >1000-rune description escalations apply only to log:true roots. Shape, size,
 missing-description, narration-density (FKF roots), and length advisories never fail a clean check. --json keeps
@@ -300,7 +308,7 @@ func emitCheckReport(cmd *cobra.Command, report memoryindex.LossReport, jsonOut 
 	case memoryindex.TierDestructiveLoss:
 		if !jsonOut {
 			err := cmd.ErrOrStderr()
-			fmt.Fprintln(err, "destructive loss — regenerating would wipe curated/historical content:")
+			fmt.Fprintln(err, "destructive loss — regenerating would wipe hand-managed/historical content:")
 			for _, l := range report.Losses {
 				fmt.Fprintf(err, "  [%s] %s: %s\n", l.Category, l.Path, l.Detail)
 			}

@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-09T06:41:37Z"}
+{"args":"docs-index — index every file type in generated navigation (per-root exclude glob, HTML title/meta extraction), always emit the hand-managed block in primary landings, and rename it from curated to manual (read-both compat, header prose rewrite, owner sweep)","cmd":"fab-new","event":"command","ts":"2026-09-09T06:41:37Z"}
+{"delta":"+0.0","event":"confidence","score":3.9,"trigger":"calc-score","ts":"2026-09-09T06:46:14Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-09T06:47:46Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-09T06:50:47Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-09T06:51:20Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-09T07:09:24Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-09T07:15:47Z"}
+{"event":"review","result":"passed","ts":"2026-09-09T07:15:47Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-09T07:21:18Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-09-09T07:23:54Z"}
+{"event":"review","result":"passed","ts":"2026-09-09T07:30:40Z"}

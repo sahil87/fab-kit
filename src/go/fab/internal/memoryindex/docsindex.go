@@ -47,7 +47,10 @@ type docWalk struct {
 // GatherRoot gathers an arbitrary documentation root without mutating anything.
 // The same targets feed check and write, including first-run seed adoption.
 func GatherRoot(repo, fabRoot string, cfg config.DocsIndexRoot, rebuild bool) ([]Target, []Warning, error) {
-	if err := validateGlobs(cfg.Superseded); err != nil {
+	if err := validateGlobs("superseded", cfg.Superseded); err != nil {
+		return nil, nil, err
+	}
+	if err := validateGlobs("exclude", cfg.Exclude); err != nil {
 		return nil, nil, err
 	}
 	w := docWalk{repo: repo, root: filepath.Join(repo, filepath.FromSlash(cfg.Path)), cfg: cfg}
@@ -172,8 +175,13 @@ func (w *docWalk) landing(dir string) string {
 	}
 	return w.cfg.IndexFile
 }
+
+// isTopic reports whether a directory entry name is an indexable topic file:
+// every regular file is a row except the landing filenames, the log/seed files
+// on log:true roots, and dotfiles. The per-root exclude globs are applied by
+// walk — they need the root-relative path, not the bare name.
 func (w *docWalk) isTopic(name string) bool {
-	if !strings.HasSuffix(name, ".md") || name == w.cfg.IndexFile {
+	if strings.HasPrefix(name, ".") || name == w.cfg.IndexFile {
 		return false
 	}
 	for _, a := range w.cfg.AlsoAccept {
@@ -200,6 +208,12 @@ func (w *docWalk) walk(dir string, inherited bool, depth int) (*docFolder, error
 			continue
 		}
 		p := filepath.Join(dir, e.Name())
+		// Excluded paths are never seen: a matching folder is not walked (no
+		// landing, no sub-domain row, no counts) and a matching file produces no
+		// row and does not count. Exclude wins over superseded by absence.
+		if matchAny(w.cfg.Exclude, relOrBase(w.root, p)) {
+			continue
+		}
 		if e.IsDir() {
 			child, err := w.walk(p, f.superseded, depth+1)
 			if err != nil {
@@ -217,7 +231,7 @@ func (w *docWalk) walk(dir string, inherited bool, depth int) (*docFolder, error
 			continue
 		}
 		f.count++
-		if f.superseded || supersededPath(w.cfg.Superseded, relOrBase(w.root, p)) {
+		if f.superseded || matchAny(w.cfg.Superseded, relOrBase(w.root, p)) {
 			f.supersededFiles++
 			continue
 		}
@@ -303,7 +317,7 @@ func (w *docWalk) isSupersededTarget(dir, target string) bool {
 	target = strings.SplitN(target, "#", 2)[0]
 	rel := relOrBase(w.root, filepath.Join(dir, filepath.FromSlash(target)))
 	for rel != "." && rel != "" {
-		if supersededPath(w.cfg.Superseded, rel) {
+		if matchAny(w.cfg.Superseded, rel) {
 			return true
 		}
 		next := filepath.ToSlash(filepath.Dir(rel))
@@ -386,7 +400,7 @@ func insertNavNote(content, note string) string {
 }
 
 func (w *docWalk) readFolder(dir string, inherited bool) (*docFolder, error) {
-	f := &docFolder{dir: dir, landing: w.landing(dir), superseded: inherited || supersededPath(w.cfg.Superseded, relOrBase(w.root, dir))}
+	f := &docFolder{dir: dir, landing: w.landing(dir), superseded: inherited || matchAny(w.cfg.Superseded, relOrBase(w.root, dir))}
 	if f.superseded && f.landing != w.cfg.IndexFile {
 		data, e := os.ReadFile(filepath.Join(dir, f.landing))
 		if e != nil && !os.IsNotExist(e) {
@@ -412,19 +426,41 @@ func (w *docWalk) readFolder(dir string, inherited bool) (*docFolder, error) {
 	return f, nil
 }
 
+// readTopic adds one topic file's row, dispatching on the lower-cased
+// extension. Only .md and .html/.htm files are ever opened — every other type
+// is listed from its directory entry alone (no reads of binaries), its label
+// the full filename (the extension is the type signal) and its description the
+// missing-cell fallback. For non-markdown files Link is set explicitly to the
+// filename verbatim; markdown keeps the Base + ".md" fallback.
 func (w *docWalk) readTopic(f *docFolder, p string) {
-	desc := frontmatter.Field(p, "description")
-	label := strings.TrimSuffix(filepath.Base(p), ".md")
-	title := readH1(p)
-	if desc == "" {
-		w.warnings = append(w.warnings, Warning{Path: relOrBase(w.repo, p), Kind: KindMissingDescription})
-		if title != "" && f.data.Generic {
-			label = title
+	name := filepath.Base(p)
+	switch ext := strings.ToLower(filepath.Ext(name)); ext {
+	case ".html", ".htm":
+		title, desc := htmlHeadMeta(p)
+		label := title
+		if label == "" {
+			label = name
 		}
+		if desc == "" {
+			w.warnings = append(w.warnings, Warning{Path: relOrBase(w.repo, p), Kind: KindMissingDescription})
+		}
+		f.data.Files = append(f.data.Files, FileEntry{Base: name, Title: title, Description: desc, Label: label, Link: name})
+	case ".md":
+		desc := frontmatter.Field(p, "description")
+		label := strings.TrimSuffix(name, ".md")
+		title := readH1(p)
+		if desc == "" {
+			w.warnings = append(w.warnings, Warning{Path: relOrBase(w.repo, p), Kind: KindMissingDescription})
+			if title != "" && f.data.Generic {
+				label = title
+			}
+		}
+		f.data.Files = append(f.data.Files, FileEntry{Base: strings.TrimSuffix(name, ".md"), Title: title, Description: desc, Label: label})
+		// FKF/frontmatter machinery is a markdown construct: .md topics only.
+		w.warnings = append(w.warnings, sourceWarnings(w.root, p, relOrBase(w.repo, p), w.reg, w.cfg.Log, false)...)
+	default:
+		f.data.Files = append(f.data.Files, FileEntry{Base: name, Label: name, Link: name})
 	}
-	f.data.Files = append(f.data.Files, FileEntry{Base: strings.TrimSuffix(filepath.Base(p), ".md"), Title: title, Description: desc, Label: label})
-	w.warnings = append(w.warnings, sourceWarnings(w.root, p, relOrBase(w.repo, p), w.reg, w.cfg.Log, false)...)
-
 }
 
 func (w *docWalk) finishFolder(f *docFolder, depth int) {

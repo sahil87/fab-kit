@@ -161,6 +161,19 @@ func TestDocsIndexLastNestedDocumentDeletionIsDestructive(t *testing.T) {
 	if code != 2 || !strings.Contains(diag, "configured root") || strings.Contains(diag, "_shared/removed-domains") {
 		t.Fatalf("generic remediation: %d %s", code, diag)
 	}
+	if !strings.Contains(diag, "hand-managed/historical content") {
+		t.Fatalf("tier-2 stderr must name hand-managed/historical content: %s", diag)
+	}
+}
+
+func TestDocsIndexHelpDocumentsExcludeNotCurated(t *testing.T) {
+	long := docsIndexCmd().Long
+	if !strings.Contains(long, "exclude") {
+		t.Fatal("help must list the per-root exclude field")
+	}
+	if strings.Contains(long, "curated") {
+		t.Fatal("help must drop the curated block wording")
+	}
 }
 
 func TestDocsIndexCurrentToSupersededCleanup(t *testing.T) {

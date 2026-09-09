@@ -59,6 +59,20 @@ func docIdempotent(t *testing.T, repo string, c config.DocsIndexRoot, first []Ta
 		}
 	}
 }
+func TestValidateGlobsNamesField(t *testing.T) {
+	for _, tc := range []struct{ field, pattern, want string }{
+		{"exclude", "/abs/**", "docs_index.roots.exclude"},
+		{"exclude", "../up", "docs_index.roots.exclude"},
+		{"exclude", "[bad", "docs_index.roots.exclude"},
+		{"superseded", "/abs/**", "docs_index.roots.superseded"},
+	} {
+		err := validateGlobs(tc.field, []string{tc.pattern})
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("validateGlobs(%q, %q) = %v, want error naming %s", tc.field, tc.pattern, err, tc.want)
+		}
+	}
+}
+
 func specsRoot() config.DocsIndexRoot {
 	return config.DocsIndexRoot{Path: "docs/specs", IndexFile: "index.md", MaxDepth: 3}
 }
@@ -212,10 +226,12 @@ func TestDocsIndexZeroConfigGoldenCompatibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	targets, _ := docGather(t, repo, c)
-	if got := docContent(t, targets, "memory/index.md"); got != RenderRoot(root) {
+	// The walker's primary landings are the pure renderers' output plus the
+	// always-present manual block (seeded on creation).
+	if got := docContent(t, targets, "memory/index.md"); got != withManualBlock(RenderRoot(root), manualBlockSeed) {
 		t.Fatalf("memory root changed: %s", got)
 	}
-	if got := docContent(t, targets, "auth/index.md"); got != RenderDomain(domains[0]) {
+	if got := docContent(t, targets, "auth/index.md"); got != withManualBlock(RenderDomain(domains[0]), manualBlockSeed) {
 		t.Fatalf("memory domain changed: %s", got)
 	}
 	if body := docContent(t, targets, "auth/index.md"); !strings.Contains(body, "[sparse](sparse.md) | —") {
@@ -355,7 +371,7 @@ func TestDocsIndexNavNoteGenericRoot(t *testing.T) {
 		docWrite(t, repo, "docs/specs/area/topic.md", "---\ndescription: A topic\n---\n# Topic\n")
 		targets, _ := docGather(t, repo, c)
 		root := docContent(t, targets, "specs/index.md")
-		anchor := "frontmatter.\n\n"
+		anchor := "preserved verbatim.\n\n"
 		i := strings.Index(root, anchor)
 		if i < 0 || !strings.HasPrefix(root[i+len(anchor):], note+"\n\n") {
 			t.Fatalf("nav_note must follow the Generated-by note:\n%s", root)
@@ -372,6 +388,26 @@ func TestDocsIndexNavNoteGenericRoot(t *testing.T) {
 			t.Fatalf("empty nav_note must render nothing on a generic root:\n%s", root)
 		}
 	})
+}
+
+// TestDocsIndexNavNotePipeSequence covers a nav_note containing an inline
+// "| " sequence: the manual block must land after the whole note, immediately
+// before the first table — never mid-note.
+func TestDocsIndexNavNotePipeSequence(t *testing.T) {
+	note := "> Compare A | B in the table below, or use | inline."
+
+	repo := t.TempDir()
+	c := specsRoot()
+	c.NavNote = note
+	docWrite(t, repo, "docs/specs/area/topic.md", "---\ndescription: A topic\n---\n# Topic\n")
+	targets, _ := docGather(t, repo, c)
+	root := docContent(t, targets, "specs/index.md")
+	anchor := note + "\n\n"
+	i := strings.Index(root, anchor)
+	if i < 0 || !strings.HasPrefix(root[i+len(anchor):], manualStart) {
+		t.Fatalf("manual block must follow the full nav_note:\n%s", root)
+	}
+	docIdempotent(t, repo, c, targets)
 }
 
 // TestDocsIndexNavNoteLegacyRoot covers nav_note on the legacy memory root
@@ -440,4 +476,373 @@ func TestDocsIndexBundleLinkWarningsRequireFKF(t *testing.T) {
 			}
 		})
 	}
+}
+
+// --- All file types are topics (R1/R4/R6/R7) --------------------------------
+
+func TestDocsIndexAllFileTypesAreTopics(t *testing.T) {
+	repo := t.TempDir()
+	c := specsRoot()
+	docWrite(t, repo, "docs/specs/a.md", "---\ndescription: Alpha\n---\n# A\n")
+	docWrite(t, repo, "docs/specs/b.html", "<html><head><title>Bee</title><meta name=\"description\" content=\"Bee page\"></head><body></body></html>")
+	docWrite(t, repo, "docs/specs/c.png", "not really a png")
+	docWrite(t, repo, "docs/specs/.hidden", "x")
+	targets, w := docGather(t, repo, c)
+	body := docContent(t, targets, "specs/index.md")
+	for _, want := range []string{"| [a](a.md) | Alpha |", "| [Bee](b.html) | Bee page |", "| [c.png](c.png) | — |"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %s:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "hidden") {
+		t.Fatalf("dotfile must not be a row:\n%s", body)
+	}
+	for _, x := range w {
+		if x.Kind == KindMissingDescription && !strings.HasSuffix(x.Path, ".md") && !strings.HasSuffix(x.Path, ".html") {
+			t.Fatalf("missing-description advisory fired for a type that cannot carry one: %+v", x)
+		}
+	}
+	docIdempotent(t, repo, c, targets)
+}
+
+func TestHTMLHeadMeta(t *testing.T) {
+	repo := t.TempDir()
+	write := func(name, content string) string {
+		t.Helper()
+		p := filepath.Join(repo, name)
+		if err := os.WriteFile(p, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	bigStyle := "<style>" + strings.Repeat("x", 60*1024) + "</style>"
+	for _, tc := range []struct {
+		name, content, wantTitle, wantDesc string
+	}{
+		{"entities", "<head><title>Left &amp; Right</title><meta content=\"Panel rewrite\" name=\"description\"></head>", "Left & Right", "Panel rewrite"},
+		{"single quotes", "<head><meta name='description' content='Single quoted'></head>", "", "Single quoted"},
+		{"order swapped", "<head><meta content=\"Order swapped\" name=\"description\"></head>", "", "Order swapped"},
+		{"uppercase", "<HEAD><TITLE>Up &amp; Away</TITLE><META NAME=\"description\" CONTENT=\"Caps\"></HEAD>", "Up & Away", "Caps"},
+		{"whitespace collapsed", "<head><title>  A\n\t B  </title></head>", "A B", ""},
+		{"title after big style", "<head>" + bigStyle + "<title>Late title</title></head>", "Late title", ""},
+		{"title only in body", "<head></head><body><title>Nope</title></body>", "", ""},
+		{"empty title", "<head><title></title></head>", "", ""},
+		{"meta without description name", "<head><title>T</title><meta name=\"viewport\" content=\"width=1\"></head>", "T", ""},
+		{"quoted gt in attribute", "<head><meta name=\"description\" content=\"a > b\"></head>", "", "a > b"},
+		{"no head bound", "<title>Doc</title><p>hello</p>", "Doc", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			title, desc := htmlHeadMeta(write(strings.ReplaceAll(tc.name, " ", "_")+".html", tc.content))
+			if title != tc.wantTitle || desc != tc.wantDesc {
+				t.Errorf("got (%q, %q), want (%q, %q)", title, desc, tc.wantTitle, tc.wantDesc)
+			}
+		})
+	}
+}
+
+func TestDocsIndexHTMLRows(t *testing.T) {
+	repo := t.TempDir()
+	c := specsRoot()
+	// A <title> is a label source only — never the description.
+	docWrite(t, repo, "docs/specs/page.html", "<head><title>Left &amp; Right</title><meta content=\"Panel rewrite\" name=\"description\"></head>")
+	docWrite(t, repo, "docs/specs/bare.html", "<head><title>Bare page</title></head>")
+	docWrite(t, repo, "docs/specs/pipe.html", "<head><title>A | B</title></head>")
+	docWrite(t, repo, "docs/specs/upper.HTM", "<head></head>")
+	targets, w := docGather(t, repo, c)
+	body := docContent(t, targets, "specs/index.md")
+	for _, want := range []string{
+		"| [Left & Right](page.html) | Panel rewrite |",
+		"| [Bare page](bare.html) | — |", // title is never a description
+		`| [A \| B](pipe.html) | — |`,    // table-cell escaping on an HTML label
+		"| [upper.HTM](upper.HTM) | — |", // .HTM treated as HTML; empty/absent title falls back to the filename
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %s:\n%s", want, body)
+		}
+	}
+	htmlWarnings := 0
+	for _, x := range w {
+		if x.Kind != KindMissingDescription {
+			continue
+		}
+		htmlWarnings++
+		msg := x.String()
+		if strings.Contains(msg, "H1") {
+			t.Fatalf("HTML advisory must not claim H1: %s", msg)
+		}
+		if !strings.Contains(msg, "<meta name=\"description\">") {
+			t.Fatalf("HTML advisory must name the meta tag: %s", msg)
+		}
+	}
+	// bare.html, pipe.html and upper.HTM have no meta description; page.html does.
+	if htmlWarnings != 3 {
+		t.Fatalf("want 3 HTML missing-description advisories, got %d: %+v", htmlWarnings, w)
+	}
+	docIdempotent(t, repo, c, targets)
+}
+
+func TestDocsIndexNonMarkdownOnlyFolder(t *testing.T) {
+	repo := t.TempDir()
+	c := specsRoot()
+	docWrite(t, repo, "docs/specs/only/page.html", "<head><title>Only</title></head>")
+	targets, _ := docGather(t, repo, c)
+	// A folder holding only non-markdown files now has count > 0: its own
+	// generated landing and a Sub-Domains row whose description round-trips
+	// from the landing frontmatter — starting at —, never synthesized.
+	child := docContent(t, targets, "only/index.md")
+	if !strings.Contains(child, "| [Only](page.html) | — |") {
+		t.Fatal(child)
+	}
+	root := docContent(t, targets, "specs/index.md")
+	if !strings.Contains(root, "| [only](only/index.md) | — |") {
+		t.Fatal(root)
+	}
+	docIdempotent(t, repo, c, targets)
+	second, _ := docGather(t, repo, c)
+	if !strings.Contains(docContent(t, second, "specs/index.md"), "| [only](only/index.md) | — |") {
+		t.Fatal("sub-domain description must stay — across regenerations (no synthesized text)")
+	}
+}
+
+func TestDocsIndexExclude(t *testing.T) {
+	repo := t.TempDir()
+	c := specsRoot()
+	c.Exclude = []string{"assets/**", "**/*.png"}
+	docWrite(t, repo, "docs/specs/assets/cursio/x.png", "png")
+	docWrite(t, repo, "docs/specs/guide/shot.png", "png")
+	docWrite(t, repo, "docs/specs/guide/page.html", "<head><title>Guide</title><meta name=\"description\" content=\"Guide page\"></head>")
+	targets, _ := docGather(t, repo, c)
+	for _, x := range targets {
+		if strings.Contains(filepath.ToSlash(x.Path), "assets/") {
+			t.Fatalf("excluded folder produced output: %s", x.Path)
+		}
+	}
+	root := docContent(t, targets, "specs/index.md")
+	if strings.Contains(root, "assets") {
+		t.Fatalf("excluded folder must not be a sub-domain row:\n%s", root)
+	}
+	guide := docContent(t, targets, "guide/index.md")
+	if !strings.Contains(guide, "| [Guide](page.html) | Guide page |") || strings.Contains(guide, "shot.png") {
+		t.Fatalf("excluded file must produce no row:\n%s", guide)
+	}
+	docIdempotent(t, repo, c, targets)
+}
+
+func TestDocsIndexExcludeBeatsSuperseded(t *testing.T) {
+	repo := t.TempDir()
+	c := specsRoot()
+	c.Superseded = []string{"old/**"}
+	c.Exclude = []string{"old/**"}
+	docWrite(t, repo, "docs/specs/old/a.md", "# Old\n")
+	docWrite(t, repo, "docs/specs/live/b.md", "# Live\n")
+	targets, _ := docGather(t, repo, c)
+	root := docContent(t, targets, "specs/index.md")
+	if strings.Contains(root, "old") || strings.Contains(strings.ToLower(root), "superseded") {
+		t.Fatalf("a path matching both exclude and superseded is never seen:\n%s", root)
+	}
+	docIdempotent(t, repo, c, targets)
+}
+
+func TestDocsIndexAllExcludedFolderDropped(t *testing.T) {
+	repo := t.TempDir()
+	c := specsRoot()
+	c.Exclude = []string{"**/*.png"}
+	docWrite(t, repo, "docs/specs/mixed/a.png", "png")
+	docWrite(t, repo, "docs/specs/mixed/b.png", "png")
+	docWrite(t, repo, "docs/specs/topic.md", "# Topic\n")
+	targets, _ := docGather(t, repo, c)
+	for _, x := range targets {
+		if strings.Contains(filepath.ToSlash(x.Path), "mixed/") {
+			t.Fatalf("excluded-to-empty folder must be dropped like an empty folder: %s", x.Path)
+		}
+	}
+	if strings.Contains(docContent(t, targets, "specs/index.md"), "mixed") {
+		t.Fatal("excluded-to-empty folder must not be a sub-domain row")
+	}
+}
+
+func TestDocsIndexExcludeValidationNamesField(t *testing.T) {
+	repo := t.TempDir()
+	c := specsRoot()
+	c.Exclude = []string{"/abs/**"}
+	if _, _, err := GatherRoot(repo, filepath.Join(repo, "fab"), c, false); err == nil || !strings.Contains(err.Error(), "docs_index.roots.exclude") {
+		t.Fatalf("want error naming docs_index.roots.exclude, got %v", err)
+	}
+}
+
+func TestDocsIndexWidthCountsNonMarkdown(t *testing.T) {
+	repo := t.TempDir()
+	c := specsRoot()
+	for i := 0; i < WidthWarnThreshold+1; i++ {
+		docWrite(t, repo, fmt.Sprintf("docs/specs/wide/f%02d.png", i), "x")
+	}
+	_, w := docGather(t, repo, c)
+	found := false
+	for _, x := range w {
+		if x.Kind == KindWidth && strings.HasSuffix(x.Path, "wide") && x.Count == WidthWarnThreshold+1 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("width advisory must count non-markdown topics: %+v", w)
+	}
+}
+
+func TestDocsIndexFKFWarningsSkipNonMarkdown(t *testing.T) {
+	repo := t.TempDir()
+	c := specsRoot()
+	c.Log = true
+	docWrite(t, repo, "docs/specs/x.md", "# X\n")
+	docWrite(t, repo, "docs/specs/y.pdf", "%PDF-1.7 fake")
+	_, w := docGather(t, repo, c)
+	for _, x := range w {
+		if strings.HasSuffix(x.Path, ".pdf") {
+			t.Fatalf("frontmatter/FKF machinery must not run on non-markdown topics: %+v", x)
+		}
+	}
+	missingMD := false
+	for _, x := range w {
+		if x.Kind == KindMissingDescription && strings.HasSuffix(x.Path, "x.md") {
+			missingMD = true
+		}
+	}
+	if !missingMD {
+		t.Fatalf("markdown advisory lost: %+v", w)
+	}
+}
+
+// --- The manual block (R9/R10/R11/R12) ---------------------------------------
+
+func TestDocsIndexLegacyCuratedBlockReadsAsManual(t *testing.T) {
+	repo := t.TempDir()
+	c := specsRoot()
+	old := "# Specs\n\n> **Generated by `fab docs-index`** — do not hand-edit.\n\n" +
+		legacyCuratedStart + "\n| [App](app.md) | Hand routing |\n| [Other](other.md) | Also hand |\n" + legacyCuratedEnd +
+		"\n\n| File | Description |\n|---|---|\n| [app](app.md) | — |\n| [other](other.md) | — |\n"
+	docWrite(t, repo, "docs/specs/index.md", old)
+	docWrite(t, repo, "docs/specs/app.md", "# App\n")
+	docWrite(t, repo, "docs/specs/other.md", "# Other\n")
+	targets, _ := docGather(t, repo, c)
+	body := docContent(t, targets, "specs/index.md")
+	if strings.Contains(body, "docs-index:curated") {
+		t.Fatalf("only the manual spelling is written:\n%s", body)
+	}
+	if !strings.Contains(body, manualStart) || !strings.Contains(body, "Hand routing") || !strings.Contains(body, "Also hand") {
+		t.Fatalf("legacy block rows must survive the rename:\n%s", body)
+	}
+	// The rename alone is benign drift (tier 1), never tier 2.
+	report := Classify([]CheckTarget{{Path: "docs/specs/index.md", Existing: old, Rendered: body, IsRoot: true}},
+		func(p string) bool { _, e := os.Stat(filepath.Join(repo, "docs/specs", p)); return e == nil })
+	if report.Tier != TierBenignDrift {
+		t.Fatalf("rename-only drift must be tier 1: %+v", report)
+	}
+	docIdempotent(t, repo, c, targets)
+}
+
+func TestDocsIndexManualBlockAlwaysEmitted(t *testing.T) {
+	repo := t.TempDir()
+	c := specsRoot()
+	c.AlsoAccept = []string{"README.md"}
+	docWrite(t, repo, "docs/specs/README.md", "# Specs\n\nHuman prose.\n")
+	docWrite(t, repo, "docs/specs/topic.md", "# Topic\n")
+	docWrite(t, repo, "docs/specs/sub/note.md", "# Note\n")
+	targets, _ := docGather(t, repo, c)
+	// The alternate landing is already a hand-managed region outside its
+	// generated block — no manual markers there.
+	alt := docContent(t, targets, "specs/README.md")
+	if strings.Contains(alt, manualStart) || strings.Contains(alt, "docs-index:manual") {
+		t.Fatalf("alternate landings never carry the manual block:\n%s", alt)
+	}
+	// Primary landings (domain and sub-domain) carry the seeded block between
+	// the header note and the first table.
+	for _, suffix := range []string{"sub/index.md"} {
+		body := docContent(t, targets, suffix)
+		if !strings.Contains(body, manualStart) || !strings.Contains(body, manualBlockSeed) {
+			t.Fatalf("primary landing must carry the seeded block:\n%s", body)
+		}
+		if strings.Index(body, "preserved verbatim.\n") > strings.Index(body, manualStart) || strings.Index(body, manualEnd) > strings.Index(body, "| File |") {
+			t.Fatalf("block must sit between the header note and the first table:\n%s", body)
+		}
+	}
+	docIdempotent(t, repo, c, targets)
+}
+
+func TestDocsIndexManualBlockLegacyMemoryRoot(t *testing.T) {
+	repo := t.TempDir()
+	c := config.DefaultDocsIndexRoots()[0]
+	docWrite(t, repo, "docs/memory/auth/login.md", "# Login\n")
+	targets, _ := docGather(t, repo, c)
+	root := docContent(t, targets, "memory/index.md")
+	if !strings.Contains(root, manualStart) || !strings.Contains(root, manualBlockSeed) {
+		t.Fatalf("legacy memory root must carry the seeded block:\n%s", root)
+	}
+	// The Constitution VI sense of "human-curated" stays.
+	if !strings.Contains(root, "human-curated") {
+		t.Fatalf("the specs-are-human-curated preamble sentence stays:\n%s", root)
+	}
+	domain := docContent(t, targets, "auth/index.md")
+	if !strings.Contains(domain, manualStart) || strings.Contains(domain, "curated") {
+		t.Fatalf("domain landing must carry the block and drop block-sense 'curated':\n%s", domain)
+	}
+	docIdempotent(t, repo, c, targets)
+}
+
+func TestDocsIndexManualBlockContentPreservedVerbatim(t *testing.T) {
+	repo := t.TempDir()
+	c := specsRoot()
+	block := manualStart + "\nCustom prose, no comment.\n\n| [Extra](https://example.com) | External |\n" + manualEnd
+	docWrite(t, repo, "docs/specs/index.md", "# Specs\n\n"+block+"\n")
+	docWrite(t, repo, "docs/specs/topic.md", "# Topic\n")
+	targets, _ := docGather(t, repo, c)
+	body := docContent(t, targets, "specs/index.md")
+	if !strings.Contains(body, "Custom prose, no comment.") || !strings.Contains(body, "| [Extra](https://example.com) | External |") {
+		t.Fatalf("existing block content must pass through verbatim:\n%s", body)
+	}
+	if strings.Contains(body, manualBlockSeed) {
+		t.Fatalf("the comment is content, not scaffolding — never re-emitted into an existing block:\n%s", body)
+	}
+	docIdempotent(t, repo, c, targets)
+}
+
+func TestDocsIndexManualRowDescriptionFollowsSource(t *testing.T) {
+	repo := t.TempDir()
+	c := specsRoot()
+	docWrite(t, repo, "docs/specs/index.md", "# S\n\n"+manualStart+"\n| [Arch](arch.html) | Hand-written |\n"+manualEnd+"\n")
+	docWrite(t, repo, "docs/specs/arch.html", "<head><title>Arch</title></head>")
+	targets, _ := docGather(t, repo, c)
+	body := docContent(t, targets, "specs/index.md")
+	// The generated description is —, so the hand-written one is kept and the
+	// generated duplicate row is removed (the target appears once).
+	if !strings.Contains(body, "| [Arch](arch.html) | Hand-written |") || strings.Count(body, "(arch.html)") != 1 {
+		t.Fatalf("manual row keeps its hand-written description when the source has none:\n%s", body)
+	}
+	// A non-— generated description replaces the manual row's description.
+	docWrite(t, repo, "docs/specs/arch.html", "<head><title>Arch</title><meta name=\"description\" content=\"From meta\"></head>")
+	targets, _ = docGather(t, repo, c)
+	body = docContent(t, targets, "specs/index.md")
+	if !strings.Contains(body, "| [Arch](arch.html) | From meta |") {
+		t.Fatalf("manual row description must follow a source that supplies one:\n%s", body)
+	}
+}
+
+func TestDocsIndexHeaderProse(t *testing.T) {
+	repo := t.TempDir()
+	c := specsRoot()
+	docWrite(t, repo, "docs/specs/area/topic.md", "# Topic\n")
+	targets, _ := docGather(t, repo, c)
+	root := docContent(t, targets, "specs/index.md")
+	if !strings.Contains(root, "> **Generated by `fab docs-index`**") {
+		t.Fatalf("the Generated-by prefix must survive (insertNavNote/supersededCleanup anchor):\n%s", root)
+	}
+	for _, want := range []string{"don't edit it, re-run the command", "edit it, it is preserved verbatim"} {
+		if !strings.Contains(root, want) {
+			t.Fatalf("header must carry both opposite-verb sentences (%s):\n%s", want, root)
+		}
+	}
+	for _, gone := range []string{"do not hand-edit", "Descriptions come from", "curated"} {
+		if strings.Contains(root, gone) {
+			t.Fatalf("stale header wording %q:\n%s", gone, root)
+		}
+	}
+	docIdempotent(t, repo, c, targets)
 }
