@@ -20,11 +20,7 @@ const (
 // CREATES a manual block. An existing block's content is preserved verbatim —
 // the comment is content the adoption loop passes through, not scaffolding
 // re-emitted every run.
-const manualBlockSeed = "<!-- Hand-managed; preserved verbatim on regeneration. Add rows the generator\n" +
-	"     cannot produce: non-markdown files' descriptions (HTML, PDF), external links,\n" +
-	"     custom groupings. A row for a file the walker also indexes keeps its place and\n" +
-	"     label here, but its description follows that file's frontmatter. A row\n" +
-	"     whose target no longer exists is flagged by `fab docs-index --check`. -->"
+const manualBlockSeed = "<!-- Hand-managed rows (non-markdown descriptions, external links, groupings) — preserved verbatim. -->"
 
 // manualNavigation finds the hand-managed navigation in an existing landing:
 // the explicit block (either spelling — manual first, then the legacy curated

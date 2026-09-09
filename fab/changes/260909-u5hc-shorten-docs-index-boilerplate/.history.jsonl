@@ -1,0 +1,9 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-09T11:29:02Z"}
+{"args":"Shorten the fab docs-index generated header note and the manual-block seed comment to one line each — the 2.24.5 output is too verbose (4-line blockquote + 5-line HTML comment on every landing)","cmd":"fab-new","event":"command","ts":"2026-09-09T11:29:02Z"}
+{"delta":"+5.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-09-09T11:30:09Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-09T11:30:19Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-09T11:30:19Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-09T11:33:28Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-09T11:36:58Z"}
+{"event":"review","result":"passed","ts":"2026-09-09T11:36:58Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-09T11:37:51Z"}

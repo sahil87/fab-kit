@@ -1,0 +1,55 @@
+id: u5hc
+name: 260909-u5hc-shorten-docs-index-boilerplate
+created: 2026-09-09T11:29:02Z
+created_by: sahil87
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 4
+    acceptance_count: 14
+    acceptance_completed: 14
+confidence:
+    certain: 6
+    confident: 1
+    tentative: 0
+    unresolved: 0
+    score: 5.0
+    fuzzy: true
+    dimensions:
+        signal: 77.1
+        reversibility: 86.4
+        competence: 89.3
+        disambiguation: 84.3
+stage_metrics:
+    intake: {started_at: "2026-09-09T11:29:02Z", driver: fab-new, iterations: 1, completed_at: "2026-09-09T11:30:19Z"}
+    apply: {started_at: "2026-09-09T11:30:19Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-09T11:33:28Z"}
+    review: {started_at: "2026-09-09T11:33:28Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-09T11:36:58Z"}
+    hydrate: {started_at: "2026-09-09T11:36:58Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-09T11:37:51Z"}
+    ship: {started_at: "2026-09-09T11:37:51Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-09-09T11:37:51Z"
+    computed_at_stage: hydrate
+summary: Shortened the docs-index generated header note and manual-block seed comment to one line each; regenerated this repo's 8 landings
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-09-09T11:37:51Z
