@@ -43,3 +43,31 @@ func TestDocsIndexRoots(t *testing.T) {
 		})
 	}
 }
+
+// TestDocsIndexRootNavNotePresence pins nav_note's presence=intent contract:
+// absent → nil (built-in default), `nav_note: ""` → non-nil pointer to ""
+// (omit), set → pointer to the value (render verbatim).
+func TestDocsIndexRootNavNotePresence(t *testing.T) {
+	parse := func(t *testing.T, y string) DocsIndexRoot {
+		t.Helper()
+		var c Config
+		if err := yaml.Unmarshal([]byte(y), &c); err != nil {
+			t.Fatal(err)
+		}
+		roots, err := c.GetDocsIndexRoots()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return roots[0]
+	}
+
+	if r := parse(t, "docs_index: {roots: [{path: docs/specs}]}"); r.NavNote != nil {
+		t.Errorf("absent nav_note must stay nil, got %q", *r.NavNote)
+	}
+	if r := parse(t, `docs_index: {roots: [{path: docs/specs, nav_note: ""}]}`); r.NavNote == nil || *r.NavNote != "" {
+		t.Errorf("empty nav_note must be a non-nil pointer to \"\", got %v", r.NavNote)
+	}
+	if r := parse(t, "docs_index: {roots: [{path: docs/specs, nav_note: '> See the [Guide](../guide.md)'}]}"); r.NavNote == nil || *r.NavNote != "> See the [Guide](../guide.md)" {
+		t.Errorf("set nav_note must round-trip verbatim, got %v", r.NavNote)
+	}
+}

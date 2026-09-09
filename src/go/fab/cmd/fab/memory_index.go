@@ -25,7 +25,8 @@ func newDocsIndexCmd(alias bool) *cobra.Command {
 		Long: `Regenerates every docs_index.roots entry, or one configured positional root.
 Without configuration, processes docs/memory with index.md, log:true, max_depth:3.
 Each root supports path, index_file (index.md), also_accept ([]), log (false),
-max_depth (3), and superseded ([] glob patterns). Traversal has arbitrary depth;
+max_depth (3), superseded ([] glob patterns), and nav_note (unset — the root
+landing's navigation note: empty omits it, non-empty renders verbatim). Traversal has arbitrary depth;
 max_depth and missing descriptions are advisory warnings, never hard failures.
 A missing description uses the file H1 and —, never invented text. The legacy
 memory format retains filename-stem labels to preserve zero-config bytes.

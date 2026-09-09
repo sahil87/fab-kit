@@ -628,6 +628,20 @@ func TestConfigExplainVisibleAliasAndKeyedSelection(t *testing.T) {
 	}
 }
 
+// TestConfigExplainDocsIndexRootsNavNote pins the docs_index.roots explain
+// metadata describing nav_note with its unset/empty/set semantics.
+func TestConfigExplainDocsIndexRootsNavNote(t *testing.T) {
+	out, err := configref.RenderJSONKey("docs_index.roots")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"nav_note", "empty string", "verbatim"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("config explain docs_index.roots --json must mention %q\n--- got ---\n%s", want, out)
+		}
+	}
+}
+
 // TestConfigReferenceMentionsCommandPlaceholders guards that the reference's
 // providers block documents the optional {model}/{effort} placeholders (the codex
 // example command carries them, showing template-substitution mode).

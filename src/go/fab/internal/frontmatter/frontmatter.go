@@ -1,6 +1,7 @@
 package frontmatter
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
@@ -8,8 +9,11 @@ import (
 
 // Field extracts a named field from YAML frontmatter (between --- markers)
 // at the start of a file. It handles quoted and unquoted values and strips
-// inline comments. Returns empty string if the field is not found, the file
-// has no frontmatter, or the file cannot be read.
+// inline comments. A double-quoted value that parses as a Go quoted literal
+// (the `%q` write shape) is unescaped, so read inverts write for generator
+// round-trips; one that does not parse keeps the outer-quote strip only.
+// Returns empty string if the field is not found, the file has no
+// frontmatter, or the file cannot be read.
 func Field(filePath, fieldName string) string {
 	fileLines, err := lines.ReadFileLines(filePath)
 	if err != nil {
@@ -38,7 +42,16 @@ func Field(filePath, fieldName string) string {
 		// Strip inline comments (not inside quotes)
 		value = stripInlineComment(value)
 
-		// Strip surrounding quotes
+		// Strip surrounding quotes. A double-quoted value that is a valid Go
+		// quoted literal (the shape `%q` writers emit, e.g. the docs-index
+		// description round-trip) is unescaped via strconv.Unquote so that read
+		// inverts write; anything else falls back to the plain outer-quote
+		// strip, so hand-authored YAML keeps the previous semantics.
+		if len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"' {
+			if unquoted, err := strconv.Unquote(value); err == nil {
+				return unquoted
+			}
+		}
 		value = stripQuotes(value)
 
 		return value

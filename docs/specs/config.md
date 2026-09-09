@@ -726,6 +726,7 @@ Explicit entries replace the implicit list. Each entry has:
 | `log` | `false` | Enable memory-shaped FKF logs, seeds, metadata, reserved domains and description escalations |
 | `max_depth` | `3` | Advisory nesting bound; traversal always recurses to arbitrary depth |
 | `superseded` | `[]` | Root-relative shell globs with recursive `**`; historical folders get pointer/count summaries and an immediate-child index, individual files fold into their folder's count |
+| `nav_note` | unset | Root-landing navigation note (free-text markdown). Unset: the legacy `docs/memory` root renders its built-in "New here?" line, generic roots render nothing. Empty string: omit the line. Non-empty: render verbatim on the root landing |
 
 For specs, append an entry such as:
 

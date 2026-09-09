@@ -1,6 +1,7 @@
 package frontmatter
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -109,6 +110,43 @@ description: 'Single quoted value'
 
 	if got := Field(path, "description"); got != "Single quoted value" {
 		t.Errorf("Field(description) = %q, want %q", got, "Single quoted value")
+	}
+}
+
+// TestField_DescriptionRoundTrip pins read(write(x)) == x for the docs-index
+// description pipeline: a value written with %q (Go quoting) must come back
+// byte-identical, so a folder index's `description:` stops doubling its
+// escapes on every regeneration. The corpus is adversarial on purpose —
+// interior double quotes, a single quote, backslashes, non-ASCII, a 500-char
+// value, both quote kinds, and an already-runaway value (accumulated
+// backslashes) that must round-trip stably (converge, not self-heal).
+func TestField_DescriptionRoundTrip(t *testing.T) {
+	corpus := []string{
+		`he said "hi"`,
+		"it's",
+		`back\slash`,
+		`<Button variant="ghost"/>`,
+		"emoji → ✅",
+		strings.Repeat("x", 500),
+		`he said "hi" and it's fine`,
+		`Sub with an escaped \\"quoted\\" phrase`,
+	}
+	for _, v := range corpus {
+		path := writeTestFile(t, fmt.Sprintf("---\ndescription: %q\n---\n", v))
+		if got := Field(path, "description"); got != v {
+			t.Errorf("round-trip of %q returned %q", v, got)
+		}
+	}
+}
+
+// TestField_InvalidEscapeFallsBack: a double-quoted value that is not a valid
+// Go quoted literal (hand-authored YAML) keeps the previous outer-quote-strip
+// semantics — no unescaping, no error.
+func TestField_InvalidEscapeFallsBack(t *testing.T) {
+	path := writeTestFile(t, "---\ndescription: \"bad \\escape\"\n---\n# Body\n")
+
+	if got := Field(path, "description"); got != `bad \escape` {
+		t.Errorf("Field(description) = %q, want %q (fallback strip)", got, `bad \escape`)
 	}
 }
 
