@@ -552,9 +552,9 @@ func TestDocsIndexHTMLRows(t *testing.T) {
 	body := docContent(t, targets, "specs/index.md")
 	for _, want := range []string{
 		"| [Left & Right](page.html) | Panel rewrite |",
-		"| [Bare page](bare.html) | — |",          // title is never a description
-		`| [A \| B](pipe.html) | — |`,            // table-cell escaping on an HTML label
-		"| [upper.HTM](upper.HTM) | — |",          // .HTM treated as HTML; empty/absent title falls back to the filename
+		"| [Bare page](bare.html) | — |", // title is never a description
+		`| [A \| B](pipe.html) | — |`,    // table-cell escaping on an HTML label
+		"| [upper.HTM](upper.HTM) | — |", // .HTM treated as HTML; empty/absent title falls back to the filename
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("missing %s:\n%s", want, body)

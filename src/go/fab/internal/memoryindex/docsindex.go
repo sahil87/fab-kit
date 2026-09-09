@@ -175,6 +175,7 @@ func (w *docWalk) landing(dir string) string {
 	}
 	return w.cfg.IndexFile
 }
+
 // isTopic reports whether a directory entry name is an indexable topic file:
 // every regular file is a row except the landing filenames, the log/seed files
 // on log:true roots, and dotfiles. The per-root exclude globs are applied by
