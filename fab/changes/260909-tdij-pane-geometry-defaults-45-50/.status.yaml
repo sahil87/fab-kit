@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 5
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-09-09T06:23:03Z", driver: fab-fff, iterations: 2, completed_at: "2026-09-09T06:25:46Z"}
     hydrate: {started_at: "2026-09-09T06:25:46Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-09T06:26:48Z"}
     ship: {started_at: "2026-09-09T06:26:48Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-09T06:28:59Z"}
-    review-pr: {started_at: "2026-09-09T06:28:59Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-09-09T06:28:59Z", driver: git-pr, iterations: 1, completed_at: "2026-09-09T06:34:43Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/657
 change_type_source: explicit
@@ -54,4 +54,4 @@ true_impact:
     computed_at_stage: ship
 summary: 'Raised default dispatch.column_width to 45% and lowered the min_cols floor to 50 so 120-column tmux windows enter pane mode (smallest splitting window: 112 cols); value-only sweep, zero Go logic change'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-09-09T06:28:59Z
+last_updated: 2026-09-09T06:34:43Z
