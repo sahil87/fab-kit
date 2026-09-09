@@ -17,12 +17,9 @@ type DocsIndexRoot struct {
 	Log        bool     `yaml:"log" json:"log"`
 	MaxDepth   int      `yaml:"max_depth" json:"max_depth"`
 	Superseded []string `yaml:"superseded,omitempty" json:"superseded,omitempty"`
-	// NavNote is the root landing's navigation note (free-text markdown).
-	// Presence is intent: nil renders the built-in default (the legacy "New
-	// here?" line on the legacy memory root, nothing on a generic root), a
-	// pointer to "" omits the line, and a pointer to non-empty renders the
-	// value verbatim.
-	NavNote *string `yaml:"nav_note,omitempty" json:"nav_note,omitempty"`
+	// NavNote is the root landing's navigation note (free-text markdown):
+	// empty renders nothing, non-empty renders verbatim on the root landing.
+	NavNote string `yaml:"nav_note,omitempty" json:"nav_note,omitempty"`
 }
 
 func DefaultDocsIndexRoots() []DocsIndexRoot {

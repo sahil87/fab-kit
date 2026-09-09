@@ -629,13 +629,13 @@ func TestConfigExplainVisibleAliasAndKeyedSelection(t *testing.T) {
 }
 
 // TestConfigExplainDocsIndexRootsNavNote pins the docs_index.roots explain
-// metadata describing nav_note with its unset/empty/set semantics.
+// metadata describing nav_note with its empty/set semantics.
 func TestConfigExplainDocsIndexRootsNavNote(t *testing.T) {
 	out, err := configref.RenderJSONKey("docs_index.roots")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"nav_note", "empty string", "verbatim"} {
+	for _, want := range []string{"nav_note", "renders nothing", "verbatim"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("config explain docs_index.roots --json must mention %q\n--- got ---\n%s", want, out)
 		}

@@ -43,29 +43,20 @@ func TestRenderRoot_MissingDescriptionDegrades(t *testing.T) {
 	}
 }
 
-// TestRenderRoot_NavNote covers the three nav_note states on the legacy
-// memory root: nil renders the legacy "New here?" line (zero drift for
-// standard layouts), a pointer to "" omits the line entirely, and a pointer
-// to a non-empty value renders it verbatim followed by a blank line.
+// TestRenderRoot_NavNote covers the two nav_note states on the legacy memory
+// root: empty (or unset) renders no nav line, and a non-empty value renders
+// verbatim followed by a blank line.
 func TestRenderRoot_NavNote(t *testing.T) {
 	d := RootData{Domains: []DomainRow{{Name: "auth", Description: "Auth"}}}
 
-	if got := RenderRoot(d); !strings.Contains(got, legacyNavNote) {
-		t.Errorf("unset nav_note must render the legacy line, got:\n%s", got)
-	}
-
-	empty := ""
-	if got := RenderRoot(RootData{Domains: d.Domains, NavNote: &empty}); strings.Contains(got, "New here?") {
-		t.Errorf("empty nav_note must omit the nav line, got:\n%s", got)
+	if got := RenderRoot(d); strings.Contains(got, "New here?") || strings.Contains(got, "glossary") {
+		t.Errorf("empty nav_note must render no nav line, got:\n%s", got)
 	}
 
 	custom := "> **New here?** See our [Guide](../guide.md)."
-	got := RenderRoot(RootData{Domains: d.Domains, NavNote: &custom})
+	got := RenderRoot(RootData{Domains: d.Domains, NavNote: custom})
 	if !strings.Contains(got, custom+"\n\n| Domain |") {
 		t.Errorf("set nav_note must render verbatim followed by a blank line, got:\n%s", got)
-	}
-	if strings.Contains(got, "../specs/glossary.md") {
-		t.Errorf("set nav_note must replace the legacy line, got:\n%s", got)
 	}
 }
 
