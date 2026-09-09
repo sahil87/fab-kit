@@ -1,5 +1,18 @@
 # Operator pulse plan — externally-owned heartbeat for the operator
 
+> **SUPERSEDED (2026-09-09).** The whole two-clock design below is superseded by
+> run-kit's cron substrate: spec `docs/specs/cron.md` and plan
+> `fab/plans/sahil/26-09-06-cron-clock-plan.md` (both in the run-kit repo).
+> Clock B (the `fab operator pulse` verb family) was superseded there from the
+> start and never built; fab-kit change `260909-6t88-retire-loop-cron-cadence`
+> retired Clock A (the in-session `/loop`), collapsing the operator to a single
+> rk-owned clock — the pinned operator-tick cron entry's union predicate.
+> Carried forward into the cron design: the OS-timer fallback and reboot
+> analysis (cron spec § The Model, invoker ladder), the guarded-delivery/TOCTOU
+> mechanics (run-kit's injection engine), and the sidecar precedent (the cron
+> state file location, `$XDG_STATE_HOME/run-kit/cron/<server-slug>.yaml`).
+> Kept below as historical record.
+
 > Plan doc — written 2026-09-03 from the dev-ws-sahil01 incident investigation
 > (a `/loop 3m "operator tick"` silently killed by an accidental Ctrl-C; the
 > session then asserted the loop was alive; three monitored workers ran

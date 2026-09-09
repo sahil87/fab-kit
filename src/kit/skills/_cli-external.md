@@ -1,6 +1,6 @@
 ---
 name: _cli-external
-description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, rk (run-kit), and /loop. Carries only fab-owned content (operator spawning choreography, the escalation rk-notify usage plus pointers to the operator's startup role self-mark and the rk-mux agent-messaging and pane peek/kill/process usage, the tmux/pane and /loop notes); each owned tool's usage knowledge is delegated to `<tool> skill` at use-time (`command -v`-gated fail-silent for all four owned binaries, with a version-skew fallback to the shll.ai bundle page), and its exhaustive command tree to `<tool> help-dump`. Loaded by operator skills only."
+description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, rk (run-kit), and /loop (fallback-scoped). Carries only fab-owned content (operator spawning choreography, the escalation rk-notify usage plus pointers to the operator's startup role self-mark and the rk-mux agent-messaging and pane peek/kill/process usage, the tmux/pane and /loop-fallback notes); each owned tool's usage knowledge is delegated to `<tool> skill` at use-time (`command -v`-gated fail-silent for all four owned binaries, with a version-skew fallback to the shll.ai bundle page), and its exhaustive command tree to `<tool> help-dump`. Loaded by operator skills only."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -18,7 +18,7 @@ metadata:
 - hop (Multi-Repo Navigator)
 - tmux
 - rk (run-kit)
-- /loop
+- /loop (fallback reference)
 
 ---
 
@@ -224,7 +224,7 @@ The fourth fab-owned rk usage — pane peek via `rk mux capture`, pane removal v
 
 ## /loop
 
-Recurring check skill — invokes a prompt at a regular interval.
+Recurring check skill — invokes a prompt at a regular interval. **Fallback-scoped:** `/loop` is no longer the operator's clock — it matters only as the operator's degraded fallback clock; the policy (when the fallback applies, who may run it, never alongside a live entry) is owned by `fab-operator.md` §4 Degraded Fallback and is not restated here.
 
 ### Usage
 
@@ -235,9 +235,9 @@ Recurring check skill — invokes a prompt at a regular interval.
 - **`<interval>`** — duration between ticks (e.g., `5m`, `2m`)
 - **`<prompt>`** — the instruction to execute on each tick
 
-`/loop` also has a self-paced (no-interval) mode in which the model hands a wakeup prompt back each tick; the operator's prompt rule (`fab-operator.md` §4 Loop Prompt) applies to that wakeup prompt too.
+`/loop` also has a self-paced (no-interval) mode in which the model hands a wakeup prompt back each tick; the operator's bare-prompt rule (`fab-operator.md` §4 Tick Payload) applies to that wakeup prompt too.
 
 ### Constraints
 
 - **One loop at a time** — there SHALL be at most one active `/loop` in a session; changing the interval means re-establishing *the* loop, never adding a second.
-- **Operator policy lives in `fab-operator.md` §4** — start/stop conditions, the `3m`/`90s` adaptive cadence, the autopilot composition, and the mandatory bare-text loop prompt (`operator tick`, never a slash command — § Loop Prompt). This file does not restate them.
+- **Operator policy lives in `fab-operator.md` §4** — the fallback's applicability conditions and the mandatory bare-text prompt (`operator tick`, never a slash command). This file does not restate them.
