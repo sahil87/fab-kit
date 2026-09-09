@@ -2,6 +2,7 @@ package pane
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -71,7 +72,16 @@ func WithServer(server string, args ...string) []string {
 // capture pattern for any subprocess (tmux, git, wt) so call sites stop
 // discarding the child's diagnostic.
 func RunCmd(name string, args ...string) (string, []byte, error) {
-	cmd := exec.Command(name, args...)
+	return RunCmdContext(context.Background(), name, args...)
+}
+
+// RunCmdContext is RunCmd with a caller-supplied context (via
+// exec.CommandContext) for callers that must bound the subprocess — a
+// deadline/cancel kills the child and surfaces as the returned error. The
+// capture shape is identical to RunCmd, which stays the unbounded default;
+// the policy (timeout value) belongs to the caller, not this package.
+func RunCmdContext(ctx context.Context, name string, args ...string) (string, []byte, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

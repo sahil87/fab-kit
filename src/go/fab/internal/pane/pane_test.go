@@ -1,6 +1,7 @@
 package pane
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -814,4 +815,30 @@ func TestCurrentCommand_Integration(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 		}
 	})
+}
+
+func TestRunCmdContext_DeadlineKillsChild(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, _, err := RunCmdContext(ctx, "sleep", "30")
+	if err == nil {
+		t.Fatal("RunCmdContext past-deadline sleep: err = nil, want non-nil")
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("RunCmdContext returned after %v, want within the deadline", elapsed)
+	}
+}
+
+func TestRunCmdContext_CapturesLikeRunCmd(t *testing.T) {
+	out, stderr, err := RunCmdContext(context.Background(), "sh", "-c", "printf out; printf err >&2")
+	if err != nil {
+		t.Fatalf("RunCmdContext: %v", err)
+	}
+	if out != "out" {
+		t.Errorf("stdout = %q, want %q", out, "out")
+	}
+	if string(stderr) != "err" {
+		t.Errorf("stderr = %q, want %q", stderr, "err")
+	}
 }

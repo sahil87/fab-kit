@@ -123,8 +123,22 @@ func saveOperatorState(path string, data map[string]interface{}) error {
 
 // mutateOperatorState is the read-modify-write skeleton every mutation verb
 // runs: load (tolerant) → fn applies typed edits → save (atomic). fn errors
-// abort without writing.
+// abort without writing. After a successful save it runs the clock side
+// effect (operator_clock.go): when the mutation flipped the tracked
+// predicate, the operator-tick cron entry is muted (tracked→untracked) or
+// unmuted (untracked→tracked) via `rk cron mute`. The side effect is
+// edge-triggered and fail-silent — an absent/failing rk never surfaces here,
+// never changes the verb's exit code or stdout, and a failed save issues no
+// rk call (the clock never diverges from a state that was not persisted).
 func mutateOperatorState(fn func(data map[string]interface{}) error) error {
+	return mutateOperatorStateClock(fn, true)
+}
+
+// mutateOperatorStateClock is mutateOperatorState with the clock side effect
+// switchable: tick-start --diff disables the edge trigger and runs the
+// level-wise reconcile instead (muteOperatorClockIfUntracked), so one
+// invocation never issues two mutes.
+func mutateOperatorStateClock(fn func(data map[string]interface{}) error, syncClock bool) error {
 	path, err := operatorStatePath()
 	if err != nil {
 		return err
@@ -133,10 +147,18 @@ func mutateOperatorState(fn func(data map[string]interface{}) error) error {
 	if err != nil {
 		return err
 	}
+	before := operatorTracked(data)
 	if err := fn(data); err != nil {
 		return err
 	}
-	return saveOperatorState(path, data)
+	after := operatorTracked(data)
+	if err := saveOperatorState(path, data); err != nil {
+		return err
+	}
+	if syncClock {
+		syncOperatorClock(before, after)
+	}
+	return nil
 }
 
 // operatorSection decodes an owned top-level section into its typed form

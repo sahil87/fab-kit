@@ -1,6 +1,6 @@
 ---
 name: _cli-external
-description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, rk (run-kit), and /loop (fallback-scoped). Carries only fab-owned content (operator spawning choreography, the escalation rk-notify usage plus pointers to the operator's startup role self-mark and the rk-mux agent-messaging and pane peek/kill/process usage, the tmux/pane and /loop-fallback notes); each owned tool's usage knowledge is delegated to `<tool> skill` at use-time (`command -v`-gated fail-silent for all four owned binaries, with a version-skew fallback to the shll.ai bundle page), and its exhaustive command tree to `<tool> help-dump`. Loaded by operator skills only."
+description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, rk (run-kit), and /loop (fallback-scoped). Carries only fab-owned content (operator spawning choreography, the escalation rk-notify usage plus pointers to the operator's startup role self-mark, the rk-mux agent-messaging and pane peek/kill/process usage, and the operator-clock mute/lease, the tmux/pane and /loop-fallback notes); each owned tool's usage knowledge is delegated to `<tool> skill` at use-time (`command -v`-gated fail-silent for all four owned binaries, with a version-skew fallback to the shll.ai bundle page), and its exhaustive command tree to `<tool> help-dump`. Loaded by operator skills only."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -219,6 +219,10 @@ The third fab-owned rk usage — agent messaging via `rk mux send`/`rk mux await
 ### Pane peek/kill/process (fab-owned — pointer)
 
 The fourth fab-owned rk usage — pane peek via `rk mux capture`, pane removal via the agent-state-gated `rk mux kill`, and process-tree inspection via `rk mux process`, each `command -v rk`-gated and fail-open to raw tmux when rk is absent — is owned by `_cli-agents.md` § Peek (the operator's per-tick question detection rides the mechanized `fab pane questions` sweep instead — `fab-operator.md` §5). The verbs' full contracts are tool-owned; see `rk skill`. fab's own `fab pane capture`/`kill`/`process` remain dispatch-internal for the rk-less pane arm (`_cli-fab.md` § fab pane).
+
+### Operator clock mute/lease (fab-owned — pointer)
+
+The fifth fab-owned rk usage — muting and unmuting the operator-tick cron entry (`rk cron mute <id>` / `--for <dur>` / `--off`) — is owned by `fab-operator.md` §4 Mute and Lease (the skill-side lease policy) and `_cli-fab.md` § fab operator (the Go-side tracked-set mute/unmute, in the shared **Clock side effect** paragraph). This file restates neither rule.
 
 ---
 
