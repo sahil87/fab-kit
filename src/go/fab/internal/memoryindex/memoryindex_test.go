@@ -43,6 +43,23 @@ func TestRenderRoot_MissingDescriptionDegrades(t *testing.T) {
 	}
 }
 
+// TestRenderRoot_NavNote covers the two nav_note states on the legacy memory
+// root: empty (or unset) renders no nav line, and a non-empty value renders
+// verbatim followed by a blank line.
+func TestRenderRoot_NavNote(t *testing.T) {
+	d := RootData{Domains: []DomainRow{{Name: "auth", Description: "Auth"}}}
+
+	if got := RenderRoot(d); strings.Contains(got, "New here?") || strings.Contains(got, "glossary") {
+		t.Errorf("empty nav_note must render no nav line, got:\n%s", got)
+	}
+
+	custom := "> **New here?** See our [Guide](../guide.md)."
+	got := RenderRoot(RootData{Domains: d.Domains, NavNote: custom})
+	if !strings.Contains(got, custom+"\n\n| Domain |") {
+		t.Errorf("set nav_note must render verbatim followed by a blank line, got:\n%s", got)
+	}
+}
+
 func TestRenderDomain_FileRows(t *testing.T) {
 	got := RenderDomain(DomainData{
 		Name:  "auth",

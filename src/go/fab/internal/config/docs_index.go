@@ -17,6 +17,9 @@ type DocsIndexRoot struct {
 	Log        bool     `yaml:"log" json:"log"`
 	MaxDepth   int      `yaml:"max_depth" json:"max_depth"`
 	Superseded []string `yaml:"superseded,omitempty" json:"superseded,omitempty"`
+	// NavNote is the root landing's navigation note (free-text markdown):
+	// empty renders nothing, non-empty renders verbatim on the root landing.
+	NavNote string `yaml:"nav_note,omitempty" json:"nav_note,omitempty"`
 }
 
 func DefaultDocsIndexRoots() []DocsIndexRoot {

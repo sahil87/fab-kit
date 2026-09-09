@@ -43,3 +43,31 @@ func TestDocsIndexRoots(t *testing.T) {
 		})
 	}
 }
+
+// TestDocsIndexRootNavNotePresence pins nav_note's contract: absent and
+// `nav_note: ""` are both the empty string (render nothing), set round-trips
+// verbatim (render verbatim).
+func TestDocsIndexRootNavNotePresence(t *testing.T) {
+	parse := func(t *testing.T, y string) DocsIndexRoot {
+		t.Helper()
+		var c Config
+		if err := yaml.Unmarshal([]byte(y), &c); err != nil {
+			t.Fatal(err)
+		}
+		roots, err := c.GetDocsIndexRoots()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return roots[0]
+	}
+
+	if r := parse(t, "docs_index: {roots: [{path: docs/specs}]}"); r.NavNote != "" {
+		t.Errorf("absent nav_note must be empty, got %q", r.NavNote)
+	}
+	if r := parse(t, `docs_index: {roots: [{path: docs/specs, nav_note: ""}]}`); r.NavNote != "" {
+		t.Errorf("empty nav_note must be empty, got %q", r.NavNote)
+	}
+	if r := parse(t, "docs_index: {roots: [{path: docs/specs, nav_note: '> See the [Guide](../guide.md)'}]}"); r.NavNote != "> See the [Guide](../guide.md)" {
+		t.Errorf("set nav_note must round-trip verbatim, got %q", r.NavNote)
+	}
+}
