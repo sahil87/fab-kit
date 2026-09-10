@@ -48,7 +48,7 @@
 <!-- These are must-fix unless noted. They encode the constitution's Additional
      Constraints and the recurring rework causes for this repo. -->
 
-- **CLI ⇒ docs + tests** — a change to the `fab` Go binary's command signatures MUST update `src/kit/skills/_cli-fab.md` and include corresponding test updates.
+- **CLI ⇒ docs + tests** — a change to the `fab` Go binary's command signatures MUST update the CLI reference partial that owns the command's family — `src/kit/skills/_cli-fab.md` (core), `_cli-fab-pane.md` (`fab pane`, `fab dispatch`) or `_cli-fab-operator.md` (`fab operator`, `fab agent`) — and include corresponding test updates.
 - **Canonical source only** — flag any edit under `.agents/skills/` (always deployed) or `.claude/skills/` (deployed when `claude` is available by `fab sync`, ignored via the generated per-target manifest); kit changes belong in `src/kit/`.
 - **Migrations for user-data restructuring** — changes touching config/`.status.yaml`/archive layout MUST ship a `src/kit/migrations/` file, not an ad-hoc script.
 - **Go changes ship tests** — a `.go` change without accompanying test updates is a must-fix gap; tests conform to the spec, never the reverse (Constitution VII).

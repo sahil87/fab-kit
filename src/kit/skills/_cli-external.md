@@ -1,6 +1,6 @@
 ---
 name: _cli-external
-description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, rk (run-kit), and /loop (fallback-scoped). Carries only fab-owned content (operator spawning choreography, the escalation rk-notify usage plus pointers to the operator's startup role self-mark, the rk-mux agent-messaging and pane peek/kill/process usage, and the operator-clock mute/lease, the tmux/pane and /loop-fallback notes); each owned tool's usage knowledge is delegated to `<tool> skill` at use-time (`command -v`-gated fail-silent for all four owned binaries, with a version-skew fallback to the shll.ai bundle page), and its exhaustive command tree to `<tool> help-dump`. Loaded by operator skills only."
+description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, and rk (run-kit). Carries only fab-owned content (operator spawning choreography, the escalation rk-notify usage plus pointers to the operator's startup role self-mark, the rk-mux agent-messaging and pane peek/kill/process usage, the operator-clock mute/lease, and the tmux/pane notes); each owned tool's usage knowledge is delegated to `<tool> skill` at use-time (`command -v`-gated fail-silent for all four owned binaries, with a version-skew fallback to the shll.ai bundle page), and its exhaustive command tree to `<tool> help-dump`. Loaded by operator skills only."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -18,7 +18,6 @@ metadata:
 - hop (Multi-Repo Navigator)
 - tmux
 - rk (run-kit)
-- /loop (fallback reference)
 
 ---
 
@@ -179,9 +178,9 @@ Terminal multiplexer commands used by the operator for agent observation and int
 
 ### Usage Notes
 
-- **Pane mapping across sessions**: The operator's tick snapshots **all** sessions on its tmux server internally via `fab operator tick-start --diff` (see `_cli-fab.md` § fab operator tick-start), not just the operator's own session; `fab pane map --all-sessions --json` remains the on-demand surface. The snapshot rows carry a per-row `repo` field (the pane's absolute main-worktree root, `null` when unresolved) used to group the full status frame by repo then session.
-- **Pane capture**: Prefer `rk mux capture` when rk is present (`command -v rk`-gated; substrate-enriched capture — last-N tail, `--raw`/`--json`, reconciled agent state). When rk is absent, fail open to raw `tmux capture-pane -p -t <pane>` — never an error. Usage ownership is in `_cli-agents.md` § Peek. (`fab pane capture` is dispatch-internal — kept for the rk-less pane arm; see `_cli-fab.md` § fab pane.)
-- **Send keys**: Prefer `rk mux send` when rk is present (`command -v rk`-gated; it carries built-in pane-existence and agent-state validation with probe-verified delivery). When rk is absent, fail open to raw `tmux send-keys` behind the caller's own state read (`fab pane map`) plus the manual delivery probe — never an error. Usage ownership for both paths is in `_cli-agents.md` § Pre-Send Validation and `fab-operator.md` §3/§5.
+- **Pane mapping across sessions**: The operator's tick snapshots **all** sessions on its tmux server internally via `fab operator tick-start --diff` (see `_cli-fab-operator.md` § fab operator tick-start), not just the operator's own session; `fab pane map --all-sessions --json` remains the on-demand surface. The snapshot rows carry a per-row `repo` field (the pane's absolute main-worktree root, `null` when unresolved) used to group the full status frame by repo then session.
+- **Pane capture**: Use `rk mux capture` (substrate-enriched capture — last-N tail, `--raw`/`--json`, reconciled agent state). Usage ownership is in `_cli-agents.md` § Peek. (`fab pane capture` is dispatch-internal — kept for the rk-less pane arm; see `_cli-fab-pane.md` § fab pane.)
+- **Send keys**: Use `rk mux send` (it carries built-in pane-existence and agent-state validation with probe-verified delivery). Usage ownership is in `_cli-agents.md` § Pre-Send Validation and `fab-operator.md` §3/§5.
 - **`new-window`** is also how an agent session is spawned — the command form, quoting, the ambient-session `-t` caveat, and the one-prompt/no-`&&`-chaining rule are owned by `_cli-agents.md` § Spawn Composition ("Open it in a pane"); the interactive form there carries the shell fallback (`; exec "$SHELL"`) so the pane survives the agent's exit — the mechanism and scope rule are the owner's, not restated here. The operator's `»<wt>` window-marker name and its target-session derivation are its own policy, in `fab-operator.md` §6
 
 ---
@@ -200,13 +199,13 @@ The **dynamic** environment (current server URL, session, pane) stays in `rk con
 
 ### Operator escalation send (fab-owned)
 
-The operator's non-blocking Strategic escalation (`fab-operator.md` §5) uses `rk notify` as its default out-of-band notification send — the fab-specific usage (message/title template), gated on `command -v rk` and relying on run-kit's fail-silent-by-contract guarantee:
+The operator's non-blocking Strategic escalation (`fab-operator.md` §5) uses `rk notify` as its out-of-band notification send — the fab-specific usage (message/title template), relying on run-kit's fail-silent-by-contract guarantee:
 
 ```sh
-command -v rk >/dev/null 2>&1 && rk notify "{change}: {summary} ({repo})" --title "Operator: strategic question"
+rk notify "{change}: {summary} ({repo})" --title "Operator: strategic question"
 ```
 
-This is the operator's *usage* of the tool, not the `rk notify` contract itself (that is tool-owned — see `rk skill`). When `rk` is absent, the operator falls back to a documented alternative channel per `fab-operator.md` §5 Notification Send.
+This is the operator's *usage* of the tool, not the `rk notify` contract itself (that is tool-owned — see `rk skill`).
 
 ### Operator role self-mark (fab-owned — pointer)
 
@@ -214,34 +213,12 @@ The second fab-owned rk usage — the fail-silent `rk role operator` self-mark t
 
 ### Agent messaging (fab-owned — pointer)
 
-The third fab-owned rk usage — agent messaging via `rk mux send`/`rk mux await`, `command -v rk`-gated and fail-open to the raw-tmux path when rk is absent — is owned by `_cli-agents.md` § Pre-Send Validation / § Await and `fab-operator.md` §3/§5. The verbs' full contract (gate matrix, probe-verified delivery, report words) is tool-owned; see `rk skill`.
+The third fab-owned rk usage — agent messaging via `rk mux send`/`rk mux await` — is owned by `_cli-agents.md` § Pre-Send Validation / § Await and `fab-operator.md` §3/§5. The verbs' full contract (gate matrix, probe-verified delivery, report words) is tool-owned; see `rk skill`.
 
 ### Pane peek/kill/process (fab-owned — pointer)
 
-The fourth fab-owned rk usage — pane peek via `rk mux capture`, pane removal via the agent-state-gated `rk mux kill`, and process-tree inspection via `rk mux process`, each `command -v rk`-gated and fail-open to raw tmux when rk is absent — is owned by `_cli-agents.md` § Peek (the operator's per-tick question detection rides the mechanized `fab pane questions` sweep instead — `fab-operator.md` §5). The verbs' full contracts are tool-owned; see `rk skill`. fab's own `fab pane capture`/`kill`/`process` remain dispatch-internal for the rk-less pane arm (`_cli-fab.md` § fab pane).
+The fourth fab-owned rk usage — pane peek via `rk mux capture`, pane removal via the agent-state-gated `rk mux kill`, and process-tree inspection via `rk mux process` — is owned by `_cli-agents.md` § Peek (the operator's per-tick question detection rides the mechanized `fab pane questions` sweep instead — `fab-operator.md` §5). The verbs' full contracts are tool-owned; see `rk skill`. fab's own `fab pane capture`/`kill`/`process` remain dispatch-internal for the rk-less pane arm (`_cli-fab-pane.md` § fab pane).
 
 ### Operator clock mute/lease (fab-owned — pointer)
 
-The fifth fab-owned rk usage — muting and unmuting the operator-tick cron entry (`rk cron mute <id>` / `--for <dur>` / `--off`) — is owned by `fab-operator.md` §4 Mute and Lease (the skill-side lease policy) and `_cli-fab.md` § fab operator (the Go-side tracked-set mute/unmute, in the shared **Clock side effect** paragraph). This file restates neither rule.
-
----
-
-## /loop
-
-Recurring check skill — invokes a prompt at a regular interval. **Fallback-scoped:** `/loop` is no longer the operator's clock — it matters only as the operator's degraded fallback clock; the policy (when the fallback applies, who may run it, never alongside a live entry) is owned by `fab-operator.md` §4 Degraded Fallback and is not restated here.
-
-### Usage
-
-```
-/loop <interval> "<prompt>"
-```
-
-- **`<interval>`** — duration between ticks (e.g., `5m`, `2m`)
-- **`<prompt>`** — the instruction to execute on each tick
-
-`/loop` also has a self-paced (no-interval) mode in which the model hands a wakeup prompt back each tick; the operator's bare-prompt rule (`fab-operator.md` §4 Tick Payload) applies to that wakeup prompt too.
-
-### Constraints
-
-- **One loop at a time** — there SHALL be at most one active `/loop` in a session; changing the interval means re-establishing *the* loop, never adding a second.
-- **Operator policy lives in `fab-operator.md` §4** — the fallback's applicability conditions and the mandatory bare-text prompt (`operator tick`, never a slash command). This file does not restate them.
+The fifth fab-owned rk usage — muting and unmuting the operator-tick cron entry (`rk cron mute <id>` / `--for <dur>` / `--off`) — is owned by `fab-operator.md` §4 Mute and Lease (the skill-side lease policy) and `_cli-fab-operator.md` § fab operator (the Go-side tracked-set mute/unmute, in the shared **Clock side effect** paragraph). This file restates neither rule.

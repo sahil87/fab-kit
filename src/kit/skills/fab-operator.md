@@ -1,7 +1,7 @@
 ---
 name: fab-operator
 description: "Use when coordinating multiple fab agents across tmux panes — multi-agent monitoring, auto-answering prompts, routing commands, driving autopilot queues, and dependency-aware agent spawning."
-helpers: [_cli-agents, _cli-fab, _cli-external]
+helpers: [_cli-fab-operator, _cli-fab-pane, _cli-agents, _cli-external]
 ---
 
 # /fab-operator
@@ -21,9 +21,9 @@ helpers: [_cli-agents, _cli-fab, _cli-external]
 - 8. Configuration
 - 9. Key Properties
 
-Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across all sessions on its tmux server (per tick via `fab operator tick-start --diff --quiet`, on demand via `fab pane map --all-sessions`), routes commands and answers via `rk mux send` when rk is installed (`command -v rk`-gated — plain for command routing, `--answer` for prompt answers, `--key` for key-name input), degrading to raw `tmux send-keys` behind its own §3 state gate when rk is absent — never an error — and takes its cadence from run-kit's operator-tick cron entry, whose `operator tick` deliveries are the heartbeat (§4). Spans multiple repos and sessions on one server.
+Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across all sessions on its tmux server (per tick via `fab operator tick-start --diff --quiet`, on demand via `fab pane map --all-sessions`), routes commands and answers via `rk mux send` (plain for command routing, `--answer` for prompt answers, `--key` for key-name input), and takes its cadence from run-kit's operator-tick cron entry, whose `operator tick` deliveries are the heartbeat (§4). Spans multiple repos and sessions on one server.
 
-Start via `fab operator` (singleton tmux tab named `operator`). When a capable run-kit is on PATH, the bare command delegates the entire launch to `rk operator` (capability-probed, fail-open on absence — `_cli-fab.md` § fab operator owns the delegation contract); the built-in launcher below is the rk-absent fallback. That fallback requires **neither a git repo nor a resolvable `fab/` project** — matching the per-server, cross-repo singleton model, whose natural launch point is a neutral parent directory (e.g. `~/code`). Its exact degraded behavior (window cwd, session command, `operator`-role model resolution and built-in defaults) is documented in `_cli-fab.md` § fab operator and is the canonical §9 Key Properties rows below.
+Start via `fab operator` (singleton tmux tab named `operator`). When a capable run-kit is on PATH, the bare command delegates the entire launch to `rk operator`; the binary's built-in launcher is its fallback — its behavior (window cwd, session command, `operator`-role model resolution and built-in defaults) is documented in `_cli-fab-operator.md` § fab operator, the canonical source for the §9 Key Properties rows below.
 
 ---
 
@@ -32,7 +32,7 @@ Start via `fab operator` (singleton tmux tab named `operator`). When a capable r
 | Principle | Rule |
 |-----------|------|
 | Coordinate, don't execute | Route implementation to agents; ask when ambiguous. Perform only coordination-level maintenance such as merge, archive, and worktree deletion directly (§6). |
-| Multi-repo aware | Address every agent as `(session, repo, pane)` on one tmux server, with pane ID primary and every monitored/watch/`branch_map` entry repo-qualified; state is one server-keyed file (§4, §8, §9). `session` is a **display/context dimension, never a join key** — a monitored agent's session can change mid-lifetime (`move-window` relocation), so correlation rides the pane ID (§ fab pane map's identity-key contract in `_cli-fab.md`). |
+| Multi-repo aware | Address every agent as `(session, repo, pane)` on one tmux server, with pane ID primary and every monitored/watch/`branch_map` entry repo-qualified; state is one server-keyed file (§4, §8, §9). `session` is a **display/context dimension, never a join key** — a monitored agent's session can change mid-lifetime (`move-window` relocation), so correlation rides the pane ID (§ fab pane map's identity-key contract in `_cli-fab-pane.md`). |
 | Spawn in a worktree | Reserve the operator pane for coordination. Every pipeline command, including a one-line change, starts with `wt create --non-interactive` and runs in a fresh agent tab (§6). |
 | Automate the routine | Auto-answer, nudge, rebase, and spawn for routine operations; PR review is the safety net. Every operator-spawned agent is monitored automatically (§4–§7). |
 | Do not enforce lifecycle | Agents self-govern pipeline transitions; report unexpected stages factually (§4). |
@@ -49,7 +49,7 @@ Start via `fab operator` (singleton tmux tab named `operator`). When a capable r
 
 Load only `fab/project/config.yaml`, `fab/project/constitution.md`, and `fab/project/context.md` (optional — skip gracefully if missing). The operator is a listed exception to the `_preamble.md` §1 always-load layer: code-quality, code-review, and the doc indexes serve artifact generation and review, which the operator never does (§1 Context discipline) — and a long-lived session re-pays any loaded file after every reload (compaction, `/clear`, or restart — §4 Post-Compaction Reload). Do not run `fab preflight`. Do not load change artifacts.
 
-Helpers declared in frontmatter: `_cli-agents` (the generic agent-CLI interaction procedures — spawn composition, pre-send validation, delivery probe, peek, await — plus the per-provider grammar/discovery dictionary), `_cli-fab` (fab command reference), and `_cli-external` (wt, idea, tmux, /loop reference). Naming conventions are inlined in `_preamble.md` § Naming Conventions — already loaded.
+Helpers declared in frontmatter: `_cli-fab-operator` (operator/agent CLI reference), `_cli-fab-pane` (pane/dispatch CLI reference), `_cli-agents` (the generic agent-CLI interaction procedures — spawn composition, pre-send validation, delivery probe, peek, await — plus the per-provider grammar/discovery dictionary), and `_cli-external` (wt, idea, tmux reference). Naming conventions are inlined in `_preamble.md` § Naming Conventions — already loaded.
 
 The split between `_cli-agents` and this file is **agent primitives vs. operator orchestration**: `_cli-agents` owns *how* to talk to an agent CLI (the mechanics any session could reuse); this file owns *when and whether* to (confirmation tiers, retry budgets, repo targeting, enrollment, dependency resolution, autopilot).
 
@@ -69,15 +69,31 @@ If `$TMUX` is unset, STOP:
 Error: operator requires tmux. Start a tmux session first.
 ```
 
+### rk Gate
+
+The operator's clock, role mark, send gate, spawn readiness, and notifications are run-kit. Probe once here — no later call site is individually gated:
+
+```bash
+command -v rk >/dev/null 2>&1 && rk cron list --json >/dev/null 2>&1
+```
+
+If either half fails (rk absent, or an installed rk predating `rk cron` — the capability probe), STOP:
+
+```
+Error: the operator requires run-kit — brew install sahil87/tap/run-kit
+```
+
+This is the operator's deliberate exception to `_preamble.md` § Run-Kit (rk) Reference's fail-silent rule: that rule protects skills for which rk is an optional enhancement; for the operator rk is the substrate, so absence is a startup error, not a degradation.
+
 ### Role Mark
 
 Mark this tmux window as the operator for run-kit's dashboard (the `@rk_win_role` window option — rk owns the option contract, the pinned rendering, and the one-operator-per-server radio semantics; fab is only the producer):
 
 ```bash
-command -v rk >/dev/null 2>&1 && rk role operator >/dev/null 2>&1 || true
+rk role operator >/dev/null 2>&1 || true
 ```
 
-Fail-silent by contract (`_preamble.md` § Run-Kit (rk) Reference), extended to version skew: an absent rk, or an installed rk predating the `role` subcommand, degrades to a silent no-op — never an error, never a blocked startup. Idempotent: a restarted operator re-marks the same window harmlessly. There is no unmark step — the operator has no clean exit hook, and staleness and radio conflicts are rk's to resolve.
+Fail-silent by contract (`_preamble.md` § Run-Kit (rk) Reference): a role-mark failure is never startup-blocking. Idempotent: a restarted operator re-marks the same window harmlessly. There is no unmark step — the operator has no clean exit hook, and staleness and radio conflicts are rk's to resolve.
 
 ### wt Gate
 
@@ -91,20 +107,17 @@ This single preflight probe covers every later `wt create` call site; none is in
 
 ### Init
 
-1. Run `fab operator state` to read (or create, on first run) the server-keyed operator state file — the binary derives the path and persists the empty skeleton when missing; the operator never computes the path or hand-creates the file (`_cli-fab.md` § fab operator state). Old repo-rooted `.fab-operator.yaml` files are not read or migrated
+1. Run `fab operator state` to read (or create, on first run) the server-keyed operator state file — the binary derives the path and persists the empty skeleton when missing; the operator never computes the path or hand-creates the file (`_cli-fab-operator.md` § fab operator state). Old repo-rooted `.fab-operator.yaml` files are not read or migrated
 2. Restore monitored set, autopilot queue, branch_map, and notes from the file (this is what makes §4 Post-Compaction Reload lossless)
 3. Run `fab pane map --all-sessions` and display the output (all sessions on this server, not just the operator's own)
-4. Verify the clock — fail-silent, gated on `command -v rk`: run `rk cron list --json` and look for the operator-tick entry (the one `rk operator` seeds — §4 The Clock) and its mute state (`muted` is the effective state — an indefinite mute or a live lease; `muted_until`, unix seconds, is present only while a lease is live). When the entry is `muted` while `fab operator state` (step 1) shows tracked work — monitored entries, watches, an active autopilot, or an open `kind: coordination` note — issue `rk cron mute <id> --off` to unmute it (§4 Mute and Lease). Absent rk, a failing `rk cron list --json` (a pre-cron rk), or a missing entry is a degraded state, never an error. No loop is started — the entry (or the §4 Degraded Fallback) is the whole clock story
-5. Output the ready line **with the clock status** — the agent copies the literal later, never composes one:
+4. Verify the clock — the rk Gate already proved `rk cron list --json` works: read it and select the row whose `target` is `role:operator` — the operator-tick entry (the one `rk operator` seeds — §4 The Clock) — and read its `schedule_summary`, `deliver`, `muted`, and `muted_until` fields (`muted` is the effective state — an indefinite mute or a live lease; `muted_until`, unix seconds, is present only while a lease is live). When the entry is `muted` while `fab operator state` (step 1) shows tracked work — monitored entries, watches, an active autopilot, or an open `kind: coordination` note — issue `rk cron mute <id> --off` to unmute it (§4 Mute and Lease). A missing operator-tick entry after the gate passed STOPs: `Error: no operator-tick cron entry on this server — run rk operator to seed it`
+5. Output the ready line **with the clock status** — exactly one template, rendered from step 4's fields:
 
    ```
-   Operator ready. Clock: rk cron "operator tick" (backoff 60s–30m, wakes on agent-state-change)
-   Operator ready. Clock: rk cron "operator tick" (backoff 60s–30m, wakes on agent-state-change) · muted
-   Operator ready. Clock: rk cron "operator tick" (backoff 60s–30m, wakes on agent-state-change) · muted until <HH:MM>
-   Operator ready. Clock: none — run `rk operator` to seed the cron entry, or (Claude Code only) start the fallback: /loop 3m "operator tick"
+   Operator ready. Clock: rk cron "operator tick" · {schedule_summary} · {deliver}[ · muted[ until HH:MM]]
    ```
 
-   (first form when step 4 found the entry unmuted — or just unmuted it; the ` · muted` form when the entry is `muted` with no `muted_until`; the ` · muted until <HH:MM>` form when `muted_until` is present, rendered as local HH:MM; the `Clock: none` form when step 4 found no entry or rk is absent)
+   (`{schedule_summary}` and `{deliver}` are the JSON values verbatim; append ` · muted` when `muted` is true; append ` until HH:MM` — local time — when `muted_until` is present. Renders today as `Operator ready. Clock: rk cron "operator tick" · backoff 1m→30m · immediate`, or `… · immediate · muted until 14:30`. A missing entry STOPs per step 4 — there is no `Clock: none` form.)
 
 ---
 
@@ -125,7 +138,7 @@ This single preflight probe covers every later `wt create` call site; none is in
 Before sending keys to any pane, run the two-step gate in **`_cli-agents.md` § Pre-Send Validation** (pane exists via a refreshed pane map → agent state fits the send intent per the three-state `@rk_pane_agent_state` read — the same mode-aware gate `rk mux send` enforces), then apply the operator's own policy on its outcome plus the two operator-specific checks:
 
 1. **Pane gone** (gate step 1 fails) — report "Pane for {change} is gone." Do not send.
-2. **Agent not `idle`** (gate step 2) — the operator does **not** silently proceed. If `active` or `waiting`: "{change} is {state}. Sending may corrupt its work / cut across a pending human answer. Send anyway?" — send only on explicit confirmation, and keep the confirmed send gated: with rk installed (`command -v rk`), a `waiting` target rides `rk mux send --answer`, an `active` target requires `rk mux send --force` (the deliberate skip-everything override); with rk absent, the confirmed send is raw `tmux send-keys` behind the operator's own state gate just performed. If unknown (`—`, no `@rk_pane_agent_state` on the pane): the agent isn't instrumented; confirm before sending (plain send then warns-and-sends — no override needed). Only `idle` sends unattended. *(This routed-command confirm policy is unchanged by `--answer` — the flag swaps the mechanism after confirmation, not the ask; the auto-answer flow in §5 is the unattended `--answer` consumer.)*
+2. **Agent not `idle`** (gate step 2) — the operator does **not** silently proceed. If `active` or `waiting`: "{change} is {state}. Sending may corrupt its work / cut across a pending human answer. Send anyway?" — send only on explicit confirmation, and keep the confirmed send gated: a `waiting` target rides `rk mux send --answer`, an `active` target requires `rk mux send --force` (the deliberate skip-everything override). If unknown (`—`, no `@rk_pane_agent_state` on the pane): the agent isn't instrumented; confirm before sending (plain send then warns-and-sends — no override needed). Only `idle` sends unattended. *(This routed-command confirm policy is unchanged by `--answer` — the flag swaps the mechanism after confirmation, not the ask; the auto-answer flow in §5 is the unattended `--answer` consumer.)*
 3. **Check change is active** — if the target change isn't the active change in that tab, send the rendered `fab-switch` invocation with `<change>` first.
 4. **Check branch alignment** — if the tab's git branch doesn't match the change folder name, send the rendered `git-branch` invocation to align it.
 
@@ -147,7 +160,7 @@ When `fab resolve` fails during a **user-initiated** action (not monitoring tick
 | Stuck agent nudge | 1 | "{change} appears stuck at {stage}. Manual investigation recommended." |
 | Rebase conflict | 0 | Immediately flag to user |
 | Pane death | 0 | Report gone. Respawn only in autopilot (1 attempt) |
-| Agent exited (pane survives as a shell) | 0 | Report gone (pane kept, cwd intact). Respawn only in autopilot (1 attempt): kill the leftover shell pane first (`rk mux kill` when rk is installed — an uninstrumented/idle pane passes its gate — else `tmux kill-pane -t <pane>`), then spawn per §6 |
+| Agent exited (pane survives as a shell) | 0 | Report gone (pane kept, cwd intact). Respawn only in autopilot (1 attempt): kill the leftover shell pane first (`rk mux kill` — an uninstrumented/idle pane passes its gate), then spawn per §6 |
 | Send to busy agent | 0 | Warn, require explicit confirmation |
 | Cherry-pick conflict | 0 | Abort, log, escalate. Do not spawn. |
 
@@ -188,23 +201,19 @@ pinned: true
 
 ### Tick Payload
 
-A tick's text **MUST be the bare text `operator tick`** — never `/fab-operator` or any other slash command. The rule binds the cron entry's `payload`, any manually typed tick, and the fallback loop's prompt (§ Degraded Fallback below). Reason: a slash command macro-expands its full source into the turn on **every** firing — this file alone is ~21k tokens, so a `/fab-operator` payload re-pays the whole skill each tick and exhausts the context window in roughly ten ticks. The tick procedure (§4 Tick Behavior) is already in context; the payload only needs to *name* it.
+A tick's text **MUST be the bare text `operator tick`** — never `/fab-operator` or any other slash command. The rule binds the cron entry's `payload` and any manually typed tick. Reason: a slash command macro-expands its full source into the turn on **every** firing — this file alone is ~21k tokens, so a `/fab-operator` payload re-pays the whole skill each tick and exhausts the context window in roughly ten ticks. The tick procedure (§4 Tick Behavior) is already in context; the payload only needs to *name* it.
 
 Recovery when this procedure is no longer in context: § Post-Compaction Reload.
 
-### Degraded Fallback (no cron entry)
-
-When the operator-tick entry cannot exist — rk absent, or an installed rk predating `rk cron` (probe: `command -v rk`, then `rk cron list` failing) — a **Claude Code** operator MAY run `/loop 3m "operator tick"` as the fallback clock; invocation mechanics (syntax, the one-loop-at-a-time rule, the self-paced mode) live in `_cli-external.md` § /loop, and the bare-prompt rule above applies unchanged. A non-Claude operator has no automatic cadence in that state — the ready line (§2 Init step 5) says so. **Never both:** the fallback runs only when no live entry exists, never alongside one.
-
 ### Post-Compaction Reload
 
-**Trigger** — a tick (`operator tick`) arrives and §4 Tick Behavior is not in context: the agent cannot see the numbered Snapshot → Auto-nudge → Watches → Autopilot → Removals → Observed-field updates → Clock lifecycle list. Typical causes: harness auto-compaction of a long session, a fresh session resumed from a conversation summary, a user `/clear`. Cron-delivered ticks keep arriving regardless of session health, so this trigger is guaranteed to fire eventually.
+**Trigger** — a tick (`operator tick`) arrives and §4 Tick Behavior is not in context: the agent cannot see the numbered Snapshot → Auto-nudge → Watches → Autopilot → Removals → Observed-field updates → Clock list. Typical causes: harness auto-compaction of a long session, a fresh session resumed from a conversation summary, a user `/clear`. Cron-delivered ticks keep arriving regardless of session health, so this trigger is guaranteed to fire eventually.
 
 **Procedure**:
 
 1. Run `/fab-operator` exactly **once** — this reloads the skill body and its helpers and re-runs §2 Startup including Init (state file re-read via `fab operator state`, `fab pane map --all-sessions`, clock verification per §2 Init step 4).
 2. Treat the tick that triggered the reload as consumed — the next tick's `fab operator tick-start --diff` re-emits every level-triggered delta (§4 Tick Behavior step 1), so nothing durable is lost.
-3. Continue with bare `operator tick` firings. **Never** put `/fab-operator` into a tick payload (or the fallback loop prompt) as a way to "stay reloaded" — that is the failure mode this procedure replaces.
+3. Continue with bare `operator tick` firings. **Never** put `/fab-operator` into a tick payload as a way to "stay reloaded" — that is the failure mode this procedure replaces.
 
 **Durable state** — monitored set, autopilot queue, `branch_map`, watches, and notes all live in the server-keyed operator state file and survive compaction, `/clear`, crash, and restart; only §8 session-scoped settings and in-conversation context are lost.
 
@@ -214,7 +223,7 @@ When the operator-tick entry cannot exist — rk absent, or an installed rk pred
 
 Persistent state, read on startup (§2 Init) and in the tick's watch pass via `fab operator state` — the tick's monitored-fleet data rides `fab operator tick-start --diff` instead (§4 Tick Behavior). The term **operator state file** used throughout this skill refers to the server-keyed file from §2 Init step 1 — one per tmux server spanning every repo it coordinates.
 
-**The operator never hand-writes this file.** Every mutation goes through a `fab operator` subcommand (`enroll`/`update`/`remove`, the `note` verbs, the `watch` verbs, the `autopilot` verbs, `branch-map rm`) — agents state intent through flags; the binary owns the schema, the timestamps, the list-cap pruning, and the atomic write (same doctrine as `fab score`: agents never compute what the binary can own). The schema block below is *reference* documentation of what the binary maintains; the command contracts live in `_cli-fab.md` § fab operator.
+**The operator never hand-writes this file.** Every mutation goes through a `fab operator` subcommand (`enroll`/`update`/`remove`, the `note` verbs, the `watch` verbs, the `autopilot` verbs, `branch-map rm`) — agents state intent through flags; the binary owns the schema, the timestamps, the list-cap pruning, and the atomic write (same doctrine as `fab score`: agents never compute what the binary can own). The schema block below is *reference* documentation of what the binary maintains; the command contracts live in `_cli-fab-operator.md` § fab operator.
 
 ```yaml
 tick_count: 47
@@ -269,7 +278,7 @@ notes:
 
 Each entry tracks: change ID, pane, **repo** (absolute main-worktree root), **session** (tmux session name), last-known stage, last-known agent state, stop_stage, spawned_by (watch name or null), depends_on (change IDs — same-repo cherry-pick, cross-repo ordering-only per §6), branch (this change's branch name), enrolled-at, last-transition-at. The pane ID is the server-global primary key; `repo` and `session` are the `(session, repo, pane)` addressing dimensions (§1). The recorded `session` is **context, not identity**: never re-derive which entry a pane is from a session name or window index — they are reassigned by `swap-window`/`move-window`/rename, and a monitored agent's session can change mid-lifetime (rk's planned `_rk-operator` relocation moves the window at enrollment); re-derive per tick from the tick's snapshot (`fab operator tick-start --diff`, § Tick Behavior) keyed on the pane ID (§ Re-derive state).
 
-**Enrollment**: operator sends a command to a change, user requests monitoring, or operator triggers an automatic action (including autopilot and watch spawns). Read-only actions do not enroll. Enrollment is `fab operator enroll <change-id> --pane … --repo … --session … --branch … [--stage …] [--agent …] [--stop-stage …] [--spawned-by …] [--depends-on …]` (contract in `_cli-fab.md` § fab operator) — one command writes both the monitored entry and the `{ branch, repo }` pair in the top-level `branch_map`.
+**Enrollment**: operator sends a command to a change, user requests monitoring, or operator triggers an automatic action (including autopilot and watch spawns). Read-only actions do not enroll. Enrollment is `fab operator enroll <change-id> --pane … --repo … --session … --branch … [--stage …] [--agent …] [--stop-stage …] [--spawned-by …] [--depends-on …]` (contract in `_cli-fab-operator.md` § fab operator) — one command writes both the monitored entry and the `{ branch, repo }` pair in the top-level `branch_map`.
 
 After the enroll call, the operator MUST prefix `»` (U+00BB) to the target tmux window's name via the `fab pane window-name ensure-prefix` primitive. The primitive enforces the idempotent literal-prefix check internally, so the rename applies to every enrollment path without the caller needing to guard:
 
@@ -299,7 +308,7 @@ The top-level `branch_map` persists change ID → `{ branch, repo }` mappings. E
 
 ### Notes
 
-Notes are the operator's owned surface for cross-cutting narrative state — the entries that outlive the `monitored` set and have no other schema home. The binary owns everything mechanical: ids (`n<N>` from the persisted `notes_seq` counter — never reused after prune), timestamps, the 500-character text cap, and the resolved-history pruning. The text body is free prose evaluated by the operator as an LLM (same split as watches: structured fields are machine concerns, prose is operator judgment). Command contracts live in `_cli-fab.md` § fab operator note.
+Notes are the operator's owned surface for cross-cutting narrative state — the entries that outlive the `monitored` set and have no other schema home. The binary owns everything mechanical: ids (`n<N>` from the persisted `notes_seq` counter — never reused after prune), timestamps, the 500-character text cap, and the resolved-history pruning. The text body is free prose evaluated by the operator as an LLM (same split as watches: structured fields are machine concerns, prose is operator judgment). Command contracts live in `_cli-fab-operator.md` § fab operator note.
 
 **Verbs:**
 
@@ -322,20 +331,20 @@ Notes are the operator's owned surface for cross-cutting narrative state — the
 
 On each tick:
 
-1. **Snapshot** — run `fab operator tick-start --diff --quiet`: one command increments `tick_count`, writes `last_tick_at`, snapshots the fleet internally, diffs it against the monitored baseline, and writes the baseline back in the same atomic mutation (full contract in `_cli-fab.md` § fab operator tick-start). Drop `--quiet` only when the user asks for status ("status", "any updates?", "show the fleet") — the binary's built-in every-10th-tick full document is the periodic full refresh, so no skill-side counter is kept. Stdout is one document: the `tick: N` / `now: HH:MM` header lines, then three YAML blocks — `deltas:` (events), `candidates:` (the step-2 sweep population, always emitted), and the frame block: `fleet:` (one row per monitored entry, pre-ordered repo → session → enrollment — **the status frame's data source**) or, on a quiet tick (no deltas, tick count not a multiple of 10), `fleet_summary:` (five counts — tracked/waiting/idle/active/unknown) **in place of** `fleet:`. The skill branches its frame on which key is present — see **Status Frame Format** below. Act on `deltas:` **before any answers** (a completion removes the entry and skips its answer). Each delta is one of:
+1. **Snapshot** — run `fab operator tick-start --diff --quiet`: one command increments `tick_count`, writes `last_tick_at`, snapshots the fleet internally, diffs it against the monitored baseline, and writes the baseline back in the same atomic mutation (full contract in `_cli-fab-operator.md` § fab operator tick-start). Drop `--quiet` only when the user asks for status ("status", "any updates?", "show the fleet") — the binary's built-in every-10th-tick full document is the periodic full refresh, so no skill-side counter is kept. Stdout is one document: the `tick: N` / `now: HH:MM` header lines, then three YAML blocks — `deltas:` (events), `candidates:` (the step-2 sweep population, always emitted), and the frame block: `fleet:` (one row per monitored entry, pre-ordered repo → session → enrollment — **the status frame's data source**) or, on a quiet tick (no deltas, tick count not a multiple of 10), `fleet_summary:` (five counts — tracked/waiting/idle/active/unknown) **in place of** `fleet:`. The skill branches its frame on which key is present — see **Status Frame Format** below. Act on `deltas:` **before any answers** (a completion removes the entry and skips its answer). Each delta is one of:
    - `completion` (`review-pr` done/skipped, or at/past the entry's `stop_stage`) — report, then remove via step 5;
    - `pane_death` (the entry's pane is absent) — report, then remove via step 5;
    - `pane_mismatch` (tmux recycled the `%N` pane ID — a different change, or none, now occupies it; the delta carries `found`) — report + remove via step 5; a mismatched pane is never diffed and never a candidate;
-   - `agent_exited` (detection semantics owned by `_cli-fab.md` § `fab operator tick-start`; the delta carries `command`) — report, then remove via step 5; an exited pane is never diffed and never a candidate (the §5 sweep must never type into it);
+   - `agent_exited` (detection semantics owned by `_cli-fab-operator.md` § `fab operator tick-start`; the delta carries `command`) — report, then remove via step 5; an exited pane is never diffed and never a candidate (the §5 sweep must never type into it);
    - `stage_advance {from, to}` / `review_fail {from: review, to: apply}` — report in the frame.
-   `completion`, `pane_death`, `pane_mismatch`, and `agent_exited` are **level-triggered**: they re-emit on every tick until acted on — `fab operator remove` is the ack, so a crash between diff and action loses nothing. `stage_advance` and `review_fail` are **consumed-on-read** (baseline-diffed); a lost one costs a missed report only. Output the status frame from the frame block — see **Status Frame Format** below. **Version-skew fallback** (two rungs, softest first): if `--quiet` errors as an unknown flag (older binary), drop `--quiet` for the session (keep `--diff`) and report the mismatch once; if `tick-start --diff` or `fab pane questions` errors as an unknown flag/command (new skill, older installed binary), fall back to the flagless tick for the session — `fab operator tick-start` + `fab pane map --all-sessions --json` + per-pane manual capture-and-scan + step-6 `update` bookkeeping — and report the mismatch once.
+   `completion`, `pane_death`, `pane_mismatch`, and `agent_exited` are **level-triggered**: they re-emit on every tick until acted on — `fab operator remove` is the ack, so a crash between diff and action loses nothing. `stage_advance` and `review_fail` are **consumed-on-read** (baseline-diffed); a lost one costs a missed report only. Output the status frame from the frame block — see **Status Frame Format** below.
 
 2. **Auto-nudge** — the per-tick sweep population is the tick's `candidates:` block (waiting-first, then idle — the binary computes it to match §5's policy exactly). Run each candidate through question detection (§5 — `waiting` is the primary signal). (No post-intake `/git-branch` nudge — `/fab-new` Step 11 creates or renames the branch inline; only a detected branch/change mismatch warrants a `/git-branch` send, per §3 pre-send validation item 4.)
 3. **Watches** — read `fab operator state` here (the watch pass's own state read — `known` / `completed` / `last_checked` / `last_error`), then for each watch, query the source, compare against `known` + `completed` (§7 step 2's dedupe rule), spawn on new matches (§7).
 4. **Autopilot dispatch** — if an autopilot queue is active, run the next autopilot action (§6); if a merge sequence is in progress, run its per-tick check (§6 Auto-Merge Choreography). Autopilot-driven changes are visible in the frame via `▶`.
 5. **Removals** — ack the level-triggered deltas from step 1: remove completed changes (`completion` delta observed), dead panes, mismatched panes, and exited agents (the pane survives as a shell — kill it only when respawning, per §3 Bounded Retries) from the monitored set via `fab operator remove`. The event stops re-emitting once the entry is gone.
 6. **Observed-field updates** — the per-tick `stage`/`agent` baseline write is owned by `tick-start --diff` (step 1): on the diff path the skill does **no** per-tick `fab operator update` stage/agent bookkeeping (a hand-written baseline would make the next diff under-report). `fab operator update <change-id>` stays for non-baseline field edits (e.g. `stop_stage`; the binary touches `last_transition` on a stage change). There is no whole-file persist step — every action above already persisted through its own verb.
-7. **Clock lifecycle** — none to manage in the tick: the tracked-set verbs mute/unmute the entry as a side effect of their state mutation (§4 Mute and Lease); cadence adaptation is the entry's backoff + `wake_on` union predicate — evaluated by rk, not the tick
+7. **Clock** — read `rk cron list --json` once per tick for the operator-tick entry (the `target: role:operator` row) and render its `schedule_summary` on the frame (§ Status Frame Format); cadence is never carried from a previous tick or composed from memory. No lifecycle to manage: the tracked-set verbs mute/unmute the entry as a side effect of their state mutation (§4 Mute and Lease), and rk evaluates the schedule (the entry's backoff + `wake_on` union predicate), not the tick
 
 Actions (nudges, removals, autopilot progress) render as an *italic* footnote line below the frame as they happen, `·`-separated, keeping them visually subordinate to the table frame:
 
@@ -355,10 +364,10 @@ The frame has **two shapes**, chosen by which key the tick document carries (tic
 - **Compact frame** (`fleet_summary:` present — a quiet tick: no deltas, not a 10th tick): exactly **ONE line** — no anchors, no repo tables:
 
   ```
-  🛰️ **Operator** · {HH:MM} · tick #{N} · **{tracked} tracked** · no change
+  🛰️ **Operator** · {HH:MM} · tick #{N} · **{tracked} tracked** · {schedule_summary} · no change
   ```
 
-  Append ` · {waiting} waiting` only when `waiting > 0` (e.g. `… · **8 tracked** · no change · 1 waiting`). `{tracked}` keeps the full header's definition (changes + watches): changes = `fleet_summary.tracked`, watches = the count from step 3's `fab operator state` read. The **Watches table** renders on a compact tick ONLY if the watch pass (step 3) produced news this tick — new items, a `last_error`, or an auto-disable; otherwise it is omitted.
+  Append ` · {waiting} waiting` only when `waiting > 0` (e.g. `… · **8 tracked** · backoff 1m→30m · no change · 1 waiting`). `{tracked}` keeps the full header's definition (changes + watches): changes = `fleet_summary.tracked`, watches = the count from step 3's `fab operator state` read. `{schedule_summary}` comes from the per-tick `rk cron list --json` read (tick step 7) — never carried from a previous tick or composed from memory. The **Watches table** renders on a compact tick ONLY if the watch pass (step 3) produced news this tick — new items, a `last_error`, or an auto-disable; otherwise it is omitted.
 
 On either shape, the *italic* action-footnote line still renders whenever an action happened (nudge / answer / removal / autopilot).
 
@@ -396,7 +405,7 @@ Example (this is the literal markdown the operator emits, shown fenced here only
 | Element | Format | Notes |
 |---------|--------|-------|
 | Header | `🛰️ **Operator** · {HH:MM} · tick #{N} · **{N} tracked**` | Total includes changes + watches; no per-type/repo count |
-| Compact frame | `🛰️ **Operator** · {HH:MM} · tick #{N} · **{N} tracked** · no change[ · {W} waiting]` | Rendered from `fleet_summary:`; replaces header+tables on a quiet tick |
+| Compact frame | `🛰️ **Operator** · {HH:MM} · tick #{N} · **{tracked} tracked** · {schedule_summary} · no change[ · {W} waiting]` | Rendered from `fleet_summary:` plus the per-tick `rk cron list --json` read (tick step 7); replaces header+tables on a quiet tick |
 | Repo anchor | `📂 **{repo-path}** · {session}` | One per repo; omit `session:` label. Null roots render `📂 **(unresolved repo)**` |
 | Change table | Headerless centered `▶`, `ID`, `Health`, `Stage`, `PR` | ID is a code span; Stage may trail `⚠️`; PR is the full `pr_url`, never markdown display text |
 | Watches table | `Watch`, `Target`, `Health`, `Status` | Watch name is a code span; Target is `target_repo`; Status is counts + relative time |
@@ -439,9 +448,9 @@ The operator auto-answers routine prompts from monitored agents. The per-tick qu
 
 ### Question Detection
 
-Detection is a single binary sweep, not per-pane manual work: run `fab pane questions --panes <ids>` over the tick's `candidates:` block from `fab operator tick-start --diff` (population policy unchanged — `waiting` first, then idle; re-expressed here as the command's input). The command applies the mechanical guards and indicator patterns itself and returns `matches:` (pane, agent_state, indicator, snippet) plus `skipped:` with reasons — the full contract (flags, guards, indicator classes, skip-reason enum, JSON fields, exit codes) is owned by `_cli-fab.md` § fab pane · questions. Capture and state-read mechanics (including the uninstrumented-pane state-writer caveat that makes capture the universal fallback) are in `_cli-agents.md` § Peek. Claude Code permission/tool-approval prompts are **not** mechanized as their own class — in practice they are covered by the yes/no, action-word, imperative, and enumerated classes; novel prompt shapes remain operator judgment via an on-demand `--panes` sweep or manual capture.
+Detection is a single binary sweep, not per-pane manual work: run `fab pane questions --panes <ids>` over the tick's `candidates:` block from `fab operator tick-start --diff` (population policy unchanged — `waiting` first, then idle; re-expressed here as the command's input). The command applies the mechanical guards and indicator patterns itself and returns `matches:` (pane, agent_state, indicator, snippet) plus `skipped:` with reasons — the full contract (flags, guards, indicator classes, skip-reason enum, JSON fields, exit codes) is owned by `_cli-fab-pane.md` § fab pane · questions. Capture and state-read mechanics (including the uninstrumented-pane state-writer caveat that makes capture the universal fallback) are in `_cli-agents.md` § Peek. Claude Code permission/tool-approval prompts are **not** mechanized as their own class — in practice they are covered by the yes/no, action-word, imperative, and enumerated classes; novel prompt shapes remain operator judgment via an on-demand `--panes` sweep or manual capture.
 
-1. **Sweep**: `fab pane questions --panes <ids>` over the tick's `candidates:` block (full contract: `_cli-fab.md` § fab pane · questions)
+1. **Sweep**: `fab pane questions --panes <ids>` over the tick's `candidates:` block (full contract: `_cli-fab-pane.md` § fab pane · questions)
 2. **No match** → stuck detection applies
 3. **Match** → answer model
 
@@ -473,20 +482,13 @@ The notification is a single out-of-band send when the operator auto-picks or
 leaves open a Strategic prompt. Use the default `rk notify` command and gate in
 `_cli-external.md` § rk (run-kit).
 
-**When `rk` is absent** (operator running where run-kit isn't installed), fall back to the first available **documented alternative**, configurable via the §8 `Notify channel` setting:
-
-- **ntfy.sh** — `curl -d "{change}: {summary} ({repo})" ntfy.sh/<high-entropy-topic>`. No account, curl-from-shell, cross-repo aggregator, mobile push. **High-entropy topic REQUIRED** — public topics are world-readable to anyone who knows the name (the topic name is the only secret), so use a long random topic (e.g. `op-9f3a2c7e-strat`) and never put secrets in the body. The strongest no-run-kit fallback.
-- **Discord webhook** — `curl -H 'Content-Type: application/json' -d '{"content":"…"}' <webhook>`. No account, one webhook = one channel, indefinite searchable history, mobile push.
-- **`PushNotification`** (built-in Claude Code harness tool) — zero infra, no topic secret to leak, headless-safe; a *personal* push to the user's Claude apps, not a shared searchable feed. Good "just ping me" fallback.
-- **Slack MCP** (`mcp__claude_ai_Slack__slack_send_message`) — searchable channel feed, mobile push; caveat: an interactively-authed MCP may be **absent in headless/cron** runs, so it cannot be a headless default.
-
-**All notify sends fail silently** (the fallback path matches `rk notify`'s contract per `_preamble.md` § Run-Kit (rk) Reference). A notification that cannot be delivered (server unreachable, channel down, no subscriptions, `curl`/tool missing) MUST NOT crash or stall the operator — it logs one line and keeps ticking.
+`rk notify` fails silently by contract — a notification that cannot be delivered MUST NOT crash or stall the operator; it logs one line and keeps ticking.
 
 ### Sending Auto-Answers
 
-Deliver text answers via `rk mux send <pane> "<text>" --answer` when rk is installed (`command -v rk`-gated) — the answer-mode gate permits `waiting` (the auto-answer's primary target) and `idle`, still refuses `active`, and validates pane existence (full contract is tool-owned via `rk skill`; the usage summary lives in `_cli-agents.md` § Pre-Send Validation). Key-name answers (bare Enter, arrows, `C-c`) ride `rk mux send --key` on the same path. When rk is absent, the answer is raw `tmux send-keys` (keys and literal text alike) behind the same gate — never an error.
+Deliver text answers via `rk mux send <pane> "<text>" --answer` — the answer-mode gate permits `waiting` (the auto-answer's primary target) and `idle`, still refuses `active`, and validates pane existence (full contract is tool-owned via `rk skill`; the usage summary lives in `_cli-agents.md` § Pre-Send Validation). Key-name answers (bare Enter, arrows, `C-c`) ride `rk mux send --key` on the same path.
 
-Before the send: run the §3 pre-send gate (`_cli-agents.md` § Pre-Send Validation — pane exists; state read per its step 2, expecting `waiting` or the idle fallback), then re-capture the terminal (the 20-line capture whose mechanics live in `_cli-agents.md` § Peek — `rk`-gated with raw-tmux fallback). If output changed since detection, abort — agent is no longer waiting. `fab pane questions` output is detection input only — it never replaces the pre-send gate or this re-capture-before-send guard (the batch capture is older than the just-in-time one, so the guard matters more, not less). If the answer appears to land but the agent does not resume: on the rk path the send's delivery verification is built in — a probe failure surfaces as staged text + a stderr warning + exit 1, so re-capture and decide; never blind-resend. On the rk-absent raw path, apply the delivery probe (`_cli-agents.md` § Delivery Probe) instead of re-sending blind.
+Before the send: run the §3 pre-send gate (`_cli-agents.md` § Pre-Send Validation — pane exists; state read per its step 2, expecting `waiting` or the idle fallback), then re-capture the terminal (the 20-line capture whose mechanics live in `_cli-agents.md` § Peek). If output changed since detection, abort — agent is no longer waiting. `fab pane questions` output is detection input only — it never replaces the pre-send gate or this re-capture-before-send guard (the batch capture is older than the just-in-time one, so the guard matters more, not less). If the answer appears to land but the agent does not resume: the send's delivery verification is built in — a probe failure surfaces as staged text + a stderr warning + exit 1, so re-capture and decide; never blind-resend.
 
 ### Idle Auto-Default on Strategic Escalations
 
@@ -530,7 +532,7 @@ The spawn sequence is:
 1. **Establish target repo** — determine the absolute main-worktree root the work targets. For an already-tracked change, use its `repo` (monitored entry or `branch_map`). For a watch spawn, use the watch's `target_repo` (§7). For a fresh user request, use the repo the user names (default: the repo the operator was launched in).
 2. **Establish target session** — determine the tmux session the new agent window must land in, via the evidence-ordered inference below; it is passed explicitly at step 7. The operator MUST pass `-t '<session>:'` (shell-escaped — step 7 owns the escaping rule) on every `new-window` — **the ambient session is never an implicit target** (the operator may run in its own dedicated session, where an untargeted `new-window` silently misplaces the window; the exact mirror of step 3's "never rely on the operator's CWD"):
 
-   **Exclusion rule (applied before any evidence is weighed)** — infrastructure sessions and the operator's own session MUST NOT be spawn targets. **Candidate source, rk-first**: behind the standard fail-silent gate plus a capability probe (`command -v rk >/dev/null 2>&1 && rk mux sessions --json` — non-zero exit or no output means an rk that predates the verb), the candidate set is `rk mux sessions --json`'s rows (`role: "user"` only; run-kit derives the roles from its own reserved constants, and its `reserved` catch-all keeps this correct when rk adds new infrastructure kinds), minus the operator's own session; the rows' `attached`/`windows` facts feed tier (d) and the announcement below. **Fallback (rk absent or verb-less)**: exclude `_rk-*`-prefixed sessions by name (`_rk-ctl` the control anchor, `_rk-pin-*` board pin-sessions, `_rk-operator` the operator session — run-kit's reserved-infrastructure namespace, adopted the way fab consumes `@rk_pane_agent_state`) and the operator's own session. Either way this strengthens the ambient-session prohibition above — the operator's own session is excluded by rule, not merely never defaulted to.
+   **Exclusion rule (applied before any evidence is weighed)** — infrastructure sessions and the operator's own session MUST NOT be spawn targets. **Candidate source**: the candidate set is `rk mux sessions --json`'s rows (`role: "user"` only; run-kit derives the roles from its own reserved constants, and its `reserved` catch-all keeps this correct when rk adds new infrastructure kinds), minus the operator's own session; the rows' `attached`/`windows` facts feed tier (d) and the announcement below. This strengthens the ambient-session prohibition above — the operator's own session is excluded by rule, not merely never defaulted to.
 
    Within the remaining candidate sessions, decide from the evidence already at hand, strongest first:
 
@@ -566,7 +568,7 @@ The spawn sequence is:
    ```
 
    (where `<session>` is the target session from step 2, `<wt>` is the worktree name from step 3, `$spawn_cmd` is the target repo's command from step 6, and `$skill_prompt_quoted` is the composed `<skill_prefix><skill> <args>` prompt shell-quoted as one token per `_cli-agents.md` § Skill Prompts). **Shell-escape the session name before embedding it** — it can come from the natural-language §8 setting or an arbitrary tmux session name, so raw interpolation inside double quotes would let an embedded `$()`/backtick execute; the single-quoted `-t` keeps such text literal, and a name containing a single quote must itself be escaped, never interpolated raw. `-P -F` prints the landed `#{session_name}` and `#{pane_id}` — step 8's enrollment consumes both, and the printed session confirms where the window actually landed. A missing `-t` target errors loudly at spawn (tmux refuses an absent session); surface it per normal error handling — never silently retry against the ambient session.
-8. **Enroll in monitored set** — unconditionally and silently via `fab operator enroll`, passing step 7's printed values as `--pane <pane-id> --session <session-name>` (plus repo, stage, branch, and dependencies — the `branch_map` pair rides the same command; contract in `_cli-fab.md` § fab operator); then apply §4 Enrollment's window prefix; never ask whether to monitor
+8. **Enroll in monitored set** — unconditionally and silently via `fab operator enroll`, passing step 7's printed values as `--pane <pane-id> --session <session-name>` (plus repo, stage, branch, and dependencies — the `branch_map` pair rides the same command; contract in `_cli-fab-operator.md` § fab operator); then apply §4 Enrollment's window prefix; never ask whether to monitor
 
 Window markers (`»` / `›`) key on server-global pane IDs.
 
@@ -666,7 +668,7 @@ User provides a queue of changes. Confirmation prompt reflects the active mode:
 
 A queue **may span repos**, with mixed dependency semantics: implicit `--base` chaining (and explicit `depends_on`) cherry-picks **within a repo** and **degrades to an ordering-only barrier across repo boundaries** (per Dependency Resolution above; the nearest-same-repo-predecessor rule is defined in Queue ordering below). Worked example — a chain `ab12 → cd34 → ef56` where `cd34` lives in a different repo: `cd34` gets `depends_on: [ab12]` (cross-repo — waits for `ab12` to be satisfied per § Dependency Resolution **Dependency satisfied**, no cherry-pick), and `ef56` (back in `ab12`'s repo) gets `depends_on: [ab12]` — its nearest same-repo predecessor — and cherry-picks from it; queue order still runs `ef56` after `cd34`.
 
-Once the user confirms, persist the queue via `fab operator autopilot start --queue <id,id,...> [--mode <name>]` (the binary stores the mode and prints `mode: <name> (<source>)`; contracts in `_cli-fab.md` § fab operator autopilot); every later progression (completion or skip) is `fab operator autopilot advance [--skip]`, and the interrupts below ride `pause`/`resume`/`stop`.
+Once the user confirms, persist the queue via `fab operator autopilot start --queue <id,id,...> [--mode <name>]` (the binary stores the mode and prints `mode: <name> (<source>)`; contracts in `_cli-fab-operator.md` § fab operator autopilot); every later progression (completion or skip) is `fab operator autopilot advance [--skip]`, and the interrupts below ride `pause`/`resume`/`stop`.
 
 Queue ordering:
 
@@ -811,7 +813,7 @@ Watches are standing instructions to monitor an external source and take action 
 
 ### Schema
 
-Each watch in the operator state file has the fields below (reference documentation of what the binary maintains — watches are created and mutated only through the `fab operator watch` verbs; contracts in `_cli-fab.md` § fab operator watch):
+Each watch in the operator state file has the fields below (reference documentation of what the binary maintains — watches are created and mutated only through the `fab operator watch` verbs; contracts in `_cli-fab-operator.md` § fab operator watch):
 
 | Field | Description |
 |-------|-------------|
@@ -845,7 +847,7 @@ When a watch-spawned agent completes (its `completion` delta — at/past the wat
 
 ### Conversational Management
 
-Every utterance maps to a `fab operator watch` verb (contracts in `_cli-fab.md` § fab operator watch) — the operator composes flags, never YAML:
+Every utterance maps to a `fab operator watch` verb (contracts in `_cli-fab-operator.md` § fab operator watch) — the operator composes flags, never YAML:
 
 - "Watch Linear project DEV for bugs older than 1 hour, **spawn into ~/code/foo**, stop at intake" → `watch add <name> --source linear --target-repo ~/code/foo --stop-stage intake --query '<json>' --instructions '…'`
 - "Pause the Linear watch" / "Resume the Linear watch" → `watch toggle <name> --off` / `--on`
@@ -866,7 +868,7 @@ Every utterance maps to a `fab operator watch` verb (contracts in `_cli-fab.md` 
 The isolation unit is the **tmux server**. There is exactly **one operator per tmux server** — it spans every session and every repo on that server, coordinating all of them through a single server-keyed state file (§4, §9). This matches the server-wide singleton already enforced by the `operator` window (`fab operator` switches to the existing window rather than creating a second one).
 
 - **Multiple sessions, same server** share one operator and one state file. The operator addresses their agents by the `(session, repo, pane)` tuple (§1) — where `session` scopes the addressing/display, never the identity: the pane ID is the join key, and a session can change mid-lifetime (§1, §4); there is no per-session or per-repo operator.
-- **A second operator means a second tmux server** — start one on a separate socket (`tmux -L <label>`). Its state file is keyed by that socket, so the two operators never collide. There is no `--name` dimension; the server boundary is the only isolation knob. Sends on a non-default socket carry the matching flag: `rk mux -L <label> send` (or `tmux -L <label> send-keys …` on the rk-absent raw path).
+- **A second operator means a second tmux server** — start one on a separate socket (`tmux -L <label>`). Its state file is keyed by that socket, so the two operators never collide. There is no `--name` dimension; the server boundary is the only isolation knob. Sends on a non-default socket carry the matching flag: `rk mux -L <label> send`.
 
 ### Settings
 
@@ -874,7 +876,6 @@ The isolation unit is the **tmux server**. There is exactly **one operator per t
 |---------|---------|------------------------------|
 | Stuck threshold | 15m | "flag agents stuck for more than {N}m" |
 | Spawn target session | inferred (§6 step 2 evidence tiers; auto-set on each announced inference) | "spawn into session {name}" |
-| Notify channel | `rk` (run-kit Web Push; auto-fallback when `rk` absent) | "notify via ntfy topic {topic}" / "notify via discord {url}" / "notify via push" |
 
 Cadence is not a session setting — it is the cron entry's to tune via `rk cron` (§4 The Clock).
 
@@ -894,10 +895,11 @@ These settings are session-scoped and reset on compaction, `/clear`, or session 
 | Outputs `Next:` line? | No — ends with ready signal |
 | Loads change artifacts? | No — coordination context only |
 | Requires tmux? | Yes — hard stop without it |
-| Launcher delegation? | Yes — bare `fab operator` hands the launch to `rk operator` when a capable rk is on PATH (probe, pass-through, and failure semantics owned by `_cli-fab.md` § fab operator); the rows below describe the rk-absent fallback launcher |
+| Requires run-kit? | Yes — hard stop without it (§2 rk Gate: `command -v rk` + `rk cron list --json`) |
+| Launcher delegation? | Yes — bare `fab operator` hands the launch to `rk operator` when a capable rk is on PATH (probe, pass-through, and failure semantics owned by `_cli-fab-operator.md` § fab operator); the rows below describe the binary's built-in launcher, whose behavior is owned by the CLI reference |
 | Requires a git repo? | No — `fab operator` opens its window in the repo root inside a repo, else `os.Getwd()` (neutral parent dir). Errors only if both fail |
 | Requires a `fab/` project? | No — session command comes from the project's `providers.claude.interactive_command` when `fab/` is resolvable, else `spawn.DefaultSpawnCommand` (the template `claude --permission-mode bypassPermissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`). No project `providers`/`agent:` block is read on a `fab/`-less launch |
 | Coordinating-agent model | Operator role — `fab operator` resolves the `operator` role (`agent.ResolveRole`; a Tier-1 role, so the `agent.session` knob picks its provider), reads that provider's `interactive_command`, injects the profile via `spawn.WithProfile` (**substitutes** into a `{model}`/`{effort}` template — the built-in claude default is templated — or **appends** `--model`/`--effort` to a plain command carrying no placeholder); falls back to the built-in operator profile + built-in claude provider on any failure (incl. no resolvable `fab/` project) |
-| Cadence | rk cron operator-tick entry — union predicate (backoff `60s`→`30m` + `wake_on: agent-state-change`), seeded by `rk operator`; the tracked-set verbs mute/unmute it via `rk cron mute`, lease = bounded snooze (§4 The Clock, §4 Mute and Lease); Claude-only `/loop` fallback when the entry cannot exist (§4 Degraded Fallback); quiet ticks render the one-line compact frame (§4 Status Frame Format); tick payload is the bare `operator tick` — never a slash command (§4 Tick Payload) |
+| Cadence | rk cron operator-tick entry — union predicate (backoff `60s`→`30m` + `wake_on: agent-state-change`), seeded by `rk operator`; the tracked-set verbs mute/unmute it via `rk cron mute`, lease = bounded snooze (§4 The Clock, §4 Mute and Lease); live cadence rendered from `rk cron list --json` (§2 Init step 5, §4 Status Frame Format); quiet ticks render the one-line compact frame (§4 Status Frame Format); tick payload is the bare `operator tick` — never a slash command (§4 Tick Payload) |
 | Uses the operator state file? | Yes — monitored set + autopilot queue + branch map + notes persistence in the server-keyed path (§2 Init step 1); reads via `fab operator state`, every mutation through a `fab operator` verb — never a hand-write (§4 doctrine) |
 | Multi-repo / multi-session? | Yes — one operator per tmux server spans all its sessions and repos via the `(session, repo, pane)` addressing tuple |

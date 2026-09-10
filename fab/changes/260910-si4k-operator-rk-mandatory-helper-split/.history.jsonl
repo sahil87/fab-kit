@@ -1,0 +1,13 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-10T20:50:17Z"}
+{"args":"Operator loading and dependency refactor: rk-mandatory operator skill (one startup gate replaces 27 rk-absent/raw-tmux/version-skew fallback passages), _cli-fab.md split by command family so the operator loads its slice, live rk cron cadence in the ready line and compact frame. Change A of fab/plans/sahil/26-09-11-operator-generic-tracking.md; docs/skill only, no Go.","cmd":"fab-new","event":"command","ts":"2026-09-10T20:50:17Z"}
+{"delta":"+0.0","event":"confidence","score":3.1,"trigger":"calc-score","ts":"2026-09-10T20:55:57Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-10T20:57:35Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-10T20:59:47Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-10T21:15:10Z"}
+{"event":"review","result":"failed","ts":"2026-09-10T21:21:21Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-10T21:21:21Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-10T21:25:10Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-10T21:35:07Z"}
+{"event":"review","result":"passed","ts":"2026-09-10T21:35:07Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-10T22:01:37Z"}
+{"cmd":"git-pr","event":"command","ts":"2026-09-10T22:02:46Z"}

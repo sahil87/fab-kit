@@ -133,7 +133,7 @@ is `done` and sitting at its prompt, never mid-stage (§ Steering a pane worker 
 ### 2. Headless CLI adapter — `fab dispatch start` (new in 3c)
 
 The headless path: the worker is a **detached CLI process** (e.g. `claude …` or `codex exec …`),
-launched and observed via `fab dispatch` (see [`_cli-fab.md`](../../src/kit/skills/_cli-fab.md)
+launched and observed via `fab dispatch` (see [`_cli-fab-pane.md`](../../src/kit/skills/_cli-fab-pane.md)
 § fab dispatch). It exists because the native path is **tmux/in-harness-bound** and cannot drive a
 stage on a CI box, a remote host, or a different agent CLI. `fab dispatch start` launches the resolved
 provider `headless_command` detached via `sh -c '<cmd> < prompt > log 2>&1; echo $? > exit'` launched with
@@ -177,7 +177,7 @@ typed sentinel, echo check, `C-u` clear on the raw arm), the
 wrap-tolerant echo-verify delivery
 choreography, and the tmux pane mechanics live in `internal/pane` as **pane-addressed primitives**,
 exposed as `fab pane open` / `fab pane ready` / `fab pane deliver` for driving any pane by id with no
-dispatch record ([`_cli-fab.md`](../../src/kit/skills/_cli-fab.md) § fab pane). The three dispatch
+dispatch record ([`_cli-fab-pane.md`](../../src/kit/skills/_cli-fab-pane.md) § fab pane). The three dispatch
 verbs above are **thin record-keeping bindings** over those primitives: they add the `.fab-dispatch/`
 record, the stdin-prompt persistence, the delivery marker, and the dispatch-owned placement policy —
 and nothing else. Every MUST below binds the primitives exactly as before; the relocation is

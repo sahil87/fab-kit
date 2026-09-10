@@ -1,0 +1,636 @@
+<!doctype html>
+<!-- Operator tick anatomy — design study, 2026-09-11. Source of the plan in fab/plans/sahil/26-09-11-operator-generic-tracking.md.
+     Published copy: https://claude.ai/code/artifact/a0033d80-6fef-43e4-8464-8c54a916a375 (private). Self-contained; fonts from Google Fonts with system fallbacks. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Operator Tick Anatomy</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F4F6F8; --panel:#FFFFFF; --ink:#1A212B; --muted:#626D7A; --line:#D3D9E0; --soft:#E9EDF1;
+  --accent:#BD6F0F; --accent-soft:#F6E7CF; --alert:#B23A32; --alert-soft:#F5DEDC; --ok:#2E7D57; --ok-soft:#DCEFE4;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10151B; --panel:#171D25; --ink:#E4E8ED; --muted:#98A3B0; --line:#2A323D; --soft:#1F2731;
+    --accent:#E7A33E; --accent-soft:#3A2C13; --alert:#E2605A; --alert-soft:#3D1F1D; --ok:#55B283; --ok-soft:#173226;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10151B; --panel:#171D25; --ink:#E4E8ED; --muted:#98A3B0; --line:#2A323D; --soft:#1F2731;
+  --accent:#E7A33E; --accent-soft:#3A2C13; --alert:#E2605A; --alert-soft:#3D1F1D; --ok:#55B283; --ok-soft:#173226;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;padding-block:40px 80px;padding-inline:20px}
+.wrap{max-width:1080px;margin:0 auto}
+.col{max-width:70ch}
+h1,h2,h3{font-family:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;font-weight:600;letter-spacing:-.01em;text-wrap:balance;margin:0}
+h1{font-size:clamp(30px,4vw,42px);line-height:1.1}
+h2{font-size:24px;margin-top:56px;margin-bottom:12px;padding-top:20px;border-top:1px solid var(--line)}
+h3{font-size:17px;margin-top:26px;margin-bottom:6px}
+p{margin:0 0 14px}
+.eyebrow{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.lede{font-size:18px;color:var(--muted);margin-top:14px}
+code,.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;font-size:.92em}
+code{background:var(--soft);padding:1px 5px;border-radius:3px}
+pre{background:var(--soft);padding:12px 14px;border-radius:4px;overflow-x:auto;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:13px;line-height:1.5;margin:10px 0 16px}
+pre code{background:none;padding:0}
+figure{margin:20px 0 28px;max-width:100%}
+.fig{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;overflow-x:auto}
+.fig svg{display:block;min-width:720px;width:100%;height:auto;color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif}
+figcaption{font-size:14px;color:var(--muted);margin-top:10px;max-width:70ch}
+.svg-mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+table{border-collapse:collapse;width:100%;font-size:15px;margin:10px 0 18px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+th.num{text-align:right}
+.tblwrap{overflow-x:auto}
+ol.plan{padding-left:0;list-style:none;counter-reset:s;margin:14px 0}
+ol.plan>li{counter-increment:s;display:grid;grid-template-columns:44px 1fr;gap:6px 12px;padding:14px 0;border-top:1px solid var(--line)}
+ol.plan>li:last-child{border-bottom:1px solid var(--line)}
+ol.plan>li::before{content:counter(s);font-family:"Bricolage Grotesque",sans-serif;font-weight:600;font-size:26px;line-height:1;color:var(--accent);grid-row:1/span 2}
+ol.plan strong{display:block;font-weight:600;margin-bottom:2px}
+ol.plan .body{color:var(--ink);grid-column:2}
+ol.plan .body p{margin-bottom:8px}
+.verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:22px 0 8px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 16px}
+.tile .k{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.tile .v{font-family:"Bricolage Grotesque",sans-serif;font-weight:600;font-size:26px;line-height:1.1;margin-top:6px;font-variant-numeric:tabular-nums}
+.tile .s{font-size:14px;color:var(--muted);margin-top:4px}
+.pill{display:inline-block;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);vertical-align:middle}
+.pill.alert{color:var(--alert);border-color:var(--alert);background:var(--alert-soft)}
+.pill.ok{color:var(--ok);border-color:var(--ok);background:var(--ok-soft)}
+.pill.acc{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.callout{border-left:3px solid var(--alert);background:var(--alert-soft);padding:12px 16px;border-radius:0 4px 4px 0;margin:16px 0}
+.callout.ok{border-left-color:var(--ok);background:var(--ok-soft)}
+ul{padding-left:20px;margin:0 0 14px}
+li{margin-bottom:6px}
+
+.fig svg .t{font-size:12px;fill:currentColor}
+.fig svg .m{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px;fill:currentColor}
+.fig svg .h{font-size:11px;fill:currentColor;opacity:.6;letter-spacing:.08em;text-transform:uppercase}
+.fig svg .box{fill:none;stroke:currentColor;stroke-width:1.2;rx:3}
+.fig svg .step{fill:none;stroke:currentColor;stroke-width:1.2;rx:3}
+.fig svg .edge{fill:none;stroke:currentColor;stroke-width:1.2;marker-end:url(#arr)}
+.fig svg .dash{stroke-dasharray:4 4}
+.fig svg .acc{stroke:var(--accent)} .fig svg .accf{fill:var(--accent)}
+.fig svg .bad{stroke:var(--alert)} .fig svg .badf{fill:var(--alert)}
+.fig svg .ok{stroke:var(--ok)} .fig svg .okf{fill:var(--ok)}
+.fig svg.f3 .edge{marker-end:url(#arr2)}
+.fig svg.f4 .edge{marker-end:none}
+
+.frame-demo{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin:16px 0 20px;font-size:14.5px}
+.frame-demo .fr-h{margin-bottom:10px}
+.frame-demo .fr-f{color:var(--muted);margin-top:8px;font-size:13.5px}
+table.fr{margin:0;font-size:14px}
+table.fr th{font-family:"IBM Plex Sans",system-ui,sans-serif;text-transform:none;letter-spacing:0;font-size:13px}
+table.fr td.c{text-align:center;width:1.6em}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head><body>
+
+<div class="wrap">
+<div class="col">
+  <div class="eyebrow">fab-kit · src/kit/skills/fab-operator.md · v9 · 903 lines</div>
+  <h1>Operator Tick Anatomy</h1>
+  <p class="lede">What the operator checks each tick, why PR #913 slipped through, how to collapse five tracked-thing schemas into one, which cron kind fits, and where rk should grow.</p>
+
+  <div class="verdict">
+    <div class="tile"><div class="k">loaded per reload</div><div class="v">3,425 lines</div><div class="s">skill 903 + _cli-fab 1,475 + _preamble 545 + _cli-agents 255 + _cli-external 247</div></div>
+    <div class="tile"><div class="k">git choreography</div><div class="v">235 lines</div><div class="s">dependency cherry-pick, 3 merge modes, ordered merge, auto-merge — the operator's main job; stays inline</div></div>
+    <div class="tile"><div class="k">tracked-thing schemas</div><div class="v">5 + 1</div><div class="s">monitored, watches, autopilot, notes, branch_map, plus the merge sequence hidden inside a note</div></div>
+    <div class="tile"><div class="k">things probed per tick</div><div class="v">1 kind</div><div class="s">tmux panes. Linear/Slack only via a watch; GitHub only for an armed merge; notes never</div></div>
+  </div>
+</div>
+
+<h2 class="col">1 · What a tick does today</h2>
+<div class="col">
+<p>Every tick runs the seven steps in §4 Tick Behavior. Each step reads one section of the state file and talks to one external source. The picture is worth drawing because the gaps are structural, not accidental: whole classes of tracked things have no arrow to anything that observes the world.</p>
+</div>
+
+<figure>
+<div class="fig">
+<svg viewBox="0 0 1000 600" role="img" aria-label="The seven tick steps in the middle, the five state-file sections on the left, and the external systems on the right. Only the monitored set is mechanically probed each tick; watches reach Linear and Slack; GitHub is polled only while a merge sequence is armed; notes are read but never verified.">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker>
+    <marker id="arr-acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--accent)"/></marker>
+  </defs>
+  <!-- column headers -->
+  <text x="20" y="26" class="h">state file (server-keyed yaml)</text>
+  <text x="392" y="26" class="h">tick · 7 steps · §4</text>
+  <text x="770" y="26" class="h">external world</text>
+
+  <!-- LEFT: state sections -->
+  <rect x="20" y="44" width="240" height="60" class="box"/>
+  <text x="32" y="66" class="m">monitored: {change → pane}</text>
+  <text x="32" y="84" class="t" opacity=".7">keyed by tmux pane id · fab stages</text>
+
+  <rect x="20" y="118" width="240" height="60" class="box"/>
+  <text x="32" y="140" class="m">watches: source linear|slack</text>
+  <text x="32" y="158" class="t" opacity=".7">Go rejects any other --source</text>
+
+  <rect x="20" y="192" width="240" height="60" class="box"/>
+  <text x="32" y="214" class="m">autopilot: {queue, current}</text>
+  <text x="32" y="232" class="t" opacity=".7">fab change ids only</text>
+
+  <rect x="20" y="266" width="240" height="78" class="box bad"/>
+  <text x="32" y="288" class="m">notes: free prose</text>
+  <text x="32" y="306" class="t" opacity=".7">dependency_wait · phase_plan ·</text>
+  <text x="32" y="322" class="t" opacity=".7">coordination · correction</text>
+  <text x="32" y="338" class="t badf">no probe, no last_checked, not in frame</text>
+
+  <rect x="20" y="358" width="240" height="42" class="box"/>
+  <text x="32" y="384" class="m">branch_map: {id → branch, repo}</text>
+
+  <!-- MIDDLE: steps -->
+  <rect x="330" y="44" width="300" height="52" class="step"/>
+  <text x="342" y="64" class="t"><tspan font-weight="600">1 Snapshot</tspan>  <tspan class="m">fab operator tick-start --diff</tspan></text>
+  <text x="342" y="84" class="t" opacity=".7">binary diffs panes vs baseline → deltas, candidates</text>
+
+  <rect x="330" y="112" width="300" height="52" class="step"/>
+  <text x="342" y="132" class="t"><tspan font-weight="600">2 Auto-nudge</tspan>  <tspan class="m">fab pane questions</tspan></text>
+  <text x="342" y="152" class="t" opacity=".7">answer waiting/idle agents via rk mux send</text>
+
+  <rect x="330" y="180" width="300" height="52" class="step"/>
+  <text x="342" y="200" class="t"><tspan font-weight="600">3 Watches</tspan>  <tspan class="m">for each watch: MCP query</tspan></text>
+  <text x="342" y="220" class="t" opacity=".7">dedupe vs known/completed → spawn</text>
+
+  <rect x="330" y="248" width="300" height="52" class="step"/>
+  <text x="342" y="268" class="t"><tspan font-weight="600">4 Autopilot</tspan>  <tspan class="m">advance · merge-seq check</tspan></text>
+  <text x="342" y="288" class="t" opacity=".7">gh only while a coordination note says “armed”</text>
+
+  <rect x="330" y="316" width="300" height="52" class="step"/>
+  <text x="342" y="336" class="t"><tspan font-weight="600">5 Removals</tspan>  <tspan class="m">fab operator remove</tspan></text>
+  <text x="342" y="356" class="t" opacity=".7">ack of level-triggered deltas</text>
+
+  <rect x="330" y="384" width="300" height="40" class="step" opacity=".55"/>
+  <text x="342" y="408" class="t" opacity=".7"><tspan font-weight="600">6</tspan> observed fields — no-op, binary owns baseline</text>
+
+  <rect x="330" y="440" width="300" height="40" class="step" opacity=".55"/>
+  <text x="342" y="464" class="t" opacity=".7"><tspan font-weight="600">7</tspan> clock — no-op, verbs mute/unmute</text>
+
+  <!-- frame output -->
+  <rect x="330" y="504" width="300" height="52" class="step acc"/>
+  <text x="342" y="524" class="t"><tspan font-weight="600">Frame</tspan>  <tspan class="m">quiet tick → one line</tspan></text>
+  <text x="342" y="544" class="t" opacity=".7">🛰️ Operator · 22:03 · tick #5121 · 3 tracked · no change</text>
+
+  <!-- RIGHT: external -->
+  <rect x="760" y="44" width="220" height="52" class="box"/>
+  <text x="772" y="64" class="t" font-weight="600">tmux panes</text>
+  <text x="772" y="84" class="t" opacity=".7">@rk_pane_agent_state · fab status</text>
+
+  <rect x="760" y="180" width="220" height="52" class="box"/>
+  <text x="772" y="200" class="t" font-weight="600">Linear / Slack (MCP)</text>
+  <text x="772" y="220" class="t" opacity=".7">list_issues · read_channel</text>
+
+  <rect x="760" y="248" width="220" height="52" class="box"/>
+  <text x="772" y="268" class="t" font-weight="600">GitHub (gh)</text>
+  <text x="772" y="288" class="t" opacity=".7">pr view · pr checks · pr merge</text>
+
+  <rect x="760" y="504" width="220" height="52" class="box acc"/>
+  <text x="772" y="524" class="t" font-weight="600">rk cron “operator tick”</text>
+  <text x="772" y="544" class="t" opacity=".7">backoff 60s→30m · wake on state change</text>
+
+  <!-- edges: state -> steps -->
+  <path d="M260 74 H330" class="edge"/>
+  <path d="M260 148 H300 V206 H330" class="edge"/>
+  <path d="M260 222 H300 V274 H330" class="edge"/>
+  <!-- notes: dead end -->
+  <path d="M260 305 H296" class="edge bad dash" style="marker-end:none"/>
+  <text x="300" y="309" class="t badf" font-size="11">read at Init only · “operator judgment”</text>
+    <text x="268" y="412" class="t" font-size="10.5" opacity=".6">branch_map → deps at spawn</text>
+
+  <!-- edges: steps -> external -->
+  <path d="M630 70 H760" class="edge"/>
+  <text x="648" y="62" class="t" font-size="11">snapshot every tick</text>
+  <path d="M630 138 H700 V80 H760" class="edge" style="marker-end:none" opacity=".6"/>
+  <text x="648" y="130" class="t" font-size="11" opacity=".7">send-keys</text>
+  <path d="M630 206 H760" class="edge"/>
+  <text x="648" y="198" class="t" font-size="11">only enabled watches</text>
+  <path d="M630 274 H760" class="edge dash"/>
+  <text x="648" y="266" class="t" font-size="11">only armed PRs</text>
+  <path d="M870 504 V470 Q870 460 860 460 H480 Q470 460 470 450 V44" class="edge acc" style="marker-end:url(#arr-acc)" opacity=".9"/>
+  <text x="705" y="452" class="t accf" font-size="11">operator tick (bare text) → runs steps 1–7</text>
+
+  <!-- the orphan -->
+  <rect x="760" y="330" width="220" height="56" class="box bad dash"/>
+  <text x="772" y="352" class="t badf" font-weight="600">“tell me when #913 merges”</text>
+  <text x="772" y="372" class="t badf">no state section reaches this</text>
+  <text x="772" y="410" class="t badf" font-size="11">same for: a non-fab branch, a deploy,</text>
+  <text x="772" y="426" class="t badf" font-size="11">a cron job, a Linear ticket you don’t</text>
+  <text x="772" y="442" class="t badf" font-size="11">want to spawn from, a CI run…</text>
+</svg>
+</div>
+<figcaption>Figure 1. The tick is a fixed sequence of kind-specific steps. Only the pane-keyed monitored set is diffed by the binary. Linear and Slack are reached only through a typed watch, GitHub only while a merge sequence is armed, and notes are prose the agent is trusted to re-verify with no mechanism that makes it do so.</figcaption>
+</figure>
+
+<h2 class="col">2 · Where PR #913 fell through</h2>
+<div class="col">
+<p>The self-analysis in the screenshot is accurate about the symptom. The cause sits in the skill text, not in the session's discipline.</p>
+</div>
+
+<figure>
+<div class="fig">
+<svg viewBox="0 0 1000 250" role="img" aria-label="Timeline: t9hb completes and is removed at 21:51, five quiet ticks render one-line frames, PR 913 merges at 22:07 with nothing polling it, and the operator answers from memory when asked.">
+  <line x1="40" y1="120" x2="960" y2="120" stroke="currentColor" stroke-width="1.2"/>
+  <!-- 21:51 -->
+  <circle cx="110" cy="120" r="6" fill="currentColor"/>
+  <text x="110" y="92" class="m" text-anchor="middle">21:51</text>
+  <text x="110" y="150" class="t" text-anchor="middle">t9hb pipeline done → <tspan class="m">completion</tspan> delta</text>
+  <text x="110" y="168" class="t" text-anchor="middle"><tspan class="m">fab operator remove t9hb</tspan> — correct</text>
+  <text x="110" y="190" class="t" text-anchor="middle" fill="var(--alert)">#913 leaves the only probed set</text>
+  <!-- quiet ticks -->
+  <g fill="none" stroke="var(--accent)" stroke-width="1.5">
+    <circle cx="300" cy="120" r="5"/><circle cx="380" cy="120" r="5"/><circle cx="460" cy="120" r="5"/><circle cx="540" cy="120" r="5"/><circle cx="620" cy="120" r="5"/>
+  </g>
+  <text x="460" y="92" class="m" text-anchor="middle">ticks #5119 – #5123 · 21:52 → 22:06</text>
+  <text x="460" y="150" class="t" text-anchor="middle"><tspan class="m">tick-start --diff --quiet</tspan> → deltas: [] → compact frame</text>
+  <text x="460" y="168" class="t" text-anchor="middle" opacity=".7">“no change” — and the skill forbids any other per-tick output</text>
+  <text x="460" y="190" class="t" text-anchor="middle" fill="var(--alert)">the n34/W1 wait lives in a note; nothing re-polls it</text>
+  <!-- 22:07 -->
+  <circle cx="780" cy="120" r="6" fill="var(--alert)"/>
+  <text x="780" y="92" class="m" text-anchor="middle">22:07:54</text>
+  <text x="780" y="150" class="t" text-anchor="middle">#913 merges on GitHub</text>
+  <text x="780" y="168" class="t" text-anchor="middle" opacity=".7">no delta, no wake, no arrow in Figure 1</text>
+  <!-- 22:09 -->
+  <circle cx="920" cy="120" r="6" fill="currentColor"/>
+  <text x="920" y="92" class="m" text-anchor="middle">22:09</text>
+  <text x="920" y="150" class="t" text-anchor="middle">user asks</text>
+  <text x="920" y="168" class="t" text-anchor="middle" fill="var(--alert)">answer from memory</text>
+</svg>
+</div>
+<figcaption>Figure 2. Once t9hb was removed, the PR it produced was outside every mechanical probe. The dependency wait had been routed to a note, exactly as §4 Notes instructs, and notes are re-verified only by “operator judgment per tick”, with quiet ticks explicitly told to emit nothing else.</figcaption>
+</figure>
+
+<div class="col">
+<p>Three lines in the skill together produce this outcome:</p>
+<ul>
+  <li><strong>§4 Notes, routing doctrine.</strong> “Merge-gate dependency waits (checked by operator judgment per tick — no git/GitHub watch <code>source</code> exists today)” go to a <em>note</em>. The gap is documented as policy.</li>
+  <li><strong>§4 Tick Behavior step 4.</strong> The only GitHub poll in the tick is “if a merge sequence is in progress”, meaning a PR the operator itself armed. A PR someone else will merge is never polled.</li>
+  <li><strong>§4 Idle Message.</strong> “The idle message is the only other per-tick output … nothing else.” On a quiet tick the agent is told to say nothing, so there is no moment where it would naturally re-read open notes and re-verify them.</li>
+</ul>
+<p>The Go side agrees with the prose: <code>operator_watch.go</code> rejects any <code>--source</code> other than <code>linear</code> or <code>slack</code>, and <code>tick-start</code> only enumerates tmux panes. So your read is right. The tracked-thing model is fab-change-shaped, and everything else is a special case bolted to its side.</p>
+</div>
+
+<h2 class="col">3 · One tracked-item model</h2>
+<div class="col">
+<p>The fix is not a sixth section for GitHub. It is to make every tracked thing the same shape, so that the binary can poll all of them in one loop and the LLM only decides what to do about changes. The operator's job statement then becomes literally what you said: <em>hand me something long-running, I will watch it and act when it moves.</em></p>
+</div>
+
+<figure>
+<div class="fig">
+<svg viewBox="0 0 1000 470" class="f3" role="img" aria-label="Proposed loop: one tracked list of uniform items with a probe, a done-when predicate and a then-instruction; the tick polls every probe and emits deltas plus a stale list; the operator acts on deltas via then-prose; done items are removed; the cron entry is muted when the list is empty.">
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker>
+    <marker id="arr2-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--ok)"/></marker>
+  </defs>
+  <text x="20" y="26" class="h">tracked: [] — one shape</text>
+  <rect x="20" y="40" width="300" height="250" class="box ok"/>
+  <text x="34" y="64" class="m">- id: pr-913</text>
+  <text x="34" y="82" class="m">  kind: github-pr</text>
+  <text x="34" y="100" class="m">  probe: shell · gh pr view 913 --json state</text>
+  <text x="34" y="118" class="m">  done_when: .state == MERGED</text>
+  <text x="34" y="136" class="m">  then: spawn n34 in ~/code/hexokit</text>
+  <text x="34" y="154" class="m">  depends_on: []</text>
+  <text x="34" y="172" class="m">  last: {state: OPEN, at: 22:03}</text>
+  <text x="34" y="200" class="m" opacity=".7">- id: t9hb   kind: fab-change  probe: pane</text>
+  <text x="34" y="218" class="m" opacity=".7">- id: DEV-988 kind: linear    probe: agent</text>
+  <text x="34" y="236" class="m" opacity=".7">- id: deploy  kind: shell     probe: curl …</text>
+  <text x="34" y="254" class="m" opacity=".7">- id: n1     kind: note      probe: none</text>
+  <text x="34" y="278" class="t" opacity=".7">monitored · watches · autopilot · notes → kinds</text>
+
+  <!-- tick -->
+  <text x="400" y="26" class="h">tick · binary</text>
+  <rect x="400" y="40" width="260" height="110" class="box"/>
+  <text x="414" y="64" class="t" font-weight="600">fab operator tick-start --diff</text>
+  <text x="414" y="86" class="t">runs every <tspan class="m">probe: shell|pane</tspan></text>
+  <text x="414" y="104" class="t">diffs vs <tspan class="m">last</tspan>, evaluates <tspan class="m">done_when</tspan></text>
+  <text x="414" y="122" class="t">lists <tspan class="m">probe: agent</tspan> items due for a check</text>
+  <text x="414" y="140" class="t" opacity=".7">emits: changed · done · needs_check · stale</text>
+
+  <!-- operator -->
+  <text x="400" y="196" class="h">operator · llm</text>
+  <rect x="400" y="210" width="260" height="110" class="box"/>
+  <text x="414" y="234" class="t" font-weight="600">act on deltas only</text>
+  <text x="414" y="256" class="t">changed → evaluate <tspan class="m">then</tspan> prose</text>
+  <text x="414" y="274" class="t">needs_check → run MCP probe, <tspan class="m">track observe</tspan></text>
+  <text x="414" y="292" class="t">waiting agent → auto-answer (unchanged §5)</text>
+  <text x="414" y="310" class="t" opacity=".7">done → <tspan class="m">track rm</tspan> (the ack)</text>
+
+  <!-- frame -->
+  <rect x="400" y="350" width="260" height="70" class="box"/>
+  <text x="414" y="374" class="t" font-weight="600">frame: one table, all kinds</text>
+  <text x="414" y="394" class="m" font-size="11">id · kind · state · checked 4m ago · next</text>
+  <text x="414" y="410" class="t" font-size="11" opacity=".7">unverified items get ⚠ instead of silence</text>
+
+  <!-- world -->
+  <text x="740" y="26" class="h">world</text>
+  <rect x="740" y="40" width="240" height="40" class="box"/><text x="752" y="65" class="t">tmux panes</text>
+  <rect x="740" y="92" width="240" height="40" class="box"/><text x="752" y="117" class="t">GitHub · gh</text>
+  <rect x="740" y="144" width="240" height="40" class="box"/><text x="752" y="169" class="t">any shell probe (curl, kubectl, test)</text>
+  <rect x="740" y="210" width="240" height="40" class="box"/><text x="752" y="235" class="t">Linear / Slack · MCP (agent-side)</text>
+  <rect x="740" y="350" width="240" height="70" class="box"/>
+  <text x="752" y="374" class="t" font-weight="600">rk cron “operator tick”</text>
+  <text x="752" y="394" class="t" opacity=".7">mute when tracked is empty</text>
+  <text x="752" y="410" class="t" opacity=".7">unmute on first <tspan class="m">track add</tspan></text>
+
+  <!-- edges -->
+  <path d="M320 95 H400" class="edge ok" style="marker-end:url(#arr2-ok)"/>
+  <text x="326" y="88" class="t okf" font-size="11">read all</text>
+  <path d="M660 60 H740" class="edge"/>
+  <path d="M660 90 H700 V112 H740" class="edge"/>
+  <path d="M660 120 H700 V164 H740" class="edge"/>
+  <path d="M530 150 V210" class="edge"/>
+  <text x="538" y="184" class="t" font-size="11">deltas · needs_check</text>
+  <path d="M660 274 H740 V230" class="edge"/>
+  <path d="M400 265 H360 V300 H320" class="edge" style="marker-end:url(#arr2)"/>
+  <text x="196" y="318" class="t" font-size="11">track add · observe · rm  (verbs, never hand-writes)</text>
+  <path d="M530 320 V350" class="edge"/>
+  <path d="M860 350 V330 H530" class="edge" style="marker-end:none" opacity=".6"/>
+  <path d="M170 290 V395 H400" class="edge" opacity=".6"/>
+  <text x="180" y="388" class="t" font-size="11" opacity=".7">every item renders, with age since last check</text>
+</svg>
+</div>
+<figcaption>Figure 3. One list, one probe loop, one frame. A fab change is the item whose probe is the pane snapshot; a Linear watch is an item whose probe the agent runs over MCP because the binary cannot; a PR is a shell probe. Notes are items with no probe, and because they render with an age, a stale one is visible instead of forgotten.</figcaption>
+</figure>
+
+<div class="col">
+<p>What this buys you, in the terms of the #913 incident: <code>fab operator track add pr-913 --probe 'gh pr view 913 --json state' --done '.state==\"MERGED\"' --then 'spawn n34…'</code> would have produced a <code>done</code> delta on the first tick after 22:07:54, and the operator would have spawned n34 without being asked.</p>
+</div>
+
+
+<h2 class="col">4 · The frame</h2>
+<div class="col">
+<p>The table the operator prints every tick is the only surface where a stale item can be seen. Today it has two tables (changes per repo, then watches), no column for when a thing was last verified, and no row for notes. Proposed: one table over every tracked item, a column for freshness, and a column for what the operator will do next. Rendered as the terminal shows it:</p>
+</div>
+
+<div class="frame-demo">
+<div class="fr-h">🛰️ <b>Operator</b> · 22:03 · tick #5121 · <b>6 tracked</b> · idle-every 3m · skip-if-busy</div>
+<div class="tblwrap">
+<table class="fr">
+  <tr><th></th><th>ID</th><th>Kind</th><th>State</th><th>Checked</th><th>Next</th></tr>
+  <tr><td class="c">▶</td><td><code>t9hb</code></td><td>fab · ~/code/hexokit</td><td>🟢 review · active</td><td>live</td><td>—</td></tr>
+  <tr><td class="c"></td><td><code>n34</code></td><td>fab · ~/code/hexokit</td><td>⏸ held</td><td>—</td><td>waits on <code>pr-913</code></td></tr>
+  <tr><td class="c">▶</td><td><code>pr-913</code></td><td>gh pr · hexokit#913</td><td>🟡 OPEN · checks pending</td><td>2m ago</td><td>spawn <code>n34</code> when MERGED</td></tr>
+  <tr><td class="c">▶</td><td><code>DEV-988</code></td><td>linear · DEV</td><td>🟢 In Progress</td><td>11m ago ⚠</td><td>notify when Done</td></tr>
+  <tr><td class="c"></td><td><code>deploy</code></td><td>shell · curl staging</td><td>🔴 exit 1 · 3 fails</td><td>1m ago</td><td>escalated</td></tr>
+  <tr><td class="c"></td><td><code>n1</code></td><td>note</td><td>phase 2 of 4 — auto-merge armed behind s2gw</td><td>3d</td><td>—</td></tr>
+</table>
+</div>
+<div class="fr-f"><i>pr-913: OPEN → checks pending · DEV-988: unverified 11m (cadence 5m) · deploy: probe failed ×3, auto-paused</i></div>
+</div>
+
+<div class="col">
+<p>And the quiet tick, still one line, now carrying the live cadence read from <code>rk cron list --json</code>:</p>
+<pre><code>🛰️ **Operator** · 22:06 · tick #5122 · **6 tracked** · idle-every 3m · no change · 1 waiting</code></pre>
+<p>The markdown source the operator emits for the full frame, shown fenced here only so the page can display it:</p>
+<pre><code>🛰️ **Operator** · 22:03 · tick #5121 · **6 tracked** · idle-every 3m · skip-if-busy
+
+| | ID | Kind | State | Checked | Next |
+|:--:|---|---|---|---|---|
+| ▶ | `t9hb` | fab · ~/code/hexokit | 🟢 review · active | live | — |
+| | `n34` | fab · ~/code/hexokit | ⏸ held | — | waits on `pr-913` |
+| ▶ | `pr-913` | gh pr · hexokit#913 | 🟡 OPEN · checks pending | 2m ago | spawn `n34` when MERGED |
+| ▶ | `DEV-988` | linear · DEV | 🟢 In Progress | 11m ago ⚠ | notify when Done |
+| | `deploy` | shell · curl staging | 🔴 exit 1 · 3 fails | 1m ago | escalated |
+| | `n1` | note | phase 2 of 4 — auto-merge armed behind s2gw | 3d | — |
+
+*pr-913: OPEN → checks pending · DEV-988: unverified 11m (cadence 5m) · deploy: probe failed ×3, auto-paused*</code></pre>
+
+<h3>Rules: kept and changed</h3>
+<div class="tblwrap">
+<table>
+  <tr><th>Rule</th><th>Today</th><th>Proposed</th></tr>
+  <tr><td>Render channel</td><td>bare markdown, no fence, no headings; tables, emoji, bold, italic, code spans, URLs</td><td><span class="pill ok">kept</span></td></tr>
+  <tr><td>Emoji is the only colour</td><td>🟢 🟡 🔴 ✅ ⚪; geometric glyphs banned</td><td><span class="pill ok">kept</span>, adds ⏸ held on a dependency</td></tr>
+  <tr><td>Header</td><td><code>🛰️ **Operator** · HH:MM · tick #N · **N tracked**</code></td><td>same, plus <code>· &lt;schedule&gt; · &lt;deliver&gt;</code> read from <code>rk cron list --json</code>, never composed</td></tr>
+  <tr><td>Two shapes</td><td>full on a delta, every 10th tick, or on request; one-line compact otherwise</td><td><span class="pill ok">kept</span>; a <code>stale</code> or <code>probe_error</code> delta also forces the full frame</td></tr>
+  <tr><td>Grouping</td><td>one anchor + table per repo, then a Watches table</td><td>one table; scope moves into the Kind column (<code>fab · ~/repo</code>, <code>gh pr · repo#N</code>, <code>linear · PROJECT</code>)</td></tr>
+  <tr><td>▶ marker</td><td>autopilot-queue member</td><td>the item has a <code>then</code>: the operator will act on its next change</td></tr>
+  <tr><td>State column</td><td>Stage, optional <code>⚠️</code> for &gt;15m idle</td><td>health emoji + last observed state verbatim from the probe's declared field; fab items keep <code>stage · agent</code></td></tr>
+  <tr><td>Checked column</td><td>none (watches had "Nm ago" in Status)</td><td>age since last successful probe; <code>live</code> for pane items; <code>⚠</code> once past the item's <code>check_every</code>; 🔴 at twice it</td></tr>
+  <tr><td>Next column</td><td>PR URL</td><td>the armed action in five words or fewer; the URL moves to the footnote line when it changes</td></tr>
+  <tr><td>Notes</td><td>absent from the frame; only in <code>fab operator state</code></td><td>rows like any other item, Checked shows age since update</td></tr>
+  <tr><td>Footnote</td><td>italic, <code>·</code>-separated actions</td><td><span class="pill ok">kept</span>; changed-field deltas render here too (<code>OPEN → MERGED</code>)</td></tr>
+  <tr><td>Idle message</td><td>separate "Waiting for next tick" line between ticks</td><td>deleted; the compact line already carries time and tick</td></tr>
+  <tr><td>Nothing else per tick</td><td>no echo of the tick document, no per-candidate lines</td><td><span class="pill ok">kept</span></td></tr>
+</table>
+</div>
+<p>Ordering: kind, then scope, then id, so fab items stay together and a Linear item never lands between two changes of the same repo. Items removed this tick render once with ✅ and their closing footnote, then vanish. A held item shows what it waits on, so a dependency chain reads top to bottom without opening the state file.</p>
+<p><strong>Where it lands.</strong> The cadence suffix on the header rides fab change A, since it only reads released rk output. Everything else is change B: the Kind, Checked and Next columns exist only once items carry <code>kind</code>, <code>checked_at</code> and <code>then</code>.</p>
+</div>
+
+<h2 class="col">5 · Simplifications, in order</h2>
+<div class="col">
+<ol class="plan">
+  <li><strong>Replace the five state sections with one <code>tracked</code> list.</strong>
+    <div class="body"><p>Each item: <code>id</code>, <code>kind</code>, <code>probe</code> (<code>pane</code> | <code>shell &lt;cmd&gt;</code> | <code>agent &lt;instruction&gt;</code> | <code>none</code>), <code>done_when</code>, <code>then</code> (prose), <code>depends_on</code>, <code>last</code>, <code>checked_at</code>. Monitored entries, watches, autopilot queue entries and coordination notes become kinds with defaults. The clock predicate becomes “tracked is non-empty”, which is simpler than today's four-clause disjunction. <code>branch_map</code> can stay as a side lookup, or ride as item metadata.</p></div></li>
+  <li><strong>Make <code>tick-start --diff</code> poll every item with a mechanical probe.</strong>
+    <div class="body"><p>Today it enumerates panes. Extend it to run shell probes (bounded timeout, argv-only, stderr swallowed) and evaluate <code>done_when</code> as a small predicate over the probe's JSON. Items whose probe is <code>agent</code> come back in a <code>needs_check</code> block with their age, so the LLM is told what to verify rather than trusted to remember. This single change closes the #913 class of bug.</p></div></li>
+  <li><strong>Keep the git choreography in the main skill; tighten it in place. <span class="pill">decided 2026-09-11</span></strong>
+    <div class="body"><p>Dependency resolution, the three merge modes, ordered merge and auto-merge are 235 lines, but they are the operator's main job, and they must survive a compaction reload: an armed merge sequence whose procedure lives in a helper the operator has to remember to load is the #913 shape again. So they stay where the reload guarantees them. In the generic model they operate on items with <code>depends_on</code> rather than on a separate autopilot block, which removes the duplicated "satisfied" definitions and the note-based persistence of the merge sequence. Realistic trim in place: 235 to about 180 lines. The three mode diagrams stay; the mode question requires them.</p></div></li>
+  <li><strong>Demote fab-only rules from principles to the <code>fab-change</code> kind.</strong>
+    <div class="body"><p>“Route pipeline-first”, “spawn in a worktree”, the hard <code>wt</code> gate at startup, stage-validated flags and “completion = review-pr done” are all correct for a fab change and wrong for everything else you listed. Keep them as the defaults that kind carries. A <code>task</code> kind whose <code>then</code> is “open an agent tab with this prompt” covers a normal change; a <code>linear</code> kind with no <code>then</code> covers a ticket you merely want to watch.</p></div></li>
+  <li><strong>One frame, one table (§4).</strong>
+    <div class="body"><p>Replace the change table plus watches table plus the ten-row element-format table with a single table over items: id, kind, state, age since check, next. Keep the health emoji as the only colour channel and keep the compact quiet-tick line. An item not verified within its expected cadence shows <span class="pill alert">⚠ unverified 14m</span>, which is the visual that would have caught #913 by tick #5121.</p></div></li>
+  <li><strong>Notes become items with <code>probe: none</code>, and they render.</strong>
+    <div class="body"><p>Drop the four note kinds and the routing-doctrine table. A note is a tracked item a human will resolve; it shows in the frame with its age, and the “stale after 14 days” flag already exists in <code>note list</code>. This also removes the paragraph that currently tells the agent merge-gate waits are its unaided responsibility.</p></div></li>
+  <li><strong>Prune the operational scaffolding once the model is uniform.</strong>
+    <div class="body"><p>Candidates: the two-rung version-skew fallback, the pre-cron <code>/loop</code> fallback (rk is a hard dependency of the operator in practice), the duplicate no-fence warnings, the Spawn-Session inference's four evidence tiers (default to “session of the target repo's other agents, else ask once”), and the “Idle Message” section. Each is defensible alone; together they are why the file is 903 lines.</p></div></li>
+</ol>
+</div>
+
+<div class="col">
+<h3>Line budget</h3>
+<div class="tblwrap">
+<table>
+  <tr><th>Section</th><th class="num">Lines today</th><th>Fate</th><th class="num">Est. after</th></tr>
+  <tr><td>Header, §1 Principles, §2 Startup</td><td class="num">110</td><td>Keep; principles lose fab-only rows</td><td class="num">70</td></tr>
+  <tr><td>§3 Safety</td><td class="num">45</td><td>Keep as is</td><td class="num">45</td></tr>
+  <tr><td>§4 Clock, mute/lease, reload</td><td class="num">57</td><td>Keep; predicate simplifies</td><td class="num">45</td></tr>
+  <tr><td>§4 State file, monitored, branch_map, notes</td><td class="num">108</td><td>Collapse to one item schema</td><td class="num">40</td></tr>
+  <tr><td>§4 Tick + frame + idle message</td><td class="num">113</td><td>Generic loop, one table</td><td class="num">55</td></tr>
+  <tr><td>§5 Auto-nudge</td><td class="num">74</td><td>Keep, it is the best part</td><td class="num">70</td></tr>
+  <tr><td>§6 Spawn + Working a change</td><td class="num">65</td><td>Keep; session inference trimmed</td><td class="num">45</td></tr>
+  <tr><td>§6 Dependencies, autopilot, merge modes, merges</td><td class="num">235</td><td>Keep inline; re-point at items, dedupe the "satisfied" definitions</td><td class="num">180</td></tr>
+  <tr><td>§7 Watches</td><td class="num">54</td><td>Become a kind; conversational map stays</td><td class="num">20</td></tr>
+  <tr><td>§8–9 Config, key properties</td><td class="num">42</td><td>Keep</td><td class="num">35</td></tr>
+  <tr><td><strong>Total</strong></td><td class="num"><strong>903</strong></td><td></td><td class="num"><strong>≈600</strong></td></tr>
+</table>
+</div>
+<p>The estimate is a target, not a measurement. A third of the file describes kind-specific exceptions to a loop that can be written once; the choreography third stays.</p>
+</div>
+
+<h2 class="col">6 · What to keep untouched</h2>
+<div class="col">
+<ul>
+  <li><strong>The clock.</strong> Cron-driven bare <code>operator tick</code>, mute on empty, lease as bounded snooze, no slash command in the payload. This was hard-won and is correct.</li>
+  <li><strong>Binary owns state.</strong> Every mutation through a verb, atomic writes, level-triggered deltas with remove-as-ack. The generic model relies on exactly this.</li>
+  <li><strong>Auto-nudge.</strong> The <code>waiting</code>-first sweep, the answer model, non-blocking strategic handling and the re-capture guard. None of it is fab-specific.</li>
+  <li><strong>Pre-send validation and confirmation tiers.</strong> Also kind-agnostic already.</li>
+</ul>
+<div class="callout ok"><strong>One caution on shell probes.</strong> A probe string in the state file is executed by the binary on every tick. That is fine for a user-owned XDG file, but the verb should refuse a probe that is not an argv list, run it with a short timeout, and never pass it through a shell. The <code>rk cron</code> respawn argv in §4 already follows that shape.</div>
+</div>
+
+<h2 class="col">7 · The clock: which cron kind</h2>
+<div class="col">
+<p>Verified against run-kit's <code>backoff.go</code>, not only the doc page. The ladder's anchor is the operator pane's own last <em>non-clock</em> activity: an agent-state epoch within 120 seconds of the entry's latest delivery is attributed to the tick and the ladder keeps climbing; an epoch outside that window is genuine activity and resets to rung 0.</p>
+</div>
+
+<figure>
+<div class="fig">
+<svg viewBox="0 0 1000 300" class="f4" role="img" aria-label="Backoff ladder timeline: ticks at 1, 2, 4, 8, 16 then 30 minute gaps; a user message to the operator resets the ladder to 1 minute; wake_on fires and external events such as a PR merge do not reset it.">
+  <line x1="40" y1="130" x2="960" y2="130" stroke="currentColor" stroke-width="1.2"/>
+  <text x="40" y="40" class="h">backoff 1m→30m · what moves the ladder</text>
+  <g fill="currentColor">
+    <circle cx="60" cy="130" r="5"/><circle cx="90" cy="130" r="5"/><circle cx="150" cy="130" r="5"/><circle cx="270" cy="130" r="5"/><circle cx="510" cy="130" r="5"/>
+  </g>
+  <text x="60" y="112" class="m" text-anchor="middle">+1m</text>
+  <text x="120" y="112" class="m" text-anchor="middle">+2m</text>
+  <text x="210" y="112" class="m" text-anchor="middle">+4m</text>
+  <text x="390" y="112" class="m" text-anchor="middle">+8m → 16m → 30m…</text>
+  <!-- wake fire -->
+  <circle cx="340" cy="130" r="5" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+  <text x="340" y="160" class="t" text-anchor="middle">wake_on fire</text>
+  <text x="340" y="176" class="t" text-anchor="middle" opacity=".7">a delivery too → attributed, no reset</text>
+  <!-- external -->
+  <circle cx="440" cy="130" r="5" fill="var(--alert)"/>
+  <text x="440" y="160" class="t" text-anchor="middle" fill="var(--alert)">PR merges</text>
+  <text x="440" y="176" class="t" text-anchor="middle" fill="var(--alert)">invisible to rk · no reset</text>
+  <!-- long tick -->
+  <rect x="505" y="124" width="60" height="12" fill="var(--accent)" opacity=".35"/>
+  <text x="535" y="160" class="t" text-anchor="middle">tick turn > 120s</text>
+  <text x="535" y="176" class="t" text-anchor="middle" opacity=".7">reads as real work → reset</text>
+  <!-- user -->
+  <circle cx="700" cy="130" r="6" fill="var(--ok)"/>
+  <text x="700" y="160" class="t" text-anchor="middle" fill="var(--ok)">you type to the operator</text>
+  <text x="700" y="176" class="t" text-anchor="middle" fill="var(--ok)">non-attributed epoch → rung 0</text>
+  <g fill="currentColor"><circle cx="730" cy="130" r="5"/><circle cx="790" cy="130" r="5"/><circle cx="910" cy="130" r="5"/></g>
+  <text x="760" y="112" class="m" text-anchor="middle">+1m +2m +4m</text>
+  <text x="40" y="240" class="t">Rule: agent events are always fast via <tspan class="m">wake_on</tspan> regardless of rung. The rung only sets the polling floor for things <tspan class="m">wake_on</tspan> cannot see, and only the operator's own activity tightens it.</text>
+  <text x="40" y="262" class="t" fill="var(--alert)">For external items that means a 30-minute floor once the fleet is quiet, and no external event can shorten it.</text>
+</svg>
+</div>
+<figcaption>Figure 4. What resets the backoff ladder and what does not. Both channels of the operator-tick entry write to the same delivery log, so a wake fire is attributed like a scheduled one.</figcaption>
+</figure>
+
+<div class="col">
+<div class="tblwrap">
+<table>
+  <tr><th>Kind</th><th>Anchor</th><th>Sees external change</th><th>Pane-only operator</th><th>Generic tracking</th></tr>
+  <tr><td><code>every</code></td><td>last delivery</td><td>by polling at a fixed floor</td><td>fine, slightly wasteful</td><td>good: predictable floor</td></tr>
+  <tr><td><code>cron</code></td><td>wall clock</td><td>no</td><td>wrong shape</td><td>per-item schedules only</td></tr>
+  <tr><td><code>backoff</code></td><td>operator pane's last genuine idle</td><td>by polling, thinning to 30m</td><td><span class="pill ok">best</span> with <code>wake_on</code></td><td>poor: floor erodes</td></tr>
+  <tr><td><code>--idle-every</code> <span class="pill">9aup</span></td><td>same, flat ladder (min = max)</td><td>by polling at a fixed floor, re-phased on your activity</td><td>fine</td><td><span class="pill ok">best</span> with <code>skip-if-busy</code></td></tr>
+  <tr><td><code>wake_on</code></td><td>other panes' state edges</td><td>no</td><td>essential</td><td>essential for agent items only</td></tr>
+</table>
+</div>
+
+<h3>What 9aup adds, and why it changes the answer</h3>
+<ul>
+  <li><strong><code>deliver: skip-if-busy</code></strong> is a third delivery policy beside <code>immediate</code> (type it in, harness queues it) and <code>when-idle</code> (hold, retry each poll, drop after two hours). Busy is <code>active</code> or <code>waiting</code>. A dropped tick costs nothing: ticks are idempotent and the important deltas are level-triggered.</li>
+  <li><strong><code>--idle-every d</code></strong> is backoff with min equal to max. Both objections to backoff vanish at a flat ladder: there is no rung to lose, so a long tick turn only re-phases, and the interval never thins.</li>
+  <li><strong><code>rk cron edit</code></strong> turns the clock into a knob the operator owns. §4's "cadence is not owned by this skill" flips.</li>
+</ul>
+
+<h3>Recommended entry for the generic operator</h3>
+<pre><code>schedule:  idle-every 3m            # every 3m when no epoch is available
+wake_on:   { event: agent-state-change, scope: server, debounce: 60s }
+deliver:   skip-if-busy             # no queued tick backlog, no tick after every exchange
+if_absent: respawn · pinned</code></pre>
+<p>Two consequences to accept: a <code>wake_on</code> fire that lands mid-turn is dropped too, so the interval must stay short; and an operator parked on its own permission prompt skips every tick until answered, which is why it runs with bypass permissions.</p>
+
+<h3>Who turns the knob</h3>
+<p>The operator changing its own schedule "as the work changes" is right in aim and wrong if it is a per-tick LLM judgment, which is the #913 failure class again. The split that works:</p>
+<ol class="plan">
+  <li><strong>LLM decides cadence per item, once, at <code>track add</code>.</strong><div class="body"><p>"CI here takes about 8 minutes", "poll the deploy every 2 minutes until green". It becomes the item's <code>check_every</code>.</p></div></li>
+  <li><strong>Binary derives the entry's schedule from the tracked set.</strong><div class="body"><p>No external items: <code>backoff 1m→30m</code>, keeping the fade. Any external item: <code>idle-every min(check_every)</code> with <code>skip-if-busy</code>. Applied through <code>rk cron edit</code> on the same hook that mutes and unmutes, only when the derived value changes.</p></div></li>
+  <li><strong>User overrides conversationally, bounded.</strong><div class="body"><p>"Hold the ticks for 30 minutes" stays a lease. "Check every 15 minutes for the rest of the day" is an <code>edit</code> with an expiry the reconcile respects.</p></div></li>
+  <li><strong>The frame shows the live cadence.</strong><div class="body"><p>Ready line and compact tick line carry <code>every 3m · skip-if-busy</code> or <code>backoff 1m→30m</code>, read from <code>rk cron list --json</code>, never from memory.</p></div></li>
+</ol>
+<p>Mechanical note for run-kit: switching kinds re-anchors. A switch to <code>every 3m</code> fires on the next poll if the gap already exceeds 3 minutes. Harmless, but the <code>edit</code> spec should say so.</p>
+</div>
+
+<h2 class="col">8 · Substrate: fab pane vs rk mux</h2>
+<div class="col">
+<p>Both, layered. The operator still calls <code>fab pane map --all-sessions</code> and <code>tick-start --diff</code>, but since the cli-layering work those source their pane list from <code>rk mux panes --json</code> whenever rk is present, with a silent tmux fallback. rk is the substrate; fab adds change, stage and PR enrichment from the worktree's status files.</p>
+<div class="tblwrap">
+<table>
+  <tr><th>Job</th><th>Operator uses</th><th>Underneath</th></tr>
+  <tr><td>Enumerate panes</td><td><code>fab pane map</code>, <code>tick-start --diff</code></td><td><code>rk mux panes --json</code>, tmux fallback</td></tr>
+  <tr><td>Read a screen, process tree, kill</td><td><code>rk mux capture / process / kill</code></td><td>fab's twins demoted to dispatch-internal</td></tr>
+  <tr><td>Send text, answers, keys</td><td><code>rk mux send</code>, <code>--answer</code>, <code>--key</code>, <code>--force</code></td><td>raw <code>send-keys</code> fallback</td></tr>
+  <tr><td>Readiness after spawn</td><td><code>fab pane ready</code></td><td>delegates to <code>rk mux await --ready</code></td></tr>
+  <tr><td>Spawn a worker</td><td>raw <code>tmux new-window -t -P -F -n -c "cmd; exec $SHELL"</code></td><td><span class="pill alert">no rk verb</span></td></tr>
+  <tr><td>Mark tracked windows</td><td><code>fab pane window-name</code> prefix <code>»</code> / <code>›</code></td><td>raw window rename</td></tr>
+  <tr><td>Detect prompts on uninstrumented panes</td><td><code>fab pane questions</code></td><td>capture-scan</td></tr>
+  <tr><td>Agent-exited liveness</td><td><code>tick-start</code> walks the process tree itself</td><td>duplicates <code>rk mux process</code></td></tr>
+  <tr><td>Clock</td><td><code>rk cron</code> entry, mute/unmute from fab verbs</td><td></td></tr>
+</table>
+</div>
+
+<h3>rk gaps, by payoff <span class="pill">status 2026-09-11</span></h3>
+<ol class="plan">
+  <li><strong>A probe-fingerprint wake source. <span class="pill alert">rejected</span></strong><div class="body"><p><em>Decision: probes stay in fab. A raw output fingerprint has too many unrelated ways to change, so it would wake the operator on noise. The mitigation belongs where the item is defined: at <code>track add</code> the LLM names the field to compare (<code>.state</code>, <code>.mergedAt</code>), and <code>tick-start</code> diffs only that. Original proposal kept for the record:</em> <code>wake_on: { event: probe-change, argv: [gh, pr, view, "913", --json, state], every: 2m }</code>. rk polls external state inside its own 30-second ticker and fires the operator only on change. Polling leaves LLM turns entirely, the operator stays on backoff, and the #913 class is closed at the substrate. It has a target and a delivery, so it fits rk's own scope rule. A repo-boundary decision: settle it before the fab tracked-item work.</p></div></li>
+  <li><strong>A spawn verb. <span class="pill ok">released · wzve</span></strong><div class="body"><p><code>rk tab new</code> takes no session target, cwd or command. A verb taking <code>-t session</code>, <code>-c cwd</code>, the command, a name, optional <code>--ready</code>, printing <code>{session, window_id, pane_id}</code> deletes §6 step 7 and its escaping paragraph.</p></div></li>
+  <li><strong>Window marking through options, with setters. <span class="pill ok">released · hzih</span></strong><div class="body"><p>rk renders <code>@rk_win_marker</code>, <code>@rk_win_color</code>, <code>@rk_win_note</code> but they are set only by raw <code>tmux set-option</code>. A <code>rk tab mark</code> verb plus a "tracked by operator" treatment retires the <code>»</code>/<code>›</code> rename hack.</p></div></li>
+  <li><strong>Liveness in the enumeration row. <span class="pill ok">released · 7pek</span></strong><div class="body"><p>Add <code>has_agent</code> to <code>rk mux panes --json</code> so <code>tick-start</code> can drop its own process-tree walk, the most intricate code in the operator binary.</p></div></li>
+  <li><strong>Structured schedule in <code>rk cron list --json</code>. <span class="pill ok">released · r5ao</span></strong><div class="body"><p>Today <code>schedule</code> is the display string <code>backoff 1m→30m</code>. Deriving and editing needs <code>{kind, min, max, interval}</code>, <code>deliver</code> and <code>wake_on</code> as fields.</p></div></li>
+  <li><strong>Prompt classification. <span class="pill ok">released · a7g2</span></strong><div class="body"><p><code>fab pane questions</code> is substrate work living in fab. An <code>rk mux capture --classify</code> is its natural home. Small and last.</p></div></li>
+</ol>
+<p>Not a gap: fleet waiting. <code>rk mux await --any</code> blocks the caller and needs re-arming; the cron <code>wake_on</code> edge already does that job without a foreground process.</p>
+</div>
+
+<h2 class="col">9 · With rk released: what else leaves the prose</h2>
+<div class="col">
+<p>Two facts change the arithmetic. First, the operator already cannot run without run-kit in any useful way: the clock, the role mark, the send gate and the spawn readiness probe are all rk. Second, the skill loads four helpers, and the biggest of them is a reference for every <code>fab</code> command when the operator uses four. The cuts below assume 9aup and the five backlog items are shipped.</p>
+
+<ol class="plan">
+  <li><strong>Make run-kit a hard dependency and delete every fallback.</strong>
+    <div class="body"><p>27 rk-absent or raw-tmux fallback passages in the skill and 12 in <code>_cli-agents</code>: raw <code>send-keys</code>, the <code>/loop</code> degraded clock, the ntfy / Discord / PushNotification / Slack notify ladder, rk-less pane-map notes, the two-rung version-skew procedure, and every scattered <code>command -v rk</code> gate. One startup check replaces them: rk present and at or above the version carrying the six verbs, else stop with the install line.</p></div></li>
+  <li><strong>Load the operator's slice of <code>_cli-fab.md</code>, not the file.</strong>
+    <div class="body"><p>1,475 lines loaded, about 400 used: <code>fab operator</code>, <code>fab pane</code>, <code>fab agent</code>, <code>fab resolve</code>. Split those into <code>_cli-operator.md</code>, or make helpers section-addressable in the frontmatter. This is the single largest context saving available and needs no run-kit change.</p></div></li>
+  <li><strong>Pre-send validation becomes "send via <code>rk mux send</code>; a refusal is the answer".</strong>
+    <div class="body"><p>§3 items 1 and 2 and <code>_cli-agents</code> § Pre-Send Validation paraphrase rk's own gate table. Keep the policy line: <code>--answer</code> for <code>waiting</code>, <code>--force</code> only on explicit user confirmation. The Delivery Probe section goes too; the paste probe and bounded recovery are rk's.</p></div></li>
+  <li><strong>Spawn is one call.</strong>
+    <div class="body"><p><code>rk tab new --session =S --cwd &lt;wt&gt; --name &lt;n&gt; --ready --json -- &lt;cmd&gt;</code> returns <code>{session, window_id, pane_id}</code>; <code>track add</code> reads them. §6 step 7, the escaping paragraph, and the <code>-P -F</code> explanation go. Session inference keeps the three-line majority rule over <code>rk mux sessions</code>; the four-tier prose goes.</p></div></li>
+  <li><strong>Markers replace renames.</strong>
+    <div class="body"><p><code>rk tab mark</code> and <code>rk tab note</code> replace the <code>»</code>/<code>›</code> choreography, its exit-code handling and the "window rename skipped" log line. <code>fab pane window-name</code> leaves the operator entirely.</p></div></li>
+  <li><strong>The clock section shrinks to the rule and the knob.</strong>
+    <div class="body"><p>Structured <code>rk cron list --json</code> renders the ready line from fields, so the four literal variants collapse to one template. Delete the seeded-entry YAML copy and the "how the union predicate covers the retired loop" history. Add the derived-schedule rule and <code>rk cron edit</code> in three lines.</p></div></li>
+  <li><strong>Question detection is <code>rk mux capture --classify</code>.</strong>
+    <div class="body"><p>The §5 detection paragraph and the <code>fab pane questions</code> contract pointer become one line over the tick's <code>waiting</code>-first candidates. The answer model and the strategic table stay; they are the skill's judgment, not substrate.</p></div></li>
+  <li><strong><code>agent_exited</code> reads <code>has_agent</code>.</strong>
+    <div class="body"><p>The longest bullet in <code>_cli-fab</code> § tick-start, the shell-basename list and the process-tree walk semantics, becomes: command is a shell and <code>has_agent</code> is false.</p></div></li>
+  <li><strong>Probe contract, given the boundary decision.</strong>
+    <div class="body"><p>Every mechanical probe declares the fields it compares; <code>tick-start</code> never diffs raw output. That is the false-positive guard the rejected rk wake could not offer, and it is why the field choice sits with the LLM at <code>track add</code>.</p></div></li>
+</ol>
+
+<h3>Revised budget, all files the operator loads</h3>
+<div class="tblwrap">
+<table>
+  <tr><th>File</th><th class="num">Today</th><th>What changes</th><th class="num">Target</th></tr>
+  <tr><td><code>fab-operator.md</code></td><td class="num">903</td><td>§4 items 1–7 plus the cuts above; rk mandatory; choreography kept inline (≈180)</td><td class="num">≈480</td></tr>
+  <tr><td><code>_cli-fab.md</code></td><td class="num">1,475</td><td>operator loads only its slice</td><td class="num">≈350</td></tr>
+  <tr><td><code>_preamble.md</code></td><td class="num">545</td><td>unchanged, shared by every skill</td><td class="num">545</td></tr>
+  <tr><td><code>_cli-agents.md</code></td><td class="num">255</td><td>pre-send, peek and probe sections point at <code>rk skill mux</code></td><td class="num">≈120</td></tr>
+  <tr><td><code>_cli-external.md</code></td><td class="num">247</td><td><code>/loop</code> section deleted; wt moves to the fab-change helper</td><td class="num">≈80</td></tr>
+  <tr><td><strong>Loaded per reload</strong></td><td class="num"><strong>3,425</strong></td><td></td><td class="num"><strong>≈1,575</strong></td></tr>
+</table>
+</div>
+<p>Targets are estimates. The operator's reload cost is dominated by files it does not own, so the largest cut is a loading change, not a rewrite. The choreography is the one large block that stays, by design.</p>
+</div>
+
+<h2 class="col">10 · Sequencing</h2>
+<div class="col">
+<p>Decided: probes live in fab, not rk. Assumed done: 9aup (<code>edit</code>, <code>skip-if-busy</code>, <code>--idle-every</code>) and backlog items wzve, hzih, 7pek, r5ao, a7g2.</p>
+<ol class="plan">
+  <li><strong>fab change A: loading and dependency.</strong><div class="body"><p>rk becomes mandatory; the operator loads <code>_cli-operator.md</code> instead of <code>_cli-fab.md</code>; every fallback passage is deleted; the compact line and ready line gain the live cadence from <code>rk cron list --json</code>. Otherwise no behaviour change, largest context win, safe to ship alone.</p></div></li>
+  <li><strong>fab change B: generic <code>tracked</code> list, probe loop, derived schedule.</strong><div class="body"><p>Go verbs and <code>tick-start</code> extension with field-scoped probes, one-table frame, §4 and §7 rewritten as kinds. Ready line from structured cron JSON, spawn via <code>rk tab new</code>, markers via <code>rk tab mark</code>. Autopilot becomes a chain of items with <code>depends_on</code>; the choreography sections are re-pointed at items and tightened in place, never moved out. The one-table frame (§4) lands here.</p></div></li>
+</ol>
+</div>
+</div>
+</body></html>
