@@ -43,7 +43,7 @@ project/
             └── SKILL.md            # Same canonical skill, deployed independently
 ```
 
-In the **fab-kit dev repo**, `src/kit/` is the canonical source for all kit content (skills in `src/kit/skills/`, templates in `src/kit/templates/`, migrations, scaffold), and `src/go/` holds the Go binaries. Releases package `src/kit/` into the per-version cache archives — projects never carry a `.kit/` directory.
+In the **fab-kit dev repo**, `src/kit/` is the canonical source for all kit content (skills in `src/kit/skills/`, templates in `src/kit/templates/`, migrations, scaffold), and `src/go/` holds the Go binaries. Releases package `src/kit/` into the per-version cache archives — projects never carry a `.kit/` directory. `docs/specs/` and `docs/memory/` are dev-repo-only: deployed kit content under `src/kit/` must not cite them (Constitution V — restate the rule in the deployed file instead).
 
 ---
 

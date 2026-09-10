@@ -58,7 +58,7 @@ When you cannot tell whether a narration line encodes durable intent, treat it a
 
 ### Generated files & the tombstone exemption
 
-- **Never hand-edit generated files** — `index.md` (root / domain / sub-domain tiers) and `log.md` are written solely by `fab docs-index docs/memory` (FKF §5, §6). This skill regenerates them via `fab docs-index docs/memory` after applying rewrites; it never edits their rows. The one hand-managed region inside a generated primary landing is the `manual` block; its rule is owned by `docs/memory/memory-docs/docs-index.md`.
+- **Never hand-edit generated files** — `index.md` (root / domain / sub-domain tiers) and `log.md` are written solely by `fab docs-index docs/memory` (FKF §5, §6). This skill regenerates them via `fab docs-index docs/memory` after applying rewrites; it never edits their rows. The one hand-managed region inside a generated primary landing is the `manual` block; its rule is owned by `_cli-fab.md` § fab docs-index.
 - **`log.seed.md` is a curated read-only SEED INPUT, not a generated file** — `fab docs-index docs/memory` *reads* it during the seed-merge but never *writes* it (like `description:` frontmatter, it is a gathered input; the generator stays the sole writer of `log.md`). It is nonetheless **excluded from distillation**: its body *is* a citation-carrying seed ledger of pre-FKF history in the §6.2 entry format, not topic-file prose — the same exclusion posture as `removed-domains.md` below. Skip it entirely; never rewrite it.
 - **`docs/memory/_shared/removed-domains.md` is EXEMPT** from rewrite — the §3.3 tombstone carve-out: its body *is* removal records, a citation-carrying tombstone ledger, not transition narration. Skip it entirely. (fab-kit's own tree has no such file; the exemption matters in user projects, where `/docs-reorg-memory` authors it.)
 
@@ -143,7 +143,7 @@ Steps 1–5 are the one-domain approval/apply unit described in Arguments. Read
 the target domain's `index.md` and every topic file recursively, then classify
 each file using the Detect/Action table in § What a rewrite does.
 
-Skip `index.md` / `log.md` (generated), `log.seed.md` (a curated read-only seed input — never written by the generator, and excluded from distillation like a ledger), and `_shared/removed-domains.md` (tombstone exemption) — never rewrite them. The hand-managed `manual` block inside generated primary landings is likewise never rewritten here; its rule is owned by `docs/memory/memory-docs/docs-index.md`.
+Skip `index.md` / `log.md` (generated), `log.seed.md` (a curated read-only seed input — never written by the generator, and excluded from distillation like a ledger), and `_shared/removed-domains.md` (tombstone exemption) — never rewrite them. The hand-managed `manual` block inside generated primary landings is likewise never rewritten here; its rule is owned by `_cli-fab.md` § fab docs-index.
 
 Classify every removal candidate — intent first: does it carry durable intent (a deliberate-behavior defense, a "don't re-break this", a rejected alternative)? If yes → **relocate into Design Decisions**, do not delete — regardless of where else it is recorded. Only intent-free narration whose content is already recorded elsewhere (per-folder `log.md`, git history, an archived change folder) is **safe to delete**. When in doubt, relocate. (The class-8 DD-bullet rewrite runs this same intent test; class 9 is a **relocation**, never a deletion.)
 
@@ -202,7 +202,7 @@ Never touch `index.md` / `log.md` (Step 5 regenerates them), `log.seed.md` (a cu
 
 ### Step 5: Regenerate indexes (refuse-before-regen guard)
 
-After applying rewrites, regenerate the generated files — **never hand-edit them** (FKF §5). (A primary landing's hand-managed `manual` block is preserved verbatim by the generator — rule owned by `docs/memory/memory-docs/docs-index.md`.)
+After applying rewrites, regenerate the generated files — **never hand-edit them** (FKF §5). (A primary landing's hand-managed `manual` block is preserved verbatim by the generator — rule owned by `_cli-fab.md` § fab docs-index.)
 
 1. **Consult `fab docs-index docs/memory --check` first** (the refuse-before-regen guard `/docs-hydrate-memory` also carries; exit tiers in `_cli-fab` § fab docs-index):
    - **Exit 0** (clean) / **exit 1** (benign drift) → proceed to regenerate.

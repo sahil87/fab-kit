@@ -414,6 +414,8 @@ operator, batch, spawn, prmeta — sees effective config with zero per-caller ch
    existing point-of-use seams (`internal/agent`'s role/provider resolution, the nil-safe accessors)
    and projected as a materialized read-model tier by `configref.DefaultsMap` (below)
 
+The deployed one-line restatement an agent needs lives in `_cli-fab.md` § fab config show (the deployed owner); this section owns the design rationale.
+
 **The system tier outranks the project file.** For a *preference-class* key — "which worker provider do
 I like on this machine" — a repo's committed suggestion losing to the user's own machine-wide choice is
 the point: the alternative made a personal `~/.fab-kit/config.yaml` preference silently inert in any

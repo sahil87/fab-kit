@@ -373,7 +373,7 @@ Mechanics, all fixed by this spec:
 
 The protocol is what makes an adapter interchangeable: whichever adapter launches the worker, the
 **outcome contract** is identical. It has an orchestrator-side half and a worker-side half; the
-worker-side half (dispatch-prompt obligations) is **implemented by 3d**, but its rules are fixed here.
+worker-side half (dispatch-prompt obligations) is **implemented by 3d**, but its rules are designed here — the deployed rule text lives in `_preamble.md` § Dispatch-Prompt Obligations (the deployed owner).
 
 ### Dispatch-prompt obligations (the worker-side half — 3d implements)
 

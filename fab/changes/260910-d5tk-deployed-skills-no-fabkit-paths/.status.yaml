@@ -1,0 +1,54 @@
+id: d5tk
+name: 260910-d5tk-deployed-skills-no-fabkit-paths
+created: 2026-09-10T04:09:22Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 9
+    acceptance_count: 19
+    acceptance_completed: 19
+confidence:
+    certain: 9
+    confident: 7
+    tentative: 1
+    unresolved: 0
+    score: 3.6
+    fuzzy: true
+    dimensions:
+        signal: 82.9
+        reversibility: 82.6
+        competence: 78.8
+        disambiguation: 71.5
+stage_metrics:
+    intake: {started_at: "2026-09-10T04:09:22Z", driver: fab-new, iterations: 1, completed_at: "2026-09-10T04:27:40Z"}
+    apply: {started_at: "2026-09-10T04:27:40Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-10T04:39:15Z"}
+    review: {started_at: "2026-09-10T04:39:15Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-10T04:44:51Z"}
+    hydrate: {started_at: "2026-09-10T04:44:51Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-10T04:52:14Z"}
+    ship: {started_at: "2026-09-10T04:52:14Z", driver: fab-fff, iterations: 1}
+prs: []
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-09-10T04:52:14Z"
+    computed_at_stage: hydrate
+summary: 'Constitution 1.8.0: deployed kit content must not cite fab-kit-only paths; 13 skill sites + 7 migrations swept; Go portability guard added'
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-09-10T04:52:14Z
