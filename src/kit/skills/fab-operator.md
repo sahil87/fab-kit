@@ -155,7 +155,7 @@ When `fab resolve` fails during a **user-initiated** action (not monitoring tick
 
 ## 4. The Clock
 
-The operator's cadence is **not owned by this skill** — it is run-kit substrate the skill documents and verifies, exactly like `@rk_pane_agent_state`. The clock is the **operator-tick cron entry** seeded idempotently by `rk operator` (one per tmux server); run-kit's `docs/specs/cron.md` is the entry's design authority. Ticks arrive as the bare text `operator tick` delivered into the operator pane, for **every** provider (Claude, codex, gemini, …) — no provider-specific in-session clock is the primary cadence.
+The operator's cadence is **not owned by this skill** — it is run-kit substrate the skill documents and verifies, exactly like `@rk_pane_agent_state`. The clock is the **operator-tick cron entry** seeded idempotently by `rk operator` (one per tmux server); run-kit's operator-cron spec is the entry's design authority. Ticks arrive as the bare text `operator tick` delivered into the operator pane, for **every** provider (Claude, codex, gemini, …) — no provider-specific in-session clock is the primary cadence.
 
 The seeded entry's shape (reference summary — schema and semantics are owned by the cron spec, not restated here):
 

@@ -1,6 +1,6 @@
 # Change Types
 
-Fab uses 7 change types derived from [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). Change types control confidence scoring thresholds, PR formatting, and pipeline gating.
+Fab uses 7 change types derived from [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). Change types control confidence scoring thresholds, PR formatting, and pipeline gating. Deployed kit content points at `_cli-fab.md` § fab score for the type names (enumerated there); this spec remains the design record of the taxonomy.
 
 ---
 

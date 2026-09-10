@@ -53,7 +53,7 @@ For each skill file, read it fully and evaluate against these bloat signals.
 | **Over-specified error tables** | Error cases that are already handled by preflight scripts or shared conventions. Keep only skill-specific errors. |
 | **Verbose step narration** | Steps that could be a single sentence but are expanded into paragraphs with sub-bullets. Compress. |
 | **Duplicate examples** | Multiple examples illustrating the same point. Keep the most illustrative one. |
-| **Sibling duplication** | In any content pass, compare the analyzed file with the already-loaded `_*.md` partials for the same rule, guard, or procedure. Ownership rule: a file may state a rule it owns or point at the file that owns it — never both. Report the owner/consumer pair and recommend reducing the consumer to a pointer, or report an extraction candidate; do not rewrite either file under this signal. |
+| **Sibling duplication** | In any content pass, compare the analyzed file with the already-loaded `_*.md` partials for the same rule, guard, or procedure. Ownership rule: a file may state a rule it owns or point at the file that owns it — never both; across the deploy boundary (the owner does not deploy), the deployed file restates the rule and owns it. Report the owner/consumer pair and recommend reducing the consumer to a pointer, or report an extraction candidate; do not rewrite either file under this signal. |
 
 **Structural signals** (apply to **all** files **including `_*.md` partials** — these add/report structure, never trim prose):
 

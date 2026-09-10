@@ -667,6 +667,8 @@ still point a role at Haiku (pass-through doesn't forbid it); fab just doesn't s
 
 ## Skill wiring — orchestrator/dispatch consume `fab agent -o yaml`
 
+This section is the design record; the deployed wiring rules live in `_preamble.md` § Per-Stage Model Resolution and `_cli-fab.md` § fab agent (the deployed owners).
+
 The orchestrators (`/fab-ff`, `/fab-fff`, `/fab-proceed`, `/fab-adopt`) and `/fab-continue`'s sub-agent dispatch call
 `fab agent <stage> -o yaml` immediately before dispatching each stage's sub-agent, **surface** the
 resolved YAML — at minimum `provider`, `model`, `model_alias`, `effort`, and `dispatch:` presence — so a skipped or mis-resolved role or CLI

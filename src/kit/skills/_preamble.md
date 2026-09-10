@@ -302,7 +302,7 @@ Immediately before dispatching a pipeline-stage sub-agent, the dispatching skill
 fab agent <stage> -o yaml
 ```
 
-The structured output carries the resolved `provider`, full `model`, `model_alias`, `effort`, composed `command`, per-field `source`, and optional `dispatch:` mapping. `model_alias` is the native Agent-tool alias for recognized Claude model IDs and is empty for non-Claude IDs; `dispatch:` is absent exactly when the native rung resolves and otherwise carries the labelled `rung` plus the composed `command`. The resolver's role/depth/fill precedence and the YAML schema live in `_cli-fab.md` § fab agent; `docs/specs/stage-models.md` owns the design. Resolved strings pass through verbatim — fab validates no effort enum and corrects no incompatible pair.
+The structured output carries the resolved `provider`, full `model`, `model_alias`, `effort`, composed `command`, per-field `source`, and optional `dispatch:` mapping. `model_alias` is the native Agent-tool alias for recognized Claude model IDs and is empty for non-Claude IDs; `dispatch:` is absent exactly when the native rung resolves and otherwise carries the labelled `rung` plus the composed `command`. The resolver's role/depth/fill precedence and the YAML schema live in `_cli-fab.md` § fab agent. Resolved strings pass through verbatim — fab validates no effort enum and corrects no incompatible pair.
 
 | Profile half | Native Agent-tool seam | Empty value | Constraint |
 |--------------|------------------------|-------------|------------|
@@ -317,7 +317,7 @@ User-directed overrides are per invocation and ride the same single `fab agent <
 | Cross-provider `--provider` | Native arm only; it **CANNOT move a stage onto CLI dispatch** because `fab dispatch start` takes no override flags and re-resolves from config | A `dispatch:` mapping caused only by the override is not actionable; a non-Claude model has no native Agent-tool seam |
 | Config override (`agent.workers` / `agent.session` / `agent.profiles.<role>.provider`) | Resolver and `fab dispatch start` | Sole executable cross-provider path; built-in providers refill from their own `profiles`, while a provider with no fills resolves empty/inherit unless paired with `--model` or configured fills |
 
-Every dispatch site MUST surface the resolved YAML — at minimum `provider`, `model`, `model_alias`, `effort`, and `dispatch:` presence; an all-empty resolution is a signal to flag, not a reason to dispatch blind. The YAML supplies the Agent-tool-valid alias directly in `model_alias`. The operator launcher is the deliberate exception: it composes the full model and effort from its in-process profile rather than consuming the YAML's native seam; `WithProfile` substitutes `{model}`/`{effort}` in templated `interactive_command` values (dropping an empty placeholder and its preceding flag) or appends `--model <full-id> --effort <level>` to plain commands. See `docs/specs/stage-models.md` § Skill wiring.
+Every dispatch site MUST surface the resolved YAML — at minimum `provider`, `model`, `model_alias`, `effort`, and `dispatch:` presence; an all-empty resolution is a signal to flag, not a reason to dispatch blind. The YAML supplies the Agent-tool-valid alias directly in `model_alias`. The operator launcher is the deliberate exception: it composes the full model and effort from its in-process profile rather than consuming the YAML's native seam; `WithProfile` substitutes `{model}`/`{effort}` in templated `interactive_command` values (dropping an empty placeholder and its preceding flag) or appends `--model <full-id> --effort <level>` to plain commands.
 
 Every post-intake stage uses this resolution before its dispatched sub-agent, including plain `/fab-continue` (the one by-design no-dispatch exception: the `/fab-ff`/`/fab-fff` light lane runs non-review stages inline — `_pipeline.md` § Light Lane); intake remains in the main session. A stage skill genuinely run without dispatch MAY report the configured profile but MUST NOT attempt to switch the session model.
 
@@ -353,7 +353,7 @@ A pane worker never exits on completion — it writes its result and sits at its
 
 ### CLI-Adapter Dispatch (the `dispatch:`-present path)
 
-This is the canonical cross-harness dispatch procedure. Dispatch sites (`_pipeline.md`, `fab-continue.md`, `fab-adopt.md`) reference it instead of restating the machine; `docs/specs/harness-adapters.md` owns the three-adapter contract and `_cli-fab.md` § fab dispatch owns runtime details.
+This is the canonical cross-harness dispatch procedure. Dispatch sites (`_pipeline.md`, `fab-continue.md`, `fab-adopt.md`) reference it instead of restating the machine; `_cli-fab.md` § fab dispatch owns runtime details.
 
 Branch once, at the single surfaced `fab agent <stage> -o yaml` result:
 
@@ -447,7 +447,7 @@ The gate **amortizes**: first-run walls are mostly workspace-scoped (trust is pe
 
 ### Dispatch-Prompt Obligations (bind ALL THREE adapters)
 
-Per `docs/specs/harness-adapters.md` § Dispatch-prompt obligations, **whatever adapter dispatches a stage** — native Agent-tool, headless CLI, or interactive pane — the prompt handed to the worker MUST:
+**Whatever adapter dispatches a stage** — native Agent-tool, headless CLI, or interactive pane — the prompt handed to the worker MUST:
 
 1. **Instruct the worker to produce `{stage}-result.yaml`** — for **both `fab dispatch` modes** a real file at `.fab-dispatch/{4-char-change-id}/{stage}-result.yaml`; for the **native adapter** the structural equivalent (the returned result). The result is the contract's success token — its **presence** is required for `done` (a clean exit without it is `failed (no-result)`). On the **pane** mode the result file is the *sole* completion signal (an interactive worker never exits on completion), so the obligation is load-bearing there rather than merely contractual. Minimal schema (3d):
 
@@ -478,7 +478,7 @@ Per `docs/specs/harness-adapters.md` § Dispatch-prompt obligations, **whatever 
    # hydrate (mirrors "returns completion status")
    stage: hydrate
    status: success
-   summary: "updated docs/memory/runtime/dispatch.md, regenerated indexes"
+   summary: "updated docs/memory/{domain}/{file}.md, regenerated indexes"
    ```
 
    ```yaml
@@ -531,7 +531,7 @@ SRAD is the decision framework planning skills use to score decision points (Sig
 
 A failed gate prevents the automated bracket from entering apply. Apply has no Unresolved-to-intake bounce; the SRAD Critical Rule is enforced by intake-time skills (`/fab-new`, `/fab-clarify`).
 
-See `docs/specs/change-types.md` for the full taxonomy.
+The seven change-type names are enumerated in `_cli-fab.md` § fab score; `fab status set-change-type` sets the type on a change.
 
 ### Invocation
 

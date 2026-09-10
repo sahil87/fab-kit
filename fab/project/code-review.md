@@ -53,3 +53,4 @@
 - **Migrations for user-data restructuring** — changes touching config/`.status.yaml`/archive layout MUST ship a `src/kit/migrations/` file, not an ad-hoc script.
 - **Go changes ship tests** — a `.go` change without accompanying test updates is a must-fix gap; tests conform to the spec, never the reverse (Constitution VII).
 - **Markdown-only artifacts** — no binary/proprietary formats; standard CommonMark.
+- **Deployed content cites fab-kit-only paths** — any `src/kit/**` file that names fab-kit's `docs/specs/*`, `docs/memory/*` (outside the host convention paths), `docs/site/*`, or `src/go/*` as an authority is a must-fix; restate the rule in the skill instead (Constitution V; the Go guard fails on it).

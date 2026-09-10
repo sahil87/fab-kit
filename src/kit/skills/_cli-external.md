@@ -49,9 +49,9 @@ command -v rk   >/dev/null 2>&1 && rk skill
 command -v hop  >/dev/null 2>&1 && hop skill
 ```
 
-Per `shll standards skill`, `<tool> skill` prints a static, ≤150-line,
+Per the shll toolkit `skill` standard, `<tool> skill` prints a static, ≤150-line,
 agent-optimized usage briefing as raw markdown to stdout (exit 0, stderr empty),
-byte-identical to the tool repo's canonical `docs/site/skill.md`.
+byte-stable per release.
 
 **Version-skew fallback (required).** An installed tool may predate its `skill`
 subcommand. The invocation MUST **capability-probe** it — `<tool> skill` failing
