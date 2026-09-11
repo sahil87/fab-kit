@@ -1,0 +1,57 @@
+id: 4a8m
+name: 260911-4a8m-operator-generic-tracked-items
+created: 2026-09-11T03:51:37Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 15
+    acceptance_count: 45
+    acceptance_completed: 45
+confidence:
+    certain: 17
+    confident: 4
+    tentative: 0
+    unresolved: 0
+    score: 4.4
+    fuzzy: true
+    dimensions:
+        signal: 89.3
+        reversibility: 80.5
+        competence: 83.6
+        disambiguation: 80.0
+stage_metrics:
+    intake: {started_at: "2026-09-11T03:51:37Z", driver: fab-new, iterations: 1, completed_at: "2026-09-11T04:30:07Z"}
+    apply: {started_at: "2026-09-11T04:30:07Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-11T05:39:24Z"}
+    review: {started_at: "2026-09-11T05:39:24Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-11T05:48:35Z"}
+    hydrate: {started_at: "2026-09-11T05:48:35Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-11T06:07:24Z"}
+    ship: {started_at: "2026-09-11T06:07:24Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-11T06:08:58Z"}
+    review-pr: {started_at: "2026-09-11T06:08:58Z", driver: git-pr, iterations: 1, completed_at: "2026-09-11T06:32:04Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/663
+true_impact:
+    added: 7196
+    deleted: 4310
+    net: 2886
+    excluding:
+        added: 6026
+        deleted: 3988
+        net: 2038
+    tests:
+        added: 2622
+        deleted: 2057
+        net: 565
+    computed_at: "2026-09-11T06:08:58Z"
+    computed_at_stage: ship
+summary: rewrites operator memory around the generic tracked-item model (track verbs, probe loop, derived cron schedule, one-table frame, rk tab/mux spawn+detection), re-points pane-commands/agent-primitives/dispatch/configuration off the removed surfaces, and adds the 2.24.9-to-2.25.0 state-file conversion to the migration catalog
+change_type_source: explicit
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-09-11T06:32:04Z

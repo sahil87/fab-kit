@@ -40,12 +40,7 @@ skill prompt, prefixed for the launched provider (the skill_prefix key of
 		operatorTickStartCmd(),
 		operatorTimeCmd(),
 		operatorStateCmd(),
-		operatorEnrollCmd(),
-		operatorUpdateCmd(),
-		operatorRemoveCmd(),
-		operatorNoteCmd(),
-		operatorWatchCmd(),
-		operatorAutopilotCmd(),
+		operatorTrackCmd(),
 		operatorBranchMapCmd(),
 	)
 	return cmd

@@ -144,12 +144,12 @@ under `.fab-dispatch/{id}/`, and the orchestrator observes all five states **via
 POSIX-only in v1.
 
 > `fab dispatch`'s **headless** mode is deliberately **parallel to and independent of** `fab pane` /
-> `fab operator`. Those stay the *interactive operator-visibility* path (a human watching a monitored set
+> `fab operator`. Those stay the *interactive operator-visibility* path (a human watching a tracked set
 > of tmux panes with operator-owned lifecycles); headless dispatch is the *unattended pipeline* path
 > (launch-and-poll). Making `fab pane` grow a headless mode was rejected — pane observation (tmux
 > capture) and headless observation (exit-file polling) are different models. The pane **dispatch** mode
 > below does not undo that split: it *consumes* tmux as a launch surface for a pipeline worker, while
-> operator enrollment, monitored sets, and the `»`/`›` window markers remain the operator's, never a
+> operator tracking and window marks remain the operator's, never a
 > dispatch's (see § Pane dispatch is not operator enrollment).
 
 ### 3. Interactive-pane adapter — `fab dispatch open` → `ready` → `deliver`
@@ -578,14 +578,13 @@ depends on the answer.
 
 ### Pane dispatch is not operator enrollment
 
-A pane dispatch **borrows tmux as a launch surface**; it does not join the operator's monitored set. It
+A pane dispatch **borrows tmux as a launch surface**; it does not join the operator's tracked set. It
 carries a dedicated dispatch identity string (`fab-{4-char-change-id}-{stage}` — the pane **title** in the
-split shape, the window **name** in the new-window shape) and **MUST NOT** carry the operator's `»`
-(U+00BB) enrollment prefix or its `›` (U+203A) done marker in **either** shape: those assert that a window
-is in the operator's monitored set and that the operator owns its lifecycle, neither of which is true of a
+split shape, the window **name** in the new-window shape) and **MUST NOT** carry operator window marks
+(the operator's `rk tab mark` / `rk tab note` annotations) in **either** shape: those assert that a window
+is in the operator's tracked set and that the operator owns its lifecycle, neither of which is true of a
 pipeline dispatch. Pre-marking would make the operator's tab bar misreport what it tracks. An operator
-that genuinely enrolls a window still adds the marker itself, through its own idempotent
-`fab pane window-name ensure-prefix` primitive.
+that genuinely tracks a window still applies the mark itself, through `rk tab mark`.
 
 The **split shape reinforces this separation** rather than complicating it: a split worker opens **no
 window at all**, so it cannot appear in the operator's tab bar even unmarked — which is the concrete

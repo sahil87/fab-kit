@@ -229,15 +229,16 @@ There is no binary read-time alias; an unmigrated legacy key is inert.
 
 ### Autopilot merge-mode preference
 
-`autopilot.merge_mode` is the standing merge-topology preference for `fab operator autopilot start`,
+`autopilot.merge_mode` is the standing merge-topology preference for chained `fab-change` tracked items
+(`fab operator track add --depends-on` / `--mode`),
 accepting exactly `cherry-pick-ladder`, `merge-auto`, or `stacked-prs`; its built-in default
 (`cherry-pick-ladder`) rides `defaults.yaml` and the same init-injection pattern as the `dispatch:`
 defaults, and the accepted-values list is fab-owned policy held Go-side
-(`config.ValidAutopilotMergeModes`). Resolution at queue start descends explicit user instruction /
+(`config.ValidAutopilotMergeModes`). Resolution at item add descends explicit user instruction /
 `--mode` flag > this key > the built-in default. Scope `both` by the same operator-preference reasoning
 as `dispatch`: it is settable once machine-wide via `fab config set --system autopilot.merge_mode
 <name>`. It **diverges deliberately from `dispatch.mode`'s fail-open posture**: the accessor
-(`GetAutopilotMergeMode`) does absent→default only and returns an invalid value raw, and `start`
+(`GetAutopilotMergeMode`) does absent→default only and returns an invalid value raw, and `track add`
 validates it — an invalid configured value exits non-zero naming the key and the valid set, with no
 state written. Merging is destructive-tier, so silently falling back to a different topology than the
 one the user configured is the wrong failure mode.

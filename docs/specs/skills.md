@@ -1096,7 +1096,7 @@ User invokes /fab-help
 
 Explicit skill sends and spawn prompts follow `_cli-agents.md` § Skill Prompts, using the receiving agent identity: the prefix is `skill_prefix` from the target repo's `fab agent -o yaml` resolution for fresh spawns, or derived from the live harness for existing panes. Slash-form skill names in this specification identify the skill; the receiving harness's prefix is applied at send time. Answers, prompt-file pointers, and native TUI controls follow their own contracts.
 
-**Purpose**: Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across every session on its tmux server (per tick via `fab operator tick-start --diff --quiet`, on demand via `fab pane map --all-sessions`), routes commands and prompt answers via `rk mux send` (plain / `--answer`), auto-answers routine prompts, drives autopilot queues, and spawns dependency-aware agents. Started via `fab operator` (a singleton tmux tab named `operator`, one per tmux server). run-kit is a hard dependency — a §2 startup gate (`command -v rk` + `rk cron list --json`) stops with an install hint when rk is absent or predates `rk cron`.
+**Purpose**: Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across every session on its tmux server (per tick via `fab operator tick-start --diff --quiet`, on demand via `fab pane map --all-sessions`), routes commands and prompt answers via `rk mux send` (plain / `--answer`), auto-answers routine prompts, drives tracked work queues over the state file's `tracked:` list via the `fab operator track add|update|observe|rm|list|clock` verb family, and spawns dependency-aware agents. Each tick is four steps: snapshot (`tick-start`), act on deltas, answer waiting agents, ack (`track rm` / `track observe`). Started via `fab operator` (a singleton tmux tab named `operator`, one per tmux server). run-kit is a hard dependency — a §2 startup gate (`command -v rk` + `rk cron list --json`) stops with an install hint when rk is absent or predates `rk cron`.
 
 **Context**: A deliberate exception to the always-load layer — loads only `config.yaml`, `constitution.md`, and `context.md` (optional). It runs no `fab preflight` and never reads change artifacts, keeping a long-lived context window reserved for coordination state. Declares `helpers: [_cli-fab-operator, _cli-fab-pane, _cli-agents, _cli-external]`.
 
@@ -1106,19 +1106,19 @@ Explicit skill sends and spawn prompts follow `_cli-agents.md` § Skill Prompts,
 - **State is re-derived, never remembered** — live state is re-queried before every action; continuity across compaction or `/clear` comes from the server-keyed operator state file (a one-shot `/fab-operator` reload re-loads the procedure; the tick payload itself stays the bare `operator tick`).
 - Ends with its own status frame rather than a `Next:` line.
 
-**Full spec**: [operator.md](operator.md) (the top-level behavioral spec). The agent-CLI mechanics it builds on — spawn composition, pre-send validation, delivery probe, peek, await — live in `_cli-agents.md`; this skill owns *when and whether* to use them (confirmation tiers, retry budgets, repo targeting, enrollment, dependency resolution, autopilot).
+**Full spec**: [operator.md](operator.md) (the top-level behavioral spec). The agent-CLI mechanics it builds on — spawn composition, pre-send validation, delivery probe, peek, await — live in `_cli-agents.md`; this skill owns *when and whether* to use them (confirmation tiers, retry budgets, repo targeting, tracked-item enrollment, dependency resolution, queue choreography).
 
 
 **Flow**:
 
 ```text
 Started via `fab operator`; cadence is run-kit's seeded, guard-free operator-tick cron entry delivering bare `operator tick` firings — muted/unmuted by the tracked-set verbs (`rk cron mute <id>` / `--off`); lease (`--for`) = bounded snooze (payload: never a slash command; live cadence re-read from `rk cron list --json` each tick and rendered on the ready line and compact frame)
-├─ Tick: Bash: fab operator tick-start --diff --quiet (snapshot + deltas + fleet or fleet_summary; re-derive before every action: Bash: fab pane map --all-sessions — never trust cached values)
+├─ Tick (four steps — snapshot, act on deltas, answer waiting agents, ack): Bash: fab operator tick-start --diff --quiet (snapshot + deltas + items or fleet_summary; re-derive before every action: Bash: fab pane map --all-sessions — never trust cached values)
 ├─ Auto-answer routine agent questions (rk mux send --answer); nudge stalled agents; route commands via rk mux send
-└─ Drive autopilot queues (/fab-new → /fab-fff); spawn each task in a fresh worktree
+└─ Drive tracked work queues (/fab-new → /fab-fff via `fab operator track` items); spawn each task in a fresh worktree
 ```
 
-**Tools**: Bash (`fab operator tick-start`, `fab pane questions`, `fab pane map`, `rk mux send`, `wt create`); cadence delivered by run-kit's guard-free `rk cron` operator-tick entry, muted/unmuted by the tracked-set verbs; the skill's own rk uses are `rk cron list --json` (clock verification, ready-line and frame cadence) and `rk cron mute --for` (a user-requested bounded quiet window); helpers `_cli-fab-operator`, `_cli-fab-pane`, `_cli-agents`, `_cli-external`.
+**Tools**: Bash (`fab operator tick-start`, `fab operator track`, `fab pane map`, `rk mux send`, `wt create`); cadence delivered by run-kit's guard-free `rk cron` operator-tick entry, muted/unmuted by the tracked-set verbs; the skill's own rk uses are `rk cron list --json` (clock verification, ready-line and frame cadence) and `rk cron mute --for` (a user-requested bounded quiet window); helpers `_cli-fab-operator`, `_cli-fab-pane`, `_cli-agents`, `_cli-external`.
 
 **Sub-agents**: None (spawns agent sessions, not sub-agents).
 

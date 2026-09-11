@@ -59,6 +59,7 @@ type paneEntry struct {
 	agentIdleDur string // formatted idle duration, populated only for idle
 	windowID     string // raw tmux #{window_id} (e.g. "@5"); "" when absent (legacy line)
 	command      string // pane's current foreground command; "" when absent (legacy line); snapshot-internal
+	hasAgent     *bool  // rk's has_agent tri-state (nil = unknown/uninstrumented); snapshot-internal
 }
 
 // paneRow holds the resolved data for a single output row.
@@ -79,6 +80,7 @@ type paneRow struct {
 	agentIdleDur string // formatted idle duration, "" unless agentState is idle
 	prURL        string // last entry in .status.yaml prs:, "" when absent/empty/unresolved
 	command      string // pane's current foreground command; snapshot-internal (tick diff), never rendered
+	hasAgent     *bool  // rk's has_agent tri-state (nil = unknown → the tick walks the process tree); snapshot-internal
 }
 
 func runPaneMap(cmd *cobra.Command, args []string) error {
@@ -222,6 +224,7 @@ type rkPaneRow struct {
 	Command            string  `json:"command"`
 	AgentState         *string `json:"agent_state"`
 	AgentStateDuration *string `json:"agent_state_duration"`
+	HasAgent           *bool   `json:"has_agent"` // tri-state: true/false/unknown(null or absent)
 }
 
 // rkPanesArgs builds the rk argv for the delegated enumeration. When server is
@@ -280,6 +283,7 @@ func parseRKPanes(data []byte) ([]paneEntry, error) {
 			agentIdleDur: dur,
 			windowID:     r.WindowID,
 			command:      r.Command,
+			hasAgent:     r.HasAgent,
 		})
 	}
 	return panes, nil
@@ -566,6 +570,7 @@ func resolvePane(p paneEntry, wtRoot, mainRoot string) (paneRow, bool) {
 			agentState:   p.agentState,
 			agentIdleDur: p.agentIdleDur,
 			command:      p.command,
+			hasAgent:     p.hasAgent,
 		}, true
 	}
 
@@ -626,6 +631,7 @@ func resolvePane(p paneEntry, wtRoot, mainRoot string) (paneRow, bool) {
 		agentIdleDur: p.agentIdleDur,
 		prURL:        prURL,
 		command:      p.command,
+		hasAgent:     p.hasAgent,
 	}, true
 }
 
