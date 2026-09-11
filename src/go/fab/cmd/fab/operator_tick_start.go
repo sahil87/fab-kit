@@ -36,7 +36,7 @@ func operatorTickStartCmd() *cobra.Command {
 		RunE:  runOperatorTickStart,
 	}
 	cmd.Flags().Bool("diff", false, "also probe the tracked items (pane join + due shell probes): emit deltas/candidates/needs_check/items blocks and update the baselines in the same write")
-	cmd.Flags().Bool("quiet", false, "with --diff: on a no-delta tick that is not every 10th, replace the items: block with a fleet_summary: count block")
+	cmd.Flags().Bool("quiet", false, "with --diff: on a no-delta tick within 10m of the last full document, replace the items: block with a fleet_summary: count block")
 	return cmd
 }
 
@@ -106,12 +106,32 @@ func nextTickCount(data map[string]interface{}) int {
 
 // --- tick-start --diff -------------------------------------------------------
 
-// tickQuietFullEvery is the built-in periodic full-refresh interval: under
-// --quiet, every Nth tick (by post-increment tick_count) emits the full
-// document (items:) even with no deltas, so a complete frame still appears
-// periodically. Deliberately a constant — not a flag or config knob (matches
-// the §5 hardcoded-30m idle auto-default precedent).
-const tickQuietFullEvery = 10
+// tickQuietFullAfter is the built-in periodic full-refresh interval: under
+// --quiet, a tick whose last full document (last_full_at) is at least this
+// old emits the full document (items:) even with no deltas, so a complete
+// frame still appears periodically regardless of the cron cadence. At the
+// 1m backoff floor that is roughly every 10th tick; at any cadence ≥ 10m
+// every tick is full. Deliberately a constant — not a flag or config knob
+// (matches the §5 hardcoded-30m idle auto-default precedent).
+const tickQuietFullAfter = 10 * time.Minute
+
+// tickFullDue reports whether the state file's last_full_at makes this tick's
+// document full: a missing key, a non-string value, an unparseable string, or
+// a future stamp (clock skew / corrupt stamp) all count as "older than the
+// threshold", so the first tick after upgrade and a fresh state file render a
+// full frame and a bad stamp can never suppress the refresh. Follows the
+// tolerant-read style of nextTickCount — never panics, never errors.
+func tickFullDue(raw interface{}, now time.Time) bool {
+	s, ok := raw.(string)
+	if !ok {
+		return true
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return true
+	}
+	return !now.Before(t.Add(tickQuietFullAfter)) || now.Before(t)
+}
 
 // tickTerminusStage is the pipeline terminus — the only stage at which an
 // entry with no stop_stage completes. Completion there is a display-state
@@ -270,6 +290,7 @@ func runOperatorTickStartDiff(cmd *cobra.Command, quiet bool) error {
 	now := time.Now()
 	nowStr := now.UTC().Format(time.RFC3339)
 	tickCount := 0
+	full := false
 	out := tickDiffOutput{
 		Deltas:     []tickDelta{},
 		Candidates: []tickCandidate{},
@@ -289,6 +310,16 @@ func runOperatorTickStartDiff(cmd *cobra.Command, quiet bool) error {
 		data["tick_count"] = tickCount
 		data["last_tick_at"] = nowStr
 
+		// markFull records the full/quiet decision for this tick and, when
+		// full, rewrites last_full_at in the same atomic save. Computed on
+		// both callback exits below because it reads the PRIOR last_full_at.
+		markFull := func() {
+			full = !quiet || len(out.Deltas) > 0 || len(out.NeedsCheck) > 0 || tickFullDue(data["last_full_at"], now)
+			if full {
+				data["last_full_at"] = nowStr
+			}
+		}
+
 		items, err := decodeTrackedItems(data)
 		if err != nil {
 			return err
@@ -298,6 +329,7 @@ func runOperatorTickStartDiff(cmd *cobra.Command, quiet bool) error {
 			// pane-snapshot subprocess entirely. The no-op tick is
 			// first-class: tick bookkeeping (and any legacy conversion)
 			// still lands.
+			markFull()
 			return nil
 		}
 
@@ -314,6 +346,7 @@ func runOperatorTickStartDiff(cmd *cobra.Command, quiet bool) error {
 		out.Items = buildItemRows(items, rows, joined, doneNow, now)
 		out.Summary = summarizeItems(items, rows, joined, doneNow)
 		data["tracked"] = items
+		markFull()
 		return nil
 	}, false)
 	if err != nil {
@@ -330,16 +363,16 @@ func runOperatorTickStartDiff(cmd *cobra.Command, quiet bool) error {
 		reconcileOperatorSchedule(postState)
 	}
 
-	return emitTickDiffDoc(cmd.OutOrStdout(), out, quiet, tickCount, now)
+	return emitTickDiffDoc(cmd.OutOrStdout(), out, full, tickCount, now)
 }
 
-// emitTickDiffDoc writes the tick:/now: header and the diff document. A quiet
-// tick (--quiet, no deltas, empty needs_check, post-increment tickCount not a
-// multiple of tickQuietFullEvery) emits fleet_summary: in place of items:;
-// every other tick emits the full document. Never both keys.
-func emitTickDiffDoc(w io.Writer, out tickDiffOutput, quiet bool, tickCount int, now time.Time) error {
+// emitTickDiffDoc writes the tick:/now: header and the diff document. The
+// full/quiet decision is already made (the tick mutation computes it against
+// the prior last_full_at and rewrites that stamp when full): full emits
+// items:; a quiet tick emits fleet_summary: in place of items:. Never both
+// keys.
+func emitTickDiffDoc(w io.Writer, out tickDiffOutput, full bool, tickCount int, now time.Time) error {
 	fmt.Fprintf(w, "tick: %d\nnow: %s\n", tickCount, now.Format("15:04"))
-	full := !quiet || len(out.Deltas) > 0 || len(out.NeedsCheck) > 0 || tickCount%tickQuietFullEvery == 0
 	var doc []byte
 	var err error
 	if full {

@@ -21,18 +21,22 @@ import (
 // (the later stub wins; cleanups unwind LIFO).
 func seedDiffState(t *testing.T, items []trackedItem) string {
 	t.Helper()
-	return seedDiffStateAt(t, items, 5)
+	return seedDiffStateWith(t, items, nil)
 }
 
-// seedDiffStateAt is seedDiffState with an explicit starting tick_count (the
-// every-10th-tick cases seed 9/19/10).
-func seedDiffStateAt(t *testing.T, items []trackedItem, tickCount int) string {
+// seedDiffStateWith is seedDiffState with extra top-level keys merged into
+// the seed document — the periodic-full-refresh cases seed last_full_at
+// (recent/stale/unparseable/future stamps).
+func seedDiffStateWith(t *testing.T, items []trackedItem, extra map[string]interface{}) string {
 	t.Helper()
 	stubQuietClock(t)
 	data := map[string]interface{}{
-		"tick_count": tickCount,
+		"tick_count": 5,
 		"tracked":    items,
 		"custom_key": "preserve-me",
+	}
+	for k, v := range extra {
+		data[k] = v
 	}
 	raw, err := yaml.Marshal(data)
 	if err != nil {
@@ -1047,9 +1051,12 @@ func TestOperatorTickDiff_StaleAgentItemNeedsCheck(t *testing.T) {
 
 func TestOperatorTickDiff_NeedsCheckForcesFullDocument(t *testing.T) {
 	// A-022: a non-empty needs_check forces the full document even on a quiet
-	// non-10th tick.
+	// tick within the 10m refresh window — and the full document rewrites
+	// last_full_at.
 	ago := 11 * time.Minute
-	seedDiffState(t, []trackedItem{agentItem("linear-bugs", "list issues", 5*time.Minute, &ago)}) // tick 5 → 6
+	path := seedDiffStateWith(t, []trackedItem{agentItem("linear-bugs", "list issues", 5*time.Minute, &ago)}, map[string]interface{}{
+		"last_full_at": rfc3339Ago(time.Minute),
+	})
 	stubSnapshot(t, nil)
 
 	out, err := runTickDiffArgs(t, "--diff", "--quiet")
@@ -1059,6 +1066,9 @@ func TestOperatorTickDiff_NeedsCheckForcesFullDocument(t *testing.T) {
 	assertDocKeys(t, out, false)
 	if !strings.Contains(out, "needs_check:") || !strings.Contains(out, "linear-bugs") {
 		t.Errorf("quiet tick with a due agent item must emit needs_check in the full doc:\n%s", out)
+	}
+	if state := readStateFile(t, path); state["last_full_at"] != state["last_tick_at"] {
+		t.Errorf("last_full_at = %v, want rewritten to this tick's %v", state["last_full_at"], state["last_tick_at"])
 	}
 }
 
@@ -1167,10 +1177,10 @@ func assertDocKeys(t *testing.T, out string, wantSummary bool) {
 }
 
 func TestOperatorTickDiff_QuietNoDeltasEmitsSummary(t *testing.T) {
-	seedDiffState(t, []trackedItem{
+	seedDiffStateWith(t, []trackedItem{
 		paneItem("w001", "%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
 		paneItem("a002", "%2", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
-	}) // tick 5 → 6: not a multiple of 10
+	}, map[string]interface{}{"last_full_at": rfc3339Ago(time.Minute)}) // recent stamp → quiet tick
 	stubSnapshot(t, []paneRow{
 		snapRow("%1", "w001", "apply", "active", "waiting", ""),
 		snapRow("%2", "a002", "apply", "active", "active", ""),
@@ -1210,13 +1220,13 @@ func TestOperatorTickDiff_QuietSummaryMixedItems(t *testing.T) {
 	// items, no deltas → fleet_summary {tracked: 5, waiting: 1, idle: 1,
 	// active: 1, unknown: 0}; the shell items count only in tracked.
 	recent := rfc3339Ago(time.Minute)
-	seedDiffState(t, []trackedItem{
+	seedDiffStateWith(t, []trackedItem{
 		paneItem("w001", "%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
 		paneItem("i003", "%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
 		paneItem("a004", "%4", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
 		shellItem("s1", []string{"s"}, `s == 1`, map[string]interface{}{"s": 0}, &recent),
 		shellItem("s2", []string{"s"}, `s == 1`, map[string]interface{}{"s": 0}, &recent),
-	})
+	}, map[string]interface{}{"last_full_at": recent}) // recent stamp → quiet tick
 	stubSnapshot(t, []paneRow{
 		snapRow("%1", "w001", "apply", "active", "waiting", ""),
 		snapRow("%3", "i003", "apply", "active", "idle", "8m"),
@@ -1244,42 +1254,64 @@ func TestOperatorTickDiff_QuietSummaryMixedItems(t *testing.T) {
 }
 
 func TestOperatorTickDiff_QuietWithDeltaEmitsFullItems(t *testing.T) {
-	seedDiffState(t, []trackedItem{paneItem("a005", "%5", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")})
+	path := seedDiffStateWith(t, []trackedItem{paneItem("a005", "%5", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")}, map[string]interface{}{
+		"last_full_at": rfc3339Ago(time.Minute), // recent stamp — the delta still forces full
+	})
 	stubSnapshot(t, []paneRow{snapRow("%5", "a005", "review", "active", "active", "")})
 
 	out, err := runTickDiffArgs(t, "--diff", "--quiet")
 	if err != nil {
 		t.Fatalf("tick-start --diff --quiet: %v", err)
 	}
-	// A delta (any kind) forces the full document.
+	// A delta (any kind) forces the full document regardless of the stamp's age.
 	assertDocKeys(t, out, false)
 	if doc := parseTickDiff(t, out); findDelta(doc, "stage_advance", "a005") == nil {
 		t.Errorf("stage_advance delta missing: %v", doc.Deltas)
 	}
+	if state := readStateFile(t, path); state["last_full_at"] != state["last_tick_at"] {
+		t.Errorf("last_full_at = %v, want rewritten to this tick's %v", state["last_full_at"], state["last_tick_at"])
+	}
 }
 
-func TestOperatorTickDiff_QuietEveryTenthTickEmitsFullItems(t *testing.T) {
-	seed := func(t *testing.T, tickCount int) {
-		t.Helper()
-		seedDiffStateAt(t, []trackedItem{paneItem("w001", "%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")}, tickCount)
-		stubSnapshot(t, []paneRow{snapRow("%1", "w001", "apply", "active", "waiting", "")})
-	}
+func TestOperatorTickDiff_QuietFullAfterTenMinutes(t *testing.T) {
+	// The periodic full refresh is a wall-clock age over last_full_at, not a
+	// tick count: an absent / unparseable / 10m-old / future stamp is due (the
+	// full document is emitted and the stamp rewritten); a recent stamp stays
+	// quiet and the stamp is left byte-unchanged. The recent seed carries a
+	// ≥ 30 s margin (9m, not 9m59s) against a same-second flake.
 	for _, tc := range []struct {
 		name        string
-		seedCount   int
+		lastFullAt  *string
 		wantSummary bool
 	}{
-		{"9 to 10 is full", 9, false},
-		{"19 to 20 is full", 19, false},
-		{"10 to 11 is quiet", 10, true},
+		{"absent last_full_at is full", nil, false},
+		{"unparseable last_full_at is full", strPtr("not-a-time"), false},
+		{"recent last_full_at is quiet", strPtr(rfc3339Ago(9 * time.Minute)), true},
+		{"10m-old last_full_at is full", strPtr(rfc3339Ago(10 * time.Minute)), false},
+		{"future last_full_at is full", strPtr(rfc3339Ago(-time.Hour)), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			seed(t, tc.seedCount)
+			extra := map[string]interface{}{}
+			if tc.lastFullAt != nil {
+				extra["last_full_at"] = *tc.lastFullAt
+			}
+			path := seedDiffStateWith(t, []trackedItem{paneItem("w001", "%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")}, extra)
+			stubSnapshot(t, []paneRow{snapRow("%1", "w001", "apply", "active", "waiting", "")})
+
 			out, err := runTickDiffArgs(t, "--diff", "--quiet")
 			if err != nil {
 				t.Fatalf("tick-start --diff --quiet: %v", err)
 			}
 			assertDocKeys(t, out, tc.wantSummary)
+
+			state := readStateFile(t, path)
+			if tc.wantSummary {
+				if state["last_full_at"] != *tc.lastFullAt {
+					t.Errorf("last_full_at = %v, want byte-unchanged %v (a quiet tick never touches it)", state["last_full_at"], *tc.lastFullAt)
+				}
+			} else if state["last_full_at"] != state["last_tick_at"] {
+				t.Errorf("last_full_at = %v, want rewritten to this tick's %v", state["last_full_at"], state["last_tick_at"])
+			}
 		})
 	}
 }
@@ -1302,8 +1334,9 @@ func TestOperatorTickStart_QuietRequiresDiff(t *testing.T) {
 }
 
 func TestOperatorTickDiff_QuietEmptyTracked(t *testing.T) {
-	t.Run("non-10th tick emits all-zero summary", func(t *testing.T) {
-		path := withOperatorState(t, "tick_count: 5\ntracked: []\ncustom_key: preserve-me\n")
+	t.Run("recent last_full_at emits all-zero summary", func(t *testing.T) {
+		stamp := rfc3339Ago(time.Minute)
+		path := withOperatorState(t, "tick_count: 5\nlast_full_at: \""+stamp+"\"\ntracked: []\ncustom_key: preserve-me\n")
 		stubQuietClock(t)
 		called := stubSnapshot(t, nil)
 
@@ -1320,13 +1353,17 @@ func TestOperatorTickDiff_QuietEmptyTracked(t *testing.T) {
 				t.Errorf("stdout missing %q:\n%s", block, out)
 			}
 		}
-		if state := readStateFile(t, path); state["tick_count"] != 6 {
+		state := readStateFile(t, path)
+		if state["tick_count"] != 6 {
 			t.Errorf("tick_count = %v, want 6 (no-op tick still increments)", state["tick_count"])
+		}
+		if state["last_full_at"] != stamp {
+			t.Errorf("last_full_at = %v, want byte-unchanged %v (a quiet tick never touches it)", state["last_full_at"], stamp)
 		}
 	})
 
-	t.Run("10th tick emits items: []", func(t *testing.T) {
-		withOperatorState(t, "tick_count: 9\ntracked: []\ncustom_key: preserve-me\n")
+	t.Run("stale last_full_at emits items: []", func(t *testing.T) {
+		path := withOperatorState(t, "tick_count: 5\nlast_full_at: \""+rfc3339Ago(10*time.Minute)+"\"\ntracked: []\ncustom_key: preserve-me\n")
 		stubQuietClock(t)
 		called := stubSnapshot(t, nil)
 
@@ -1339,7 +1376,10 @@ func TestOperatorTickDiff_QuietEmptyTracked(t *testing.T) {
 		}
 		assertDocKeys(t, out, false)
 		if !strings.Contains(out, "items: []") {
-			t.Errorf("10th tick missing items: []:\n%s", out)
+			t.Errorf("due full tick missing items: []:\n%s", out)
+		}
+		if state := readStateFile(t, path); state["last_full_at"] != state["last_tick_at"] {
+			t.Errorf("last_full_at = %v, want rewritten to this tick's %v", state["last_full_at"], state["last_tick_at"])
 		}
 	})
 }
@@ -1390,7 +1430,7 @@ func TestOperatorTickStart_FlaglessByteIdentical(t *testing.T) {
 		t.Error("flagless path invoked the snapshot seam")
 	}
 	state := readStateFile(t, path)
-	for _, k := range []string{"deltas", "candidates", "needs_check", "items"} {
+	for _, k := range []string{"deltas", "candidates", "needs_check", "items", "last_full_at"} {
 		if _, ok := state[k]; ok {
 			t.Errorf("flagless state file gained %q key", k)
 		}
@@ -1398,6 +1438,27 @@ func TestOperatorTickStart_FlaglessByteIdentical(t *testing.T) {
 	// The snapshot would say review/waiting — the flagless path must not diff.
 	if e := readTracked(t, path)["a005"]; entryStage(e) != "apply" || entryAgent(e) != "" {
 		t.Errorf("flagless path touched the baseline: %+v", e.Scope)
+	}
+}
+
+func TestOperatorTickDiff_FlaglessDiffWritesLastFullAt(t *testing.T) {
+	// Flagless --diff (no --quiet) always emits the full document, so it always
+	// rewrites last_full_at — even with a recent stamp.
+	path := seedDiffStateWith(t, []trackedItem{paneItem("a005", "%5", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")}, map[string]interface{}{
+		"last_full_at": rfc3339Ago(time.Minute),
+	})
+	stubSnapshot(t, []paneRow{snapRow("%5", "a005", "apply", "active", "waiting", "")})
+
+	out, err := runTickDiffArgs(t, "--diff")
+	if err != nil {
+		t.Fatalf("tick-start --diff: %v", err)
+	}
+	assertDocKeys(t, out, false)
+	if !strings.Contains(out, "stage: apply") {
+		t.Errorf("flagless --diff stdout must be the full document (no baseline diff):\n%s", out)
+	}
+	if state := readStateFile(t, path); state["last_full_at"] != state["last_tick_at"] {
+		t.Errorf("last_full_at = %v, want this tick's %v", state["last_full_at"], state["last_tick_at"])
 	}
 }
 
