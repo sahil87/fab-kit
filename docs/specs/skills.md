@@ -37,7 +37,7 @@ helpers: [_generation, _review, _srad, _pipeline]
 ---
 ```
 
-**Not allowed**: `_naming` and `_cli-rk` — their content is inlined into `_preamble.md` (§ Naming Conventions and § Run-Kit (rk) Reference respectively).
+**Not allowed**: `_naming` and `_cli-rk` — their content is inlined into `_preamble.md` (§ Naming Conventions and § HexoKit (rk) Reference respectively).
 
 **Implicit**: `_preamble` itself is loaded universally — never list it.
 
