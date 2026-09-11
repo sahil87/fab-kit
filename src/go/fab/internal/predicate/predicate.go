@@ -86,6 +86,11 @@ func parseClause(s string) (clause, string, error) {
 		return clause{}, "", fmt.Errorf("missing field path")
 	}
 	path := strings.TrimPrefix(s[:i], ".")
+	if path == "" {
+		// A lone "." would split into a key named "" and make `. == null`
+		// true for every object — reject it as a missing path.
+		return clause{}, "", fmt.Errorf("missing field path")
+	}
 	rest := strings.TrimLeft(s[i:], " ")
 
 	var op cmpOp

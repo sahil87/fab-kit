@@ -144,22 +144,47 @@ func TestTrackAdd_GitHubPRDefaults(t *testing.T) {
 	}
 }
 
-func TestTrackAdd_GitHubPRDerivationFailureLeavesArgvWithoutRepo(t *testing.T) {
-	// Plan Assumption 5: when the gh derivation fails, the argv is left
-	// without --repo (gh infers from cwd).
+func TestTrackAdd_GitHubPRDerivationFailureIsAnAddTimeError(t *testing.T) {
+	// A failed gh derivation with scope.repo set is an actionable add-time
+	// error, never a silent --repo drop (a probe run from the operator's cwd
+	// could query the wrong repository in the cross-repo model).
 	path := withOperatorState(t, "")
 	stubQuietClock(t)
 	stubGHNameWithOwner(t, "", errors.New("gh: not logged in"))
 
 	err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("pr-913", kindGitHubPR,
 		"--scope", `{"repo":"/x/hexokit","pr":913}`)...)
+	if err == nil {
+		t.Fatal("track add succeeded, want an add-time error on derivation failure")
+	}
+	for _, want := range []string{"/x/hexokit", "gh: not logged in", "--argv"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q lacks %q", err, want)
+		}
+	}
+	// Nothing written: the add errored before its save, so the (previously
+	// missing) state file must still be absent.
+	if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
+		t.Errorf("state file exists after a failed add (stat err = %v); want no write", statErr)
+	}
+}
+
+func TestTrackAdd_GitHubPRWithoutScopeRepoNeedsNoDerivation(t *testing.T) {
+	// No scope.repo → no derivation attempted; argv carries no --repo and gh
+	// infers the repository from the probe's cwd.
+	path := withOperatorState(t, "")
+	stubQuietClock(t)
+	stubGHNameWithOwner(t, "", errors.New("must not be called"))
+
+	err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("pr-913", kindGitHubPR,
+		"--scope", `{"pr":913}`)...)
 	if err != nil {
 		t.Fatalf("track add: %v", err)
 	}
 	it := readTracked(t, path)["pr-913"]
 	wantArgv := "gh pr view 913 --json state,mergedAt,mergeable"
 	if strings.Join(it.Probe.Argv, " ") != wantArgv {
-		t.Errorf("argv = %v, want %q (no --repo on derivation failure)", it.Probe.Argv, wantArgv)
+		t.Errorf("argv = %v, want %q", it.Probe.Argv, wantArgv)
 	}
 }
 
@@ -890,5 +915,76 @@ func TestStateSkeletonOnMissing(t *testing.T) {
 	}
 	if !strings.Contains(out, "tracked: []") {
 		t.Errorf("stdout = %q, want tracked: []", out)
+	}
+}
+
+// --- PR #663 review fixes ------------------------------------------------------
+
+func TestTrackRm_DoneDependencyDropsSatisfiedEdges(t *testing.T) {
+	// Removing a DONE dependency drops it from every dependent's depends_on
+	// (a satisfied edge is inert), so the chain advances after the ack.
+	seed := `tracked:
+  - id: pr-1
+    kind: shell
+    probe: {mode: shell, argv: [true], fields: [status]}
+    check_every: 5m
+    done_when: 'status == "green"'
+    depends_on: []
+    scope: {}
+    last: {status: green}
+    added_at: "2026-09-09T00:00:00Z"
+    updated_at: "2026-09-09T00:00:00Z"
+  - id: n34
+    kind: fab-change
+    probe: {mode: pane}
+    depends_on: [pr-1, other]
+    scope: {repo: /home/u/foo, branch: 260909-n34-x}
+    last: {}
+    added_at: "2026-09-09T00:00:00Z"
+    updated_at: "2026-09-09T00:00:00Z"
+  - id: other
+    kind: note
+    probe: {mode: none}
+    depends_on: []
+    scope: {}
+    last: {}
+    text: standing note
+    added_at: "2026-09-09T00:00:00Z"
+    updated_at: "2026-09-09T00:00:00Z"
+`
+	path := withOperatorState(t, seed)
+	stubQuietClock(t)
+
+	if err := runOperatorCmd(t, operatorTrackRmCmd(), "pr-1"); err != nil {
+		t.Fatalf("rm done dep: %v", err)
+	}
+	items := readTracked(t, path)
+	if got := items["n34"].DependsOn; !reflect.DeepEqual(got, []string{"other"}) {
+		t.Errorf("n34.depends_on = %v after removing the done dep, want [other]", got)
+	}
+
+	// Removing a NOT-done dependency keeps the edge — dependents stay held
+	// and the tick names the missing id.
+	if err := runOperatorCmd(t, operatorTrackRmCmd(), "other"); err != nil {
+		t.Fatalf("rm not-done dep: %v", err)
+	}
+	items = readTracked(t, path)
+	if got := items["n34"].DependsOn; !reflect.DeepEqual(got, []string{"other"}) {
+		t.Errorf("n34.depends_on = %v after removing a not-done dep, want [other] kept", got)
+	}
+}
+
+func TestExtractProbeFields_MergesSharedDottedPrefix(t *testing.T) {
+	obj := map[string]interface{}{
+		"a": map[string]interface{}{"b": 1, "c": 2, "d": 3},
+		"x": "y",
+	}
+	got := extractProbeFields(obj, []string{"a.b", "a.c", "missing.k"})
+	want := map[string]interface{}{
+		"a":       map[string]interface{}{"b": 1, "c": 2},
+		"missing": map[string]interface{}{"k": nil},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("extractProbeFields = %#v, want %#v", got, want)
 	}
 }

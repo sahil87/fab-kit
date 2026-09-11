@@ -50,6 +50,7 @@ func TestParse_Invalid(t *testing.T) {
 		{"object literal rejected", `state == {"s":1}`, `state == {"s":1}`, "JSON scalar"},
 		{"missing literal", `state ==`, `state ==`, "missing literal"},
 		{"missing path", `== "MERGED"`, `== "MERGED"`, "missing field path"},
+		{"lone dot path", `. == null`, `. == null`, "missing field path"},
 		{"trailing and", `state == "MERGED" and `, "", "missing clause"},
 		{"double and", `state == "MERGED" and and ready == true`, `and ready == true`, "== or !="},
 	}

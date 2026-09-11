@@ -252,6 +252,7 @@ tracked:
     unchanged: 0                # consecutive probes with no field delta — the stall counter, binary-owned
     failures: 0                 # consecutive probe errors; 3 → paused
     paused: false
+    done_at: null               # pane items: set by the binary when the built-in completion fires — durable across pane death
   - id: pr-913
     kind: github-pr
     probe: { mode: shell, argv: [gh, pr, view, "913", --json, "state,mergedAt,mergeable"], fields: [state, mergedAt, mergeable] }
@@ -296,7 +297,7 @@ branch_map:                     # change id → { branch, repo }; written by tra
 | `watching` | shell/agent item probed on cadence, `done_when` false |
 | `stale` | agent item with `now - checked_at > 2 × check_every` |
 | `paused` | `failures` reached 3 (auto) or `track update --pause` |
-| `done` | `done_when` true (or the fab-change built-in fired) — level-triggered until `track rm` |
+| `done` | `done_when` true, or the fab-change built-in fired (persisted as `done_at`, so it survives the pane vanishing) — level-triggered until `track rm`; removing a done item drops it from every dependent's `depends_on` |
 
 The top-level **`branch_map`** persists change ID → `{ branch, repo }` beyond an item's removal — downstream dependency resolution looks up dependency branches there (§6). Entries are written by `track add --kind fab-change`, retained by `track rm`, and cleared only by `fab operator branch-map rm <change-id>` / `--all`.
 

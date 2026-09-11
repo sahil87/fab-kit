@@ -1429,3 +1429,62 @@ func TestOperatorTickDiff_ChangedConsumedOnRead(t *testing.T) {
 		t.Errorf("run 3: changed re-emitted (consumed-on-read must not): %v", d)
 	}
 }
+
+// --- PR #663 review fixes ------------------------------------------------------
+
+func TestOperatorTickDiff_ProbeSuccessResetsFailures(t *testing.T) {
+	// The pause cap counts CONSECUTIVE failures: a successful JSON probe
+	// (even an unchanged one) resets failures to 0.
+	checkedAt := rfc3339Ago(10 * time.Minute)
+	it := shellItem("deploy", []string{"status"}, `status == "green"`,
+		map[string]interface{}{"status": "red"}, &checkedAt)
+	it.Failures = 2
+	path := seedDiffState(t, []trackedItem{it})
+	stubSnapshot(t, nil)
+	stubProbes(t, func(argv []string) (string, error) { return `{"status":"red"}`, nil })
+
+	doc := parseTickDiff(t, runTickDiff(t))
+	if d := findDelta(doc, "probe_error", "deploy"); d != nil {
+		t.Errorf("unexpected probe_error on a successful probe: %v", d)
+	}
+	got := readTracked(t, path)["deploy"]
+	if got.Failures != 0 || got.Paused {
+		t.Errorf("failures/paused = %d/%v after a successful probe, want 0/false", got.Failures, got.Paused)
+	}
+	if got.Unchanged != 1 {
+		t.Errorf("unchanged = %d, want 1 (payload equal to last)", got.Unchanged)
+	}
+}
+
+func TestOperatorTickDiff_PaneCompletionPersistsAcrossPaneDeath(t *testing.T) {
+	// The built-in completion is persisted as done_at, so a pane that
+	// disappears before the operator acks still emits the level-triggered
+	// done (with then) — never pane_death.
+	then := "spawn n34 in ~/code/hexokit via /fab-fff"
+	it := paneItem("s010", "%10", "/r/a", "s1", "review-pr", "2026-01-01T00:00:00Z")
+	it.Then = &then
+	path := seedDiffState(t, []trackedItem{it})
+	stubSnapshot(t, []paneRow{snapRow("%10", "s010", "review-pr", "done", "idle", "5m")})
+
+	doc := parseTickDiff(t, runTickDiff(t))
+	if d := findDelta(doc, "done", "s010"); d == nil || d["then"] != then {
+		t.Fatalf("tick 1: done delta with then missing: %v", doc.Deltas)
+	}
+	stored := readTracked(t, path)["s010"]
+	if stored.DoneAt == nil || *stored.DoneAt == "" {
+		t.Fatal("done_at not persisted after the built-in completion fired")
+	}
+	if !trackedItemDone(stored) {
+		t.Error("trackedItemDone must read the persisted done_at")
+	}
+
+	// Tick 2: the pane is gone.
+	stubSnapshot(t, nil)
+	doc = parseTickDiff(t, runTickDiff(t))
+	if d := findDelta(doc, "pane_death", "s010"); d != nil {
+		t.Errorf("tick 2: pane_death emitted for a completed item: %v", d)
+	}
+	if d := findDelta(doc, "done", "s010"); d == nil || d["then"] != then {
+		t.Errorf("tick 2: done delta (with then) must survive pane death: %v", doc.Deltas)
+	}
+}

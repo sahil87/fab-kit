@@ -111,6 +111,7 @@ type trackedItem struct {
 	Unchanged  int                    `yaml:"unchanged" json:"unchanged"`
 	Failures   int                    `yaml:"failures" json:"failures"`
 	Paused     bool                   `yaml:"paused" json:"paused"`
+	DoneAt     *string                `yaml:"done_at" json:"done_at"` // set by tick-start when a pane item's built-in completion fires; durable across pane death
 	AddedAt    string                 `yaml:"added_at" json:"added_at"`
 	UpdatedAt  string                 `yaml:"updated_at" json:"updated_at"`
 }
@@ -205,6 +206,11 @@ func validateTrackedDeps(it trackedItem, existing []trackedItem) error {
 // (review-pr done/skipped, or at/past stop_stage) is the tick's to evaluate
 // (T007).
 func trackedItemDone(it trackedItem) bool {
+	// A persisted built-in completion (pane items) is durable evidence: the
+	// item stays done whatever its pane does afterwards.
+	if it.DoneAt != nil && *it.DoneAt != "" {
+		return true
+	}
 	if it.DoneWhen == nil || *it.DoneWhen == "" {
 		return false
 	}

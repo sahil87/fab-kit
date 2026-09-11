@@ -301,7 +301,8 @@ func doneWhenFlag(cmd *cobra.Command, kindDefault string) (*string, error) {
 // ghNameWithOwnerRunner resolves a local repo path's owner/repo via
 // `gh repo view` at track add time (plan Assumption 5). Injectable seam (the
 // rkCronRunner precedent); LookPath-gated, argv-only, bounded by
-// rkCronTimeout. Failures leave the github-pr argv without --repo.
+// rkCronTimeout. A failure is an add-time error (defaultGitHubPRArgv) — the
+// argv is never silently left without --repo.
 var ghNameWithOwnerRunner = func(repoDir string) (string, error) {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return "", err
@@ -336,12 +337,19 @@ func defaultGitHubPRArgv(scope map[string]interface{}) ([]string, error) {
 		return nil, fmt.Errorf("kind github-pr requires scope.pr (or explicit --argv)")
 	}
 	argv := []string{"gh", "pr", "view", pr}
+	fields := strings.Join(githubPRProbeFields, ",")
 	if repoDir := scopeString(scope, "repo"); repoDir != "" {
-		if nwo, err := ghNameWithOwnerRunner(repoDir); err == nil {
-			argv = append(argv, "--repo", nwo)
+		// A failed derivation is an add-time error, never a silent drop:
+		// without --repo the probe would run from the operator's cwd (a
+		// neutral directory, or a different repo in the cross-repo model)
+		// and query the wrong PR number.
+		nwo, err := ghNameWithOwnerRunner(repoDir)
+		if err != nil {
+			return nil, fmt.Errorf("cannot resolve the GitHub repo for scope.repo %s (%v) — pass --argv explicitly (gh pr view %s --repo <owner/repo> --json %s) or fix gh auth", repoDir, err, pr, fields)
 		}
+		argv = append(argv, "--repo", nwo)
 	}
-	return append(argv, "--json", strings.Join(githubPRProbeFields, ",")), nil
+	return append(argv, "--json", fields), nil
 }
 
 // scopePRNumber renders scope.pr as the PR-number argv token (JSON numbers
@@ -545,15 +553,40 @@ func runOperatorTrackRm(cmd *cobra.Command, args []string) error {
 		if idx < 0 {
 			return fmt.Errorf("no tracked item %s", id)
 		}
+		removed := items[idx]
 		items = append(items[:idx], items[idx+1:]...)
 		if items == nil {
 			items = []trackedItem{}
+		}
+		// A DONE dependency's edges are satisfied — drop it from every
+		// dependent's depends_on so the chain advances after the ack (the
+		// documented tick flow rms a done item, then spawns its dependents;
+		// dependency satisfaction searches only `tracked`). A not-done
+		// removal keeps the edges: dependents stay held and the tick names
+		// the missing id, which the operator resolves with `track update
+		// --depends-on`.
+		if trackedItemDone(removed) {
+			for i := range items {
+				items[i].DependsOn = dropString(items[i].DependsOn, removed.ID)
+			}
 		}
 		data["tracked"] = items
 		// branch_map deliberately untouched — entries persist for downstream
 		// dependency resolution until explicitly cleared (branch-map rm).
 		return nil
 	})
+}
+
+// dropString returns list without every occurrence of s (never nil — an
+// emptied depends_on stays `[]`).
+func dropString(list []string, s string) []string {
+	out := make([]string, 0, len(list))
+	for _, v := range list {
+		if v != s {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 func operatorTrackObserveCmd() *cobra.Command {
@@ -653,26 +686,27 @@ func extractProbeFields(obj map[string]interface{}, fields []string) map[string]
 	out := map[string]interface{}{}
 	for _, f := range fields {
 		segs := strings.Split(f, ".")
-		var cur interface{} = obj
-		for _, s := range segs {
-			m, ok := cur.(map[string]interface{})
-			if !ok {
-				cur = nil
-				break
-			}
-			cur, ok = m[s]
-			if !ok {
-				cur = nil
-				break
-			}
-		}
-		nested := cur
-		for i := len(segs) - 1; i > 0; i-- {
-			nested = map[string]interface{}{segs[i]: nested}
-		}
-		out[segs[0]] = nested
+		setPathValue(out, segs, getPathValue(obj, segs))
 	}
 	return out
+}
+
+// setPathValue writes v at a dotted path, MERGING into nested objects that
+// earlier fields already created — fields `a.b` and `a.c` both land under
+// `a` instead of the second overwriting the first. A non-object value at an
+// intermediate segment is replaced by an object so the declared field
+// always lands.
+func setPathValue(out map[string]interface{}, segs []string, v interface{}) {
+	cur := out
+	for _, s := range segs[:len(segs)-1] {
+		next, ok := cur[s].(map[string]interface{})
+		if !ok {
+			next = map[string]interface{}{}
+			cur[s] = next
+		}
+		cur = next
+	}
+	cur[segs[len(segs)-1]] = v
 }
 
 // normalizeJSONNumbers rewrites integral float64 values (JSON's number

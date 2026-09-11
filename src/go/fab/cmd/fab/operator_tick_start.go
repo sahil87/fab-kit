@@ -448,6 +448,14 @@ func diffPaneItems(items []trackedItem, rows []paneRow, out *tickDiffOutput, now
 		if paneID == "" {
 			continue // pending — nothing to join against
 		}
+		// A persisted built-in completion (done_at) is durable: the item is
+		// done whatever the pane does now, so it is neither joined nor
+		// diffed — a pane that vanished after completing emits done, not
+		// pane_death, and the item's then survives until track rm.
+		if it.DoneAt != nil && *it.DoneAt != "" {
+			doneNow[it.ID] = true
+			continue
+		}
 		row, present := byPane[paneID]
 
 		// pane_death: level-triggered — the item's pane is absent from the
@@ -503,6 +511,14 @@ func diffPaneItems(items []trackedItem, rows []paneRow, out *tickDiffOutput, now
 			}
 			if tickCompleted(stopStage, row.stage, row.displayState) {
 				doneNow[it.ID] = true
+				// Persist the verdict in the same atomic write so the
+				// level-triggered done survives the pane disappearing
+				// before the operator acks it.
+				if it.DoneAt == nil {
+					doneAt := nowStr
+					it.DoneAt = &doneAt
+					it.UpdatedAt = nowStr
+				}
 			}
 			// Consumed-on-read deltas, diffed against the stored baseline and
 			// consumed by the baseline update below. review→apply is the
@@ -676,6 +692,10 @@ func runOneProbe(it *trackedItem, out *tickDiffOutput, now time.Time) {
 		})
 		return
 	}
+	// A successful JSON-object probe resets the consecutive-failure count
+	// before the unchanged/delta branch — the pause cap counts CONSECUTIVE
+	// failures, so a success in between must not let stale failures add up.
+	it.Failures = 0
 	newLast := obj
 	if len(it.Probe.Fields) > 0 {
 		newLast = extractProbeFields(obj, it.Probe.Fields)
