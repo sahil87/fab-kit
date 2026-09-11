@@ -26,7 +26,7 @@ func seedDiffState(t *testing.T, items []trackedItem) string {
 
 // seedDiffStateWith is seedDiffState with extra top-level keys merged into
 // the seed document — the periodic-full-refresh cases seed last_full_at
-// (recent/stale/unparseable/future stamps).
+// (recent/stale/unparseable/future/non-string stamps).
 func seedDiffStateWith(t *testing.T, items []trackedItem, extra map[string]interface{}) string {
 	t.Helper()
 	stubQuietClock(t)
@@ -1275,27 +1275,25 @@ func TestOperatorTickDiff_QuietWithDeltaEmitsFullItems(t *testing.T) {
 
 func TestOperatorTickDiff_QuietFullAfterTenMinutes(t *testing.T) {
 	// The periodic full refresh is a wall-clock age over last_full_at, not a
-	// tick count: an absent / unparseable / 10m-old / future stamp is due (the
-	// full document is emitted and the stamp rewritten); a recent stamp stays
-	// quiet and the stamp is left byte-unchanged. The recent seed carries a
-	// ≥ 30 s margin (9m, not 9m59s) against a same-second flake.
+	// tick count: an absent / non-string / unparseable / 10m-old / future stamp
+	// is due (the full document is emitted and the stamp rewritten); a recent
+	// stamp stays quiet and the stamp is left byte-unchanged. The recent seed
+	// carries a ≥ 30 s margin (9m, not 9m59s) against a same-second flake.
 	for _, tc := range []struct {
 		name        string
-		lastFullAt  *string
+		extra       map[string]interface{} // top-level seed keys (last_full_at under test)
 		wantSummary bool
 	}{
 		{"absent last_full_at is full", nil, false},
-		{"unparseable last_full_at is full", strPtr("not-a-time"), false},
-		{"recent last_full_at is quiet", strPtr(rfc3339Ago(9 * time.Minute)), true},
-		{"10m-old last_full_at is full", strPtr(rfc3339Ago(10 * time.Minute)), false},
-		{"future last_full_at is full", strPtr(rfc3339Ago(-time.Hour)), false},
+		{"null last_full_at is full", map[string]interface{}{"last_full_at": nil}, false},
+		{"numeric last_full_at is full", map[string]interface{}{"last_full_at": 42}, false},
+		{"unparseable last_full_at is full", map[string]interface{}{"last_full_at": "not-a-time"}, false},
+		{"recent last_full_at is quiet", map[string]interface{}{"last_full_at": rfc3339Ago(9 * time.Minute)}, true},
+		{"10m-old last_full_at is full", map[string]interface{}{"last_full_at": rfc3339Ago(10 * time.Minute)}, false},
+		{"future last_full_at is full", map[string]interface{}{"last_full_at": rfc3339Ago(-time.Hour)}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			extra := map[string]interface{}{}
-			if tc.lastFullAt != nil {
-				extra["last_full_at"] = *tc.lastFullAt
-			}
-			path := seedDiffStateWith(t, []trackedItem{paneItem("w001", "%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")}, extra)
+			path := seedDiffStateWith(t, []trackedItem{paneItem("w001", "%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")}, tc.extra)
 			stubSnapshot(t, []paneRow{snapRow("%1", "w001", "apply", "active", "waiting", "")})
 
 			out, err := runTickDiffArgs(t, "--diff", "--quiet")
@@ -1306,8 +1304,8 @@ func TestOperatorTickDiff_QuietFullAfterTenMinutes(t *testing.T) {
 
 			state := readStateFile(t, path)
 			if tc.wantSummary {
-				if state["last_full_at"] != *tc.lastFullAt {
-					t.Errorf("last_full_at = %v, want byte-unchanged %v (a quiet tick never touches it)", state["last_full_at"], *tc.lastFullAt)
+				if state["last_full_at"] != tc.extra["last_full_at"] {
+					t.Errorf("last_full_at = %v, want byte-unchanged %v (a quiet tick never touches it)", state["last_full_at"], tc.extra["last_full_at"])
 				}
 			} else if state["last_full_at"] != state["last_tick_at"] {
 				t.Errorf("last_full_at = %v, want rewritten to this tick's %v", state["last_full_at"], state["last_tick_at"])
