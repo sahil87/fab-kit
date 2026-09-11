@@ -129,7 +129,7 @@ wt create --non-interactive --worktree-name <name> --checkout <change-folder-nam
 wt create --non-interactive --worktree-name <name> <change-folder-name>
 ```
 
-The worktree gets a random name; the branch matches the change. The surrounding choreography — when to spawn, the new-change-from-backlog case, branch alignment — is operator policy in `fab-operator.md` §6 (the pane kind).
+The worktree gets a random name; the branch matches the change. A repo with **no** `fab/` has no change branch: the operator's plain-agent form runs `wt create --non-interactive --worktree-name <name>` with no branch argument (`fab-operator.md` §6 Working a Change form 4). The surrounding choreography — when to spawn, the new-change-from-backlog case, branch alignment — is operator policy in `fab-operator.md` §6 (the pane kind).
 
 ---
 
