@@ -8,7 +8,7 @@ The operator (`/fab-operator`) is a long-running coordination layer that sits in
 
 ## Version History
 
-The current operator (v9) evolved through nine iterations:
+The current operator (v10) evolved through ten iterations:
 
 | Version | Key addition |
 |---------|-------------|
@@ -21,3 +21,4 @@ The current operator (v9) evolved through nine iterations:
 | v7 | Dependency-aware agent spawning (cherry-pick chains), branch map persistence, bounded retries, pre-send validation tiers |
 | v8 | Pipeline-first routing, unified tick status frame, stack-then-review autopilot (with ordered merge), `»<wt>` tab naming, mandatory auto-enroll, `/fab-proceed` integration |
 | v9 | Spawn-in-worktree principle — operator pane reserved for coordination state; all pipeline work runs in freshly spawned agent tabs, never in the operator pane itself |
+| v10 | rk-mandatory skill (one startup gate; 27 fallback passages deleted), CLI reference split by command family (`_cli-fab-operator` / `_cli-fab-pane`), live cadence from `rk cron list --json` in the ready line and compact frame |

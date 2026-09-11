@@ -21,7 +21,7 @@ As of 1.10.0 the `spec` stage and the separate `spec.md` artifact are removed. R
 
 Every skill MAY declare additional helper files it needs to load via a `helpers:` frontmatter list. The agent reads each declared helper's `.agents/skills/{helper}/SKILL.md` after reading `_preamble` and before executing the skill body.
 
-**Allowed values** (8): `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`.
+**Allowed values** (10): `_generation`, `_review`, `_cli-fab`, `_cli-fab-operator`, `_cli-fab-pane`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`.
 
 **Default**: omitted (or `[]`) — the skill loads only `_preamble`.
 
@@ -51,7 +51,7 @@ helpers: [_generation, _review, _srad, _pipeline]
 | `fab-continue` | `[_srad]` (+ `_generation`/`_review` stage-conditionally, in-body) |
 | `fab-clarify` | `[_srad]` |
 | `code-reorg`, `code-dedupe` | `[_srad]` (SRAD grades proposal/cluster confidence; report-only — no `_intake`/`_generation`) |
-| `fab-operator` | `[_cli-agents, _cli-fab, _cli-external]` (`_cli-agents` carries the generic agent-CLI interaction procedures extracted from the skill in 260805-nvad, plus the four-provider grammar/discovery dictionary) |
+| `fab-operator` | `[_cli-fab-operator, _cli-fab-pane, _cli-agents, _cli-external]` (`_cli-agents` carries the generic agent-CLI interaction procedures extracted from the skill in 260805-nvad, plus the four-provider grammar/discovery dictionary; `_cli-fab-operator`/`_cli-fab-pane` are the operator's slices of the CLI reference, split by command family in 260910-si4k) |
 | All other skills | omitted (load only `_preamble`) |
 
 Validation is **convention-only** — `fab sync` does not reject skills with unknown helper values. Drift surfaces as runtime behavior (agent loads an unexpected file or fails to find a needed one).
@@ -59,7 +59,7 @@ Validation is **convention-only** — `fab sync` does not reject skills with unk
 
 ### Partial Flow Skeletons
 
-The behavioral partials carry their condensed flow skeletons here; the pure-reference partials (`_cli-fab`, `_cli-external`, `_cli-agents`) carry no flow.
+The behavioral partials carry their condensed flow skeletons here; the pure-reference partials (`_cli-fab`, `_cli-fab-operator`, `_cli-fab-pane`, `_cli-external`, `_cli-agents`) carry no flow.
 
 `_preamble` — shared context preamble loaded by every skill (path/context/helper conventions, per-stage profile resolution, cross-adapter dispatch, worker continuation, pane readiness gate, confidence scoring):
 
@@ -206,7 +206,7 @@ Adding a skill to the kit touches nine integration points. Work through all of t
 
 1. **Frontmatter fields** — `name` (matches the filename) and `description` (the one-liner agents use for model invocation — name the actual behavior, including non-obvious modes like draft PRs or `--none` flags). Internal partials additionally set `user-invocable: false`, `disable-model-invocation: true`, and `metadata.internal: true`.
 2. **Preamble-read line** — the body opens with the standard blockquote: ``> Read the `_preamble` skill first (deployed to `.agents/skills/` via `fab sync`). Then follow its instructions before proceeding.``
-3. **`helpers:` declaration** — list any additional partials the skill needs (`_generation`, `_review`, `_cli-fab`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`) in frontmatter; skills without the list load only `_preamble`. See § Skill Helpers.
+3. **`helpers:` declaration** — list any additional partials the skill needs (`_generation`, `_review`, `_cli-fab`, `_cli-fab-operator`, `_cli-fab-pane`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`) in frontmatter; skills without the list load only `_preamble`. See § Skill Helpers.
 4. **`Next:` line** — the skill's output ends with a state-derived `Next:` line per `_preamble.md` § Next Steps Convention (or documents an explicit opt-out, as `fab-discuss` and `fab-operator` do).
 5. **Error Handling + Key Properties tables** — the body closes with the two standard tables (skill-specific errors only; idempotency, write surface, stage effects).
 6. **Flow skeleton in skills.md** — add the skill's Flow skeleton to its `skills.md` section: the Flow diagram, plus the Tools and Sub-agents one-liners where they add information beyond the section's prose. Behavioral partials carry theirs in § Skill Helpers (§ Partial Flow Skeletons); pure-reference partials carry none.
@@ -1096,9 +1096,9 @@ User invokes /fab-help
 
 Explicit skill sends and spawn prompts follow `_cli-agents.md` § Skill Prompts, using the receiving agent identity: the prefix is `skill_prefix` from the target repo's `fab agent -o yaml` resolution for fresh spawns, or derived from the live harness for existing panes. Slash-form skill names in this specification identify the skill; the receiving harness's prefix is applied at send time. Answers, prompt-file pointers, and native TUI controls follow their own contracts.
 
-**Purpose**: Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across every session on its tmux server (per tick via `fab operator tick-start --diff --quiet`, on demand via `fab pane map --all-sessions`), routes commands and prompt answers via `rk mux send` (plain / `--answer`; `command -v rk`-gated, raw `tmux send-keys` behind the operator's own state gate when rk is absent), auto-answers routine prompts, drives autopilot queues, and spawns dependency-aware agents. Started via `fab operator` (a singleton tmux tab named `operator`, one per tmux server).
+**Purpose**: Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across every session on its tmux server (per tick via `fab operator tick-start --diff --quiet`, on demand via `fab pane map --all-sessions`), routes commands and prompt answers via `rk mux send` (plain / `--answer`), auto-answers routine prompts, drives autopilot queues, and spawns dependency-aware agents. Started via `fab operator` (a singleton tmux tab named `operator`, one per tmux server). run-kit is a hard dependency — a §2 startup gate (`command -v rk` + `rk cron list --json`) stops with an install hint when rk is absent or predates `rk cron`.
 
-**Context**: A deliberate exception to the always-load layer — loads only `config.yaml`, `constitution.md`, and `context.md` (optional). It runs no `fab preflight` and never reads change artifacts, keeping a long-lived context window reserved for coordination state. Declares `helpers: [_cli-agents, _cli-fab, _cli-external]`.
+**Context**: A deliberate exception to the always-load layer — loads only `config.yaml`, `constitution.md`, and `context.md` (optional). It runs no `fab preflight` and never reads change artifacts, keeping a long-lived context window reserved for coordination state. Declares `helpers: [_cli-fab-operator, _cli-fab-pane, _cli-agents, _cli-external]`.
 
 **Key properties**:
 - **Coordinates, never executes** — all pipeline work is spawned into a freshly created worktree agent (`wt create --non-interactive`), never run in the operator's own pane. Operational maintenance (merge PR, archive, delete worktree) is the one direct-execution exception.
@@ -1112,13 +1112,13 @@ Explicit skill sends and spawn prompts follow `_cli-agents.md` § Skill Prompts,
 **Flow**:
 
 ```text
-Started via `fab operator`; cadence is run-kit's seeded, guard-free operator-tick cron entry delivering bare `operator tick` firings — muted/unmuted by the tracked-set verbs (`rk cron mute <id>` / `--off`); lease (`--for`) = bounded snooze (payload: never a slash command; Claude-only /loop fallback when the entry cannot exist)
+Started via `fab operator`; cadence is run-kit's seeded, guard-free operator-tick cron entry delivering bare `operator tick` firings — muted/unmuted by the tracked-set verbs (`rk cron mute <id>` / `--off`); lease (`--for`) = bounded snooze (payload: never a slash command; live cadence re-read from `rk cron list --json` each tick and rendered on the ready line and compact frame)
 ├─ Tick: Bash: fab operator tick-start --diff --quiet (snapshot + deltas + fleet or fleet_summary; re-derive before every action: Bash: fab pane map --all-sessions — never trust cached values)
-├─ Auto-answer routine agent questions (rk mux send --answer); nudge stalled agents; route commands via rk mux send (raw tmux send-keys fallback)
+├─ Auto-answer routine agent questions (rk mux send --answer); nudge stalled agents; route commands via rk mux send
 └─ Drive autopilot queues (/fab-new → /fab-fff); spawn each task in a fresh worktree
 ```
 
-**Tools**: Bash (`fab operator tick-start`, `fab pane questions`, `fab pane map`, `rk mux send` (`command -v rk`-gated; raw `tmux send-keys` when rk is absent), `wt create`); cadence delivered by run-kit's guard-free `rk cron` operator-tick entry, muted/unmuted by the tracked-set verbs; the skill's own rk uses are `rk cron list --json` (clock verification) and `rk cron mute --for` (a user-requested bounded quiet window) (`Skill (/loop)` only as the Claude fallback clock); helpers `_cli-agents`, `_cli-fab`, `_cli-external`.
+**Tools**: Bash (`fab operator tick-start`, `fab pane questions`, `fab pane map`, `rk mux send`, `wt create`); cadence delivered by run-kit's guard-free `rk cron` operator-tick entry, muted/unmuted by the tracked-set verbs; the skill's own rk uses are `rk cron list --json` (clock verification, ready-line and frame cadence) and `rk cron mute --for` (a user-requested bounded quiet window); helpers `_cli-fab-operator`, `_cli-fab-pane`, `_cli-agents`, `_cli-external`.
 
 **Sub-agents**: None (spawns agent sessions, not sub-agents).
 

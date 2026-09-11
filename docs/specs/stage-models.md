@@ -208,7 +208,7 @@ provider is an opaque, user-chosen name mapping to three independent dispatch ca
   raw template, fill mode, per-field provenance, model alias, and labelled non-native dispatch — all
   print-mode sinks). The direct form is a **lookup**, not a new validation surface: an
   unknown name errors listing the available providers, while resolved command strings still pass
-  through verbatim. See `_cli-fab.md` § fab agent.
+  through verbatim. See `_cli-fab-operator.md` § fab agent.
 - **`headless_command`** — runs ONE headless **stage task** via `fab dispatch`.
 - **`native`** — boolean capability for the in-harness Agent-tool adapter. Provider names are opaque,
   so fab never infers native support from a name or model.
@@ -667,7 +667,7 @@ still point a role at Haiku (pass-through doesn't forbid it); fab just doesn't s
 
 ## Skill wiring — orchestrator/dispatch consume `fab agent -o yaml`
 
-This section is the design record; the deployed wiring rules live in `_preamble.md` § Per-Stage Model Resolution and `_cli-fab.md` § fab agent (the deployed owners).
+This section is the design record; the deployed wiring rules live in `_preamble.md` § Per-Stage Model Resolution and `_cli-fab-operator.md` § fab agent (the deployed owners).
 
 The orchestrators (`/fab-ff`, `/fab-fff`, `/fab-proceed`, `/fab-adopt`) and `/fab-continue`'s sub-agent dispatch call
 `fab agent <stage> -o yaml` immediately before dispatching each stage's sub-agent, **surface** the
@@ -751,8 +751,8 @@ inherited session model now resolve a role like every other:
   through the two seams (empty ⇒ omit). This is why `fast` is multi-referent — it governs the ship stage
   *and* these prefix-step dispatches.
 
-`_cli-fab.md` documents the `fab agent` YAML schema and the deprecated `fab resolve-agent` compatibility
-contract (Constitution constraint: CLI changes MUST update `_cli-fab.md`). `architecture.md` documents the `agent:` + `providers:` config blocks
+`_cli-fab-operator.md` documents the `fab agent` YAML schema; `_cli-fab.md` documents the deprecated `fab resolve-agent` compatibility
+contract (Constitution constraint: CLI changes MUST update the CLI reference partial that owns the command's family — `_cli-fab.md` (core), `_cli-fab-pane.md` (`fab pane`, `fab dispatch`) or `_cli-fab-operator.md` (`fab operator`, `fab agent`)). `architecture.md` documents the `agent:` + `providers:` config blocks
 alongside the existing `stage_hooks` example.
 
 ### Harness-adapter boundary (the only Claude-Code-specific layer)

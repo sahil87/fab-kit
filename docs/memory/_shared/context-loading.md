@@ -34,7 +34,7 @@ The only universal helper beyond the 7 project files is `_preamble.md`. Addition
 
 ### Skill Helper Declaration (Opt-In)
 
-Skills declare additional helper files via the `helpers:` frontmatter list. Allowed values (eight): `_generation`, `_review`, `_cli-fab`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`. The agent MUST read `.agents/skills/{helper}/SKILL.md` for each declared helper after reading `_preamble` and before executing the skill body.
+Skills declare additional helper files via the `helpers:` frontmatter list. Allowed values (ten): `_generation`, `_review`, `_cli-fab`, `_cli-fab-operator`, `_cli-fab-pane`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`. The agent MUST read `.agents/skills/{helper}/SKILL.md` for each declared helper after reading `_preamble` and before executing the skill body. The CLI reference is split by command family: `_cli-fab` (core), `_cli-fab-pane` (`fab pane`, `fab dispatch`), and `_cli-fab-operator` (`fab operator`, `fab agent`) — each section has exactly one home. The pipeline skills (`fab-ff`, `fab-fff`, `fab-continue`, `fab-adopt`) declare no family helper; they reach `_cli-fab-pane.md` § fab dispatch by pointer through `_preamble.md` § CLI-Adapter Dispatch.
 
 **Stage-conditional loading** (260611-zc9m): a skill MAY instead load a helper at its point of use via an explicit in-body read instruction (e.g., "read `.agents/skills/_review/SKILL.md` before entering Review Behavior"). Frontmatter `helpers:` declares unconditional pre-body loads; in-body read instructions declare conditional ones — a helper loaded this way is intentionally absent from the frontmatter list, so the frontmatter contract stays honest. `/fab-continue` is the sole current user: `_generation` at apply entry / intake-`active` regeneration, `_review` at Review Behavior entry (see [pipeline/execution-skills.md](/pipeline/execution-skills.md)).
 
@@ -48,7 +48,7 @@ Current mapping:
 | `fab-adopt` | `[_srad, _generation, _review, _pipeline]` |
 | `fab-clarify` | `[_srad]` |
 | `code-reorg`, `code-dedupe` | `[_srad]` (report-only analysis skills — SRAD grades report-item confidence; no `_intake`/`_generation`) |
-| `fab-operator` | `[_cli-agents, _cli-fab, _cli-external]` (`_cli-agents` carries the agent-CLI interaction primitives the operator's spawn/pre-send/peek steps reference — see [runtime/agent-primitives.md](/runtime/agent-primitives.md)) |
+| `fab-operator` | `[_cli-fab-operator, _cli-fab-pane, _cli-agents, _cli-external]` (the two family files carry the operator's CLI-reference slice — `fab operator`/`fab agent` and `fab pane`/`fab dispatch`; `_cli-agents` carries the agent-CLI interaction primitives the operator's spawn/pre-send/peek steps reference — see [runtime/agent-primitives.md](/runtime/agent-primitives.md)) |
 | All others (19 skills) | omitted / `[]` (load only `_preamble`) |
 
 `_naming` and `_cli-rk` are NOT allowed values — their content is inlined into `_preamble`. `_preamble` itself is implicit and never listed. `/fab-proceed` declares **no** `helpers:` (it dispatches `_intake` as a subagent prompt — the subagent reads the helper) (3xaj). The internal helpers `_generation`, `_review`, `_pipeline`, and `_intake` themselves carry no `helpers:` frontmatter — they reference what they need in-body and rely on the consumer (or dispatched subagent) having loaded it.
@@ -202,6 +202,12 @@ The exception set is **declared by the skill files themselves** (the preamble ne
 **Special case**: `/fab-discuss` is *not* an exception — it loads the full 7-file always-load layer. However, it is the only skill whose entire purpose is to surface that layer. Other skills load the always-load layer as a preamble to generating or validating artifacts; `fab-discuss` loads it as its primary output, presenting an orientation summary for exploratory discussion sessions. It does not run preflight, does not require an active change, and does not advance any stage. Its skill file points at `_preamble.md` §1 rather than restating the 7-file list, keeping only its do-not-run-preflight / no-change-artifacts deltas (zc9m).
 
 ## Design Decisions
+
+### Pipeline Skills Reach the Dispatch Reference by Pointer, Not by Helper
+**Decision**: `fab-fff`, `fab-ff`, `fab-continue`, and `fab-adopt` declare no `_cli-fab`-family helper; their `§ fab dispatch` access rides `_preamble.md` § CLI-Adapter Dispatch pointers re-targeted to `_cli-fab-pane.md`. Only `fab-operator` declares the family files.
+**Why**: those skills reach dispatch details by pointer alone; declaring `_cli-fab-pane` would add ≈335 lines to every pipeline run on the shipped `dispatch.mode: native` default, which never enters the CLI-adapter branch.
+**Rejected**: unconditional `_cli-fab-pane` declaration (pays the file on runs that never read it); stage-conditional in-body read (a new loading mechanism for four skills — deferred until a run shows the pointer insufficient).
+*Introduced by*: 260910-si4k-operator-rk-mandatory-helper-split
 
 ### The CLI Adapter Observes by Blocking Wait, Run at the Harness's Notify-on-Exit Seam
 **Decision**: The `dispatch:`-present arm observes its worker with a single blocking `fab dispatch wait <change> <stage> --timeout 300`, **preferably launched as a background command** so the harness re-invokes the orchestrator when it exits (in Claude Code, Bash `run_in_background`); a harness with no such seam runs the identical command as a plain **foreground blocking call**. A `running` return means the bound expired and IS the peek-on-suspicion moment; every other state routes into the unchanged five-state handling.
