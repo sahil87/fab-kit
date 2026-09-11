@@ -1,0 +1,11 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-11T08:49:37Z"}
+{"args":"operator principles — read plans, never execute, always spawn: delete the §1 Keep-context-lean row so the operator may read plans/roadmaps/intakes to drive tracked work to completion; rewrite Coordinate-don't-execute into the single work rule with an explicit trigger (any user task/bug/idea is a work request entering via §8 Working a Change → /fab-new spawn in a fresh worktree), diagnosis in the operator pane counts as executing, enumerated maintenance allowlist, remove ask-when-ambiguous; sweep restatements in docs/memory/runtime/operator.md, docs/specs/skills.md, docs/specs/operator.md, docs/specs/glossary.md; add a memory Design Decision. Skill-text + docs only, no Go.","cmd":"fab-new","event":"command","ts":"2026-09-11T08:49:37Z"}
+{"delta":"+0.0","event":"confidence","score":4.6,"trigger":"calc-score","ts":"2026-09-11T08:53:18Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-11T08:54:34Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-11T08:56:04Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-11T08:58:53Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-11T09:03:02Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-11T09:04:40Z"}
+{"event":"review","result":"passed","ts":"2026-09-11T09:04:40Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-11T09:06:13Z"}
+{"cmd":"git-pr","event":"command","ts":"2026-09-11T09:07:56Z"}

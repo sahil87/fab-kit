@@ -34,11 +34,10 @@ Start via `fab operator` (singleton tmux tab named `operator`). When a capable r
 
 | Principle | Rule |
 |-----------|------|
-| Coordinate, don't execute | Route implementation to agents; ask when ambiguous. Perform only maintenance-level actions such as merge, archive, and worktree deletion directly (§6). |
+| Coordinate, don't execute | Every task, bug report, or idea the user hands the operator **is a work request** and enters through §6 Working a Change (a fresh report takes the raw-text form — a `/fab-new` spawn in a fresh worktree; a report naming a live tracked item is a send to that item's agent). Reading code to reproduce or diagnose, or editing files, in the operator pane **is** executing and is prohibited. The operator reads whatever plan, roadmap, intake, or task document the tracked work needs, and keeps handing the next unit of work to an agent until the plan is done. Direct actions are exactly this maintenance allowlist: merge PR, archive, worktree deletion, rebase/cherry-pick for dependency resolution (§6), `fab operator track` verbs (§4), and pane sends/answers/nudges (§5). The only thing the operator asks about a work request is **which repo** (plus the target-session tie-break in §6 Spawning an Agent step 2) — never whether to spawn. |
 | Multi-repo aware | Address every agent as `(session, repo, pane)` on one tmux server, with pane ID primary and every tracked item and `branch_map` entry repo-qualified; state is one server-keyed file (§4, §8, §9). `session` is a **display/context dimension, never a join key** — a tracked agent's session can change mid-lifetime (`move-window` relocation), so correlation rides the pane ID (§ fab pane map's identity-key contract in `_cli-fab-pane.md`). |
 | Automate the routine | Auto-answer, nudge, rebase, and spawn for routine operations; PR review is the safety net. Every operator-spawned agent is tracked automatically (§4–§7). |
 | Do not enforce lifecycle | Agents self-govern pipeline transitions; report unexpected stages factually (§4). |
-| Keep context lean | Never read intake/spec/plan artifacts; retain only pane maps, snapshots, and operator state (§2, §4). |
 | Re-derive state | Before every action, query `fab pane map --all-sessions`; never trust conversational pane/repo/session/stage values (§4). |
 | Survive compaction | The agent cannot `/clear` itself. When a tick fires and §4 Tick Behavior is no longer in context (harness auto-compaction, or a session resumed from a summary), run `/fab-operator` **once** to reload, re-run §2 Init, then resume lean `operator tick` firings; tracked items and `branch_map` survive in the server-keyed state file (§4 Post-Compaction Reload). |
 
@@ -48,7 +47,7 @@ Start via `fab operator` (singleton tmux tab named `operator`). When a capable r
 
 ### Context Loading
 
-Load only `fab/project/config.yaml`, `fab/project/constitution.md`, and `fab/project/context.md` (optional — skip gracefully if missing). The operator is a listed exception to the `_preamble.md` §1 always-load layer: code-quality, code-review, and the doc indexes serve artifact generation and review, which the operator never does (§1 Context discipline) — and a long-lived session re-pays any loaded file after every reload (compaction, `/clear`, or restart — §4 Post-Compaction Reload). Do not run `fab preflight`. Do not load change artifacts.
+Load only `fab/project/config.yaml`, `fab/project/constitution.md`, and `fab/project/context.md` (optional — skip gracefully if missing). The operator is a listed exception to the `_preamble.md` §1 always-load layer: code-quality, code-review, and the doc indexes serve artifact generation and review, which the operator never does — it neither authors nor reviews artifacts (§1 Coordinate, don't execute) — and a long-lived session re-pays any loaded file after every reload (compaction, `/clear`, or restart — §4 Post-Compaction Reload). Do not run `fab preflight`.
 
 Helpers declared in frontmatter: `_cli-fab-operator` (operator/agent CLI reference — the `track` verb contracts and the tick document), `_cli-fab-pane` (pane/dispatch CLI reference), `_cli-agents` (the generic agent-CLI interaction procedures — spawn composition, pre-send validation, delivery probe, peek, await — plus the per-provider grammar/discovery dictionary), and `_cli-external` (wt, idea, tmux reference). Naming conventions are inlined in `_preamble.md` § Naming Conventions — already loaded.
 
@@ -463,7 +462,7 @@ intake → apply → review → hydrate → ship → review-pr
 
 The `fab-change` item is the operator's core kind — a pipeline change with an agent pane — and two principles govern every fab-change spawn (they bind this kind only; a GitHub PR or a Linear query needs neither):
 
-- **Pipeline-first** — new work MUST enter through `/fab-new`, then `/fab-fff`, `/fab-ff`, or `/fab-continue`; never send raw implementation instructions or use `/fab-continue` to skip intake. Orchestration maintenance (merge, archive, worktree deletion) remains direct.
+- **Pipeline-first** — new work MUST enter through `/fab-new`, then `/fab-fff`, `/fab-ff`, or `/fab-continue`; never send raw implementation instructions or use `/fab-continue` to skip intake. Direct actions are exactly the §1 maintenance allowlist.
 - **Spawn in a worktree** — reserve the operator pane for orchestration. Every pipeline command, including a one-line change, starts with `wt create --non-interactive` (§2 wt Gate) and runs in a fresh agent tab.
 
 A spawn that deliberately parks early — e.g. a `/fab-ff` run, which stops after hydrate — MUST be tracked with `--stop-stage hydrate`; otherwise the item never completes and sits in the list until the user stops it.
@@ -812,7 +811,7 @@ These settings are session-scoped and reset on compaction, `/clear`, or session 
 | Idempotent? | Yes — state re-derived every tick |
 | Advances stage? | No |
 | Outputs `Next:` line? | No — ends with ready signal |
-| Loads change artifacts? | No — orchestration context only |
+| Reads change/plan artifacts? | As the work needs — any plan, roadmap, intake, or task document required to drive tracked work (§1); none are startup always-loads (§2) |
 | Requires tmux? | Yes — hard stop without it |
 | Requires run-kit? | Yes — hard stop without it (§2 rk Gate: `command -v rk` + `rk cron list --json`) |
 | Launcher delegation? | Yes — bare `fab operator` hands the launch to `rk operator` when a capable rk is on PATH (probe, pass-through, and failure semantics owned by `_cli-fab-operator.md` § fab operator); the rows below describe the binary's built-in launcher, whose behavior is owned by the CLI reference |
