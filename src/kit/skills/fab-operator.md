@@ -24,9 +24,9 @@ helpers: [_cli-fab-operator, _cli-fab-pane, _cli-agents, _cli-external]
 - 8. Configuration
 - 9. Key Properties
 
-Multi-agent orchestration layer. Runs in a dedicated tmux pane, observes agents across all sessions on its tmux server (per tick via `fab operator tick-start --diff --quiet`, on demand via `fab pane map --all-sessions`), routes commands and answers via `rk mux send` (plain for command routing, `--answer` for prompt answers, `--key` for key-name input), and takes its cadence from run-kit's operator-tick cron entry, whose `operator tick` deliveries are the heartbeat (§4). Spans multiple repos and sessions on one server.
+Multi-agent orchestration layer. Runs in a dedicated tmux pane, observes agents across all sessions on its tmux server (per tick via `fab operator tick-start --diff --quiet`, on demand via `fab pane map --all-sessions`), routes commands and answers via `rk mux send` (plain for command routing, `--answer` for prompt answers, `--key` for key-name input), and takes its cadence from HexoKit's operator-tick cron entry, whose `operator tick` deliveries are the heartbeat (§4). Spans multiple repos and sessions on one server.
 
-Start via `fab operator` (singleton tmux tab named `operator`). When a capable run-kit is on PATH, the bare command delegates the entire launch to `rk operator`; the binary's built-in launcher is its fallback — its behavior (window cwd, session command, `operator`-role model resolution and built-in defaults) is documented in `_cli-fab-operator.md` § fab operator, the canonical source for the §9 Key Properties rows below.
+Start via `fab operator` (singleton tmux tab named `operator`). When a capable HexoKit is on PATH, the bare command delegates the entire launch to `rk operator`; the binary's built-in launcher is its fallback — its behavior (window cwd, session command, `operator`-role model resolution and built-in defaults) is documented in `_cli-fab-operator.md` § fab operator, the canonical source for the §9 Key Properties rows below.
 
 ---
 
@@ -71,7 +71,7 @@ Error: operator requires tmux. Start a tmux session first.
 
 ### rk Gate
 
-The operator's clock, role mark, send gate, spawn readiness, and notifications are run-kit. Probe once here — no later call site is individually gated:
+The operator's clock, role mark, send gate, spawn readiness, and notifications are HexoKit. Probe once here — no later call site is individually gated:
 
 ```bash
 command -v rk >/dev/null 2>&1 && rk cron list --json >/dev/null 2>&1
@@ -80,20 +80,20 @@ command -v rk >/dev/null 2>&1 && rk cron list --json >/dev/null 2>&1
 If either half fails (rk absent, or an installed rk predating `rk cron` — the capability probe), STOP:
 
 ```
-Error: the operator requires run-kit — brew install sahil87/tap/run-kit
+Error: the operator requires HexoKit — brew install sahil87/tap/run-kit
 ```
 
-This is the operator's deliberate exception to `_preamble.md` § Run-Kit (rk) Reference's fail-silent rule: that rule protects skills for which rk is an optional enhancement; for the operator rk is the substrate, so absence is a startup error, not a degradation.
+This is the operator's deliberate exception to `_preamble.md` § HexoKit (rk) Reference's fail-silent rule: that rule protects skills for which rk is an optional enhancement; for the operator rk is the substrate, so absence is a startup error, not a degradation.
 
 ### Role Mark
 
-Mark this tmux window as the operator for run-kit's dashboard (the `@rk_win_role` window option — rk owns the option contract, the pinned rendering, and the one-operator-per-server radio semantics; fab is only the producer):
+Mark this tmux window as the operator for HexoKit's dashboard (the `@rk_win_role` window option — rk owns the option contract, the pinned rendering, and the one-operator-per-server radio semantics; fab is only the producer):
 
 ```bash
 rk role operator >/dev/null 2>&1 || true
 ```
 
-Fail-silent by contract (`_preamble.md` § Run-Kit (rk) Reference): a role-mark failure is never startup-blocking. Idempotent: a restarted operator re-marks the same window harmlessly. There is no unmark step — the operator has no clean exit hook, and staleness and radio conflicts are rk's to resolve.
+Fail-silent by contract (`_preamble.md` § HexoKit (rk) Reference): a role-mark failure is never startup-blocking. Idempotent: a restarted operator re-marks the same window harmlessly. There is no unmark step — the operator has no clean exit hook, and staleness and radio conflicts are rk's to resolve.
 
 ### wt Gate
 
@@ -168,7 +168,7 @@ When `fab resolve` fails during a **user-initiated** action (not monitoring tick
 
 ## 4. The Clock
 
-The operator's cadence is **not owned by this skill** — it is run-kit substrate the skill documents and verifies, exactly like `@rk_pane_agent_state`. The clock is the **operator-tick cron entry** seeded idempotently by `rk operator` (one per tmux server); run-kit's operator-cron spec is the entry's design authority. Ticks arrive as the bare text `operator tick` delivered into the operator pane, for **every** provider (Claude, codex, gemini, …) — no provider-specific in-session clock is the primary cadence.
+The operator's cadence is **not owned by this skill** — it is HexoKit substrate the skill documents and verifies, exactly like `@rk_pane_agent_state`. The clock is the **operator-tick cron entry** seeded idempotently by `rk operator` (one per tmux server); HexoKit's operator-cron spec is the entry's design authority. Ticks arrive as the bare text `operator tick` delivered into the operator pane, for **every** provider (Claude, codex, gemini, …) — no provider-specific in-session clock is the primary cadence.
 
 The seeded entry's shape (reference summary — schema and semantics are owned by the cron spec, not restated here):
 
@@ -411,7 +411,7 @@ Strategic handling MUST NOT block the tick: decide out-of-band, continue with th
 
 The notification is a single out-of-band send when the operator auto-picks or
 leaves open a Strategic prompt. Use the default `rk notify` command and gate in
-`_cli-external.md` § rk (run-kit).
+`_cli-external.md` § rk (HexoKit).
 
 `rk notify` fails silently by contract — a notification that cannot be delivered MUST NOT crash or stall the operator; it logs one line and keeps ticking.
 
@@ -423,7 +423,7 @@ Before the send: run the §3 pre-send gate (`_cli-agents.md` § Pre-Send Validat
 
 ### Idle Auto-Default on Strategic Escalations
 
-A left-open Strategic prompt (§ Logging "left open") gets the auto-default on the first tick whose `candidates:` row for that pane shows a `state_duration` of **30 minutes or more** (hardcoded — no setting, no state-file field). The LLM runs no timers: run-kit's agent-state epoch already resets on any activity in the pane, so the row's duration is the idle clock. Answer: the visibly stated default (`(default: 2)`, `Press enter for 2`, `[2]`), else `1`. Hard-excluded regardless of duration: auto-picked Strategic prompts and rule-6 cannot-determine escalations.
+A left-open Strategic prompt (§ Logging "left open") gets the auto-default on the first tick whose `candidates:` row for that pane shows a `state_duration` of **30 minutes or more** (hardcoded — no setting, no state-file field). The LLM runs no timers: HexoKit's agent-state epoch already resets on any activity in the pane, so the row's duration is the idle clock. Answer: the visibly stated default (`(default: 2)`, `Press enter for 2`, `[2]`), else `1`. Hard-excluded regardless of duration: auto-picked Strategic prompts and rule-6 cannot-determine escalations.
 
 ### Logging
 
@@ -744,7 +744,7 @@ All five rules are MUSTs:
 4. **The sequence is a chain of `github-pr` items.** Starting a merge sequence MUST add one item per PR: `fab operator track add pr-<n> --kind github-pr --scope '{"repo":…,"pr":n}' --then "arm next: gh pr merge --auto --squash <next>" --depends-on pr-<n-1>` — the first item takes no `--depends-on` and is armed immediately. An armed PR **outlives the operator** (it survives compaction, `/clear`, crash, and abandonment), and the items ARE the sequence state: a restarted operator re-orients from `fab operator track list` and resumes verifying/arming. Per tick, a `done` delta on `pr-<n>` runs its `then` verbatim — arming PR_{n+1} (readying a draft per rule 2) — and each armed item's `unchanged` counter feeds rule 3's stall threshold; on halt, rule 5's disarm runs over the remaining armed items, which are then removed via `track rm`.
 5. **Disarm on halt.** Any halt or escalation — CI failure, stall, conflict — MUST run `gh pr merge --disable-auto` on the remaining armed PRs of the **halted sequences** (one `github-pr` item each): the failing repo's sub-sequence plus its transitive cross-repo dependent cone, matching the halt-dependents-only policy (which assumes unstarted merges stay unstarted — armed auto-merge violates that without the disarm). Independent sub-sequences keep their armed items and continue. A user "stop" is global and disarms every armed PR.
 
-**Per tick while a merge sequence is in progress**: the tick probes each armed `github-pr` item mechanically (§4 Tick Behavior) — merged → the item's `done` delta fires its `then` (arm the next PR per rule 1); unmerged → rule 3's checks and the `unchanged` stall counter advance. Merge-all consumes no foreground attention between arms, and the armed items keep the clock live like any other tracked item (§4 The Clock) — there is no gap and no run-kit follow-up.
+**Per tick while a merge sequence is in progress**: the tick probes each armed `github-pr` item mechanically (§4 Tick Behavior) — merged → the item's `done` delta fires its `then` (arm the next PR per rule 1); unmerged → rule 3's checks and the `unchanged` stall counter advance. Merge-all consumes no foreground attention between arms, and the armed items keep the clock live like any other tracked item (§4 The Clock) — there is no gap and no HexoKit follow-up.
 
 ---
 
@@ -811,7 +811,7 @@ These settings are session-scoped and reset on compaction, `/clear`, or session 
 | Outputs `Next:` line? | No — ends with ready signal |
 | Reads change/plan artifacts? | As the work needs — any plan, roadmap, intake, or task document required to drive tracked work (§1); none are startup always-loads (§2) |
 | Requires tmux? | Yes — hard stop without it |
-| Requires run-kit? | Yes — hard stop without it (§2 rk Gate: `command -v rk` + `rk cron list --json`) |
+| Requires HexoKit? | Yes — hard stop without it (§2 rk Gate: `command -v rk` + `rk cron list --json`) |
 | Launcher delegation? | Yes — bare `fab operator` hands the launch to `rk operator` when a capable rk is on PATH (probe, pass-through, and failure semantics owned by `_cli-fab-operator.md` § fab operator); the rows below describe the binary's built-in launcher, whose behavior is owned by the CLI reference |
 | Requires a git repo? | No — `fab operator` opens its window in the repo root inside a repo, else `os.Getwd()` (neutral parent dir). Errors only if both fail |
 | Requires a `fab/` project? | No — session command comes from the project's `providers.claude.interactive_command` when `fab/` is resolvable, else `spawn.DefaultSpawnCommand` (the template `claude --permission-mode bypassPermissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`). No project `providers`/`agent:` block is read on a `fab/`-less launch |

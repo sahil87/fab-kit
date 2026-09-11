@@ -1,6 +1,6 @@
 ---
 name: _cli-external
-description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, and rk (run-kit). Carries only fab-owned content (the operator's worktree probe-and-route spawning recipe, the escalation rk-notify usage plus pointers to the operator's startup role self-mark, the rk-mux agent-messaging and pane peek/kill/process usage, the operator-clock mute/lease, and the tmux/pane notes); each owned tool's usage knowledge is delegated to `<tool> skill` at use-time (`command -v`-gated fail-silent for all four owned binaries, with a version-skew fallback to the shll.ai bundle page), and its exhaustive command tree to `<tool> help-dump`. Loaded by operator skills only."
+description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, and rk (HexoKit). Carries only fab-owned content (the operator's worktree probe-and-route spawning recipe, the escalation rk-notify usage plus pointers to the operator's startup role self-mark, the rk-mux agent-messaging and pane peek/kill/process usage, the operator-clock mute/lease, and the tmux/pane notes); each owned tool's usage knowledge is delegated to `<tool> skill` at use-time (`command -v`-gated fail-silent for all four owned binaries, with a version-skew fallback to the shll.ai bundle page), and its exhaustive command tree to `<tool> help-dump`. Loaded by operator skills only."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -17,7 +17,7 @@ metadata:
 - idea (Backlog Manager)
 - hop (Multi-Repo Navigator)
 - tmux
-- rk (run-kit)
+- rk (HexoKit)
 
 ---
 
@@ -174,9 +174,9 @@ Terminal multiplexer commands used by the operator for agent observation and int
 
 ---
 
-## rk (run-kit)
+## rk (HexoKit)
 
-run-kit is the tmux session manager with a web UI that may host the operator's
+HexoKit is the tmux session manager with a web UI that may host the operator's
 session. The Homebrew formula and primary binary are `run-kit`
 (`sahil87/tap/run-kit`); `rk` is the invocation used throughout fab skills.
 
@@ -188,7 +188,7 @@ The **dynamic** environment (current server URL, session, pane) stays in `rk con
 
 ### Operator escalation send (fab-owned)
 
-The operator's non-blocking Strategic escalation (`fab-operator.md` §5) uses `rk notify` as its out-of-band notification send — the fab-specific usage (message/title template), relying on run-kit's fail-silent-by-contract guarantee:
+The operator's non-blocking Strategic escalation (`fab-operator.md` §5) uses `rk notify` as its out-of-band notification send — the fab-specific usage (message/title template), relying on HexoKit's fail-silent-by-contract guarantee:
 
 ```sh
 rk notify "{change}: {summary} ({repo})" --title "Operator: strategic question"
@@ -198,7 +198,7 @@ This is the operator's *usage* of the tool, not the `rk notify` contract itself 
 
 ### Operator role self-mark (fab-owned — pointer)
 
-The second fab-owned rk usage — the fail-silent `rk role operator` self-mark that pins the operator window in run-kit's dashboard — is owned by `fab-operator.md` §2 Startup (§ Role Mark). The `@rk_win_role` option contract and its one-operator-per-server radio semantics are tool-owned; see `rk skill`.
+The second fab-owned rk usage — the fail-silent `rk role operator` self-mark that pins the operator window in HexoKit's dashboard — is owned by `fab-operator.md` §2 Startup (§ Role Mark). The `@rk_win_role` option contract and its one-operator-per-server radio semantics are tool-owned; see `rk skill`.
 
 ### Agent messaging (fab-owned — pointer)
 

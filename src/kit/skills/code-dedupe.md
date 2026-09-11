@@ -100,7 +100,7 @@ Placeholders substituted before execution:
 
 **Quote both before substituting.** Substitute shell-quoted values — single-quote each path (`'…'`, with an embedded `'` written `'\''`) — so a path containing a space, `$`, `;`, or any other metacharacter reaches the detector as one intact argument instead of splitting the command or executing part of it. The values come from scope resolution and project config, not a trusted allowlist, so quoting is required, not defensive.
 
-**Probe before running, fail silent.** For each configured detector, check the binary with `command -v <bin> >/dev/null 2>&1` before invoking it. Missing → skip it silently and continue. This mirrors the `rk` discipline in `_preamble.md` § Run-Kit Reference: never error, never warn, on an absent optional tool. Report which detectors ran in the sweep report (§ Step 4) so a skipped one is visible as information, not as failure.
+**Probe before running, fail silent.** For each configured detector, check the binary with `command -v <bin> >/dev/null 2>&1` before invoking it. Missing → skip it silently and continue. This mirrors the `rk` discipline in `_preamble.md` § HexoKit (rk) Reference: never error, never warn, on an absent optional tool. Report which detectors ran in the sweep report (§ Step 4) so a skipped one is visible as information, not as failure.
 
 **A detector that runs but exits non-zero is not a STOP.** Duplication tools routinely exit non-zero to signal "threshold exceeded" — that is a finding, not an error. Parse whatever output exists, note the exit code in the report, and continue. This is an explicit per-skill exception to `_preamble.md` § Common fab Commands' failure rule, which governs `fab` commands, not third-party tools.
 

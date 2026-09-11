@@ -342,7 +342,7 @@ The `_` (underscore) prefix denotes internal partial files that are loaded by sk
 
 | File | Load strategy | Purpose |
 |------|--------------|---------|
-| `_preamble.md` | Always-load (every skill) | Context loading, SRAD, confidence scoring, Next Steps, Skill Helper Declaration, inlined Naming Conventions, inlined Run-Kit (rk) Reference, Common fab Commands |
+| `_preamble.md` | Always-load (every skill) | Context loading, SRAD, confidence scoring, Next Steps, Skill Helper Declaration, inlined Naming Conventions, inlined HexoKit (rk) Reference, Common fab Commands |
 | `_cli-fab.md` | Selective (via `helpers: [_cli-fab]`) | Fab CLI command reference (core families) — commands and flags beyond the Common fab Commands headline in `_preamble`. No skill declares it currently; consumers reach it by pointer |
 | `_cli-fab-pane.md` | Selective (via `helpers: [_cli-fab-pane]`) | Fab CLI reference — `fab pane` and `fab dispatch` families. Used only by `fab-operator` |
 | `_cli-fab-operator.md` | Selective (via `helpers: [_cli-fab-operator]`) | Fab CLI reference — `fab operator` and `fab agent` families. Used only by `fab-operator` |
@@ -354,7 +354,7 @@ The `_` (underscore) prefix denotes internal partial files that are loaded by sk
 | `_cli-agents.md` | Selective (via `helpers: [_cli-agents]`) | Agent-CLI interaction reference — generic spawn / pre-send-validation / peek / await procedures for driving another agent CLI in a tmux pane, plus a four-provider operational dictionary (claude, codex, agy, kimi). Used only by `fab-operator` |
 | `_cli-external.md` | Selective (via `helpers: [_cli-external]`) | **Fab-owned** external-tool content only (clix): the operator spawning choreography, the escalation `rk notify` usage and the pointer to the operator's startup role self-mark, the agent-messaging and pane peek/kill/process usage pointers (`rk mux send`/`await` usage owned by `_cli-agents.md` § Pre-Send Validation / § Await and `fab-operator.md` §3/§5; `rk mux capture`/`kill`/`process` usage owned by `_cli-agents.md` § Peek; the verbs' contracts are tool-owned), the absent-binary discipline, and `tmux` (reduced — captures ride `rk mux capture`, sends ride `rk mux send`, `fab pane capture` staying dispatch-internal; `new-window` remains). Each owned binary's *usage knowledge* — `wt`/`idea` (bare) and `rk`/`hop` (`command -v`-gated fail-silent) — is delegated at use-time to `<tool> skill` (with a silent `https://shll.ai/<tool>/skill` version-skew fallback), its command tree to `<tool> help-dump`. Used only by `fab-operator` |
 
-Only `_preamble.md` is always-loaded. All other helpers are opt-in via the `helpers:` frontmatter field on each skill. `_naming.md` and `_cli-rk.md` do not exist as separate files — their content is inlined into `_preamble.md` (`## Naming Conventions`, `## Run-Kit (rk) Reference`).
+Only `_preamble.md` is always-loaded. All other helpers are opt-in via the `helpers:` frontmatter field on each skill. `_naming.md` and `_cli-rk.md` do not exist as separate files — their content is inlined into `_preamble.md` (`## Naming Conventions`, `## HexoKit (rk) Reference`).
 
 Skill → helper mapping (the declaration lives in each skill's frontmatter; `grep -l '^helpers:' src/kit/skills/*.md` is the roster):
 - `fab-new`, `fab-draft` → `[_generation, _srad, _intake]`

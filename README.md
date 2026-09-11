@@ -1,6 +1,6 @@
 # Fab Kit
 
-> Part of the [shll toolkit](https://shll.ai) — see all projects there.
+> Part of [HexoKit](https://hexokit.com) — see all projects there.
 
 [![Latest release](https://img.shields.io/github/v/release/sahil87/fab-kit)](https://github.com/sahil87/fab-kit/releases) [![Downloads](https://img.shields.io/github/downloads/sahil87/fab-kit/total)](https://github.com/sahil87/fab-kit/releases) [![Stars](https://img.shields.io/github/stars/sahil87/fab-kit?style=social)](https://github.com/sahil87/fab-kit/stargazers) [![BundleDex](https://bundledex.net/badge/fab-kit.svg)](https://bundledex.net/bundles/fab-kit/) [![OKF BundleDex](https://bundledex.net/static-badge.svg)](https://bundledex.net)
 
