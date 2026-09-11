@@ -842,3 +842,71 @@ func TestRunCmdContext_CapturesLikeRunCmd(t *testing.T) {
 		t.Errorf("stderr = %q, want %q", stderr, "err")
 	}
 }
+
+// --- ListPanePIDs (the operator tick's batched pid fingerprint fetch) --------
+
+func TestListPanePIDs(t *testing.T) {
+	stub := func(stdout string, err error) {
+		prev := panePIDsRunner
+		panePIDsRunner = func(server string) (string, error) { return stdout, err }
+		t.Cleanup(func() { panePIDsRunner = prev })
+	}
+
+	t.Run("parses the batched list-panes output", func(t *testing.T) {
+		stub("%1 48213\n%2 501\n%22 9000\n", nil)
+		pids, err := ListPanePIDs("")
+		if err != nil {
+			t.Fatalf("ListPanePIDs: %v", err)
+		}
+		want := map[string]int{"%1": 48213, "%2": 501, "%22": 9000}
+		if !reflect.DeepEqual(pids, want) {
+			t.Errorf("pids = %v, want %v", pids, want)
+		}
+	})
+
+	t.Run("malformed lines are skipped, not an error", func(t *testing.T) {
+		stub("%1 48213\ngarbage\n%2 notapid\n  \n%3 77 extra\n", nil)
+		pids, err := ListPanePIDs("")
+		if err != nil {
+			t.Fatalf("ListPanePIDs: %v", err)
+		}
+		want := map[string]int{"%1": 48213}
+		if !reflect.DeepEqual(pids, want) {
+			t.Errorf("pids = %v, want %v", pids, want)
+		}
+	})
+
+	t.Run("empty output yields an empty map", func(t *testing.T) {
+		stub("", nil)
+		pids, err := ListPanePIDs("")
+		if err != nil {
+			t.Fatalf("ListPanePIDs: %v", err)
+		}
+		if len(pids) != 0 {
+			t.Errorf("pids = %v, want empty (non-nil) map", pids)
+		}
+	})
+
+	t.Run("runner failure is an error", func(t *testing.T) {
+		stub("", errors.New("exit status 1"))
+		if _, err := ListPanePIDs(""); err == nil {
+			t.Fatal("ListPanePIDs err = nil, want the tmux failure")
+		}
+	})
+
+	t.Run("server scopes the tmux argv via -L", func(t *testing.T) {
+		var gotServer string
+		prev := panePIDsRunner
+		panePIDsRunner = func(server string) (string, error) {
+			gotServer = server
+			return "%1 1\n", nil
+		}
+		t.Cleanup(func() { panePIDsRunner = prev })
+		if _, err := ListPanePIDs("work"); err != nil {
+			t.Fatalf("ListPanePIDs: %v", err)
+		}
+		if gotServer != "work" {
+			t.Errorf("runner server = %q, want %q", gotServer, "work")
+		}
+	})
+}

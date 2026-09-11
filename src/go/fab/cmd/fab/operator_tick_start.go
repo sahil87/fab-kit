@@ -28,6 +28,30 @@ var operatorStatePathOverride string
 // null (R11: rk's tri-state short-circuits the walk otherwise).
 var tickPaneAgentAlive = paneAgentAlive
 
+// tickPanePIDs is the tick's batched pid-fingerprint source: ONE
+// `tmux list-panes -a` per tick (under the anyPaneItems gate), against the
+// operator's own server. Package-level var so tick-diff tests stub the seam
+// (the tickSnapshotRows precedent).
+var tickPanePIDs = func() (map[string]int, error) {
+	return pane.ListPanePIDs("")
+}
+
+// tickGitBranchRunner resolves the pane cwd's current branch at the tick a
+// change is first observed (`git -C <cwd> branch --show-current`, argv-only,
+// bounded) — package-level var so tick tests stub the seam (the
+// ghNameWithOwnerRunner precedent). An empty result (detached HEAD) or any
+// failure skips the branch_map write; a later tick retries while the change
+// stays observed and the entry stays absent.
+var tickGitBranchRunner = func(cwd string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), trackProbeTimeout)
+	defer cancel()
+	out, _, err := pane.RunCmdContext(ctx, "git", "-C", cwd, "branch", "--show-current")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
 func operatorTickStartCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tick-start",
@@ -235,10 +259,11 @@ func (d tickDelta) MarshalYAML() (interface{}, error) {
 // agent_state is waiting or idle (the §5 sweep population, computed here so
 // the skill never fetches the full pane map per tick).
 type tickCandidate struct {
-	Pane         string  `yaml:"pane"`
-	ID           string  `yaml:"id"`
-	AgentState   string  `yaml:"agent_state"`   // waiting | idle
-	IdleDuration *string `yaml:"idle_duration"` // non-null only for idle (upstream idle-only semantics)
+	Pane          string  `yaml:"pane"`
+	ID            string  `yaml:"id"`
+	AgentState    string  `yaml:"agent_state"`    // waiting | idle
+	StateDuration *string `yaml:"state_duration"` // rk's agent_state_duration verbatim (waiting AND idle; null when rk reports none)
+	IdleDuration  *string `yaml:"idle_duration"`  // non-null only for idle (upstream idle-only semantics)
 }
 
 // tickNeedsCheck is one `needs_check:` row — a due agent item the LLM must
@@ -334,18 +359,34 @@ func runOperatorTickStartDiff(cmd *cobra.Command, quiet bool) error {
 		}
 
 		var rows []paneRow
+		var pids map[string]int
+		var bm map[string]branchMapEntry
 		if anyPaneItems(items) {
 			rows, err = tickSnapshotRows()
 			if err != nil {
 				return fmt.Errorf("tick --diff snapshot: %w", err)
 			}
+			// ONE batched pid fetch per tick (R4). A failed call yields an
+			// empty map and is NOT an error — every fingerprint comparison
+			// then degrades to "unreadable ⇒ not a mismatch".
+			pids, _ = tickPanePIDs()
+			if pids == nil {
+				pids = map[string]int{}
+			}
+			bm = map[string]branchMapEntry{}
+			if err := operatorSection(data, "branch_map", &bm); err != nil {
+				return err
+			}
 		}
-		joined, doneNow := diffPaneItems(items, rows, &out, now, nowStr)
+		joined, doneNow, bmDirty := diffPaneItems(items, rows, pids, bm, &out, now, nowStr)
 		runDueProbes(items, &out, now)
 		deriveItemDeltas(items, doneNow, &out, now)
 		out.Items = buildItemRows(items, rows, joined, doneNow, now)
 		out.Summary = summarizeItems(items, rows, joined, doneNow)
 		data["tracked"] = items
+		if bmDirty {
+			data["branch_map"] = bm
+		}
 		markFull()
 		return nil
 	}, false)
@@ -412,7 +453,7 @@ func stageOrderIndex(stage string) int {
 	return -1
 }
 
-// tickCompleted is the fab-change built-in completion predicate — a
+// tickCompleted is the pane built-in completion predicate — a
 // display-state check at a stage, NEVER a stage diff (a change completing at
 // its final stage never changes its stage string; only display_state flips).
 // stop_stage null: AT the terminus (review-pr) with display_state
@@ -445,16 +486,20 @@ func anyPaneItems(items []trackedItem) bool {
 }
 
 // itemDone reports the item's done verdict for this tick: done_when firing on
-// last, or the fab-change built-in firing on the snapshot (doneNow).
+// last, or the pane built-in firing on the snapshot (doneNow).
 func itemDone(it trackedItem, doneNow map[string]bool) bool {
 	return trackedItemDone(it) || doneNow[it.ID]
 }
 
-// diffPaneItems joins pane-mode items against the snapshot on scope.pane,
-// emits the pane deltas and candidates, and applies the scope.stage/agent
-// baseline update in place. Returns the cleanly-joined item ids and the ids
-// whose fab-change built-in completion predicate fired this tick.
-func diffPaneItems(items []trackedItem, rows []paneRow, out *tickDiffOutput, now time.Time, nowStr string) (joined, doneNow map[string]bool) {
+// diffPaneItems joins pane-mode items against the snapshot on scope.pane
+// (fingerprinted by scope.pane_pid), emits the pane deltas and candidates, and
+// applies the scope.stage/change/agent baseline update in place. pids is the
+// tick's batched pane-pid map (empty when the fetch failed — every comparison
+// then degrades to "unreadable ⇒ not a mismatch"); bm is the decoded
+// branch_map (nil when no pane items), written at a change's first
+// observation. Returns the cleanly-joined item ids, the ids whose pane
+// built-in completion predicate fired this tick, and whether bm changed.
+func diffPaneItems(items []trackedItem, rows []paneRow, pids map[string]int, bm map[string]branchMapEntry, out *tickDiffOutput, now time.Time, nowStr string) (joined, doneNow map[string]bool, bmDirty bool) {
 	byPane := make(map[string]paneRow, len(rows))
 	for _, r := range rows {
 		byPane[r.pane] = r
@@ -499,18 +544,22 @@ func diffPaneItems(items []trackedItem, rows []paneRow, out *tickDiffOutput, now
 			continue
 		}
 
-		// pane_mismatch: level-triggered — tmux recycles %N pane IDs across
-		// server restarts while the socket-keyed state file survives, so a
-		// pane now hosting a DIFFERENT change (or none) must never be diffed,
-		// baseline-updated, or swept as the old agent.
-		if row.changeID != it.ID {
-			out.Deltas = append(out.Deltas, tickDelta{
-				Kind:  "pane_mismatch",
-				ID:    it.ID,
-				Pane:  paneID,
-				Found: toNullable(row.changeID),
-			})
-			continue
+		// pane_mismatch: level-triggered — the recycled-pane case ONLY. tmux
+		// recycles %N across server restarts while the socket-keyed state file
+		// survives. A recorded fingerprint that differs from the pane's current
+		// shell pid proves the pane is not the one we tracked. A null recorded
+		// fingerprint, or an unreadable current pid, joins on the pane id alone.
+		// The observed change id never participates in the mismatch decision.
+		if rec, ok := scopeInt(it.Scope, "pane_pid"); ok && rec != 0 {
+			if cur, found := pids[paneID]; found && cur != rec {
+				out.Deltas = append(out.Deltas, tickDelta{
+					Kind:  "pane_mismatch",
+					ID:    it.ID,
+					Pane:  paneID,
+					Found: toNullable(row.changeID), // observed change id or null — unchanged field
+				})
+				continue
+			}
 		}
 
 		// agent_exited: level-triggered — R11's has_agent tri-state first
@@ -535,14 +584,54 @@ func diffPaneItems(items []trackedItem, rows []paneRow, out *tickDiffOutput, now
 			continue
 		}
 
-		// Clean join. An unresolved snapshot stage (em dash) fabricates
-		// nothing: no completion, no stage delta, baseline stage untouched.
+		// Clean join. change ← the snapshot's resolved change id, maintained
+		// exactly like the stage baseline: an unresolved snapshot change
+		// (empty — no .fab-status.yaml in the pane's cwd) fabricates no delta
+		// and leaves the baseline alone (sticky — a later dangling pointer
+		// never nulls it). An appear (null → id) or switch (id → other id) is
+		// a consumed-on-read changed delta, consumed by the same-write
+		// baseline update — never pane_mismatch.
+		baselineChange := scopeString(it.Scope, "change")
+		if row.changeID != "" && row.changeID != baselineChange {
+			var from interface{}
+			if baselineChange != "" {
+				from = baselineChange
+			}
+			out.Deltas = append(out.Deltas, tickDelta{
+				Kind:   "changed",
+				ID:     it.ID,
+				Fields: map[string]tickFieldChange{"change": {From: from, To: row.changeID}},
+			})
+			it.Scope["change"] = row.changeID
+			it.UpdatedAt = nowStr
+		}
+		// branch_map: an observed change whose entry is absent gains
+		// {branch, repo} — repo from scope, branch resolved from the pane's
+		// cwd, once per tick while the entry stays absent. An empty result
+		// (detached HEAD), a git failure, or a null scope.repo skips the
+		// write; the next tick where the change is still observed retries.
+		if row.changeID != "" && bm != nil {
+			if _, exists := bm[row.changeID]; !exists {
+				if repo, cwd := scopeString(it.Scope, "repo"), row.cwd; repo != "" && cwd != "" {
+					if branch, err := tickGitBranchRunner(cwd); err == nil && branch != "" {
+						bm[row.changeID] = branchMapEntry{Branch: branch, Repo: repo}
+						bmDirty = true
+					}
+				}
+			}
+		}
+
+		// An unresolved snapshot stage (em dash) fabricates nothing: no
+		// completion, no stage delta, baseline stage untouched. The built-in
+		// completion predicate applies only when scope.change is non-null —
+		// a change-less pane item is never done on its own (it leaves the
+		// list via track rm or a then).
 		if resolvedSnap(row.stage) {
 			var stopStage *string
 			if ss := scopeString(it.Scope, "stop_stage"); ss != "" {
 				stopStage = &ss
 			}
-			if tickCompleted(stopStage, row.stage, row.displayState) {
+			if scopeString(it.Scope, "change") != "" && tickCompleted(stopStage, row.stage, row.displayState) {
 				doneNow[it.ID] = true
 				// Persist the verdict in the same atomic write so the
 				// level-triggered done survives the pane disappearing
@@ -582,6 +671,10 @@ func diffPaneItems(items []trackedItem, rows []paneRow, out *tickDiffOutput, now
 		// rk-less servers every pane reads unknown and the list stays empty.
 		if row.agentState == "waiting" || row.agentState == "idle" {
 			cand := tickCandidate{Pane: paneID, ID: it.ID, AgentState: row.agentState}
+			if row.stateDur != "" {
+				dur := row.stateDur
+				cand.StateDuration = &dur
+			}
 			if row.agentState == "idle" && row.agentIdleDur != "" {
 				dur := row.agentIdleDur
 				cand.IdleDuration = &dur
@@ -598,7 +691,7 @@ func diffPaneItems(items []trackedItem, rows []paneRow, out *tickDiffOutput, now
 		}
 		return a.ID < b.ID
 	})
-	return joined, doneNow
+	return joined, doneNow, bmDirty
 }
 
 // --- shell probe runner (R7) ---------------------------------------------------
@@ -873,8 +966,8 @@ func trackItemAge(it trackedItem, now time.Time) string {
 
 // --- items rows and the quiet summary (R9/R10) ----------------------------------
 
-// tickHeldDep is trackHeldDep with this tick's done verdicts (a fab-change
-// dep's built-in completion is snapshot-derived — done_when alone never sees
+// tickHeldDep is trackHeldDep with this tick's done verdicts (a pane dep's
+// built-in completion is snapshot-derived — done_when alone never sees
 // it, so a chain would stick held after its dep completed).
 func tickHeldDep(items []trackedItem, it trackedItem, doneNow map[string]bool) string {
 	for _, dep := range it.DependsOn {
@@ -904,7 +997,7 @@ func tickItemState(items []trackedItem, it trackedItem, joined, doneNow map[stri
 	if tickHeldDep(items, it, doneNow) != "" {
 		return "held"
 	}
-	if it.Kind == kindFabChange && scopeString(it.Scope, "pane") == "" {
+	if it.Kind == kindPane && scopeString(it.Scope, "pane") == "" {
 		return "pending"
 	}
 	if trackItemStale(it, now) {
@@ -922,7 +1015,7 @@ func tickItemState(items []trackedItem, it trackedItem, joined, doneNow map[stri
 }
 
 // tickItemNext renders the next column: the item's then, "spawn" for a
-// pending fab-change, "held: <dep-id>" for a held item; null otherwise.
+// pending pane item, "held: <dep-id>" for a held item; null otherwise.
 func tickItemNext(items []trackedItem, it trackedItem, state string, doneNow map[string]bool) interface{} {
 	if it.Then != nil && *it.Then != "" {
 		return *it.Then
@@ -939,7 +1032,7 @@ func tickItemNext(items []trackedItem, it trackedItem, state string, doneNow map
 // tickKindOrder pins the items ordering (kind → scope.repo → id).
 func tickKindOrder(kind string) int {
 	switch kind {
-	case kindFabChange:
+	case kindPane:
 		return 0
 	case kindGitHubPR:
 		return 1
@@ -1052,10 +1145,13 @@ func buildItemRows(items []trackedItem, rows []paneRow, joined, doneNow map[stri
 // putPaneRowFields fills the pane-item row: snapshot fields on a clean join
 // (em-dash/unknown sentinels → null; an unresolved snapshot repo falls back
 // to the item's scope), baseline identity with null observed fields
-// otherwise.
+// otherwise. change is the observed (baseline-maintained) change id from
+// scope on both paths — null until a change appears on the pane; stage /
+// display_state / pr_url are null when no change is observed.
 func putPaneRowFields(r *omap, it trackedItem, row paneRow, isJoined bool) {
 	paneID := scopeString(it.Scope, "pane")
-	r.put("pane", strOrNilV(paneID))
+	r.put("pane", strOrNilV(paneID)).
+		put("change", strOrNilV(scopeString(it.Scope, "change")))
 	if !isJoined {
 		r.put("repo", strOrNilV(scopeString(it.Scope, "repo"))).
 			put("session", strOrNilV(scopeString(it.Scope, "session"))).

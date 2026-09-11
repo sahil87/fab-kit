@@ -111,10 +111,10 @@ func seedState(t *testing.T, seed string) map[string]interface{} {
 	return data
 }
 
-// seedOnePaneItem is a state file with a single live fab-change pane item.
+// seedOnePaneItem is a state file with a single live pane item.
 const seedOnePaneItem = `tracked:
   - id: ab12
-    kind: fab-change
+    kind: pane
     probe: {mode: pane}
     depends_on: []
     scope: {pane: "%3", repo: /r/a}
@@ -203,7 +203,7 @@ func TestClockSync_UntrackedToTracked(t *testing.T) {
 		withOperatorState(t, "")
 		stubQuietClock(t)
 		calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
-		if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("ab12", kindFabChange,
+		if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("ab12", kindPane,
 			"--pane", "%3", "--repo", "/r/a", "--branch", "b")...); err != nil {
 			t.Fatalf("track add: %v", err)
 		}
@@ -435,7 +435,7 @@ func TestClockSync_FailSilentDegradation(t *testing.T) {
 			withOperatorState(t, "")
 			stubQuietClock(t)
 			calls := stubRkCron(t, tc.listJSON, tc.listErr, nil)
-			if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("ab12", kindFabChange,
+			if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("ab12", kindPane,
 				"--pane", "%3", "--repo", "/r/a", "--branch", "b")...); err != nil {
 				t.Fatalf("track add must succeed with a degraded rk: %v", err)
 			}
@@ -448,7 +448,7 @@ func TestClockSync_FailSilentDegradation(t *testing.T) {
 		withOperatorState(t, "")
 		stubQuietClock(t)
 		calls := stubRkCron(t, cronListBackoffJSON, nil, errors.New("exit status 1"))
-		if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("ab12", kindFabChange,
+		if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("ab12", kindPane,
 			"--pane", "%3", "--repo", "/r/a", "--branch", "b")...); err != nil {
 			t.Fatalf("track add must succeed when the mute call fails: %v", err)
 		}
@@ -478,7 +478,7 @@ func TestClockSync_SaveFailureIssuesNoCall(t *testing.T) {
 	t.Cleanup(func() { operatorStatePathOverride = "" })
 	stubQuietClock(t)
 	calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
-	if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("ab12", kindFabChange,
+	if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("ab12", kindPane,
 		"--pane", "%3", "--repo", "/r/a", "--branch", "b")...); err == nil {
 		t.Fatal("track add = nil error, want a save failure")
 	}

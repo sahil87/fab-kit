@@ -101,21 +101,24 @@ func TestMigrate_V10FileConvertsOnFirstTouch(t *testing.T) {
 	}
 
 	items := readTracked(t, path)
-	// R5's scenario text says "five" but its own breakdown (2 fab-change,
+	// R5's scenario text says "five" but its own breakdown (2 pane,
 	// 1 linear, 1 note, 0 from the exhausted queue) sums to 4 — the breakdown
 	// is the contract (flagged as a review finding).
 	if len(items) != 4 {
-		t.Fatalf("tracked items = %d, want 4 (2 fab-change, 1 linear, 1 note; 0 from the exhausted queue): %v", len(items), items)
+		t.Fatalf("tracked items = %d, want 4 (2 pane, 1 linear, 1 note; 0 from the exhausted queue): %v", len(items), items)
 	}
 
 	ab12 := items["ab12"]
-	if ab12.Kind != kindFabChange || ab12.Probe.Mode != probePane {
+	if ab12.Kind != kindPane || ab12.Probe.Mode != probePane {
 		t.Errorf("ab12 kind/probe = %s/%s", ab12.Kind, ab12.Probe.Mode)
 	}
-	for k, want := range map[string]string{"pane": "%3", "repo": "/home/u/foo", "session": "work", "branch": "260909-ab12-x", "stage": "apply", "agent": "active"} {
+	for k, want := range map[string]string{"pane": "%3", "change": "ab12", "repo": "/home/u/foo", "session": "work", "branch": "260909-ab12-x", "stage": "apply", "agent": "active"} {
 		if got := scopeString(ab12.Scope, k); got != want {
 			t.Errorf("ab12 scope.%s = %q, want %q", k, got, want)
 		}
+	}
+	if v, present := ab12.Scope["pane_pid"]; !present || v != nil {
+		t.Errorf("ab12 scope.pane_pid = %v (present %v), want key present with null (no live fingerprint)", v, present)
 	}
 	if ab12.CheckedAt == nil || *ab12.CheckedAt != "2026-09-09T01:00:00Z" {
 		t.Errorf("ab12 checked_at = %v, want last_transition", ab12.CheckedAt)
@@ -218,8 +221,9 @@ func TestMigrate_RunningAutopilotRefuses(t *testing.T) {
 
 func TestMigrate_AutopilotQueueChainsItems(t *testing.T) {
 	// A-024: a paused queue's not-completed entries convert to pane-less
-	// fab-change items chained by depends_on (nearest same-repo predecessor;
-	// cross-repo → immediate predecessor) with scope.merge_mode set.
+	// pane-kind items chained by depends_on (nearest same-repo predecessor;
+	// cross-repo → immediate predecessor) with scope.merge_mode set and
+	// scope.change seeded from the id.
 	seed := `autopilot:
   queue: [a1, b1, a2, done0]
   current: a1
@@ -241,8 +245,14 @@ branch_map:
 		t.Fatalf("tracked items = %d, want 3 (completed entries convert nothing): %v", len(items), items)
 	}
 	a1 := items["a1"]
+	if a1.Kind != kindPane {
+		t.Errorf("a1 kind = %s, want pane", a1.Kind)
+	}
 	if got := scopeString(a1.Scope, "pane"); got != "" {
 		t.Errorf("a1 scope.pane = %q, want null (pending)", got)
+	}
+	if got := scopeString(a1.Scope, "change"); got != "a1" {
+		t.Errorf("a1 scope.change = %q, want seeded from the id", got)
 	}
 	if len(a1.DependsOn) != 0 {
 		t.Errorf("a1 depends_on = %v, want []", a1.DependsOn)
@@ -280,10 +290,12 @@ func TestMigrate_DisabledWatchConvertsPaused(t *testing.T) {
 	}
 }
 
-func TestMigrate_TrackedPresentSkipsConversion(t *testing.T) {
-	// A-034: a file with `tracked` already present and a stray legacy key is
-	// left as-is — no double conversion, the stray key survives as an unknown
-	// top-level key.
+func TestMigrate_FabChangeItemsConvertWithTrackedPresent(t *testing.T) {
+	// R11: a file with `tracked` present holding a retired kind: fab-change
+	// item converts on ANY verb's read-modify-write — kind: pane,
+	// scope.change seeded from the item id, scope.pane_pid null — in the same
+	// atomic write; a stray legacy key survives as an unknown top-level key
+	// (A-034); a second run is a byte-stable no-op (idempotent).
 	seed := `tracked:
   - id: ab12
     kind: fab-change
@@ -301,15 +313,58 @@ notes:
     updated_at: "2026-09-09T00:00:00Z"
     resolved: false
 `
-	path := withOperatorState(t, seed)
-	if err := runOperatorCmd(t, operatorStateCmd()); err != nil {
-		t.Fatalf("state: %v", err)
-	}
-	after, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(after) != seed {
-		t.Errorf("file with tracked present must be left as-is:\n%s", after)
-	}
+
+	t.Run("read verb converts and saves", func(t *testing.T) {
+		path := withOperatorState(t, seed)
+		if err := runOperatorCmd(t, operatorStateCmd()); err != nil {
+			t.Fatalf("state: %v", err)
+		}
+		it := readTracked(t, path)["ab12"]
+		if it.Kind != kindPane {
+			t.Errorf("kind = %s, want pane", it.Kind)
+		}
+		if got := scopeString(it.Scope, "change"); got != "ab12" {
+			t.Errorf("scope.change = %q, want seeded from the item id", got)
+		}
+		if v, present := it.Scope["pane_pid"]; !present || v != nil {
+			t.Errorf("scope.pane_pid = %v (present %v), want key present with null", v, present)
+		}
+		if got := scopeString(it.Scope, "pane"); got != "%3" {
+			t.Errorf("scope.pane = %q, want preserved %%3", got)
+		}
+		if _, ok := readStateFile(t, path)["notes"]; !ok {
+			t.Error("stray legacy key lost — unknown top-level keys survive the conversion")
+		}
+
+		// Idempotent: the second run rewrites nothing.
+		first, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := runOperatorCmd(t, operatorStateCmd()); err != nil {
+			t.Fatalf("state (second run): %v", err)
+		}
+		second, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(first) != string(second) {
+			t.Errorf("second run rewrote the file:\n%s\n---\n%s", first, second)
+		}
+	})
+
+	t.Run("write verb converts in its own atomic write", func(t *testing.T) {
+		path := withOperatorState(t, seed)
+		stubQuietClock(t)
+		if err := runOperatorCmd(t, operatorTrackClockCmd(), "--every", "10m", "--for", "1h"); err != nil {
+			t.Fatalf("track clock: %v", err)
+		}
+		it := readTracked(t, path)["ab12"]
+		if it.Kind != kindPane || scopeString(it.Scope, "change") != "ab12" {
+			t.Errorf("after a write verb: kind %s scope.change %q, want pane / ab12", it.Kind, scopeString(it.Scope, "change"))
+		}
+		if readClockOverride(readStateFile(t, path)) == nil {
+			t.Error("the verb's own mutation lost in the converting write")
+		}
+	})
 }

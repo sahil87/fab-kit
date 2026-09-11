@@ -26,10 +26,13 @@ func seedDiffState(t *testing.T, items []trackedItem) string {
 
 // seedDiffStateWith is seedDiffState with extra top-level keys merged into
 // the seed document — the periodic-full-refresh cases seed last_full_at
-// (recent/stale/unparseable/future/non-string stamps).
+// (recent/stale/unparseable/future/non-string stamps). The batched pid-map
+// seam is stubbed to an empty map (pane-id-only joins); fingerprint tests
+// re-stub it afterwards (the later stub wins; cleanups unwind LIFO).
 func seedDiffStateWith(t *testing.T, items []trackedItem, extra map[string]interface{}) string {
 	t.Helper()
 	stubQuietClock(t)
+	stubPanePIDs(t, map[string]int{})
 	data := map[string]interface{}{
 		"tick_count": 5,
 		"tracked":    items,
@@ -50,17 +53,20 @@ func rfc3339Ago(d time.Duration) string {
 	return time.Now().UTC().Add(-d).Format(time.RFC3339)
 }
 
-// paneItem builds a fab-change pane item with the identity fields the diff
-// path reads; addedAt doubles as updated_at (a fixed past timestamp keeps
-// baseline-timestamp assertions robust against same-second runs).
+// paneItem builds a pane-kind item with the identity fields the diff path
+// reads — a KNOWN-change fixture: scope.change is pre-declared as the item id
+// (the track add --change form), pane_pid null (join on the pane id alone).
+// addedAt doubles as updated_at (a fixed past timestamp keeps
+// baseline-timestamp assertions robust against same-second runs). Tests for
+// raw-text spawns null the change key after building.
 func paneItem(id, paneID, repo, session, stage, addedAt string) trackedItem {
 	return trackedItem{
 		ID:        id,
-		Kind:      kindFabChange,
+		Kind:      kindPane,
 		Probe:     probeSpec{Mode: probePane},
 		DependsOn: []string{},
 		Scope: map[string]interface{}{
-			"pane": paneID, "repo": repo, "session": session,
+			"pane": paneID, "pane_pid": nil, "change": id, "repo": repo, "session": session,
 			"branch": "260823-" + id + "-x", "stage": stage,
 			"agent": nil, "stop_stage": nil, "spawned_by": nil, "merge_mode": nil,
 		},
@@ -169,6 +175,30 @@ func stubSnapshot(t *testing.T, rows []paneRow) *bool {
 	}
 	t.Cleanup(func() { tickSnapshotRows = orig })
 	return &called
+}
+
+// stubPanePIDs replaces the batched pid-map seam (the stubSnapshot
+// precedent). An empty map is the failed-fetch posture: every fingerprint
+// comparison degrades to "unreadable ⇒ not a mismatch".
+func stubPanePIDs(t *testing.T, pids map[string]int) {
+	t.Helper()
+	orig := tickPanePIDs
+	tickPanePIDs = func() (map[string]int, error) { return pids, nil }
+	t.Cleanup(func() { tickPanePIDs = orig })
+}
+
+// stubGitBranch replaces the first-observation branch-resolution seam;
+// handler keys on the pane's cwd and every call is recorded.
+func stubGitBranch(t *testing.T, handler func(cwd string) (string, error)) *[]string {
+	t.Helper()
+	calls := []string{}
+	orig := tickGitBranchRunner
+	tickGitBranchRunner = func(cwd string) (string, error) {
+		calls = append(calls, cwd)
+		return handler(cwd)
+	}
+	t.Cleanup(func() { tickGitBranchRunner = orig })
+	return &calls
 }
 
 // stubPaneAgentAlive replaces the process-tree liveness seam used at tick entry.
@@ -295,13 +325,17 @@ func findItem(doc tickDiffDoc, id string) map[string]interface{} {
 
 func TestOperatorTickDiff_AllEventKinds(t *testing.T) {
 	stubPaneAgentAlive(t, func(string, map[string]bool) bool { return false })
+	m003 := paneItem("m003", "%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z") // recycled pane, now hosts another change
+	m003.Scope["pane_pid"] = 100
+	m004 := paneItem("m004", "%4", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z") // recycled pane, now hosts no change
+	m004.Scope["pane_pid"] = 100
 	items := []trackedItem{
 		// done: stage string UNCHANGED (review-pr → review-pr), only the
 		// display state flipped — the case a stage-diff provably cannot catch.
 		paneItem("c001", "%1", "/r/a", "s1", "review-pr", "2026-01-01T00:00:00Z"),
-		paneItem("d002", "%2", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),  // pane absent → pane_death
-		paneItem("m003", "%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),  // pane hosts another change
-		paneItem("m004", "%4", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),  // pane hosts no change
+		paneItem("d002", "%2", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"), // pane absent → pane_death
+		m003,
+		m004,
 		paneItem("a005", "%5", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),  // → stage_advance
 		paneItem("r006", "%6", "/r/a", "s1", "review", "2026-01-01T00:00:00Z"), // → review_fail
 		paneItem("e007", "%7", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),  // pane fell back to a shell
@@ -315,6 +349,10 @@ func TestOperatorTickDiff_AllEventKinds(t *testing.T) {
 		snapRow("%6", "r006", "apply", "active", "active", ""),
 		snapRowCmd("%7", "e007", "apply", "active", "idle", "2m", "zsh"),
 	})
+	// The recycled panes' current shell pids differ from the recorded
+	// fingerprints; the cleanly-joined items' panes are simply absent from
+	// the map (a null recorded fingerprint joins on the pane id alone).
+	stubPanePIDs(t, map[string]int{"%3": 200, "%4": 200})
 
 	doc := parseTickDiff(t, runTickDiff(t))
 
@@ -349,7 +387,7 @@ func TestOperatorTickDiff_AllEventKinds(t *testing.T) {
 	if d := findDelta(doc, "stage_advance", "r006"); d != nil {
 		t.Errorf("review_fail transition also emitted stage_advance: %v", d)
 	}
-	// The pane is present and change-matched, but hosts a shell → agent_exited.
+	// The pane is present and fingerprint-clean, but hosts a shell → agent_exited.
 	if d := findDelta(doc, "agent_exited", "e007"); d == nil || d["command"] != "zsh" {
 		t.Errorf("agent_exited delta wrong: %v", d)
 	}
@@ -479,10 +517,13 @@ func TestOperatorTickDiff_AgentExited(t *testing.T) {
 			calls++
 			return true
 		})
-		seedDiffState(t, []trackedItem{paneItem("a001", "%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")})
+		it := paneItem("a001", "%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")
+		it.Scope["pane_pid"] = 100
+		seedDiffState(t, []trackedItem{it})
 		// A recycled pane hosting no change AND a shell: exactly one delta,
 		// pane_mismatch.
 		stubSnapshot(t, []paneRow{snapRowCmd("%3", "", "—", "—", "", "", "zsh")})
+		stubPanePIDs(t, map[string]int{"%3": 200})
 
 		doc := parseTickDiff(t, runTickDiff(t))
 		if len(doc.Deltas) != 1 {
@@ -548,16 +589,19 @@ func TestOperatorTickDiff_HasAgentTriState(t *testing.T) {
 }
 
 func TestOperatorTickDiff_LevelTriggeredReEmitUntilRemove(t *testing.T) {
+	m003 := paneItem("m003", "%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")
+	m003.Scope["pane_pid"] = 100 // fingerprint differs below → recycled pane
 	items := []trackedItem{
 		paneItem("c001", "%1", "/r/a", "s1", "review-pr", "2026-01-01T00:00:00Z"),
 		paneItem("d002", "%2", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
-		paneItem("m003", "%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		m003,
 	}
 	path := seedDiffState(t, items)
 	stubSnapshot(t, []paneRow{
 		snapRow("%1", "c001", "review-pr", "done", "idle", "8m"),
 		snapRow("%3", "zz99", "apply", "active", "active", ""),
 	})
+	stubPanePIDs(t, map[string]int{"%3": 200})
 
 	for run := 1; run <= 2; run++ {
 		doc := parseTickDiff(t, runTickDiff(t))
@@ -713,34 +757,49 @@ func TestOperatorTickDiff_UnresolvedStageFabricatesNothing(t *testing.T) {
 }
 
 func TestOperatorTickDiff_MismatchedPaneBaselineUntouched(t *testing.T) {
-	path := seedDiffState(t, []trackedItem{paneItem("m003", "%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")})
+	it := paneItem("m003", "%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")
+	it.Scope["pane_pid"] = 100
+	path := seedDiffState(t, []trackedItem{it})
 	stubSnapshot(t, []paneRow{snapRow("%3", "zz99", "review", "active", "waiting", "")})
+	stubPanePIDs(t, map[string]int{"%3": 200}) // recycled: pid differs
 
 	runTickDiff(t)
 	if e := readTracked(t, path)["m003"]; entryStage(e) != "apply" || entryAgent(e) != "" {
 		t.Errorf("mismatched entry baseline = %+v, want untouched (stage apply, agent empty)", e.Scope)
+	}
+	if e := readTracked(t, path)["m003"]; scopeString(e.Scope, "change") != "m003" {
+		t.Errorf("mismatched entry baseline change = %v, want untouched (m003)", e.Scope["change"])
 	}
 }
 
 // --- candidates / items --------------------------------------------------------
 
 func TestOperatorTickDiff_Candidates(t *testing.T) {
+	m006 := paneItem("m006", "%6", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")
+	m006.Scope["pane_pid"] = 100
 	seedDiffState(t, []trackedItem{
 		paneItem("w001", "%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
 		paneItem("w002", "%2", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
 		paneItem("i003", "%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
 		paneItem("a004", "%4", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
 		paneItem("u005", "%5", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
-		paneItem("m006", "%6", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
+		m006,
 	})
+	// stateDur is rk's agent_state_duration verbatim: set for w001 (waiting)
+	// and i003 (idle), absent for w002 (rk reported none).
+	rowW1 := snapRow("%1", "w001", "apply", "active", "waiting", "")
+	rowW1.stateDur = "32m"
+	rowI3 := snapRow("%3", "i003", "apply", "active", "idle", "8m")
+	rowI3.stateDur = "8m"
 	stubSnapshot(t, []paneRow{
-		snapRow("%1", "w001", "apply", "active", "waiting", ""),
+		rowW1,
 		snapRow("%2", "w002", "apply", "active", "waiting", ""),
-		snapRow("%3", "i003", "apply", "active", "idle", "8m"),
+		rowI3,
 		snapRow("%4", "a004", "apply", "active", "active", ""),
 		snapRow("%5", "u005", "apply", "active", "", ""),        // unknown → excluded
-		snapRow("%6", "zz99", "apply", "active", "waiting", ""), // mismatched → excluded
+		snapRow("%6", "zz99", "apply", "active", "waiting", ""), // fingerprint-mismatched → excluded
 	})
+	stubPanePIDs(t, map[string]int{"%6": 200})
 
 	doc := parseTickDiff(t, runTickDiff(t))
 	if len(doc.Candidates) != 3 {
@@ -753,8 +812,19 @@ func TestOperatorTickDiff_Candidates(t *testing.T) {
 			t.Errorf("candidates[%d].id = %q, want %q", i, doc.Candidates[i].ID, want)
 		}
 	}
+	// state_duration rides rk's agent_state_duration for waiting AND idle;
+	// idle_duration keeps its idle-only meaning.
+	if d := doc.Candidates[0].StateDuration; d == nil || *d != "32m" {
+		t.Errorf("waiting candidate state_duration = %v, want 32m", d)
+	}
 	if doc.Candidates[0].IdleDuration != nil {
 		t.Errorf("waiting candidate idle_duration = %v, want null", *doc.Candidates[0].IdleDuration)
+	}
+	if doc.Candidates[1].StateDuration != nil {
+		t.Errorf("waiting candidate without an rk duration state_duration = %v, want null", *doc.Candidates[1].StateDuration)
+	}
+	if d := doc.Candidates[2].StateDuration; d == nil || *d != "8m" {
+		t.Errorf("idle candidate state_duration = %v, want 8m", d)
 	}
 	if d := doc.Candidates[2].IdleDuration; d == nil || *d != "8m" {
 		t.Errorf("idle candidate idle_duration = %v, want 8m", d)
@@ -785,7 +855,7 @@ func TestOperatorTickDiff_Items(t *testing.T) {
 	if len(doc.Items) != 4 {
 		t.Fatalf("items = %v, want 4 rows (all pane items)", doc.Items)
 	}
-	// Order: kind (all fab-change) → repo → id. f003/f004 (/r/a) before
+	// Order: kind (all pane) → repo → id. f003/f004 (/r/a) before
 	// f002 (/r/a, s2) — repo ties break on id: f002 < f003 < f004 within /r/a.
 	wantOrder := []string{"f002", "f003", "f004", "f001"}
 	for i, want := range wantOrder {
@@ -794,8 +864,11 @@ func TestOperatorTickDiff_Items(t *testing.T) {
 		}
 	}
 	// Joined row carries snapshot fields incl. pr_url; checked_at is null
-	// (pane items render live).
+	// (pane items render live). change is the observed change id from scope.
 	f1 := findItem(doc, "f001")
+	if f1["change"] != "f001" {
+		t.Errorf("f001 change = %v, want f001", f1["change"])
+	}
 	if f1["stage"] != "review-pr" || f1["display_state"] != "done" {
 		t.Errorf("f001 joined row wrong: %v", f1)
 	}
@@ -811,9 +884,10 @@ func TestOperatorTickDiff_Items(t *testing.T) {
 	if f1["state"] != "done" {
 		t.Errorf("f001 state = %v, want done (built-in predicate fired)", f1["state"])
 	}
-	// Dead pane → baseline fallback row: scope identity, nulls elsewhere.
+	// Dead pane → baseline fallback row: scope identity (incl. change), nulls
+	// elsewhere.
 	f4 := findItem(doc, "f004")
-	if f4["repo"] != "/r/a" || f4["session"] != "s1" || f4["stage"] != "review" {
+	if f4["repo"] != "/r/a" || f4["session"] != "s1" || f4["stage"] != "review" || f4["change"] != "f004" {
 		t.Errorf("f004 fallback identity wrong: %v", f4)
 	}
 	for _, k := range []string{"display_state", "agent_state", "idle_duration", "pr_url", "checked_at"} {
@@ -1075,7 +1149,7 @@ func TestOperatorTickDiff_NeedsCheckForcesFullDocument(t *testing.T) {
 // --- item state derivation (R10) --------------------------------------------------
 
 func TestOperatorTickDiff_HeldPendingChain(t *testing.T) {
-	// R10 GIVEN + A-030: ef56 (fab-change, pane null, depends_on k8ds) renders
+	// R10 GIVEN + A-030: ef56 (pane kind, pane null, depends_on k8ds) renders
 	// held while k8ds is live, pending once k8ds is done.
 	k8ds := paneItem("k8ds", "%7", "/r/a", "s1", "review", "2026-01-01T00:00:00Z")
 	ef56 := paneItem("ef56", "", "/r/a", "s1", "", "2026-01-01T00:00:00Z")
@@ -1545,5 +1619,371 @@ func TestOperatorTickDiff_PaneCompletionPersistsAcrossPaneDeath(t *testing.T) {
 	}
 	if d := findDelta(doc, "done", "s010"); d == nil || d["then"] != then {
 		t.Errorf("tick 2: done delta (with then) must survive pane death: %v", doc.Deltas)
+	}
+}
+
+// --- pane_pid fingerprint (R4/R5) --------------------------------------------
+
+func TestOperatorTickDiff_PanePidFingerprint(t *testing.T) {
+	// The fingerprint rule: pane_mismatch fires ONLY when the recorded
+	// scope.pane_pid is non-null AND the pane's current pid (one batched
+	// list-panes per tick) differs. A null recorded pid or an unreadable
+	// current pid joins on the pane id alone; the observed change never
+	// participates.
+
+	t.Run("match joins cleanly", func(t *testing.T) {
+		it := paneItem("p001", "%1", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")
+		it.Scope["pane_pid"] = 100
+		seedDiffState(t, []trackedItem{it})
+		stubSnapshot(t, []paneRow{snapRow("%1", "p001", "apply", "active", "active", "")})
+		stubPanePIDs(t, map[string]int{"%1": 100})
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		if d := findDelta(doc, "pane_mismatch", "p001"); d != nil {
+			t.Errorf("matching fingerprint emitted pane_mismatch: %v", d)
+		}
+		if row := findItem(doc, "p001"); row["state"] != "live" {
+			t.Errorf("p001 state = %v, want live (clean join)", row["state"])
+		}
+	})
+
+	t.Run("mismatch is the recycled pane only", func(t *testing.T) {
+		it := paneItem("p002", "%2", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")
+		it.Scope["pane_pid"] = 100
+		path := seedDiffState(t, []trackedItem{it})
+		// The recycled pane hosts another change and reads waiting — a
+		// mismatch still gets no baseline write and no candidates row.
+		stubSnapshot(t, []paneRow{snapRow("%2", "zz99", "review", "active", "waiting", "")})
+		stubPanePIDs(t, map[string]int{"%2": 200})
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		d := findDelta(doc, "pane_mismatch", "p002")
+		if d == nil || d["pane"] != "%2" || d["found"] != "zz99" {
+			t.Fatalf("pane_mismatch wrong: %v (want found = observed change zz99)", d)
+		}
+		if len(doc.Candidates) != 0 {
+			t.Errorf("candidates = %v, want none for a mismatched pane", doc.Candidates)
+		}
+		if e := readTracked(t, path)["p002"]; entryStage(e) != "apply" || scopeString(e.Scope, "change") != "p002" || entryAgent(e) != "" {
+			t.Errorf("mismatched baseline touched: %+v", e.Scope)
+		}
+	})
+
+	t.Run("mismatch with an unoccupied pane reports found null", func(t *testing.T) {
+		it := paneItem("p003", "%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")
+		it.Scope["pane_pid"] = 100
+		seedDiffState(t, []trackedItem{it})
+		stubSnapshot(t, []paneRow{snapRow("%3", "", "—", "—", "active", "")})
+		stubPanePIDs(t, map[string]int{"%3": 200})
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		d := findDelta(doc, "pane_mismatch", "p003")
+		if d == nil {
+			t.Fatalf("pane_mismatch missing: %v", doc.Deltas)
+		}
+		if v, present := d["found"]; !present || v != nil {
+			t.Errorf("found = %v (present %v), want key present with null", v, present)
+		}
+	})
+
+	t.Run("null recorded pid joins on the pane id alone", func(t *testing.T) {
+		seedDiffState(t, []trackedItem{paneItem("p004", "%4", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")})
+		stubSnapshot(t, []paneRow{snapRow("%4", "p004", "apply", "active", "active", "")})
+		stubPanePIDs(t, map[string]int{"%4": 999}) // whatever the pane's pid is
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		if d := findDelta(doc, "pane_mismatch", "p004"); d != nil {
+			t.Errorf("null recorded fingerprint emitted pane_mismatch: %v", d)
+		}
+		if row := findItem(doc, "p004"); row["state"] != "live" {
+			t.Errorf("p004 state = %v, want live", row["state"])
+		}
+	})
+
+	t.Run("unreadable current pid joins on the pane id alone", func(t *testing.T) {
+		it := paneItem("p005", "%5", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")
+		it.Scope["pane_pid"] = 100
+		seedDiffState(t, []trackedItem{it})
+		stubSnapshot(t, []paneRow{snapRow("%5", "p005", "apply", "active", "active", "")})
+		stubPanePIDs(t, map[string]int{"%1": 100}) // %5 absent from the map
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		if d := findDelta(doc, "pane_mismatch", "p005"); d != nil {
+			t.Errorf("unreadable current pid emitted pane_mismatch: %v", d)
+		}
+		if row := findItem(doc, "p005"); row["state"] != "live" {
+			t.Errorf("p005 state = %v, want live", row["state"])
+		}
+	})
+
+	t.Run("a failed batch fetch degrades to an empty map, not an error", func(t *testing.T) {
+		it := paneItem("p006", "%6", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")
+		it.Scope["pane_pid"] = 100
+		seedDiffState(t, []trackedItem{it})
+		stubSnapshot(t, []paneRow{snapRow("%6", "p006", "apply", "active", "active", "")})
+		orig := tickPanePIDs
+		tickPanePIDs = func() (map[string]int, error) { return nil, errors.New("tmux: no server") }
+		t.Cleanup(func() { tickPanePIDs = orig })
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		if d := findDelta(doc, "pane_mismatch", "p006"); d != nil {
+			t.Errorf("failed pid fetch emitted pane_mismatch: %v", d)
+		}
+		if row := findItem(doc, "p006"); row["state"] != "live" {
+			t.Errorf("p006 state = %v, want live (degraded join)", row["state"])
+		}
+	})
+}
+
+// --- scope.change as an observed field (R6/R7) ----------------------------------
+
+// changedField extracts the change entry of a changed delta's fields map.
+func changedField(t *testing.T, d map[string]interface{}) map[string]interface{} {
+	t.Helper()
+	fields, _ := d["fields"].(map[string]interface{})
+	ch, _ := fields["change"].(map[string]interface{})
+	if ch == nil {
+		t.Fatalf("changed delta lacks fields.change: %v", d)
+	}
+	return ch
+}
+
+// readBranchMap decodes the state file's branch_map section.
+func readBranchMap(t *testing.T, path string) map[string]branchMapEntry {
+	t.Helper()
+	bm := map[string]branchMapEntry{}
+	if err := operatorSection(readStateFile(t, path), "branch_map", &bm); err != nil {
+		t.Fatalf("decode branch_map: %v", err)
+	}
+	return bm
+}
+
+func TestOperatorTickDiff_ChangeAppearsOnWatchedPane(t *testing.T) {
+	// A raw-text spawn (worktree-name id, change null) whose pane's change
+	// appears: changed {from: null, to: 4a8m}, baseline updated, and
+	// branch_map[4a8m] written from scope.repo + the pane-cwd branch.
+	it := paneItem("tireless-perch", "%5", "/r/a", "s1", "", "2026-01-01T00:00:00Z")
+	it.Scope["change"] = nil
+	path := seedDiffState(t, []trackedItem{it})
+	row := snapRow("%5", "4a8m", "apply", "active", "active", "")
+	row.cwd = "/r/a/wt"
+	stubSnapshot(t, []paneRow{row})
+	calls := stubGitBranch(t, func(cwd string) (string, error) { return "260911-4a8m-x", nil })
+
+	doc := parseTickDiff(t, runTickDiff(t))
+	d := findDelta(doc, "changed", "tireless-perch")
+	if d == nil {
+		t.Fatalf("changed delta missing on the appear tick: %v", doc.Deltas)
+	}
+	ch := changedField(t, d)
+	if ch["from"] != nil || ch["to"] != "4a8m" {
+		t.Errorf("fields.change = %v, want {from: null, to: 4a8m}", ch)
+	}
+	if got := scopeString(readTracked(t, path)["tireless-perch"].Scope, "change"); got != "4a8m" {
+		t.Errorf("baseline change = %q, want 4a8m", got)
+	}
+	if len(*calls) != 1 || (*calls)[0] != "/r/a/wt" {
+		t.Errorf("git branch calls = %v, want one for /r/a/wt", *calls)
+	}
+	if bm := readBranchMap(t, path); bm["4a8m"] != (branchMapEntry{Branch: "260911-4a8m-x", Repo: "/r/a"}) {
+		t.Errorf("branch_map[4a8m] = %+v", bm["4a8m"])
+	}
+
+	// Consumed-on-read: the next identical tick emits nothing and resolves
+	// no branch (the entry now exists).
+	doc = parseTickDiff(t, runTickDiff(t))
+	if d := findDelta(doc, "changed", "tireless-perch"); d != nil {
+		t.Errorf("changed re-emitted (consumed-on-read must not): %v", d)
+	}
+	if len(*calls) != 1 {
+		t.Errorf("git branch calls = %v, want still 1 (branch_map entry exists)", *calls)
+	}
+}
+
+func TestOperatorTickDiff_ChangeSwitchesOnWatchedPane(t *testing.T) {
+	it := paneItem("x001", "%5", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")
+	it.Scope["change"] = "4a8m"
+	path := seedDiffState(t, []trackedItem{it})
+	row := snapRow("%5", "zz99", "apply", "active", "active", "")
+	row.cwd = "/r/a/wt"
+	stubSnapshot(t, []paneRow{row})
+	stubGitBranch(t, func(cwd string) (string, error) { return "260911-zz99-y", nil })
+
+	doc := parseTickDiff(t, runTickDiff(t))
+	d := findDelta(doc, "changed", "x001")
+	if d == nil {
+		t.Fatalf("changed delta missing on the switch: %v", doc.Deltas)
+	}
+	ch := changedField(t, d)
+	if ch["from"] != "4a8m" || ch["to"] != "zz99" {
+		t.Errorf("fields.change = %v, want {from: 4a8m, to: zz99}", ch)
+	}
+	if got := scopeString(readTracked(t, path)["x001"].Scope, "change"); got != "zz99" {
+		t.Errorf("baseline change = %q, want zz99", got)
+	}
+	if bm := readBranchMap(t, path); bm["zz99"] != (branchMapEntry{Branch: "260911-zz99-y", Repo: "/r/a"}) {
+		t.Errorf("branch_map[zz99] = %+v", bm["zz99"])
+	}
+}
+
+func TestOperatorTickDiff_UnresolvedSnapshotChangeLeavesBaselineSticky(t *testing.T) {
+	// The pointer dangles (no .fab-status.yaml in the pane's cwd): no delta,
+	// baseline untouched — an observed change is never nulled.
+	it := paneItem("x002", "%5", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")
+	it.Scope["change"] = "4a8m"
+	path := seedDiffState(t, []trackedItem{it})
+	stubSnapshot(t, []paneRow{snapRow("%5", "", "—", "—", "active", "")})
+	calls := stubGitBranch(t, func(cwd string) (string, error) { return "b", nil })
+
+	doc := parseTickDiff(t, runTickDiff(t))
+	if len(doc.Deltas) != 0 {
+		t.Errorf("deltas = %v, want none for an unresolved snapshot change", doc.Deltas)
+	}
+	if got := scopeString(readTracked(t, path)["x002"].Scope, "change"); got != "4a8m" {
+		t.Errorf("baseline change = %q, want untouched 4a8m (sticky)", got)
+	}
+	if len(*calls) != 0 {
+		t.Errorf("git branch calls = %v, want none (no change observed)", *calls)
+	}
+}
+
+func TestOperatorTickDiff_BranchMapSkipsDetachedAndRetries(t *testing.T) {
+	// An empty branch (detached HEAD) at first observation skips the
+	// branch_map write; the next tick where the change stays observed and the
+	// entry stays absent retries.
+	it := paneItem("x003", "%5", "/r/a", "s1", "", "2026-01-01T00:00:00Z")
+	it.Scope["change"] = nil
+	path := seedDiffState(t, []trackedItem{it})
+	row := snapRow("%5", "4a8m", "apply", "active", "active", "")
+	row.cwd = "/r/a/wt"
+	stubSnapshot(t, []paneRow{row})
+	branch := "" // detached HEAD
+	calls := stubGitBranch(t, func(cwd string) (string, error) { return branch, nil })
+
+	doc := parseTickDiff(t, runTickDiff(t))
+	if d := findDelta(doc, "changed", "x003"); d == nil {
+		t.Fatalf("changed delta missing (the appear itself still reports): %v", doc.Deltas)
+	}
+	if bm := readBranchMap(t, path); len(bm) != 0 {
+		t.Errorf("branch_map = %v, want empty on a detached HEAD", bm)
+	}
+
+	branch = "260911-4a8m-x"
+	doc = parseTickDiff(t, runTickDiff(t))
+	if d := findDelta(doc, "changed", "x003"); d != nil {
+		t.Errorf("changed re-emitted on the retry tick: %v", d)
+	}
+	if bm := readBranchMap(t, path); bm["4a8m"] != (branchMapEntry{Branch: "260911-4a8m-x", Repo: "/r/a"}) {
+		t.Errorf("branch_map[4a8m] = %+v after the retry", bm["4a8m"])
+	}
+	if len(*calls) != 2 {
+		t.Errorf("git branch calls = %v, want 2 (skip, then retry)", *calls)
+	}
+}
+
+// --- done predicate split on scope.change (R8) + items change field (R9) --------
+
+func TestOperatorTickDiff_DonePredicateSplitOnChange(t *testing.T) {
+	t.Run("change-less pane item is never done on its own", func(t *testing.T) {
+		it := paneItem("raw-spawn", "%1", "/r/a", "s1", "review-pr", "2026-01-01T00:00:00Z")
+		it.Scope["change"] = nil
+		path := seedDiffState(t, []trackedItem{it})
+		stubSnapshot(t, []paneRow{snapRow("%1", "", "—", "—", "active", "")})
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		if d := findDelta(doc, "done", "raw-spawn"); d != nil {
+			t.Errorf("done emitted for a change-less pane item: %v", d)
+		}
+		if e := readTracked(t, path)["raw-spawn"]; e.DoneAt != nil {
+			t.Errorf("done_at = %v, want null (never done on its own)", *e.DoneAt)
+		}
+	})
+
+	t.Run("stop-stage on a change-less item is inert", func(t *testing.T) {
+		it := paneItemStop("raw-spawn", "%1", "/r/a", "s1", "hydrate", "hydrate", "2026-01-01T00:00:00Z")
+		it.Scope["change"] = nil
+		path := seedDiffState(t, []trackedItem{it})
+		stubSnapshot(t, []paneRow{snapRow("%1", "", "—", "—", "idle", "2m")})
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		if d := findDelta(doc, "done", "raw-spawn"); d != nil {
+			t.Errorf("done emitted with change null (stop_stage must be inert): %v", d)
+		}
+		if e := readTracked(t, path)["raw-spawn"]; e.DoneAt != nil {
+			t.Errorf("done_at = %v, want null", *e.DoneAt)
+		}
+	})
+
+	t.Run("change non-null at review-pr done completes with done_at", func(t *testing.T) {
+		path := seedDiffState(t, []trackedItem{paneItem("s010", "%10", "/r/a", "s1", "review-pr", "2026-01-01T00:00:00Z")})
+		stubSnapshot(t, []paneRow{snapRow("%10", "s010", "review-pr", "done", "idle", "5m")})
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		if d := findDelta(doc, "done", "s010"); d == nil {
+			t.Fatalf("done delta missing: %v", doc.Deltas)
+		}
+		if e := readTracked(t, path)["s010"]; e.DoneAt == nil || *e.DoneAt == "" {
+			t.Error("done_at not persisted")
+		}
+	})
+
+	t.Run("an appearing change at the terminus completes the same tick", func(t *testing.T) {
+		// The baseline writer runs before the predicate: a raw spawn whose
+		// change appears already at review-pr done completes on that tick.
+		it := paneItem("raw-spawn", "%1", "/r/a", "s1", "", "2026-01-01T00:00:00Z")
+		it.Scope["change"] = nil
+		seedDiffState(t, []trackedItem{it})
+		stubSnapshot(t, []paneRow{snapRow("%1", "4a8m", "review-pr", "done", "idle", "5m")})
+
+		doc := parseTickDiff(t, runTickDiff(t))
+		if d := findDelta(doc, "done", "raw-spawn"); d == nil {
+			t.Errorf("done missing on the appear-at-terminus tick: %v", doc.Deltas)
+		}
+	})
+}
+
+func TestOperatorTickDiff_PaneRowChangeField(t *testing.T) {
+	// items: pane rows carry change after pane (null when none); a joined
+	// change-less row renders stage/display_state/pr_url null with the pane's
+	// live agent fields; an unjoined row carries the baseline identity.
+	noChange := paneItem("raw-spawn", "%1", "/r/a", "s1", "", "2026-01-01T00:00:00Z")
+	noChange.Scope["change"] = nil
+	withChange := paneItem("k8ds", "%2", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")
+	dead := paneItem("gone", "%3", "/r/a", "s1", "review", "2026-01-01T00:00:00Z")
+	seedDiffState(t, []trackedItem{noChange, withChange, dead})
+	stubSnapshot(t, []paneRow{
+		snapRow("%1", "", "—", "—", "waiting", ""),
+		snapRow("%2", "k8ds", "apply", "active", "active", ""),
+	})
+
+	doc := parseTickDiff(t, runTickDiff(t))
+	r1 := findItem(doc, "raw-spawn")
+	if v, present := r1["change"]; !present || v != nil {
+		t.Errorf("raw-spawn change = %v (present %v), want key present with null", v, present)
+	}
+	for _, k := range []string{"stage", "display_state", "pr_url"} {
+		if v, present := r1[k]; !present || v != nil {
+			t.Errorf("raw-spawn %s = %v (present %v), want null (no change observed)", k, v, present)
+		}
+	}
+	if r1["agent_state"] != "waiting" {
+		t.Errorf("raw-spawn agent_state = %v, want waiting (live fields still render)", r1["agent_state"])
+	}
+	if r2 := findItem(doc, "k8ds"); r2["change"] != "k8ds" || r2["stage"] != "apply" {
+		t.Errorf("k8ds row = %v, want change k8ds / stage apply", r2)
+	}
+	if r3 := findItem(doc, "gone"); r3["change"] != "gone" || r3["stage"] != "review" {
+		t.Errorf("gone row = %v, want baseline identity incl. change", r3)
+	}
+	// Key order: change lands right after pane in the pane row.
+	out := runTickDiff(t)
+	rowStart := strings.Index(out, "- id: raw-spawn")
+	if rowStart < 0 {
+		t.Fatalf("raw-spawn row missing from stdout:\n%s", out)
+	}
+	rowOut := out[rowStart:]
+	pi, ci, ri := strings.Index(rowOut, "pane:"), strings.Index(rowOut, "change:"), strings.Index(rowOut, "repo:")
+	if !(pi >= 0 && pi < ci && ci < ri) {
+		t.Errorf("pane-row key order wrong (want pane < change < repo):\n%s", rowOut)
 	}
 }

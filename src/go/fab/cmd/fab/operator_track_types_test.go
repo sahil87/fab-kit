@@ -44,6 +44,34 @@ func TestNormalizeCheckEvery(t *testing.T) {
 
 // strPtr is shared test scaffolding (pane_map_test.go).
 
+func TestScopeInt(t *testing.T) {
+	tests := []struct {
+		name  string
+		value interface{}
+		want  int
+		ok    bool
+	}{
+		{"absent key", nil, 0, false},
+		{"int from YAML", 48213, 48213, true},
+		{"int64", int64(48213), 48213, true},
+		{"integral float64 from JSON", float64(48213), 48213, true},
+		{"non-integral float64 is not truncated", 48213.5, 0, false},
+		{"string is not numeric", "48213", 0, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			scope := map[string]interface{}{}
+			if tc.value != nil {
+				scope["pane_pid"] = tc.value
+			}
+			got, ok := scopeInt(scope, "pane_pid")
+			if got != tc.want || ok != tc.ok {
+				t.Errorf("scopeInt = (%v, %v), want (%v, %v)", got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+}
+
 func TestValidateTrackedItem(t *testing.T) {
 	shellItem := trackedItem{
 		ID: "x", Kind: kindShell,
@@ -121,7 +149,7 @@ func TestTrackedItemDone(t *testing.T) {
 		it   trackedItem
 		want bool
 	}{
-		{"null done_when is never done", trackedItem{Kind: kindFabChange}, false},
+		{"null done_when is never done", trackedItem{Kind: kindPane}, false},
 		{"done_when fires on last", trackedItem{
 			DoneWhen: strPtr(`state == "MERGED"`),
 			Last:     map[string]interface{}{"state": "MERGED"},

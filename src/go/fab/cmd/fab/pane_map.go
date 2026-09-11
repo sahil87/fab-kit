@@ -50,16 +50,17 @@ func paneMapCmd() *cobra.Command {
 // takes rk's reconciled agent_state/agent_state_duration verbatim (rk rows carry
 // no raw option, so the resolved pair is the shared representation).
 type paneEntry struct {
-	id           string
-	tab          string
-	cwd          string
-	session      string
-	index        int
-	agentState   string // resolved state: active|waiting|idle, "" = unknown
-	agentIdleDur string // formatted idle duration, populated only for idle
-	windowID     string // raw tmux #{window_id} (e.g. "@5"); "" when absent (legacy line)
-	command      string // pane's current foreground command; "" when absent (legacy line); snapshot-internal
-	hasAgent     *bool  // rk's has_agent tri-state (nil = unknown/uninstrumented); snapshot-internal
+	id            string
+	tab           string
+	cwd           string
+	session       string
+	index         int
+	agentState    string // resolved state: active|waiting|idle, "" = unknown
+	agentIdleDur  string // formatted idle duration, populated only for idle
+	agentStateDur string // formatted state duration (waiting AND idle); snapshot-internal, never rendered
+	windowID      string // raw tmux #{window_id} (e.g. "@5"); "" when absent (legacy line)
+	command       string // pane's current foreground command; "" when absent (legacy line); snapshot-internal
+	hasAgent      *bool  // rk's has_agent tri-state (nil = unknown/uninstrumented); snapshot-internal
 }
 
 // paneRow holds the resolved data for a single output row.
@@ -81,6 +82,8 @@ type paneRow struct {
 	prURL        string // last entry in .status.yaml prs:, "" when absent/empty/unresolved
 	command      string // pane's current foreground command; snapshot-internal (tick diff), never rendered
 	hasAgent     *bool  // rk's has_agent tri-state (nil = unknown → the tick walks the process tree); snapshot-internal
+	cwd          string // the enumeration's raw pane cwd; snapshot-internal (the tick's first-observation branch resolution), never rendered
+	stateDur     string // the state's formatted duration (waiting AND idle; rk's agent_state_duration verbatim / option-derived); snapshot-internal (tick candidates), never rendered
 }
 
 func runPaneMap(cmd *cobra.Command, args []string) error {
@@ -253,9 +256,10 @@ var rkPanesRunner = func(server string) ([]byte, error) {
 // windowID←window_id. Agent state is rk's RECONCILED value taken structurally —
 // never re-read from the agent-state option. Two contract adaptations:
 // a state outside {active, waiting, idle} maps to unknown (""), and a duration
-// on a non-idle row is DROPPED — rk reports agent_state_duration for waiting
-// too, but fab's agent_idle_duration field keeps its published idle-only
-// semantics.
+// on a non-idle row is DROPPED from agent_idle_duration — rk reports
+// agent_state_duration for waiting too, but fab's agent_idle_duration field
+// keeps its published idle-only semantics (the verbatim value survives on the
+// snapshot-internal state duration for waiting and idle alike).
 func parseRKPanes(data []byte) ([]paneEntry, error) {
 	var rows []rkPaneRow
 	if err := json.Unmarshal(data, &rows); err != nil {
@@ -273,17 +277,25 @@ func parseRKPanes(data []byte) ([]paneEntry, error) {
 		if state == pane.AgentStateIdle && r.AgentStateDuration != nil {
 			dur = *r.AgentStateDuration
 		}
+		// stateDur carries rk's agent_state_duration verbatim for waiting AND
+		// idle (the tick's candidates state_duration; idle_duration stays
+		// idle-only above) — snapshot-internal, never rendered.
+		stateDur := ""
+		if (state == pane.AgentStateWaiting || state == pane.AgentStateIdle) && r.AgentStateDuration != nil {
+			stateDur = *r.AgentStateDuration
+		}
 		panes = append(panes, paneEntry{
-			id:           r.Pane,
-			tab:          r.WindowName,
-			cwd:          r.Cwd,
-			session:      r.Session,
-			index:        r.WindowIndex,
-			agentState:   state,
-			agentIdleDur: dur,
-			windowID:     r.WindowID,
-			command:      r.Command,
-			hasAgent:     r.HasAgent,
+			id:            r.Pane,
+			tab:           r.WindowName,
+			cwd:           r.Cwd,
+			session:       r.Session,
+			index:         r.WindowIndex,
+			agentState:    state,
+			agentIdleDur:  dur,
+			agentStateDur: stateDur,
+			windowID:      r.WindowID,
+			command:       r.Command,
+			hasAgent:      r.HasAgent,
 		})
 	}
 	return panes, nil
@@ -487,16 +499,18 @@ func parsePaneLines(output string) ([]paneEntry, error) {
 			windowID = parts[6]
 		}
 		agentState, agentIdleDur := pane.AgentDisplayFromOption(rawOption)
+		_, agentStateDur := pane.AgentStateDurationFromOption(rawOption)
 		panes = append(panes, paneEntry{
-			id:           parts[0],
-			tab:          parts[1],
-			cwd:          parts[2],
-			session:      parts[3],
-			index:        idx,
-			agentState:   agentState,
-			agentIdleDur: agentIdleDur,
-			windowID:     windowID,
-			command:      command,
+			id:            parts[0],
+			tab:           parts[1],
+			cwd:           parts[2],
+			session:       parts[3],
+			index:         idx,
+			agentState:    agentState,
+			agentIdleDur:  agentIdleDur,
+			agentStateDur: agentStateDur,
+			windowID:      windowID,
+			command:       command,
 		})
 	}
 	return panes, nil
@@ -571,6 +585,8 @@ func resolvePane(p paneEntry, wtRoot, mainRoot string) (paneRow, bool) {
 			agentIdleDur: p.agentIdleDur,
 			command:      p.command,
 			hasAgent:     p.hasAgent,
+			cwd:          p.cwd,
+			stateDur:     p.agentStateDur,
 		}, true
 	}
 
@@ -632,6 +648,8 @@ func resolvePane(p paneEntry, wtRoot, mainRoot string) (paneRow, bool) {
 		prURL:        prURL,
 		command:      p.command,
 		hasAgent:     p.hasAgent,
+		cwd:          p.cwd,
+		stateDur:     p.agentStateDur,
 	}, true
 }
 

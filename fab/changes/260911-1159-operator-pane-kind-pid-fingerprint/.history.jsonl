@@ -1,0 +1,17 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-11T16:53:07Z"}
+{"args":"Operator pane kind replaces fab-change — join on pane ID plus pid fingerprint, change as an observed field; plus three agreed skill slims (idle auto-default from candidate row, spawn target-session rule compression, delete Clock history bullets). Closes lm49.","cmd":"fab-new","event":"command","ts":"2026-09-11T16:53:07Z"}
+{"delta":"+2.4","event":"confidence","score":2.4,"trigger":"calc-score","ts":"2026-09-11T16:57:26Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-11T16:58:39Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-11T16:59:44Z"}
+{"delta":"-2.4","event":"confidence","score":0,"trigger":"calc-score","ts":"2026-09-11T17:16:10Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-09-11T17:16:10Z"}
+{"delta":"+4.8","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-09-11T17:17:13Z"}
+{"delta":"+0.0","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-09-11T17:17:37Z"}
+{"cmd":"fab-clarify","event":"command","ts":"2026-09-11T17:17:37Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-11T17:18:43Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-11T17:41:01Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-11T17:45:47Z"}
+{"event":"review","result":"passed","ts":"2026-09-11T17:45:47Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-11T17:58:26Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-09-11T18:00:38Z"}
+{"event":"review","result":"passed","ts":"2026-09-11T18:18:02Z"}
