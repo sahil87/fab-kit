@@ -134,7 +134,7 @@ func nextTickCount(data map[string]interface{}) int {
 // --quiet, a tick whose last full document (last_full_at) is at least this
 // old emits the full document (items:) even with no deltas, so a complete
 // frame still appears periodically regardless of the cron cadence. At the
-// 1m backoff floor that is roughly every 10th tick; at any cadence ≥ 10m
+// 3m backoff floor that is roughly every 4th tick; at any cadence ≥ 10m
 // every tick is full. Deliberately a constant — not a flag or config knob
 // (matches the §5 hardcoded-30m idle auto-default precedent).
 const tickQuietFullAfter = 10 * time.Minute

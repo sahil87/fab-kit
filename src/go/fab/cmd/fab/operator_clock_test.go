@@ -13,11 +13,11 @@ import (
 // cronListBackoffJSON is a fixture `rk cron list --json` document (rk v3.19.46
 // structured-schedule row shape) carrying one operator-tick entry on the
 // derived pane/none schedule.
-const cronListBackoffJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"1m0s","max":"30m0s"},"deliver":"immediate","target":"role:operator","pinned":true,"muted":false}]`
+const cronListBackoffJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"3m0s","max":"24m0s"},"deliver":"skip-if-busy","target":"role:operator","pinned":true,"muted":false}]`
 
 // cronListBackoffMutedJSON is cronListBackoffJSON with the entry muted (or
 // leased — `muted` is the effective state).
-const cronListBackoffMutedJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"1m0s","max":"30m0s"},"deliver":"immediate","target":"role:operator","pinned":true,"muted":true,"muted_until":null}]`
+const cronListBackoffMutedJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"3m0s","max":"24m0s"},"deliver":"skip-if-busy","target":"role:operator","pinned":true,"muted":true,"muted_until":null}]`
 
 // cronListIdleEvery2mJSON carries the entry on the derived shell/agent
 // schedule (epoch present): idle-every 2m, skip-if-busy.
@@ -256,7 +256,7 @@ func TestClockSync_NonFlippingMutationsStayQuiet(t *testing.T) {
 		t.Fatalf("track update: %v", err)
 	}
 	wantMutes(t, *calls)
-	wantEdits(t, *calls) // derived backoff/immediate equals the row
+	wantEdits(t, *calls) // derived backoff/skip-if-busy equals the row
 }
 
 // --- R12: derived schedule reconcile -------------------------------------------
@@ -270,7 +270,7 @@ func TestReconcile_DerivedSchedule(t *testing.T) {
 		wantEdit []string // nil → no edit
 	}{
 		{"pane-only set derives backoff (A-031 idle-every→backoff)", seedOnePaneItem, cronListIdleEvery2mJSON, true,
-			[]string{"cron-op", "--backoff", "--min", "1m", "--max", "30m", "--deliver", "immediate"}},
+			[]string{"cron-op", "--backoff", "--min", "3m", "--max", "24m", "--deliver", "skip-if-busy"}},
 		{"R12: shell items with epoch derive idle-every min(check_every)", seedTwoShellItems, cronListBackoffJSON, true,
 			[]string{"cron-op", "--idle-every", "2m", "--deliver", "skip-if-busy"}},
 		{"shell items without epoch derive every", seedTwoShellItems, cronListBackoffJSON, false,
@@ -401,9 +401,9 @@ func TestTickStartDiff_ClockReconcile(t *testing.T) {
 			t.Fatalf("tick-start --diff --quiet: %v", err)
 		}
 		wantMutes(t, *calls)
-		// The pane-only set derives backoff/immediate; the row is on
+		// The pane-only set derives backoff/skip-if-busy; the row is on
 		// idle-every → the end-of-tick reconcile converges it.
-		wantEdits(t, *calls, []string{"cron-op", "--backoff", "--min", "1m", "--max", "30m", "--deliver", "immediate"})
+		wantEdits(t, *calls, []string{"cron-op", "--backoff", "--min", "3m", "--max", "24m", "--deliver", "skip-if-busy"})
 	})
 	t.Run("R6: an all-done tracked set mutes the entry", func(t *testing.T) {
 		withOperatorState(t, seedDoneItem)

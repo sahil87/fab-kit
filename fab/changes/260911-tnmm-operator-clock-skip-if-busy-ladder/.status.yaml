@@ -1,0 +1,54 @@
+id: tnmm
+name: 260911-tnmm-operator-clock-skip-if-busy-ladder
+created: 2026-09-11T19:25:18Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: active
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 5
+    acceptance_count: 20
+    acceptance_completed: 20
+confidence:
+    certain: 7
+    confident: 8
+    tentative: 0
+    unresolved: 0
+    score: 4.7
+    fuzzy: true
+    dimensions:
+        signal: 73.7
+        reversibility: 86.0
+        competence: 85.0
+        disambiguation: 80.0
+stage_metrics:
+    intake: {started_at: "2026-09-11T19:25:18Z", driver: fab-new, iterations: 1, completed_at: "2026-09-11T19:31:24Z"}
+    apply: {started_at: "2026-09-11T19:31:24Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-11T19:34:45Z"}
+    review: {started_at: "2026-09-11T19:34:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-11T19:40:07Z"}
+    hydrate: {started_at: "2026-09-11T19:40:07Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-11T19:40:22Z"}
+    ship: {started_at: "2026-09-11T19:40:22Z", driver: fab-fff, iterations: 1}
+prs: []
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-09-11T19:40:22Z"
+    computed_at_stage: hydrate
+summary: 'Operator clock: skip-if-busy deliver on every derived branch, backoff ladder 3m→24m, wake_on debounce documented as 60s'
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-09-11T19:40:22Z

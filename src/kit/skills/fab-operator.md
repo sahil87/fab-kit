@@ -117,7 +117,7 @@ Error: wt is required for operator spawning — install it via: brew install sah
    Operator ready. Clock: rk cron "operator tick" · {schedule_summary} · {deliver}[ · muted[ until HH:MM]]
    ```
 
-   (`{schedule_summary}` and `{deliver}` are the JSON values verbatim; append ` · muted` when `muted` is true; append ` until HH:MM` — local time — when `muted_until` is present. Renders today as `Operator ready. Clock: rk cron "operator tick" · backoff 1m→30m · immediate`, or `… · immediate · muted until 14:30`. A missing entry STOPs per step 4 — there is no `Clock: none` form.)
+   (`{schedule_summary}` and `{deliver}` are the JSON values verbatim; append ` · muted` when `muted` is true; append ` until HH:MM` — local time — when `muted_until` is present. Renders today as `Operator ready. Clock: rk cron "operator tick" · backoff 3m→24m · skip-if-busy`, or `… · skip-if-busy · muted until 14:30`. A missing entry STOPs per step 4 — there is no `Clock: none` form.)
 
 ---
 
@@ -170,20 +170,20 @@ When `fab resolve` fails during a **user-initiated** action (not monitoring tick
 
 The operator's cadence is **not owned by this skill** — it is HexoKit substrate the skill documents and verifies, exactly like `@rk_pane_agent_state`. The clock is the **operator-tick cron entry** seeded idempotently by `rk operator` (one per tmux server); HexoKit's operator-cron spec is the entry's design authority. Ticks arrive as the bare text `operator tick` delivered into the operator pane, for **every** provider (Claude, codex, gemini, …) — no provider-specific in-session clock is the primary cadence.
 
-The seeded entry's shape (reference summary — schema and semantics are owned by the cron spec, not restated here):
+The entry's steady-state shape (reference summary — schema and semantics are owned by the cron spec, not restated here). `rk operator` seeds the entry; the `schedule` and `deliver` lines below are the values fab's schedule reconcile derives and converges the live entry to on the first `track` mutation or tick after launch (§4 Ownership) — the remaining fields are rk's own, quoted verbatim:
 
 ```yaml
-schedule: { kind: backoff, min: 60s, max: 30m }
-wake_on: { event: agent-state-change, scope: server, debounce: 10s }
+schedule: { kind: backoff, min: 3m, max: 24m }
+wake_on: { event: agent-state-change, scope: server, debounce: 60s }
 target: { kind: role, role: operator }
 payload: "operator tick"
-deliver: immediate
+deliver: skip-if-busy
 if_absent: respawn
 respawn: ["rk", "operator", "-L", "{server}"]   # caller-supplied argv; {server} substituted by rk at fire time
 pinned: true
 ```
 
-**Ownership.** `rk operator` seeds the entry idempotently at launch. Every `fab operator track` verb (and `tick-start --diff`) then manages it as a side effect: the **tracked predicate** — any item whose state is not `done` — flips the entry between muted and live via `rk cron mute <id>` / `--off`, and the **schedule reconcile** derives the cadence from the tracked set (backoff `1m`→`30m` while only pane/none items are tracked; `--idle-every`/`--every <min check_every>` once any shell/agent item exists, deliver `skip-if-busy`) and applies it with exactly one `rk cron edit` when — and only when — the live entry differs. The derive table, epoch detection, and fail-silent posture are owned by `_cli-fab-operator.md` § fab operator (the shared **Clock side effect** paragraph); `rk cron add`/`rm` stay the user's.
+**Ownership.** `rk operator` seeds the entry idempotently at launch. Every `fab operator track` verb (and `tick-start --diff`) then manages it as a side effect: the **tracked predicate** — any item whose state is not `done` — flips the entry between muted and live via `rk cron mute <id>` / `--off`, and the **schedule reconcile** derives the cadence from the tracked set (backoff `3m`→`24m` while only pane/none items are tracked; `--idle-every`/`--every <min check_every>` once any shell/agent item exists — deliver is `skip-if-busy` on every branch) and applies it with exactly one `rk cron edit` when — and only when — the live entry differs. The derive table, epoch detection, and fail-silent posture are owned by `_cli-fab-operator.md` § fab operator (the shared **Clock side effect** paragraph); `rk cron add`/`rm` stay the user's.
 
 ### Mute and Lease
 

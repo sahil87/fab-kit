@@ -1009,7 +1009,7 @@ func runOperatorTrackClock(cmd *cobra.Command, args []string) error {
 	}
 	override := clockOverride{
 		Schedule: clockOverrideSchedule{Kind: kind, Every: val},
-		Deliver:  operatorDeliverSkipIfBusy,
+		Deliver:  operatorDeliver,
 		Until:    time.Now().UTC().Add(life).Format(time.RFC3339),
 	}
 	return mutateOperatorState(func(data map[string]interface{}) error {
