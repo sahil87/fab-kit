@@ -19,7 +19,7 @@
 
 - **GIVEN** a work request for `c7-sahil87` where `test -d <repo>/fab` fails
 - **WHEN** the operator follows §6 Working a Change
-- **THEN** form 4 applies and the agent is spawned with a raw prompt, tracked as `fab operator track add <wt> --kind pane --pane <pane-id> --session <session> --repo <repo>`
+- **THEN** form 4 applies and the agent is spawned with a raw prompt, tracked as `fab operator track add <wt> --kind pane --pane <pane-id> --session <session> --repo <repo> --branch <wt>`
 - **AND** on PR URL the operator chains `fab operator track add <wt>-pr --kind github-pr --scope '{"repo":"<repo>","pr":<n>}' --check-every 2m` and removes the pane item
 
 #### R3: Pipeline-first scoped to fab projects; `fab init` never a default
