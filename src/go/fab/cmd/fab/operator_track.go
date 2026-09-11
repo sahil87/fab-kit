@@ -261,6 +261,9 @@ func applyPaneSugar(cmd *cobra.Command, scope map[string]interface{}) error {
 		v, _ := f.GetString(name)
 		key := strings.ReplaceAll(name, "-", "_")
 		if v == "" {
+			if key == "change" {
+				return fmt.Errorf("--change requires a non-empty change id")
+			}
 			scope[key] = nil
 			continue
 		}

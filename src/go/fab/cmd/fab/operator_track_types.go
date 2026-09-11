@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/predicate"
@@ -229,7 +230,9 @@ func scopeString(scope map[string]interface{}, key string) string {
 
 // scopeInt reads an integer scope value (ok=false for absent/null/non-numeric
 // — the fingerprint rule treats those as "no recorded fingerprint"). JSON
-// numbers decode as float64; hand-written YAML may carry an int.
+// numbers decode as float64; hand-written YAML may carry an int. A non-integral
+// float64 (48213.5) is NOT truncated — it reports ok=false rather than
+// silently joining a pane whose PID merely shares the floor.
 func scopeInt(scope map[string]interface{}, key string) (int, bool) {
 	switch v := scope[key].(type) {
 	case int:
@@ -237,6 +240,9 @@ func scopeInt(scope map[string]interface{}, key string) (int, bool) {
 	case int64:
 		return int(v), true
 	case float64:
+		if v != math.Trunc(v) {
+			return 0, false
+		}
 		return int(v), true
 	}
 	return 0, false

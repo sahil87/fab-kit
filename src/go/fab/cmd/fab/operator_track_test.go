@@ -373,6 +373,7 @@ func TestTrackAdd_ValidationErrors(t *testing.T) {
 		{"text on non-note kind", "", trackAddArgs("x", kindTask, "--text", "hi"), "--text applies only to kind note"},
 		{"pane sugar on non-pane kind", "", trackAddArgs("x", kindTask, "--pane", "%3"), "--pane applies only to kind pane"},
 		{"change sugar on non-pane kind", "", trackAddArgs("x", kindTask, "--change", "4a8m"), "--change applies only to kind pane"},
+		{"empty change sugar rejected", "", trackAddArgs("x", kindPane, "--pane", "%3", "--change", ""), "--change requires a non-empty change id"},
 		{"mode on non-pane kind", "", trackAddArgs("x", kindTask, "--mode", "merge-auto"), "--mode applies only to kind pane"},
 		{"removed kind fab-change is unknown at add", "", trackAddArgs("x", "fab-change", "--pane", "%3"), `unknown --kind "fab-change" (valid: pane, github-pr, linear, slack, shell, task, note)`},
 		{"invalid stage sugar", "", trackAddArgs("x", kindPane, "--stage", "deploy"), "invalid --stage"},
