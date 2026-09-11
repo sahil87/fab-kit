@@ -19,6 +19,15 @@ const cronListBackoffJSON = `[{"id":"cron-op","name":"operator tick","schedule":
 // leased — `muted` is the effective state).
 const cronListBackoffMutedJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"3m0s","max":"24m0s"},"deliver":"skip-if-busy","target":"role:operator","pinned":true,"muted":true,"muted_until":null}]`
 
+// cronListLegacyBackoffJSON is a live row still on the pre-tnmm pane/none
+// schedule (backoff 1m→30m, deliver immediate) — the upgrade path: the first
+// reconcile after the binary upgrade must converge it with exactly one edit.
+const cronListLegacyBackoffJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"1m0s","max":"30m0s"},"deliver":"immediate","target":"role:operator","pinned":true,"muted":false}]`
+
+// cronListBackoffImmediateJSON is on the derived bounds but the old deliver
+// policy — a deliver-only drift must still be converged.
+const cronListBackoffImmediateJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"3m0s","max":"24m0s"},"deliver":"immediate","target":"role:operator","pinned":true,"muted":false}]`
+
 // cronListIdleEvery2mJSON carries the entry on the derived shell/agent
 // schedule (epoch present): idle-every 2m, skip-if-busy.
 const cronListIdleEvery2mJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"idle-every","every":"2m0s"},"deliver":"skip-if-busy","target":"role:operator","pinned":true,"muted":false}]`
@@ -277,6 +286,10 @@ func TestReconcile_DerivedSchedule(t *testing.T) {
 			[]string{"cron-op", "--every", "2m", "--deliver", "skip-if-busy"}},
 		{"R12: equal row (2m0s == 2m) issues nothing", seedTwoShellItems, cronListIdleEvery2mJSON, true, nil},
 		{"backoff row equal to derived backoff issues nothing", seedOnePaneItem, cronListBackoffJSON, false, nil},
+		{"upgrade path: legacy 1m→30m/immediate row converges in one edit", seedOnePaneItem, cronListLegacyBackoffJSON, false,
+			[]string{"cron-op", "--backoff", "--min", "3m", "--max", "24m", "--deliver", "skip-if-busy"}},
+		{"deliver-only drift (immediate on the derived bounds) is edited", seedOnePaneItem, cronListBackoffImmediateJSON, false,
+			[]string{"cron-op", "--backoff", "--min", "3m", "--max", "24m", "--deliver", "skip-if-busy"}},
 		{"A-023: a muted/leased entry is still edited", seedTwoShellItems, cronListBackoffMutedJSON, true,
 			[]string{"cron-op", "--idle-every", "2m", "--deliver", "skip-if-busy"}},
 		{"all items done → muted, unchanged (no edit)", seedDoneItem, cronListBackoffJSON, true, nil},
