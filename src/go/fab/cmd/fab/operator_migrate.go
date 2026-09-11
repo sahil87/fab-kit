@@ -8,13 +8,20 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 )
 
-// Legacy state-file conversion (R5, intake B1 Migration). A legacy-shaped
-// file — any of monitored/watches/autopilot/notes present with `tracked`
-// absent — converts on the first read-modify-write by any `fab operator`
-// verb, in the SAME atomic write as the verb's own mutation. The legacy keys
-// are deleted by the conversion. A file with `tracked` already present is
-// never re-converted — a stray legacy key then survives as an unknown
-// top-level key (A-034).
+// Legacy state-file conversion (R5, intake B1 Migration). Two idempotent
+// passes, both landing in the SAME atomic write as the verb's own mutation:
+//
+//  1. A legacy-shaped file — any of monitored/watches/autopilot/notes present
+//     with `tracked` absent — converts on the first read-modify-write by any
+//     `fab operator` verb (the legacy keys are deleted), emitting kind: pane
+//     items directly.
+//  2. A `tracked`-present file holding a retired kind: fab-change item
+//     converts that item (kind: pane, scope.change = id, scope.pane_pid:
+//     null) on ANY verb's read-modify-write (convertFabChangeItems).
+//
+// A stray legacy key in an already-converted file survives as an unknown
+// top-level key (A-034). The read verbs `state` and `track list`
+// convert-and-save, then read (loadOperatorStateUpgraded).
 
 // operatorLegacyRunningRefusal is the exact one-line refusal emitted when a
 // legacy file carries a running autopilot queue: the running queue's current
@@ -101,23 +108,90 @@ func legacyOperatorState(data map[string]interface{}) bool {
 
 // loadOperatorStateUpgraded is the read-path conversion hook for verbs that
 // otherwise never write (state, track list): a legacy-shaped file converts
-// and saves (one atomic write) before the read proceeds; anything else is
-// returned untouched (byte-stability preserved for read-only verbs).
+// and saves (one atomic write) before the read proceeds; a tracked-present
+// file holding retired kind: fab-change items converts (kind: pane, seeded
+// scope.change/pane_pid) and saves the same way. Anything else is returned
+// untouched (byte-stability preserved for read-only verbs).
 func loadOperatorStateUpgraded(path string) (map[string]interface{}, error) {
 	data, err := loadOperatorState(path)
 	if err != nil {
 		return nil, err
 	}
-	if !legacyOperatorState(data) {
+	if legacyOperatorState(data) {
+		if err := convertLegacyOperatorState(data); err != nil {
+			return nil, err
+		}
+		if err := saveOperatorState(path, data); err != nil {
+			return nil, err
+		}
 		return data, nil
 	}
-	if err := convertLegacyOperatorState(data); err != nil {
+	changed, err := convertFabChangeItems(data)
+	if err != nil {
 		return nil, err
+	}
+	if !changed {
+		return data, nil
 	}
 	if err := saveOperatorState(path, data); err != nil {
 		return nil, err
 	}
 	return data, nil
+}
+
+// kindLegacyFabChange is the retired tracked-item kind name. The string
+// "fab-change" may appear in Go ONLY at the legacy-conversion sites in this
+// file (and the tests exercising them) — `track add` knows no such kind.
+const kindLegacyFabChange = "fab-change"
+
+// convertFabChangeItems is the second, idempotent conversion pass: a
+// tracked-present file holding an item with the retired kind: fab-change
+// rewrites it to kind: pane, seeding scope.change = the item's id (a
+// fab-change item's id was the change id by construction — without this the
+// converted item would never complete) and scope.pane_pid = null (no live
+// fingerprint ⇒ pane-id-only join, the pre-rename behavior). Fires on ANY
+// verb's read-modify-write and lands in the same atomic write. data["tracked"]
+// is re-marshaled ONLY when an item converted, so an already-converted file
+// keeps its raw tracked section (tolerant-read/typed-write contract).
+func convertFabChangeItems(data map[string]interface{}) (bool, error) {
+	items, err := decodeTrackedItems(data)
+	if err != nil {
+		return false, err
+	}
+	changed := false
+	for i := range items {
+		if items[i].Kind != kindLegacyFabChange {
+			continue
+		}
+		items[i].Kind = kindPane
+		if items[i].Scope == nil {
+			items[i].Scope = map[string]interface{}{}
+		}
+		items[i].Scope["change"] = items[i].ID
+		items[i].Scope["pane_pid"] = nil
+		changed = true
+	}
+	if changed {
+		data["tracked"] = items
+	}
+	return changed, nil
+}
+
+// hasLegacyFabChangeItems reports whether a tracked-present file still holds
+// a retired kind: fab-change item — the read-verb probe gating
+// convert-and-save in `state` (write verbs go through mutateOperatorState,
+// which converts unconditionally).
+func hasLegacyFabChangeItems(data map[string]interface{}) bool {
+	items, err := decodeTrackedItems(data)
+	if err != nil {
+		return false
+	}
+	for _, it := range items {
+		if it.Kind == kindLegacyFabChange {
+			return true
+		}
+	}
+	return false
 }
 
 // convertLegacyOperatorState converts a legacy-shaped file in place: the
@@ -139,8 +213,8 @@ func convertLegacyOperatorState(data map[string]interface{}) error {
 	now := nowRFC3339()
 	items := []trackedItem{}
 
-	// monitored.<id> → fab-change items (scope from the entry fields,
-	// checked_at = last_transition).
+	// monitored.<id> → pane items (scope from the entry fields, scope.change
+	// seeded from the id, checked_at = last_transition).
 	monitored := map[string]monitoredEntry{}
 	if err := operatorSection(data, "monitored", &monitored); err != nil {
 		return err
@@ -159,7 +233,7 @@ func convertLegacyOperatorState(data map[string]interface{}) error {
 		items = append(items, convertWatchEntry(name, watches[name], now))
 	}
 
-	// autopilot queue entries not in completed → pane-less fab-change items
+	// autopilot queue entries not in completed → pane-less pane-kind items
 	// chained by depends_on, scope.merge_mode = autopilot.mode.
 	bm := map[string]branchMapEntry{}
 	if err := operatorSection(data, "branch_map", &bm); err != nil {
@@ -200,12 +274,13 @@ func convertLegacyOperatorState(data map[string]interface{}) error {
 	return nil
 }
 
-// fabChangeScope seeds the nine pinned fab-change scope keys as null (the
-// intake B1 schema); add-time flag sugar and the migration fill them in.
-func fabChangeScope() map[string]interface{} {
+// paneScope seeds the eleven pinned pane scope keys as null (the intake B1
+// schema); add-time flag sugar and the migration fill them in.
+func paneScope() map[string]interface{} {
 	return map[string]interface{}{
-		"pane": nil, "repo": nil, "session": nil, "branch": nil, "stage": nil,
-		"agent": nil, "stop_stage": nil, "spawned_by": nil, "merge_mode": nil,
+		"pane": nil, "pane_pid": nil, "change": nil, "repo": nil, "session": nil,
+		"branch": nil, "stage": nil, "agent": nil, "stop_stage": nil,
+		"spawned_by": nil, "merge_mode": nil,
 	}
 }
 
@@ -217,7 +292,8 @@ func setScopeString(scope map[string]interface{}, key, s string) {
 }
 
 func convertMonitoredEntry(id string, e monitoredEntry) trackedItem {
-	scope := fabChangeScope()
+	scope := paneScope()
+	scope["change"] = id // a monitored entry's id IS its change id
 	setScopeString(scope, "pane", e.Pane)
 	setScopeString(scope, "repo", e.Repo)
 	setScopeString(scope, "session", e.Session)
@@ -240,7 +316,7 @@ func convertMonitoredEntry(id string, e monitoredEntry) trackedItem {
 	}
 	return trackedItem{
 		ID:        id,
-		Kind:      kindFabChange,
+		Kind:      kindPane,
 		Probe:     probeSpec{Mode: probePane},
 		DependsOn: dependsOn,
 		Scope:     scope,
@@ -294,7 +370,7 @@ func convertWatchEntry(name string, w watchEntry, now string) trackedItem {
 
 // convertAutopilotQueue folds the not-yet-completed queue entries into items:
 // an entry already converted from monitored gains merge_mode (and a chain dep
-// when it has none); a queue-only entry becomes a pane-less fab-change item
+// when it has none); a queue-only entry becomes a pane-less pane item
 // (pending/held). Chaining follows the nearest same-repo predecessor rule,
 // with a cross-repo entry chained to its immediate predecessor.
 func convertAutopilotQueue(items []trackedItem, ap autopilotState, bm map[string]branchMapEntry, now string) []trackedItem {
@@ -347,7 +423,8 @@ func convertAutopilotQueue(items []trackedItem, ap autopilotState, bm map[string
 				items[idx].DependsOn = []string{pred}
 			}
 		} else {
-			scope := fabChangeScope()
+			scope := paneScope()
+			scope["change"] = id // a queue entry's id IS its change id
 			setScopeString(scope, "repo", repoOf(id))
 			setScopeString(scope, "branch", bm[id].Branch)
 			scope["merge_mode"] = mode
@@ -357,7 +434,7 @@ func convertAutopilotQueue(items []trackedItem, ap autopilotState, bm map[string
 			}
 			items = append(items, trackedItem{
 				ID:        id,
-				Kind:      kindFabChange,
+				Kind:      kindPane,
 				Probe:     probeSpec{Mode: probePane},
 				DependsOn: deps,
 				Scope:     scope,

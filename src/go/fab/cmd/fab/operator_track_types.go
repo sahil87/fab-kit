@@ -43,13 +43,13 @@ const (
 
 // Item kinds and probe modes (R1).
 const (
-	kindFabChange = "fab-change"
-	kindGitHubPR  = "github-pr"
-	kindLinear    = "linear"
-	kindSlack     = "slack"
-	kindShell     = "shell"
-	kindTask      = "task"
-	kindNote      = "note"
+	kindPane     = "pane"
+	kindGitHubPR = "github-pr"
+	kindLinear   = "linear"
+	kindSlack    = "slack"
+	kindShell    = "shell"
+	kindTask     = "task"
+	kindNote     = "note"
 )
 
 const (
@@ -67,17 +67,17 @@ type trackKind struct {
 }
 
 var trackKinds = map[string]trackKind{
-	kindFabChange: {defaultProbe: probePane},
-	kindGitHubPR:  {defaultProbe: probeShell, doneWhen: `state == "MERGED"`},
-	kindLinear:    {defaultProbe: probeAgent},
-	kindSlack:     {defaultProbe: probeAgent},
-	kindShell:     {defaultProbe: probeShell},
-	kindTask:      {defaultProbe: probeNone},
-	kindNote:      {defaultProbe: probeNone},
+	kindPane:     {defaultProbe: probePane},
+	kindGitHubPR: {defaultProbe: probeShell, doneWhen: `state == "MERGED"`},
+	kindLinear:   {defaultProbe: probeAgent},
+	kindSlack:    {defaultProbe: probeAgent},
+	kindShell:    {defaultProbe: probeShell},
+	kindTask:     {defaultProbe: probeNone},
+	kindNote:     {defaultProbe: probeNone},
 }
 
 // trackKindNames is the valid-kind list for error messages, in table order.
-const trackKindNames = "fab-change, github-pr, linear, slack, shell, task, note"
+const trackKindNames = "pane, github-pr, linear, slack, shell, task, note"
 
 // githubPRProbeFields is the github-pr kind's default declared-field set.
 var githubPRProbeFields = []string{"state", "mergedAt", "mergeable"}
@@ -201,10 +201,10 @@ func validateTrackedDeps(it trackedItem, existing []trackedItem) error {
 }
 
 // trackedItemDone reports whether the item's done_when fires against its last
-// observed fields. A null done_when (the fab-change built-in, standing
-// linear/slack items) is never done HERE — the fab-change built-in predicate
-// (review-pr done/skipped, or at/past stop_stage) is the tick's to evaluate
-// (T007).
+// observed fields. A null done_when (the pane built-in, standing linear/slack
+// items) is never done HERE — the pane built-in predicate (review-pr
+// done/skipped, or at/past stop_stage, gated on a non-null scope.change) is
+// the tick's to evaluate (T007).
 func trackedItemDone(it trackedItem) bool {
 	// A persisted built-in completion (pane items) is durable evidence: the
 	// item stays done whatever its pane does afterwards.
@@ -225,6 +225,21 @@ func trackedItemDone(it trackedItem) bool {
 func scopeString(scope map[string]interface{}, key string) string {
 	s, _ := scope[key].(string)
 	return s
+}
+
+// scopeInt reads an integer scope value (ok=false for absent/null/non-numeric
+// — the fingerprint rule treats those as "no recorded fingerprint"). JSON
+// numbers decode as float64; hand-written YAML may carry an int.
+func scopeInt(scope map[string]interface{}, key string) (int, bool) {
+	switch v := scope[key].(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case float64:
+		return int(v), true
+	}
+	return 0, false
 }
 
 // checkEveryDuration parses the item's check_every; a null/unparseable value

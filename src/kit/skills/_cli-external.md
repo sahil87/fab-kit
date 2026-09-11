@@ -129,7 +129,7 @@ wt create --non-interactive --worktree-name <name> --checkout <change-folder-nam
 wt create --non-interactive --worktree-name <name> <change-folder-name>
 ```
 
-The worktree gets a random name; the branch matches the change. The surrounding choreography — when to spawn, the new-change-from-backlog case, branch alignment — is operator policy in `fab-operator.md` §6 (the fab-change kind).
+The worktree gets a random name; the branch matches the change. The surrounding choreography — when to spawn, the new-change-from-backlog case, branch alignment — is operator policy in `fab-operator.md` §6 (the pane kind).
 
 ---
 

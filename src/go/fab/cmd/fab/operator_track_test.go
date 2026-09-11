@@ -73,14 +73,26 @@ func readStateFile(t *testing.T, path string) map[string]interface{} {
 
 // stubQuietClock stubs every clock/reconcile seam so track-verb tests never
 // touch a real rk/tmux/gh: no cron row resolves (so no mute/edit argv is ever
-// issued), no panes enumerate, no operator window resolves.
+// issued), no panes enumerate, no operator window resolves, and the pane_pid
+// fingerprint lookup fails soft (null on lookup failure, by contract).
 func stubQuietClock(t *testing.T) {
 	t.Helper()
-	prevCron, prevPanes, prevWin := rkCronRunner, rkPanesRunner, operatorWindowRoleRunner
+	prevCron, prevPanes, prevWin, prevPID := rkCronRunner, rkPanesRunner, operatorWindowRoleRunner, trackPanePIDLookup
 	rkCronRunner = func(args ...string) (string, error) { return "[]", nil }
 	rkPanesRunner = func(server string) ([]byte, error) { return nil, errors.New("stubbed: no rk") }
 	operatorWindowRoleRunner = func() (string, error) { return "", errors.New("stubbed: no tmux") }
-	t.Cleanup(func() { rkCronRunner, rkPanesRunner, operatorWindowRoleRunner = prevCron, prevPanes, prevWin })
+	trackPanePIDLookup = func(paneID string) (int, error) { return 0, errors.New("stubbed: no tmux") }
+	t.Cleanup(func() {
+		rkCronRunner, rkPanesRunner, operatorWindowRoleRunner, trackPanePIDLookup = prevCron, prevPanes, prevWin, prevPID
+	})
+}
+
+// stubPanePIDLookup stubs the track add/update pane_pid fingerprint seam.
+func stubPanePIDLookup(t *testing.T, pid int, err error) {
+	t.Helper()
+	prev := trackPanePIDLookup
+	trackPanePIDLookup = func(paneID string) (int, error) { return pid, err }
+	t.Cleanup(func() { trackPanePIDLookup = prev })
 }
 
 // stubGHNameWithOwner stubs the gh repo-derivation seam.
@@ -188,29 +200,31 @@ func TestTrackAdd_GitHubPRWithoutScopeRepoNeedsNoDerivation(t *testing.T) {
 	}
 }
 
-func TestTrackAdd_FabChangeSugarAndBranchMap(t *testing.T) {
-	// R1 second GIVEN/WHEN/THEN: the flag sugar lands in scope (all nine keys
-	// present) and branch_map is written in the same mutation.
+func TestTrackAdd_PaneSugarAndBranchMap(t *testing.T) {
+	// R2/R3: the flag sugar lands in scope (all eleven keys present),
+	// --change pre-declares the expected change, --pane records the pane_pid
+	// fingerprint, and branch_map keys on --change — all in one mutation.
 	path := withOperatorState(t, "")
 	stubQuietClock(t)
+	stubPanePIDLookup(t, 48213, nil)
 
-	err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("r3m7", kindFabChange,
+	err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("r3m7", kindPane,
 		"--pane", "%3", "--repo", "/home/u/foo", "--session", "work",
 		"--branch", "260324-r3m7-add-retry-logic", "--stage", "apply", "--agent", "active",
-		"--stop-stage", "review", "--spawned-by", "linear-bugs")...)
+		"--stop-stage", "review", "--spawned-by", "linear-bugs", "--change", "r3m7")...)
 	if err != nil {
 		t.Fatalf("track add: %v", err)
 	}
 
 	it := readTracked(t, path)["r3m7"]
-	if it.Kind != kindFabChange || it.Probe.Mode != probePane {
+	if it.Kind != kindPane || it.Probe.Mode != probePane {
 		t.Fatalf("kind/probe = %s/%s", it.Kind, it.Probe.Mode)
 	}
 	if it.CheckEvery != nil {
 		t.Errorf("check_every = %v, want null for pane items", *it.CheckEvery)
 	}
 	for k, want := range map[string]string{
-		"pane": "%3", "repo": "/home/u/foo", "session": "work",
+		"pane": "%3", "change": "r3m7", "repo": "/home/u/foo", "session": "work",
 		"branch": "260324-r3m7-add-retry-logic", "stage": "apply", "agent": "active",
 		"stop_stage": "review", "spawned_by": "linear-bugs",
 	} {
@@ -218,16 +232,86 @@ func TestTrackAdd_FabChangeSugarAndBranchMap(t *testing.T) {
 			t.Errorf("scope.%s = %q, want %q", k, got, want)
 		}
 	}
-	if _, ok := it.Scope["merge_mode"]; !ok {
-		t.Error("scope.merge_mode key missing (null until chained)")
+	for _, k := range []string{"pane", "pane_pid", "change", "repo", "session", "branch", "stage", "agent", "stop_stage", "spawned_by", "merge_mode"} {
+		if _, ok := it.Scope[k]; !ok {
+			t.Errorf("scope.%s key missing (eleven pinned keys, null until set)", k)
+		}
+	}
+	if pid, ok := scopeInt(it.Scope, "pane_pid"); !ok || pid != 48213 {
+		t.Errorf("scope.pane_pid = %v, want 48213 (recorded at add)", it.Scope["pane_pid"])
+	}
+	if it.Scope["merge_mode"] != nil {
+		t.Errorf("scope.merge_mode = %v, want null (null until chained)", it.Scope["merge_mode"])
 	}
 
+	// branch_map keys on --change when given.
 	bm := map[string]branchMapEntry{}
 	if err := operatorSection(readStateFile(t, path), "branch_map", &bm); err != nil {
 		t.Fatalf("decode branch_map: %v", err)
 	}
 	if bm["r3m7"] != (branchMapEntry{Branch: "260324-r3m7-add-retry-logic", Repo: "/home/u/foo"}) {
 		t.Errorf("branch_map.r3m7 = %+v", bm["r3m7"])
+	}
+}
+
+func TestTrackAdd_PanePIDLookupFailureStoresNull(t *testing.T) {
+	// R3: ANY lookup failure (tmux unqueryable, pane absent, unparseable pid)
+	// stores pane_pid null and the add proceeds — a null fingerprint means
+	// the tick joins on the pane id alone. --scope '{"pane":…}' records too.
+	path := withOperatorState(t, "")
+	stubQuietClock(t) // the pid seam fails soft here
+	stubPanePIDLookup(t, 0, errors.New("tmux: no server"))
+
+	if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("a1", kindPane, "--pane", "%3")...); err != nil {
+		t.Fatalf("track add: %v", err)
+	}
+	if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("a2", kindPane, "--scope", `{"pane":"%9"}`)...); err != nil {
+		t.Fatalf("track add --scope: %v", err)
+	}
+	for _, id := range []string{"a1", "a2"} {
+		it := readTracked(t, path)[id]
+		if v, present := it.Scope["pane_pid"]; !present || v != nil {
+			t.Errorf("%s scope.pane_pid = %v (present %v), want key present with null on lookup failure", id, v, present)
+		}
+	}
+
+	// A successful lookup records the pid for the --scope form too.
+	stubPanePIDLookup(t, 501, nil)
+	if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("a3", kindPane, "--scope", `{"pane":"%9"}`)...); err != nil {
+		t.Fatalf("track add --scope: %v", err)
+	}
+	if pid, ok := scopeInt(readTracked(t, path)["a3"].Scope, "pane_pid"); !ok || pid != 501 {
+		t.Errorf("a3 scope.pane_pid = %v, want 501", readTracked(t, path)["a3"].Scope["pane_pid"])
+	}
+}
+
+func TestTrackUpdate_PaneScopeRecordsPID(t *testing.T) {
+	// R3: `track update --scope` carrying pane re-records pane_pid; clearing
+	// the pane nulls it.
+	path := withOperatorState(t, "")
+	stubQuietClock(t)
+	stubPanePIDLookup(t, 48213, nil)
+	if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("a1", kindPane)...); err != nil {
+		t.Fatalf("track add: %v", err)
+	}
+	if err := runOperatorCmd(t, operatorTrackUpdateCmd(), "a1", "--scope", `{"pane":"%7"}`); err != nil {
+		t.Fatalf("track update: %v", err)
+	}
+	it := readTracked(t, path)["a1"]
+	if got := scopeString(it.Scope, "pane"); got != "%7" {
+		t.Fatalf("scope.pane = %q, want %%7", got)
+	}
+	if pid, ok := scopeInt(it.Scope, "pane_pid"); !ok || pid != 48213 {
+		t.Errorf("scope.pane_pid = %v, want 48213 after the update set the pane", it.Scope["pane_pid"])
+	}
+
+	// Clearing the pane nulls the fingerprint.
+	if err := runOperatorCmd(t, operatorTrackUpdateCmd(), "a1", "--scope", `{"pane":""}`); err != nil {
+		t.Fatalf("track update (clear): %v", err)
+	}
+	it = readTracked(t, path)["a1"]
+	if v := it.Scope["pane_pid"]; v != nil {
+		t.Errorf("scope.pane_pid = %v, want null after the pane cleared", v)
 	}
 }
 
@@ -238,11 +322,11 @@ func TestTrackAdd_ChainResolvesAndPrintsMergeMode(t *testing.T) {
 	path := withOperatorState(t, "")
 	stubQuietClock(t)
 
-	if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("k8ds", kindFabChange,
+	if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("k8ds", kindPane,
 		"--repo", "/r/a", "--branch", "b-k8ds")...); err != nil {
 		t.Fatalf("track add first: %v", err)
 	}
-	out, err := runOperatorCmdOut(t, operatorTrackAddCmd(), trackAddArgs("ef56", kindFabChange,
+	out, err := runOperatorCmdOut(t, operatorTrackAddCmd(), trackAddArgs("ef56", kindPane,
 		"--repo", "/r/a", "--branch", "b-ef56", "--depends-on", "k8ds")...)
 	if err != nil {
 		t.Fatalf("track add chained: %v", err)
@@ -259,7 +343,7 @@ func TestTrackAdd_ChainResolvesAndPrintsMergeMode(t *testing.T) {
 	}
 
 	// Explicit --mode wins the ladder and reports the flag source.
-	out, err = runOperatorCmdOut(t, operatorTrackAddCmd(), trackAddArgs("gh42", kindFabChange,
+	out, err = runOperatorCmdOut(t, operatorTrackAddCmd(), trackAddArgs("gh42", kindPane,
 		"--repo", "/r/a", "--branch", "b-gh42", "--mode", "merge-auto")...)
 	if err != nil {
 		t.Fatalf("track add --mode: %v", err)
@@ -287,8 +371,11 @@ func TestTrackAdd_ValidationErrors(t *testing.T) {
 		{"unknown depends-on id", "", trackAddArgs("x", kindTask, "--depends-on", "zz"), `--depends-on "zz": no tracked item with that id`},
 		{"note without text", "", trackAddArgs("x", kindNote), "kind note requires --text"},
 		{"text on non-note kind", "", trackAddArgs("x", kindTask, "--text", "hi"), "--text applies only to kind note"},
-		{"fab-change sugar on non-fab kind", "", trackAddArgs("x", kindTask, "--pane", "%3"), "--pane applies only to kind fab-change"},
-		{"invalid stage sugar", "", trackAddArgs("x", kindFabChange, "--stage", "deploy"), "invalid --stage"},
+		{"pane sugar on non-pane kind", "", trackAddArgs("x", kindTask, "--pane", "%3"), "--pane applies only to kind pane"},
+		{"change sugar on non-pane kind", "", trackAddArgs("x", kindTask, "--change", "4a8m"), "--change applies only to kind pane"},
+		{"mode on non-pane kind", "", trackAddArgs("x", kindTask, "--mode", "merge-auto"), "--mode applies only to kind pane"},
+		{"removed kind fab-change is unknown at add", "", trackAddArgs("x", "fab-change", "--pane", "%3"), `unknown --kind "fab-change" (valid: pane, github-pr, linear, slack, shell, task, note)`},
+		{"invalid stage sugar", "", trackAddArgs("x", kindPane, "--stage", "deploy"), "invalid --stage"},
 		{"github-pr without scope.pr", "", trackAddArgs("x", kindGitHubPR, "--scope", `{"repo":"/x"}`), "requires scope.pr"},
 		{"duplicate id", seedTrackedShell, trackAddArgs("pr-1", kindTask), "tracked item pr-1 already exists"},
 	}
@@ -467,7 +554,7 @@ func TestTrackUpdate_Errors(t *testing.T) {
 func TestTrackRm(t *testing.T) {
 	seed := `tracked:
   - id: ab12
-    kind: fab-change
+    kind: pane
     probe: {mode: pane}
     depends_on: []
     scope: {pane: "%3", repo: /home/u/foo, branch: 260909-ab12-x}
@@ -674,7 +761,7 @@ func TestTrackObserve_SeenCapPrunesOldest(t *testing.T) {
 func TestTrackList(t *testing.T) {
 	seed := `tracked:
   - id: k8ds
-    kind: fab-change
+    kind: pane
     probe: {mode: pane}
     depends_on: []
     scope: {pane: "%7", repo: /r/a}
@@ -682,7 +769,7 @@ func TestTrackList(t *testing.T) {
     added_at: "2026-09-09T00:00:00Z"
     updated_at: "2026-09-09T00:00:00Z"
   - id: ef56
-    kind: fab-change
+    kind: pane
     probe: {mode: pane}
     depends_on: [k8ds]
     scope: {pane: null, repo: /r/a}
@@ -721,10 +808,10 @@ func TestTrackList(t *testing.T) {
 	if len(lines) != 4 {
 		t.Fatalf("track list = %q, want 4 lines", out)
 	}
-	if !strings.HasPrefix(lines[0], "k8ds · fab-change · live · live · —") {
+	if !strings.HasPrefix(lines[0], "k8ds · pane · live · live · —") {
 		t.Errorf("line 0 = %q", lines[0])
 	}
-	if !strings.HasPrefix(lines[1], "ef56 · fab-change · held · — · held: k8ds") {
+	if !strings.HasPrefix(lines[1], "ef56 · pane · held · — · held: k8ds") {
 		t.Errorf("line 1 = %q", lines[1])
 	}
 	if !strings.HasPrefix(lines[2], "pr-9 · github-pr · done · ") || !strings.HasSuffix(lines[2], " · arm next") {
@@ -741,6 +828,12 @@ func TestTrackList(t *testing.T) {
 	}
 	if strings.Count(strings.TrimRight(out, "\n"), "\n") != 0 || !strings.HasPrefix(out, "n1 ·") {
 		t.Errorf("--kind note = %q, want only n1", out)
+	}
+
+	// The retired kind is unknown at track list too (no alias).
+	_, err = runOperatorCmdOut(t, operatorTrackListCmd(), "--kind", "fab-change")
+	if err == nil || !strings.Contains(err.Error(), `unknown --kind "fab-change" (valid: pane,`) {
+		t.Errorf("--kind fab-change = %v, want the unknown-kind error naming pane first", err)
 	}
 
 	// --json emits the items array.
@@ -935,7 +1028,7 @@ func TestTrackRm_DoneDependencyDropsSatisfiedEdges(t *testing.T) {
     added_at: "2026-09-09T00:00:00Z"
     updated_at: "2026-09-09T00:00:00Z"
   - id: n34
-    kind: fab-change
+    kind: pane
     probe: {mode: pane}
     depends_on: [pr-1, other]
     scope: {repo: /home/u/foo, branch: 260909-n34-x}

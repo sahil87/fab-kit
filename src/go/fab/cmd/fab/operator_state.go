@@ -109,7 +109,12 @@ func mutateOperatorStateClock(fn func(data map[string]interface{}) error, syncCl
 	}
 	// Legacy files convert on the first read-modify-write, landing in the same
 	// atomic write as fn's own mutation (R5); a running autopilot queue refuses.
+	// The second pass converts retired kind: fab-change items in a
+	// tracked-present file (kind: pane + seeded scope.change/pane_pid).
 	if err := convertLegacyOperatorState(data); err != nil {
+		return err
+	}
+	if _, err := convertFabChangeItems(data); err != nil {
 		return err
 	}
 	before := operatorTracked(data)
@@ -200,12 +205,14 @@ func runOperatorState(cmd *cobra.Command, args []string) error {
 	} else {
 		// A legacy-shaped file converts on this read-modify-write like on any
 		// other verb (R5), refusing while an autopilot queue is running; the
-		// read then continues from the converted file.
+		// read then continues from the converted file. The same convert-and-
+		// save fires for a tracked-present file still holding retired
+		// kind: fab-change items.
 		var probe map[string]interface{}
 		if err := yaml.Unmarshal(raw, &probe); err != nil {
 			return fmt.Errorf("cannot parse %s: %w", path, err)
 		}
-		if legacyOperatorState(probe) {
+		if legacyOperatorState(probe) || hasLegacyFabChangeItems(probe) {
 			if _, err := loadOperatorStateUpgraded(path); err != nil {
 				return err
 			}

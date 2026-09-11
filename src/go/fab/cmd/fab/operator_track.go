@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/predicate"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/resolve"
 	"github.com/spf13/cobra"
@@ -39,9 +40,9 @@ func operatorTrackCmd() *cobra.Command {
 	return cmd
 }
 
-// trackFabChangeSugarFlags are the fab-change scope shortcut flags (the spawn
-// step stays one command); the binary writes them into scope.
-var trackFabChangeSugarFlags = []string{"pane", "repo", "session", "branch", "stage", "agent", "stop-stage", "spawned-by"}
+// trackPaneSugarFlags are the pane scope shortcut flags (the spawn step stays
+// one command); the binary writes them into scope.
+var trackPaneSugarFlags = []string{"pane", "repo", "session", "branch", "stage", "agent", "stop-stage", "spawned-by", "change"}
 
 func operatorTrackAddCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -51,7 +52,7 @@ func operatorTrackAddCmd() *cobra.Command {
 		RunE:  runOperatorTrackAdd,
 	}
 	f := cmd.Flags()
-	f.String("kind", "", "item kind: fab-change | github-pr | linear | slack | shell | task | note (required)")
+	f.String("kind", "", "item kind: pane | github-pr | linear | slack | shell | task | note (required)")
 	f.String("probe", "", "probe mode (each kind allows only its default)")
 	f.StringArray("argv", nil, "shell probe argv tokens (repeatable; never a shell string)")
 	f.StringSlice("fields", nil, "comma-separated probe fields compared against and stored into last")
@@ -62,9 +63,9 @@ func operatorTrackAddCmd() *cobra.Command {
 	f.StringSlice("depends-on", nil, "comma-separated item ids this item depends on")
 	f.String("scope", "", "scope metadata as a JSON object")
 	f.String("text", "", "note text (kind note only; 500-char cap)")
-	f.String("mode", "", "merge mode for a chained fab-change item: "+strings.Join(config.ValidAutopilotMergeModes, " | ")+" (default: autopilot.merge_mode config, else "+config.DefaultAutopilotMergeMode+")")
-	for _, name := range trackFabChangeSugarFlags {
-		f.String(name, "", "fab-change scope sugar")
+	f.String("mode", "", "merge mode for a chained pane item: "+strings.Join(config.ValidAutopilotMergeModes, " | ")+" (default: autopilot.merge_mode config, else "+config.DefaultAutopilotMergeMode+")")
+	for _, name := range trackPaneSugarFlags {
+		f.String(name, "", "pane scope sugar")
 	}
 	_ = cmd.MarkFlagRequired("kind")
 	return cmd
@@ -86,19 +87,20 @@ func runOperatorTrackAdd(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if kind == kindFabChange {
-		base := fabChangeScope()
+	if kind == kindPane {
+		base := paneScope()
 		for k, v := range scope {
 			base[k] = v
 		}
 		scope = base
-		if err := applyFabChangeSugar(cmd, scope); err != nil {
+		if err := applyPaneSugar(cmd, scope); err != nil {
 			return err
 		}
+		recordPanePID(scope)
 	} else {
-		for _, name := range append(append([]string{}, trackFabChangeSugarFlags...), "mode") {
+		for _, name := range append(append([]string{}, trackPaneSugarFlags...), "mode") {
 			if f.Changed(name) {
-				return fmt.Errorf("--%s applies only to kind fab-change", name)
+				return fmt.Errorf("--%s applies only to kind pane", name)
 			}
 		}
 	}
@@ -157,7 +159,7 @@ func runOperatorTrackAdd(cmd *cobra.Command, args []string) error {
 	// Merge mode resolves when a chain is added (--depends-on or --mode):
 	// flag > autopilot.merge_mode config > built-in default.
 	modeLine := ""
-	if kind == kindFabChange && (f.Changed("mode") || len(dependsOn) > 0) {
+	if kind == kindPane && (f.Changed("mode") || len(dependsOn) > 0) {
 		m, source, err := resolveMergeMode(cmd)
 		if err != nil {
 			return err
@@ -202,14 +204,20 @@ func runOperatorTrackAdd(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		data["tracked"] = append(items, item)
-		if kind == kindFabChange {
+		if kind == kindPane {
 			branch, repo := scopeString(scope, "branch"), scopeString(scope, "repo")
 			if branch != "" && repo != "" {
 				bm := map[string]branchMapEntry{}
 				if err := operatorSection(data, "branch_map", &bm); err != nil {
 					return err
 				}
-				bm[id] = branchMapEntry{Branch: branch, Repo: repo}
+				// branch_map is keyed by the change id: --change when given,
+				// else the item id (a known-change spawn's id IS the change).
+				key := scopeString(scope, "change")
+				if key == "" {
+					key = id
+				}
+				bm[key] = branchMapEntry{Branch: branch, Repo: repo}
 				data["branch_map"] = bm
 			}
 		}
@@ -241,10 +249,12 @@ func trackProbeMode(cmd *cobra.Command, kind string, kd trackKind) (string, erro
 	return p, nil
 }
 
-// applyFabChangeSugar writes the fab-change flag sugar into scope.
-func applyFabChangeSugar(cmd *cobra.Command, scope map[string]interface{}) error {
+// applyPaneSugar writes the pane flag sugar into scope. --change pre-declares
+// the expected change (validated non-empty only — the change may not exist
+// yet); only the stage-valued flags are name-checked.
+func applyPaneSugar(cmd *cobra.Command, scope map[string]interface{}) error {
 	f := cmd.Flags()
-	for _, name := range trackFabChangeSugarFlags {
+	for _, name := range trackPaneSugarFlags {
 		if !f.Changed(name) {
 			continue
 		}
@@ -260,6 +270,33 @@ func applyFabChangeSugar(cmd *cobra.Command, scope map[string]interface{}) error
 		scope[key] = v
 	}
 	return nil
+}
+
+// trackPanePIDLookup is the pane_pid fingerprint lookup at track add/update —
+// pane.GetPanePID against the default server (the operator runs inside its own
+// tmux). Package-level var so tests stub the seam (the rkPanesRunner /
+// ghNameWithOwnerRunner precedent).
+var trackPanePIDLookup = func(paneID string) (int, error) {
+	return pane.GetPanePID(paneID, "")
+}
+
+// recordPanePID maintains the scope.pane_pid fingerprint alongside scope.pane:
+// a non-empty pane records the pane's current shell pid; ANY lookup failure
+// (tmux unqueryable, pane absent, unparseable pid) stores null and proceeds —
+// a null fingerprint means the tick joins on the pane id alone. A cleared
+// pane (absent/empty) nulls pane_pid.
+func recordPanePID(scope map[string]interface{}) {
+	paneID := scopeString(scope, "pane")
+	if paneID == "" {
+		scope["pane_pid"] = nil
+		return
+	}
+	pid, err := trackPanePIDLookup(paneID)
+	if err != nil {
+		scope["pane_pid"] = nil
+		return
+	}
+	scope["pane_pid"] = pid
 }
 
 // scopeFlag parses --scope as a JSON object. Absent/empty → nil; invalid JSON
@@ -368,7 +405,7 @@ func scopePRNumber(scope map[string]interface{}) string {
 	return ""
 }
 
-// resolveMergeMode resolves a chained fab-change item's merge mode by the
+// resolveMergeMode resolves a chained pane item's merge mode by the
 // ladder: an explicitly passed --mode flag > config (autopilot.merge_mode —
 // the key keeps its historical name) > the built-in default. A config-sourced
 // value outside the valid set errors naming the config key — merging is
@@ -502,6 +539,11 @@ func runOperatorTrackUpdate(cmd *cobra.Command, args []string) error {
 			for k, v := range scopeMerge {
 				it.Scope[k] = v
 			}
+			// A --scope carrying pane re-records the pane_pid fingerprint in
+			// the same mutation (a cleared pane nulls it).
+			if _, touched := scopeMerge["pane"]; touched {
+				recordPanePID(it.Scope)
+			}
 		}
 		if f.Changed("text") {
 			if it.Kind != kindNote {
@@ -530,7 +572,7 @@ func runOperatorTrackUpdate(cmd *cobra.Command, args []string) error {
 func operatorTrackRmCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "rm <id>",
-		Short: "Remove a tracked item (the ack for done; a fab-change item's branch_map entry is retained)",
+		Short: "Remove a tracked item (the ack for done; a pane item's branch_map entry is retained)",
 		Args:  cobra.ExactArgs(1),
 		RunE:  runOperatorTrackRm,
 	}
@@ -809,7 +851,7 @@ func trackListState(items []trackedItem, it trackedItem, now time.Time) string {
 	if trackHeldDep(items, it) != "" {
 		return "held"
 	}
-	if it.Kind == kindFabChange && scopeString(it.Scope, "pane") == "" {
+	if it.Kind == kindPane && scopeString(it.Scope, "pane") == "" {
 		return "pending"
 	}
 	if trackItemStale(it, now) {
@@ -846,7 +888,7 @@ func trackListCheckedAge(items []trackedItem, it trackedItem, now time.Time) str
 }
 
 // trackListNext renders the Next column: the item's then, "spawn" for a
-// pending fab-change, "held: <dep-id>" for a held item.
+// pending pane item, "held: <dep-id>" for a held item.
 func trackListNext(items []trackedItem, it trackedItem) string {
 	if it.Then != nil && *it.Then != "" {
 		return *it.Then
@@ -854,7 +896,7 @@ func trackListNext(items []trackedItem, it trackedItem) string {
 	if dep := trackHeldDep(items, it); dep != "" && !trackedItemDone(it) {
 		return "held: " + dep
 	}
-	if it.Kind == kindFabChange && scopeString(it.Scope, "pane") == "" && !trackedItemDone(it) && !it.Paused {
+	if it.Kind == kindPane && scopeString(it.Scope, "pane") == "" && !trackedItemDone(it) && !it.Paused {
 		return "spawn"
 	}
 	return "—"

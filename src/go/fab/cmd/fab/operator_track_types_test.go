@@ -121,7 +121,7 @@ func TestTrackedItemDone(t *testing.T) {
 		it   trackedItem
 		want bool
 	}{
-		{"null done_when is never done", trackedItem{Kind: kindFabChange}, false},
+		{"null done_when is never done", trackedItem{Kind: kindPane}, false},
 		{"done_when fires on last", trackedItem{
 			DoneWhen: strPtr(`state == "MERGED"`),
 			Last:     map[string]interface{}{"state": "MERGED"},

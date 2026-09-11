@@ -413,6 +413,57 @@ func GetPanePID(paneID, server string) (int, error) {
 	return pid, nil
 }
 
+// listPanePIDsTimeout bounds the server-wide pane-pid enumeration (the
+// operator tick's per-tick fingerprint fetch) — the same bounded posture the
+// track probe runner applies to its subprocesses.
+const listPanePIDsTimeout = 10 * time.Second
+
+// panePIDsRunner is the injectable subprocess seam for ListPanePIDs (the
+// rkAwaitRunner precedent): argv-only tmux, never a shell string, bounded by
+// listPanePIDsTimeout.
+var panePIDsRunner = func(server string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), listPanePIDsTimeout)
+	defer cancel()
+	out, _, err := RunCmdContext(ctx, "tmux", WithServer(server, "list-panes", "-a", "-F", "#{pane_id} #{pane_pid}")...)
+	return out, err
+}
+
+// ListPanePIDs returns every pane's shell pid on the server, keyed by pane id
+// — ONE batched `tmux list-panes -a -F '#{pane_id} #{pane_pid}'` call (the
+// operator tick's per-tick fingerprint snapshot: O(1) subprocesses regardless
+// of fleet size, plain tmux so rk-less servers work). If server is non-empty,
+// the tmux invocation is scoped to that server via `-L <server>`.
+func ListPanePIDs(server string) (map[string]int, error) {
+	out, err := panePIDsRunner(server)
+	if err != nil {
+		return nil, fmt.Errorf("tmux list-panes: %w", err)
+	}
+	return parsePanePIDLines(out), nil
+}
+
+// parsePanePIDLines parses `<pane_id> <pane_pid>` lines into the pid map.
+// Malformed lines are skipped — a partial map degrades those panes to
+// "unreadable", which the fingerprint rule treats as not-a-mismatch.
+func parsePanePIDLines(output string) map[string]int {
+	pids := map[string]int{}
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		id, pidStr, found := strings.Cut(line, " ")
+		if !found || id == "" {
+			continue
+		}
+		pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
+		if err != nil {
+			continue
+		}
+		pids[id] = pid
+	}
+	return pids
+}
+
 // ResolvePaneContext resolves the fab context for a given tmux pane.
 // mainRoot is the main worktree root used for computing relative display paths.
 // Pass "" if unknown — WorktreeDisplay will fall back to filepath.Base.
@@ -612,6 +663,25 @@ func AgentDisplayFromOption(raw string) (state, idleDuration string) {
 		elapsed = 0
 	}
 	return AgentStateIdle, FormatIdleDuration(elapsed)
+}
+
+// AgentStateDurationFromOption converts a raw agent-state option value into
+// the (state, state-duration) pair — the duration is the formatted age of the
+// state's epoch for waiting AND idle ("" for active/unknown). It is the
+// operator tick's candidates state_duration source on the internal (rk-less)
+// enumeration path; the delegated rk path carries rk's agent_state_duration
+// verbatim instead. idle_duration keeps its idle-only meaning
+// (AgentDisplayFromOption) — this helper never feeds it.
+func AgentStateDurationFromOption(raw string) (state, stateDuration string) {
+	st, epoch, ok := parseAgentState(raw)
+	if !ok || st == AgentStateActive {
+		return st, ""
+	}
+	elapsed := time.Now().Unix() - epoch
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	return st, FormatIdleDuration(elapsed)
 }
 
 // ReadAgentStateOption reads the raw agent-state pane user option for a
