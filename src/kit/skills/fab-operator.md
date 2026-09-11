@@ -229,6 +229,7 @@ One ordered `tracked` list is the operator's entire durable work set: every thin
 ```yaml
 tick_count: 47
 last_tick_at: "2026-09-11T16:33:00Z"
+last_full_at: "2026-09-11T16:30:00Z"   # written on every full tick document; the 10m periodic-refresh clock
 tracked:
   - id: r3m7                    # fab-change items: the change ID; other kinds: a slug unique in the list
     kind: fab-change            # fab-change | github-pr | linear | slack | shell | task | note
@@ -306,7 +307,7 @@ Anything still true for a different operator next month is not operator state �
 
 On each tick:
 
-1. **Snapshot** — run `fab operator tick-start --diff --quiet`: one command increments `tick_count`, snapshots the panes, runs every due shell probe, evaluates `done_when`/`depends_on`/staleness, and writes every baseline back in the same atomic mutation (the full contract — the tick document's block order, the delta kinds, and the two delivery classes — lives in `_cli-fab-operator.md` § fab operator tick-start). Drop `--quiet` only when the user asks for status ("status", "any updates?", "show the fleet") — the binary's built-in every-10th-tick full document is the periodic full refresh, so no skill-side counter is kept. Stdout is one document: the `tick: N` / `now: HH:MM` header lines, then `deltas:`, `candidates:`, `needs_check:`, then `items:` — or, on a quiet tick, `fleet_summary:` **in place of** `items:`. Render the frame from `items:`/`fleet_summary:` plus the entry's live cadence from a once-per-tick `rk cron list --json` read (the `target: role:operator` row — never carried from a previous tick or composed from memory) — see **Status Frame Format** below.
+1. **Snapshot** — run `fab operator tick-start --diff --quiet`: one command increments `tick_count`, snapshots the panes, runs every due shell probe, evaluates `done_when`/`depends_on`/staleness, and writes every baseline back in the same atomic mutation (the full contract — the tick document's block order, the delta kinds, and the two delivery classes — lives in `_cli-fab-operator.md` § fab operator tick-start). Drop `--quiet` only when the user asks for status ("status", "any updates?", "show the fleet") — the binary's built-in time-based full document — a full `items:` document whenever the last one is 10 minutes or older — is the periodic full refresh, so no skill-side counter or timer is kept. Stdout is one document: the `tick: N` / `now: HH:MM` header lines, then `deltas:`, `candidates:`, `needs_check:`, then `items:` — or, on a quiet tick, `fleet_summary:` **in place of** `items:`. Render the frame from `items:`/`fleet_summary:` plus the entry's live cadence from a once-per-tick `rk cron list --json` read (the `target: role:operator` row — never carried from a previous tick or composed from memory) — see **Status Frame Format** below.
 2. **Act on deltas** — before any answers (a `done` item's `then` may spawn the work another item waits on). Per delta kind:
    - `done` — run the item's `then` prose verbatim (the delta carries it), then report;
    - `changed` — report the field delta; run `then` only if it names a changed reaction;
@@ -335,7 +336,7 @@ The frame is emitted as an assistant message that the agent harness renders as G
 
 The frame has **two shapes**, chosen by which key the tick document carries (tick step 1):
 
-- **Full frame** (`items:` present — a delta tick, a non-empty `needs_check:`, every 10th tick, or a user status request run without `--quiet`): a **header line** plus **one table over all items**.
+- **Full frame** (`items:` present — a delta tick, a non-empty `needs_check:`, a tick 10 minutes or more after the last full document, or a user status request run without `--quiet`): a **header line** plus **one table over all items**.
 - **Compact frame** (`fleet_summary:` present — a quiet tick): exactly **ONE line**, no table.
 
 On either shape, the *italic* action-footnote line still renders whenever an action happened. Nothing renders between ticks — the frame (plus its footnote) is the only per-tick output: no restating the tick document, no echoing `candidates:`, no per-candidate "no question detected" lines.
