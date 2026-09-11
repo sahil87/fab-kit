@@ -4,17 +4,24 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 // --- operator clock sync test scaffolding ------------------------------------
 
-// cronListJSON is a fixture `rk cron list --json` document (rk v3.19.37 row
-// shape) carrying one operator-tick entry.
-const cronListJSON = `[{"id":"cron-op","name":"operator tick","schedule":"backoff","target":"role:operator","deliver":"immediate","pinned":true,"muted":false,"last_fired":null,"orphaned_since":null,"expires_at":null}]`
+// cronListBackoffJSON is a fixture `rk cron list --json` document (rk v3.19.46
+// structured-schedule row shape) carrying one operator-tick entry on the
+// derived pane/none schedule.
+const cronListBackoffJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"1m0s","max":"30m0s"},"deliver":"immediate","target":"role:operator","pinned":true,"muted":false}]`
 
-// cronListJSONMuted is cronListJSON with the entry already muted (the
-// reconcile's not-drifted case).
-const cronListJSONMuted = `[{"id":"cron-op","name":"operator tick","schedule":"backoff","target":"role:operator","deliver":"immediate","pinned":true,"muted":true,"muted_until":null,"last_fired":null,"orphaned_since":null,"expires_at":null}]`
+// cronListBackoffMutedJSON is cronListBackoffJSON with the entry muted (or
+// leased — `muted` is the effective state).
+const cronListBackoffMutedJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"1m0s","max":"30m0s"},"deliver":"immediate","target":"role:operator","pinned":true,"muted":true,"muted_until":null}]`
+
+// cronListIdleEvery2mJSON carries the entry on the derived shell/agent
+// schedule (epoch present): idle-every 2m, skip-if-busy.
+const cronListIdleEvery2mJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"idle-every","every":"2m0s"},"deliver":"skip-if-busy","target":"role:operator","pinned":true,"muted":false}]`
 
 // stubRkCron replaces the rkCronRunner seam: `cron list --json` serves
 // listJSON (or listErr), every call's argv is recorded, and any other call
@@ -40,12 +47,13 @@ func stubRkCron(t *testing.T, listJSON string, listErr, muteErr error) *[][]stri
 	return &calls
 }
 
-// muteCalls filters the recorded argv log down to `cron mute` invocations.
-func muteCalls(calls [][]string) [][]string {
+// cronCalls filters the recorded argv log down to invocations of the given
+// cron subcommand ("mute" / "edit"), each entry the argv after it.
+func cronCalls(calls [][]string, sub string) [][]string {
 	var out [][]string
 	for _, c := range calls {
-		if len(c) >= 3 && c[0] == "cron" && c[1] == "mute" {
-			out = append(out, c)
+		if len(c) >= 3 && c[0] == "cron" && c[1] == sub {
+			out = append(out, c[2:])
 		}
 	}
 	return out
@@ -55,58 +63,118 @@ func muteCalls(calls [][]string) [][]string {
 // "cron mute").
 func wantMutes(t *testing.T, calls [][]string, want ...[]string) {
 	t.Helper()
-	got := muteCalls(calls)
+	wantCronCalls(t, calls, "mute", want...)
+}
+
+// wantEdits asserts the exact edit argv sequence.
+func wantEdits(t *testing.T, calls [][]string, want ...[]string) {
+	t.Helper()
+	wantCronCalls(t, calls, "edit", want...)
+}
+
+func wantCronCalls(t *testing.T, calls [][]string, sub string, want ...[]string) {
+	t.Helper()
+	got := cronCalls(calls, sub)
 	if len(got) != len(want) {
-		t.Fatalf("mute calls = %v, want %v", got, want)
+		t.Fatalf("cron %s calls = %v, want %v", sub, got, want)
 	}
 	for i, w := range want {
-		if strings.Join(got[i][2:], " ") != strings.Join(w, " ") {
-			t.Errorf("mute call %d = %v, want argv %v", i, got[i], w)
+		if strings.Join(got[i], " ") != strings.Join(w, " ") {
+			t.Errorf("cron %s call %d = %v, want argv %v", sub, i, got[i], w)
 		}
 	}
 }
 
-const clockSeedMonitored = `monitored:
-  ab12:
-    pane: "%3"
-    repo: /home/u/foo
-    session: work
-    branch: 260909-ab12-x
-    enrolled_at: "2026-09-09T00:00:00Z"
-    last_transition: "2026-09-09T00:00:00Z"
-`
+// stubEpoch pins operatorPaneEpoch's seams (the rk mux panes row and the
+// operator-window role lookup) to the given verdict.
+func stubEpoch(t *testing.T, epoch bool) {
+	t.Helper()
+	prevPanes, prevWin := rkPanesRunner, operatorWindowRoleRunner
+	row := `null`
+	if epoch {
+		row = `"active"`
+	}
+	rkPanesRunner = func(server string) ([]byte, error) {
+		return []byte(`[{"window_id":"@1","pane":"%1","agent_state":` + row + `}]`), nil
+	}
+	operatorWindowRoleRunner = func() (string, error) { return "@1\toperator\n", nil }
+	t.Cleanup(func() { rkPanesRunner, operatorWindowRoleRunner = prevPanes, prevWin })
+}
 
-const clockSeedWatch = `watches:
-  w1:
-    enabled: false
-    source: linear
-    target_repo: /home/u/foo
-    known: []
-    completed: []
-`
+// seedState maps a seed YAML document to its data map.
+func seedState(t *testing.T, seed string) map[string]interface{} {
+	t.Helper()
+	var data map[string]interface{}
+	if err := yaml.Unmarshal([]byte(seed), &data); err != nil {
+		t.Fatalf("parse seed: %v", err)
+	}
+	return data
+}
 
-const clockSeedAutopilot = `autopilot:
-  queue: [ab12]
-  current: ab12
-  completed: []
-  state: running
-  mode: cherry-pick-ladder
-`
-
-const clockSeedCoordNote = `notes:
-  - id: n1
-    kind: coordination
-    text: merge sequence open
-    created_at: "2026-09-09T00:00:00Z"
+// seedOnePaneItem is a state file with a single live fab-change pane item.
+const seedOnePaneItem = `tracked:
+  - id: ab12
+    kind: fab-change
+    probe: {mode: pane}
+    depends_on: []
+    scope: {pane: "%3", repo: /r/a}
+    last: {}
+    added_at: "2026-09-09T00:00:00Z"
     updated_at: "2026-09-09T00:00:00Z"
-    resolved: false
-notes_seq: 1
 `
 
-// --- R1: tracked predicate ---------------------------------------------------
+// seedTwoShellItems carries two not-done shell items at 2m and 5m cadences.
+const seedTwoShellItems = `tracked:
+  - id: pr-2m
+    kind: shell
+    probe: {mode: shell, argv: [p], fields: [state]}
+    check_every: 2m
+    done_when: 'state == "MERGED"'
+    depends_on: []
+    scope: {}
+    last: {state: OPEN}
+    added_at: "2026-09-09T00:00:00Z"
+    updated_at: "2026-09-09T00:00:00Z"
+  - id: pr-5m
+    kind: shell
+    probe: {mode: shell, argv: [p], fields: [state]}
+    check_every: 5m
+    done_when: 'state == "MERGED"'
+    depends_on: []
+    scope: {}
+    last: {state: OPEN}
+    added_at: "2026-09-09T00:00:00Z"
+    updated_at: "2026-09-09T00:00:00Z"
+`
+
+// seedDoneItem carries a single item whose done_when fires on last.
+const seedDoneItem = `tracked:
+  - id: pr-9
+    kind: github-pr
+    probe: {mode: shell, argv: [p], fields: [state]}
+    check_every: 2m
+    done_when: 'state == "MERGED"'
+    depends_on: []
+    scope: {}
+    last: {state: MERGED}
+    added_at: "2026-09-09T00:00:00Z"
+    updated_at: "2026-09-09T00:00:00Z"
+`
+
+// seedDonePlusTask carries one done item and one open (none-probe) item.
+const seedDonePlusTask = seedDoneItem + `  - id: other
+    kind: task
+    probe: {mode: none}
+    depends_on: []
+    scope: {}
+    last: {}
+    added_at: "2026-09-09T00:00:00Z"
+    updated_at: "2026-09-09T00:00:00Z"
+`
+
+// --- R6: tracked predicate ---------------------------------------------------
 
 func TestOperatorTracked(t *testing.T) {
-	running, paused := "running", "paused"
 	tests := []struct {
 		name string
 		data map[string]interface{}
@@ -114,33 +182,10 @@ func TestOperatorTracked(t *testing.T) {
 	}{
 		{"empty skeleton", emptyOperatorState(), false},
 		{"missing sections", map[string]interface{}{}, false},
-		{"one monitored entry", map[string]interface{}{
-			"monitored": map[string]monitoredEntry{"ab12": {Pane: "%3"}},
-		}, true},
-		{"autopilot running", map[string]interface{}{
-			"autopilot": &autopilotState{Queue: []string{"ab12"}, State: &running},
-		}, true},
-		{"autopilot paused", map[string]interface{}{
-			"autopilot": &autopilotState{Queue: []string{"ab12"}, State: &paused},
-		}, true},
-		{"autopilot exhausted (state null, queue retained)", map[string]interface{}{
-			"autopilot": &autopilotState{Queue: []string{"ab12"}, Completed: []string{"ab12"}},
-		}, false},
-		{"one enabled watch", map[string]interface{}{
-			"watches": map[string]watchEntry{"w1": {Enabled: true, Source: "linear"}},
-		}, true},
-		{"one disabled watch still counts", map[string]interface{}{
-			"watches": map[string]watchEntry{"w1": {Enabled: false, Source: "linear"}},
-		}, true},
-		{"open coordination note", map[string]interface{}{
-			"notes": []noteEntry{{ID: "n1", Kind: "coordination"}},
-		}, true},
-		{"resolved coordination note", map[string]interface{}{
-			"notes": []noteEntry{{ID: "n1", Kind: "coordination", Resolved: true}},
-		}, false},
-		{"open correction note does not count", map[string]interface{}{
-			"notes": []noteEntry{{ID: "n1", Kind: "correction"}},
-		}, false},
+		{"one pane item", seedState(t, seedOnePaneItem), true},
+		{"only done items is untracked", seedState(t, seedDoneItem), false},
+		{"done plus open is tracked", seedState(t, seedDonePlusTask), true},
+		{"undecodable tracked section counts as empty", map[string]interface{}{"tracked": 5}, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -151,128 +196,182 @@ func TestOperatorTracked(t *testing.T) {
 	}
 }
 
-// --- R2: edge-triggered flips through the verbs ------------------------------
+// --- R4: edge-triggered flips through the track verbs, then reconcile ---------
 
 func TestClockSync_UntrackedToTracked(t *testing.T) {
-	tests := []struct {
-		name string
-		seed string
-		run  func(t *testing.T) error
-	}{
-		{"enroll first monitored entry", "", func(t *testing.T) error {
-			return runOperatorCmd(t, operatorEnrollCmd(), enrollArgs("ab12")...)
-		}},
-		{"watch add first watch", "", func(t *testing.T) error {
-			return runOperatorCmd(t, operatorWatchAddCmd(), "w1", "--source", "linear", "--target-repo", "/home/u/foo")
-		}},
-		{"autopilot start", "", func(t *testing.T) error {
-			return runOperatorCmd(t, operatorAutopilotCmd(), "start", "--queue", "ab12")
-		}},
-		{"note add --kind coordination", "", func(t *testing.T) error {
-			return runOperatorCmd(t, operatorNoteAddCmd(), "merge sequence open", "--kind", "coordination")
-		}},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			withOperatorState(t, tc.seed)
-			calls := stubRkCron(t, cronListJSON, nil, nil)
-			if err := tc.run(t); err != nil {
-				t.Fatalf("verb: %v", err)
+	t.Run("pane item unmutes; derived schedule matches the row → no edit", func(t *testing.T) {
+		withOperatorState(t, "")
+		stubQuietClock(t)
+		calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
+		if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("ab12", kindFabChange,
+			"--pane", "%3", "--repo", "/r/a", "--branch", "b")...); err != nil {
+			t.Fatalf("track add: %v", err)
+		}
+		wantMutes(t, *calls, []string{"cron-op", "--off"})
+		wantEdits(t, *calls)
+	})
+
+	t.Run("shell item unmutes, then the reconcile edits the schedule (R4 order)", func(t *testing.T) {
+		withOperatorState(t, "")
+		stubQuietClock(t) // panes seam errors → no epoch → --every
+		stubGHNameWithOwner(t, "o/r", nil)
+		calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
+		if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("pr-913", kindGitHubPR,
+			"--scope", `{"repo":"/x","pr":913}`, "--check-every", "2m")...); err != nil {
+			t.Fatalf("track add: %v", err)
+		}
+		wantMutes(t, *calls, []string{"cron-op", "--off"})
+		wantEdits(t, *calls, []string{"cron-op", "--every", "2m", "--deliver", "skip-if-busy"})
+		// R4: the mute is issued, THEN the schedule reconcile runs.
+		var order []string
+		for _, c := range *calls {
+			if len(c) >= 2 && c[0] == "cron" && (c[1] == "mute" || c[1] == "edit") {
+				order = append(order, c[1])
 			}
-			wantMutes(t, *calls, []string{"cron-op", "--off"})
-		})
-	}
+		}
+		if strings.Join(order, ",") != "mute,edit" {
+			t.Errorf("call order = %v, want mute then edit", order)
+		}
+	})
 }
 
 func TestClockSync_TrackedToUntracked(t *testing.T) {
-	tests := []struct {
-		name string
-		seed string
-		run  func(t *testing.T) error
-	}{
-		{"remove last monitored entry", clockSeedMonitored, func(t *testing.T) error {
-			return runOperatorCmd(t, operatorRemoveCmd(), "ab12")
-		}},
-		{"watch rm last watch", clockSeedWatch, func(t *testing.T) error {
-			return runOperatorCmd(t, operatorWatchRmCmd(), "w1")
-		}},
-		{"autopilot stop", clockSeedAutopilot, func(t *testing.T) error {
-			return runOperatorCmd(t, operatorAutopilotCmd(), "stop")
-		}},
-		{"note resolve last coordination note", clockSeedCoordNote, func(t *testing.T) error {
-			return runOperatorCmd(t, operatorNoteResolveCmd(), "n1")
-		}},
+	// Removing the last not-done item mutes; the reconcile derives "muted —
+	// unchanged" and issues no edit.
+	withOperatorState(t, seedOnePaneItem)
+	stubQuietClock(t)
+	calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
+	if err := runOperatorCmd(t, operatorTrackRmCmd(), "ab12"); err != nil {
+		t.Fatalf("track rm: %v", err)
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			withOperatorState(t, tc.seed)
-			calls := stubRkCron(t, cronListJSON, nil, nil)
-			if err := tc.run(t); err != nil {
-				t.Fatalf("verb: %v", err)
-			}
-			wantMutes(t, *calls, []string{"cron-op"})
-		})
-	}
+	wantMutes(t, *calls, []string{"cron-op"})
+	wantEdits(t, *calls)
 }
 
 func TestClockSync_NonFlippingMutationsStayQuiet(t *testing.T) {
+	withOperatorState(t, seedOnePaneItem)
+	stubQuietClock(t)
+	calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
+	if err := runOperatorCmd(t, operatorTrackUpdateCmd(), "ab12", "--then", "report"); err != nil {
+		t.Fatalf("track update: %v", err)
+	}
+	wantMutes(t, *calls)
+	wantEdits(t, *calls) // derived backoff/immediate equals the row
+}
+
+// --- R12: derived schedule reconcile -------------------------------------------
+
+func TestReconcile_DerivedSchedule(t *testing.T) {
 	tests := []struct {
-		name string
-		seed string
-		run  func(t *testing.T) error
+		name     string
+		seed     string
+		row      string
+		epoch    bool
+		wantEdit []string // nil → no edit
 	}{
-		{"second enroll (tracked stays tracked)", clockSeedMonitored, func(t *testing.T) error {
-			return runOperatorCmd(t, operatorEnrollCmd(), enrollArgs("cd34")...)
-		}},
-		{"update observed fields", clockSeedMonitored, func(t *testing.T) error {
-			return runOperatorCmd(t, operatorUpdateCmd(), "ab12", "--stage", "review")
-		}},
-		{"note add --kind correction (untracked stays untracked)", "", func(t *testing.T) error {
-			return runOperatorCmd(t, operatorNoteAddCmd(), "typo fix", "--kind", "correction")
-		}},
-		{"coordination note while already tracked", clockSeedMonitored, func(t *testing.T) error {
-			return runOperatorCmd(t, operatorNoteAddCmd(), "merge sequence open", "--kind", "coordination")
-		}},
+		{"pane-only set derives backoff (A-031 idle-every→backoff)", seedOnePaneItem, cronListIdleEvery2mJSON, true,
+			[]string{"cron-op", "--backoff", "--min", "1m", "--max", "30m", "--deliver", "immediate"}},
+		{"R12: shell items with epoch derive idle-every min(check_every)", seedTwoShellItems, cronListBackoffJSON, true,
+			[]string{"cron-op", "--idle-every", "2m", "--deliver", "skip-if-busy"}},
+		{"shell items without epoch derive every", seedTwoShellItems, cronListBackoffJSON, false,
+			[]string{"cron-op", "--every", "2m", "--deliver", "skip-if-busy"}},
+		{"R12: equal row (2m0s == 2m) issues nothing", seedTwoShellItems, cronListIdleEvery2mJSON, true, nil},
+		{"backoff row equal to derived backoff issues nothing", seedOnePaneItem, cronListBackoffJSON, false, nil},
+		{"A-023: a muted/leased entry is still edited", seedTwoShellItems, cronListBackoffMutedJSON, true,
+			[]string{"cron-op", "--idle-every", "2m", "--deliver", "skip-if-busy"}},
+		{"all items done → muted, unchanged (no edit)", seedDoneItem, cronListBackoffJSON, true, nil},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			withOperatorState(t, tc.seed)
-			calls := stubRkCron(t, cronListJSON, nil, nil)
-			if err := tc.run(t); err != nil {
-				t.Fatalf("verb: %v", err)
-			}
+			stubEpoch(t, tc.epoch)
+			calls := stubRkCron(t, tc.row, nil, nil)
+			reconcileOperatorSchedule(seedState(t, tc.seed))
 			wantMutes(t, *calls)
+			if tc.wantEdit == nil {
+				wantEdits(t, *calls)
+			} else {
+				wantEdits(t, *calls, tc.wantEdit)
+			}
 		})
 	}
 }
 
-// --- R2: autopilot advance to exhaustion -------------------------------------
-
-func TestClockSync_AutopilotAdvanceExhaustion(t *testing.T) {
-	t.Run("mutes when nothing else tracked", func(t *testing.T) {
-		withOperatorState(t, clockSeedAutopilot)
-		calls := stubRkCron(t, cronListJSON, nil, nil)
-		if err := runOperatorCmd(t, operatorAutopilotCmd(), "advance"); err != nil {
-			t.Fatalf("advance: %v", err)
-		}
-		wantMutes(t, *calls, []string{"cron-op"})
+func TestReconcile_Override(t *testing.T) {
+	overrideSeed := seedTwoShellItems + `clock_override:
+  schedule: {kind: every, every: 10m}
+  deliver: skip-if-busy
+  until: "2999-01-01T00:00:00Z"
+`
+	t.Run("a live override applies instead of the derived value (R13)", func(t *testing.T) {
+		stubEpoch(t, true)
+		calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
+		reconcileOperatorSchedule(seedState(t, overrideSeed))
+		wantEdits(t, *calls, []string{"cron-op", "--every", "10m", "--deliver", "skip-if-busy"})
 	})
-	t.Run("open coordination note keeps it tracked", func(t *testing.T) {
-		withOperatorState(t, clockSeedAutopilot+"\n"+clockSeedCoordNote)
-		calls := stubRkCron(t, cronListJSON, nil, nil)
-		if err := runOperatorCmd(t, operatorAutopilotCmd(), "advance"); err != nil {
-			t.Fatalf("advance: %v", err)
+
+	t.Run("an expired override reverts to the derived value and leaves the file (R13)", func(t *testing.T) {
+		expired := strings.Replace(overrideSeed, "2999-01-01", "2020-01-01", 1)
+		path := withOperatorState(t, expired)
+		stubQuietClock(t) // no epoch → --every
+		calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
+		// Any mutation runs the pre-save expiry + the reconcile.
+		if err := runOperatorCmd(t, operatorTrackUpdateCmd(), "pr-2m", "--pause"); err != nil {
+			t.Fatalf("track update: %v", err)
 		}
-		wantMutes(t, *calls)
+		if _, ok := readStateFile(t, path)["clock_override"]; ok {
+			t.Error("expired clock_override must be removed from the file")
+		}
+		wantEdits(t, *calls, []string{"cron-op", "--every", "2m", "--deliver", "skip-if-busy"})
 	})
 }
 
-// --- R6: tick-start reconcile -------------------------------------------------
+// --- epoch detection -------------------------------------------------------------
+
+func TestOperatorPaneEpoch(t *testing.T) {
+	tests := []struct {
+		name     string
+		panesOut string
+		panesErr error
+		windows  string
+		winErr   error
+		tmuxPane string
+		want     bool
+	}{
+		{"role-marked window with agent_state", `[{"window_id":"@1","pane":"%1","agent_state":"active"}]`, nil, "@1\toperator\n@2\t\n", nil, "", true},
+		{"role-marked window with null agent_state", `[{"window_id":"@1","pane":"%1","agent_state":null}]`, nil, "@1\toperator\n", nil, "", false},
+		{"no role window falls back to $TMUX_PANE", `[{"window_id":"@9","pane":"%7","agent_state":"idle"}]`, nil, "", nil, "%7", true},
+		{"$TMUX_PANE row with null agent_state", `[{"window_id":"@9","pane":"%7","agent_state":null}]`, nil, "", nil, "%7", false},
+		{"rk failure degrades to no epoch", "", errors.New("no rk"), "@1\toperator\n", nil, "", false},
+		{"no matching row", `[{"window_id":"@2","pane":"%2","agent_state":"active"}]`, nil, "@1\toperator\n", nil, "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prevPanes, prevWin := rkPanesRunner, operatorWindowRoleRunner
+			rkPanesRunner = func(server string) ([]byte, error) {
+				if tc.panesErr != nil {
+					return nil, tc.panesErr
+				}
+				return []byte(tc.panesOut), nil
+			}
+			operatorWindowRoleRunner = func() (string, error) { return tc.windows, tc.winErr }
+			t.Cleanup(func() { rkPanesRunner, operatorWindowRoleRunner = prevPanes, prevWin })
+			if tc.tmuxPane != "" {
+				t.Setenv("TMUX_PANE", tc.tmuxPane)
+			}
+			if got := operatorPaneEpoch(); got != tc.want {
+				t.Errorf("operatorPaneEpoch = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// --- tick-start reconcile ---------------------------------------------------------
 
 func TestTickStartDiff_ClockReconcile(t *testing.T) {
 	t.Run("untracked state issues exactly one mute and emits the tick doc", func(t *testing.T) {
 		withOperatorState(t, "")
-		calls := stubRkCron(t, cronListJSON, nil, nil)
+		stubQuietClock(t)
+		calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
 		out, err := runTickDiffArgs(t, "--diff", "--quiet")
 		if err != nil {
 			t.Fatalf("tick-start --diff --quiet: %v", err)
@@ -281,27 +380,44 @@ func TestTickStartDiff_ClockReconcile(t *testing.T) {
 			t.Errorf("stdout = %q, want the tick document", out)
 		}
 		wantMutes(t, *calls, []string{"cron-op"})
+		wantEdits(t, *calls)
 	})
 	t.Run("already-muted entry is left alone", func(t *testing.T) {
 		withOperatorState(t, "")
-		calls := stubRkCron(t, cronListJSONMuted, nil, nil)
+		stubQuietClock(t)
+		calls := stubRkCron(t, cronListBackoffMutedJSON, nil, nil)
 		if _, err := runTickDiffArgs(t, "--diff", "--quiet"); err != nil {
 			t.Fatalf("tick-start --diff --quiet: %v", err)
 		}
 		wantMutes(t, *calls)
+		wantEdits(t, *calls)
 	})
-	t.Run("tracked state issues no call", func(t *testing.T) {
-		withOperatorState(t, clockSeedMonitored)
+	t.Run("tracked state issues no mute; derived schedule edits when drifted", func(t *testing.T) {
+		withOperatorState(t, seedOnePaneItem)
+		stubQuietClock(t)
 		stubSnapshot(t, []paneRow{snapRow("%3", "ab12", "apply", "active", "active", "")})
-		calls := stubRkCron(t, cronListJSON, nil, nil)
+		calls := stubRkCron(t, cronListIdleEvery2mJSON, nil, nil)
 		if _, err := runTickDiffArgs(t, "--diff", "--quiet"); err != nil {
 			t.Fatalf("tick-start --diff --quiet: %v", err)
 		}
 		wantMutes(t, *calls)
+		// The pane-only set derives backoff/immediate; the row is on
+		// idle-every → the end-of-tick reconcile converges it.
+		wantEdits(t, *calls, []string{"cron-op", "--backoff", "--min", "1m", "--max", "30m", "--deliver", "immediate"})
+	})
+	t.Run("R6: an all-done tracked set mutes the entry", func(t *testing.T) {
+		withOperatorState(t, seedDoneItem)
+		stubQuietClock(t)
+		calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
+		if _, err := runTickDiffArgs(t, "--diff", "--quiet"); err != nil {
+			t.Fatalf("tick-start --diff --quiet: %v", err)
+		}
+		wantMutes(t, *calls, []string{"cron-op"})
+		wantEdits(t, *calls)
 	})
 }
 
-// --- R3/R4: entry resolution and fail-silent degradation ----------------------
+// --- entry resolution and fail-silent degradation --------------------------------
 
 func TestClockSync_FailSilentDegradation(t *testing.T) {
 	tests := []struct {
@@ -317,19 +433,24 @@ func TestClockSync_FailSilentDegradation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			withOperatorState(t, "")
+			stubQuietClock(t)
 			calls := stubRkCron(t, tc.listJSON, tc.listErr, nil)
-			if err := runOperatorCmd(t, operatorEnrollCmd(), enrollArgs("ab12")...); err != nil {
-				t.Fatalf("enroll must succeed with a degraded rk: %v", err)
+			if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("ab12", kindFabChange,
+				"--pane", "%3", "--repo", "/r/a", "--branch", "b")...); err != nil {
+				t.Fatalf("track add must succeed with a degraded rk: %v", err)
 			}
 			wantMutes(t, *calls)
+			wantEdits(t, *calls)
 		})
 	}
 
 	t.Run("non-zero mute call leaves the verb unchanged", func(t *testing.T) {
 		withOperatorState(t, "")
-		calls := stubRkCron(t, cronListJSON, nil, errors.New("exit status 1"))
-		if err := runOperatorCmd(t, operatorEnrollCmd(), enrollArgs("ab12")...); err != nil {
-			t.Fatalf("enroll must succeed when the mute call fails: %v", err)
+		stubQuietClock(t)
+		calls := stubRkCron(t, cronListBackoffJSON, nil, errors.New("exit status 1"))
+		if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("ab12", kindFabChange,
+			"--pane", "%3", "--repo", "/r/a", "--branch", "b")...); err != nil {
+			t.Fatalf("track add must succeed when the mute call fails: %v", err)
 		}
 		wantMutes(t, *calls, []string{"cron-op", "--off"})
 	})
@@ -347,7 +468,7 @@ func TestResolveOperatorCronRow_Tiebreak(t *testing.T) {
 	}
 }
 
-// --- R2: no clock call when the save fails ------------------------------------
+// --- no clock call when the save fails --------------------------------------------
 
 func TestClockSync_SaveFailureIssuesNoCall(t *testing.T) {
 	// Point state I/O at a path inside a nonexistent directory so the atomic
@@ -355,11 +476,12 @@ func TestClockSync_SaveFailureIssuesNoCall(t *testing.T) {
 	path := strings.Join([]string{t.TempDir(), "missing", "operator-state.yaml"}, "/")
 	operatorStatePathOverride = path
 	t.Cleanup(func() { operatorStatePathOverride = "" })
-	calls := stubRkCron(t, cronListJSON, nil, nil)
-	if err := runOperatorCmd(t, operatorEnrollCmd(), enrollArgs("ab12")...); err == nil {
-		t.Fatal("enroll = nil error, want a save failure")
+	stubQuietClock(t)
+	calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
+	if err := runOperatorCmd(t, operatorTrackAddCmd(), trackAddArgs("ab12", kindFabChange,
+		"--pane", "%3", "--repo", "/r/a", "--branch", "b")...); err == nil {
+		t.Fatal("track add = nil error, want a save failure")
 	}
-	wantMutes(t, *calls)
 	if len(*calls) != 0 {
 		t.Errorf("rk calls = %v, want none (state not persisted)", *calls)
 	}

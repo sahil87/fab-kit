@@ -20,7 +20,7 @@ Headless mode is tmux-independent; pane mode restores watch-and-steer through th
 
 `start`, `open`, and `restart` launch these two non-native adapters, but automatic selection evaluates the full catalog: it starts at `dispatch.mode` and descends pane → native → headless. If native is the first possible rung, the command errors before writing prompt or dispatch state and directs the caller back to native dispatch; if `start`'s selection lands on **pane**, it errors the same way and names `open`. `open` runs no ladder at all — pane is explicit there. `restart` relaunches a non-running attempt from the persisted prompt and re-runs the ladder against current capabilities and environment. `status` and `wait` remain one-shot and blocking views of the same derived state.
 
-Dispatch is the runtime for cross-harness stage dispatch. It re-resolves the stage, provider, profile, preference, and current tmux reachability; the earlier YAML `dispatch:` mapping is visibility for the skill, not an executable handoff. Provider fields remain pure capabilities, while `dispatch.mode` owns preference. Headless dispatch stays independent of the tmux-bound `fab pane` / `fab operator` family; pane dispatch borrows tmux as a launch surface without joining the operator's monitored set.
+Dispatch is the runtime for cross-harness stage dispatch. It re-resolves the stage, provider, profile, preference, and current tmux reachability; the earlier YAML `dispatch:` mapping is visibility for the skill, not an executable handoff. Provider fields remain pure capabilities, while `dispatch.mode` owns preference. Headless dispatch stays independent of the tmux-bound `fab pane` / `fab operator` family; pane dispatch borrows tmux as a launch surface without joining the operator's tracked set.
 
 The **skill wiring** consumes it: the dispatch-seam skills branch on `dispatch:` key presence and, when present, drive this command family — the wiring covers every dispatched post-intake stage: apply/review/hydrate (via `_pipeline.md` § Stage Dispatch Procedure and `/fab-continue`'s sequencer rows) and ship/review-pr (via `fab-fff.md` Steps 4–5's own two-branch text and `/fab-continue`'s ship/review-pr rows — those `/git-pr` / `/git-pr-review` workers self-manage their own stage's transitions per the `_preamble.md` § Dispatch-Prompt Obligations carve-out, and their panes reap at done-read under the immediate-reap row, never named or continued). The wiring **branches on the labelled rung at `dispatch.rung`**: `rung: headless` goes straight to `start`, `rung: pane` straight to `open`. `start`'s pane-refusal stays as defense-in-depth, not discovery — a pane landing is refused before stdin is read, before the refuse-if-running check, and before any state write, so a mislabelled or stale-environment invocation re-runs as `open` with nothing consumed. From there: `start` (block prompt on stdin) or `open` → `ready` gate → `deliver` → a **blocking `fab dispatch wait <change> <stage> --timeout 300`**, run as a *background* command wherever the harness can re-invoke the agent on exit (foreground blocking is the cross-harness fallback) → the mode's reachable states → read `{stage}-result.yaml` on `done`, then `fab dispatch reap` at the stage-aware moment (§ `fab dispatch reap`). The wiring is **push, not poll**: the orchestrator spends turns only when the wait returns, and a `running` return (the bound expired) is its peek-on-suspicion moment, which is why `--timeout 300` is a *peek cadence* rather than a poll interval. It lives in `_preamble.md` § CLI-Adapter Dispatch + § The pane readiness gate + § Dispatch-Prompt Obligations, where **pane mode is an option inside the `dispatch:`-present arm, never a third branch** (see [pipeline/execution-skills.md](/pipeline/execution-skills.md) § Status-transition ownership and [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution).
 
@@ -619,19 +619,19 @@ The decision itself is the **pure** `DecideReap(isPane bool, state State, reapDo
 
 ### Requirement: A pane dispatch's identity is `fab-{id}-{stage}` and carries no operator marker
 
-A pane dispatch SHALL take its identity from its own convention — `fab-{4-char-change-id}-{stage}`, composed by `WindowName` — and that string MUST NOT carry the operator's `»` (U+00BB) enrollment prefix or its `›` (U+203A) done marker, in **either** pane shape. The string's **carrier** varies by shape (the tmux **window name** in the new-window shape, the tmux **pane title** in the split shape) but the string does not. Those markers assert that a window is in the operator's monitored set and that the operator owns its lifecycle, neither of which a pipeline dispatch has. An operator that genuinely enrolls a window adds the marker itself through its own idempotent `fab pane window-name ensure-prefix` primitive (see [operator.md](/runtime/operator.md) § monitored-set enrollment and [pane-commands.md](/runtime/pane-commands.md)).
+A pane dispatch SHALL take its identity from its own convention — `fab-{4-char-change-id}-{stage}`, composed by `WindowName` — and that string MUST NOT carry an operator mark, in **either** pane shape. The string's **carrier** varies by shape (the tmux **window name** in the new-window shape, the tmux **pane title** in the split shape) but the string does not. The operator's marks — `rk tab mark` / `rk tab note` window options (see [operator.md](/runtime/operator.md) § Tracking & Window Marks) — assert that a window is in the operator's tracked set and that the operator owns its lifecycle, neither of which a pipeline dispatch has. An operator that genuinely tracks a window applies the marks itself.
 
 #### Scenario: a dispatch window is identifiable without claiming operator ownership
 
 - **GIVEN** `fab dispatch open abcd apply --server work` (the new-window shape)
 - **WHEN** the window is created
-- **THEN** its name is `fab-abcd-apply` and carries no `»`/`›` prefix
+- **THEN** its name is `fab-abcd-apply` and carries no operator mark
 
 #### Scenario: a split worker's pane title is identifiable and equally unmarked
 
 - **GIVEN** `fab dispatch open abcd apply` from inside a tmux pane (the split shape)
 - **WHEN** the worker's pane is created
-- **THEN** its pane title is `fab-abcd-apply` and carries no `»`/`›` prefix, and no window is renamed
+- **THEN** its pane title is `fab-abcd-apply` and carries no operator mark, and no window is renamed
 
 ### Requirement: Steering a pane worker is contract-neutral
 
@@ -800,7 +800,7 @@ Steering by a *human* is unrestricted; the *pipeline*'s access to a worker's key
 *Introduced by*: 260702-6sgj-fab-dispatch-command
 
 ### Parallel family, not a headless mode on `fab pane`
-**Decision**: `fab dispatch` is a command family independent of `fab pane` / `fab operator`; the `fab pane` command surface and the operator's monitored-set machinery carry no dispatch concerns. Pane-mode dispatch consumes `internal/pane`'s tmux helpers (`RunCmd`/`WithServer`/`StderrError`) as a library and borrows tmux as a launch surface, without joining the operator's monitored set or adding a headless mode to `fab pane`.
+**Decision**: `fab dispatch` is a command family independent of `fab pane` / `fab operator`; the `fab pane` command surface and the operator's tracked-items machinery carry no dispatch concerns. Pane-mode dispatch consumes `internal/pane`'s tmux helpers (`RunCmd`/`WithServer`/`StderrError`) as a library and borrows tmux as a launch surface, without joining the operator's tracked set or adding a headless mode to `fab pane`.
 **Why**: Pane *observation* (tmux capture, operator ownership) and *stage dispatch* (a state dir, a result-file contract, an observation loop over derived state) are different models with different owners; conflating the command surfaces would burden the interactive-operator path with pipeline concerns. Sharing the tmux argv builder at the library level gets the reuse without the conflation — one tmux invocation convention in the binary, two independent command families.
 **Rejected**: Extending `fab pane` with a headless mode (model conflation — the inverse of the one `fab dispatch` was created to avoid). Re-implementing tmux invocation inside `internal/dispatch` (a second argv builder and a second stderr-enrichment convention). Automatic GC of state dirs on a timer (cleanup is exactly two deterministic moments).
 *Introduced by*: 260702-6sgj-fab-dispatch-command
@@ -955,11 +955,11 @@ Steering by a *human* is unrestricted; the *pipeline*'s access to a worker's key
 **Rejected**: A second state file for pane dispatches (two loaders, two concurrency checks, two things to clean). A persisted `mode:` key (redundant with the identity fields and able to drift from them; would also require a migration to stamp onto existing records).
 *Introduced by*: 260805-zxe0-interactive-pane-stage-dispatch
 
-### Pane dispatches get a `fab-{id}-{stage}` identity, not the operator's `»` marker
-**Decision**: A pane dispatch's identity string is `fab-{id}-{stage}` and carries no `»`/`›` prefix — in both pane shapes, whether the string rides a window name or a pane title.
-**Why**: The `»` prefix is the operator's enrollment marker — it asserts the window is in the operator's monitored set and that the operator owns its lifecycle. A pipeline dispatch has neither property, so pre-marking would make the operator's tab bar lie about what it tracks. A distinct, greppable name convention gives the same at-a-glance identification without the false claim, and an operator that genuinely enrolls a window still adds the marker through its own idempotent primitive.
-**Rejected**: Prefixing `»` at creation (falsely signals operator ownership). Leaving the window/pane unlabelled (indistinguishable from an ad-hoc shell tab, and the string is what makes a worker greppable at a glance).
-*Introduced by*: 260805-zxe0-interactive-pane-stage-dispatch
+### Pane dispatches get a `fab-{id}-{stage}` identity, not an operator mark
+**Decision**: A pane dispatch's identity string is `fab-{id}-{stage}` and carries no operator mark — in both pane shapes, whether the string rides a window name or a pane title.
+**Why**: The operator's marks (`rk tab mark` / `rk tab note` window options) assert the window is in the operator's tracked set and that the operator owns its lifecycle. A pipeline dispatch has neither property, so pre-marking would make the operator's tab bar lie about what it tracks. A distinct, greppable name convention gives the same at-a-glance identification without the false claim, and an operator that genuinely tracks a window still applies the marks itself.
+**Rejected**: Marking at creation (falsely signals operator ownership). Leaving the window/pane unlabelled (indistinguishable from an ad-hoc shell tab, and the string is what makes a worker greppable at a glance).
+*Introduced by*: 260805-zxe0-interactive-pane-stage-dispatch; *Updated by*: 260911-4a8m-operator-generic-tracked-items (the operator's marks are rk window options, not name prefixes)
 
 ### Pane workers split the dispatching agent's window, with the new window as fallback
 **Decision**: A pane-mode worker opens as a **pane split into the dispatching agent's own window** whenever `$TMUX_PANE` is non-empty and no `--server` was supplied; otherwise it keeps opening as a **new window** named `fab-{id}-{stage}`. The decision is the pure `SelectPaneShape`; both env reads stay in the cobra layer. WHERE inside that window the pane lands is a separate decision — the stacked right column of § Split placement.

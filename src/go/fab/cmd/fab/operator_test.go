@@ -446,7 +446,7 @@ func TestOperatorTickStart_IncrementsCount(t *testing.T) {
 
 	initial := map[string]interface{}{
 		"tick_count": 5,
-		"monitored":  map[string]interface{}{},
+		"tracked":    []interface{}{},
 	}
 	raw, err := yaml.Marshal(initial)
 	if err != nil {
@@ -493,8 +493,8 @@ func TestOperatorTickStart_IncrementsCount(t *testing.T) {
 	if lastTickAt == "" {
 		t.Error("last_tick_at is empty or missing")
 	}
-	if _, ok := result["monitored"]; !ok {
-		t.Error("monitored field was not preserved")
+	if _, ok := result["tracked"]; !ok {
+		t.Error("tracked field was not preserved")
 	}
 }
 

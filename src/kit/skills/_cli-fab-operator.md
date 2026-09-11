@@ -1,6 +1,6 @@
 ---
 name: _cli-fab-operator
-description: "Fab CLI reference — the `fab operator` and `fab agent` command families (the tmux operator's state/tick/autopilot verbs; the stage/role agent-resolution query). Split out of _cli-fab so operator consumers load only this slice."
+description: "Fab CLI reference — the `fab operator` and `fab agent` command families (the tmux operator's state/tick/track verbs; the stage/role agent-resolution query). Split out of _cli-fab so operator consumers load only this slice."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -41,69 +41,130 @@ Singleton tmux-tab launcher for `/fab-operator`.
 fab operator tick-start [--diff [--quiet]]
 ```
 
-Called at start of each operator tick. Increments `tick_count`, writes `last_tick_at` (ISO 8601 UTC) to the **server-keyed** state file (not the old repo-rooted `.fab-operator.yaml`). The flagless form is unchanged — stdout:
+Called at start of each operator tick. Increments `tick_count`, writes `last_tick_at` (RFC3339 UTC) to the **server-keyed** state file (not the old repo-rooted `.fab-operator.yaml`). The flagless form is unchanged — stdout:
 
 ```
 tick: N
 now: HH:MM
 ```
 
-**`--diff`** additionally snapshots the fleet internally (the same pane-map discovery+resolve pipeline `fab pane map` runs — one enumeration path), diffs it against the monitored baseline, and emits one stdout document: the `tick:`/`now:` header lines, then three YAML blocks in this order:
+**`--diff`** additionally probes the tracked items — joins every pane item against an internal fleet snapshot (the same pane-map discovery+resolve pipeline `fab pane map` runs — one enumeration path) on `scope.pane`, runs every due shell probe, evaluates `done_when`/`depends_on`/staleness — and emits one stdout document: the `tick:`/`now:` header lines, then four YAML blocks in this pinned order — `deltas:`, `candidates:`, `needs_check:`, then `items:` **or** `fleet_summary:` (never both keys):
 
 ```yaml
+tick: 48
+now: 16:36
 deltas:
-    - kind: completion            # completion | pane_death | pane_mismatch | agent_exited | stage_advance | review_fail
-      change: r3m7
+    - kind: changed             # changed | done | stale | probe_error | pane_death | pane_mismatch | agent_exited | stage_advance | review_fail
+      id: pr-913
+      fields: { state: { from: OPEN, to: MERGED } }   # changed only — one entry per differing declared field
+    - kind: done
+      id: pr-913
+      then: "spawn n34 in ~/code/hexokit via /fab-fff"   # done only — the item's then, verbatim (present-keyed; null when none)
+    - kind: stale
+      id: linear-bugs
+      age: 11m                    # since checked_at (added_at when never checked)
+    - kind: probe_error
+      id: deploy-prod
+      error: "exit 1: gh: Not Found"
+      failures: 3
+      paused: true                # true from the tick that trips the 3-failure cap
+    - kind: pane_death            # pane deltas, keyed by id
+      id: r3m7
       pane: "%3"
-      # kind-specific fields:
-      #   completion    → stage, display_state
-      #   pane_death    → (none)
-      #   pane_mismatch → found   (the change ID occupying the pane; null when none resolvable)
-      #   agent_exited  → command (shell foreground with no live agent in the pane tree, e.g. zsh)
-      #   stage_advance → from, to
-      #   review_fail   → from (review), to (apply)
-candidates:
+    - kind: pane_mismatch
+      id: r3m7
+      pane: "%3"
+      found: k8ds                 # the change ID now occupying the pane; null when none resolvable
+    - kind: agent_exited
+      id: r3m7
+      pane: "%3"
+      command: zsh                # the pane's shell foreground command
+    - kind: stage_advance         # review_fail for the review→apply rework reset
+      id: k8ds
+      pane: "%7"
+      from: apply
+      to: review
+candidates:                       # pane items only — waiting first, then idle, item id within each class
     - pane: "%7"
-      change: k8ds
+      id: k8ds
       agent_state: waiting        # waiting | idle
       idle_duration: null         # non-null only for idle (upstream idle-only semantics)
-fleet:
-    - change: r3m7
+needs_check:                      # due agent items — the LLM runs the instruction and records via track observe
+    - id: linear-bugs
+      kind: linear
+      age: 11m
+      instruction: "mcp__claude_ai_Linear__list_issues project=DEV …"
+items:                            # one row per item, ordered kind → scope.repo → id — the status frame's data source
+    - id: r3m7
+      kind: fab-change
+      state: live                 # held | pending | live | watching | stale | paused | done
       pane: "%3"
       repo: /home/user/code/foo
       session: work
       stage: review-pr
       display_state: done
-      agent_state: idle           # active | waiting | idle | null (unknown)
-      idle_duration: 8m           # null unless idle
-      pr_url: https://github.com/acme/foo/pull/412   # null when none
-fleet: []                          # empty-list form when nothing monitored (likewise deltas/candidates)
+      agent_state: idle
+      idle_duration: 8m
+      pr_url: https://github.com/acme/foo/pull/412
+      checked_at: null            # pane items: null (the snapshot is the state; rendered `live`)
+      next: null                  # present-keyed — the item's then, "spawn" for pending, "held: <dep-id>" for held, else null
+    - id: pr-913
+      kind: github-pr
+      state: done
+      repo: /home/user/code/hexokit
+      last: { state: MERGED, mergedAt: "2026-09-11T16:35:10Z", mergeable: UNKNOWN }
+      checked_at: "2026-09-11T16:36:02Z"
+      check_every: 2m
+      unchanged: 0
+      next: "spawn n34 in ~/code/hexokit via /fab-fff"
+    - id: n1
+      kind: note
+      state: watching
+      repo: null
+      text: "Phase 2 of 4 — …"
+      updated_at: "2026-09-11T16:20:00Z"
+      next: null
 ```
 
-- **Two delivery classes.** `completion` / `pane_death` / `pane_mismatch` / `agent_exited` are **level-triggered**: stateless predicates over the current snapshot, re-emitted every tick until acted on — `fab operator remove` is the ack, so a crash between diff and action loses nothing. `stage_advance` / `review_fail` are **consumed-on-read** (baseline-diffed, consumed by the same-write baseline update); a lost one costs a missed report only. `review→apply` is the rework reset path and emits `review_fail`, not `stage_advance`.
-- **Detection semantics.** `completion` is a display-state/terminal-stage predicate (never a stage diff): with `stop_stage: null` it fires only at the pipeline terminus — `review-pr` with `display_state` done/skipped (hydrate and ship are mid-pipeline and never complete an entry by themselves; a run that deliberately parks earlier expresses that via `stop_stage`); with a `stop_stage` it fires past the stop in stage order, or at the stop with `display_state` done/skipped. `pane_mismatch` fires when the entry's pane now resolves to a **different** change ID (or none — `found: null`): tmux recycles `%N` pane IDs across server restarts, so a recycled pane is never diffed, baseline-updated, or listed as a candidate (its fleet row falls back to baseline identity fields with null observed fields). `agent_exited` fires only when the entry's pane IS present and change-matched, its **foreground command is a shell** (basename ∈ `sh bash zsh fish dash ksh tcsh csh nu`), AND its pane-PID process tree contains no live agent. The shell value triggers a lazy current-socket PID lookup and tree walk; agent names are `claude`/`claude-code` plus every merged provider `interactive_command`'s quote-aware leading-command-word basename after true POSIX `NAME=value` prefixes, with shell names excluded. Matching checks `comm` first and at most the first two cmdline tokens. Only positive live-agent evidence suppresses the delta; PID or walk failure silently fails toward emitting. Agent state is never liveness evidence — its option can retain the agent's last stale value after exit. An `agent_exited` pane gets the same exclusions as `pane_mismatch` (no baseline write, no stage diffs, excluded from `candidates:`, baseline fleet row with null agent_state). Evaluation order per entry is `pane_death` → `pane_mismatch` → `agent_exited` → clean join: a mismatched pane hosting a shell emits only `pane_mismatch`, without a tree walk.
-- **`candidates:`** — monitored entries whose snapshot agent state is waiting or idle, waiting first then idle, sorted by change ID within each class; unknown (`—`) and active panes are excluded, so on rk-less servers the block is empty. This is the operator §5 sweep population.
-- **`fleet:`** — one row per monitored entry, ordered repo → session → enrolled_at → change ID: the status frame's data source, so the skill never re-fetches the full pane map per tick.
-- **`--quiet`** — valid only with `--diff` (`--quiet` alone errors `--quiet requires --diff` before any state read/write, consuming no tick). On a **quiet tick** — `deltas:` empty AND the post-increment `tick_count` not a multiple of the built-in constant 10 (not a flag or config knob) — the `fleet:` block is **replaced** by a five-count `fleet_summary:` mapping (never both keys; block order stays `deltas`, `candidates`, then one of the two):
+- **Due set and probe runner.** `pane` items are probed every tick (the snapshot join). A `shell` item is due when not done, not paused, and `checked_at` is null (always due) or `now - checked_at ≥ check_every`. Due shell probes run **sequentially**: argv executed directly (never a shell string; the operator's environment inherited), 10 s per-probe timeout, stdout parsed as a JSON **object** (a non-JSON or non-object stdout is a probe error). A 60 s per-tick wall-clock budget bounds the fleet; items the budget cuts off emit `probe_error` with `error: "skipped (tick budget)"` and `failures` untouched. Only the declared `probe.fields` (top-level keys, or dotted paths `a.b` into nested objects) are extracted, compared against `last`, and stored back; an absent declared field stores null, so a value→absent transition stays visible and `field == null` predicates work. `agent` items are never run by the binary — due ones are *listed* under `needs_check:` for the LLM. Done items are never re-probed (the level-triggered `done` delta re-derives from `last`).
+- **Two delivery classes.** `done`, `stale`, `probe_error`, `pane_death`, `pane_mismatch`, `agent_exited` are **level-triggered** — re-emitted every tick until acked: `track rm` is the ack for `done` and the pane deltas, `track observe` clears `stale`, `track update --resume` or `track rm` clears `probe_error` — so a crash between diff and action loses nothing. `changed`, `stage_advance`, `review_fail` are **consumed-on-read** (diffed against `last` / the `scope.stage` baseline, consumed by the same-write baseline update); a lost one costs a missed report only. `review→apply` is the rework reset path and emits `review_fail`, not `stage_advance`.
+- **`probe_error` re-emission.** A fresh probe failure carries the composed one-line message — `exit N: <first stderr line>`, `timeout after 10s`, or `stdout is not a JSON object`. Once the third consecutive failure trips `paused: true` the item stops being probed, and the delta re-emits every tick as `error: "paused after N consecutive probe failures"` until `track update --resume` (which zeroes `failures`) or `track rm`. An item paused by the user (`track update --pause`) with fewer than 3 failures emits nothing. A `depends_on` id missing from the list emits the same delta class with `error: "unknown dependency <id>"` (the item reads `held`; `failures` is untouched).
+- **Item states** (each row's `state`): `held` (any `depends_on` item not done this tick), `pending` (fab-change with null `scope.pane` and deps satisfied), `live` (pane item cleanly joined), `watching` (shell/agent item not done — **also a pane item whose pane is dead, mismatched, or exited**: the level-triggered delta carries the truth), `stale` (agent item with `now - checked_at > 2 × check_every`, or `checked_at` null and `added_at` older than 2×), `paused`, `done` (`done_when` true, or the fab-change built-in fired) — `done` is level-triggered until `track rm`.
+- **Row field sets.** Every `items:` row carries `id, kind, state, next` (`next: null` present-keyed). Probed rows (`shell`/`agent`) add `repo, last, checked_at, check_every, unchanged` — agent rows also `seen`. Pane rows add `pane, repo, session, stage, display_state, agent_state, idle_duration, pr_url, checked_at: null`; an unjoined pane row falls back to the item's baseline identity fields with null observed fields. `note` rows add `repo, text, updated_at`; `task` rows add `repo`.
+- **fab-change built-in completion** is a display-state/terminal-stage predicate (never a stage diff): with `stop_stage` null it fires only at the pipeline terminus — `review-pr` with `display_state` done/skipped (hydrate and ship are mid-pipeline and never complete an item by themselves); with a `stop_stage` it fires past the stop in stage order, or at the stop with display_state done/skipped (a finished stop-stage auto-activates the next stage, so equality alone would race the transition).
+- **Detection semantics (pane items).** `pane_death` fires when the item's pane is absent from the snapshot. `pane_mismatch` fires when the pane now resolves to a **different** change ID (or none — `found: null`): tmux recycles `%N` pane IDs across server restarts, so a recycled pane is never diffed, baseline-updated, or listed as a candidate. `agent_exited` fires when the pane IS present and change-matched but no live agent remains, decided by the pane row's `has_agent` tri-state from `rk mux panes --json`: `false` ⇒ exited, `true` ⇒ alive (no further check); only a **`null`** `has_agent` (an uninstrumented pane — observed: the operator's own pane reports `null`) falls back to the process-tree walk, which fires when the pane's **foreground command is a shell** (basename ∈ `sh bash zsh fish dash ksh tcsh csh nu`) AND its pane-PID process tree contains no live agent. Agent names are `claude`/`claude-code` plus every merged provider `interactive_command`'s quote-aware leading-command-word basename after true POSIX `NAME=value` prefixes, with shell names excluded; matching checks `comm` first and at most the first two cmdline tokens. Only positive live-agent evidence suppresses the delta; PID or walk failure silently fails toward emitting. Agent state is never liveness evidence — its option can retain the agent's last stale value after exit. Evaluation order per item is `pane_death` → `pane_mismatch` → `agent_exited` → clean join: a mismatched pane hosting a shell emits only `pane_mismatch`, without a tree walk; mismatched/exited panes get no baseline write, no stage diffs, and no `candidates:` row.
+- **`candidates:`** — pane items whose snapshot agent state is waiting or idle, waiting first then idle, sorted by item id within each class; unknown and active panes are excluded, so on rk-less servers the block is empty. This is the operator §5 sweep population.
+- **`--quiet`** — valid only with `--diff` (`--quiet` alone errors `--quiet requires --diff` before any state read/write, consuming no tick). On a **quiet tick** — `deltas:` AND `needs_check:` both empty AND the post-increment `tick_count` not a multiple of the built-in constant 10 (not a flag or config knob) — the `items:` block is **replaced** by a five-count `fleet_summary:` mapping:
 
   ```yaml
   fleet_summary:
-      tracked: 8      # one per monitored entry
-      waiting: 1      # snapshot agent_state waiting
-      idle: 3         # snapshot agent_state idle
-      active: 3       # snapshot agent_state active
-      unknown: 1      # null/empty/em-dash agent_state
+      tracked: 5      # ALL items not done, any kind
+      waiting: 1      # not-done pane items whose snapshot agent_state is waiting
+      idle: 1         # … idle
+      active: 3       # … active
+      unknown: 1      # … unknown — including a pane item with no live reading (dead/mismatched/exited/pending)
   ```
 
-  `tracked` always equals `waiting + idle + active + unknown` on a quiet tick (dead/mismatched/exited panes emit level-triggered deltas, which force the full document). A tick with non-empty `deltas:`, and every 10th tick, emits the full document — identical to plain `--diff`. `candidates:` is always emitted. The empty-monitored short-circuit still skips the snapshot; under `--quiet` it emits the all-zero `fleet_summary:` (or `fleet: []` on a 10th tick).
-- **Baseline writer.** `--diff` updates the baseline in the **same atomic mutation** as the tick bookkeeping: for each cleanly-joined entry, `stage` ← snapshot stage (touching `last_transition` **iff** the stage changed — `fab operator update`'s semantics) and `agent` ← the snapshot agent state verbatim. Dead/mismatched entries stay untouched; an unresolved (em-dash) snapshot stage fabricates no delta and leaves the baseline stage alone. With an **empty monitored set** the snapshot subprocess is skipped entirely and all three blocks emit `[]` — a no-op tick is first-class.
-- **Clock reconcile.** `--diff` also mutes the operator-tick cron entry when the post-tick state is untracked — the shared **Clock side effect** paragraph below.
+  The invariant is `tracked ≥ waiting + idle + active + unknown`: done items are excluded from every count, and non-pane items count only into `tracked`. A tick with non-empty `deltas:` or `needs_check:`, every 10th tick, and any tick without `--quiet` emits the full document. The four-block order holds in both shapes — the quiet document still emits `needs_check: []` explicitly.
+- **Baseline writer.** `--diff` updates the baseline in the **same atomic mutation** as the tick bookkeeping and the probe bookkeeping: for each cleanly-joined pane item, `scope.stage` ← snapshot stage and `scope.agent` ← the snapshot agent state verbatim (null for unknown); for each probed item, `last`/`checked_at`/`unchanged` (0 on a field delta, +1 otherwise)/`failures`/`paused`. `updated_at` moves only on a stage change or a probe field delta; `checked_at` moves on every completed probe, success or failure. Dead/mismatched/exited items stay untouched; an unresolved (em-dash) snapshot stage fabricates no delta and leaves the baseline stage alone. With an **empty tracked list** the snapshot subprocess is skipped entirely and every block emits `[]` (or the zero `fleet_summary:`) — a no-op tick is first-class. A **legacy-shaped** state file converts on this verb too, and the converted pane items are diffed in the same run — see the **Legacy conversion** paragraph below.
+- **Clock reconcile.** `--diff` ends with the level-wise clock reconciles (mute-if-untracked, then the schedule reconcile) — the shared **Clock side effect** paragraph below.
 
 **State path** (server-keyed, XDG): `<XDG_STATE_HOME>/fab/operator/<server-slug>.yaml`, where the base is `$XDG_STATE_HOME` (when set and absolute) else `$HOME/.local/state` — uniform on Linux and macOS (never `~/Library/...`). `<server-slug>` is derived from the tmux socket path (`#{socket_path}`) by escaping literal `-` to `--` then mapping separators to a single `-` (e.g. `/tmp/tmux-1000/default` → `tmp-tmux--1000-default`); the escape keeps the mapping collision-free so distinct sockets never share a state file. One operator-per-tmux-server gets one state file that survives a server restart (same `-L` label → same socket path). Falls back to slug `default` when tmux can't be queried. No migration of old repo-rooted `.fab-operator.yaml` files — they are abandoned in place. The file path and its slug rule are a cross-repo contract: run-kit mirrors the exact slug rule to locate the file for display (◉ watched rows, `⚠ operator stale`), pinned in run-kit's operator-cron spec — renaming the file or changing the slug rule requires a coordinated run-kit change.
 
-**Shared state-verb mechanics** (apply to every `fab operator` state verb below): the same server-keyed path derivation; atomic temp+rename writes; a tolerant-read/typed-write posture — unknown **top-level** keys survive any read-modify-write, while the five owned sections (`monitored`, `autopilot`, `branch_map`, `watches`, `notes`) are re-marshaled from typed structs on mutation, so an invented field inside an owned section can neither be introduced nor survive a mutation of that section. All timestamps (`enrolled_at`, `last_transition`, `last_checked`, `created_at`, `updated_at`, `resolved_at`) are computed by the binary (RFC3339 UTC) — no verb accepts a timestamp flag. Stage-valued flags validate against the six stage names; unknown change-ids/watch-names/note-ids and no-active-queue calls exit non-zero with a one-line error. Schema is byte-compatible with the `fab-operator.md` §4 shape; no migration.
+**Shared state-verb mechanics** (apply to every `fab operator` state verb below): the same server-keyed path derivation; atomic temp+rename writes; a tolerant-read/typed-write posture — unknown **top-level** keys survive any read-modify-write, while the owned sections (`tracked`, `branch_map`, `clock_override`, plus the `tick_count`/`last_tick_at` scalars) are re-marshaled from typed structs on mutation, so an invented field inside an owned section can neither be introduced nor survive a mutation of that section. All timestamps (`added_at`, `updated_at`, `checked_at`, `last_tick_at`, the override's `until`) are computed by the binary (RFC3339 UTC) — no verb accepts a timestamp flag. Stage-valued flags validate against the six stage names. Every validation failure exits non-zero with a one-line error and no state written.
 
-**Clock side effect** (apply to every `fab operator` state verb below): each verb evaluates the **tracked predicate** — `monitored` non-empty, an `autopilot` block with non-null `state` (an exhausted block with `state: null` counts as empty), any `watches` entry (enabled or disabled), or any unresolved `kind: coordination` note — before and after its mutation, and only when the boolean flips, after the mutated state has been saved, issues exactly one rk call: tracked→untracked ⇒ `rk cron mute <id>` (indefinite mute); untracked→tracked ⇒ `rk cron mute <id> --off` (clears both a mute and a lease). The entry id is resolved per call from `rk cron list --json` — the row whose `target` is `"role:operator"`, with `name == "operator tick"` as the tiebreak; zero candidates, an unresolved tie, or unparseable output is a silent no-op. Every rk call is `exec.LookPath`-gated, argv-only (never a shell string, no `-L` — rk's own `$TMUX` derivation addresses the server), bounded by a 5s timeout, and fail-silent: rk absent, a non-zero exit, a timeout, or a parse failure never changes the verb's exit code, stdout, or the already-saved state. `tick-start --diff` adds a reconcile: after its baseline write it issues one indefinite mute when the post-tick state is untracked, skipping an already-muted entry. The skill-side lease policy is owned by `fab-operator.md` §4 Mute and Lease.
+**Clock side effect** (apply to every `fab operator` state verb below): each verb evaluates the **tracked predicate** — any `tracked` item whose state is not `done` (a list holding only `done` items counts as untracked) — before and after its mutation, and only when the boolean flips, after the mutated state has been saved, issues exactly one rk call: tracked→untracked ⇒ `rk cron mute <id>` (indefinite mute); untracked→tracked ⇒ `rk cron mute <id> --off` (clears both a mute and a lease). After any successful save the verb then runs the **schedule reconcile**: the schedule is derived from the tracked set —
+
+| Tracked set (items not `done`) | Derived schedule | Derived deliver |
+|---|---|---|
+| empty | *(muted — no edit)* | — |
+| only `pane`/`none` items | `--backoff --min 1m --max 30m` | `immediate` |
+| any `shell`/`agent` item, and the operator pane has an agent-state epoch | `--idle-every <min(check_every) over the shell+agent items>` | `skip-if-busy` |
+| any `shell`/`agent` item, no epoch | `--every <min(check_every)>` | `skip-if-busy` |
+
+— compared against the structured `schedule`/`deliver` fields of the resolved `rk cron list --json` entry (durations compare as durations, so `2m0s` equals `2m`), and exactly one `rk cron edit <id> <schedule flags> --deliver <policy>` is issued **only when they differ**. A live `clock_override` (written by `track clock --for`) applies instead of the derived value until its `until` passes; an expired override is removed from the file in the next mutation's own atomic write and the derived schedule resumes. The epoch signal is the operator pane's `rk mux panes --json` row carrying a non-null `agent_state` (the operator pane is the pane whose window carries `@rk_win_role=operator`, else the current `$TMUX_PANE`). A muted or leased entry is still edited — the new schedule takes effect when the lease expires; the lease itself is untouched. The entry id is resolved per call from `rk cron list --json` — the row whose `target` is `"role:operator"`, with `name == "operator tick"` as the tiebreak; zero candidates, an unresolved tie, or unparseable output is a silent no-op. Every rk call is `exec.LookPath`-gated, argv-only (never a shell string, no `-L` — rk's own `$TMUX` derivation addresses the server), bounded by a 5s timeout, and fail-silent: rk absent, a non-zero exit, a timeout, or a parse failure never changes the verb's exit code, stdout, or the already-saved state. `tick-start --diff` disables the edge trigger and runs the level-wise form instead — after its baseline write it issues one indefinite mute when the post-tick state is untracked (skipping an already-muted entry), then the same schedule reconcile — so one tick never issues two mutes. The skill-side lease policy is owned by `fab-operator.md` §4 Mute and Lease.
+
+**Legacy conversion** (applies to every `fab operator` verb): a legacy-shaped state file — any of `monitored`/`watches`/`autopilot`/`notes` present with `tracked` absent — converts on the first read-modify-write by any verb (including `tick-start`; the read verbs `state` and `track list` convert-and-save, then read), landing in the **same atomic write** as the verb's own mutation: `monitored.<id>` → `fab-change` items (scope from the entry fields, `checked_at` = `last_transition`); `watches.<name>` → `linear`/`slack` items with `probe: agent`, `probe.instruction` composed from `source` + `query`, `scope.{repo, stop_stage, query}`, `seen` = `known ∪ completed` (200-capped), `then` = `instructions`, `check_every: 5m`, a disabled watch converting `paused: true`; `autopilot.queue` entries not yet in `completed` → pane-less `fab-change` items chained by `depends_on` (nearest same-repo predecessor; a cross-repo entry chains to its immediate predecessor) with `scope.merge_mode` = the queue's `mode`; open `notes` → `kind: note` items keeping their `n<N>` ids; resolved notes are dropped. The legacy keys (including `notes_seq`) are deleted by the conversion; a file with `tracked` already present is never re-converted — a stray legacy key then survives as an unknown top-level key. **Refusal**: when `autopilot.state == running`, the verb exits non-zero with `operator state file has a running autopilot queue — finish or stop it (fab operator autopilot stop on fab ≤2.24) before upgrading` and writes nothing. The user-facing walkthrough is the 2.24.9 → 2.25.0 migration file (under `$(fab kit-path)/migrations/`); it performs no file edits itself — the binary owns the conversion.
 
 ### fab operator state
 
@@ -111,75 +172,56 @@ fleet: []                          # empty-list form when nothing monitored (lik
 fab operator state [--all] [--json]
 ```
 
-Prints the server-keyed state file — YAML verbatim by default, JSON conversion with `--json`. When the file is missing it first persists the empty skeleton (`monitored: {}`, `autopilot: null`, `branch_map: {}`, `watches: {}`, `notes: []`), then prints it — the binary owns the "create if missing" init step, and a pure read of an existing file never rewrites it. In human mode (no `--json`) an OPEN NOTES header — one `# `-prefixed comment line per open note (`id · kind · age · first line of text`) — prints before the dump, keeping stdout parseable YAML for yq consumers; the header is omitted when there are no open notes and never appears in `--json` output. Resolved notes are excluded from the printed `notes:` list unless `--all` (the exclusion re-marshals the parsed state; with nothing to filter the raw bytes print verbatim).
+Prints the server-keyed state file — YAML verbatim by default, JSON conversion with `--json`. When the file is missing it first persists the empty skeleton (`tracked: []`, `branch_map: {}`), then prints it — the binary owns the "create if missing" init step, and a pure read of an existing file never rewrites it (a legacy-shaped file converts first — see **Legacy conversion** above). In human mode (no `--json`) an OPEN NOTES header — one `# `-prefixed comment line per `kind: note` item (`id · note · age-from-updated_at · first line of text`, a note older than 14 days carrying a display-only `⚠ <age>` staleness flag) — prints before the dump, keeping stdout parseable YAML for yq consumers; the header is omitted when there are no note items and never appears in `--json` output. `--all` is a deprecated no-op (the notes section is gone; note items always print).
 
-### fab operator enroll / update / remove
-
-```
-fab operator enroll <change-id> --pane <pane-id> --repo <abs-path> --session <name> --branch <branch> \
-    [--stage <stage>] [--agent <state>] [--stop-stage <stage>] [--spawned-by <watch>] [--depends-on <id,id,...>]
-fab operator update <change-id> [--stage <stage>] [--agent <state>] [--stop-stage <stage>]
-fab operator remove <change-id>
-```
-
-- `enroll` creates (or wholesale-replaces, with a fresh `enrolled_at`) the monitored entry, sets `enrolled_at` + `last_transition` to now, defaults `stop_stage: null` / `spawned_by: null` / `depends_on: []`, **and** records the `branch_map` entry `{ branch, repo }` — enrollment is the documented moment `branch_map` gains its pair, so one command owns both writes. `--pane`, `--repo`, `--session`, `--branch` are required. The `»` window-name rename stays a separate `fab pane window-name ensure-prefix` call.
-- `update` mutates only the passed fields of an existing entry, touching `last_transition` **iff** `--stage` changes the stored value. `--agent` passes through verbatim (fab is a consumer of run-kit's `@rk_pane_agent_state` convention and does not enumerate its states). `--stop-stage ""` clears to null. Unknown change-id → exit non-zero.
-- `remove` deletes the monitored entry and **retains** the `branch_map` entry (the documented persistence policy — downstream dependency resolution needs it; the explicit clear is `branch-map rm`). Unknown change-id → exit non-zero. The `»`→`›` rename stays a separate `fab pane window-name replace-prefix` call.
-- All three verbs carry the operator-clock mute/unmute side effect — see the shared **Clock side effect** paragraph above.
-
-### fab operator note
+### fab operator track
 
 ```
-fab operator note add --kind <dependency_wait|phase_plan|coordination|correction> [--ref <r>]... <text>
-fab operator note resolve <id>
-fab operator note update <id> <text>
-fab operator note list [--open|--all] [--json]
+fab operator track add <id> --kind <kind> [--probe <mode>]
+    [--argv <tok> [--argv <tok> …]] [--fields <a,b>] [--instruction <text>]
+    [--check-every <dur>] [--done-when <pred>] [--then <text>] [--depends-on <id,id,…>]
+    [--scope '<json-object>'] [--text <note-text>] [--mode <merge-mode>]
+    [fab-change sugar: --pane --repo --session --branch --stage --agent --stop-stage --spawned-by]
+fab operator track update <id> [--check-every <dur>] [--done-when <pred>] [--then <text>]
+    [--depends-on <id,id,…>] [--scope '<json-object>'] [--text <t>] [--pause | --resume]
+fab operator track observe <id> (--json '<object>' [--seen <item-id>]… | --error <msg>)
+fab operator track rm <id>
+fab operator track list [--kind <k>] [--json]
+fab operator track clock (--every <dur> | --idle-every <dur>) --for <dur> | --off
 ```
 
-- Notes are the operator's narrative-state surface (routing doctrine: `fab-operator.md` §4 Notes). Each note carries `{ id, kind, text, refs?, created_at, updated_at, resolved, resolved_at }` in a top-level `notes:` **list** (creation order); ids are `n<N>` from the persisted top-level `notes_seq` counter that only increments — **ids are never reused after prune**. Unknown top-level keys (e.g. a legacy hand-written `plan_queue:`) survive every verb.
-- `add` creates the note with binary-set timestamps and `resolved: false`, then prints the id to stdout. Unknown `--kind` or text over the **500-character cap** → exit 1 with a one-line error and no state written. Repeated `--ref` flags accumulate into `refs`. Duplicate text is allowed (dedupe is operator judgment).
-- `resolve` sets `resolved: true` + `resolved_at` (re-resolving is **idempotent** — exit 0, no field changes), then prunes **resolved** notes past a **50-entry cap, oldest-first in list order**; open notes are never pruned. Unknown id → exit 1.
-- `update` replaces the text in place and refreshes `updated_at` (age/staleness render from it); the 500-cap applies. Unknown id → exit 1.
-- `list` defaults to `--open` (open notes only; `--all` includes resolved). Human output is one line per note: `id · kind · age-from-updated_at · first line of text`; a note older than **14 days** carries a display-only `⚠ <age>` staleness flag, and more than **25** open notes produces a warning on **stderr** (stdout stays clean). `--json` emits the filtered notes as JSON with no decoration.
-- `note add --kind coordination` and `note resolve` carry the operator-clock mute/unmute side effect — see the shared **Clock side effect** paragraph above.
+One verb family over the state file's `tracked` list — the replacement for the removed `enroll`/`update`/`remove`, `watch *`, `autopilot *`, and `note *` verbs (removed outright, **no aliases**; legacy state files auto-convert — see **Legacy conversion** above). The binary owns the schema, the timestamps, and the caps; the operator states intent through flags and never hand-writes the YAML.
 
-### fab operator watch
+**Kinds and defaults** — `--kind` is required; the kind fills its defaults at `add` and flags override them:
 
-```
-fab operator watch add <name> --source <linear|slack> --target-repo <abs-path> \
-    [--query <json>] [--stop-stage <stage>] [--instructions <text>]
-fab operator watch rm <name>
-fab operator watch toggle <name> [--on|--off]
-fab operator watch update <name> [--target-repo <path>] [--stop-stage <stage>] [--instructions <text>] [--query <json>]
-fab operator watch checked <name> [--error <msg>]
-fab operator watch seen <name> <item-id>
-fab operator watch complete <name> <item-id>
-```
+| Kind | Default probe | Default `done_when` | Notes |
+|---|---|---|---|
+| `fab-change` | `pane` | null — the built-in predicate (review-pr done/skipped, or at/past `scope.stop_stage`) | The flag sugar writes `scope`; with branch+repo set, the same mutation writes `branch_map[id] = {branch, repo}` |
+| `github-pr` | `shell`: `gh pr view <n> [--repo <owner/repo>] --json state,mergedAt,mergeable`, fields `state, mergedAt, mergeable` | `state == "MERGED"` | Requires `scope.pr` (or explicit `--argv`); `--repo` is derived from `scope.repo` via `gh repo view` at add time when reachable, else omitted (gh infers from cwd); `--argv`/`--fields` override the default probe per part |
+| `linear` / `slack` | `agent` (`--instruction` names the MCP call) | null (standing item — removed by the user) | Carries a binary-capped `seen` list (200 entries, oldest pruned) fed by `observe --seen` |
+| `shell` | `shell` (`--argv` and `--fields` required) | required at add | Generic: deploys, CI runs, any JSON-emitting command |
+| `task` | `none` | null | A held action with `depends_on` and `then` but nothing to probe — the operator runs `then` when the deps are done |
+| `note` | `none` | null | `--text` required (500-char cap); rendered in the frame and the `state` OPEN NOTES header |
 
-- `add` creates the watch with `enabled: true`, empty `known`/`completed`, null `last_checked`/`last_error`. `--query` takes a JSON object string (nested lists/maps like `{"status":["Backlog","Todo"]}` need it) stored as the YAML `query` map; invalid JSON or a non-object → exit non-zero. Duplicate name → exit non-zero.
-- `rm` deletes the watch; `toggle` flips `enabled` (or forces with `--on`/`--off`, mutually exclusive); `update` mutates only the passed fields (`--stop-stage ""` clears to null). Unknown name → exit non-zero.
-- `checked` sets `last_checked` to now and sets `last_error` to `--error` (flag present) or clears it to null (flag absent) — the per-tick query bookkeeping.
-- `seen` appends the item to `known` (idempotent — no duplicates) and enforces the **200-entry cap, oldest pruned first, in the binary**.
-- `complete` moves the item from `known` to `completed` (an item absent from `known` is still added to `completed` — a late completion is never lost — and never duplicated).
-- `watch add` and `watch rm` carry the operator-clock mute/unmute side effect — see the shared **Clock side effect** paragraph above.
+**Probe modes** — each kind allows exactly its default mode (`--probe` naming any other mode, or an unknown mode, exits non-zero):
 
-### fab operator autopilot
+- `pane` — the binary snapshots the pane every tick and joins on `scope.pane`; `check_every` is ignored (forced null).
+- `shell` — the binary runs `probe.argv` on the cadence (see the tick-start probe runner above): argv tokens, never a shell string; only `probe.fields` are extracted and stored into `last`.
+- `agent` — the LLM runs `probe.instruction` when the tick lists the item under `needs_check:` and records the result with `track observe`; the binary never runs it.
+- `none` — never probed (`note`, `task`); `check_every` forced null.
 
-```
-fab operator autopilot start --queue <id,id,...> [--mode <cherry-pick-ladder|merge-auto|stacked-prs>]
-fab operator autopilot pause
-fab operator autopilot resume
-fab operator autopilot advance [--skip]
-fab operator autopilot stop
-```
+**`--done-when` grammar**: one or more clauses joined by ` and `; each clause is `<path> <op> <literal>` where `<path>` is a field name or dotted path (a leading `.` is accepted and stripped), `<op>` ∈ `==`, `!=`, and `<literal>` is a JSON scalar (`"MERGED"`, `42`, `true`, `null`). A path absent from `last` compares as `null`. No `or`, no comparison operators, no functions, no regex — a malformed predicate exits non-zero naming the offending clause. The binary evaluates it at read time against `last` (level-triggered: no verdict is stored).
 
-- `start` resolves the merge mode by the ladder **`--mode` flag (explicitly passed) > config `autopilot.merge_mode` > built-in default `cherry-pick-ladder`**, then sets `{ queue, current: <first>, completed: [], state: running, mode: <resolved> }` and prints `mode: <name> (<source>)` where source is `flag` / `config` / `default`. Flag-absent is detected via flag-changed state, so an explicit `--mode cherry-pick-ladder` still reports source `flag`. The config lookup works from a neutral (fab-less) cwd: with no fab project up the tree, the system tier (`~/.fab-kit/config.yaml`) and env (`FAB_AUTOPILOT_MERGE_MODE`) still compose; a config load error fails soft to the built-in default. An unknown `--mode` value exits non-zero with a one-line error naming the valid modes and writes no state; an invalid **config** value errors the same way but names the key — `invalid autopilot.merge_mode "<value>" in config (valid: cherry-pick-ladder, merge-auto, stacked-prs)` — with no state written (merging is destructive-tier, so there is no silent fallback to a different topology than the one configured).
-- `pause`/`resume` flip `state` between `paused`/`running`; `mode` is retained.
-- `advance` appends `current` to `completed` (unless `--skip`) and promotes the next queue entry; on exhaustion it sets `current: null, state: null` **while retaining `queue`/`completed`/`mode`** so the queue-completion summary can still read them.
-- `stop` clears the whole block to `autopilot: null`.
-- An `autopilot` block lacking `mode` (a pre-existing state file) reads as the built-in default `cherry-pick-ladder` — never config-resolved (the mode was fixed at queue start and persisted); the typed re-marshal writes the field on the next mutation. The binary only stores/validates/prints the mode (via `fab operator state`) — all merge choreography stays in `fab-operator.md` prose.
-- Verbs other than `start` exit non-zero when no queue is active (`stop` tolerates an exhausted-but-retained block).
-- `autopilot start`/`stop` and `advance`-to-exhaustion carry the operator-clock mute/unmute side effect — see the shared **Clock side effect** paragraph above.
+**`--check-every`**: a Go duration with a **1m floor** (below → exit non-zero) and a **5m default** for `shell`/`agent` items when omitted.
+
+- **`add`** creates the item with binary-set `added_at`/`updated_at`, `last: {}`, `depends_on: []`, `failures: 0`, `paused: false`. Duplicate id → exit non-zero (`tracked item <id> already exists`). `--scope` takes a JSON object (invalid JSON or a non-object errors). For `--kind fab-change` the scope starts from nine pinned keys (`pane, repo, session, branch, stage, agent, stop_stage, spawned_by, merge_mode` — null until set), the sugar flags write straight into it (an explicitly-empty value nulls the key; `--stage`/`--stop-stage` validate against the six stage names), and when both branch and repo resolve non-empty the same mutation writes `branch_map[<id>] = {branch, repo}`; the sugar flags and `--mode` on any other kind exit non-zero (`--<flag> applies only to kind fab-change`). A **chained** fab-change (added with `--depends-on` or `--mode`) resolves its merge mode by the ladder `--mode` flag > config `autopilot.merge_mode` (the key keeps its historical name) > built-in `cherry-pick-ladder`, stamps it into `scope.merge_mode`, and prints `mode: <name> (<source>)` with source `flag`/`config`/`default`; an unknown `--mode` value — or an invalid config value, which errors naming the key — exits non-zero with no state written. Every `--depends-on` id must already exist and not name the item itself. `--text` is note-only.
+- **`update`** mutates only the passed fields of an existing item and refreshes `updated_at`: `--check-every` (floor applies; nulled for pane/none items), `--done-when` (re-validated; empty string clears to null), `--then` (empty string clears), `--depends-on` (replaces the list; ids re-validated), `--scope` (**merged per key** over the existing scope), `--text` (note-only; the 500-cap applies), `--pause`/`--resume` (mutually exclusive; `--resume` also zeroes `failures` — the ack that clears a paused-at-cap `probe_error`). Unknown id → exit non-zero (`no tracked item <id>`).
+- **`observe`** records an agent-probe result: exactly one of `--json` / `--error` (both or neither → exit non-zero). `--json` must decode to a JSON object; the declared `probe.fields` (or the whole object when `fields` is empty) are stored into `last` — an equal payload leaves `last` untouched and increments `unchanged`, a differing payload replaces `last` and resets `unchanged` to 0. `checked_at` and `updated_at` move on every observe; `failures` resets to 0. Repeated `--seen` flags append handled item ids to `seen` (deduped; the 200-entry cap prunes oldest first). `--error <msg>` instead increments `failures`; the third consecutive failure sets `paused: true`.
+- **`rm`** deletes the item — the ack for `done` and the pane deltas. A fab-change item's `branch_map` entry is **retained** (downstream dependency resolution needs it; the explicit clear is `branch-map rm`). Unknown id → exit non-zero.
+- **`list`** prints one line per item — `id · kind · state · checked-age · next` — or the items array with `--json`; `--kind` filters to one kind (an unknown kind errors). The state is derived from `done_when` and the stored fields only — no pane snapshot (a pane item with a pane reads `live`; the tick's join is the authoritative liveness check), so a dependent of a fab-change dep that completed via the built-in predicate still shows `held` in `list` until the next tick. Checked-age renders `—` for held items, `live` for pane items, the age since `checked_at` for probed items, and the age since `updated_at` for notes.
+- **`clock`** writes the bounded cadence override — top-level `clock_override: { schedule: { kind: every|idle-every, every: <dur> }, deliver: skip-if-busy, until: <RFC3339> }` — which the schedule reconcile applies instead of the derived value until `until` passes (the expired override is then removed and the derived schedule resumes). `--for` is **required** — an override without it exits non-zero (unbounded overrides are forbidden; use `--off` to clear); `--for` must be positive; the cadence obeys the 1m floor; exactly one of `--every`/`--idle-every`. `track clock --off` deletes the override early and takes no other flags.
+
+All six verbs carry the operator-clock side effect (the mute/unmute flip plus the schedule reconcile) — see the shared **Clock side effect** paragraph above.
 
 ### fab operator branch-map rm
 
@@ -188,7 +230,7 @@ fab operator branch-map rm <change-id>
 fab operator branch-map rm --all
 ```
 
-Entries are *written* by `enroll` and retained by `remove`; this verb is the documented "user explicitly clears them" path — one entry, or the whole map with `--all`. Unknown change-id → exit non-zero.
+Entries are *written* by `track add --kind fab-change` and retained by `track rm`; this verb is the documented "user explicitly clears them" path — one entry, or the whole map with `--all`. Unknown change-id → exit non-zero.
 
 ### fab operator time
 

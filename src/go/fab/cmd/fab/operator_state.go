@@ -15,61 +15,19 @@ import (
 // Shared operator state-file IO. Every `fab operator` state subcommand reads
 // the whole file tolerantly (unknown TOP-LEVEL keys survive a read-modify-write
 // — the tick-start posture, so a legacy hand-drifted file never wedges the
-// operator) and re-marshals the five OWNED sections (monitored, autopilot,
-// branch_map, watches, notes) from the typed structs below on mutation — an
-// invented field inside an owned section can neither be introduced nor survive
-// a mutation of that section. All writes go through atomicfile.WriteFile; all
-// timestamps are computed here (RFC3339 UTC) — no subcommand accepts one.
-
-// monitoredEntry is one `monitored` entry — the fab-operator.md §4 schema,
-// byte-compatibly.
-type monitoredEntry struct {
-	Pane           string   `yaml:"pane"`
-	Repo           string   `yaml:"repo"`
-	Session        string   `yaml:"session"`
-	Stage          string   `yaml:"stage,omitempty"`
-	Agent          string   `yaml:"agent,omitempty"`
-	StopStage      *string  `yaml:"stop_stage"`
-	SpawnedBy      *string  `yaml:"spawned_by"`
-	DependsOn      []string `yaml:"depends_on"`
-	Branch         string   `yaml:"branch"`
-	EnrolledAt     string   `yaml:"enrolled_at"`
-	LastTransition string   `yaml:"last_transition"`
-}
-
-// autopilotState is the top-level `autopilot` block (absent → `autopilot: null`).
-type autopilotState struct {
-	Queue     []string `yaml:"queue"`
-	Current   *string  `yaml:"current"`
-	Completed []string `yaml:"completed"`
-	State     *string  `yaml:"state"`
-	Mode      string   `yaml:"mode"`
-}
+// operator) and re-marshals the OWNED sections (tracked, branch_map,
+// clock_override) from typed structs on mutation — an invented field inside an
+// owned section can neither be introduced nor survive a mutation of that
+// section. All writes go through atomicfile.WriteFile; all timestamps are
+// computed here (RFC3339 UTC) — no subcommand accepts one. The legacy
+// sections (monitored/watches/autopilot/notes/notes_seq) exist only for the
+// first-touch conversion in operator_migrate.go.
 
 // branchMapEntry is one `branch_map` value ({ branch, repo }).
 type branchMapEntry struct {
 	Branch string `yaml:"branch"`
 	Repo   string `yaml:"repo"`
 }
-
-// watchEntry is one `watches` entry — the fab-operator.md §7 schema,
-// byte-compatibly.
-type watchEntry struct {
-	Enabled      bool                   `yaml:"enabled"`
-	Source       string                 `yaml:"source"`
-	Query        map[string]interface{} `yaml:"query,omitempty"`
-	TargetRepo   string                 `yaml:"target_repo"`
-	StopStage    *string                `yaml:"stop_stage"`
-	Known        []string               `yaml:"known"`
-	Completed    []string               `yaml:"completed"`
-	LastChecked  *string                `yaml:"last_checked"`
-	LastError    *string                `yaml:"last_error"`
-	Instructions string                 `yaml:"instructions,omitempty"`
-}
-
-// knownCap is the binary-enforced cap on a watch's `known` list (oldest pruned
-// first) — previously an agent-counted prose rule.
-const knownCap = 200
 
 // nowRFC3339 is the single timestamp source for every state mutation.
 func nowRFC3339() string {
@@ -122,22 +80,24 @@ func saveOperatorState(path string, data map[string]interface{}) error {
 }
 
 // mutateOperatorState is the read-modify-write skeleton every mutation verb
-// runs: load (tolerant) → fn applies typed edits → save (atomic). fn errors
-// abort without writing. After a successful save it runs the clock side
-// effect (operator_clock.go): when the mutation flipped the tracked
-// predicate, the operator-tick cron entry is muted (tracked→untracked) or
-// unmuted (untracked→tracked) via `rk cron mute`. The side effect is
-// edge-triggered and fail-silent — an absent/failing rk never surfaces here,
-// never changes the verb's exit code or stdout, and a failed save issues no
-// rk call (the clock never diverges from a state that was not persisted).
+// runs: load (tolerant) → legacy conversion (R5) → fn applies typed edits →
+// save (atomic). fn errors abort without writing. After a successful save it
+// runs the clock side effects (operator_clock.go): when the mutation flipped
+// the tracked predicate, the operator-tick cron entry is muted
+// (tracked→untracked) or unmuted (untracked→tracked) via `rk cron mute`, then
+// the derived schedule is reconciled via `rk cron edit` (B3). The side
+// effects are edge-triggered / on-change-only and fail-silent — an
+// absent/failing rk never surfaces here, never changes the verb's exit code
+// or stdout, and a failed save issues no rk call (the clock never diverges
+// from a state that was not persisted).
 func mutateOperatorState(fn func(data map[string]interface{}) error) error {
 	return mutateOperatorStateClock(fn, true)
 }
 
-// mutateOperatorStateClock is mutateOperatorState with the clock side effect
+// mutateOperatorStateClock is mutateOperatorState with the clock side effects
 // switchable: tick-start --diff disables the edge trigger and runs the
-// level-wise reconcile instead (muteOperatorClockIfUntracked), so one
-// invocation never issues two mutes.
+// level-wise reconciles instead (muteOperatorClockIfUntracked +
+// reconcileOperatorSchedule), so one invocation never issues two mutes.
 func mutateOperatorStateClock(fn func(data map[string]interface{}) error, syncClock bool) error {
 	path, err := operatorStatePath()
 	if err != nil {
@@ -147,16 +107,25 @@ func mutateOperatorStateClock(fn func(data map[string]interface{}) error, syncCl
 	if err != nil {
 		return err
 	}
+	// Legacy files convert on the first read-modify-write, landing in the same
+	// atomic write as fn's own mutation (R5); a running autopilot queue refuses.
+	if err := convertLegacyOperatorState(data); err != nil {
+		return err
+	}
 	before := operatorTracked(data)
 	if err := fn(data); err != nil {
 		return err
 	}
+	// An expired clock_override is removed in this same write (R13) — the
+	// schedule reconcile then derives (and applies) the reverted value.
+	expireClockOverride(data, time.Now())
 	after := operatorTracked(data)
 	if err := saveOperatorState(path, data); err != nil {
 		return err
 	}
 	if syncClock {
 		syncOperatorClock(before, after)
+		reconcileOperatorSchedule(data)
 	}
 	return nil
 }
@@ -191,11 +160,8 @@ func validStage(s string) bool {
 // emptyOperatorState is the skeleton `state` persists when the file is missing.
 func emptyOperatorState() map[string]interface{} {
 	return map[string]interface{}{
-		"monitored":  map[string]interface{}{},
-		"autopilot":  nil,
+		"tracked":    []interface{}{},
 		"branch_map": map[string]interface{}{},
-		"watches":    map[string]interface{}{},
-		"notes":      []interface{}{},
 	}
 }
 
@@ -206,7 +172,7 @@ func operatorStateCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE:  runOperatorState,
 	}
-	cmd.Flags().Bool("all", false, "include resolved notes in the notes list (excluded by default)")
+	cmd.Flags().Bool("all", false, "deprecated no-op (the notes section is gone; kind: note items always print)")
 	cmd.Flags().Bool("json", false, "print the state as JSON instead of YAML")
 	return cmd
 }
@@ -231,48 +197,51 @@ func runOperatorState(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("cannot marshal %s: %w", path, err)
 		}
+	} else {
+		// A legacy-shaped file converts on this read-modify-write like on any
+		// other verb (R5), refusing while an autopilot queue is running; the
+		// read then continues from the converted file.
+		var probe map[string]interface{}
+		if err := yaml.Unmarshal(raw, &probe); err != nil {
+			return fmt.Errorf("cannot parse %s: %w", path, err)
+		}
+		if legacyOperatorState(probe) {
+			if _, err := loadOperatorStateUpgraded(path); err != nil {
+				return err
+			}
+			if raw, err = os.ReadFile(path); err != nil {
+				return fmt.Errorf("cannot read %s: %w", path, err)
+			}
+		}
 	}
 
 	w := cmd.OutOrStdout()
 	asJSON, _ := cmd.Flags().GetBool("json")
-	showAll, _ := cmd.Flags().GetBool("all")
 
 	var data map[string]interface{}
 	if err := yaml.Unmarshal(raw, &data); err != nil {
 		return fmt.Errorf("cannot parse %s: %w", path, err)
 	}
-	notes, err := readNotes(data)
+	items, err := decodeTrackedItems(data)
 	if err != nil {
 		return err
 	}
-	open := []noteEntry{}
-	hasResolved := false
-	for _, n := range notes {
-		if n.Resolved {
-			hasResolved = true
-		} else {
-			open = append(open, n)
-		}
-	}
-	// Resolved notes are excluded unless --all. Filtering re-marshals the
-	// parsed state; with nothing to filter the raw bytes print verbatim (the
-	// read never rewrites the file, and untouched files stay byte-stable).
-	filtering := hasResolved && !showAll
-	if filtering {
-		data["notes"] = open
-		if raw, err = yaml.Marshal(data); err != nil {
-			return fmt.Errorf("cannot marshal %s: %w", path, err)
+	notes := []trackedItem{}
+	for _, it := range items {
+		if it.Kind == kindNote {
+			notes = append(notes, it)
 		}
 	}
 
 	if !asJSON {
 		// OPEN NOTES header — human output only: comment-prefixed so stdout
-		// stays parseable YAML for yq consumers. Omitted when nothing is open.
-		if len(open) > 0 {
+		// stays parseable YAML for yq consumers. Omitted when no kind: note
+		// items exist.
+		if len(notes) > 0 {
 			now := time.Now().UTC()
-			fmt.Fprintf(w, "# OPEN NOTES (%d)\n", len(open))
-			for _, n := range open {
-				fmt.Fprintf(w, "# %s\n", formatNoteLine(n, now))
+			fmt.Fprintf(w, "# OPEN NOTES (%d)\n", len(notes))
+			for _, n := range notes {
+				fmt.Fprintf(w, "# %s\n", formatTrackNoteLine(n, now))
 			}
 		}
 		_, err = w.Write(raw)

@@ -101,7 +101,7 @@ For detailed visual maps of how commands connect — including shortcuts, rework
 | `/fab-switch` | Change active change | Updated pointer file |
 | `/fab-status` | Check progress | Status display |
 | `/fab-discuss` | Prime agent with project context for discussion | — (read-only) |
-| `/fab-operator` | Multi-agent coordination across tmux panes — monitoring, auto-answering, autopilot queues | — (coordination state) |
+| `/fab-operator` | Multi-agent coordination across tmux panes — monitoring, auto-answering, tracked work queues | — (coordination state) |
 | `fab batch new` | Create changes from backlog items | Worktree + tmux tab per item |
 | `fab batch switch` | Switch to existing changes | Worktree + tmux tab per change |
 | `fab batch archive` | Archive completed changes | Folder(s) moved to archive/, backlog marked |

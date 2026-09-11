@@ -74,7 +74,7 @@
 | `/fab-status` | Displays current change state — stage progress, plan counts (tasks + acceptance), suggested next command. |
 | `/docs-hydrate-specs` | Identifies gaps between `docs/memory/` and `docs/specs/`, proposes additions with interactive confirmation. No active change required. |
 | `/fab-discuss` | Primes the agent with project context for an exploratory session — loads the always-load layer and reports an orientation summary of the repo landscape. Session entry point, not a pipeline stage. Read-only; ends with a ready signal rather than a `Next:` line. |
-| `/fab-operator` | Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across every session on its tmux server, routes commands, auto-answers prompts, and drives autopilot queues. Coordinates but never implements — all pipeline work is spawned into a fresh worktree agent. See [operator](operator.md). |
+| `/fab-operator` | Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across every session on its tmux server, routes commands, auto-answers prompts, and drives tracked work queues. Coordinates but never implements — all pipeline work is spawned into a fresh worktree agent. See [operator](operator.md). |
 | `/git-branch` | Creates or checks out the git branch matching the active (or specified) change. Standalone git command — never modifies fab state. Idempotent. |
 | `/fab-help` | Prints an overview of available Fab skills and their purposes. |
 
