@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 5
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-09-11T18:07:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-11T18:10:52Z"}
     review: {started_at: "2026-09-11T18:10:52Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-11T18:15:33Z"}
     hydrate: {started_at: "2026-09-11T18:15:33Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-11T18:16:33Z"}
-    ship: {started_at: "2026-09-11T18:16:33Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-09-11T18:16:33Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-11T18:18:13Z"}
+    review-pr: {started_at: "2026-09-11T18:18:13Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/669
 change_type_source: explicit
 true_impact:
-    added: 2076
-    deleted: 322
-    net: 1754
+    added: 2439
+    deleted: 335
+    net: 2104
     excluding:
-        added: 1324
-        deleted: 281
-        net: 1043
+        added: 1337
+        deleted: 292
+        net: 1045
     tests:
         added: 729
         deleted: 73
         net: 656
-    computed_at: "2026-09-11T18:16:33Z"
-    computed_at_stage: hydrate
+    computed_at: "2026-09-11T18:18:13Z"
+    computed_at_stage: ship
 summary: 'Operator gains a non-fab-repo work path: a plain agent in a fresh worktree (raw prompt + draft-PR instruction, change-less pane item, chained github-pr completion); Pipeline-first scoped to fab projects; fab init never a default'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-09-11T18:16:33Z
+last_updated: 2026-09-11T18:18:13Z
