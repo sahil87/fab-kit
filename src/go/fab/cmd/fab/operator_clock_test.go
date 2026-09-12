@@ -28,6 +28,15 @@ const cronListLegacyBackoffJSON = `[{"id":"cron-op","name":"operator tick","sche
 // policy — a deliver-only drift must still be converged.
 const cronListBackoffImmediateJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"3m0s","max":"24m0s"},"deliver":"immediate","target":"role:operator","pinned":true,"muted":false}]`
 
+// cronListBackoffEnvelopeJSON is cronListBackoffJSON inside run-kit's D5
+// {ok,result} envelope — the shape run-kit ≥ 3.19 prints; the row must
+// resolve identically from both shapes.
+const cronListBackoffEnvelopeJSON = `{"ok":true,"result":` + cronListBackoffJSON + `}`
+
+// cronListErrorEnvelopeJSON is the D5 failure envelope — treated exactly like
+// unparseable output: the silent no-op.
+const cronListErrorEnvelopeJSON = `{"ok":false,"error":{"code":"operational","message":"list sessions: exit status 1"}}`
+
 // cronListIdleEvery2mJSON carries the entry on the derived shell/agent
 // schedule (epoch present): idle-every 2m, skip-if-busy.
 const cronListIdleEvery2mJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"idle-every","every":"2m0s"},"deliver":"skip-if-busy","target":"role:operator","pinned":true,"muted":false}]`
@@ -286,6 +295,10 @@ func TestReconcile_DerivedSchedule(t *testing.T) {
 			[]string{"cron-op", "--every", "2m", "--deliver", "skip-if-busy"}},
 		{"R12: equal row (2m0s == 2m) issues nothing", seedTwoShellItems, cronListIdleEvery2mJSON, true, nil},
 		{"backoff row equal to derived backoff issues nothing", seedOnePaneItem, cronListBackoffJSON, false, nil},
+		{"D5 envelope: enveloped backoff row resolves and issues nothing", seedOnePaneItem, cronListBackoffEnvelopeJSON, false, nil},
+		{"D5 envelope: enveloped drifted row converges", seedTwoShellItems, cronListBackoffEnvelopeJSON, true,
+			[]string{"cron-op", "--idle-every", "2m", "--deliver", "skip-if-busy"}},
+		{"D5 envelope: ok:false is the silent no-op", seedTwoShellItems, cronListErrorEnvelopeJSON, true, nil},
 		{"upgrade path: legacy 1m→30m/immediate row converges in one edit", seedOnePaneItem, cronListLegacyBackoffJSON, false,
 			[]string{"cron-op", "--backoff", "--min", "3m", "--max", "24m", "--deliver", "skip-if-busy"}},
 		{"deliver-only drift (immediate on the derived bounds) is edited", seedOnePaneItem, cronListBackoffImmediateJSON, false,
@@ -356,6 +369,8 @@ func TestOperatorPaneEpoch(t *testing.T) {
 		{"$TMUX_PANE row with null agent_state", `[{"window_id":"@9","pane":"%7","agent_state":null}]`, nil, "", nil, "%7", false},
 		{"rk failure degrades to no epoch", "", errors.New("no rk"), "@1\toperator\n", nil, "", false},
 		{"no matching row", `[{"window_id":"@2","pane":"%2","agent_state":"active"}]`, nil, "@1\toperator\n", nil, "", false},
+		{"D5 envelope: enveloped role-window row has an epoch", `{"ok":true,"result":[{"window_id":"@1","pane":"%1","agent_state":"active"}]}`, nil, "@1\toperator\n", nil, "", true},
+		{"D5 envelope: ok:false degrades to no epoch", `{"ok":false,"error":{"code":"operational","message":"boom"}}`, nil, "@1\toperator\n", nil, "", false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

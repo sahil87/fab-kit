@@ -1,5 +1,6 @@
 # Archive Index
 
+- **260911-tnmm-operator-clock-skip-if-busy-ladder** — Operator Clock — Single `skip-if-busy` Deliver Policy, 3m→24m Backoff Ladder, Debounce Doc Fix
 - **260910-si4k-operator-rk-mandatory-helper-split** — Operator loading and dependency — rk-mandatory skill, `_cli-fab.md` split by command family, live clock cadence
 - **260911-4a8m-operator-generic-tracked-items** — Operator Generic Tracked Items — one tracked-item model, probe loop, derived schedule, one-table frame
 - **260830-m4ai-config-upgrade-system-scaffold** — Config Upgrade — System Scaffold Regeneration

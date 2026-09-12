@@ -308,6 +308,33 @@ func TestProbeRKFailOpen(t *testing.T) {
 	}
 }
 
+// TestProbeRKNarrowFallsThroughSilently pins rk's fifth report word: `narrow`
+// means rk declined to classify a pane under its own geometry floor. fab's
+// raw arm has no such floor, so the probe hands off to it SILENTLY — no
+// fail-open warning, because nothing failed.
+func TestProbeRKNarrowFallsThroughSilently(t *testing.T) {
+	forceRKCapable(t, true)
+	calls := stubRKAwait(t, "narrow %17 (77x40)\n", nil, nil)
+	warnings := captureRKWarnings(t)
+	io := newFakeIO("$ " + ReadySentinel)
+	state, _, err := testGate(io).Probe("%17")
+	if err != nil {
+		t.Fatalf("Probe: %v", err)
+	}
+	if len(*calls) != 1 {
+		t.Fatalf("rk await calls = %d, want 1", len(*calls))
+	}
+	if state != ReadyReady {
+		t.Errorf("state = %q, want %q from the raw-tmux arm", state, ReadyReady)
+	}
+	if !strings.Contains(strings.Join(io.sends, ","), "literal:"+ReadySentinel) {
+		t.Errorf("sends = %v, want the raw arm's sentinel typed after the hand-off", io.sends)
+	}
+	if len(*warnings) != 0 {
+		t.Errorf("warnings = %v, want none — narrow is a hand-off, not a failure", *warnings)
+	}
+}
+
 // TestProbeRKWarningFiresOncePerProcess pins the warn-once rule: a per-probe
 // warning would spam the gate loop's re-probes.
 func TestProbeRKWarningFiresOncePerProcess(t *testing.T) {

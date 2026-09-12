@@ -102,7 +102,8 @@ type operatorCronRow struct {
 	Deliver    string               `json:"deliver"`
 }
 
-// resolveOperatorCronRow runs `rk cron list --json` and selects the
+// resolveOperatorCronRow runs `rk cron list --json` (bare array or the
+// {ok,result} envelope — unwrapRkJSON) and selects the
 // operator-tick entry: the row whose target equals operatorCronTarget, with
 // name == operatorCronName as the tiebreak when several match. Zero
 // candidates, an unresolved tie, an rk failure, or unparseable output is a
@@ -112,8 +113,12 @@ func resolveOperatorCronRow() (operatorCronRow, bool) {
 	if err != nil {
 		return operatorCronRow{}, false
 	}
+	payload, err := unwrapRkJSON([]byte(out))
+	if err != nil {
+		return operatorCronRow{}, false
+	}
 	var rows []operatorCronRow
-	if err := json.Unmarshal([]byte(out), &rows); err != nil {
+	if err := json.Unmarshal(payload, &rows); err != nil {
 		return operatorCronRow{}, false
 	}
 	var candidates []operatorCronRow
@@ -378,8 +383,12 @@ func operatorPaneEpoch() bool {
 	if err != nil {
 		return false
 	}
+	payload, err := unwrapRkJSON(out)
+	if err != nil {
+		return false
+	}
 	var rows []rkPaneRow
-	if err := json.Unmarshal(out, &rows); err != nil {
+	if err := json.Unmarshal(payload, &rows); err != nil {
 		return false
 	}
 	winID := ""

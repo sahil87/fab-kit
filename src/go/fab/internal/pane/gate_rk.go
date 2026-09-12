@@ -102,6 +102,11 @@ func rkSentinelCapable() bool {
 	return rkCapableValue
 }
 
+// rkReportNarrow is rk's "declined to classify" report word: the pane sits
+// under rk's readiness geometry floor. It is not a fab Readiness state — fab
+// never prints it — so it stays a token, not a constant in that set.
+const rkReportNarrow = "narrow"
+
 // rkReportToken extracts the classification token from rk's report — the first
 // field of stdout's first line ("ready %5 (echo)" → "ready", "parked %5" →
 // "parked"). Empty or whitespace-only stdout yields "".

@@ -251,7 +251,8 @@ var rkPanesRunner = func(server string) ([]byte, error) {
 	return exec.Command("rk", rkPanesArgs(server)...).Output()
 }
 
-// parseRKPanes maps `rk mux panes --json` output to pane entries: pane←pane,
+// parseRKPanes maps `rk mux panes --json` output — the bare array or the
+// {ok,result} envelope, normalized by unwrapRkJSON — to pane entries: pane←pane,
 // tab←window_name, cwd←cwd, session←session, index←window_index,
 // windowID←window_id. Agent state is rk's RECONCILED value taken structurally —
 // never re-read from the agent-state option. Two contract adaptations:
@@ -261,8 +262,12 @@ var rkPanesRunner = func(server string) ([]byte, error) {
 // keeps its published idle-only semantics (the verbatim value survives on the
 // snapshot-internal state duration for waiting and idle alike).
 func parseRKPanes(data []byte) ([]paneEntry, error) {
+	payload, err := unwrapRkJSON(data)
+	if err != nil {
+		return nil, err
+	}
 	var rows []rkPaneRow
-	if err := json.Unmarshal(data, &rows); err != nil {
+	if err := json.Unmarshal(payload, &rows); err != nil {
 		return nil, err
 	}
 	panes := make([]paneEntry, 0, len(rows))
