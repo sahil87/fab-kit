@@ -42,6 +42,7 @@ skill prompt, prefixed for the launched provider (the skill_prefix key of
 		operatorStateCmd(),
 		operatorTrackCmd(),
 		operatorBranchMapCmd(),
+		operatorClockCmd(),
 	)
 	return cmd
 }

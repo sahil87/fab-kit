@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 
@@ -513,4 +515,238 @@ func TestClockSync_SaveFailureIssuesNoCall(t *testing.T) {
 	if len(*calls) != 0 {
 		t.Errorf("rk calls = %v, want none (state not persisted)", *calls)
 	}
+}
+
+// --- bjrk: seed-if-missing + clock sync ---------------------------------------
+
+// stubRkCronSeeding serves an EMPTY list for the first `cron list --json`
+// and seededJSON for every later one, records every argv (including the
+// `cron add`), and fails the add when addErr is set. A sibling of stubRkCron
+// so every existing fixture-served case stays untouched.
+func stubRkCronSeeding(t *testing.T, seededJSON string, addErr error) *[][]string {
+	t.Helper()
+	calls := [][]string{}
+	lists := 0
+	prev := rkCronRunner
+	rkCronRunner = func(args ...string) (string, error) {
+		calls = append(calls, append([]string{}, args...))
+		if len(args) == 3 && args[0] == "cron" && args[1] == "list" {
+			lists++
+			if lists == 1 {
+				return `{"ok":true,"result":[]}`, nil
+			}
+			return seededJSON, nil
+		}
+		if len(args) >= 2 && args[0] == "cron" && args[1] == "add" && addErr != nil {
+			return "", addErr
+		}
+		return "", nil
+	}
+	t.Cleanup(func() { rkCronRunner = prev })
+	return &calls
+}
+
+func wantAdds(t *testing.T, calls [][]string, want ...[]string) {
+	t.Helper()
+	wantCronCalls(t, calls, "add", want...)
+}
+
+// seededOperatorCronAddArgv is the rendered seed argv after the leading
+// `cron add` — asserted element-by-element so a drift in any value fails.
+var seededOperatorCronAddArgv = []string{
+	"operator tick",
+	"--name", "operator tick",
+	"--backoff", "--min", "3m", "--max", "24m",
+	"--role", "operator",
+	"--deliver", "skip-if-busy",
+	"--wake-on", "agent-state-change",
+	"--wake-scope", "server",
+	"--wake-debounce", "60s",
+	"--if-absent", "respawn",
+	"--respawn", "rk", "--respawn", "operator", "--respawn", "-L", "--respawn", "{server}",
+	"--pinned",
+}
+
+// cronListTwoOperatorRowsJSON carries two role:operator rows — an unresolved
+// tie unless exactly one is named "operator tick".
+const cronListTwoOperatorRowsJSON = `[{"id":"other","name":"nightly","schedule":{"kind":"cron"},"deliver":"immediate","target":"role:operator","pinned":false,"muted":false},` +
+	`{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"3m0s","max":"24m0s"},"schedule_summary":"backoff 3m→24m","deliver":"skip-if-busy","target":"role:operator","pinned":true,"muted":false}]`
+
+const cronListTwoUnnamedRowsJSON = `[{"id":"a","name":"x","schedule":{"kind":"cron"},"deliver":"immediate","target":"role:operator","pinned":false,"muted":false},` +
+	`{"id":"b","name":"y","schedule":{"kind":"cron"},"deliver":"immediate","target":"role:operator","pinned":false,"muted":false}]`
+
+func TestEnsureOperatorCronRow_Seeding(t *testing.T) {
+	t.Run("zero candidates → one add with the full argv, then the seeded row", func(t *testing.T) {
+		calls := stubRkCronSeeding(t, cronListBackoffJSON, nil)
+		row, ok := ensureOperatorCronRow()
+		if !ok || row.ID != "cron-op" {
+			t.Fatalf("row = %+v ok=%v, want the seeded cron-op row", row, ok)
+		}
+		wantAdds(t, *calls, seededOperatorCronAddArgv)
+		if n := len(cronCalls(*calls, "list")); n != 2 {
+			t.Errorf("list calls = %d, want exactly 2 (before and after the seed)", n)
+		}
+	})
+	t.Run("row present → zero adds", func(t *testing.T) {
+		calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
+		if _, ok := ensureOperatorCronRow(); !ok {
+			t.Fatal("want the existing row")
+		}
+		wantAdds(t, *calls)
+	})
+	t.Run("add fails → silent no-op, no row", func(t *testing.T) {
+		calls := stubRkCronSeeding(t, cronListBackoffJSON, errors.New("rk: boom"))
+		if _, ok := ensureOperatorCronRow(); ok {
+			t.Fatal("want ok=false after a failed add")
+		}
+		if n := len(cronCalls(*calls, "add")); n != 1 {
+			t.Errorf("add attempts = %d, want exactly 1 (no retry)", n)
+		}
+		wantMutes(t, *calls)
+		wantEdits(t, *calls)
+	})
+	t.Run("rk list failure → never seed", func(t *testing.T) {
+		calls := stubRkCron(t, "", errors.New("rk: down"), nil)
+		if _, ok := ensureOperatorCronRow(); ok {
+			t.Fatal("want ok=false")
+		}
+		wantAdds(t, *calls)
+	})
+	t.Run("ok:false envelope → never seed", func(t *testing.T) {
+		calls := stubRkCron(t, cronListErrorEnvelopeJSON, nil, nil)
+		if _, ok := ensureOperatorCronRow(); ok {
+			t.Fatal("want ok=false")
+		}
+		wantAdds(t, *calls)
+	})
+	t.Run("two-row tie → never seed", func(t *testing.T) {
+		calls := stubRkCron(t, cronListTwoUnnamedRowsJSON, nil, nil)
+		if _, ok := ensureOperatorCronRow(); ok {
+			t.Fatal("want ok=false on an unresolved tie")
+		}
+		wantAdds(t, *calls)
+	})
+	t.Run("seeded row resolved by the name tiebreak beside an unrelated row", func(t *testing.T) {
+		stubRkCronSeeding(t, cronListTwoOperatorRowsJSON, nil)
+		row, ok := ensureOperatorCronRow()
+		if !ok || row.ID != "cron-op" {
+			t.Fatalf("row = %+v ok=%v, want cron-op via the operator-tick name tiebreak", row, ok)
+		}
+	})
+}
+
+func TestTickStart_SeedsThenMutesAnUntrackedSet(t *testing.T) {
+	withOperatorState(t, seedDoneItem)
+	stubQuietClock(t)
+	calls := stubRkCronSeeding(t, cronListBackoffJSON, nil)
+	if _, err := runTickDiffArgs(t, "--diff", "--quiet"); err != nil {
+		t.Fatalf("tick-start --diff --quiet: %v", err)
+	}
+	wantAdds(t, *calls, seededOperatorCronAddArgv)
+	// The freshly seeded (unmuted) row on an all-done set gets exactly one mute.
+	wantMutes(t, *calls, []string{"cron-op"})
+}
+
+func runClockSync(t *testing.T) (string, string, error) {
+	t.Helper()
+	cmd := operatorClockCmd()
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SilenceUsage = true
+	cmd.SetArgs([]string{"sync"})
+	err := cmd.Execute()
+	return stdout.String(), stderr.String(), err
+}
+
+func TestOperatorClockSync(t *testing.T) {
+	t.Run("happy path prints the five keys verbatim", func(t *testing.T) {
+		withOperatorState(t, seedOnePaneItem)
+		stubEpoch(t, false)
+		calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
+		out, _, err := runClockSync(t)
+		if err != nil {
+			t.Fatalf("clock sync: %v", err)
+		}
+		want := "id: cron-op\nschedule_summary: \"\"\ndeliver: skip-if-busy\nmuted: false\nmuted_until: null\n"
+		if out != want {
+			t.Errorf("stdout =\n%s\nwant\n%s", out, want)
+		}
+		wantAdds(t, *calls)
+		wantMutes(t, *calls)
+		wantEdits(t, *calls) // tracked + unmuted + on the derived schedule → nothing to do
+	})
+	t.Run("schedule_summary is rk's own rendering", func(t *testing.T) {
+		withOperatorState(t, seedOnePaneItem)
+		stubEpoch(t, false)
+		stubRkCron(t, cronListTwoOperatorRowsJSON, nil, nil)
+		out, _, err := runClockSync(t)
+		if err != nil {
+			t.Fatalf("clock sync: %v", err)
+		}
+		if !strings.Contains(out, "schedule_summary: backoff 3m→24m\n") {
+			t.Errorf("stdout = %q, want rk's schedule_summary verbatim", out)
+		}
+	})
+	t.Run("tracked + muted row → one mute --off", func(t *testing.T) {
+		withOperatorState(t, seedOnePaneItem)
+		stubEpoch(t, false)
+		calls := stubRkCron(t, cronListBackoffMutedJSON, nil, nil)
+		if _, _, err := runClockSync(t); err != nil {
+			t.Fatalf("clock sync: %v", err)
+		}
+		wantMutes(t, *calls, []string{"cron-op", "--off"})
+	})
+	t.Run("untracked + unmuted row → one mute", func(t *testing.T) {
+		withOperatorState(t, seedDoneItem)
+		stubEpoch(t, false)
+		calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
+		if _, _, err := runClockSync(t); err != nil {
+			t.Fatalf("clock sync: %v", err)
+		}
+		wantMutes(t, *calls, []string{"cron-op"})
+	})
+	t.Run("no row anywhere → seeds, then prints the seeded row", func(t *testing.T) {
+		withOperatorState(t, seedOnePaneItem)
+		stubEpoch(t, false)
+		calls := stubRkCronSeeding(t, cronListBackoffJSON, nil)
+		out, _, err := runClockSync(t)
+		if err != nil {
+			t.Fatalf("clock sync: %v", err)
+		}
+		wantAdds(t, *calls, seededOperatorCronAddArgv)
+		if !strings.HasPrefix(out, "id: cron-op\n") {
+			t.Errorf("stdout = %q, want the seeded row", out)
+		}
+	})
+	t.Run("unresolvable → non-zero, one stderr line, no document", func(t *testing.T) {
+		withOperatorState(t, seedOnePaneItem)
+		stubEpoch(t, false)
+		stubRkCron(t, "", errors.New("rk: down"), nil)
+		out, _, err := runClockSync(t)
+		if err == nil {
+			t.Fatal("want a non-zero exit when the entry cannot be resolved or seeded")
+		}
+		if !strings.Contains(err.Error(), "could not resolve or seed the operator-tick cron entry") {
+			t.Errorf("error = %q", err)
+		}
+		if out != "" {
+			t.Errorf("stdout = %q, want no document", out)
+		}
+	})
+	t.Run("missing state file is a plain error, no skeleton created", func(t *testing.T) {
+		path := withOperatorState(t, "")
+		stubEpoch(t, false)
+		stubRkCron(t, cronListBackoffJSON, nil, nil)
+		out, _, err := runClockSync(t)
+		if err == nil || !strings.Contains(err.Error(), "operator state file not found") {
+			t.Fatalf("err = %v, want the missing-state-file error", err)
+		}
+		if out != "" {
+			t.Errorf("stdout = %q, want no document", out)
+		}
+		if _, err := os.Stat(path); err == nil {
+			t.Errorf("clock sync created the state skeleton at %s; it must not", path)
+		}
+	})
 }
