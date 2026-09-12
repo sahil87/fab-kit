@@ -106,7 +106,7 @@ points do NOT silently skip: they stop with an actionable install hint
 when it is absent (per § Functional entry points).
 
 > `wt`'s command set (`list`/`create`/`delete`/…), the `wt create` flags
-> (`--non-interactive`/`--worktree-name`/`--reuse`/`--base`/`--checkout` + the
+> (`--non-interactive`/`--name`/`--reuse`/`--base`/`--checkout` + the
 > positional `[branch]`), and its branch-selection contract (positional is
 > new-branch-only, exit 2 on an existing branch; `--checkout <branch>` is the
 > existing-branch opt-in and conflicts with both `--base` and the positional) are
@@ -123,13 +123,13 @@ The change's branch usually already exists (created by `/fab-new` Step 11 in the
 
 ```
 # branch exists (the common case) → put the worktree ON the existing branch
-wt create --non-interactive --worktree-name <name> --checkout <change-folder-name>
+wt create --non-interactive --name <name> --checkout <change-folder-name>
 
 # branch missing → create it (new-branch positional)
-wt create --non-interactive --worktree-name <name> <change-folder-name>
+wt create --non-interactive --name <name> <change-folder-name>
 ```
 
-The worktree gets a random name; the branch matches the change. A repo with **no** `fab/` has no change branch: the operator's plain-agent form runs `wt create --non-interactive --worktree-name <name>` with no branch argument (`fab-operator.md` §6 Working a Change form 4). The surrounding choreography — when to spawn, the new-change-from-backlog case, branch alignment — is operator policy in `fab-operator.md` §6 (the pane kind).
+The worktree gets a random name; the branch matches the change. A spawn with no change branch — a repo with **no** `fab/`, or a bare spawn with no task — runs `wt create --non-interactive [--name <name>]` with no branch argument; wt then puts the worktree on a new branch of the worktree's name (`fab-operator.md` §6 Working a Change). The surrounding choreography — when to spawn, the new-change-from-backlog case, branch alignment — is operator policy in `fab-operator.md` §6 (the pane kind).
 
 ---
 
