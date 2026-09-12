@@ -1,0 +1,9 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-12T14:57:39Z"}
+{"args":"Operator spawn forms as two orthogonal axes (fab/ or not × task or not) — task-less bare-agent spawn; the operator never refuses to start an agent","cmd":"fab-new","event":"command","ts":"2026-09-12T14:57:39Z"}
+{"delta":"+0.0","event":"confidence","score":4.9,"trigger":"calc-score","ts":"2026-09-12T15:00:47Z"}
+{"delta":"+0.0","event":"confidence","score":4.9,"trigger":"calc-score","ts":"2026-09-12T15:01:26Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-12T15:04:31Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-12T15:08:29Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-12T15:12:44Z"}
+{"event":"review","result":"passed","ts":"2026-09-12T15:12:44Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-12T15:14:31Z"}
