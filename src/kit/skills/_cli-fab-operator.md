@@ -253,7 +253,7 @@ muted: false
 muted_until: null
 ```
 
-No flags. Reads the state file as-is (it never creates the skeleton — `fab operator state` does that at Init step 1; a missing or unreadable file is a plain non-zero exit). Exit 0 with the document when a row resolved; when the entry can neither be resolved nor seeded (rk broken, an unresolved tie, a failed add) it exits **non-zero** with one stderr line — `Error: could not resolve or seed the operator-tick cron entry` — the one deliberate departure from the fail-silent posture: fail-silent protects side effects riding other verbs, whereas this verb's whole purpose is to answer "what is the clock". The reconcile calls it makes internally stay fail-silent.
+No flags. Reads the state file as-is (it never creates the skeleton — `fab operator state` does that at Init step 1; a missing or unreadable file is a plain non-zero exit). Exit 0 with the document when a row resolved; when the entry can neither be resolved nor seeded (rk broken, an unresolved tie, a failed add) it exits **non-zero** with one stderr line — `ERROR: could not resolve or seed the operator-tick cron entry` — the one deliberate departure from the fail-silent posture: fail-silent protects side effects riding other verbs, whereas this verb's whole purpose is to answer "what is the clock". The reconcile calls it makes internally stay fail-silent.
 
 ### fab operator time
 

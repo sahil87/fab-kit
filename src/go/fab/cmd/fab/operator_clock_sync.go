@@ -71,7 +71,9 @@ func runOperatorClockSync(cmd *cobra.Command, args []string) error {
 		}
 		return fmt.Errorf("cannot stat %s: %w", path, err)
 	}
-	data, err := loadOperatorState(path)
+	// Every `fab operator` verb converts a legacy-shaped file on read; a raw
+	// load would see no `tracked` items in a v10 file and mute a live clock.
+	data, err := loadOperatorStateUpgraded(path)
 	if err != nil {
 		return err
 	}

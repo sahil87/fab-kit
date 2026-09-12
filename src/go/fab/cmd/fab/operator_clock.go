@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lockfile"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 )
 
@@ -209,12 +210,37 @@ func ensureOperatorCronRow() (operatorCronRow, bool) {
 	if len(candidates) > 0 {
 		return pickOperatorCronRow(candidates)
 	}
-	if _, err := rkCronRunner(operatorCronAddArgv()...); err != nil {
+	return seedOperatorCronRow()
+}
+
+// seedOperatorCronRow is the zero-candidates arm of ensureOperatorCronRow,
+// serialized per server: the check-then-add runs under a flock on the
+// operator state file's `.clock` sibling, with the list re-checked inside
+// the lock, so two fab processes that both observed an empty server cannot
+// both add (a duplicate pair named "operator tick" would be an unresolvable
+// tie — a dead clock). A lock or path failure is a silent no-seed, like
+// every other rk failure.
+func seedOperatorCronRow() (operatorCronRow, bool) {
+	statePath, err := operatorStatePath()
+	if err != nil {
 		return operatorCronRow{}, false
 	}
-	candidates, ok = listOperatorCronRows()
+	unlock, err := lockfile.Lock(statePath + ".clock")
+	if err != nil {
+		return operatorCronRow{}, false
+	}
+	defer unlock()
+	candidates, ok := listOperatorCronRows()
 	if !ok {
 		return operatorCronRow{}, false
+	}
+	if len(candidates) == 0 {
+		if _, err := rkCronRunner(operatorCronAddArgv()...); err != nil {
+			return operatorCronRow{}, false
+		}
+		if candidates, ok = listOperatorCronRows(); !ok {
+			return operatorCronRow{}, false
+		}
 	}
 	return pickOperatorCronRow(candidates)
 }

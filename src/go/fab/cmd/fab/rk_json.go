@@ -40,6 +40,12 @@ func unwrapRkJSON(data []byte) ([]byte, error) {
 			Message string `json:"message"`
 		} `json:"error"`
 	}
+	if bytes.Equal(trimmed, []byte("null")) {
+		// A bare null would unmarshal into an empty slice downstream and read
+		// as "zero rows" — enough to trigger a seed or suppress a fallback.
+		// Only an established document is a payload.
+		return nil, errors.New("rk json: null document")
+	}
 	if err := json.Unmarshal(trimmed, &probe); err != nil {
 		return nil, fmt.Errorf("rk json: %w", err)
 	}

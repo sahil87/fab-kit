@@ -526,19 +526,21 @@ func TestClockSync_SaveFailureIssuesNoCall(t *testing.T) {
 func stubRkCronSeeding(t *testing.T, seededJSON string, addErr error) *[][]string {
 	t.Helper()
 	calls := [][]string{}
-	lists := 0
+	added := false
 	prev := rkCronRunner
 	rkCronRunner = func(args ...string) (string, error) {
 		calls = append(calls, append([]string{}, args...))
 		if len(args) == 3 && args[0] == "cron" && args[1] == "list" {
-			lists++
-			if lists == 1 {
-				return `{"ok":true,"result":[]}`, nil
+			if !added {
+				return `{"ok":true,"result":[]}`, nil // empty until the seed lands
 			}
 			return seededJSON, nil
 		}
-		if len(args) >= 2 && args[0] == "cron" && args[1] == "add" && addErr != nil {
-			return "", addErr
+		if len(args) >= 2 && args[0] == "cron" && args[1] == "add" {
+			if addErr != nil {
+				return "", addErr
+			}
+			added = true
 		}
 		return "", nil
 	}
@@ -576,6 +578,7 @@ const cronListTwoUnnamedRowsJSON = `[{"id":"a","name":"x","schedule":{"kind":"cr
 	`{"id":"b","name":"y","schedule":{"kind":"cron"},"deliver":"immediate","target":"role:operator","pinned":false,"muted":false}]`
 
 func TestEnsureOperatorCronRow_Seeding(t *testing.T) {
+	withOperatorState(t, seedOnePaneItem) // the seed lock is the state file's .clock sibling
 	t.Run("zero candidates → one add with the full argv, then the seeded row", func(t *testing.T) {
 		calls := stubRkCronSeeding(t, cronListBackoffJSON, nil)
 		row, ok := ensureOperatorCronRow()
@@ -583,9 +586,36 @@ func TestEnsureOperatorCronRow_Seeding(t *testing.T) {
 			t.Fatalf("row = %+v ok=%v, want the seeded cron-op row", row, ok)
 		}
 		wantAdds(t, *calls, seededOperatorCronAddArgv)
-		if n := len(cronCalls(*calls, "list")); n != 2 {
-			t.Errorf("list calls = %d, want exactly 2 (before and after the seed)", n)
+		// list → (lock) re-list → add → list: the double-check inside the lock
+		// is what serializes two processes that both saw an empty server.
+		if n := len(cronCalls(*calls, "list")); n != 3 {
+			t.Errorf("list calls = %d, want exactly 3 (check, locked re-check, post-seed)", n)
 		}
+		if _, err := os.Stat(operatorStatePathOverride + ".clock.lock"); err != nil {
+			t.Errorf("seed lock sibling not created: %v", err)
+		}
+	})
+	t.Run("a row appearing inside the lock window → no add", func(t *testing.T) {
+		lists := 0
+		calls := [][]string{}
+		prev := rkCronRunner
+		rkCronRunner = func(args ...string) (string, error) {
+			calls = append(calls, append([]string{}, args...))
+			if len(args) == 3 && args[0] == "cron" && args[1] == "list" {
+				lists++
+				if lists == 1 {
+					return `[]`, nil // empty on the unlocked check…
+				}
+				return cronListBackoffJSON, nil // …seeded by a sibling process before our lock
+			}
+			return "", nil
+		}
+		t.Cleanup(func() { rkCronRunner = prev })
+		row, ok := ensureOperatorCronRow()
+		if !ok || row.ID != "cron-op" {
+			t.Fatalf("row = %+v ok=%v, want the sibling's row", row, ok)
+		}
+		wantAdds(t, calls)
 	})
 	t.Run("row present → zero adds", func(t *testing.T) {
 		calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
@@ -734,6 +764,18 @@ func TestOperatorClockSync(t *testing.T) {
 			t.Errorf("stdout = %q, want no document", out)
 		}
 	})
+	t.Run("legacy v10 state converts on read — a live monitored set is tracked, so no mute", func(t *testing.T) {
+		path := withOperatorState(t, legacyV10State)
+		stubEpoch(t, false)
+		calls := stubRkCron(t, cronListBackoffJSON, nil, nil)
+		if _, _, err := runClockSync(t); err != nil {
+			t.Fatalf("clock sync: %v", err)
+		}
+		wantMutes(t, *calls) // converted pane items are not done → tracked → an unmuted row stays
+		if data := readStateFile(t, path); data["tracked"] == nil || data["monitored"] != nil {
+			t.Errorf("state not converted on read: keys=%v", keysOf(data))
+		}
+	})
 	t.Run("missing state file is a plain error, no skeleton created", func(t *testing.T) {
 		path := withOperatorState(t, "")
 		stubEpoch(t, false)
@@ -749,4 +791,12 @@ func TestOperatorClockSync(t *testing.T) {
 			t.Errorf("clock sync created the state skeleton at %s; it must not", path)
 		}
 	})
+}
+
+func keysOf(m map[string]interface{}) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }
