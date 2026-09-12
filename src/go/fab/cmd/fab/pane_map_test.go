@@ -1935,6 +1935,24 @@ func TestParseRKPanes(t *testing.T) {
 		}
 	})
 
+	t.Run("D5 envelope yields entries identical to the bare array", func(t *testing.T) {
+		bare, err := parseRKPanes([]byte(rkPanesFixture))
+		if err != nil {
+			t.Fatalf("bare: %v", err)
+		}
+		wrapped, err := parseRKPanes([]byte(`{"ok":true,"result":` + rkPanesFixture + `}`))
+		if err != nil {
+			t.Fatalf("envelope: %v", err)
+		}
+		if !reflect.DeepEqual(bare, wrapped) {
+			t.Fatalf("envelope entries differ from bare entries:\n bare=%+v\n wrap=%+v", bare, wrapped)
+		}
+	})
+	t.Run("D5 ok:false envelope is a parse error", func(t *testing.T) {
+		if _, err := parseRKPanes([]byte(`{"ok":false,"error":{"code":"operational","message":"boom"}}`)); err == nil {
+			t.Fatalf("want an error for the ok:false envelope")
+		}
+	})
 	t.Run("malformed JSON errors", func(t *testing.T) {
 		if _, err := parseRKPanes([]byte("not json")); err == nil {
 			t.Error("expected error for malformed JSON")

@@ -300,6 +300,8 @@ func (g *Gate) Probe(paneID string) (Readiness, string, error) {
 //	ready %N (state|echo), exit 0       → ready, no snippet
 //	parked %N, exit 0                   → parked + fab-captured snippet
 //	running (timeout), exit 0           → booting + fab-captured snippet
+//	narrow %N (WxH), exit 0             → rk declined (below its geometry floor): silent
+//	                                      fall-through to the raw-tmux arm, no warning
 //	gone %N, exit 1                     → the dead-pane error (not a classification)
 //	any other exit / unparsable stdout  → fail-open (one stderr warning per process)
 //
@@ -324,6 +326,11 @@ func (g *Gate) probeRK(paneID string) (state Readiness, snippet string, handled 
 			return "", "", false, err
 		}
 		return ReadyBooting, snippet, true, nil
+	case runErr == nil && token == rkReportNarrow:
+		// rk declined to classify: the pane is under rk's own geometry
+		// floor. fab's raw-tmux classifier has no such floor, so this is a
+		// silent hand-off to that arm — not a failure, so no warning.
+		return "", "", false, nil
 	case runErr != nil && token == "gone":
 		// The pane died (rk's contract: `gone` exits 1 — the non-zero exit is
 		// load-bearing, so an exit-0 `gone` token would fall through to

@@ -1,0 +1,56 @@
+id: bjrk
+name: 260912-bjrk-fab-seeds-operator-tick-entry
+created: 2026-09-12T09:09:34Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 5
+    acceptance_count: 23
+    acceptance_completed: 23
+confidence:
+    certain: 4
+    confident: 8
+    tentative: 0
+    unresolved: 0
+    score: 3.7
+    fuzzy: true
+    dimensions:
+        signal: 67.5
+        reversibility: 78.8
+        competence: 79.2
+        disambiguation: 67.9
+stage_metrics:
+    intake: {started_at: "2026-09-12T09:09:34Z", driver: fab-new, iterations: 1, completed_at: "2026-09-12T09:29:39Z"}
+    apply: {started_at: "2026-09-12T09:37:11Z", driver: fab-fff, iterations: 2, completed_at: "2026-09-12T09:37:58Z"}
+    review: {started_at: "2026-09-12T09:37:58Z", driver: fab-fff, iterations: 2, completed_at: "2026-09-12T09:40:22Z"}
+    hydrate: {started_at: "2026-09-12T09:40:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-12T09:40:23Z"}
+    ship: {started_at: "2026-09-12T09:40:23Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-12T09:40:31Z"}
+    review-pr: {started_at: "2026-09-12T09:40:31Z", driver: git-pr, iterations: 1, completed_at: "2026-09-12T09:50:54Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/672
+true_impact:
+    added: 1690
+    deleted: 58
+    net: 1632
+    excluding:
+        added: 685
+        deleted: 40
+        net: 645
+    tests:
+        added: 345
+        deleted: 0
+        net: 345
+    computed_at: "2026-09-12T09:40:31Z"
+    computed_at_stage: ship
+summary: fab's clock reconcile seeds the operator-tick cron entry when the server has none; new fab operator clock sync heals and reads it for Init and the per-tick frame
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-09-12T09:50:54Z

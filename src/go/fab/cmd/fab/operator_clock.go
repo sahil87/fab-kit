@@ -8,11 +8,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/lockfile"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 )
 
-// Operator clock sync: the operator-tick cron entry (seeded by `rk operator`)
-// carries no suppress guards — run-kit never infers operator intent from
+// Operator clock sync. fab owns the operator-tick cron entry end to end: the
+// reconcile here seeds it when the server has none (rk's launcher also seeds
+// it during the overlap window; both key on the role:operator row). The
+// entry carries no suppress guards — run-kit never infers operator intent from
 // fab's private state file. Instead the tracked-set verbs TELL the clock:
 // when a state mutation flips the tracked predicate, fab mutes the entry
 // (tracked→untracked) or clears the mute (untracked→tracked) through rk's own
@@ -43,6 +46,14 @@ const (
 	// clock overrides: one policy, never a per-branch table. skip-if-busy
 	// drops a tick that would land mid-turn rather than injecting into it.
 	operatorDeliver = "skip-if-busy"
+	// operatorCronRole is the rk role the entry targets (`--role operator`).
+	operatorCronRole = "operator"
+	// operatorWakeEvent/Scope/Debounce are the entry's wake_on block — the
+	// union predicate beside the ladder. Stated explicitly in the seed argv so
+	// a future rk default change cannot drift fab's entry.
+	operatorWakeEvent    = "agent-state-change"
+	operatorWakeScope    = "server"
+	operatorWakeDebounce = "60s"
 )
 
 // operatorTracked is the clock's tracked predicate (R6): any tracked item
@@ -99,22 +110,29 @@ type operatorCronRow struct {
 	Muted      bool                 `json:"muted"`
 	MutedUntil int64                `json:"muted_until"`
 	Schedule   operatorCronSchedule `json:"schedule"`
-	Deliver    string               `json:"deliver"`
+	// ScheduleSummary is rk's own rendering of the schedule ("backoff
+	// 3m→24m", "idle-every 2m"), printed verbatim by `clock sync`.
+	ScheduleSummary string `json:"schedule_summary"`
+	Deliver         string `json:"deliver"`
 }
 
-// resolveOperatorCronRow runs `rk cron list --json` and selects the
-// operator-tick entry: the row whose target equals operatorCronTarget, with
-// name == operatorCronName as the tiebreak when several match. Zero
-// candidates, an unresolved tie, an rk failure, or unparseable output is a
-// silent no-op (ok=false).
-func resolveOperatorCronRow() (operatorCronRow, bool) {
+// listOperatorCronRows runs `rk cron list --json` (bare array or the
+// {ok,result} envelope — unwrapRkJSON) and returns every row whose target is
+// operatorCronTarget. ok=false ONLY when rk failed or the output was
+// unparseable; an empty server is (nil, true) — the distinction that makes
+// "zero candidates" seedable while an rk failure never is.
+func listOperatorCronRows() ([]operatorCronRow, bool) {
 	out, err := rkCronRunner("cron", "list", "--json")
 	if err != nil {
-		return operatorCronRow{}, false
+		return nil, false
+	}
+	payload, err := unwrapRkJSON([]byte(out))
+	if err != nil {
+		return nil, false
 	}
 	var rows []operatorCronRow
-	if err := json.Unmarshal([]byte(out), &rows); err != nil {
-		return operatorCronRow{}, false
+	if err := json.Unmarshal(payload, &rows); err != nil {
+		return nil, false
 	}
 	var candidates []operatorCronRow
 	for _, r := range rows {
@@ -122,6 +140,13 @@ func resolveOperatorCronRow() (operatorCronRow, bool) {
 			candidates = append(candidates, r)
 		}
 	}
+	return candidates, true
+}
+
+// pickOperatorCronRow selects the operator-tick entry from the candidates:
+// exactly one candidate wins outright; otherwise name == operatorCronName is
+// the tiebreak. Zero candidates or an unresolved tie is ok=false.
+func pickOperatorCronRow(candidates []operatorCronRow) (operatorCronRow, bool) {
 	if len(candidates) == 1 {
 		return candidates[0], true
 	}
@@ -137,6 +162,89 @@ func resolveOperatorCronRow() (operatorCronRow, bool) {
 	return operatorCronRow{}, false
 }
 
+// resolveOperatorCronRow is the pure read: list + pick, no side effect. Zero
+// candidates, an unresolved tie, an rk failure, or unparseable output is a
+// silent no-op (ok=false).
+func resolveOperatorCronRow() (operatorCronRow, bool) {
+	candidates, ok := listOperatorCronRows()
+	if !ok {
+		return operatorCronRow{}, false
+	}
+	return pickOperatorCronRow(candidates)
+}
+
+// operatorCronAddArgv is the seed: the entry's full steady-state shape, every
+// value explicit (nothing left to an rk default) and every policy value
+// taken from the constants above so the ladder/deliver stay single-sourced.
+// No `-L`: rk derives the server from $TMUX exactly as the mute/edit calls
+// do. The respawn argv is rk's launcher and is not fab's to change.
+func operatorCronAddArgv() []string {
+	return []string{
+		"cron", "add", operatorCronName,
+		"--name", operatorCronName,
+		"--backoff", "--min", operatorBackoffMin, "--max", operatorBackoffMax,
+		"--role", operatorCronRole,
+		"--deliver", operatorDeliver,
+		"--wake-on", operatorWakeEvent,
+		"--wake-scope", operatorWakeScope,
+		"--wake-debounce", operatorWakeDebounce,
+		"--if-absent", "respawn",
+		"--respawn", "rk", "--respawn", "operator", "--respawn", "-L", "--respawn", "{server}",
+		"--pinned",
+	}
+}
+
+// ensureOperatorCronRow is resolve + seed-if-zero + re-resolve ONCE — the
+// entry point every clock side effect uses, so the entry heals on any
+// reconcile (a user `rk cron rm` is repaired by the next track mutation or
+// tick). It seeds ONLY on zero candidates: an rk failure carries no
+// information about the server (a blind write), and a tie already has rows
+// (a third would make it worse). A failed add is a silent no-op like every
+// other rk failure. Seeding is not conditioned on tracked-ness — the mute
+// rule that follows in the same pass mutes a fresh entry on an untracked set.
+func ensureOperatorCronRow() (operatorCronRow, bool) {
+	candidates, ok := listOperatorCronRows()
+	if !ok {
+		return operatorCronRow{}, false
+	}
+	if len(candidates) > 0 {
+		return pickOperatorCronRow(candidates)
+	}
+	return seedOperatorCronRow()
+}
+
+// seedOperatorCronRow is the zero-candidates arm of ensureOperatorCronRow,
+// serialized per server: the check-then-add runs under a flock on the
+// operator state file's `.clock` sibling, with the list re-checked inside
+// the lock, so two fab processes that both observed an empty server cannot
+// both add (a duplicate pair named "operator tick" would be an unresolvable
+// tie — a dead clock). A lock or path failure is a silent no-seed, like
+// every other rk failure.
+func seedOperatorCronRow() (operatorCronRow, bool) {
+	statePath, err := operatorStatePath()
+	if err != nil {
+		return operatorCronRow{}, false
+	}
+	unlock, err := lockfile.Lock(statePath + ".clock")
+	if err != nil {
+		return operatorCronRow{}, false
+	}
+	defer unlock()
+	candidates, ok := listOperatorCronRows()
+	if !ok {
+		return operatorCronRow{}, false
+	}
+	if len(candidates) == 0 {
+		if _, err := rkCronRunner(operatorCronAddArgv()...); err != nil {
+			return operatorCronRow{}, false
+		}
+		if candidates, ok = listOperatorCronRows(); !ok {
+			return operatorCronRow{}, false
+		}
+	}
+	return pickOperatorCronRow(candidates)
+}
+
 // syncOperatorClock is the edge-triggered clock side effect run after a
 // successful state save: tracked→untracked issues an indefinite mute,
 // untracked→tracked clears any standing mute or lease via --off. A
@@ -147,7 +255,7 @@ func syncOperatorClock(before, after bool) {
 	if before == after {
 		return
 	}
-	row, ok := resolveOperatorCronRow()
+	row, ok := ensureOperatorCronRow()
 	if !ok {
 		return
 	}
@@ -169,11 +277,26 @@ func muteOperatorClockIfUntracked(data map[string]interface{}) {
 	if operatorTracked(data) {
 		return
 	}
-	row, ok := resolveOperatorCronRow()
+	row, ok := ensureOperatorCronRow()
 	if !ok || row.Muted {
 		return
 	}
 	_, _ = rkCronRunner("cron", "mute", row.ID)
+}
+
+// reconcileOperatorMute is the level-wise mute reconcile in BOTH directions,
+// used by `fab operator clock sync`: an untracked set mutes an unmuted row;
+// a tracked set clears a standing mute or lease (`--off`); otherwise no call.
+// tick-start keeps muteOperatorClockIfUntracked's one-direction form (its
+// unmute direction stays edge-triggered via syncOperatorClock).
+func reconcileOperatorMute(data map[string]interface{}, row operatorCronRow) {
+	tracked := operatorTracked(data)
+	switch {
+	case !tracked && !row.Muted:
+		_, _ = rkCronRunner("cron", "mute", row.ID)
+	case tracked && row.Muted:
+		_, _ = rkCronRunner("cron", "mute", row.ID, "--off")
+	}
 }
 
 // --- derived schedule (B3, R12/R13) -------------------------------------------
@@ -321,7 +444,7 @@ func reconcileOperatorSchedule(data map[string]interface{}) {
 	if !ok {
 		return
 	}
-	row, ok := resolveOperatorCronRow()
+	row, ok := ensureOperatorCronRow()
 	if !ok {
 		return
 	}
@@ -378,8 +501,12 @@ func operatorPaneEpoch() bool {
 	if err != nil {
 		return false
 	}
+	payload, err := unwrapRkJSON(out)
+	if err != nil {
+		return false
+	}
 	var rows []rkPaneRow
-	if err := json.Unmarshal(out, &rows); err != nil {
+	if err := json.Unmarshal(payload, &rows); err != nil {
 		return false
 	}
 	winID := ""
