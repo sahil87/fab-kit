@@ -35,13 +35,14 @@ const (
 	// rows carry the operator target.
 	operatorCronName = "operator tick"
 	// operatorBackoffMin/Max are the derived backoff bounds for a tracked set
-	// of only pane/none items (B3).
-	operatorBackoffMin = "1m"
-	operatorBackoffMax = "30m"
-	// operatorDeliverImmediate is the derived deliver policy for pane/none
-	// sets; skip-if-busy covers shell/agent sets (and clock overrides).
-	operatorDeliverImmediate  = "immediate"
-	operatorDeliverSkipIfBusy = "skip-if-busy"
+	// of only pane/none items (B3) — a fallback poll behind
+	// wake_on: agent-state-change, not the primary pickup path.
+	operatorBackoffMin = "3m"
+	operatorBackoffMax = "24m"
+	// operatorDeliver is the deliver policy for EVERY derived branch and for
+	// clock overrides: one policy, never a per-branch table. skip-if-busy
+	// drops a tick that would land mid-turn rather than injecting into it.
+	operatorDeliver = "skip-if-busy"
 )
 
 // operatorTracked is the clock's tracked predicate (R6): any tracked item
@@ -232,10 +233,12 @@ type operatorSchedule struct {
 
 // deriveOperatorSchedule computes the clock schedule from the tracked set per
 // the B3 table: empty (no not-done items) → ok=false (muted — unchanged);
-// only pane/none items → backoff 1m→30m, deliver immediate; any shell/agent
-// item → idle-every min(check_every) when the operator pane carries an
-// agent-state epoch, else every min(check_every) — both deliver skip-if-busy.
-// A live clock_override (until in the future) wins over the derived value.
+// only pane/none items → backoff operatorBackoffMin→operatorBackoffMax; any
+// shell/agent item → idle-every min(check_every) when the operator pane
+// carries an agent-state epoch, else every min(check_every). Only the
+// schedule kind varies — the deliver policy is operatorDeliver on every
+// branch. A live clock_override (until in the future) wins over the derived
+// value.
 func deriveOperatorSchedule(items []trackedItem, override *clockOverride, epoch bool, now time.Time) (operatorSchedule, bool) {
 	if override != nil {
 		if until, err := time.Parse(time.RFC3339, override.Until); err == nil && now.Before(until) {
@@ -269,12 +272,12 @@ func deriveOperatorSchedule(items []trackedItem, override *clockOverride, epoch 
 		}
 	}
 	if minEvery == "" {
-		return operatorSchedule{kind: "backoff", deliver: operatorDeliverImmediate}, true
+		return operatorSchedule{kind: "backoff", deliver: operatorDeliver}, true
 	}
 	if epoch {
-		return operatorSchedule{kind: "idle-every", every: minEvery, deliver: operatorDeliverSkipIfBusy}, true
+		return operatorSchedule{kind: "idle-every", every: minEvery, deliver: operatorDeliver}, true
 	}
-	return operatorSchedule{kind: "every", every: minEvery, deliver: operatorDeliverSkipIfBusy}, true
+	return operatorSchedule{kind: "every", every: minEvery, deliver: operatorDeliver}, true
 }
 
 // cronRowMatches reports whether the resolved cron row already carries the

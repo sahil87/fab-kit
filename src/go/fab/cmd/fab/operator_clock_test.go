@@ -13,11 +13,20 @@ import (
 // cronListBackoffJSON is a fixture `rk cron list --json` document (rk v3.19.46
 // structured-schedule row shape) carrying one operator-tick entry on the
 // derived pane/none schedule.
-const cronListBackoffJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"1m0s","max":"30m0s"},"deliver":"immediate","target":"role:operator","pinned":true,"muted":false}]`
+const cronListBackoffJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"3m0s","max":"24m0s"},"deliver":"skip-if-busy","target":"role:operator","pinned":true,"muted":false}]`
 
 // cronListBackoffMutedJSON is cronListBackoffJSON with the entry muted (or
 // leased — `muted` is the effective state).
-const cronListBackoffMutedJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"1m0s","max":"30m0s"},"deliver":"immediate","target":"role:operator","pinned":true,"muted":true,"muted_until":null}]`
+const cronListBackoffMutedJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"3m0s","max":"24m0s"},"deliver":"skip-if-busy","target":"role:operator","pinned":true,"muted":true,"muted_until":null}]`
+
+// cronListLegacyBackoffJSON is a live row still on the pre-tnmm pane/none
+// schedule (backoff 1m→30m, deliver immediate) — the upgrade path: the first
+// reconcile after the binary upgrade must converge it with exactly one edit.
+const cronListLegacyBackoffJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"1m0s","max":"30m0s"},"deliver":"immediate","target":"role:operator","pinned":true,"muted":false}]`
+
+// cronListBackoffImmediateJSON is on the derived bounds but the old deliver
+// policy — a deliver-only drift must still be converged.
+const cronListBackoffImmediateJSON = `[{"id":"cron-op","name":"operator tick","schedule":{"kind":"backoff","min":"3m0s","max":"24m0s"},"deliver":"immediate","target":"role:operator","pinned":true,"muted":false}]`
 
 // cronListIdleEvery2mJSON carries the entry on the derived shell/agent
 // schedule (epoch present): idle-every 2m, skip-if-busy.
@@ -256,7 +265,7 @@ func TestClockSync_NonFlippingMutationsStayQuiet(t *testing.T) {
 		t.Fatalf("track update: %v", err)
 	}
 	wantMutes(t, *calls)
-	wantEdits(t, *calls) // derived backoff/immediate equals the row
+	wantEdits(t, *calls) // derived backoff/skip-if-busy equals the row
 }
 
 // --- R12: derived schedule reconcile -------------------------------------------
@@ -270,13 +279,17 @@ func TestReconcile_DerivedSchedule(t *testing.T) {
 		wantEdit []string // nil → no edit
 	}{
 		{"pane-only set derives backoff (A-031 idle-every→backoff)", seedOnePaneItem, cronListIdleEvery2mJSON, true,
-			[]string{"cron-op", "--backoff", "--min", "1m", "--max", "30m", "--deliver", "immediate"}},
+			[]string{"cron-op", "--backoff", "--min", "3m", "--max", "24m", "--deliver", "skip-if-busy"}},
 		{"R12: shell items with epoch derive idle-every min(check_every)", seedTwoShellItems, cronListBackoffJSON, true,
 			[]string{"cron-op", "--idle-every", "2m", "--deliver", "skip-if-busy"}},
 		{"shell items without epoch derive every", seedTwoShellItems, cronListBackoffJSON, false,
 			[]string{"cron-op", "--every", "2m", "--deliver", "skip-if-busy"}},
 		{"R12: equal row (2m0s == 2m) issues nothing", seedTwoShellItems, cronListIdleEvery2mJSON, true, nil},
 		{"backoff row equal to derived backoff issues nothing", seedOnePaneItem, cronListBackoffJSON, false, nil},
+		{"upgrade path: legacy 1m→30m/immediate row converges in one edit", seedOnePaneItem, cronListLegacyBackoffJSON, false,
+			[]string{"cron-op", "--backoff", "--min", "3m", "--max", "24m", "--deliver", "skip-if-busy"}},
+		{"deliver-only drift (immediate on the derived bounds) is edited", seedOnePaneItem, cronListBackoffImmediateJSON, false,
+			[]string{"cron-op", "--backoff", "--min", "3m", "--max", "24m", "--deliver", "skip-if-busy"}},
 		{"A-023: a muted/leased entry is still edited", seedTwoShellItems, cronListBackoffMutedJSON, true,
 			[]string{"cron-op", "--idle-every", "2m", "--deliver", "skip-if-busy"}},
 		{"all items done → muted, unchanged (no edit)", seedDoneItem, cronListBackoffJSON, true, nil},
@@ -401,9 +414,9 @@ func TestTickStartDiff_ClockReconcile(t *testing.T) {
 			t.Fatalf("tick-start --diff --quiet: %v", err)
 		}
 		wantMutes(t, *calls)
-		// The pane-only set derives backoff/immediate; the row is on
+		// The pane-only set derives backoff/skip-if-busy; the row is on
 		// idle-every → the end-of-tick reconcile converges it.
-		wantEdits(t, *calls, []string{"cron-op", "--backoff", "--min", "1m", "--max", "30m", "--deliver", "immediate"})
+		wantEdits(t, *calls, []string{"cron-op", "--backoff", "--min", "3m", "--max", "24m", "--deliver", "skip-if-busy"})
 	})
 	t.Run("R6: an all-done tracked set mutes the entry", func(t *testing.T) {
 		withOperatorState(t, seedDoneItem)
