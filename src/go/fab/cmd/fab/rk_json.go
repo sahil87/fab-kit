@@ -27,6 +27,9 @@ func unwrapRkJSON(data []byte) ([]byte, error) {
 		return nil, errors.New("rk json: empty output")
 	}
 	if trimmed[0] == '[' {
+		if !json.Valid(trimmed) {
+			return nil, errors.New("rk json: malformed bare array")
+		}
 		return trimmed, nil
 	}
 	var probe struct {

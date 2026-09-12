@@ -21,6 +21,8 @@ func TestUnwrapRkJSON(t *testing.T) {
 		{"ok:true with null result", `{"ok":true,"result":null}`, "", "without a result"},
 		{"ok:false carries code and message", `{"ok":false,"error":{"code":"operational","message":"list sessions: exit status 1"}}`, "", "operational: list sessions: exit status 1"},
 		{"malformed json", `{"ok":true,"result":[`, "", "rk json:"},
+		{"malformed bare array is rejected, not passed through", `[`, "", "malformed bare array"},
+		{"bare array with trailing garbage is rejected", `[] trailing`, "", "malformed bare array"},
 		{"empty input", ``, "", "empty output"},
 		{"whitespace-only input", " \n\t", "", "empty output"},
 	}
