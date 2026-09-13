@@ -1,0 +1,14 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-13T07:43:05Z"}
+{"args":"Operator spawn target session — delegate to rk tab new's role-aware default (run-kit v3.19.59, PR #966); drop the fab-side §6 step 2 selector, capability-probe the rk gate (session_rung), make --session optional in the raw form; follow-through of 260913-iyb4","cmd":"fab-new","event":"command","ts":"2026-09-13T07:43:05Z"}
+{"delta":"+5.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-09-13T07:46:45Z"}
+{"delta":"-0.3","event":"confidence","score":4.7,"trigger":"calc-score","ts":"2026-09-13T07:47:38Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-13T07:48:52Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-13T07:51:00Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-13T07:51:00Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-13T07:52:38Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-13T07:56:43Z"}
+{"event":"review","result":"passed","ts":"2026-09-13T07:56:43Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-13T07:56:43Z"}
+{"cmd":"fab-issue","event":"command","ts":"2026-09-13T07:57:19Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-09-13T07:58:08Z"}
+{"event":"review","result":"passed","ts":"2026-09-13T08:06:35Z"}

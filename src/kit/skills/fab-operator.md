@@ -74,10 +74,10 @@ Error: operator requires tmux. Start a tmux session first.
 The operator's clock, role mark, send gate, spawn readiness, and notifications are HexoKit. Probe once here — no later call site is individually gated:
 
 ```bash
-command -v rk >/dev/null 2>&1 && rk cron list --json >/dev/null 2>&1
+command -v rk >/dev/null 2>&1 && rk cron list --json >/dev/null 2>&1 && rk tab new --help 2>&1 | grep -q session_rung
 ```
 
-If either half fails (rk absent, or an installed rk predating `rk cron` — the capability probe), STOP:
+If any part fails (rk absent, or an rk predating `rk cron` or `rk tab new`'s default-session resolution — without the third probe an older rk would silently land spawned windows beside the operator; an installed rk failing a probe needs `brew upgrade run-kit`), STOP:
 
 ```
 Error: the operator requires HexoKit — brew install sahil87/tap/run-kit
@@ -471,12 +471,12 @@ A spawn that deliberately parks early — e.g. a `/fab-ff` run, which stops afte
 
 ### Spawning an Agent
 
-Every spawn flow is **repo-targeted and session-targeted**: the operator first establishes **which repo** the work targets (the existing item's `scope.repo`, or the repo the user names) and **which tmux session** the new agent window must land in, then runs every step against those — not against the operator's own repo or its ambient session.
+Every spawn flow is **repo-targeted**: establish **which repo** the work targets (the existing item's `scope.repo`, or the repo the user names) and run every step against it — never the operator's own repo; the landing session is `rk tab new`'s call when the tab opens (step 2), never the ambient one.
 
 The spawn sequence is:
 
 1. **Establish target repo** — determine the absolute main-worktree root the work targets. For an already-tracked item, use its `scope.repo` (or the `branch_map` pair after removal). For a linear/slack-driven spawn, use the spawning item's `scope.repo` (§7). For a fresh user request, use the repo the user names (default: the repo the operator was launched in).
-2. **Establish target session** — the tmux session for the new window, pinned at step 7. Candidates: `rk mux sessions --json` rows (the `result` array in run-kit's envelope form) with `role: "user"`, minus the operator's own session. First rung naming exactly one candidate wins: (a) the §8 "Spawn target session" setting, if user-set; (b) the sole candidate; (c) `path` equals the target repo root; (d) most panes whose `repo` (`fab pane map --all-sessions --json`) is the target repo; (e) highest `attached`, then first row. Zero candidates → `nowhere to spawn` error (attended: output; unattended: §5), no spawn. Announce one line (spawn output, never §5): session + rung. Never trust a persisted `scope.session` alone; the ambient session is never an implicit target.
+2. **Target session** — `rk tab new` resolves it at step 7: omit `--session`; rk applies its role-aware default and reports `session` + `session_rung`. Pass `--session =<name>` only for the user's §8 override. Never trust a persisted `scope.session` alone; the ambient session is never an implicit target.
 3. **Create worktree** — run the repo-targeted, probe-and-route procedure in `_cli-external.md` § wt (gated by the §2 wt Gate on the first agent spawn of the session); never rely on the operator's CWD
 4. **Activate the change pointer (existence-guarded)** — in the **just-created worktree's directory**, set that worktree's own `.fab-status.yaml` so the worktree is self-describing after the pipeline completes (a bare `fab`/`/fab-*` later resolves the change without naming it). Run the switch **only when the change folder already exists** — `fab resolve --folder <change>` succeeds iff a non-archived change folder matches:
 
@@ -497,13 +497,13 @@ The spawn sequence is:
 7. **Open agent tab** — compose the prompt per § Working a Change's cell (pipeline: the selected skill and arguments per `_cli-agents.md` § Skill Prompts; plain agent: the raw task text plus the PR instruction, no skill prefix; **bare agent: no prompt token at all** — the argv ends at the session command), then open the tab per `_cli-agents.md` § Spawn Composition's raw form: the session command and the prompt ride as **argv tokens after `--`**, never a composed shell string (rk appends the interactive shell fallback itself; the argv form needs no shell escaping):
 
    ```sh
-   rk tab new --session =<session> --cwd <worktree> --name <wt> --ready --json -- <spawn-argv…> ["<prompt>"]
+   rk tab new [--session =<name>] --cwd <worktree> --name <wt> --ready --json -- <spawn-argv…> ["<prompt>"]
    ```
 
-   (`=<session>` pins the target session from step 2 — there is no ambient-session fallback, and an unknown session errors loudly at spawn: surface it, never silently retry against the ambient session. `<wt>` is the worktree name from step 3.) The `--json` report (the `result` object of run-kit's `{"ok":true,"result":{…}}` envelope) carries `window_id` and `pane_id` — the marks below consume the window id, step 8 the pane id. Read the `ready:` verdict per `_cli-agents.md` § Await: `parked`/`narrow` are ordinary judgment rounds (answer the wall the snippet shows, probe again); `gone` gets one bounded retry, then escalate.
+   (`--session =<name>` only for the §8 override; otherwise rk resolves the landing session (step 2). An unknown session or rk's `nowhere to spawn` errors loudly: surface it, never retry against the ambient session. `<wt>` is the worktree name from step 3.) The `--json` report (the `result` object of run-kit's `{"ok":true,"result":{…}}` envelope) carries `session`, `session_rung`, `window_id`, `pane_id`, `ready` — marks consume the window id, step 8 the pane id and `session`; announce one line (spawn output, never §5): `→ session <session> (<session_rung>)`. Read the `ready:` verdict per `_cli-agents.md` § Await: `parked`/`narrow` are ordinary judgment rounds (answer the wall the snippet shows, probe again); `gone` gets one bounded retry, then escalate.
 
    **Window marks** — right after the spawn, mark the window: `rk tab mark @<window_id> auto` and `rk tab note @<window_id> "<id> · <stage>"` (a change-less item has no stage: `"<id>"`). While the pane item is `waiting` on a human, the mark flips to `rk tab mark @<window_id> blocked`; at removal (tick step 4) the operator runs `rk tab mark @<window_id> --off` and `rk tab note @<window_id> "✓ <id> done"`. The mark/note contracts are tool-owned (`rk skill`).
-8. **Track the item** — unconditionally and silently, one command (the `branch_map` pair rides the `track add`; contract in `_cli-fab-operator.md` § fab operator track). The id is the change id when known, else the worktree name from step 3; raw-text spawns are tracked at spawn and their change appears later as a `changed` delta; a plain-agent spawn never acquires a change — its id stays the worktree name and its completion is the chained `github-pr` item; a bare spawn is tracked the same way and completes on pane death / agent exit / `track rm`:
+8. **Track the item** — unconditionally and silently, one command (the `branch_map` pair rides the `track add`; contract in `_cli-fab-operator.md` § fab operator track). The id is the change id when known, else the worktree name from step 3; raw-text spawns are tracked at spawn and their change appears later as a `changed` delta; a plain-agent spawn never acquires a change — its id stays the worktree name and its completion is the chained `github-pr` item; a bare spawn is tracked the same way and completes on pane death / agent exit / `track rm`. `<session>` is the `--json` report's `session` field — never the §8 setting or a persisted `scope.session`:
 
    ```sh
    # new item (raw-text or fresh known-change spawn):
@@ -797,7 +797,7 @@ The isolation unit is the **tmux server**. There is exactly **one operator per t
 | Setting | Default | Override via natural language |
 |---------|---------|------------------------------|
 | Stuck threshold | 15m | "flag agents stuck for more than {N}m" |
-| Spawn target session | none — §6 step 2's selector decides; set only by the user (rung a) | "spawn into session {name}" |
+| Spawn target session | none — `rk tab new`'s role-aware default (§6 step 2) | "spawn into session {name}" → passes `--session =<name>` |
 
 Cadence is not a session setting — the binary derives it from the tracked set and applies it via `rk cron edit` (§4 The Clock); a bounded user override is `fab operator track clock --for` (§4 Mute and Lease).
 
@@ -817,7 +817,7 @@ These settings are session-scoped and reset on compaction, `/clear`, or session 
 | Outputs `Next:` line? | No — ends with ready signal |
 | Reads change/plan artifacts? | As the work needs — any plan, roadmap, intake, or task document required to drive tracked work (§1); none are startup always-loads (§2) |
 | Requires tmux? | Yes — hard stop without it |
-| Requires HexoKit? | Yes — hard stop without it (§2 rk Gate: `command -v rk` + `rk cron list --json`) |
+| Requires HexoKit? | Yes — hard stop without it (§2 rk Gate: `command -v rk` + `rk cron list --json` + `rk tab new --help` ∋ `session_rung`) |
 | Launcher delegation? | Yes — bare `fab operator` hands the launch to `rk operator` when a capable rk is on PATH (probe, pass-through, and failure semantics owned by `_cli-fab-operator.md` § fab operator); the rows below describe the binary's built-in launcher, whose behavior is owned by the CLI reference |
 | Requires a git repo? | No — `fab operator` opens its window in the repo root inside a repo, else `os.Getwd()` (neutral parent dir). Errors only if both fail |
 | Requires a `fab/` project? | No — session command comes from the project's `providers.claude.interactive_command` when `fab/` is resolvable, else `spawn.DefaultSpawnCommand` (the template `claude --permission-mode bypassPermissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}`). No project `providers`/`agent:` block is read on a `fab/`-less launch |
