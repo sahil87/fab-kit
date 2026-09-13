@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 9
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-09-13T08:29:17Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T08:40:58Z"}
     review: {started_at: "2026-09-13T08:40:58Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T08:44:45Z"}
     hydrate: {started_at: "2026-09-13T08:44:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T08:48:10Z"}
-    ship: {started_at: "2026-09-13T08:48:10Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-09-13T08:48:10Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T08:48:56Z"}
+    review-pr: {started_at: "2026-09-13T08:48:56Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/677
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 1180
+    deleted: 28
+    net: 1152
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 628
+        deleted: 8
+        net: 620
     tests:
-        added: 0
+        added: 388
         deleted: 0
-        net: 0
-    computed_at: "2026-09-13T08:48:10Z"
-    computed_at_stage: hydrate
+        net: 388
+    computed_at: "2026-09-13T08:48:56Z"
+    computed_at_stage: ship
 summary: fab sync writes the user-level fab-operator pointer skill (~/.agents/skills always, ~/.claude/skills when claude is present) so /fab-operator resolves from a neutral cwd incl. the rk operator -L respawn window; fab setup check probes it; _preamble helpers fall back to $(fab kit-path)/skills/
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-09-13T08:48:10Z
+last_updated: 2026-09-13T08:48:56Z
