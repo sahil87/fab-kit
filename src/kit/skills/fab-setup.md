@@ -92,6 +92,7 @@ Run `fab sync`. The command owns all non-interactive structural setup in one ide
 - **Directories**: `fab/changes/`, `fab/changes/archive/`, `fab/changes/.gitkeep`
 - **`fab/.kit-migration-version`** (see 1d)
 - **Skill deployment**: verifies and repairs regular-file copies from the cache kit at `.agents/skills/{name}/SKILL.md` (replacing stale symlinks)
+- **User-level operator skill**: writes the machine-level `fab-operator` pointer — `~/.agents/skills/fab-operator/SKILL.md` always, `~/.claude/skills/fab-operator/SKILL.md` when `claude` is available — pointing at `$(fab kit-path)/skills/fab-operator.md`
 - **`.gitignore`**: line-ensure merge of the kit's fragment (adds `.fab-*`, which covers `.fab-status.yaml`)
 
 **Sync-failure guard**: if `fab sync` exits non-zero, STOP immediately and surface its output — do not continue the bootstrap. (Sync requires a resolvable pinned version in `fab/.fab-version`, which `fab init` stamps.)
@@ -113,7 +114,7 @@ Found kit v{VERSION}. Initializing project...
 {config.yaml + constitution.md interactive creation}
 Created: fab/project/config.yaml
 Created: fab/project/constitution.md
-{fab sync report — scaffold files, fab/changes/ (+ archive), fab/.kit-migration-version ({version}), skills to .agents/skills/, .gitignore merge (.fab-*)}
+{fab sync report — scaffold files, fab/changes/ (+ archive), fab/.kit-migration-version ({version}), skills to .agents/skills/, user-level fab-operator skill, .gitignore merge (.fab-*)}
 fab/ initialized successfully.
 
 Next: {per state table — initialized}

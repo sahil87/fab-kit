@@ -8,6 +8,7 @@ package internal
 // skill deployment + legacy cleanup).
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -106,6 +107,7 @@ func Sync(systemVersion, kitVersion string, shimOnly, projectOnly bool) error {
 		}
 
 		deployErr = deploySkills(repoRoot, kitDir, claudeAvailable)
+		deployErr = errors.Join(deployErr, deployUserOperatorSkill(kitDir, claudeAvailable))
 
 		// No hook registration: fab no longer produces agent-state, so the whole
 		// `fab hook` command family (and hook sync) was removed. Settings-side

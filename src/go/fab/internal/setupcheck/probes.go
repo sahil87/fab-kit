@@ -174,6 +174,100 @@ func ProbeOverrideMasking(system, project map[string]any) []Finding {
 	return findings
 }
 
+// ProbeUserSkills reports the machine-level fab-operator pointer skill that
+// `fab sync` writes (`~/.agents/skills/fab-operator/SKILL.md` always;
+// `~/.claude/skills/fab-operator/SKILL.md` when claude is on PATH): presence
+// per tier, plus a staleness check comparing a present file's description:
+// line against the kit's skills/fab-operator.md (the body is a
+// version-independent pointer, so the description is the only part that can
+// drift). Warn, never Fail — a missing user-level skill breaks nothing inside
+// projects, so the doctor's exit code is unaffected. Read-only like every
+// probe: it reads the two skill files and the kit skill's frontmatter, and
+// gates the Claude tier through the lookPath seam.
+func ProbeUserSkills(homeDir string, lookPath LookPathFunc, kitDir string) []Finding {
+	if homeDir == "" {
+		return []Finding{{
+			Check: "user-skills", Severity: Info, Subject: "user-level fab-operator skill",
+			Detail: "home directory unknown — user-level fab-operator skill not checked",
+		}}
+	}
+
+	kitDescription := ""
+	if kitDir != "" {
+		if desc, err := frontmatterDescription(filepath.Join(kitDir, "skills", "fab-operator.md")); err == nil {
+			kitDescription = desc
+		}
+	}
+
+	var findings []Finding
+	check := func(tierDir, path string, expected bool) {
+		full := filepath.Join(homeDir, tierDir, "fab-operator", "SKILL.md")
+		data, err := os.ReadFile(full)
+		if err != nil {
+			if !expected {
+				findings = append(findings, Finding{
+					Check: "user-skills", Severity: Info, Subject: tierDir,
+					Detail: tierDir + " tier not expected (claude not on PATH)",
+				})
+			} else {
+				findings = append(findings, Finding{
+					Check: "user-skills", Severity: Warn, Subject: tierDir,
+					Detail: "user-level fab-operator skill missing — run 'fab sync' in any fab project (the rk operator -L respawn window opens in $HOME)",
+				})
+			}
+			return
+		}
+		findings = append(findings, Finding{
+			Check: "user-skills", Severity: OK, Subject: tierDir,
+			Detail: "user-level fab-operator skill: " + path,
+		})
+		if kitDescription != "" {
+			if desc, err := frontmatterDescriptionBytes(data); err != nil || desc != kitDescription {
+				findings = append(findings, Finding{
+					Check: "user-skills", Severity: Warn, Subject: tierDir,
+					Detail: "user-level fab-operator skill is stale — re-run 'fab sync'",
+				})
+			}
+		}
+	}
+
+	check(filepath.Join(".agents", "skills"), "~/.agents/skills", true)
+	_, claudeErr := lookPath("claude")
+	check(filepath.Join(".claude", "skills"), "~/.claude/skills", claudeErr == nil)
+	return findings
+}
+
+// frontmatterDescription reads a file and returns its frontmatter description.
+func frontmatterDescription(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return frontmatterDescriptionBytes(data)
+}
+
+// frontmatterDescriptionBytes extracts the description: value from a leading
+// --- frontmatter block (line-prefix scan; the value is compared verbatim,
+// quotes included — `fab sync` writes it byte-identical to the kit skill's).
+func frontmatterDescriptionBytes(data []byte) (string, error) {
+	lines := strings.Split(string(data), "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return "", fmt.Errorf("no frontmatter block")
+	}
+	for _, line := range lines[1:] {
+		if strings.TrimSpace(line) == "---" {
+			break
+		}
+		if value, ok := strings.CutPrefix(line, "description:"); ok {
+			if value = strings.TrimSpace(value); value != "" {
+				return value, nil
+			}
+			break
+		}
+	}
+	return "", fmt.Errorf("no description: frontmatter line")
+}
+
 // maskedCapabilities returns the capability keys the override SETS that the
 // embedded defaults leave undefined — the mask condition. The deprecated
 // spellings (session_command / dispatch_command) count as their modern

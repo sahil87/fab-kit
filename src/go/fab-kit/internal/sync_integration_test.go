@@ -571,3 +571,42 @@ func TestSync_WithoutClaudePreservesExistingTree(t *testing.T) {
 		t.Errorf("sync without claude changed existing tree: before=%v after=%v", before, after)
 	}
 }
+
+// TestSync_WritesUserLevelOperatorSkill pins the Sync wiring: a full sync
+// against a kit carrying the pointer template leaves the machine-level
+// fab-operator skill under the harness HOME (both tiers — the fixture sets
+// FAB_AGENTS=claude) and prints the tally line.
+func TestSync_WritesUserLevelOperatorSkill(t *testing.T) {
+	setupSyncRepo(t)
+	home := os.Getenv("HOME")
+	kitDir := filepath.Join(home, ".fab-kit", "versions", "dev", "kit")
+	if err := os.MkdirAll(filepath.Join(kitDir, "templates"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(kitDir, "skills", "fab-operator.md"),
+		[]byte("---\nname: fab-operator\ndescription: \"Coordinate fab agents.\"\n---\n\n# /fab-operator\n"), 0644)
+	os.WriteFile(filepath.Join(kitDir, "templates", "user-skill-fab-operator.md"),
+		[]byte(userSkillFixtureTemplate), 0644)
+
+	var err error
+	out := captureStdout(t, func() {
+		err = Sync("dev", "dev", false, false)
+	})
+	if err != nil {
+		t.Fatalf("Sync: %v\noutput:\n%s", err, out)
+	}
+	for _, tier := range []string{".agents", ".claude"} {
+		dest := filepath.Join(home, tier, "skills", "fab-operator", "SKILL.md")
+		data, err := os.ReadFile(dest)
+		if err != nil {
+			t.Errorf("user-level %s tier not written: %v", tier, err)
+			continue
+		}
+		if !strings.Contains(string(data), `description: "Coordinate fab agents."`) {
+			t.Errorf("user-level %s tier carries the kit description verbatim, got:\n%s", tier, data)
+		}
+	}
+	if !strings.Contains(out, "User-level skill (fab-operator): written") {
+		t.Errorf("expected the user-level tally line, got:\n%s", out)
+	}
+}

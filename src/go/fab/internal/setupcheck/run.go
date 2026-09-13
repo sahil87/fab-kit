@@ -1,6 +1,7 @@
 package setupcheck
 
 import (
+	"os"
 	"os/exec"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
@@ -25,6 +26,10 @@ type Input struct {
 	// KitDir is the resolved kit cache directory; "" asks Run to resolve it
 	// via internal/kitpath (resolution failure degrades to an Info finding).
 	KitDir string
+	// HomeDir is the user's home directory for the user-level skill probe;
+	// "" asks Run to resolve it via os.UserHomeDir (resolution failure
+	// degrades to an Info finding).
+	HomeDir string
 	// LookPath resolves an executable on PATH; nil means exec.LookPath.
 	LookPath LookPathFunc
 }
@@ -88,6 +93,13 @@ func Run(in Input) *Report {
 			kitDir = dir
 		}
 	}
+	homeDir := in.HomeDir
+	if homeDir == "" {
+		if dir, err := os.UserHomeDir(); err == nil {
+			homeDir = dir
+		}
+	}
+	report.Findings = append(report.Findings, ProbeUserSkills(homeDir, lookPath, kitDir)...)
 	report.Findings = append(report.Findings, ProbeVersions(in.BinaryVersion, kitDir, in.ProjectPin)...)
 
 	report.Findings = append(report.Findings, ProbeDispatchMode(cfg, in.TmuxEnv)...)

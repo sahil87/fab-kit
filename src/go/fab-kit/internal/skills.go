@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -90,6 +91,103 @@ func deploySkills(repoRoot, kitDir string, claudeAvailable bool) error {
 	}
 
 	return errors.Join(errs...)
+}
+
+// deployUserOperatorSkill writes the machine-level fab-operator pointer skill
+// (~/.agents/skills always; ~/.claude/skills when claude is available) so the
+// operator resolves from a directory with no fab project. Rewrite-if-differs;
+// never prunes or lists sibling skills; no manifest. A kit without the template
+// (a pin predating this feature) is a silent no-op.
+func deployUserOperatorSkill(kitDir string, claudeAvailable bool) error {
+	tmpl, err := os.ReadFile(filepath.Join(kitDir, "templates", "user-skill-fab-operator.md"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Sync runs against the project's pinned kit; a newer binary syncing
+			// an older pin must not fail.
+			return nil
+		}
+		return fmt.Errorf("user-level operator skill: cannot read template: %w", err)
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("user-level operator skill: cannot resolve home directory: %w", err)
+	}
+
+	description, err := skillDescription(filepath.Join(kitDir, "skills", "fab-operator.md"))
+	if err != nil {
+		return err
+	}
+	rendered := []byte(strings.Replace(string(tmpl), "{DESCRIPTION}", description, 1))
+
+	tiers := []struct {
+		dir  string
+		fire bool
+	}{
+		{filepath.Join(home, ".agents", "skills", "fab-operator"), true},
+		{filepath.Join(home, ".claude", "skills", "fab-operator"), claudeAvailable},
+	}
+
+	var errs []error
+	written := false
+	for _, tier := range tiers {
+		if !tier.fire {
+			// A closed gate preserves an existing file — never delete.
+			fmt.Println("Skipping ~/.claude tier: claude not found in PATH")
+			continue
+		}
+		if err := os.MkdirAll(tier.dir, 0755); err != nil {
+			errs = append(errs, fmt.Errorf("user-level operator skill: cannot create %s: %w", tier.dir, err))
+			continue
+		}
+		dest := filepath.Join(tier.dir, "SKILL.md")
+		if existing, err := os.ReadFile(dest); err == nil && bytes.Equal(existing, rendered) {
+			continue
+		}
+		if err := os.WriteFile(dest, rendered, 0644); err != nil {
+			errs = append(errs, fmt.Errorf("user-level operator skill: cannot write %s: %w", dest, err))
+			continue
+		}
+		written = true
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	if written {
+		fmt.Println("User-level skill (fab-operator): written")
+	} else {
+		fmt.Println("User-level skill (fab-operator): up to date")
+	}
+	return nil
+}
+
+// skillDescription extracts the description: value from a skill file's leading
+// --- frontmatter block (line-prefix scan). The value is kept verbatim —
+// surrounding quotes included — so the rendered user-level skill's
+// description: line matches the kit skill's byte-for-byte and `fab setup
+// check`'s staleness comparison has exactly one form to read.
+func skillDescription(skillPath string) (string, error) {
+	data, err := os.ReadFile(skillPath)
+	if err != nil {
+		return "", fmt.Errorf("user-level operator skill: cannot read %s: %w", skillPath, err)
+	}
+	lines := strings.Split(string(data), "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return "", fmt.Errorf("user-level operator skill: %s has no frontmatter block", skillPath)
+	}
+	for _, line := range lines[1:] {
+		if strings.TrimSpace(line) == "---" {
+			break
+		}
+		if value, ok := strings.CutPrefix(line, "description:"); ok {
+			if value = strings.TrimSpace(value); value != "" {
+				return value, nil
+			}
+			break
+		}
+	}
+	return "", fmt.Errorf("user-level operator skill: %s has no description: frontmatter line", skillPath)
 }
 
 // listSkills returns the base names (without .md) of all skill files.

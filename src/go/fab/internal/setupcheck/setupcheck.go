@@ -17,7 +17,9 @@
 //
 // HARD INVARIANT: nothing here writes — no config mutation, no trust-store
 // seeding, no agent/pane launches, no state files. Probes read config, run
-// exec.LookPath, and read at most one file (the kit cache's VERSION).
+// exec.LookPath, and read a small fixed set of files: the kit cache's VERSION,
+// the kit's skills/fab-operator.md frontmatter, and the user-level
+// fab-operator skill files under $HOME.
 package setupcheck
 
 import (
