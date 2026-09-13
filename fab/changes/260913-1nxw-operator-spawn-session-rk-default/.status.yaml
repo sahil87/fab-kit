@@ -9,8 +9,8 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
-    review-pr: pending
+    ship: done
+    review-pr: active
 plan:
     generated: true
     task_count: 4
@@ -33,23 +33,25 @@ stage_metrics:
     apply: {started_at: "2026-09-13T07:51:00Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T07:52:38Z"}
     review: {started_at: "2026-09-13T07:52:38Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T07:56:43Z"}
     hydrate: {started_at: "2026-09-13T07:56:43Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T07:56:43Z"}
-    ship: {started_at: "2026-09-13T07:56:43Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-09-13T07:56:43Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T07:58:08Z"}
+    review-pr: {started_at: "2026-09-13T07:58:08Z", driver: git-pr, iterations: 1}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/676
 change_type_source: explicit
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 516
+    deleted: 33
+    net: 483
     excluding:
-        added: 0
-        deleted: 0
+        added: 12
+        deleted: 12
         net: 0
     tests:
         added: 0
         deleted: 0
         net: 0
-    computed_at: "2026-09-13T07:56:43Z"
-    computed_at_stage: hydrate
+    computed_at: "2026-09-13T07:58:08Z"
+    computed_at_stage: ship
 summary: 'Operator spawn step 2 delegates the target session to rk tab new''s role-aware default (v3.19.59): --session rides only the §8 user override, the --json report''s session/session_rung are echoed and tracked, and the §2 rk Gate probes rk tab new --help for session_rung so an older rk stops at startup instead of misplacing windows. fab carries no session selector.'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-09-13T07:56:43Z
+last_updated: 2026-09-13T07:58:08Z
