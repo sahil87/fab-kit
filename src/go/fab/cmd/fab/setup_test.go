@@ -533,6 +533,27 @@ func TestSetupCheck_WarningsOnlyExits0(t *testing.T) {
 	}
 }
 
+// TestSetupCheck_ReportsUserLevelSkill: the rendered report carries the
+// user-skills findings (the fixture HOME holds no user-level skill, so the
+// .agents tier warns and the gated .claude tier warns with claude stubbed
+// present) — and the Warn-only report still exits 0.
+func TestSetupCheck_ReportsUserLevelSkill(t *testing.T) {
+	setupCheckFixture(t, "", "claude")
+
+	code, out, _ := runFab("setup", "check")
+	if code != 0 {
+		t.Errorf("a warn-only user-skills report must exit 0, got %d; output:\n%s", code, out)
+	}
+	for _, want := range []string{
+		"user-level fab-operator skill missing",
+		"run 'fab sync' in any fab project",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("report missing %q, got:\n%s", want, out)
+		}
+	}
+}
+
 func TestSetupCheck_FailureFindingExits1(t *testing.T) {
 	// agent.workers names agy, whose binary is absent — a real problem.
 	setupCheckFixture(t, "agent:\n  workers: agy\n", "claude")

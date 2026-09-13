@@ -497,6 +497,7 @@ The `.fab-*` gitignore pattern also covers transient dirs like `.fab-dispatch/`.
 | Claude Code | `.claude/skills/{name}/SKILL.md` | Directory-based **copies** | `claude` available |
 | OpenCode (`opencode`) | `.opencode/commands/{name}.md` | Flat-file copies | When `opencode` is available |
 | Agents dir | `.agents/skills/{name}/SKILL.md` | Directory-based copies | Every sync |
+| User (machine) | `~/.agents/skills/fab-operator/SKILL.md` (always), `~/.claude/skills/fab-operator/SKILL.md` (when `claude` is available) | Pointer to `$(fab kit-path)/skills/fab-operator.md` | Every sync |
 
 `.agents/skills/` is the **generic** workspace directory: codex, agy and kimi all discover skills there natively, so none of them gets a per-brand directory. That one-target-per-skill-set rule is deliberate — deploying the same skills to both a generic and a per-brand directory is what makes a CLI that reads both report every skill twice. `FAB_AGENTS` can override availability for the gated Claude Code and OpenCode rows in tests and CI, but it cannot suppress `.agents/skills/`. The Claude gate is computed once per sync and also controls `.claude/` scaffold writes (including settings permissions) and legacy agent cleanup; when closed, sync preserves existing `.claude/` content and creates none.
 
@@ -631,5 +632,5 @@ Skills loading context will naturally scope to the relevant section based on wha
 | `fab/changes/` (flat) | Fine — changes reference affected packages in their plan |
 | `docs/memory/` (domain-based) | Already monorepo-friendly |
 | `fab/project/constitution.md` | Shared principles apply repo-wide; use sections for package-specific conventions if needed |
-| `.claude/skills/` (when `claude` is available), `.agents/skills/` (always) | One skill set per repo — correct for a single `fab/` |
+| `.claude/skills/` (when `claude` is available), `.agents/skills/` (always) | One skill set per repo — correct for a single `fab/` (the machine-level `fab-operator` pointer under `~/` is deliberately per-machine, not per-repo) |
 | Git branches | Repo-wide by nature — matches single `fab/` model |

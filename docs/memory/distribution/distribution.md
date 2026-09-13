@@ -191,7 +191,7 @@ Preflight compares `$(fab kit-path)/VERSION` against the project's pinned versio
 
 - `⚠ Skills may be out of sync — run fab sync to refresh (engine X, project Y)`
 
-If either value is unreadable or empty, the check is silently skipped. This detects stale local skill deployments when a developer pulls new `src/kit/` source via git but hasn't re-run `fab sync` (fab's deployed copies in `.agents/skills/` and the CLI-gated `.claude/skills/` (`claude`) and `.opencode/commands/` (`opencode`) are ignored via each target's generated `.gitignore` manifest and so not updated by git pull).
+If either value is unreadable or empty, the check is silently skipped. This detects stale local skill deployments when a developer pulls new `src/kit/` source via git but hasn't re-run `fab sync` (fab's deployed copies in `.agents/skills/` and the CLI-gated `.claude/skills/` (`claude`) and `.opencode/commands/` (`opencode`) are ignored via each target's generated `.gitignore` manifest and so not updated by git pull; the machine-level `fab-operator` pointer skill `fab sync` writes to `~/.agents/skills/` and `~/.claude/skills/` likewise refreshes only on a sync).
 
 #### Version Skew Detection (`fab setup check`)
 
@@ -210,7 +210,7 @@ Atomicity lives in the cache install, not in any in-repo copy (kit content is ne
 
 #### Skill Deployment Repair After Update
 
-After caching the new version, `fab upgrade-repo` SHALL call `Sync()` directly (the same logic as `fab-kit sync`, before stamping `fab/.fab-version`) to ensure all skill deployments are up to date: the always-on `.agents/skills/` copy is refreshed, `.claude/skills/` and `.opencode/commands/` are refreshed when their respective `claude` and `opencode` gates fire, and stale agent files in `.claude/agents/` are cleaned up only when `claude` is available. The same Claude gate controls the `.claude/settings.local.json` scaffold merge.
+After caching the new version, `fab upgrade-repo` SHALL call `Sync()` directly (the same logic as `fab-kit sync`, before stamping `fab/.fab-version`) to ensure all skill deployments are up to date: the always-on `.agents/skills/` copy is refreshed, `.claude/skills/` and `.opencode/commands/` are refreshed when their respective `claude` and `opencode` gates fire, the user-level `fab-operator` pointer skill (`~/.agents/skills/fab-operator/SKILL.md` always, `~/.claude/skills/fab-operator/SKILL.md` under the `claude` gate) is refreshed by the same run, and stale agent files in `.claude/agents/` are cleaned up only when `claude` is available. The same Claude gate controls the `.claude/settings.local.json` scaffold merge.
 
 ### wt Shell Setup
 

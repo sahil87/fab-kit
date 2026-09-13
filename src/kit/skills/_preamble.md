@@ -122,7 +122,7 @@ helpers: [_generation, _review, _srad, _pipeline]
 
 **Implicit** (never list): `_preamble` itself is loaded universally.
 
-**Semantics**: After reading `_preamble` and before executing the skill body, the agent MUST read `.agents/skills/{helper}/SKILL.md` for each declared helper. Skills that declare no `helpers:` list (or an empty list) load only `_preamble`.
+**Semantics**: After reading `_preamble` and before executing the skill body, the agent MUST read `.agents/skills/{helper}/SKILL.md` for each declared helper — or, when that deployed file does not exist (a skill launched outside any `fab sync`-deployed project, e.g. the operator from a neutral directory via its user-level pointer skill), `$(fab kit-path)/skills/{helper}.md`, the flat kit copy of the same file. Skills that declare no `helpers:` list (or an empty list) load only `_preamble`.
 
 **Stage-conditional loading**: A skill MAY instead load a helper at its point of use via an explicit in-body read instruction (e.g., "read `.agents/skills/_review/SKILL.md` before entering Review Behavior"). Frontmatter `helpers:` declares unconditional pre-body loads; in-body read instructions declare conditional ones — a helper loaded this way is intentionally absent from the frontmatter list. `/fab-continue` uses this for `_generation` (apply entry / intake regeneration) and `_review` (review stage).
 

@@ -51,6 +51,8 @@ Load only `fab/project/config.yaml`, `fab/project/constitution.md`, and `fab/pro
 
 Helpers declared in frontmatter: `_cli-fab-operator` (operator/agent CLI reference — the `track` verb contracts and the tick document), `_cli-fab-pane` (pane/dispatch CLI reference), `_cli-agents` (the generic agent-CLI interaction procedures — spawn composition, pre-send validation, delivery probe, peek, await — plus the per-provider grammar/discovery dictionary), and `_cli-external` (wt, idea, tmux reference). Naming conventions are inlined in `_preamble.md` § Naming Conventions — already loaded.
 
+Launched from a directory with no deployed `.agents/skills/` — how `/fab-operator` resolves there is the user-level pointer skill `fab sync` writes to `~/.agents/skills/` and `~/.claude/skills/` — the helpers load from `$(fab kit-path)/skills/{helper}.md` per `_preamble.md` § Skill Helper Declaration, and the `fab/project/*` loads above skip (none exists up the tree).
+
 The split between `_cli-agents` and this file is **agent primitives vs. operator orchestration**: `_cli-agents` owns *how* to talk to an agent CLI (the mechanics any session could reuse); this file owns *when and whether* to (confirmation tiers, retry budgets, repo targeting, tracking, dependency resolution, queues).
 
 The operator needs full command vocabulary to make routing decisions (e.g., knowing a fresh idea needs `/fab-new` → `/fab-fff` in a fab project — fab-new creates the branch inline — or a plain agent in a repo with no `fab/`, or a bare agent when no task was given (§6 Working a Change), while a mis-aligned tab needs `/git-branch` first).

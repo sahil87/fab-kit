@@ -362,3 +362,157 @@ func TestRun_AggregatesAndDegradesOutsideRepo(t *testing.T) {
 		t.Errorf("a clean default environment must not fail, got %v", fails)
 	}
 }
+
+// TestProbeUserSkills covers the user-skills doctor check: presence per tier,
+// the claude-gated Info, and description-line staleness against the fixture
+// kit. Warn, never Fail — the doctor's exit code is unaffected.
+func TestProbeUserSkills(t *testing.T) {
+	kitWithDescription := func(t *testing.T, desc string) string {
+		t.Helper()
+		kit := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(kit, "skills"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		skill := "---\nname: fab-operator\ndescription: " + desc + "\n---\n\n# /fab-operator\n"
+		if err := os.WriteFile(filepath.Join(kit, "skills", "fab-operator.md"), []byte(skill), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return kit
+	}
+	writeTier := func(t *testing.T, home, tier, desc string) {
+		t.Helper()
+		dir := filepath.Join(home, tier, "skills", "fab-operator")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		skill := "---\nname: fab-operator\ndescription: " + desc + "\n---\n\n# /fab-operator — user-level pointer\n"
+		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(skill), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bySubject := func(findings []Finding) map[string][]Finding {
+		out := map[string][]Finding{}
+		for _, f := range findings {
+			if f.Check != "user-skills" {
+				t.Errorf("finding on the wrong check name: %+v", f)
+			}
+			out[f.Subject] = append(out[f.Subject], f)
+		}
+		return out
+	}
+
+	t.Run("both tiers present and current are OK", func(t *testing.T) {
+		home := t.TempDir()
+		kit := kitWithDescription(t, `"current"`)
+		writeTier(t, home, ".agents", `"current"`)
+		writeTier(t, home, ".claude", `"current"`)
+
+		got := bySubject(ProbeUserSkills(home, stubLookPath("claude"), kit))
+		for _, tier := range []string{filepath.Join(".agents", "skills"), filepath.Join(".claude", "skills")} {
+			if len(got[tier]) != 1 || got[tier][0].Severity != OK {
+				t.Errorf("tier %s: want one OK finding, got %+v", tier, got[tier])
+			}
+		}
+	})
+
+	t.Run("absent agents tier warns with the sync hint", func(t *testing.T) {
+		home := t.TempDir()
+		kit := kitWithDescription(t, `"current"`)
+
+		got := bySubject(ProbeUserSkills(home, stubLookPath("claude"), kit))
+		agents := got[filepath.Join(".agents", "skills")]
+		if len(agents) != 1 || agents[0].Severity != Warn {
+			t.Fatalf("absent .agents tier must warn, got %+v", agents)
+		}
+		if !strings.Contains(agents[0].Detail, "run 'fab sync' in any fab project") {
+			t.Errorf("the warn detail must carry the fix hint, got %q", agents[0].Detail)
+		}
+	})
+
+	t.Run("stale description warns", func(t *testing.T) {
+		home := t.TempDir()
+		kit := kitWithDescription(t, `"current"`)
+		writeTier(t, home, ".agents", `"older wording"`)
+
+		got := bySubject(ProbeUserSkills(home, stubLookPath(), kit))
+		agents := got[filepath.Join(".agents", "skills")]
+		if len(agents) != 2 || agents[0].Severity != OK || agents[1].Severity != Warn {
+			t.Fatalf("a present-but-stale tier must produce OK + Warn, got %+v", agents)
+		}
+		if !strings.Contains(agents[1].Detail, "stale") {
+			t.Errorf("the stale warn must say so, got %q", agents[1].Detail)
+		}
+	})
+
+	t.Run("claude absent makes the .claude tier informational", func(t *testing.T) {
+		home := t.TempDir()
+		kit := kitWithDescription(t, `"current"`)
+		writeTier(t, home, ".agents", `"current"`)
+
+		got := bySubject(ProbeUserSkills(home, stubLookPath(), kit))
+		claude := got[filepath.Join(".claude", "skills")]
+		if len(claude) != 1 || claude[0].Severity != Info {
+			t.Fatalf("without claude on PATH the .claude tier must be Info, got %+v", claude)
+		}
+		if !strings.Contains(claude[0].Detail, "not expected") {
+			t.Errorf("the Info detail must name the gate, got %q", claude[0].Detail)
+		}
+	})
+
+	t.Run("absent .claude tier with claude present warns", func(t *testing.T) {
+		home := t.TempDir()
+		kit := kitWithDescription(t, `"current"`)
+		writeTier(t, home, ".agents", `"current"`)
+
+		got := bySubject(ProbeUserSkills(home, stubLookPath("claude"), kit))
+		claude := got[filepath.Join(".claude", "skills")]
+		if len(claude) != 1 || claude[0].Severity != Warn {
+			t.Errorf("a missing .claude tier with claude present must warn, got %+v", claude)
+		}
+	})
+
+	t.Run("never fails", func(t *testing.T) {
+		home := t.TempDir()
+		for _, f := range ProbeUserSkills(home, stubLookPath(), "") {
+			if f.Severity == Fail {
+				t.Errorf("the user-skills probe must never produce a Fail finding, got %+v", f)
+			}
+		}
+	})
+}
+
+func TestProbeUserSkills_ClaudeAbsentWithLeftoverFileIsInfoOnly(t *testing.T) {
+	home := t.TempDir()
+	// A leftover Claude-tier file from an earlier sync while claude is no longer
+	// on PATH: the writer preserves it, so the doctor must neither bless it (OK)
+	// nor call it stale — one informational finding for the tier.
+	leftover := filepath.Join(home, ".claude", "skills", "fab-operator", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(leftover), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(leftover, []byte("---\nname: fab-operator\ndescription: \"old\"\n---\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	agents := filepath.Join(home, ".agents", "skills", "fab-operator", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(agents), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(agents, []byte("---\nname: fab-operator\ndescription: \"old\"\n---\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	noClaude := func(string) (string, error) { return "", os.ErrNotExist }
+
+	findings := ProbeUserSkills(home, noClaude, "")
+	var claudeTier []Finding
+	for _, f := range findings {
+		if strings.HasSuffix(f.Subject, filepath.Join(".claude", "skills")) {
+			claudeTier = append(claudeTier, f)
+		}
+	}
+	if len(claudeTier) != 1 || claudeTier[0].Severity != Info {
+		t.Fatalf("claude tier findings = %+v, want exactly one Info", claudeTier)
+	}
+	if !strings.Contains(claudeTier[0].Detail, "left as is") {
+		t.Errorf("Info detail should note the preserved file, got %q", claudeTier[0].Detail)
+	}
+}
