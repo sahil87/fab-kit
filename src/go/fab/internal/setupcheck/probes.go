@@ -202,19 +202,26 @@ func ProbeUserSkills(homeDir string, lookPath LookPathFunc, kitDir string) []Fin
 	var findings []Finding
 	check := func(tierDir, path string, expected bool) {
 		full := filepath.Join(homeDir, tierDir, "fab-operator", "SKILL.md")
+		if !expected {
+			// A closed Claude gate is a normal state: the writer preserves any
+			// earlier file and never re-renders it, so neither OK nor staleness
+			// applies — report informationally whether or not a file remains.
+			detail := tierDir + " tier not expected (claude not on PATH)"
+			if _, err := os.Stat(full); err == nil {
+				detail += " — existing file left as is"
+			}
+			findings = append(findings, Finding{
+				Check: "user-skills", Severity: Info, Subject: tierDir,
+				Detail: detail,
+			})
+			return
+		}
 		data, err := os.ReadFile(full)
 		if err != nil {
-			if !expected {
-				findings = append(findings, Finding{
-					Check: "user-skills", Severity: Info, Subject: tierDir,
-					Detail: tierDir + " tier not expected (claude not on PATH)",
-				})
-			} else {
-				findings = append(findings, Finding{
-					Check: "user-skills", Severity: Warn, Subject: tierDir,
-					Detail: "user-level fab-operator skill missing — run 'fab sync' in any fab project (the rk operator -L respawn window opens in $HOME)",
-				})
-			}
+			findings = append(findings, Finding{
+				Check: "user-skills", Severity: Warn, Subject: tierDir,
+				Detail: "user-level fab-operator skill missing — run 'fab sync' in any fab project (the rk operator -L respawn window opens in $HOME)",
+			})
 			return
 		}
 		findings = append(findings, Finding{

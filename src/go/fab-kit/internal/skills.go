@@ -141,10 +141,22 @@ func deployUserOperatorSkill(kitDir string, claudeAvailable bool) error {
 			continue
 		}
 		dest := filepath.Join(tier.dir, "SKILL.md")
-		if existing, err := os.ReadFile(dest); err == nil && bytes.Equal(existing, rendered) {
-			continue
+		if info, err := os.Lstat(dest); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			// Never follow a symlink into some other file (a sibling skill, a
+			// user's own note): replace the link itself, as syncAgentSkills does.
+			if err := os.Remove(dest); err != nil {
+				errs = append(errs, fmt.Errorf("user-level operator skill: cannot replace symlink %s: %w", dest, err))
+				continue
+			}
+		} else if err == nil {
+			if existing, rerr := os.ReadFile(dest); rerr == nil && bytes.Equal(existing, rendered) {
+				continue
+			}
 		}
-		if err := os.WriteFile(dest, rendered, 0644); err != nil {
+		// The destination is machine-wide and two syncs from different projects
+		// may race on it: write a same-directory temp file and rename it into
+		// place so a reader never sees a truncated or interleaved pointer.
+		if err := writeFileAtomic(dest, rendered, 0644); err != nil {
 			errs = append(errs, fmt.Errorf("user-level operator skill: cannot write %s: %w", dest, err))
 			continue
 		}
@@ -158,6 +170,37 @@ func deployUserOperatorSkill(kitDir string, claudeAvailable bool) error {
 		fmt.Println("User-level skill (fab-operator): written")
 	} else {
 		fmt.Println("User-level skill (fab-operator): up to date")
+	}
+	return nil
+}
+
+// writeFileAtomic writes data to a same-directory temp file and renames it over
+// dest, so concurrent readers (and a second writer racing on a shared,
+// machine-wide path) observe either the old or the new complete file.
+func writeFileAtomic(dest string, data []byte, perm os.FileMode) error {
+	tmp, err := os.CreateTemp(filepath.Dir(dest), "."+filepath.Base(dest)+".*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	cleanup := func(err error) error {
+		tmp.Close()
+		os.Remove(tmpName)
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		return cleanup(err)
+	}
+	if err := tmp.Chmod(perm); err != nil {
+		return cleanup(err)
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	if err := os.Rename(tmpName, dest); err != nil {
+		os.Remove(tmpName)
+		return err
 	}
 	return nil
 }

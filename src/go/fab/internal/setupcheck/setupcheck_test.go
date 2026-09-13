@@ -480,3 +480,39 @@ func TestProbeUserSkills(t *testing.T) {
 		}
 	})
 }
+
+func TestProbeUserSkills_ClaudeAbsentWithLeftoverFileIsInfoOnly(t *testing.T) {
+	home := t.TempDir()
+	// A leftover Claude-tier file from an earlier sync while claude is no longer
+	// on PATH: the writer preserves it, so the doctor must neither bless it (OK)
+	// nor call it stale — one informational finding for the tier.
+	leftover := filepath.Join(home, ".claude", "skills", "fab-operator", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(leftover), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(leftover, []byte("---\nname: fab-operator\ndescription: \"old\"\n---\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	agents := filepath.Join(home, ".agents", "skills", "fab-operator", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(agents), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(agents, []byte("---\nname: fab-operator\ndescription: \"old\"\n---\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	noClaude := func(string) (string, error) { return "", os.ErrNotExist }
+
+	findings := ProbeUserSkills(home, noClaude, "")
+	var claudeTier []Finding
+	for _, f := range findings {
+		if strings.HasSuffix(f.Subject, filepath.Join(".claude", "skills")) {
+			claudeTier = append(claudeTier, f)
+		}
+	}
+	if len(claudeTier) != 1 || claudeTier[0].Severity != Info {
+		t.Fatalf("claude tier findings = %+v, want exactly one Info", claudeTier)
+	}
+	if !strings.Contains(claudeTier[0].Detail, "left as is") {
+		t.Errorf("Info detail should note the preserved file, got %q", claudeTier[0].Detail)
+	}
+}

@@ -5,53 +5,53 @@ created_by: sahil-noon
 change_type: feat
 issues: []
 progress:
-    intake: done
-    apply: done
-    review: done
-    hydrate: done
-    ship: done
-    review-pr: active
+  intake: done
+  apply: done
+  review: done
+  hydrate: done
+  ship: done
+  review-pr: active
 plan:
-    generated: true
-    task_count: 9
-    acceptance_count: 24
-    acceptance_completed: 24
+  generated: true
+  task_count: 9
+  acceptance_count: 24
+  acceptance_completed: 24
 confidence:
-    certain: 9
-    confident: 8
-    tentative: 0
-    unresolved: 0
-    score: 3.8
-    fuzzy: true
-    dimensions:
-        signal: 67.6
-        reversibility: 86.5
-        competence: 80.9
-        disambiguation: 75.3
+  certain: 9
+  confident: 8
+  tentative: 0
+  unresolved: 0
+  score: 3.8
+  fuzzy: true
+  dimensions:
+    signal: 67.6
+    reversibility: 86.5
+    competence: 80.9
+    disambiguation: 75.3
 stage_metrics:
-    intake: {started_at: "2026-09-13T08:20:14Z", driver: fab-new, iterations: 1, completed_at: "2026-09-13T08:29:17Z"}
-    apply: {started_at: "2026-09-13T08:29:17Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T08:40:58Z"}
-    review: {started_at: "2026-09-13T08:40:58Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T08:44:45Z"}
-    hydrate: {started_at: "2026-09-13T08:44:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T08:48:10Z"}
-    ship: {started_at: "2026-09-13T08:48:10Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T08:48:56Z"}
-    review-pr: {started_at: "2026-09-13T08:48:56Z", driver: git-pr, iterations: 1}
+  intake: {started_at: "2026-09-13T08:20:14Z", driver: fab-new, iterations: 1, completed_at: "2026-09-13T08:29:17Z"}
+  apply: {started_at: "2026-09-13T08:29:17Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T08:40:58Z"}
+  review: {started_at: "2026-09-13T08:40:58Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T08:44:45Z"}
+  hydrate: {started_at: "2026-09-13T08:44:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T08:48:10Z"}
+  ship: {started_at: "2026-09-13T08:48:10Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-13T08:48:56Z"}
+  review-pr: {started_at: "2026-09-13T08:48:56Z", driver: git-pr, iterations: 1, phase: fixing, reviewer: '@Copilot'}
 prs:
-    - https://github.com/sahil87/fab-kit/pull/677
+  - https://github.com/sahil87/fab-kit/pull/677
 change_type_source: explicit
 true_impact:
-    added: 1180
-    deleted: 28
-    net: 1152
-    excluding:
-        added: 628
-        deleted: 8
-        net: 620
-    tests:
-        added: 388
-        deleted: 0
-        net: 388
-    computed_at: "2026-09-13T08:48:56Z"
-    computed_at_stage: ship
+  added: 1180
+  deleted: 28
+  net: 1152
+  excluding:
+    added: 628
+    deleted: 8
+    net: 620
+  tests:
+    added: 388
+    deleted: 0
+    net: 388
+  computed_at: "2026-09-13T08:48:56Z"
+  computed_at_stage: ship
 summary: fab sync writes the user-level fab-operator pointer skill (~/.agents/skills always, ~/.claude/skills when claude is present) so /fab-operator resolves from a neutral cwd incl. the rk operator -L respawn window; fab setup check probes it; _preamble helpers fall back to $(fab kit-path)/skills/
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
 last_updated: 2026-09-13T08:48:56Z

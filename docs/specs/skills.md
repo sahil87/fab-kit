@@ -19,7 +19,7 @@ As of 1.10.0 the `spec` stage and the separate `spec.md` artifact are removed. R
 
 ## Skill Helpers (`helpers:` Frontmatter)
 
-Every skill MAY declare additional helper files it needs to load via a `helpers:` frontmatter list. The agent reads each declared helper's `.agents/skills/{helper}/SKILL.md` after reading `_preamble` and before executing the skill body.
+Every skill MAY declare additional helper files it needs to load via a `helpers:` frontmatter list. The agent reads each declared helper's `.agents/skills/{helper}/SKILL.md` after reading `_preamble` and before executing the skill body — or, when that deployed file does not exist (a skill launched outside any `fab sync`-deployed project, such as the operator from a neutral directory via its user-level pointer skill), the flat kit copy `$(fab kit-path)/skills/{helper}.md`.
 
 **Allowed values** (10): `_generation`, `_review`, `_cli-fab`, `_cli-fab-operator`, `_cli-fab-pane`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`.
 

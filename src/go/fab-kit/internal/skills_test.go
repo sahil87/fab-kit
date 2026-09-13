@@ -725,3 +725,41 @@ func TestDeployUserOperatorSkill_MissingDescriptionErrors(t *testing.T) {
 		t.Errorf("the error must name the missing description line, got: %v", err)
 	}
 }
+
+func TestDeployUserOperatorSkill_ReplacesSymlinkDestination(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	kitDir := userSkillFixtureKit(t)
+
+	// A user's own file elsewhere, with the destination a symlink pointing at it:
+	// the writer must replace the link, never write through it.
+	other := filepath.Join(home, "elsewhere.md")
+	sentinel := []byte("# not fab's file\n")
+	if err := os.WriteFile(other, sentinel, 0644); err != nil {
+		t.Fatal(err)
+	}
+	dest := filepath.Join(home, ".agents", "skills", "fab-operator", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(other, dest); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := deployUserOperatorSkill(kitDir, false); err != nil {
+		t.Fatalf("deployUserOperatorSkill: %v", err)
+	}
+	if data, _ := os.ReadFile(other); string(data) != string(sentinel) {
+		t.Errorf("symlink target was written through; got:\n%s", data)
+	}
+	info, err := os.Lstat(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Error("destination is still a symlink; expected a regular file")
+	}
+	if data, _ := os.ReadFile(dest); !strings.Contains(string(data), "fab kit-path") {
+		t.Errorf("destination does not carry the rendered pointer:\n%s", data)
+	}
+}
