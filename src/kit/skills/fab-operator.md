@@ -77,10 +77,10 @@ The operator's clock, role mark, send gate, spawn readiness, and notifications a
 command -v rk >/dev/null 2>&1 && rk cron list --json >/dev/null 2>&1 && rk tab new --help 2>&1 | grep -q session_rung
 ```
 
-If any part fails (rk absent, or an rk predating `rk cron` or `rk tab new`'s default-session resolution — without the third probe an older rk would silently land spawned windows beside the operator), STOP:
+If any part fails (rk absent, or an rk predating `rk cron` or `rk tab new`'s default-session resolution — without the third probe an older rk would silently land spawned windows beside the operator; an installed rk failing a probe needs `brew upgrade run-kit`), STOP:
 
 ```
-Error: the operator requires HexoKit — brew install (or upgrade) sahil87/tap/run-kit
+Error: the operator requires HexoKit — brew install sahil87/tap/run-kit
 ```
 
 This is the operator's deliberate exception to `_preamble.md` § HexoKit (rk) Reference's fail-silent rule: that rule protects skills for which rk is an optional enhancement; for the operator rk is the substrate, so absence is a startup error, not a degradation.
@@ -471,7 +471,7 @@ A spawn that deliberately parks early — e.g. a `/fab-ff` run, which stops afte
 
 ### Spawning an Agent
 
-Every spawn flow is **repo-targeted and session-targeted**: the operator first establishes **which repo** the work targets (the existing item's `scope.repo`, or the repo the user names) and **which tmux session** the new agent window must land in, then runs every step against those — not against the operator's own repo or its ambient session.
+Every spawn flow is **repo-targeted**: establish **which repo** the work targets (the existing item's `scope.repo`, or the repo the user names) and run every step against it — never the operator's own repo; the landing session is `rk tab new`'s call when the tab opens (step 2), never the ambient one.
 
 The spawn sequence is:
 
@@ -500,10 +500,10 @@ The spawn sequence is:
    rk tab new [--session =<name>] --cwd <worktree> --name <wt> --ready --json -- <spawn-argv…> ["<prompt>"]
    ```
 
-   (`--session =<name>` only for the §8 override; otherwise rk resolves the landing session (step 2). An unknown session or rk's `nowhere to spawn` errors loudly: surface it, never retry against the ambient session. `<wt>` is the worktree name from step 3.) The `--json` report (the `result` object of run-kit's `{"ok":true,"result":{…}}` envelope) carries `session`, `session_rung`, `window_id`, `pane_id` — marks consume the window id, step 8 the pane id and `session`; announce one line (spawn output, never §5): `→ session <session> (<session_rung>)`. Read the `ready:` verdict per `_cli-agents.md` § Await: `parked`/`narrow` are ordinary judgment rounds (answer the wall the snippet shows, probe again); `gone` gets one bounded retry, then escalate.
+   (`--session =<name>` only for the §8 override; otherwise rk resolves the landing session (step 2). An unknown session or rk's `nowhere to spawn` errors loudly: surface it, never retry against the ambient session. `<wt>` is the worktree name from step 3.) The `--json` report (the `result` object of run-kit's `{"ok":true,"result":{…}}` envelope) carries `session`, `session_rung`, `window_id`, `pane_id`, `ready` — marks consume the window id, step 8 the pane id and `session`; announce one line (spawn output, never §5): `→ session <session> (<session_rung>)`. Read the `ready:` verdict per `_cli-agents.md` § Await: `parked`/`narrow` are ordinary judgment rounds (answer the wall the snippet shows, probe again); `gone` gets one bounded retry, then escalate.
 
    **Window marks** — right after the spawn, mark the window: `rk tab mark @<window_id> auto` and `rk tab note @<window_id> "<id> · <stage>"` (a change-less item has no stage: `"<id>"`). While the pane item is `waiting` on a human, the mark flips to `rk tab mark @<window_id> blocked`; at removal (tick step 4) the operator runs `rk tab mark @<window_id> --off` and `rk tab note @<window_id> "✓ <id> done"`. The mark/note contracts are tool-owned (`rk skill`).
-8. **Track the item** — unconditionally and silently, one command (the `branch_map` pair rides the `track add`; contract in `_cli-fab-operator.md` § fab operator track). The id is the change id when known, else the worktree name from step 3; raw-text spawns are tracked at spawn and their change appears later as a `changed` delta; a plain-agent spawn never acquires a change — its id stays the worktree name and its completion is the chained `github-pr` item; a bare spawn is tracked the same way and completes on pane death / agent exit / `track rm`. `<session>` is the `--json` report's `session` field — never the §8 setting, a persisted `scope.session`, or the ambient session:
+8. **Track the item** — unconditionally and silently, one command (the `branch_map` pair rides the `track add`; contract in `_cli-fab-operator.md` § fab operator track). The id is the change id when known, else the worktree name from step 3; raw-text spawns are tracked at spawn and their change appears later as a `changed` delta; a plain-agent spawn never acquires a change — its id stays the worktree name and its completion is the chained `github-pr` item; a bare spawn is tracked the same way and completes on pane death / agent exit / `track rm`. `<session>` is the `--json` report's `session` field — never the §8 setting or a persisted `scope.session`:
 
    ```sh
    # new item (raw-text or fresh known-change spawn):
