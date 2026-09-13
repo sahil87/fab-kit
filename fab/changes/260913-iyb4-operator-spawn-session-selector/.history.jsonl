@@ -1,0 +1,11 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-13T03:04:07Z"}
+{"args":"Operator spawn target-session selector — deterministic, never asks. Replace §6 step 2's pane-count majority rule (4a8m collapse regressed cx52) with an ordered selector over rk mux sessions rows (user override → sole candidate → path == target repo → pane-count majority → attached → first), delete the ask and the §8 auto-set, fix the false 'decides every observed case' memory rationale, record the run-kit rk tab new default-session follow-up.","cmd":"fab-new","event":"command","ts":"2026-09-13T03:04:07Z"}
+{"delta":"+0.0","event":"confidence","score":4.3,"trigger":"calc-score","ts":"2026-09-13T03:07:53Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-13T03:08:51Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-13T03:11:03Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-13T03:11:56Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-13T03:14:19Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-13T03:16:44Z"}
+{"event":"review","result":"passed","ts":"2026-09-13T03:16:44Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-13T03:18:18Z"}
+{"cmd":"fab-issue","event":"command","ts":"2026-09-13T03:18:18Z"}
