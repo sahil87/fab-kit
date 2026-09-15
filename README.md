@@ -500,7 +500,7 @@ Which pipeline stages each command covers. Taller bars = more automation. Read l
 | ⬜ Blue-grey (dashed) | Git utilities | `/git-branch`, `/git-pr`, `/git-pr-review` |
 | 🟩 Green | Automated pipeline (multi-stage) | `/fab-new`, `/fab-ff`, `/fab-fff`, `/fab-proceed`, `/fab-adopt` |
 | ◻️ Grey | Fab pipeline stage (row label) | intake, change active, apply, review, hydrate |
-| ▶ | Typical entry point | `/fab-discuss`, `/fab-new` |
+| ▶ | Typical entry point | `/fab-discuss`, `/fab-incognito`, `/fab-new` |
 
 ![Stage coverage by command: a matrix of pipeline stages (rows) by command (columns), color-coded — cyan Explore, amber Manual, blue-grey dashed Git utilities, green Automated pipeline, hatched grey Stage skipped. fab-discuss covers context; fab-draft intake; fab-switch change active; git-branch branch name; fab-new intake/change active/branch name; fab-continue, fab-ff, fab-fff, fab-proceed each cover apply/review/hydrate; fab-fff and fab-proceed also ship and review-pr; git-pr ship; git-pr-review review-pr; fab-adopt enters mid-flight covering intake/review/hydrate/ship/review-pr with apply skipped](https://raw.githubusercontent.com/sahil87/fab-kit/main/docs/img/stage-coverage.svg)
 

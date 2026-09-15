@@ -1,6 +1,6 @@
 ---
 name: fab-incognito
-description: "Prime the agent with fab process knowledge for a redesign discussion — loads the kit's process helper partials and a skill catalog, deliberately skips docs/memory and docs/specs, and holds a standing rule not to open them for the rest of the session. Use when rethinking how the fab process should work rather than how the current system does work. Read-blind, not trace-free: the invocation is still logged."
+description: "Prime the agent with fab process knowledge for a redesign discussion — loads the kit's process helper partials and a skill catalog, deliberately skips docs/memory and docs/specs, and holds a standing rule not to open them for the rest of the session. Use when rethinking how the fab process should work rather than how the current system does work. Read-blind, not trace-free: the invocation is still logged to the active change's history when one exists."
 helpers: [_pipeline, _intake, _srad, _generation, _review]
 ---
 
@@ -10,11 +10,25 @@ helpers: [_pipeline, _intake, _srad, _generation, _review]
 
 ---
 
+## Contents
+
+- Purpose
+- Arguments
+- Context Loading
+- Standing Session Rule
+- Command Logging
+- Behavior
+- Orientation Summary
+- Error Handling
+- Key Properties
+
+---
+
 ## Purpose
 
 Prime the agent for a **redesign** discussion. Where `/fab-discuss` loads the project's documented landscape (the memory and specs indexes), this skill loads the kit's **operative behavior** — the process helper partials that define how a fab task is performed, plus a catalog of every deployed skill — and deliberately leaves the project's `docs/memory/` and `docs/specs/` closed. Present-truth memory anchors an agent to defend what exists; incognito anchors the conversation on how the process works so proposals can question it.
 
-The name is the browser metaphor with one inversion: browser incognito means "don't *record* history"; this skill means "don't *read* history". It is **read-blind, not trace-free** — the invocation is logged, and any skill invoked later in the session may still write artifacts. No artifact generation, no stage advancement — purely read-only.
+The name is the browser metaphor with one inversion: browser incognito means "don't *record* history"; this skill means "don't *read* history". It is **read-blind, not trace-free** — the invocation is logged to the active change's history when one exists (`fab log command` writes nothing when no change is active), and any skill invoked later in the session may still write artifacts. No artifact generation, no stage advancement — purely read-only.
 
 ---
 
@@ -63,7 +77,7 @@ After context loading, log the command invocation:
 fab log command "fab-incognito"
 ```
 
-Logging is deliberate: incognito governs what is *read*, not what is *recorded* (read-blind, not trace-free).
+Logging is deliberate: incognito governs what is *read*, not what is *recorded* (read-blind, not trace-free). The entry lands in the active change's `.history.jsonl`; with no active change `fab log command` exits 0 and records nothing — there is no project-level telemetry target.
 
 ---
 
