@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -134,6 +135,119 @@ func TestCompute_TestPathsWithoutExcludesRawUniverse(t *testing.T) {
 	if res.Tests.Added != 4 {
 		t.Errorf("tests.added = %d, want 4 (both test files counted within raw universe)", res.Tests.Added)
 	}
+}
+
+// setupRefRepo creates a tiny git repo with one commit and the given
+// refs/remotes/origin/<name> refs (all pointing at HEAD), plus an optional
+// origin/HEAD symref target, returning the repo path. Used to exercise
+// ResolveBaseRef's resolution order without a real remote.
+func setupRefRepo(t *testing.T, refs []string, originHeadTarget string) string {
+	t.Helper()
+	dir := t.TempDir()
+
+	run := func(args ...string) {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s", args, out)
+		}
+	}
+
+	run("git", "init", "-q", "-b", "main")
+	run("git", "config", "user.email", "test@example.com")
+	run("git", "config", "user.name", "test")
+	run("git", "config", "commit.gpgsign", "false")
+
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run("git", "add", "-A")
+	run("git", "commit", "-q", "-m", "initial")
+
+	for _, ref := range refs {
+		run("git", "update-ref", "refs/remotes/origin/"+ref, "HEAD")
+	}
+	if originHeadTarget != "" {
+		run("git", "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/"+originHeadTarget)
+	}
+
+	return dir
+}
+
+// TestResolveBaseRef covers the vy27 resolution order: per-change base →
+// origin/HEAD target → origin/main → origin/master → "".
+func TestResolveBaseRef(t *testing.T) {
+	cases := []struct {
+		name             string
+		refs             []string
+		originHeadTarget string
+		baseBranch       string
+		want             string
+	}{
+		{"per-change base resolvable", []string{"main", "parent"}, "", "parent", "origin/parent"},
+		{"per-change base missing falls through", []string{"main"}, "", "parent", "origin/main"},
+		{"origin/HEAD develop without main", []string{"develop"}, "develop", "", "origin/develop"},
+		{"dangling origin/HEAD falls through to main", []string{"main"}, "develop", "", "origin/main"},
+		{"dangling origin/HEAD with nothing else", nil, "develop", "", ""},
+		{"no origin/HEAD main present", []string{"main"}, "", "", "origin/main"},
+		{"only origin/master", []string{"master"}, "", "", "origin/master"},
+		{"nothing resolves", nil, "", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := setupRefRepo(t, tc.refs, tc.originHeadTarget)
+			if got := ResolveBaseRef(dir, tc.baseBranch); got != tc.want {
+				t.Errorf("ResolveBaseRef(%q) = %q, want %q", tc.baseBranch, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestResolveBaseRef_VanishedBasePrefersOriginHead covers the fail-open
+// posture: a recorded base whose ref vanished falls through to the default
+// chain, here origin/HEAD's target rather than origin/main.
+func TestResolveBaseRef_VanishedBasePrefersOriginHead(t *testing.T) {
+	dir := setupRefRepo(t, []string{"develop"}, "develop")
+	if got := ResolveBaseRef(dir, "deleted-parent"); got != "origin/develop" {
+		t.Errorf("ResolveBaseRef(deleted-parent) = %q, want origin/develop", got)
+	}
+}
+
+func TestMergeBase_EmptyRefErrors(t *testing.T) {
+	dir := setupRefRepo(t, []string{"main"}, "")
+	if _, err := MergeBase(dir, ""); err == nil {
+		t.Fatal("expected error when baseRef is empty")
+	}
+}
+
+func TestMergeBase_ResolvesAgainstRef(t *testing.T) {
+	dir := setupRefRepo(t, []string{"main"}, "")
+	base, err := MergeBase(dir, "origin/main")
+	if err != nil {
+		t.Fatalf("MergeBase: %v", err)
+	}
+	want := strings.TrimSpace(string(mustGit(t, dir, "rev-parse", "HEAD")))
+	if base != want {
+		t.Errorf("MergeBase(origin/main) = %q, want HEAD %q", base, want)
+	}
+}
+
+func TestMergeBase_BadRefErrors(t *testing.T) {
+	dir := setupRefRepo(t, []string{"main"}, "")
+	if _, err := MergeBase(dir, "origin/nonexistent-xyzzy"); err == nil {
+		t.Fatal("expected error for an unresolvable baseRef")
+	}
+}
+
+func mustGit(t *testing.T, dir string, args ...string) []byte {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("%v: %v", args, err)
+	}
+	return out
 }
 
 // setupRepo creates a tiny git repo with two commits and tags the first as

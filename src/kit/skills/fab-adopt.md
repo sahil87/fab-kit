@@ -48,9 +48,10 @@ Reuse `/git-pr`'s guard idioms verbatim. Run these checks **before any mutation*
 ```bash
 branch=$(git branch --show-current)
 default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
-[ -n "$default_branch" ] || default_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+# origin/HEAD can dangle (default-branch rename, stale fetch) — accept its target only when the ref resolves
+{ [ -n "$default_branch" ] && git rev-parse --verify -q "refs/remotes/origin/$default_branch" >/dev/null; } || default_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
 [ -n "$default_branch" ] || default_branch=$(git rev-parse --verify -q refs/remotes/origin/main >/dev/null && echo main || echo master)
-gh pr view --json number,state,url 2>/dev/null || echo "NO_PR"
+gh pr view --json number,state,url,baseRefName 2>/dev/null || echo "NO_PR"
 ```
 
 1. **Detached HEAD / default-branch guard** (reuse `/git-pr`'s guard idioms; the detached-HEAD message is verbatim, the default-branch message is adapted to the adopt context):
@@ -60,19 +61,23 @@ gh pr view --json number,state,url 2>/dev/null || echo "NO_PR"
    - `state == MERGED` → STOP: `PR is already merged — that's retroactive backfill (scenario A), out of scope for /fab-adopt. Adopt operates on in-flight (open or not-yet-created) PRs.`
    - `OPEN` and `none` (no PR) both **proceed**. Capture `{pr_state}`, `{pr_url}`, `{pr_number}` for later steps.
 3. **Collision guard**: if a fab change already maps to this branch (`fab resolve --folder "$(git branch --show-current)" --or-none` prints a folder name — anything but `(none)`), STOP: `Branch '{branch}' already maps to fab change '{name}' — it is already in the pipeline. Run /fab-continue (or /fab-fff) to advance it.`
-4. **Resolve the diff base and capture the diff**:
+4. **Resolve the diff base and capture the diff**: the adopted PR's real base is authoritative when a PR exists — `baseRefName` from the `gh pr view` above when `{pr_state}` is `OPEN`, else `default_branch`; verify the ref exists and fail open to `default_branch` when it does not (a vanished stacked base):
    ```bash
-   base=$(git merge-base HEAD "origin/$default_branch")
+   base_branch="$default_branch"
+   [ "{pr_state}" = "OPEN" ] && base_branch=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null)
+   [ -n "$base_branch" ] || base_branch="$default_branch"
+   git rev-parse --verify -q "refs/remotes/origin/$base_branch" >/dev/null || base_branch="$default_branch"
+   base=$(git merge-base HEAD "origin/$base_branch")
    git diff "$base"...HEAD            # the adopted diff
    git diff --name-only "$base"...HEAD # the changed file list
    ```
-   If the diff is **empty** (no changed files) → STOP: `No diff against {default_branch} — nothing to adopt.`
+   If the diff is **empty** (no changed files) → STOP: `No diff against {base_branch} — nothing to adopt.`
 
 ### Steps 1+2 — ONE main-session generation pass
 
 These run in the **main session** (the same agent, NOT a dispatched sub-agent) reading the diff + PR body once — both artifacts merely *describe one fixed existing diff*, so a context boundary between them would only invite drift and waste.
 
-1. **Create + activate the change**: `fab change new --slug {slug}` against the current branch, then activate it. The change branch already exists, so `/fab-new`'s Step 11 row 1 ("already active") or row 2 ("checked out") applies — do NOT recreate or rename the branch.
+1. **Create + activate the change**: `fab change new --slug {slug}` against the current branch, then activate it. The change branch already exists, so `/fab-new`'s Step 11 row 1 ("already active") or row 2 ("checked out") applies — do NOT recreate or rename the branch. Record the Step 0 base so every base-relative surface measures only this change's delta: `fab status set-base-branch {name} "$base_branch"`.
 2. **Reconstruct `intake.md`** via the **Intake-from-Diff Procedure** (`_generation.md`), passing the diff, the changed-file list, and the PR body/title (or branch name). Apply SRAD and run `fab score`.
 3. **Human-confirmation checkpoint**: present the reconstructed intent (Origin / Why / What Changes / Affected Memory) + the SRAD assumptions for the user to confirm or correct. This *is* the late deliberation the bypass skipped (it mirrors `/fab-new`'s interactive intake moment). On confirm:
    ```bash

@@ -294,6 +294,155 @@ func TestWriteTrueImpact_NoMergeBaseLeavesUntouched(t *testing.T) {
 	}
 }
 
+// TestWriteTrueImpact_OriginHeadDevelop covers vy27: a repo whose only base is
+// origin/develop (via origin/HEAD → origin/develop, no origin/main or
+// origin/master) still gets a true_impact block — before the shared helper the
+// hardcoded main/master probe silently skipped the write.
+func TestWriteTrueImpact_OriginHeadDevelop(t *testing.T) {
+	repoRoot := t.TempDir()
+	fabRoot := filepath.Join(repoRoot, "fab")
+
+	run := func(args ...string) {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = repoRoot
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s", args, out)
+		}
+	}
+	run("git", "init", "-q", "-b", "develop")
+	run("git", "config", "user.email", "test@example.com")
+	run("git", "config", "user.name", "test")
+	run("git", "config", "commit.gpgsign", "false")
+	os.MkdirAll(filepath.Join(fabRoot, "project"), 0o755)
+	os.WriteFile(filepath.Join(fabRoot, "project", "config.yaml"), []byte("stage_hooks: {}\n"), 0o644)
+	os.WriteFile(filepath.Join(repoRoot, "a.txt"), []byte("hello\n"), 0o644)
+	run("git", "add", "-A")
+	run("git", "commit", "-q", "-m", "initial")
+	run("git", "update-ref", "refs/remotes/origin/develop", "HEAD")
+	run("git", "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/develop")
+
+	os.WriteFile(filepath.Join(repoRoot, "a.txt"), []byte("hello\nworld\n"), 0o644)
+	run("git", "add", "-A")
+	run("git", "commit", "-q", "-m", "feature work")
+
+	statusPath := filepath.Join(t.TempDir(), ".status.yaml")
+	os.WriteFile(statusPath, []byte(minimalStatusYAML()), 0o644)
+
+	statusFile, err := sf.Load(statusPath)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	withCwd(t, repoRoot, func() {
+		if err := WriteTrueImpact(statusFile, statusPath, fabRoot, "ship"); err != nil {
+			t.Fatalf("WriteTrueImpact: %v", err)
+		}
+	})
+
+	reloaded, err := sf.Load(statusPath)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.TrueImpact == nil {
+		t.Fatal("expected true_impact block with origin/HEAD → origin/develop, got nil")
+	}
+	if reloaded.TrueImpact.Added <= 0 {
+		t.Errorf("expected non-zero Added, got %d", reloaded.TrueImpact.Added)
+	}
+}
+
+// TestWriteTrueImpact_StackedBaseExcludesParent covers vy27: with
+// base_branch: parent (parent carrying its own commit past main), the
+// true_impact counts exclude the parent's lines — and without the field they
+// measure against the default branch exactly as before.
+func TestWriteTrueImpact_StackedBaseExcludesParent(t *testing.T) {
+	repoRoot := t.TempDir()
+	fabRoot := filepath.Join(repoRoot, "fab")
+
+	run := func(args ...string) {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = repoRoot
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s", args, out)
+		}
+	}
+	run("git", "init", "-q", "-b", "main")
+	run("git", "config", "user.email", "test@example.com")
+	run("git", "config", "user.name", "test")
+	run("git", "config", "commit.gpgsign", "false")
+	os.MkdirAll(filepath.Join(fabRoot, "project"), 0o755)
+	os.WriteFile(filepath.Join(fabRoot, "project", "config.yaml"), []byte("stage_hooks: {}\n"), 0o644)
+	os.WriteFile(filepath.Join(repoRoot, "a.txt"), []byte("hello\n"), 0o644)
+	run("git", "add", "-A")
+	run("git", "commit", "-q", "-m", "initial")
+	run("git", "update-ref", "refs/remotes/origin/main", "HEAD")
+
+	// parent branch: its own commit (3 added lines) past main.
+	run("git", "checkout", "-q", "-b", "parent")
+	os.WriteFile(filepath.Join(repoRoot, "parent.txt"), []byte("p1\np2\np3\n"), 0o644)
+	run("git", "add", "-A")
+	run("git", "commit", "-q", "-m", "parent work")
+	run("git", "update-ref", "refs/remotes/origin/parent", "HEAD")
+
+	// child branch off parent: its own commit (2 added lines).
+	run("git", "checkout", "-q", "-b", "child")
+	os.WriteFile(filepath.Join(repoRoot, "child.txt"), []byte("c1\nc2\n"), 0o644)
+	run("git", "add", "-A")
+	run("git", "commit", "-q", "-m", "child work")
+
+	writeAndLoad := func(t *testing.T, baseBranch string) (string, *sf.StatusFile) {
+		t.Helper()
+		statusPath := filepath.Join(t.TempDir(), ".status.yaml")
+		yaml := minimalStatusYAML()
+		if baseBranch != "" {
+			yaml = strings.Replace(yaml, "change_type: feat\n", "change_type: feat\nbase_branch: "+baseBranch+"\n", 1)
+		}
+		os.WriteFile(statusPath, []byte(yaml), 0o644)
+		statusFile, err := sf.Load(statusPath)
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		return statusPath, statusFile
+	}
+
+	// With base_branch: parent — only the child's commit counts.
+	stackedPath, stackedFile := writeAndLoad(t, "parent")
+	withCwd(t, repoRoot, func() {
+		if err := WriteTrueImpact(stackedFile, stackedPath, fabRoot, "ship"); err != nil {
+			t.Fatalf("WriteTrueImpact (stacked): %v", err)
+		}
+	})
+	stacked, err := sf.Load(stackedPath)
+	if err != nil {
+		t.Fatalf("reload (stacked): %v", err)
+	}
+	if stacked.TrueImpact == nil {
+		t.Fatal("expected true_impact block (stacked), got nil")
+	}
+	if stacked.TrueImpact.Added != 2 {
+		t.Errorf("stacked added = %d, want 2 (child commit only; parent's 3 lines excluded)", stacked.TrueImpact.Added)
+	}
+
+	// Without base_branch — measured against the default branch as before,
+	// counting both commits (3 + 2 = 5 added lines).
+	plainPath, plainFile := writeAndLoad(t, "")
+	withCwd(t, repoRoot, func() {
+		if err := WriteTrueImpact(plainFile, plainPath, fabRoot, "ship"); err != nil {
+			t.Fatalf("WriteTrueImpact (plain): %v", err)
+		}
+	})
+	plain, err := sf.Load(plainPath)
+	if err != nil {
+		t.Fatalf("reload (plain): %v", err)
+	}
+	if plain.TrueImpact == nil {
+		t.Fatal("expected true_impact block (plain), got nil")
+	}
+	if plain.TrueImpact.Added != 5 {
+		t.Errorf("plain added = %d, want 5 (parent + child against origin/main)", plain.TrueImpact.Added)
+	}
+}
+
 func TestWriteTrueImpact_WithExcludeEmitsExcluding(t *testing.T) {
 	repoRoot, fabRoot := setupGitRepo(t, true)
 

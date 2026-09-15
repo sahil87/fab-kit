@@ -1,10 +1,10 @@
 ---
 name: git-branch
 description: "Create or switch to the git branch matching the active (or specified) change. Unmatched explicit names fall back to a standalone branch with that literal name."
-allowed-tools: Bash(git:*)
+allowed-tools: Bash(git:*), Bash(fab:*), Bash(gh:*)
 ---
 
-# /git-branch [change-name]
+# /git-branch [change-name] [--base <branch>]
 
 > Branch naming conventions are defined in `_preamble.md` § Naming Conventions.
 
@@ -15,13 +15,14 @@ allowed-tools: Bash(git:*)
 - Error Handling
 - Key Properties
 
-Create or check out a git branch named `{change-name}` for the active or specified change. When an explicit argument doesn't match any change, falls back to creating a standalone branch with the literal name. Does not modify fab state.
+Create or check out a git branch named `{change-name}` for the active or specified change. When an explicit argument doesn't match any change, falls back to creating a standalone branch with the literal name. Records the change's base branch in `.status.yaml` via `fab status set-base-branch` (Step 4).
 
 ---
 
 ## Arguments
 
 - **`<change-name>`** *(optional)* — target a specific change. If omitted, uses the active change resolved via `.fab-status.yaml`. Supports full folder names, partial slug matches, or any substring (resolved via `fab change resolve`).
+- **`--base <branch>`** *(optional)* — the base branch to record (a plain branch name, e.g. `main` or a stacked parent). When absent, the recorded base is the resolved default branch (the chain in Step 4's Record the base sub-step).
 
 ---
 
@@ -93,7 +94,7 @@ branch_name = {resolved_change_name}
 
 ### Step 4: Context-Dependent Action
 
-<!-- Keep these cases in sync with fab-new.md Step 11 — same cases, same commands, same report strings (incl. the rename guard, the remote-only --track case, and the dirty-tree note). Two deliberate divergences: fab-new derives {dirty_count} excluding fab/changes/{name}/ (its own just-created artifacts) while git-branch counts the full porcelain output; and git-branch's rename-guard probe keeps the strict exit-code form `fab change resolve … 2>/dev/null` (this skill is deliberately NOT migrated to `--or-none` — its bare no-argument resolution is a hard stop by design; 260720-dow0) while fab-new's probe is the token-branching `fab resolve --folder … --or-none`. -->
+<!-- Keep these cases in sync with fab-new.md Step 11 — same cases, same commands, same report strings (incl. the rename guard, the remote-only --track case, the dirty-tree note, and the Record the base sub-step). Three deliberate divergences: fab-new derives {dirty_count} excluding fab/changes/{name}/ (its own just-created artifacts) while git-branch counts the full porcelain output; git-branch's rename-guard probe keeps the strict exit-code form `fab change resolve … 2>/dev/null` (this skill is deliberately NOT migrated to `--or-none` — its bare no-argument resolution is a hard stop by design; 260720-dow0) while fab-new's probe is the token-branching `fab resolve --folder … --or-none`; and only git-branch takes `--base <branch>` (fab-new always records the chain-resolved default). -->
 
 Get the current branch and the dirty-tree count:
 
@@ -110,6 +111,35 @@ git rev-parse --verify "origin/{branch_name}" >/dev/null 2>&1
 ```
 
 > **Dirty-tree note** (non-blocking — never prompt, never stash): when `{dirty_count}` > 0 AND the action below creates or renames a branch (`git checkout -b` / `git branch -m`), the uncommitted work rides onto the new branch. Append to the Step 5 report line: ` — note: {dirty_count} uncommitted change(s) carried over from {old_branch}`.
+
+**Record the base** (after the matched case's action, before its report/STOP; skipped entirely for the standalone fallback — no `.status.yaml` exists for it): record the change's base branch in `.status.yaml` as a plain branch name.
+
+- **create / rename / `--track`** (any `git checkout -b`, `git branch -m`, or `git checkout --track` action below): always write.
+- **already-active / checked-out** (the two no-git-op cases below): write only when absent — probe with `fab status get-base-branch` first so a re-run never clobbers an operator- or `--base`-set value (idempotent).
+
+Resolve the base — `--base <branch>` when given, else the default-branch chain:
+
+```bash
+base_branch="{--base argument if given}"
+if [ -z "$base_branch" ]; then   # resolve the default branch (a --base value is kept verbatim — it may name an unpushed dependency branch)
+  base_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+  # origin/HEAD can dangle (default-branch rename, stale fetch) — accept its target only when the ref resolves
+  { [ -n "$base_branch" ] && git rev-parse --verify -q "refs/remotes/origin/$base_branch" >/dev/null; } || base_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+  [ -n "$base_branch" ] || base_branch=$(git rev-parse --verify -q refs/remotes/origin/main >/dev/null && echo main || echo master)
+fi
+```
+
+Then write (always-write cases):
+
+```bash
+fab status set-base-branch "{name}" "$base_branch"
+```
+
+or, for the write-if-absent cases:
+
+```bash
+[ -n "$(fab status get-base-branch "{name}" 2>/dev/null)" ] || fab status set-base-branch "{name}" "$base_branch"
+```
 
 **If already on the target branch**: No git operation.
 
@@ -206,6 +236,6 @@ The trailing note appears only on the create/rename actions with a dirty tree (s
 | Advances stage? | No |
 | Idempotent? | Yes — checking out an already-active branch is a no-op |
 | Modifies `.fab-status.yaml`? | No |
-| Modifies `.status.yaml`? | No |
+| Modifies `.status.yaml`? | Yes — writes base_branch via fab status set-base-branch (create/rename/track always; no-op cases only when absent; --base overrides) |
 | Modifies git state? | Yes — may create, checkout, or rename a branch |
 | Requires config/constitution? | No |

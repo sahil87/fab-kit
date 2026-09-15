@@ -347,6 +347,20 @@ func SetSummary(statusFile *sf.StatusFile, statusPath, text string) error {
 	return statusFile.Save(statusPath)
 }
 
+// SetBaseBranch sets the per-change base_branch field (a plain branch name —
+// "main" or a stacked parent) and persists. Unlike SetSummary an empty branch
+// is an error, not a clear: an empty base is never meaningful, and remote
+// existence is deliberately NOT validated (the operator may record a
+// dependency branch that has not been pushed yet). Validation happens before
+// any mutation, so a rejected call leaves the file untouched.
+func SetBaseBranch(statusFile *sf.StatusFile, statusPath, branch string) error {
+	if branch == "" {
+		return fmt.Errorf("Invalid branch '' for base_branch (expected a non-empty branch name, e.g. main)")
+	}
+	statusFile.BaseBranch = branch
+	return statusFile.Save(statusPath)
+}
+
 // ApplyAcceptance updates a field on the in-memory plan: block without
 // saving. Valid fields: generated (bool), task_count (int), acceptance_count
 // (int), acceptance_completed (int). Validation happens before any mutation.

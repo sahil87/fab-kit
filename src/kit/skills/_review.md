@@ -52,8 +52,27 @@ The dispatched worker IS the single review agent: it reads this file, runs the a
 
 **Context the worker operates on**:
 - Standard subagent context files (per `_preamble.md` § Standard Subagent Context)
-- The diff of all changed files: compute the merge-base against the default branch (`git merge-base HEAD origin/main` or the resolved default), then use `git diff <base>...HEAD`
-- The list of changed file paths: use the same resolved base with `git diff --name-only <base>...HEAD`
+- The diff of all changed files, computed against the change's recorded base branch. The sequencer passes the change's `{id}`; the worker resolves the base with this snippet (recorded field → default-branch chain when empty → fail open to the chain when the recorded ref has vanished → merge-base):
+
+  ```bash
+  base_branch=$(fab status get-base-branch "{id}" 2>/dev/null)
+  if [ -z "$base_branch" ]; then
+    base_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+    # origin/HEAD can dangle (default-branch rename, stale fetch) — accept its target only when the ref resolves
+    { [ -n "$base_branch" ] && git rev-parse --verify -q "refs/remotes/origin/$base_branch" >/dev/null; } || base_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+    [ -n "$base_branch" ] || base_branch=$(git rev-parse --verify -q refs/remotes/origin/main >/dev/null && echo main || echo master)
+  fi
+  if ! git rev-parse --verify -q "refs/remotes/origin/$base_branch" >/dev/null; then   # recorded base vanished — fail open to the chain
+    base_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+    { [ -n "$base_branch" ] && git rev-parse --verify -q "refs/remotes/origin/$base_branch" >/dev/null; } || base_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+    [ -n "$base_branch" ] || base_branch=$(git rev-parse --verify -q refs/remotes/origin/main >/dev/null && echo main || echo master)
+  fi
+  base=$(git merge-base HEAD "origin/$base_branch")
+  git diff "$base"...HEAD
+  ```
+
+  then use `git diff <base>...HEAD`
+- The list of changed file paths: use the same resolved `<base>` with `git diff --name-only <base>...HEAD`
 - Full tool access (Read, Edit, Write, Bash, per `_preamble.md` § Standard Subagent Context) — the worker MAY read any file in the repo, and MAY modify `plan.md` (marking acceptance checkmarks in the Plan-Conformance Steps below)
 
 ### Plan-Conformance Steps (`full` mode only)

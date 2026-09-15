@@ -110,14 +110,20 @@ type StatusFile struct {
 	// ChangeTypeSource records how ChangeType was set: "inferred" (the
 	// PostToolUse hook may re-infer and overwrite) or "explicit" (a human ran
 	// set-change-type — the hook must not clobber it). Empty == inferred.
-	ChangeTypeSource string                  `yaml:"change_type_source,omitempty"`
-	Issues           []string                `yaml:"issues"`
-	Progress         yaml.Node               `yaml:"-"`
-	Plan             Plan                    `yaml:"plan"`
-	Confidence       Confidence              `yaml:"confidence"`
-	StageMetrics     map[string]*StageMetric `yaml:"-"`
-	PRs              []string                `yaml:"prs"`
-	TrueImpact       *TrueImpact             `yaml:"true_impact,omitempty"`
+	ChangeTypeSource string `yaml:"change_type_source,omitempty"`
+	// BaseBranch records the change's base branch as a plain branch name
+	// (e.g. "main" or a stacked parent), written at branch creation by the
+	// branch-creation skills via set-base-branch. Consumers prefix "origin/"
+	// when they need the remote-tracking ref. Optional: empty == resolve the
+	// repo default branch (drop-when-empty round-trip, like Summary).
+	BaseBranch   string                  `yaml:"base_branch,omitempty"`
+	Issues       []string                `yaml:"issues"`
+	Progress     yaml.Node               `yaml:"-"`
+	Plan         Plan                    `yaml:"plan"`
+	Confidence   Confidence              `yaml:"confidence"`
+	StageMetrics map[string]*StageMetric `yaml:"-"`
+	PRs          []string                `yaml:"prs"`
+	TrueImpact   *TrueImpact             `yaml:"true_impact,omitempty"`
 	// Summary is the per-change one-line log summary — the C-lite source line
 	// the FKF log.md generator joins with git history (FKF §6.3). Optional:
 	// empty == no summary (drop-when-empty round-trip, like ChangeTypeSource),
@@ -183,6 +189,8 @@ func Load(path string) (*StatusFile, error) {
 			sf.ChangeType = val.Value
 		case "change_type_source":
 			sf.ChangeTypeSource = val.Value
+		case "base_branch":
+			sf.BaseBranch = val.Value
 		case "summary":
 			sf.Summary = val.Value
 		case "last_updated":
@@ -449,6 +457,16 @@ func (sf *StatusFile) syncToRaw() {
 			} else {
 				val.Value = sf.ChangeTypeSource
 			}
+		case "base_branch":
+			// Empty == no recorded base: drop the key rather than emit an
+			// empty scalar, so an absent field stays absent (back-compat
+			// round-trip, matching summary).
+			if sf.BaseBranch == "" {
+				dropKeyAt(root, i)
+				i -= 2
+			} else {
+				val.Value = sf.BaseBranch
+			}
 		case "summary":
 			// Empty == no summary: drop the key rather than emit an empty
 			// scalar, so an absent field stays absent (back-compat round-trip).
@@ -490,6 +508,9 @@ func (sf *StatusFile) syncToRaw() {
 	}
 	if !seen["change_type_source"] && sf.ChangeTypeSource != "" {
 		insertKey(root, "change_type_source", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: sf.ChangeTypeSource})
+	}
+	if !seen["base_branch"] && sf.BaseBranch != "" {
+		insertKey(root, "base_branch", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: sf.BaseBranch})
 	}
 	if !seen["summary"] && sf.Summary != "" {
 		insertKey(root, "summary", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: sf.Summary})

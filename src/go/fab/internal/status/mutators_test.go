@@ -109,6 +109,52 @@ func TestSetSummary_EmptyClearsKey(t *testing.T) {
 	}
 }
 
+// --- SetBaseBranch ---
+
+func TestSetBaseBranch_PersistsAndRoundTrips(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	priorUpdated := statusFile.LastUpdated
+
+	if err := SetBaseBranch(statusFile, path, "260914-abcd-parent"); err != nil {
+		t.Fatalf("SetBaseBranch: %v", err)
+	}
+	if statusFile.BaseBranch != "260914-abcd-parent" {
+		t.Errorf("BaseBranch = %q, want \"260914-abcd-parent\"", statusFile.BaseBranch)
+	}
+	if statusFile.LastUpdated == priorUpdated {
+		t.Error("last_updated should be refreshed")
+	}
+
+	reloaded, err := sf.Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.BaseBranch != "260914-abcd-parent" {
+		t.Errorf("persisted BaseBranch = %q, want \"260914-abcd-parent\"", reloaded.BaseBranch)
+	}
+}
+
+func TestSetBaseBranch_EmptyErrorsWithoutWrite(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	priorUpdated := statusFile.LastUpdated
+
+	err := SetBaseBranch(statusFile, path, "")
+	if err == nil {
+		t.Fatal("expected empty branch to error")
+	}
+
+	reloaded, loadErr := sf.Load(path)
+	if loadErr != nil {
+		t.Fatalf("reload: %v", loadErr)
+	}
+	if reloaded.BaseBranch != "" {
+		t.Errorf("on-disk BaseBranch = %q, want empty (unchanged)", reloaded.BaseBranch)
+	}
+	if reloaded.LastUpdated != priorUpdated {
+		t.Error("last_updated should not be refreshed on a rejected mutation")
+	}
+}
+
 // --- AddIssue ---
 
 func TestAddIssue_AppendsAndPersists(t *testing.T) {

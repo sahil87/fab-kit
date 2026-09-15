@@ -800,6 +800,78 @@ func TestSparseFile_SummaryInserts(t *testing.T) {
 	}
 }
 
+// TestBaseBranch_AbsentStaysAbsent covers vy27: a status file with no
+// base_branch key loads as empty and stays absent on round-trip (back-compat —
+// no empty scalar emitted, matching omitempty and the summary posture).
+func TestBaseBranch_AbsentStaysAbsent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	os.WriteFile(path, []byte(testYAML), 0644)
+
+	sf, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if sf.BaseBranch != "" {
+		t.Errorf("absent base_branch should load empty, got %q", sf.BaseBranch)
+	}
+
+	out := filepath.Join(dir, ".status-out.yaml")
+	if err := sf.Save(out); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	data, _ := os.ReadFile(out)
+	if strings.Contains(string(data), "base_branch:") {
+		t.Errorf("empty base_branch must not be serialized, got:\n%s", data)
+	}
+}
+
+// TestBaseBranch_RoundTrips covers vy27: setting a non-empty base_branch
+// persists and reloads.
+func TestBaseBranch_RoundTrips(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".status.yaml")
+	os.WriteFile(path, []byte(testYAML), 0644)
+
+	sf, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	sf.BaseBranch = "main"
+	if err := sf.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	reloaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.BaseBranch != "main" {
+		t.Errorf("base_branch dropped: %q", reloaded.BaseBranch)
+	}
+}
+
+// TestBaseBranch_InsertedIntoSparseDoc covers vy27: a base_branch set on a
+// sparse document that lacks the key is inserted on write (before
+// last_updated), matching TestSparseFile_SummaryInserts.
+func TestBaseBranch_InsertedIntoSparseDoc(t *testing.T) {
+	sf, path := loadSparse(t)
+	sf.BaseBranch = "260914-abcd-parent"
+	if err := sf.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), "base_branch: 260914-abcd-parent") {
+		t.Errorf("base_branch not inserted on sparse file, got:\n%s", data)
+	}
+	reloaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.BaseBranch != "260914-abcd-parent" {
+		t.Errorf("base_branch not inserted on sparse file: %q", reloaded.BaseBranch)
+	}
+}
+
 func TestSparseFile_StageMetricsAndPlanPersist(t *testing.T) {
 	sf, path := loadSparse(t)
 

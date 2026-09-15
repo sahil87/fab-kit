@@ -109,6 +109,82 @@ func ComputeForRepo(fabRoot, base, head string) (Result, error) {
 	return Compute(filepath.Dir(fabRoot), base, head, cfg.TrueImpactExclude, cfg.TestPaths)
 }
 
+// ResolveBaseRef returns the remote-tracking ref to diff against for a change.
+// Order: the per-change base (origin/<baseBranch>) when baseBranch is
+// non-empty AND the ref resolves; else origin/HEAD's target when that target
+// itself resolves (origin/HEAD can dangle after a default-branch rename or a
+// stale fetch — an unverified target would skip the fallbacks and break
+// MergeBase); else origin/main; else origin/master. Returns "" when nothing
+// resolves — a vanished per-change base (dependency merged, branch deleted)
+// falls through to the default chain (fail-open). All git invocations run
+// pinned to repoDir (via cmd.Dir) so callers operating from nested git repos
+// resolve against the intended repository. Pass an empty repoDir to use the
+// process cwd.
+func ResolveBaseRef(repoDir, baseBranch string) string {
+	if baseBranch != "" {
+		if ref := "origin/" + baseBranch; refExists(repoDir, "refs/remotes/"+ref) {
+			return ref
+		}
+	}
+	if head := strings.TrimSpace(gitOutput(repoDir, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")); head != "" && refExists(repoDir, "refs/remotes/"+head) {
+		return head
+	}
+	for _, ref := range []string{"origin/main", "origin/master"} {
+		if refExists(repoDir, "refs/remotes/"+ref) {
+			return ref
+		}
+	}
+	return ""
+}
+
+// MergeBase returns the merge-base of HEAD against baseRef (trimmed), or an
+// error when baseRef is empty or the merge-base cannot be computed. Pinned to
+// repoDir like ResolveBaseRef.
+func MergeBase(repoDir, baseRef string) (string, error) {
+	if baseRef == "" {
+		return "", fmt.Errorf("base ref is empty (no per-change base_branch and no origin/HEAD, origin/main, or origin/master resolved)")
+	}
+	out, err := gitOutputErr(repoDir, "merge-base", baseRef, "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("git merge-base %s HEAD: %w", baseRef, err)
+	}
+	base := strings.TrimSpace(out)
+	if base == "" {
+		return "", fmt.Errorf("git merge-base %s HEAD produced no output", baseRef)
+	}
+	return base, nil
+}
+
+// refExists reports whether ref (e.g. refs/remotes/origin/main) resolves.
+func refExists(repoDir, ref string) bool {
+	_, err := gitOutputErr(repoDir, "rev-parse", "--verify", "-q", ref)
+	return err == nil
+}
+
+// gitOutput runs git pinned to repoDir and returns stdout verbatim (callers
+// trim), or "" on any failure.
+func gitOutput(repoDir string, args ...string) string {
+	out, err := gitOutputErr(repoDir, args...)
+	if err != nil {
+		return ""
+	}
+	return out
+}
+
+// gitOutputErr runs git pinned to repoDir (empty repoDir ⇒ process cwd) and
+// returns stdout verbatim.
+func gitOutputErr(repoDir string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	if repoDir != "" {
+		cmd.Dir = repoDir
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
 // runShortstat runs `git diff --shortstat <base>...<head>` with an optional
 // pathspec built from includes and excludes. When includes is non-empty, each
 // entry is passed as a `:(glob)<pattern>` magic pathspec (so `**` matches

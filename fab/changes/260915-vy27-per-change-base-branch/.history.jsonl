@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-15T11:16:37Z"}
+{"args":"Per-change base branch — record base_branch in .status.yaml and make every base-relative surface read it. fab has no per-change base branch: fab pr-meta, WriteTrueImpact, the review dispatch, fab-adopt, and git-pr all derive the base from the repo default (Go hardcodes origin/main→origin/master, ignoring origin/HEAD), so a stacked PR's Impact/true_impact/review diff absorb the parent branch's delta. Record base_branch at branch creation (default: resolved default branch; operator stacked-prs sets the dependency branch), have all five surfaces read it, unify the two Go merge-base helpers, ship a migration, fail-open to the default branch when absent.","cmd":"fab-new","event":"command","ts":"2026-09-15T11:16:37Z"}
+{"delta":"+0.0","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-09-15T11:19:10Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-15T11:20:32Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-15T11:22:58Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-15T11:39:04Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-15T11:44:03Z"}
+{"event":"review","result":"passed","ts":"2026-09-15T11:44:03Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-09-15T11:45:56Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-15T11:51:47Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-09-15T11:54:17Z"}
+{"event":"review","result":"passed","ts":"2026-09-15T12:08:57Z"}

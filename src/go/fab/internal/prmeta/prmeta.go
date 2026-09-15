@@ -486,10 +486,16 @@ func Gather(fabRoot, changeArg, prType, issues string) (Data, bool, error) {
 	}
 
 	// Impact (degrades gracefully — missing merge-base / failure → no line).
-	if base := mergeBase(repoDir); base != "" {
-		if res, err := impact.ComputeForRepo(fabRoot, base, "HEAD"); err == nil {
-			d.HasImpact = true
-			d.Impact = res
+	// The base resolves via the change's recorded base_branch when set and
+	// resolvable, else origin/HEAD's target, else origin/main, else
+	// origin/master (impact.ResolveBaseRef owns the order; fail-open on a
+	// vanished recorded base).
+	if baseRef := impact.ResolveBaseRef(repoDir, status.BaseBranch); baseRef != "" {
+		if base, err := impact.MergeBase(repoDir, baseRef); err == nil {
+			if res, err := impact.ComputeForRepo(fabRoot, base, "HEAD"); err == nil {
+				d.HasImpact = true
+				d.Impact = res
+			}
 		}
 	}
 
@@ -614,17 +620,6 @@ func hasConfidenceBlock(statusPath string) bool {
 
 func gitBranch(repoDir string) string {
 	return strings.TrimSpace(runGit(repoDir, "branch", "--show-current"))
-}
-
-// mergeBase resolves the merge-base of HEAD against origin/main (falling back to
-// origin/master). Returns "" when neither resolves.
-func mergeBase(repoDir string) string {
-	for _, ref := range []string{"origin/main", "origin/master"} {
-		if base := strings.TrimSpace(runGit(repoDir, "merge-base", ref, "HEAD")); base != "" {
-			return base
-		}
-	}
-	return ""
 }
 
 // ghOwnerRepo returns "owner/repo" via `gh repo view`, or "" on any failure

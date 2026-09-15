@@ -39,6 +39,8 @@ func statusCmd() *cobra.Command {
 		statusSetChangeTypeCmd(),
 		statusSetSummaryCmd(),
 		statusGetSummaryCmd(),
+		statusSetBaseBranchCmd(),
+		statusGetBaseBranchCmd(),
 		statusSetAcceptanceCmd(),
 		statusSetChecklistRemovedCmd(),
 		statusSetConfidenceCmd(),
@@ -132,6 +134,9 @@ type (
 	}
 	summaryJSON struct {
 		Summary string `json:"summary"`
+	}
+	baseBranchJSON struct {
+		BaseBranch string `json:"base_branch"`
 	}
 )
 
@@ -733,6 +738,45 @@ func statusGetSummaryCmd() *cobra.Command {
 			// Empty summary prints an empty line (graceful absence — the FKF
 			// log.md generator falls back to the change slug).
 			fmt.Println(sf.Summary)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output as JSON")
+	return cmd
+}
+
+func statusSetBaseBranchCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "set-base-branch <change> <branch>",
+		Short: "Set the per-change base branch",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return withStatusLock(args[0], func(st *sf.StatusFile, statusPath, _ string) error {
+				return status.SetBaseBranch(st, statusPath, args[1])
+			})
+		},
+	}
+}
+
+func statusGetBaseBranchCmd() *cobra.Command {
+	var jsonFlag bool
+	cmd := &cobra.Command{
+		Use:   "get-base-branch <change>",
+		Short: "Print the per-change base branch",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			sf, _, _, err := loadStatus(args[0])
+			if err != nil {
+				return err
+			}
+			if jsonFlag {
+				// Object-wrapped (not a bare string) so fields can be added
+				// additively; an absent base_branch emits {"base_branch":""}.
+				return encodeJSON(cmd, baseBranchJSON{BaseBranch: sf.BaseBranch})
+			}
+			// Absent base_branch prints an empty line (graceful absence —
+			// callers fall back to the resolved default branch).
+			fmt.Println(sf.BaseBranch)
 			return nil
 		},
 	}

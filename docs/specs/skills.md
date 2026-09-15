@@ -682,13 +682,13 @@ User invokes /fab-proceed
 
 **Purpose**: Bring a **completed-but-off-pipeline** change into the Fab pipeline (scenario B — a feature branch authored without fab, with an **OPEN** or **not-yet-created** PR). It is the *real* pipeline entered late, with **apply** marked `skipped` (the only stage that cannot meaningfully re-run when the code already exists); intake/review/hydrate/ship/review-pr all genuinely run. A **MERGED** PR (scenario A — retroactive backfill) is out of scope and STOPs at Step 0. A thin orchestrator on the `/fab-proceed`/`/fab-ff` pattern — `helpers: [_srad, _generation, _review, _pipeline]`.
 
-**Prerequisite**: An active branch (not detached HEAD, not the default branch) with a non-empty diff against the default-branch merge-base, and no fab change already mapping to that branch.
+**Prerequisite**: An active branch (not detached HEAD, not the default branch) with a non-empty diff against the base-branch merge-base (PR `baseRefName` when a PR exists, else the default branch), and no fab change already mapping to that branch.
 
 **Context**: config, constitution; the branch diff (`git diff {base}...HEAD`) and PR body — read once in the one main-session generation pass.
 
 **Behavior**:
-1. **Step 0 — Guards & diff base**: reuse `/git-pr`'s guard idioms — STOP on detached HEAD / default branch / MERGED PR (scenario A) / branch-already-maps-to-a-change (point at `/fab-continue`) / empty diff. `OPEN` and `none` PR states proceed. Resolve `base=$(git merge-base HEAD origin/{default})` and capture the diff.
-2. **Steps 1+2 — one main-session generation pass** (same agent, not dispatched): `fab change new --slug {slug}` + activate (branch exists — `/fab-new` Step 11 row 1/2); reconstruct `intake.md` via the **Intake-from-Diff Procedure** (`_generation.md`); **human-confirmation checkpoint** (confirm/correct the reconstructed intent — the late deliberation the bypass skipped) → `fab status advance/finish {name} intake`; write a deliberately MINIMAL `plan.md` via the **Plan-from-Diff Procedure**.
+1. **Step 0 — Guards & diff base**: reuse `/git-pr`'s guard idioms — STOP on detached HEAD / default branch / MERGED PR (scenario A) / branch-already-maps-to-a-change (point at `/fab-continue`) / empty diff. `OPEN` and `none` PR states proceed. Resolve `base_branch` from the PR's `baseRefName` when a PR exists (else the default branch; fail open to the default when the ref vanished), `base=$(git merge-base HEAD origin/{base_branch})`, and capture the diff.
+2. **Steps 1+2 — one main-session generation pass** (same agent, not dispatched): `fab change new --slug {slug}` + activate (branch exists — `/fab-new` Step 11 row 1/2) + record the Step 0 base via `fab status set-base-branch {name} {base_branch}`; reconstruct `intake.md` via the **Intake-from-Diff Procedure** (`_generation.md`); **human-confirmation checkpoint** (confirm/correct the reconstructed intent — the late deliberation the bypass skipped) → `fab status advance/finish {name} intake`; write a deliberately MINIMAL `plan.md` via the **Plan-from-Diff Procedure**.
 3. **Step 2 (state)**: `fab status skip {name} apply` (cascades downstream → skipped) then `fab status reset {name} review fab-adopt` (skipped → active, downstream → pending) — yields `apply=skipped, review=active`, **no Go change**; record the fact via `fab status set-summary`.
 4. **Step 3 — Review** (dispatched, `mode: diff-only` — the `_review.md` parameter): the orchestrator owns the verdict (pass incl. zero-findings best-effort → `finish review`; fail → auto-rework per `_pipeline.md` budget when autonomous, hand findings back when interactive).
 5. **Step 4 — Hydrate** (dispatched, verbatim per `_pipeline.md` Step 3): the permanent-loss recovery — `docs/memory/` finally reflects what shipped → `finish hydrate`.
@@ -953,9 +953,9 @@ User invokes /fab-switch [change-name] [--none]
 
 ---
 
-## `/git-branch [change-name]`
+## `/git-branch [change-name] [--base <branch>]`
 
-**Purpose**: Create or check out a git branch matching the active (or specified) change. Standalone git command — does not modify fab state.
+**Purpose**: Create or check out a git branch matching the active (or specified) change, and record the change's base branch (`base_branch`) in `.status.yaml`.
 
 **Example**:
 ```
@@ -973,25 +973,27 @@ User invokes /fab-switch [change-name] [--none]
    - **On `main`/`master`** → auto-create branch
    - **On other branch, no upstream** → rename guard: rename the current branch (`git branch -m`) only when it resolves to no other change (`fab change resolve <current-branch>` fails); if it belongs to another change, create a new branch instead (`git checkout -b`, leaving the other change's branch intact — caveat: the new branch inherits its HEAD)
    - **On other branch, has upstream** → create new branch (leaving current intact)
+   - **Record the base** (after the action; skipped for the standalone fallback): `--base <branch>` when given, else the default-branch chain (`origin/HEAD` → `gh repo view` → main/master probe) → `fab status set-base-branch "{name}" "$base_branch"`. Create/rename/`--track` always write; the already-active/checked-out no-op cases write only when `fab status get-base-branch` prints empty
 5. Report result
 
 **Key properties**:
-- Does not modify `.fab-status.yaml` or `.status.yaml`
-- Idempotent — checking out an already-active branch is a no-op
+- Does not modify `.fab-status.yaml`; writes `base_branch` in `.status.yaml` via `fab status set-base-branch` (create/rename/track always; no-op cases only when absent; `--base` overrides)
+- Idempotent — checking out an already-active branch is a no-op and never clobbers a recorded base
 - Always enabled if in a git repo
 
 
 **Flow**:
 
 ```text
-User invokes /git-branch [change-name]
+User invokes /git-branch [change-name] [--base <branch>]
 ├─ Bash: git rev-parse --is-inside-work-tree; fab change resolve "<name>" → [multi-match] STOP with candidates / [no match, explicit arg] standalone fallback
 ├─ Probes (current branch, dirty count, local + origin existence) → [on target] no-op / [local] checkout / [origin-only] checkout --track / [on main] checkout -b
 ├─ [other branch, no upstream] rename guard: resolve current branch → branch -m (same/no change) or checkout -b (different change)
+├─ Record the base (skipped on standalone fallback): --base or default-branch chain → fab status set-base-branch (no-op cases write-if-absent)
 └─ Report; create/rename with dirty tree → carried-over note
 ```
 
-**Tools**: Bash — `fab change resolve` (resolution + rename guard; strict exit-code form kept deliberately); all git operations.
+**Tools**: Bash — `fab change resolve` (resolution + rename guard; strict exit-code form kept deliberately), `fab status set-base-branch` / `get-base-branch`; all git operations.
 
 **Sub-agents**: None.
 
@@ -1410,7 +1412,7 @@ User invokes /code-dedupe [scope]
 2. Check for uncommitted changes, unpushed commits, existing PR
 3. Stage and commit any uncommitted changes (message matches repo style)
 4. Push to remote (sets upstream if none)
-5. Create a draft PR via `gh pr create` with title derived from intake and body including Summary, Changes, pipeline stats, and stage progress
+5. Create a draft PR via `gh pr create --base <base_branch>` — targeting the change's recorded `base_branch` when set and its `origin/` ref resolves, else the default branch — with title derived from intake and body including Summary, Changes, pipeline stats, and stage progress
 6. Record PR URL in `.status.yaml`, mark ship stage done
 
 **Key properties**:
@@ -1433,7 +1435,7 @@ User invokes /code-dedupe [scope]
 ├─ Guards: detached HEAD / on default branch / {pr_state} MERGED → STOP
 ├─ 3a Commit: expected-area guard for untracked files → git add -u + in-area untracked → commit
 ├─ 3a-bis (if {has_fab} + committed): Bash: fab docs-index docs/memory → commit docs/memory drift (no --amend)
-├─ 3b Push; 3c Create PR (no OPEN PR): Read intake → Bash: fab pr-meta → ## Meta block → gh pr create --draft (--fill fallback)
+├─ 3b Push; 3c Create PR (no OPEN PR): Read intake → Bash: fab pr-meta → ## Meta block → gh pr create --draft --base <base_branch> (--fill fallback; base = recorded base_branch, else default branch)
 ├─ 3d Retrofit ## Meta onto existing OPEN PR (idempotent prepend)
 └─ 4a–4c: fab status add-pr + finish ship stage; commit + push .status.yaml/.history.jsonl
 ```
