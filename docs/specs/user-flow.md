@@ -39,7 +39,7 @@ Each transition is now a `/fab-*` command. `/fab-ff` fast-forwards from intake t
 
 ```mermaid
 flowchart TD
-    WT[new worktree] -->|"/fab-discuss"| IDEA[idea]
+    WT[new worktree] -->|"/fab-discuss · /fab-incognito"| IDEA[idea]
     IDEA -->|"/fab-new"| B[intake]
     B -->|"/fab-continue"| A[apply]
     A -->|"/fab-continue"| R[review]

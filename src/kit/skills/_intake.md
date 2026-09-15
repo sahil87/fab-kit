@@ -68,7 +68,7 @@ If a Linear ticket was detected in Step 0, record the issue ID via `fab status`:
 
 This step is the load-bearing **context-flush at the boundary**: intake is the single context-bearing boundary in the pipeline (everything after it runs as a dispatched subagent reading only the intake artifact). Capturing the live conversation's decisions here is what transfers that context across the boundary — it is not merely a scoring optimization.
 
-Before generating the intake, scan the current conversation for prior discussion of this change's topic — whether from `/fab-discuss`, free-form exploration, or any conversation that preceded the invoking skill's invocation. Extract:
+Before generating the intake, scan the current conversation for prior discussion of this change's topic — whether from `/fab-discuss`, `/fab-incognito`, free-form exploration, or any conversation that preceded the invoking skill's invocation. Extract:
 
 - **Decisions made** — specific choices with rationale (e.g., "OAuth2 over SAML because no enterprise requirement")
 - **Alternatives rejected** — options considered and why they were ruled out

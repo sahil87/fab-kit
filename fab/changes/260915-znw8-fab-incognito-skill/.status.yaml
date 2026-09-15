@@ -1,0 +1,57 @@
+id: znw8
+name: 260915-znw8-fab-incognito-skill
+created: 2026-09-15T17:49:52Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 5
+    acceptance_count: 20
+    acceptance_completed: 20
+confidence:
+    certain: 15
+    confident: 5
+    tentative: 0
+    unresolved: 0
+    score: 4.4
+    fuzzy: true
+    dimensions:
+        signal: 82.5
+        reversibility: 90.0
+        competence: 85.5
+        disambiguation: 82.3
+stage_metrics:
+    intake: {started_at: "2026-09-15T17:49:52Z", driver: fab-new, iterations: 1, completed_at: "2026-09-15T17:56:12Z"}
+    apply: {started_at: "2026-09-15T17:56:12Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-15T18:03:35Z"}
+    review: {started_at: "2026-09-15T18:03:35Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-15T18:07:55Z"}
+    hydrate: {started_at: "2026-09-15T18:07:55Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-15T18:09:10Z"}
+    ship: {started_at: "2026-09-15T18:09:10Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-15T18:11:09Z"}
+    review-pr: {started_at: "2026-09-15T18:11:09Z", driver: git-pr, iterations: 1, completed_at: "2026-09-15T18:23:31Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/679
+change_type_source: explicit
+true_impact:
+    added: 758
+    deleted: 15
+    net: 743
+    excluding:
+        added: 145
+        deleted: 8
+        net: 137
+    tests:
+        added: 1
+        deleted: 1
+        net: 0
+    computed_at: "2026-09-15T18:11:10Z"
+    computed_at_stage: ship
+summary: 'New /fab-incognito skill: primes a redesign discussion with the kit''s process helpers and a skill catalog while skipping docs/memory and docs/specs and holding a standing no-memory rule; /fab-help groups it under Start & Navigate; fab-discuss/preamble/specs/README swept'
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-09-15T18:23:31Z

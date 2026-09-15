@@ -47,7 +47,7 @@ Before generating or validating any artifact, load the relevant context layers b
 
 ### 1. Always Load
 
-This layer applies to every skill **unless the skill's own Context Loading section says otherwise** — the skill file wins. The exception set is **derived, never enumerated here**: consult the skill file itself (its `## Context Loading` section, or an explicit context note near its header) for any override — e.g., `/fab-setup` and `/docs-hydrate-memory` skip the layer entirely, `/fab-operator` loads a reduced 3-file set. A skill that declares no override loads the full layer.
+This layer applies to every skill **unless the skill's own Context Loading section says otherwise** — the skill file wins. The exception set is **derived, never enumerated here**: consult the skill file itself (its `## Context Loading` section, or an explicit context note near its header) for any override — e.g., `/fab-setup` and `/docs-hydrate-memory` skip the layer entirely, `/fab-operator` loads a reduced 3-file set, `/fab-incognito` loads a reduced 5-file `fab/project/` set and skips both doc indexes. A skill that declares no override loads the full layer.
 
 Read these files first — they define the project's identity, constraints, and documentation landscape:
 
@@ -212,7 +212,7 @@ These command families cover ~90% of skill usage. See `_cli-fab` for the full re
 
 ## Next Steps Convention
 
-Skills MUST end their output with a `Next:` line derived from the State Table below, unless the skill's own Output or Key Properties section defines a different ending (e.g., `/fab-discuss`'s ready signal, `/fab-operator`'s status frame, the `/git-*` skills' own completion output) — the skill file wins, mirroring the §1 context-loading contract. Look up the state reached (not the skill name) and list the available commands. The default command SHOULD be listed first.
+Skills MUST end their output with a `Next:` line derived from the State Table below, unless the skill's own Output or Key Properties section defines a different ending (e.g., `/fab-discuss`'s and `/fab-incognito`'s ready signals, `/fab-operator`'s status frame, the `/git-*` skills' own completion output) — the skill file wins, mirroring the §1 context-loading contract. Look up the state reached (not the skill name) and list the available commands. The default command SHOULD be listed first.
 
 **Format**: `Next: /fab-command` or `Next: /fab-commandA, /fab-commandB, or /fab-commandC`
 

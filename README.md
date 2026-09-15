@@ -145,7 +145,7 @@ $fab-setup    # Codex
 
 This generates `fab/project/constitution.md` and other project configuration files. Run `fab doctor` to verify your setup.
 
-Once setup completes, run `/fab-discuss` to load project context and orient before your first change.
+Once setup completes, run `/fab-discuss` to load project context and orient before your first change (or `/fab-incognito` to rethink the fab process itself without loading project memory).
 
 #### Onboarding an existing repo with prior docs
 
@@ -442,6 +442,7 @@ Grades aggregate into a **confidence score** that gates `/fab-ff`. If ambiguity 
 | `/fab-switch` | Switch active change (or list available changes) |
 | `/fab-help` | Show workflow overview and command summary |
 | `/fab-discuss` | Load project context for an exploratory discussion session |
+| `/fab-incognito` | Load fab process knowledge for a redesign discussion — skips project memory and specs |
 
 ### Git
 
@@ -490,16 +491,16 @@ The operator (`/fab-operator`) is a long-running coordination layer that sits in
 
 ## Stage Coverage by Command
 
-Which pipeline stages each command covers. Taller bars = more automation. Read left-to-right from most manual to most automated. **▶** marks typical entry points — start with `/fab-discuss` (exploratory) or `/fab-new` (ready to build). Arrows show the typical path from idea to PR. Dashed borders indicate optional/utility stages. Empty cells = not covered by that command.
+Which pipeline stages each command covers. Taller bars = more automation. Read left-to-right from most manual to most automated. **▶** marks typical entry points — start with `/fab-discuss` (exploratory; `/fab-incognito` for a process redesign) or `/fab-new` (ready to build). Arrows show the typical path from idea to PR. Dashed borders indicate optional/utility stages. Empty cells = not covered by that command.
 
 | Color | Category | Commands |
 |-------|----------|----------|
-| 🟦 Cyan | Explore (read-only) | `/fab-discuss` |
+| 🟦 Cyan | Explore (read-only) | `/fab-discuss`, `/fab-incognito` |
 | 🟧 Amber | Manual (single action) | `/fab-draft`, `/fab-switch`, `/fab-continue` |
 | ⬜ Blue-grey (dashed) | Git utilities | `/git-branch`, `/git-pr`, `/git-pr-review` |
 | 🟩 Green | Automated pipeline (multi-stage) | `/fab-new`, `/fab-ff`, `/fab-fff`, `/fab-proceed`, `/fab-adopt` |
 | ◻️ Grey | Fab pipeline stage (row label) | intake, change active, apply, review, hydrate |
-| ▶ | Typical entry point | `/fab-discuss`, `/fab-new` |
+| ▶ | Typical entry point | `/fab-discuss`, `/fab-incognito`, `/fab-new` |
 
 ![Stage coverage by command: a matrix of pipeline stages (rows) by command (columns), color-coded — cyan Explore, amber Manual, blue-grey dashed Git utilities, green Automated pipeline, hatched grey Stage skipped. fab-discuss covers context; fab-draft intake; fab-switch change active; git-branch branch name; fab-new intake/change active/branch name; fab-continue, fab-ff, fab-fff, fab-proceed each cover apply/review/hydrate; fab-fff and fab-proceed also ship and review-pr; git-pr ship; git-pr-review review-pr; fab-adopt enters mid-flight covering intake/review/hydrate/ship/review-pr with apply skipped](https://raw.githubusercontent.com/sahil87/fab-kit/main/docs/img/stage-coverage.svg)
 
@@ -624,7 +625,7 @@ block-beta
 
 </details>
 
-**Quick reference** — which stages does each command cover?
+**Quick reference** — which stages does each command cover? `/fab-incognito` covers the same `context` cell as `/fab-discuss` (kit process knowledge instead of project memory) and is omitted from the matrix.
 
 | Stage | `/fab-discuss` | `/fab-draft` | `/fab-switch` | `/git-branch` | `/fab-new` | `/fab-continue` | `/fab-ff` | `/git-pr` | `/git-pr-review` | `/fab-fff` | `/fab-proceed` | `/fab-adopt` |
 |-------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
