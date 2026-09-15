@@ -1,5 +1,132 @@
 # Archive Index
 
+- **260915-vy27-per-change-base-branch** — Per-Change Base Branch — Record `base_branch` in `.status.yaml` and Read It on Every Base-Relative Surface
+- **260913-iyb4-operator-spawn-session-selector** — Operator Spawn Target-Session Selector — Deterministic, Never Asks
+- **260913-ga0v-operator-skill-user-level-shim** — User-Level fab-operator Skill Shim — the Operator Resolves From a Neutral cwd
+- **260913-1nxw-operator-spawn-session-rk-default** — Operator Spawn Target Session — Delegate to `rk tab new`'s Role-Aware Default
+- **260912-zx5k-rk-json-envelope-tolerance** — Tolerate run-kit's D5 JSON envelope on every `rk … --json` read
+- **260912-bjrk-fab-seeds-operator-tick-entry** — fab Seeds the Operator-Tick Cron Entry
+- **260912-6n6o-operator-spawn-orthogonal-axes** — Operator Spawn Forms as Two Orthogonal Axes — Task-less Bare-Agent Spawn
+- **260911-y50t-hexokit-banner-sweep** — HexoKit Banner Sweep (plan row C7, fab-kit)
+- **260911-pudv-operator-non-fab-repo-plain-agent** — Operator Non-Fab-Repo Work Path — Plain Agent Form
+- **260911-kp3d-operator-read-plans-never-execute** — Operator principles — read plans, never execute, always spawn
+- **260911-5ubz-operator-time-based-full-refresh** — Operator tick-start — time-based full-frame refresh (10 minutes) replaces every-10th-tick
+- **260911-1159-operator-pane-kind-pid-fingerprint** — Operator `pane` kind replaces `fab-change` — join on pane ID plus pid fingerprint, change as an observed field; plus three agreed skill slims
+- **260910-d5tk-deployed-skills-no-fabkit-paths** — Deployed Kit Content Must Not Cite fab-kit-Only Paths
+- **260909-u5hc-shorten-docs-index-boilerplate** — Shorten the docs-index Generated Header and Manual-Block Seed
+- **260909-tdij-pane-geometry-defaults-45-50** — Pane-Dispatch Geometry Defaults 45/50
+- **260909-qvek-operator-cron-mute-lease** — Operator Drives the rk Cron Clock Explicitly — Mute/Unmute on Tracked-Set Transitions, Lease as Bounded Snooze
+- **260909-l0bf-docs-index-all-files-manual-block** — docs-index — Index Every File Type in Generated Navigation, and Rename the Hand-Managed Block to `manual`
+- **260909-esqt-docsindex-escape-roundtrip** — docs-index — Fix Escape Runaway in Folder-Index Descriptions, and the Hardcoded Glossary Path
+- **260909-6t88-retire-loop-cron-cadence** — Retire Operator /loop — Cron Entry as Sole Cadence
+- **260908-yd9s-repoint-agents-skills-gate-claude** — Repoint Skill Read-Paths to .agents/skills and Gate .claude on Claude
+- **260908-wcib-refresh-codex-builtin-fills** — Refresh Codex Built-in Fills
+- **260908-tfzn-fix-agent-skill-prefix** — Fix agent skill invocation prefixes
+- **260908-t513-unconditional-agent-skill-deploy-targets** — Unconditional Agent Skill Deploy Targets
+- **260908-gxbf-agent-yaml-skill-prefix** — Fold skill prefix into `fab agent` resolution; retire `fab skill-prompt`
+- **260908-flt3-root-agnostic-docs-index** — Root-Agnostic Docs-Index Generator
+- **260906-cxe0-pane-dispatch-geometry-floor** — Pane Dispatch Geometry Floor
+- **260904-rkop-delegate-operator-launcher-rk** — Delegate Operator Launcher to rk
+- **260904-cx52-operator-spawn-session-inference** — Operator Spawn-Session Inference
+- **260904-b4j7-gate-delegation-rk-await-ready** — Gate Delegation to rk mux await --ready
+- **260903-psgm-fab-skill-topics-verb** — Add the reserved `fab skill topics` verb
+- **260903-0y4c-ship-reviewpr-cli-dispatch** — Ship/Review-PR CLI-Adapter Dispatch Wiring
+- **260902-ssyf-operator-liveness-process-tree** — Operator Liveness via Process-Tree Confirmation
+- **260902-13qo-pane-send-copy-mode-guard** — Pane Send Copy-Mode Guard
+- **260902-0i4x-labelled-rung-dispatch-choreography** — Labelled-Rung Dispatch Choreography
+- **260901-u6es-fab-agent-yaml-skill-migration** — fab agent YAML Skill Migration
+- **260901-mp8d-agent-resolution-struct-parity** — Shared agent.Resolution Struct + Parity Tests
+- **260901-77vz-fab-agent-surface-extension** — fab agent Surface Extension
+- **260831-n2eo-system-header-inside-fence** — System Scaffold Header Inside the Fence
+- **260829-kbf2-operator-quiet-tick-compact-frame** — Operator Quiet Tick + Compact No-Change Status Frame
+- **260829-57mp-pane-readiness-agent-takeover** — Pane Readiness Gate — Require Agent Takeover Before Probing
+- **260829-4q3l-operator-loop-prompt-hygiene** — Operator Loop-Prompt Hygiene
+- **260829-1xqx-agent-exit-shell-fallback** — Agent-Exit Shell Fallback for Interactive Spawns
+- **260828-xdmh-rk-pane-agent-state-option** — Read `@rk_pane_agent_state` with legacy `@rk_agent_state` fallback
+- **260828-nr3a-tick-completion-review-pr-only** — Tick-Start Completion Fires Only at the Pipeline Terminus
+- **260828-jjg0-sync-owned-skill-gitignores** — Sync-Owned Skill Gitignores
+- **260824-ffny-code-reorg-structure-sweep** — Code-Reorg Structure Sweep
+- **260823-z597-operator-spawn-target-session** — Operator Spawn Target-Session Derivation
+- **260823-s2gw-operator-note-narrative-state** — Operator Note Narrative-State Verb Family
+- **260823-ekp3-code-reorg-skill** — code-reorg skill
+- **260823-dckc-pane-questions-sweep** — Operator Question-Sweep Command (`fab pane questions`)
+- **260823-dbwg-operator-tick-diff-offload** — Operator Tick-Diff Offload (`fab operator tick-start --diff`)
+- **260823-a3mu-hoist-defaults-module-root** — Hoist defaults.yaml to the Go module root
+- **260823-2c92-operator-auto-merge-choreography** — Operator Auto-Merge Choreography
+- **260822-m461-pane-identity-keying-contract** — Pane Identity Keying Contract
+- **260821-r5t5-autopilot-merge-mode-config-default** — Autopilot Merge-Mode Config Default
+- **260820-t6rq-autopilot-merge-modes-stacked-prs** — Autopilot Merge-Mode Naming Symmetry + `stacked-prs` Mode
+- **260820-89vn-pane-map-rk-enumeration** — Pane Map on rk Enumeration
+- **260820-4un7-guidance-repoint-rk-mux-twins** — Guidance Re-Point — capture/kill/process to rk mux Twins (cli-layering Part 7)
+- **260819-zs1u-operator-canonical-pane-capture** — Operator Canonical Pane Capture
+- **260819-y4mu-pane-capture-tail-last-lines** — Pane Capture Tails to the Last N Lines
+- **260819-m7kq-operator-state-binary-subcommands** — Operator State Mutations Behind Binary Subcommands
+- **260819-hk7p-delete-orphaned-hook-payload-parsers** — Delete Orphaned hooklib Hook-Payload Parsers
+- **260815-slpa-right-size-fab-routing** — Right-Size Fab Routing — Anti-Trigger Descriptions + Micro-Change Backstop
+- **260815-4i0n-retire-pane-send-await** — Retire fab pane send/await (cli-layering Part 5)
+- **260813-swun-operator-role-self-mark** — Operator Role Self-Mark
+- **260812-z5qt-linear-issue-find-or-create** — Linear Issue Find-or-Create Skill
+- **260812-nwdn-setup-wizard-advanced-ask-all** — Setup Wizard Advanced Section Asks All Keys When Opted In
+- **260812-kgam-pane-ready-test-host-kill** — Fix pane_ready_test.go killing the host tmux server from inside a pane
+- **260812-05wy-config-show-role-provider-fills** — Config Show Honors Per-Role Provider Overrides in Derived Fills
+- **260811-yxyi-pane-dispatch-surface-completion** — Pane/Dispatch Surface Completion
+- **260811-xy7a-condense-spec-skill-mirrors** — Condense SPEC Skill Mirrors
+- **260811-stpw-setup-interactive-wizard** — fab setup Interactive Wizard
+- **260811-rehi-delete-spec-mirror-tree** — Delete SPEC Mirror Tree and Retire the Mirror Rule
+- **260811-pgbq-setup-check-doctor** — fab setup check environment doctor
+- **260811-nztj-tighten-slug-validation-regex** — Tighten Slug Validation Regex
+- **260811-lgat-restore-1lah-log-attribution** — Restore 1lah's Missing Log Attribution (lgat)
+- **260811-izj3-refresh-optional-change-arg** — Make `fab status refresh` change argument optional + patch the dispatch-epilogue canon
+- **260811-h1eu-remove-batch-switch-branch-prefix** — Remove batch switch branch_prefix — unify branch naming on the no-prefix convention
+- **260811-answ-pane-send-answer-mode** — `fab pane send --answer` Mode
+- **260811-3olp-light-lane-post-merge-polish** — Light Lane Post-Merge Polish
+- **260811-3ol6-light-lane-inline-small-changes** — Light Lane — Plan-Time Fork to Inline Execution for Small Changes
+- **260810-ug8b-config-reference-legibility** — Config Reference Legibility — Flatten Provider Blocks + Reorder Dispatch Above Agent
+- **260810-ttff-agy-interactive-pane-capability** — agy-interactive-pane-capability
+- **260810-rvza-config-show-compose-defaults** — config-show-compose-defaults
+- **260810-ki9v-kimi-pane-enablement** — Kimi Pane Enablement — Box-Drawing-Tolerant Squeeze + Ship interactive_command
+- **260810-1lah-provider-generic-pane-verbs** — Provider-Generic Pane Verbs — Extract open/ready/deliver Primitives from Dispatch
+- **260809-wll4-config-source-consolidation** — Config Source Consolidation (Config-Overhaul C5)
+- **260809-n1he-rename-provider-command-fields** — Rename Provider Command Fields
+- **260809-3oz7-pane-readiness-gate-sendkeys-delivery** — Pane Readiness Gate + Send-Keys Delivery
+- **260808-yilt-dispatch-mode-descent-ladder** — dispatch.mode — the descent ladder + capability delink
+- **260808-tv3g-native-apply-worker-resume** — Native Apply-Worker Resume
+- **260808-s2sz-skill-prose-structure-restructures** — Skill Prose→Structure Restructures (Phase 3)
+- **260808-rvcs-retire-codex-claude-review-cascade** — Retire the Codex→Claude Review Cascade
+- **260808-rpsr-remove-gemini-add-agy-kimi** — Remove Gemini, Add Antigravity (agy) and Kimi Providers
+- **260808-mcxv-skill-prose-mechanical-deletion** — Skill Prose Mechanical Deletion (Phase 2)
+- **260808-j9rb-kit-path-override** — FAB_KIT_PATH — session-scoped kit-resolution override for kit development
+- **260808-ip4q-skill-prose-drift-fixes** — Skill Prose Drift Fixes (Phase 1)
+- **260808-ihiv-config-six-verb-surface** — Six-Verb `fab config` Surface
+- **260808-fp02-config-read-model-redesign** — Config Read-Model Redesign + UX Follow-ups
+- **260808-clxw-codex-gemini-bypass-flags** — Codex/Gemini Provider Bypass Flags
+- **260808-9akf-skill-prose-policy-amendments** — Skill Prose Policy Amendments (Phase 4)
+- **260808-2d1w-env-override-layer-launch-flags** — Per-Session Selection — Env Override Layer + Launch Flags
+- **260807-zfl7-dispatch-reap-done-panes** — fab dispatch pane-mode done-worker reaping
+- **260807-g4a5-pane-worker-column-invariant** — Pane-Mode Worker Column Invariant — Record-Based Sibling Detection + Sized First Split
+- **260806-ywkx-ship-codex-gemini-fills** — Ship Built-in Codex/Gemini Per-Role Fills
+- **260806-mnri-dispatch-worker-lifecycle-supervision** — Dispatch Worker Lifecycle Supervision
+- **260806-mkfj-dispatch-wait-event-driven** — fab dispatch wait — event-driven blocking wait replaces the 30s poll loop
+- **260806-j9nh-agent-profiles-session-workers** — Agent Profiles Reshape + Session/Workers Knobs
+- **260806-2j2i-embed-agent-defaults-layer0** — Embed Agent Defaults as defaults.yaml (Layer 0)
+- **260805-zxe0-interactive-pane-stage-dispatch** — Interactive Pane Stage Dispatch (Third Adapter)
+- **260805-nvad-cli-agents-helper-provider-spawn** — `_cli-agents` Helper Extraction + Provider-Addressable Spawn
+- **260805-l9ng-auto-pane-dispatch-in-tmux** — Auto Pane Dispatch Inside tmux
+- **260805-j3cm-builtin-provider-templates-and-fill** — Built-in Provider Templates + Per-Provider Fill + Invocation Overrides
+- **260728-4v91-add-fab-dedupe-skill** — Add /fab-dedupe skill
+- **260721-0j0t-fix-tmux-test-socket-leak** — Fix tmux socket leak in Go integration tests
+- **260720-tvek-install-docs-policy-b** — Install Docs Policy B Conformance
+- **260720-nnda-remove-wt-idea-brew-deps** — Remove wt/idea Homebrew Dependencies with Graceful Degradation
+- **260720-g538-publish-fkf-standard-site** — Publish FKF Standard to docs/site
+- **260719-npoa-distill-loop-all-meter-chain** — Distill Loop-All + Narration-Meter Fix + Reorg→Distill Chain
+- **260719-kq7v-remove-fab-version-fallback** — Remove fab_version Config Fallback
+- **260719-g55d-stage-model-tier-defaults-v2** — Stage-Model Tier Defaults v2
+- **260719-1e4m-update-version-standards-conformance** — Update & Version Standards Conformance
+- **260718-wrct-hydrate-rewrite-contract** — Memory Writer Contract — Hydrate Rewrites, Never Appends
+- **260718-ukpf-distill-noarg-survey** — Distill No-Arg Survey Mode
+- **260718-udwv-shll-toolkit-rename** — Conform Repo to Standardized Toolkit Name — shll toolkit
+- **260718-mxgu-memory-index-guards** — Memory-Index Guards for FKF Present-Truth Debt
+- **260718-dsrx-distill-reorg-extensions** — Distill/Reorg Extensions — Drain the Accretion Debt
 - **260911-tnmm-operator-clock-skip-if-busy-ladder** — Operator Clock — Single `skip-if-busy` Deliver Policy, 3m→24m Backoff Ladder, Debounce Doc Fix
 - **260910-si4k-operator-rk-mandatory-helper-split** — Operator loading and dependency — rk-mandatory skill, `_cli-fab.md` split by command family, live clock cadence
 - **260911-4a8m-operator-generic-tracked-items** — Operator Generic Tracked Items — one tracked-item model, probe loop, derived schedule, one-table frame
