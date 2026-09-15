@@ -27,6 +27,7 @@ var skillToGroupMap = map[string]string{
 	"fab-switch":          "Start & Navigate",
 	"fab-status":          "Start & Navigate",
 	"fab-discuss":         "Start & Navigate",
+	"fab-incognito":       "Start & Navigate",
 	"git-branch":          "Start & Navigate",
 	"fab-continue":        "Planning",
 	"fab-ff":              "Planning",

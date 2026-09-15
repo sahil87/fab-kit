@@ -52,6 +52,7 @@ helpers: [_generation, _review, _srad, _pipeline]
 | `fab-clarify` | `[_srad]` |
 | `code-reorg`, `code-dedupe` | `[_srad]` (SRAD grades proposal/cluster confidence; report-only — no `_intake`/`_generation`) |
 | `fab-operator` | `[_cli-fab-operator, _cli-fab-pane, _cli-agents, _cli-external]` (`_cli-agents` carries the generic agent-CLI interaction procedures extracted from the skill in 260805-nvad, plus the four-provider grammar/discovery dictionary; `_cli-fab-operator`/`_cli-fab-pane` are the operator's slices of the CLI reference, split by command family in 260910-si4k) |
+| `fab-incognito` | `[_pipeline, _intake, _srad, _generation, _review]` (the process partials ARE the payload — loaded to be discussed, not to generate; both doc indexes deliberately skipped) |
 | All other skills | omitted (load only `_preamble`) |
 
 Validation is **convention-only** — `fab sync` does not reject skills with unknown helper values. Drift surfaces as runtime behavior (agent loads an unexpected file or fails to find a needed one).
@@ -178,7 +179,7 @@ Each skill section below lists its specific context requirements under a **Conte
 
 ## Next Steps Convention
 
-Skills MUST end their output with a `Next:` line suggesting the available follow-up commands, unless the skill's own Output or Key Properties section defines a different ending (e.g., `/fab-discuss`'s ready signal, `/fab-operator`'s status frame, the `/git-*` skills' own completion output) — the skill file wins, mirroring the context-loading contract. This keeps the user oriented in the workflow without needing to memorize the stage graph.
+Skills MUST end their output with a `Next:` line suggesting the available follow-up commands, unless the skill's own Output or Key Properties section defines a different ending (e.g., `/fab-discuss`'s and `/fab-incognito`'s ready signals, `/fab-operator`'s status frame, the `/git-*` skills' own completion output) — the skill file wins, mirroring the context-loading contract. This keeps the user oriented in the workflow without needing to memorize the stage graph.
 
 **Format**: `Next: /fab-command` or `Next: /fab-commandA or /fab-commandB (description)`
 
@@ -207,7 +208,7 @@ Adding a skill to the kit touches nine integration points. Work through all of t
 1. **Frontmatter fields** — `name` (matches the filename) and `description` (the one-liner agents use for model invocation — name the actual behavior, including non-obvious modes like draft PRs or `--none` flags). Internal partials additionally set `user-invocable: false`, `disable-model-invocation: true`, and `metadata.internal: true`.
 2. **Preamble-read line** — the body opens with the standard blockquote: ``> Read the `_preamble` skill first (deployed to `.agents/skills/` via `fab sync`). Then follow its instructions before proceeding.``
 3. **`helpers:` declaration** — list any additional partials the skill needs (`_generation`, `_review`, `_cli-fab`, `_cli-fab-operator`, `_cli-fab-pane`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`) in frontmatter; skills without the list load only `_preamble`. See § Skill Helpers.
-4. **`Next:` line** — the skill's output ends with a state-derived `Next:` line per `_preamble.md` § Next Steps Convention (or documents an explicit opt-out, as `fab-discuss` and `fab-operator` do).
+4. **`Next:` line** — the skill's output ends with a state-derived `Next:` line per `_preamble.md` § Next Steps Convention (or documents an explicit opt-out, as `fab-discuss`, `fab-incognito`, and `fab-operator` do).
 5. **Error Handling + Key Properties tables** — the body closes with the two standard tables (skill-specific errors only; idempotency, write surface, stage effects).
 6. **Flow skeleton in skills.md** — add the skill's Flow skeleton to its `skills.md` section: the Flow diagram, plus the Tools and Sub-agents one-liners where they add information beyond the section's prose. Behavioral partials carry theirs in § Skill Helpers (§ Partial Flow Skeletons); pure-reference partials carry none.
 7. **skills.md row** — add the skill's section to this file (and its `helpers:` row to § Skill Helpers when it declares any).
@@ -1064,6 +1065,41 @@ User invokes /fab-discuss
 ```
 
 **Tools**: Read (always-load files, `.status.yaml`), Bash (`fab resolve --folder --or-none`, `fab log command`).
+
+**Sub-agents**: None.
+
+---
+
+## `/fab-incognito`
+
+**Purpose**: Prime the agent with fab *process* knowledge for a redesign discussion. Sibling of `/fab-discuss` with the opposite load profile: it loads the kit's process helper partials and a catalog of every deployed skill, and deliberately leaves `docs/memory/` and `docs/specs/` closed — present-truth memory anchors an agent to defend what exists; incognito anchors the conversation on how the process works. Read-blind, not trace-free: the invocation is logged and later skills may still write artifacts. Session entry point, not a pipeline stage.
+
+**Context**: Declares its own `## Context Loading` override (`_preamble.md` §1 — the skill file wins): a reduced 5-file `fab/project/` set — `config.yaml`, `constitution.md` (required), `context.md`, `code-quality.md`, `code-review.md` (optional) — with **both doc indexes skipped**. Payload: the six process helpers (`_preamble` + `helpers: [_pipeline, _intake, _srad, _generation, _review]`, ~120 KB) and a frontmatter-only skill catalog (`name`/`description`/`user-invocable` of every `.agents/skills/*/SKILL.md`). Kit version from `$(fab kit-path)/VERSION` (fallback `unknown`). Skill bodies and the five `_cli-*` partials (~274 KB) are lazy-loaded on demand — every deployed skill together is ~834 KB against the ~36 KB always-load layer, so incognito is a different anchor, not less context. Active change via `fab resolve --folder --or-none` (light touch, no artifacts, no preflight).
+
+**Standing Session Rule**: after loading, the agent does not open any file under `docs/memory/` or `docs/specs/` (including both indexes) and does not follow `_preamble.md` § Memory File Lookup for the rest of the discussion; the one exception is a file the user names, opened without walking its domain index. Claims about current behavior cite the implementing skill, not the memory describing it. The rule binds the discussion only — a skill invoked later follows its own Context Loading section.
+
+**Key properties**:
+- No active change required; does not run preflight
+- Read-only — modifies no files; idempotent
+- Loads no `docs/memory/*` / `docs/specs/*` — and holds the Standing Session Rule afterwards
+- Does not output a `Next:` pipeline command — ends with "Ready to discuss the system, incognito. What would you like to rethink?"
+
+**Output**: Orientation summary with project identity, `Kit: {version}`, the helpers loaded, catalog counts (`{N} skills ({U} user-invocable, {H} helpers)`), project files loaded / not found, the verbatim line `Memory and specs: NOT loaded (incognito — will not be opened unless you name a file)`, active change name/stage (if any), and the ready signal.
+
+**Flow**:
+
+```text
+User invokes /fab-incognito
+├─ Read: fab/project/{config.yaml,constitution.md} (+ context/code-quality/code-review, optional) — NOT the doc indexes
+├─ Read: .agents/skills/{_pipeline,_intake,_srad,_generation,_review}/SKILL.md (via helpers:)
+├─ Bash: frontmatter scan of .agents/skills/*/SKILL.md → skill catalog (STOP "run fab sync" if missing)
+├─ Bash: cat "$(fab kit-path)/VERSION" (fallback unknown)
+├─ Bash: fab resolve --folder --or-none; Read: .status.yaml if a change is active
+├─ Bash: fab log command "fab-incognito"
+└─ Output: orientation summary; then hold the Standing Session Rule
+```
+
+**Tools**: Read (`fab/project/*`, helper partials, `.status.yaml`), Bash (frontmatter scan, `fab kit-path`, `fab resolve --folder --or-none`, `fab log command`).
 
 **Sub-agents**: None.
 

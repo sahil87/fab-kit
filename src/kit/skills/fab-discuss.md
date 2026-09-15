@@ -13,6 +13,8 @@ description: "Prime the agent with project context for a discussion session — 
 
 Prime the agent with project context for an exploratory discussion session. Loads the standard always-load layer (`_preamble.md` §1), presents an orientation summary of the project landscape, and signals readiness for open-ended conversation. No artifact generation, no stage advancement — purely read-only.
 
+> **See also**: for a *redesign* discussion that should not be anchored on present-truth memory, use `/fab-incognito` — it loads the kit's process helpers and skill catalog instead of the doc indexes.
+
 ---
 
 ## Arguments
