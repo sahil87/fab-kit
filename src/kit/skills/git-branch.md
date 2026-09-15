@@ -1,7 +1,7 @@
 ---
 name: git-branch
 description: "Create or switch to the git branch matching the active (or specified) change. Unmatched explicit names fall back to a standalone branch with that literal name."
-allowed-tools: Bash(git:*), Bash(fab:*)
+allowed-tools: Bash(git:*), Bash(fab:*), Bash(gh:*)
 ---
 
 # /git-branch [change-name] [--base <branch>]
@@ -121,9 +121,12 @@ Resolve the base — `--base <branch>` when given, else the default-branch chain
 
 ```bash
 base_branch="{--base argument if given}"
-[ -n "$base_branch" ] || base_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
-[ -n "$base_branch" ] || base_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
-[ -n "$base_branch" ] || base_branch=$(git rev-parse --verify -q refs/remotes/origin/main >/dev/null && echo main || echo master)
+if [ -z "$base_branch" ]; then   # resolve the default branch (a --base value is kept verbatim — it may name an unpushed dependency branch)
+  base_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+  # origin/HEAD can dangle (default-branch rename, stale fetch) — accept its target only when the ref resolves
+  { [ -n "$base_branch" ] && git rev-parse --verify -q "refs/remotes/origin/$base_branch" >/dev/null; } || base_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+  [ -n "$base_branch" ] || base_branch=$(git rev-parse --verify -q refs/remotes/origin/main >/dev/null && echo main || echo master)
+fi
 ```
 
 Then write (always-write cases):

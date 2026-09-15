@@ -111,19 +111,22 @@ func ComputeForRepo(fabRoot, base, head string) (Result, error) {
 
 // ResolveBaseRef returns the remote-tracking ref to diff against for a change.
 // Order: the per-change base (origin/<baseBranch>) when baseBranch is
-// non-empty AND the ref resolves; else origin/HEAD's target; else origin/main;
-// else origin/master. Returns "" when nothing resolves — a vanished per-change
-// base (dependency merged, branch deleted) falls through to the default chain
-// (fail-open). All git invocations run pinned to repoDir (via cmd.Dir) so
-// callers operating from nested git repos resolve against the intended
-// repository. Pass an empty repoDir to use the process cwd.
+// non-empty AND the ref resolves; else origin/HEAD's target when that target
+// itself resolves (origin/HEAD can dangle after a default-branch rename or a
+// stale fetch — an unverified target would skip the fallbacks and break
+// MergeBase); else origin/main; else origin/master. Returns "" when nothing
+// resolves — a vanished per-change base (dependency merged, branch deleted)
+// falls through to the default chain (fail-open). All git invocations run
+// pinned to repoDir (via cmd.Dir) so callers operating from nested git repos
+// resolve against the intended repository. Pass an empty repoDir to use the
+// process cwd.
 func ResolveBaseRef(repoDir, baseBranch string) string {
 	if baseBranch != "" {
 		if ref := "origin/" + baseBranch; refExists(repoDir, "refs/remotes/"+ref) {
 			return ref
 		}
 	}
-	if head := strings.TrimSpace(gitOutput(repoDir, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")); head != "" {
+	if head := strings.TrimSpace(gitOutput(repoDir, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")); head != "" && refExists(repoDir, "refs/remotes/"+head) {
 		return head
 	}
 	for _, ref := range []string{"origin/main", "origin/master"} {

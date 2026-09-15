@@ -48,7 +48,8 @@ Reuse `/git-pr`'s guard idioms verbatim. Run these checks **before any mutation*
 ```bash
 branch=$(git branch --show-current)
 default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
-[ -n "$default_branch" ] || default_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+# origin/HEAD can dangle (default-branch rename, stale fetch) — accept its target only when the ref resolves
+{ [ -n "$default_branch" ] && git rev-parse --verify -q "refs/remotes/origin/$default_branch" >/dev/null; } || default_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
 [ -n "$default_branch" ] || default_branch=$(git rev-parse --verify -q refs/remotes/origin/main >/dev/null && echo main || echo master)
 gh pr view --json number,state,url,baseRefName 2>/dev/null || echo "NO_PR"
 ```

@@ -187,6 +187,8 @@ func TestResolveBaseRef(t *testing.T) {
 		{"per-change base resolvable", []string{"main", "parent"}, "", "parent", "origin/parent"},
 		{"per-change base missing falls through", []string{"main"}, "", "parent", "origin/main"},
 		{"origin/HEAD develop without main", []string{"develop"}, "develop", "", "origin/develop"},
+		{"dangling origin/HEAD falls through to main", []string{"main"}, "develop", "", "origin/main"},
+		{"dangling origin/HEAD with nothing else", nil, "develop", "", ""},
 		{"no origin/HEAD main present", []string{"main"}, "", "", "origin/main"},
 		{"only origin/master", []string{"master"}, "", "", "origin/master"},
 		{"nothing resolves", nil, "", "", ""},

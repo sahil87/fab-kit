@@ -58,12 +58,15 @@ The dispatched worker IS the single review agent: it reads this file, runs the a
   base_branch=$(fab status get-base-branch "{id}" 2>/dev/null)
   if [ -z "$base_branch" ]; then
     base_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
-    [ -n "$base_branch" ] || base_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+    # origin/HEAD can dangle (default-branch rename, stale fetch) — accept its target only when the ref resolves
+    { [ -n "$base_branch" ] && git rev-parse --verify -q "refs/remotes/origin/$base_branch" >/dev/null; } || base_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
     [ -n "$base_branch" ] || base_branch=$(git rev-parse --verify -q refs/remotes/origin/main >/dev/null && echo main || echo master)
   fi
-  git rev-parse --verify -q "refs/remotes/origin/$base_branch" >/dev/null || base_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
-  [ -n "$base_branch" ] || base_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
-  [ -n "$base_branch" ] || base_branch=$(git rev-parse --verify -q refs/remotes/origin/main >/dev/null && echo main || echo master)
+  if ! git rev-parse --verify -q "refs/remotes/origin/$base_branch" >/dev/null; then   # recorded base vanished — fail open to the chain
+    base_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+    { [ -n "$base_branch" ] && git rev-parse --verify -q "refs/remotes/origin/$base_branch" >/dev/null; } || base_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+    [ -n "$base_branch" ] || base_branch=$(git rev-parse --verify -q refs/remotes/origin/main >/dev/null && echo main || echo master)
+  fi
   base=$(git merge-base HEAD "origin/$base_branch")
   git diff "$base"...HEAD
   ```

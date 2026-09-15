@@ -128,7 +128,8 @@ Resolve the base via the default-branch chain (fab-new takes no `--base` — it 
 
 ```bash
 base_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
-[ -n "$base_branch" ] || base_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+# origin/HEAD can dangle (default-branch rename, stale fetch) — accept its target only when the ref resolves
+{ [ -n "$base_branch" ] && git rev-parse --verify -q "refs/remotes/origin/$base_branch" >/dev/null; } || base_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
 [ -n "$base_branch" ] || base_branch=$(git rev-parse --verify -q refs/remotes/origin/main >/dev/null && echo main || echo master)
 ```
 
