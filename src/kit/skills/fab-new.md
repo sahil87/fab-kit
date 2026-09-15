@@ -104,7 +104,7 @@ fab resolve --folder "$(git branch --show-current)" --or-none                   
 
 > **fab-new-specific `{dirty_count}` derivation**: the porcelain count excludes `fab/changes/{name}/` — this change's own just-created artifacts (`intake.md`, `.status.yaml`, `.history.jsonl`) always exist uncommitted by Step 11, so counting them would fire the dirty-tree note on every run. Only *pre-existing* uncommitted work should trigger the note.
 
-<!-- Keep this table in sync with git-branch.md Step 4 — same cases, same commands, same report strings (incl. the rename guard, the remote-only --track case, and the dirty-tree note). Two deliberate divergences: fab-new derives {dirty_count} excluding fab/changes/{name}/ (see the derivation note above) while git-branch counts the full porcelain output; and fab-new's rename-guard probe is the token-branching `fab resolve --folder … --or-none` (`(none)` vs a folder name — 260720-dow0) while git-branch keeps the strict exit-code form `fab change resolve … 2>/dev/null` (not migrated — its bare no-argument resolution is a hard stop by design). -->
+<!-- Keep this table in sync with git-branch.md Step 4 — same cases, same commands, same report strings (incl. the rename guard, the remote-only --track case, the dirty-tree note, and the Record the base sub-step). Three deliberate divergences: fab-new derives {dirty_count} excluding fab/changes/{name}/ (see the derivation note above) while git-branch counts the full porcelain output; fab-new's rename-guard probe is the token-branching `fab resolve --folder … --or-none` (`(none)` vs a folder name — 260720-dow0) while git-branch keeps the strict exit-code form `fab change resolve … 2>/dev/null` (not migrated — its bare no-argument resolution is a hard stop by design); and only git-branch takes `--base <branch>` (fab-new always records the chain-resolved default). -->
 
 **Evaluate in order, first match wins:**
 
@@ -118,6 +118,31 @@ fab resolve --folder "$(git branch --show-current)" --or-none                   
 | 6 | Local-only branch belonging to a different change (the probe prints another change's folder — e.g., after `/fab-switch`; do NOT rename it away, caveat: the new branch inherits the old change's HEAD) OR pushed branch (`upstream` non-empty) | `git checkout -b "{name}"` | `Branch: {name} (created, leaving {old_branch} intact)` |
 
 > **Dirty-tree note** (non-blocking — never prompt, never stash): when `{dirty_count}` > 0 AND the matched row runs `git checkout -b` or `git branch -m`, the uncommitted work rides onto the new branch. Append to the report line: ` — note: {dirty_count} uncommitted change(s) carried over from {old_branch}`.
+
+**Record the base** (after the matched row's action): record the change's base branch in `.status.yaml` as a plain branch name.
+
+- **create / rename / `--track`** (rows 3–6 — any `git checkout -b`, `git branch -m`, or `git checkout --track` action): always write.
+- **already-active / checked-out** (rows 1–2): write only when absent — probe with `fab status get-base-branch` first so a re-run never clobbers an operator-set value (idempotent).
+
+Resolve the base via the default-branch chain (fab-new takes no `--base` — it always records the chain-resolved default):
+
+```bash
+base_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+[ -n "$base_branch" ] || base_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+[ -n "$base_branch" ] || base_branch=$(git rev-parse --verify -q refs/remotes/origin/main >/dev/null && echo main || echo master)
+```
+
+Then write (always-write rows):
+
+```bash
+fab status set-base-branch "{name}" "$base_branch"
+```
+
+or, for the write-if-absent rows:
+
+```bash
+[ -n "$(fab status get-base-branch "{name}" 2>/dev/null)" ] || fab status set-base-branch "{name}" "$base_branch"
+```
 
 If any git operation fails (e.g., uncommitted conflicts blocking checkout):
 - Report the git error message

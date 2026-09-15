@@ -56,6 +56,7 @@ confidence:
 stage_metrics: {}                  # populated by the fab status CLI as stages progress
 prs: []                            # PR URLs (fab status add-pr — idempotent)
 summary: ""                        # per-change one-line log summary (FKF C-lite log.md source, §6.3) — optional, omitempty
+# base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
 last_updated: {ISO_8601_DATETIME}
 ```
@@ -72,6 +73,7 @@ last_updated: {ISO_8601_DATETIME}
 - `stage_metrics` is populated by the `fab status` CLI as stages progress — tracks `started_at`, `completed_at`, `driver`, and `iterations` per stage (`/git-pr-review` additionally writes `review-pr` `phase`/`reviewer` sub-state).
 - `true_impact` is written lazily by the apply-finish, hydrate-finish, and ship-finish hooks (line counts from `fab impact`); the template carries no placeholder. In the standard pipeline the ship-finish write is the authoritative one — apply/hydrate run before any commit exists (`HEAD == merge-base`), so they write zeros until ship supersedes them.
 - `summary` is the per-change one-line log summary — the FKF C-lite source line `fab docs-index docs/memory` joins with git history to generate `log.md` (see [fkf.md](fkf.md) §6.3). Optional (`yaml:"summary,omitempty"`, modeled on `change_type_source`): an empty/absent summary serializes to nothing and degrades gracefully (the generator falls back to the change slug). Written via `fab status set-summary <change> <text>` / read via `get-summary` — the conflict-free write path (each change touches only its own `.status.yaml`). The template seeds `summary: ""` to document the field; no stage auto-populates it (authoring wiring is a later FKF change).
+- `base_branch` records the change's base branch as a plain branch name (e.g. `main` or a stacked parent — never a remote-tracking ref) — the single recorded fact every base-relative surface reads: `fab pr-meta` and the `true_impact` stage-finish write measure against the merge-base of HEAD vs `origin/<base_branch>`, the review dispatch diffs against it, and `/git-pr` passes it to `gh pr create --base`. Optional (`yaml:"base_branch,omitempty"`, drop-when-empty, sparse-key insertion — same shape as `summary`); absent ⇒ consumers resolve the default branch (`origin/HEAD` target → `origin/main` → `origin/master`), and a recorded base whose ref vanished fails open to the same chain. Written at branch creation by `/git-branch` Step 4 / `/fab-new` Step 11 (and by the operator's `stacked-prs` mode with the dependency branch) via `fab status set-base-branch <change> <branch>` / read via `get-base-branch [--json]`; the template carries only a comment line — `fab change new` runs before any branch exists, so seeding a value would be a guess. `fab status refresh` never writes or clears it (not artifact-derived).
 - `last_updated` is refreshed on every status change.
 
 ---

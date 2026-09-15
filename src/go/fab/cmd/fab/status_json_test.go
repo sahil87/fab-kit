@@ -19,13 +19,15 @@ import (
 )
 
 // statusJSONTestYAML is a change with populated confidence, one issue, one PR,
-// and a summary — so the get-issues/get-prs arrays and get-summary object are
-// exercised with real content (the empty cases get their own repo below).
+// a summary, and a base_branch — so the get-issues/get-prs arrays and the
+// get-summary/get-base-branch objects are exercised with real content (the
+// empty cases get their own repo below).
 const statusJSONTestYAML = `id: abcd
 name: 260310-abcd-my-change
 created: "2026-03-10T12:00:00Z"
 created_by: test-user
 change_type: feat
+base_branch: main
 issues:
   - DEV-988
 progress:
@@ -260,8 +262,17 @@ func TestStatusGetSummaryJSON(t *testing.T) {
 	}
 }
 
-// emptyStatusJSONYAML has empty issues/prs and no summary — the empty-list []
-// and empty-summary {"summary":""} cases.
+func TestStatusGetBaseBranchJSON(t *testing.T) {
+	setupStatusJSONRepo(t, statusJSONTestYAML, "")
+	var got baseBranchJSON
+	runJSON(t, statusGetBaseBranchCmd(), &got, "abcd", "--json")
+	if got.BaseBranch != "main" {
+		t.Errorf("get-base-branch --json = %+v, want {BaseBranch:%q}", got, "main")
+	}
+}
+
+// emptyStatusJSONYAML has empty issues/prs and no summary or base_branch — the
+// empty-list [] and empty-string {"summary":""}/{"base_branch":""} cases.
 const emptyStatusJSONYAML = `id: abcd
 name: 260310-abcd-my-change
 created: "2026-03-10T12:00:00Z"
@@ -321,19 +332,34 @@ func TestStatusGetSummaryJSON_EmptyIsEmptyString(t *testing.T) {
 	}
 }
 
+func TestStatusGetBaseBranchJSON_EmptyIsEmptyString(t *testing.T) {
+	setupStatusJSONRepo(t, emptyStatusJSONYAML, "")
+	var got baseBranchJSON
+	runJSON(t, statusGetBaseBranchCmd(), &got, "abcd", "--json")
+	if got.BaseBranch != "" {
+		t.Errorf("get-base-branch --json (empty) = %+v, want {BaseBranch:\"\"}", got)
+	}
+	// And confirm the object wrapper (not a bare string) is emitted.
+	raw := bytes.TrimSpace(runRaw(t, statusGetBaseBranchCmd(), "abcd", "--json"))
+	if !bytes.Contains(raw, []byte(`"base_branch"`)) {
+		t.Errorf("get-base-branch --json (empty) = %q, want an object with a \"base_branch\" key", raw)
+	}
+}
+
 // TestStatusQueryCmds_HaveJSONFlag guards the flag registration across the
-// whole query surface — every one of the nine subcommands must expose --json.
+// whole query surface — every one of the ten subcommands must expose --json.
 func TestStatusQueryCmds_HaveJSONFlag(t *testing.T) {
 	cmds := map[string]*cobra.Command{
-		"confidence":    statusConfidenceCmd(),
-		"plan":          statusPlanCmd(),
-		"progress-map":  statusProgressMapCmd(),
-		"get-issues":    statusGetIssuesCmd(),
-		"get-prs":       statusGetPRsCmd(),
-		"get-summary":   statusGetSummaryCmd(),
-		"current-stage": statusCurrentStageCmd(),
-		"display-stage": statusDisplayStageCmd(),
-		"all-stages":    statusAllStagesCmd(),
+		"confidence":      statusConfidenceCmd(),
+		"plan":            statusPlanCmd(),
+		"progress-map":    statusProgressMapCmd(),
+		"get-issues":      statusGetIssuesCmd(),
+		"get-prs":         statusGetPRsCmd(),
+		"get-summary":     statusGetSummaryCmd(),
+		"get-base-branch": statusGetBaseBranchCmd(),
+		"current-stage":   statusCurrentStageCmd(),
+		"display-stage":   statusDisplayStageCmd(),
+		"all-stages":      statusAllStagesCmd(),
 	}
 	for name, cmd := range cmds {
 		f := cmd.Flags().Lookup("json")

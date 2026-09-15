@@ -88,6 +88,14 @@ default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null |
 
 If `{has_fab}` (Step 0), read issues via `fab status get-issues {name}` and capture the output (one ID per line, may be empty).
 
+Also when `{has_fab}`, resolve the change's recorded base branch — the PR's target. Without `{has_fab}` (or when the field is absent or its ref has vanished — a merged-and-deleted stacked base), `base_branch` is `$default_branch`:
+
+```bash
+base_branch=$(fab status get-base-branch "{name}" 2>/dev/null)   # only when {has_fab}
+[ -n "$base_branch" ] || base_branch="$default_branch"
+git rev-parse --verify -q "refs/remotes/origin/$base_branch" >/dev/null || base_branch="$default_branch"
+```
+
 Determine:
 - **branch** — current branch name; **empty** = detached HEAD (handled by the Step 2 guard before any commit or push)
 - **has_uncommitted** — `git status --porcelain` has output
@@ -95,6 +103,7 @@ Determine:
 - **pr_state** — `state` from `gh pr view` (`OPEN`, `CLOSED`, `MERGED`), or `none` when no PR exists. Step 3 branches on this explicitly — a CLOSED or MERGED PR is NOT treated as "the branch already has a PR"
 - **number** / **url** — from `gh pr view` (unset when no PR exists); interpolated by Step 3's MERGED STOP and the "already shipped" output
 - **default_branch** — resolved by the commands above (always non-empty), so every later `{default_branch}` interpolation is meaningful
+- **base_branch** — the PR's target branch: the change's recorded base when `{has_fab}` and `origin/$base_branch` still resolves, else `default_branch` (always non-empty)
 - **issues** — issue IDs from `fab status get-issues` (space-joined), or empty
 
 ### Step 2: Branch Guard
@@ -266,8 +275,8 @@ Print: `  ✓ push   — origin/<branch>`
 
    Print after body assembly: `  ✓ body  — meta + summary + changes` (skip the "meta" token when `$META` was empty/omitted).
 
-4. Create PR: `gh pr create --draft --title "{pr_title}" --body "<body>"` (where `{pr_title}` is the already-prefixed title from step 2; `<body>` is the assembled body from step 3 including the Meta block when `{has_fab}`)
-   - If body generation failed for any reason → create with `gh pr create --draft --fill` instead (silent fallback; evaluated before the creation attempt, so a body failure never reaches the STOP below)
+4. Create PR: `gh pr create --draft --base "$base_branch" --title "{pr_title}" --body "<body>"` (where `{pr_title}` is the already-prefixed title from step 2; `<body>` is the assembled body from step 3 including the Meta block when `{has_fab}`; `$base_branch` is the recorded base from Step 1)
+   - If body generation failed for any reason → create with `gh pr create --draft --base "$base_branch" --fill` instead (silent fallback; evaluated before the creation attempt, so a body failure never reaches the STOP below)
    - If PR creation itself fails → report the error and STOP
 5. Get the PR URL: `gh pr view --json url -q '.url'`
 

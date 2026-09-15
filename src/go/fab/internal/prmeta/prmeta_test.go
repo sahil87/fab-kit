@@ -2,6 +2,7 @@ package prmeta
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -494,5 +495,162 @@ func TestCountCheckboxesInTasksSection(t *testing.T) {
 					done, total, tc.wantDone, tc.wantTot)
 			}
 		})
+	}
+}
+
+// --- Gather base resolution (vy27) ---
+
+const gatherStatusYAML = `id: t3st
+name: 260915-t3st-stacked-gather
+created: "2026-09-15T12:00:00Z"
+created_by: test
+change_type: feat
+issues: []
+progress:
+  intake: done
+  apply: done
+  review: pending
+  hydrate: pending
+  ship: pending
+  review-pr: pending
+plan:
+  generated: true
+  task_count: 1
+  acceptance_count: 1
+  acceptance_completed: 0
+confidence:
+  certain: 1
+  confident: 0
+  tentative: 0
+  unresolved: 0
+  score: 5.0
+stage_metrics: {}
+prs: []
+last_updated: "2026-09-15T12:00:00Z"
+`
+
+// setupGatherRepo builds a git repo with a fab/ tree (config + one change
+// folder) and returns (repoRoot, fabRoot). gitSteps runs after the initial
+// commit so each test shapes its own refs/commits.
+func setupGatherRepo(t *testing.T, baseBranch string, gitSteps func(repoRoot string, run func(args ...string))) (string, string) {
+	t.Helper()
+	repoRoot := t.TempDir()
+	fabRoot := filepath.Join(repoRoot, "fab")
+
+	run := func(args ...string) {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = repoRoot
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s", args, out)
+		}
+	}
+
+	run("git", "init", "-q", "-b", "main")
+	run("git", "config", "user.email", "test@example.com")
+	run("git", "config", "user.name", "test")
+	run("git", "config", "commit.gpgsign", "false")
+
+	changeDir := filepath.Join(fabRoot, "changes", "260915-t3st-stacked-gather")
+	if err := os.MkdirAll(filepath.Join(fabRoot, "project"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(changeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(fabRoot, "project", "config.yaml"), []byte("stage_hooks: {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	statusYAML := gatherStatusYAML
+	if baseBranch != "" {
+		statusYAML = strings.Replace(statusYAML, "change_type: feat\n", "change_type: feat\nbase_branch: "+baseBranch+"\n", 1)
+	}
+	if err := os.WriteFile(filepath.Join(changeDir, ".status.yaml"), []byte(statusYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(repoRoot, "a.txt"), []byte("hello\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run("git", "add", "-A")
+	run("git", "commit", "-q", "-m", "initial")
+
+	gitSteps(repoRoot, run)
+
+	return repoRoot, fabRoot
+}
+
+// TestGather_StackedBaseExcludesParent covers vy27: with base_branch: parent
+// (parent carrying its own commit past main), Gather's Impact counts exclude
+// the parent's lines; without the field they measure against the default
+// branch exactly as before.
+func TestGather_StackedBaseExcludesParent(t *testing.T) {
+	stackedSteps := func(repoRoot string, run func(args ...string)) {
+		run("git", "update-ref", "refs/remotes/origin/main", "HEAD")
+		// parent branch: its own commit (3 added lines) past main.
+		run("git", "checkout", "-q", "-b", "parent")
+		if err := os.WriteFile(filepath.Join(repoRoot, "parent.txt"), []byte("p1\np2\np3\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		run("git", "add", "-A")
+		run("git", "commit", "-q", "-m", "parent work")
+		run("git", "update-ref", "refs/remotes/origin/parent", "HEAD")
+		// child branch off parent: its own commit (2 added lines), now HEAD.
+		run("git", "checkout", "-q", "-b", "child")
+		if err := os.WriteFile(filepath.Join(repoRoot, "child.txt"), []byte("c1\nc2\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		run("git", "add", "-A")
+		run("git", "commit", "-q", "-m", "child work")
+	}
+
+	_, fabRoot := setupGatherRepo(t, "parent", stackedSteps)
+	d, ok, err := Gather(fabRoot, "260915-t3st-stacked-gather", "feat", "")
+	if err != nil || !ok {
+		t.Fatalf("Gather: ok=%v err=%v", ok, err)
+	}
+	if !d.HasImpact {
+		t.Fatal("expected Impact block (stacked base)")
+	}
+	if d.Impact.Added != 2 {
+		t.Errorf("stacked impact.added = %d, want 2 (child commit only; parent's 3 lines excluded)", d.Impact.Added)
+	}
+
+	_, fabRoot2 := setupGatherRepo(t, "", stackedSteps)
+	d2, ok, err := Gather(fabRoot2, "260915-t3st-stacked-gather", "feat", "")
+	if err != nil || !ok {
+		t.Fatalf("Gather (plain): ok=%v err=%v", ok, err)
+	}
+	if !d2.HasImpact {
+		t.Fatal("expected Impact block (default base)")
+	}
+	if d2.Impact.Added != 5 {
+		t.Errorf("plain impact.added = %d, want 5 (parent + child against origin/main)", d2.Impact.Added)
+	}
+}
+
+// TestGather_OriginHeadOnlyHasImpact covers vy27: a repo whose only base ref
+// is origin/develop (via origin/HEAD → origin/develop, no origin/main or
+// origin/master) still produces an Impact block — before the shared helper the
+// hardcoded main/master probe silently emitted none.
+func TestGather_OriginHeadOnlyHasImpact(t *testing.T) {
+	_, fabRoot := setupGatherRepo(t, "", func(repoRoot string, run func(args ...string)) {
+		run("git", "update-ref", "refs/remotes/origin/develop", "HEAD")
+		run("git", "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/develop")
+		if err := os.WriteFile(filepath.Join(repoRoot, "a.txt"), []byte("hello\nworld\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		run("git", "add", "-A")
+		run("git", "commit", "-q", "-m", "feature work")
+	})
+
+	d, ok, err := Gather(fabRoot, "260915-t3st-stacked-gather", "feat", "")
+	if err != nil || !ok {
+		t.Fatalf("Gather: ok=%v err=%v", ok, err)
+	}
+	if !d.HasImpact {
+		t.Fatal("expected Impact block with origin/HEAD → origin/develop")
+	}
+	if d.Impact.Added <= 0 {
+		t.Errorf("expected non-zero impact.added, got %d", d.Impact.Added)
 	}
 }

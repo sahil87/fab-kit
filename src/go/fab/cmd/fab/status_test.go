@@ -81,3 +81,32 @@ func TestStatusCmd_RegistersSummaryVerbs(t *testing.T) {
 		t.Error("statusCmd missing get-summary subcommand")
 	}
 }
+
+func TestStatusBaseBranchCmds_RegisteredWithExpectedUse(t *testing.T) {
+	if !strings.HasPrefix(statusSetBaseBranchCmd().Use, "set-base-branch ") {
+		t.Errorf("statusSetBaseBranchCmd Use = %q, want prefix \"set-base-branch \"", statusSetBaseBranchCmd().Use)
+	}
+	if !strings.HasPrefix(statusGetBaseBranchCmd().Use, "get-base-branch ") {
+		t.Errorf("statusGetBaseBranchCmd Use = %q, want prefix \"get-base-branch \"", statusGetBaseBranchCmd().Use)
+	}
+}
+
+func TestStatusCmd_RegistersBaseBranchVerbs(t *testing.T) {
+	root := statusCmd()
+	hasSetBaseBranch := false
+	hasGetBaseBranch := false
+	for _, sub := range root.Commands() {
+		switch {
+		case strings.HasPrefix(sub.Use, "set-base-branch"):
+			hasSetBaseBranch = true
+		case strings.HasPrefix(sub.Use, "get-base-branch"):
+			hasGetBaseBranch = true
+		}
+	}
+	if !hasSetBaseBranch {
+		t.Error("statusCmd missing set-base-branch subcommand")
+	}
+	if !hasGetBaseBranch {
+		t.Error("statusCmd missing get-base-branch subcommand")
+	}
+}

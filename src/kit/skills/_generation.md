@@ -155,7 +155,7 @@ metadata:
 > sub-agent, no re-read between the two artifacts — a context boundary would only invite drift).
 
 **Inputs** (resolved by `/fab-adopt` Step 0, passed into this procedure): the diff against the
-default-branch merge-base (`git diff {base}...HEAD`), the changed file list
+base-branch merge-base (`git diff {base}...HEAD`), the changed file list
 (`git diff --name-only {base}...HEAD`), and the PR body / title when a PR exists (else the branch
 name).
 
