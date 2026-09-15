@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 5
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-09-15T18:03:35Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-15T18:07:55Z"}
     hydrate: {started_at: "2026-09-15T18:07:55Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-15T18:09:10Z"}
     ship: {started_at: "2026-09-15T18:09:10Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-15T18:11:09Z"}
-    review-pr: {started_at: "2026-09-15T18:11:09Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-09-15T18:11:09Z", driver: git-pr, iterations: 1, completed_at: "2026-09-15T18:23:31Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/679
 change_type_source: explicit
@@ -54,4 +54,4 @@ true_impact:
     computed_at_stage: ship
 summary: 'New /fab-incognito skill: primes a redesign discussion with the kit''s process helpers and a skill catalog while skipping docs/memory and docs/specs and holding a standing no-memory rule; /fab-help groups it under Start & Navigate; fab-discuss/preamble/specs/README swept'
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-09-15T18:12:31Z
+last_updated: 2026-09-15T18:23:31Z
