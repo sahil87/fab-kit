@@ -126,7 +126,7 @@ The change's branch usually already exists (created by `/fab-new` Step 11 in the
 wt create --non-interactive --name <name> --checkout <change-folder-name>
 
 # branch missing → fetch first, then create it (new-branch positional) off the fetched default-branch tip
-git fetch origin
+git fetch origin || exit 1     # failed fetch = hard spawn STOP, no wt create (fab-operator.md §6 step 3)
 base_sha=$(git rev-parse "origin/${default_branch}")   # {default_branch}: fab-operator.md § Dependency Resolution step 0
 wt create --non-interactive --name <name> --base "$base_sha" <change-folder-name>
 ```

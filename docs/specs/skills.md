@@ -1471,7 +1471,7 @@ User invokes /code-dedupe [scope]
 ├─ Guards: detached HEAD / on default branch / {pr_state} MERGED → STOP
 ├─ 3a Commit: expected-area guard for untracked files → git add -u + in-area untracked → commit
 ├─ 3a-bis (if {has_fab} + committed): Bash: fab docs-index docs/memory → commit docs/memory drift (no --amend)
-├─ 3a-ter Rebase: git fetch origin → git rebase origin/$base_branch (missing ref → warn + skip; unclear conflict → abort + STOP); 3b Push (--force-with-lease after a rebase); 3c Create PR (no OPEN PR): Read intake → Bash: fab pr-meta → ## Meta block → gh pr create --draft --base <base_branch> (--fill fallback; base = recorded base_branch, else default branch)
+├─ 3a-ter Rebase: capture upstream OID → git fetch origin → STOP if origin/<branch> moved → git rebase origin/$base_branch (missing ref → warn + skip; unclear conflict → abort + STOP); 3b Push (--force-with-lease=<branch>:<pre-fetch OID> after a rebase); 3c Create PR (no OPEN PR): Read intake → Bash: fab pr-meta → ## Meta block → gh pr create --draft --base <base_branch> (--fill fallback; base = recorded base_branch, else default branch)
 ├─ 3d Retrofit ## Meta onto existing OPEN PR (idempotent prepend)
 └─ 4a–4c: fab status add-pr + finish ship stage; commit + push .status.yaml/.history.jsonl
 ```
