@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 7
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-09-16T18:15:38Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-16T18:19:17Z"}
     hydrate: {started_at: "2026-09-16T18:19:17Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-16T18:26:30Z"}
     ship: {started_at: "2026-09-16T18:26:30Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-16T18:28:37Z"}
-    review-pr: {started_at: "2026-09-16T18:28:37Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-09-16T18:28:37Z", driver: git-pr, iterations: 1, completed_at: "2026-09-16T18:43:39Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/683
 base_branch: main
@@ -55,4 +55,4 @@ true_impact:
 summary: 'review-pr recovery: second consecutive Copilot timeout finishes review-pr unreviewed (no-reviews, reason review-gate-unavailable, fab log command markers counted per activation); operator Review-PR Recovery — one bounded action per stuck reason (no-reviewer re-send / CI fix round / rebase-and-re-arm), scope.recovery state, unreviewed merges always reported'
 # base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-09-16T18:28:37Z
+last_updated: 2026-09-16T18:43:39Z
