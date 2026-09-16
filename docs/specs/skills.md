@@ -1523,7 +1523,7 @@ User invokes /code-dedupe [scope]
 /git-pr-review [<change>] [--tool <name>]
 ├─ Start: Bash: fab change resolve → {name}; branch-matches-change guard → STOP on mismatch/detached; fab status start review-pr
 ├─ Resolve PR (gh pr view, gh repo view); validate --tool (copilot only) or STOP
-├─ Detect: [comments exist] → triage / [none] → request Copilot review, poll gh pr view 30s×20 synchronously → [timeout] log marker; 1st in activation: Step 6 timeout (stage stays active) / 2nd consecutive: Step 6 no-reviews (review-gate-unavailable)
+├─ Detect: [comments exist] → triage / [none] → request Copilot review, poll gh pr view 30s×20 synchronously → [timeout] log marker; 1st in activation: Step 6 timeout (stage stays active) / 2nd consecutive, or marker unreadable (count 0, fail closed): Step 6 no-reviews (review-gate-unavailable)
 ├─ Fetch: Bash: gh api --paginate pulls/{n}/comments (reply comments skipped)
 ├─ Triage fix/defer/skip/informational → Read + Edit fixes → commit + push ([commit fails] reset + STOP; [push fails] keep commit, no replies)
 ├─ Post disposition replies (dedup existing, best-effort POSTs); Step 6: fab status finish / fail / timeout-left-active
