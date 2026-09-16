@@ -510,7 +510,7 @@ User invokes /fab-continue [change-name] [stage]
 │    pass → finish review + set-acceptance / fail → fail review + reset apply (rework options)
 │  HYDRATE (dispatched): Write/Edit docs/memory/** → set-summary → fab docs-index docs/memory → finish hydrate
 │  SHIP: delegate to /git-pr <change>
-│  REVIEW-PR: delegate to /git-pr-review <change> (timeout → stage left active)
+│  REVIEW-PR: delegate to /git-pr-review <change> (first timeout → stage left active; 2nd consecutive → no-reviews finish, reason review-gate-unavailable)
 └─ Output: summary + Next: line
 ```
 
@@ -616,7 +616,7 @@ User invokes /fab-fff [change-name] [--force]
 ├─ Ship: /git-pr {name} (own ship transitions) — full lane: dispatched; light lane: inline
 └─ Review-PR: /git-pr-review {name} — full lane: dispatched (sync-poll directive); light lane: inline (directive moot)
    ├─ [success / no-reviews] stage done; [failure] STOP with the error
-   └─ [timeout] stage left active; report pending + re-run guidance
+   └─ [timeout] first in activation: stage left active; report pending + re-run guidance (2nd consecutive on the same PR → no-reviews, review-gate-unavailable)
 ```
 
 **Tools**: Read (`_preamble.md`, helpers); all other tool use lives in the bracket and the dispatched skills.
@@ -1139,8 +1139,9 @@ Explicit skill sends and spawn prompts follow `_cli-agents.md` § Skill Prompts,
 **Context**: A deliberate exception to the always-load layer — loads only `config.yaml`, `constitution.md`, and `context.md` (optional). It runs no `fab preflight` and loads no change artifacts at startup; it reads whatever plan, roadmap, intake, or task document the tracked work needs, as the work needs it (§1 work rule). Declares `helpers: [_cli-fab-operator, _cli-fab-pane, _cli-agents, _cli-external]`.
 
 **Key properties**:
-- **Coordinates, never executes** — every task, bug report, or idea the user hands the operator is a work request: a fresh report spawns a freshly created worktree agent (`wt create --non-interactive`), and a report naming a live tracked item is sent to that item's existing agent; pipeline work never runs in the operator's own pane, and reading code to reproduce or diagnose, or editing files, in that pane counts as executing. Direct actions are the closed §1 maintenance allowlist: merge PR, archive, worktree deletion, rebase/cherry-pick for dependency resolution, `fab operator track` verbs, and pane sends/answers/nudges.
-- **Pipeline-first routing** — new work always enters through `/fab-new` then a pipeline command; raw inline implementation instructions are never dispatched to agent panes.
+- **Coordinates, never executes** — every task, bug report, or idea the user hands the operator is a work request: a fresh report spawns a freshly created worktree agent (`wt create --non-interactive`), and a report naming a live tracked item is sent to that item's existing agent; pipeline work never runs in the operator's own pane, and reading code to reproduce or diagnose, or editing files, in that pane counts as executing. Direct actions are the closed §1 maintenance allowlist: merge PR, archive, worktree deletion, rebase/cherry-pick for dependency resolution and review-pr recovery, `fab operator track` verbs, and pane sends/answers/nudges.
+- **Pipeline-first routing** — new work always enters through `/fab-new` then a pipeline command; raw inline implementation instructions are never dispatched to agent panes (the single exception: Review-PR Recovery's CI fix request, which amends a shipped change).
+- **Review-PR Recovery** — a stuck `review-pr` is one condition with a reason (`no-reviewer` / `ci-failed` / `conflicting`), each with one bounded action (re-send `/git-pr-review` once / one CI fix round to the authoring pane / rebase-and-re-arm once) recorded on the `github-pr` item's `scope.recovery`; the armed PR stays armed during a round, and an exhausted round falls back to halt-dependents-only + disarm + escalate with the agent's diagnosis attached. Unreviewed merges are always named in the tick report (` · unreviewed` + `merged with review gate unavailable: …`) — never silent, never a prompt.
 - **State is re-derived, never remembered** — live state is re-queried before every action; continuity across compaction or `/clear` comes from the server-keyed operator state file (a one-shot `/fab-operator` reload re-loads the procedure; the tick payload itself stays the bare `operator tick`).
 - Ends with its own status frame rather than a `Next:` line.
 
@@ -1500,14 +1501,14 @@ User invokes /code-dedupe [scope]
 
 **Behavior**:
 1. Resolve the PR for the current branch via `gh pr view`
-2. **If no reviews exist** — request a Copilot review (`gh pr edit --add-reviewer copilot-pull-request-reviewer`) and poll every 30 seconds for up to 10 minutes (20 attempts). If the review arrives, process its comments in the same run; if not, the timeout outcome leaves `review-pr` `active` with a re-run message. Copilot is the only automated reviewer, honoring the Copilot toggle in `code-review.md` § Review Tools (absent = enabled).
+2. **If no reviews exist** — request a Copilot review (`gh pr edit --add-reviewer copilot-pull-request-reviewer`) and poll every 30 seconds for up to 10 minutes (20 attempts). If the review arrives, process its comments in the same run; if not, the timeout is logged to the change history (`fab log command` marker `timeout pr=<n>`, counted per stage activation) and the **first** timeout leaves `review-pr` `active` with a re-run message — a **second consecutive** timeout on the same PR finishes the stage unreviewed via the no-reviews outcome (reason `review-gate-unavailable`, logged). Copilot is the only automated reviewer, honoring the Copilot toggle in `code-review.md` § Review Tools (absent = enabled).
 3. **If reviews with inline comments exist** — fetch all comments, triage each:
    - **fix**: applies a targeted code change, then posts `Fixed — {description}. ({sha})` as a reply
    - **defer**: posts `Deferred — {reason}.`
    - **skip**: posts `Skipped — {reason}.`
    - **informational**: no reply
 4. Commit and push any fixes, then post all replies
-5. Route every terminal outcome through Step 6: success / no-reviews → `fab status finish review-pr`; failure → `fab status fail review-pr`; timeout → stage deliberately left `active` (no finish, no fail). Two direct-STOP exceptions never reach Step 6: invalid `--tool` value (Step 1.5) and commit/push failure (Step 5, after `git reset`).
+5. Route every terminal outcome through Step 6: success / no-reviews → `fab status finish review-pr`; failure → `fab status fail review-pr`; timeout → stage deliberately left `active` (no finish, no fail) — first timeout in the activation only; a second consecutive timeout on the same PR exits via no-reviews with reason `review-gate-unavailable`. Two direct-STOP exceptions never reach Step 6: invalid `--tool` value (Step 1.5) and commit/push failure (Step 5, after `git reset`).
 
 **Key properties**:
 - Fully autonomous — never asks questions, never presents options
@@ -1522,7 +1523,7 @@ User invokes /code-dedupe [scope]
 /git-pr-review [<change>] [--tool <name>]
 ├─ Start: Bash: fab change resolve → {name}; branch-matches-change guard → STOP on mismatch/detached; fab status start review-pr
 ├─ Resolve PR (gh pr view, gh repo view); validate --tool (copilot only) or STOP
-├─ Detect: [comments exist] → triage / [none] → request Copilot review, poll gh pr view 30s×20 synchronously → [timeout] Step 6 timeout (stage stays active)
+├─ Detect: [comments exist] → triage / [none] → request Copilot review, poll gh pr view 30s×20 synchronously → [timeout] log marker; 1st in activation: Step 6 timeout (stage stays active) / 2nd consecutive, or marker unreadable (count 0, fail closed): Step 6 no-reviews (review-gate-unavailable)
 ├─ Fetch: Bash: gh api --paginate pulls/{n}/comments (reply comments skipped)
 ├─ Triage fix/defer/skip/informational → Read + Edit fixes → commit + push ([commit fails] reset + STOP; [push fails] keep commit, no replies)
 ├─ Post disposition replies (dedup existing, best-effort POSTs); Step 6: fab status finish / fail / timeout-left-active
