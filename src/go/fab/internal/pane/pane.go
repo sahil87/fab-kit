@@ -68,9 +68,9 @@ func WithServer(server string, args ...string) []string {
 // RunCmd executes an external command, capturing stdout and stderr
 // separately. Returns the raw stdout string (untrimmed — callers that need
 // trimming do it themselves, so capture-style output is never altered), the
-// raw stderr bytes, and the exec error. The single subprocess-capture pattern
-// for any child command (tmux, git, wt), so call sites stop discarding the
-// child's diagnostic.
+// raw stderr bytes, and the exec error. It is the single subprocess-capture
+// pattern for any child command (tmux, git, wt), so call sites stop
+// discarding the child's diagnostic.
 func RunCmd(name string, args ...string) (string, []byte, error) {
 	return RunCmdContext(context.Background(), name, args...)
 }
