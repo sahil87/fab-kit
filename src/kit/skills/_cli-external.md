@@ -125,11 +125,13 @@ The change's branch usually already exists (created by `/fab-new` Step 11 in the
 # branch exists (the common case) → put the worktree ON the existing branch
 wt create --non-interactive --name <name> --checkout <change-folder-name>
 
-# branch missing → create it (new-branch positional)
-wt create --non-interactive --name <name> <change-folder-name>
+# branch missing → fetch first, then create it (new-branch positional) off the fetched default-branch tip
+git fetch origin
+base_sha=$(git rev-parse "origin/${default_branch}")   # {default_branch}: fab-operator.md § Dependency Resolution step 0
+wt create --non-interactive --name <name> --base "$base_sha" <change-folder-name>
 ```
 
-The worktree gets a random name; the branch matches the change. A spawn with no change branch — a repo with **no** `fab/`, or a bare spawn with no task — runs `wt create --non-interactive [--name <name>]` with no branch argument; wt then puts the worktree on a new branch of the worktree's name (`fab-operator.md` §6 Working a Change). The surrounding choreography — when to spawn, the new-change-from-backlog case, branch alignment — is operator policy in `fab-operator.md` §6 (the pane kind).
+The worktree gets a random name; the branch matches the change. **Every new-branch form carries `--base "$base_sha"`** — the fetched **commit SHA**, never the ref name `origin/{default_branch}` (a remote-tracking start-point sets upstream tracking on the new branch, which breaks `/fab-new` Step 11's rename guard; `fab-operator.md` §6 step 3 owns the rule and the rationale). The `--checkout` form takes no `--base` (wt rejects the pair; the checked-out branch is already the intended base). A spawn with no change branch — a repo with **no** `fab/`, or a bare spawn with no task — runs the same fetch, then `wt create --non-interactive [--name <name>] --base "$base_sha"` with no branch argument; wt then puts the worktree on a new branch of the worktree's name (`fab-operator.md` §6 Working a Change). The surrounding choreography — when to spawn, the new-change-from-backlog case, branch alignment — is operator policy in `fab-operator.md` §6 (the pane kind).
 
 ---
 

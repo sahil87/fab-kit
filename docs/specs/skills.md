@@ -1447,7 +1447,7 @@ User invokes /code-dedupe [scope]
 1. Resolve PR type (argument → `.status.yaml` → `intake.md` → diff → `chore`)
 2. Check for uncommitted changes, unpushed commits, existing PR
 3. Stage and commit any uncommitted changes (message matches repo style)
-4. Push to remote (sets upstream if none)
+4. Fetch and rebase onto `origin/<base_branch>` (skip with a warning when the ref is missing; an unclear conflict aborts and STOPs the ship stage), then push to remote (sets upstream if none; `--force-with-lease` after a rebase)
 5. Create a draft PR via `gh pr create --base <base_branch>` — targeting the change's recorded `base_branch` when set and its `origin/` ref resolves, else the default branch — with title derived from intake and body including Summary, Changes, pipeline stats, and stage progress
 6. Record PR URL in `.status.yaml`, mark ship stage done
 
@@ -1471,7 +1471,7 @@ User invokes /code-dedupe [scope]
 ├─ Guards: detached HEAD / on default branch / {pr_state} MERGED → STOP
 ├─ 3a Commit: expected-area guard for untracked files → git add -u + in-area untracked → commit
 ├─ 3a-bis (if {has_fab} + committed): Bash: fab docs-index docs/memory → commit docs/memory drift (no --amend)
-├─ 3b Push; 3c Create PR (no OPEN PR): Read intake → Bash: fab pr-meta → ## Meta block → gh pr create --draft --base <base_branch> (--fill fallback; base = recorded base_branch, else default branch)
+├─ 3a-ter Rebase: git fetch origin → git rebase origin/$base_branch (missing ref → warn + skip; unclear conflict → abort + STOP); 3b Push (--force-with-lease after a rebase); 3c Create PR (no OPEN PR): Read intake → Bash: fab pr-meta → ## Meta block → gh pr create --draft --base <base_branch> (--fill fallback; base = recorded base_branch, else default branch)
 ├─ 3d Retrofit ## Meta onto existing OPEN PR (idempotent prepend)
 └─ 4a–4c: fab status add-pr + finish ship stage; commit + push .status.yaml/.history.jsonl
 ```
