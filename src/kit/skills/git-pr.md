@@ -212,12 +212,55 @@ Print (ONLY when a follow-up commit was actually made): `  ✓ commit — "docs:
 
 > **Why here, why gated.** Ship is the first stage where `git log` can project the change's content commit into freeze-on-write `log.md`; hydrate is pre-commit. This sub-step makes no push (3b pushes both commits) and is a silent no-op when `{has_fab}` is false.
 
+#### 3a-ter. Rebase onto Base (if has_unpushed or just committed)
+
+Runs on every path that reaches 3b — the same condition — and is **not** gated on `{has_fab}`: Step 1 always resolves `$base_branch` (the recorded per-change base, else `$default_branch`), so a standalone ship has a target too. The branch's base was fixed when it was cut (an operator spawn, `/fab-new`, `/git-branch`) and may be hours or days behind `origin/$base_branch`; rebasing here — the last moment the change's author context is present — puts the PR diff on the current base and surfaces any conflict to the agent that wrote the code, instead of at merge time where the operator has none of that context.
+
+```bash
+lease_oid=$(git rev-parse -q --verify '@{u}' 2>/dev/null || true)   # the upstream tip as THIS checkout last saw it — captured BEFORE the fetch
+git fetch origin
+if [ -n "$lease_oid" ] && [ "$(git rev-parse '@{u}')" != "$lease_oid" ]; then
+  : # the PR branch moved on the remote since this checkout last fetched → STOP (see step 2)
+fi
+if git rev-parse --verify -q "refs/remotes/origin/$base_branch" >/dev/null; then
+  git rebase "origin/$base_branch"
+else
+  echo "  ⚠ rebase — origin/$base_branch not found after fetch; pushing without rebase"
+fi
+```
+
+1. Capture `{lease_oid}` — the upstream tip as this checkout last saw it — **before** fetching (empty when there is no upstream), then `git fetch origin`. If the fetch fails → report the git error output and STOP. The pre-fetch capture is load-bearing: the fetch also updates `origin/<branch>`, so a bare `--force-with-lease` in 3b would take the *just-fetched* tip as its lease and happily overwrite commits another actor pushed to the PR branch — the exact case the lease exists to refuse.
+2. **Remote-branch divergence guard** — if `{lease_oid}` is non-empty and `git rev-parse '@{u}'` now differs from it, the PR branch gained commits from elsewhere (a reviewer's push, another session) that this rebase would replay over. STOP before rebasing, nothing rewritten:
+
+   ```
+   origin/{branch} moved since this checkout last fetched ({lease_oid}…→ {new tip}…).
+   Integrate it first (git pull --rebase), then re-run /git-pr.
+   ```
+
+3. If `refs/remotes/origin/$base_branch` does not resolve → print the one-line warning above and continue to 3b without rebasing (a merged-and-deleted stacked base after Step 1's fallback already re-pointed `$base_branch` is the expected shape).
+4. Otherwise `git rebase "origin/$base_branch"`. Using the **recorded** base — not the default branch — is what keeps a `stacked-prs` dependent on its dependency branch.
+5. **On conflict**, classify each conflicting file:
+   - **Generated `docs/memory/**/index.md` or `log.md`** → the 3a-bis never-hand-merge rule applies: resolve topic files only, re-run `fab docs-index docs/memory`, take its output wholesale, `git add` it, `git rebase --continue`.
+   - **Any other file whose resolution is clear from this change's own intent** (the plan and the diff you just shipped) → resolve it, `git add`, `git rebase --continue`.
+   - **Any other file whose resolution is not clear** → `git rebase --abort`, then STOP with the ship stage left `active` and nothing pushed:
+
+     ```
+     Rebase onto origin/{base_branch} conflicts in:
+       {conflicting file list}
+     Resolve on the branch (git rebase origin/{base_branch}), then re-run /git-pr.
+     ```
+
+6. Record whether a rebase ran (`{rebased}`) and keep `{lease_oid}` — 3b's push form depends on both.
+
+Print (only when a rebase ran and moved HEAD): `  ✓ rebase — onto origin/<base_branch>`
+
 #### 3b. Push (if has_unpushed or just committed)
 
 1. Check if upstream exists: `git rev-parse --abbrev-ref @{u} 2>/dev/null`
 2. If no upstream: `git push -u origin $(git branch --show-current)`
-3. If upstream exists: `git push`
-4. If push fails → report the git error output and STOP
+3. If upstream exists and 3a-ter rebased (`{rebased}`): `git push --force-with-lease="$(git branch --show-current):$lease_oid"` — the rebase rewrote history, so a plain push would be rejected. The lease is the **explicit pre-fetch OID** from 3a-ter step 1, never the bare flag: after 3a-ter's fetch the remote-tracking ref already holds whatever the remote has now, so a bare `--force-with-lease` would accept a stranger's push as the lease and overwrite it. With the explicit OID, git refuses if the remote tip is anything other than what this checkout rebased from
+4. If upstream exists and no rebase ran: `git push`
+5. If push fails → report the git error output and STOP
 
 Print: `  ✓ push   — origin/<branch>`
 
@@ -357,7 +400,7 @@ Shipped.
 
 - Fully autonomous — never ask questions, never present options
 - Fail fast — if any step fails, report the error and stop immediately
-- Skip steps that are already done (no uncommitted → skip commit, OPEN PR exists → skip create)
+- Skip steps that are already done (no uncommitted → skip commit, nothing to push → skip rebase + push, OPEN PR exists → skip create)
 - Always operate on CWD — no repo detection
 - No merge support — stop at PR creation
 
@@ -386,4 +429,4 @@ Derived from [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.
 | Idempotent? | Yes — guarded no-op paths; see Steps 3a-bis (byte-stable memory), 3d (Meta retrofit), and 4a/4c (idempotent status + staged-diff guard) |
 | Advances stage? | Yes — ship (start/finish, best-effort) |
 | Modifies `.fab-status.yaml`? | No |
-| Modifies git state? | Yes — commit, push, PR creation |
+| Modifies git state? | Yes — commit, rebase onto `origin/<base_branch>` (3a-ter), push (`--force-with-lease` after a rebase), PR creation |

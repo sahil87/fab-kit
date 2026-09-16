@@ -5,7 +5,7 @@
 | Mode | Shorthand | PRs merged | Same-repo chain shape |
 |------|-----------|------------|------------------------|
 | `cherry-pick-ladder` (default) | `▂▄▆` | held until "merge all" | each PR based on `main`, carrying cherry-picked copies of earlier PRs |
-| `merge-auto` | `░▒▓█` | merged as each completes | none — every change rebases onto the latest `main` independently |
+| `merge-auto` | `░▒▓█` | merged as each completes | none — every change is cut from the freshly fetched `main` tip independently |
 | `stacked-prs` | `▄▀` | held until "merge all" | each PR based on the previous PR's branch (true stack, no cherry-pick commit) |
 
 ## `cherry-pick-ladder`
@@ -31,7 +31,7 @@ Every PR stands on `main`; each successive diff is taller because it carries che
        merged         merged         merged
 ```
 
-Nothing coexists and nothing is held: the operator merges each PR into `main` the moment it lands (▼ into ●), `main` advances, and the next change starts from the advanced line. No batch review, no re-stacking.
+Nothing coexists and nothing is held: the operator merges each PR into `main` the moment it lands (▼ into ●), `main` advances, and the next change starts from the advanced line — its worktree is cut from the freshly fetched `main` tip at spawn (the operator fetches and pins the base before every new-branch `wt create`, so nothing is rebased before spawn). No batch review, no re-stacking.
 
 ## `stacked-prs`
 
