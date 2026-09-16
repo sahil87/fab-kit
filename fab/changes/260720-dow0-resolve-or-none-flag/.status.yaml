@@ -52,5 +52,6 @@ true_impact:
     computed_at: "2026-07-20T16:58:51Z"
     computed_at_stage: ship
 summary: add opt-in fab resolve --or-none flag mapping state-sentinel failures to (none)+exit 0; migrate the five resolve-as-probe sites to token-branching
+base_branch: main
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-07-21T05:05:35Z
+last_updated: 2026-09-16T09:52:41Z
