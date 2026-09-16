@@ -143,7 +143,16 @@ If the `copilot` entry is `false` (and `--tool copilot` was **not** provided): p
 
         (The `awk` matches the JSON line by substring; key order is irrelevant. A `fab status reset review-pr` or a re-ship writes a fresh transition line and so resets the count — "consecutive" is per activation, never lifetime.)
      3. **Branch on the count:**
-        - `timeouts < 2` (first timeout in this activation) → print `Copilot review requested but not yet available. Re-run /git-pr-review to process when ready.` — when an explicit `<change>` was passed in Step 0, include it in the suggested command (`Re-run /git-pr-review <change> …`; an argless re-run would resolve the active change instead) — and go to Step 6 with outcome **timeout** (no error, no fail event — the requested review is still pending)
+        - `timeouts = 0` — the marker just recorded is not readable: the history write failed (`fab log command` is best-effort and swallows write errors, so an unwritable `.history.jsonl` would never accumulate markers and the count would never reach 2 — the absorbing stuck state this budget exists to eliminate). Fail **closed**: terminalize now — print
+
+          ```
+          Review gate unavailable — no Copilot review landed on PR #{number} and the
+          timeout-budget carrier (.history.jsonl) is unwritable. Finishing review-pr
+          unreviewed (reason: review-gate-unavailable).
+          ```
+
+          record the reason — `fab log command "git-pr-review" {name} "review-gate-unavailable pr={number}"` (also best-effort) — and go to Step 6 with outcome **no-reviews**
+        - `timeouts = 1` (first timeout in this activation) → print `Copilot review requested but not yet available. Re-run /git-pr-review to process when ready.` — when an explicit `<change>` was passed in Step 0, include it in the suggested command (`Re-run /git-pr-review <change> …`; an argless re-run would resolve the active change instead) — and go to Step 6 with outcome **timeout** (no error, no fail event — the requested review is still pending)
         - `timeouts ≥ 2` (second consecutive timeout on this PR — the review gate is unavailable) → print
 
           ```
@@ -262,7 +271,7 @@ Step 6 is the exit point for every terminal path after Step 0. Step 1.5 (invalid
 |---------|----------|--------------|----------------------------|
 | **success** | Comments processed/pushed; no actionable comments | `fab status finish <change> review-pr git-pr-review 2>/dev/null || true` | Yes |
 | **failure** | `gh` missing; no PR; processing error | `fab status fail <change> review-pr git-pr-review 2>/dev/null || true` | No — never commit half-finished state |
-| **no-reviews** | No reviews; no actionable inline comments; no automated reviewer; **second consecutive Copilot timeout on the same PR (reason `review-gate-unavailable`, logged)** | `fab status finish <change> review-pr git-pr-review 2>/dev/null || true` (successful no-op) | Yes |
+| **no-reviews** | No reviews; no actionable inline comments; no automated reviewer; **second consecutive Copilot timeout on the same PR, or a first timeout whose history marker is not readable (unwritable `.history.jsonl` fails closed) — reason `review-gate-unavailable`, logged best-effort** | `fab status finish <change> review-pr git-pr-review 2>/dev/null || true` (successful no-op) | Yes |
 | **timeout** | Copilot still pending after 10 minutes — **first timeout in this activation only**; the timeout marker `timeout pr=<n>` is logged to the change history so the next invocation can count it | Leave `review-pr` `active`: no finish/fail; preserve the explicit-change re-run guidance | No |
 
 All `fab status` calls are best-effort — failures silently ignored to avoid blocking the PR review workflow.
