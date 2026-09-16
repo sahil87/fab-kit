@@ -11,8 +11,8 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/pane"
 )
 
-// TestPaneValidationExitCode pins the pane-family exit-code scheme shared
-// with window-name: 2 = pane missing, 3 = any other tmux failure (F30).
+// TestPaneValidationExitCode pins the pane-family exit-code scheme:
+// 2 = pane missing, 3 = any other tmux failure (F30).
 func TestPaneValidationExitCode(t *testing.T) {
 	cases := []struct {
 		name string

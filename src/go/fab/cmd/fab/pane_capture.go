@@ -48,8 +48,8 @@ func runPaneCapture(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--lines must be >= 1")
 	}
 
-	// Validate pane exists. Exit codes follow the pane-family scheme shared
-	// with window-name: 2 = pane missing, 3 = other tmux failure — so an
+	// Validate pane exists. Exit codes follow the pane-family scheme:
+	// 2 = pane missing, 3 = other tmux failure — so an
 	// operator script can branch on cause uniformly across the family. The
 	// in-handler os.Exit stays because non-1 codes are genuinely needed here.
 	if err := pane.ValidatePane(paneID, server); err != nil {

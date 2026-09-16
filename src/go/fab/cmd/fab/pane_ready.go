@@ -59,7 +59,7 @@ func paneReadyCmd() *cobra.Command {
 }
 
 // paneReadyJSON is the --json output shape for `fab pane ready` — always an
-// object, for every classification (the window-name precedent). Snippet is
+// object, for every classification (the pane-family --json precedent). Snippet is
 // the same trailing-blank-trimmed capture the text report carries ("" when
 // the screen is blank); Server is null for the default socket (toNullable).
 type paneReadyJSON struct {

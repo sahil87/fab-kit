@@ -50,7 +50,7 @@ One line per capability, keyed to its command:
   blocks until the stage's state leaves `running` so an orchestrator is woken by a change
   instead of polling for one, and `reap` reclaims a done pane worker's pane (a reported
   no-op for every other dispatch).
-- **Panes / operator** — `fab pane {map,capture,send,process,window-name}` inspects and
+- **Panes / operator** — `fab pane {map,capture,process,open,ready,deliver,kill}` inspects and
   drives tmux panes; `fab operator` launches the coordination tab.
 - **Config** — `fab config {show,explain,set,unset,init,upgrade}` inspects and
   surgically updates `config.yaml`; `show <key> --origin` gives provenance and

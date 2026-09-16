@@ -1,0 +1,11 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-16T17:51:59Z"}
+{"args":"[uzvg] Delete the dead fab pane questions and fab pane window-name Go verbs — operator skill stopped consuming them in 260911-4a8m (detection rides rk mux capture --classify, window marks ride rk tab mark/note); remove Go files + registration, update fab pane help, rewrite stale dispatch.go comment, drop the two _cli-fab-pane.md sections, sweep docs/memory runtime pane-commands + agent-primitives","cmd":"fab-new","event":"command","ts":"2026-09-16T17:51:59Z"}
+{"delta":"+0.0","event":"confidence","score":4.6,"trigger":"calc-score","ts":"2026-09-16T17:55:15Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-16T17:56:15Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-16T17:59:03Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-16T18:04:38Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-16T18:09:06Z"}
+{"event":"review","result":"passed","ts":"2026-09-16T18:09:06Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-16T18:09:55Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-09-16T18:11:30Z"}
+{"event":"review","result":"passed","ts":"2026-09-16T18:18:36Z"}
