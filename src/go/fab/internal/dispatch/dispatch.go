@@ -195,8 +195,8 @@ func (d *Dispatch) Mode() Mode {
 // those assert that a window is in the operator's monitored set and that the
 // operator owns its lifecycle, which a pipeline dispatch does not have.
 // Pre-marking would make the operator's tab bar misreport what it tracks. An
-// operator that genuinely enrolls the window still adds the marker through its
-// own idempotent `fab pane window-name ensure-prefix` primitive. The rule carries
+// operator that genuinely enrolls the window marks it itself via `rk tab mark`
+// / `rk tab note` (the mark/note contracts are run-kit's). The rule carries
 // over to BOTH shapes — a split worker's pane title is unmarked for the same
 // reason.
 func WindowName(id, stage string) string { return "fab-" + id + "-" + stage }

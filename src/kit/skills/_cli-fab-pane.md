@@ -1,6 +1,6 @@
 ---
 name: _cli-fab-pane
-description: "Fab CLI reference — the `fab pane` and `fab dispatch` command families (pane primitives: map/capture/process/window-name/open/ready/deliver/kill/questions; the two-mode stage-dispatch manager). Split out of _cli-fab so operator and dispatch consumers load only this slice."
+description: "Fab CLI reference — the `fab pane` and `fab dispatch` command families (pane primitives: map/capture/process/open/ready/deliver/kill; the two-mode stage-dispatch manager). Split out of _cli-fab so operator and dispatch consumers load only this slice."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -19,11 +19,11 @@ metadata:
 
 ## fab pane
 
-Tmux pane operations with fab context enrichment. `fab pane <map|capture|process|window-name|open|ready|deliver|kill|questions> [flags...]`
+Tmux pane operations with fab context enrichment. `fab pane <map|capture|process|open|ready|deliver|kill> [flags...]`
 
 **Dispatch-internal verbs (cli-layering Part 7)**: `capture`, `process`, and `kill` are kept for the **rk-less pane arm** — the dispatch orchestrator's peek/escalation path (`_preamble.md` § CLI-Adapter Dispatch), `fab dispatch logs`' suggested capture command, and probe cleanups. Skill-facing guidance rides HexoKit's substrate twins `rk mux capture`/`rk mux process`/`rk mux kill` instead (`command -v rk`-gated, raw-tmux fallback; usage owned by `_cli-agents.md` § Peek). Command behavior, flags, and exit codes below are unchanged by the demotion.
 
-**Pane-family exit codes** (capture, window-name, open, ready, deliver, kill, process): pane validation failures use a shared scheme so callers can branch on cause — `2` = pane missing, `3` = any other tmux failure (dead server, bad socket). `map` and `questions` alone use plain `ERROR:`-formatted exit 1 (multi-pane discovery has no single target pane to be "missing"). **Usage-error coexistence**: a *usage* error on any pane verb — a bad flag or a cobra arg-count violation — exits `2` at parse time (the binary-wide convention above), caught before the handler runs; the in-handler `2` = pane-missing / `3` = tmux-failure scheme is a separate, in-handler `os.Exit` path that bypasses the usage/operational mapping. Exit `2` on a pane verb is therefore ambiguous between "usage error" (at parse time) and "pane missing" (in-handler) — disambiguate on stderr wording; the codes are not renumbered.
+**Pane-family exit codes** (capture, open, ready, deliver, kill, process): pane validation failures use a shared scheme so callers can branch on cause — `2` = pane missing, `3` = any other tmux failure (dead server, bad socket). `map` alone uses plain `ERROR:`-formatted exit 1 (multi-pane discovery has no single target pane to be "missing"). **Usage-error coexistence**: a *usage* error on any pane verb — a bad flag or a cobra arg-count violation — exits `2` at parse time (the binary-wide convention above), caught before the handler runs; the in-handler `2` = pane-missing / `3` = tmux-failure scheme is a separate, in-handler `os.Exit` path that bypasses the usage/operational mapping. Exit `2` on a pane verb is therefore ambiguous between "usage error" (at parse time) and "pane missing" (in-handler) — disambiguate on stderr wording; the codes are not renumbered.
 
 **Persistent flag** (all subcommands): `--server <name>` / `-L <name>` (default `""`) — target tmux socket (`tmux -L <name>`). Defaults to `$TMUX` / tmux default. Lets daemons on one tmux server inspect panes on another.
 
@@ -72,19 +72,6 @@ Without `--session`/`--all-sessions` → current session only (`-s` scope, requi
 
 OS-level process tree. Linux: walks `/proc/<pid>/task/<tid>/children`, reads `/proc/<pid>/comm` + `/cmdline`. macOS: `ps -o pid,ppid,comm -ax` PPID traversal, plus one batched `ps -axo pid=,args=` pass joined by PID for full cmdlines (two `ps` spawns total — no per-node lookups; a process exiting between the passes degrades to cmdline `""`). Classification: `claude`/`claude-code` → `agent`, `node` → `node`, `git`/`gh` → `git`, else `other`. JSON: `{pane, pane_pid, processes (tree), has_agent}`. Pane not found → exit 2 (`Error: pane <id> not found`); other tmux validation failure → exit 3 — the family scheme. `--server` scopes tmux lookup only; `/proc`/`ps` walk is socket-independent.
 
-### window-name — `fab pane window-name <ensure-prefix|replace-prefix> [--json] [--server <name>]`
-
-Guarded, idempotent rewrites of the tmux window name — retained as dispatch-facing pane primitives; the operator skill marks its windows via `rk tab mark` / `rk tab note`, not these verbs.
-
-| Verb | Usage | Behavior |
-|------|-------|----------|
-| `ensure-prefix` | `ensure-prefix <pane> <char>` | Idempotent prepend: if the window name already begins with the literal `<char>`, no-op; else `rename-window` to `<char><name>`. `<char>` must be non-empty (else exit 3) |
-| `replace-prefix` | `replace-prefix <pane> <from> <to>` | Atomic guarded swap: if the name begins with `<from>`, rename to `<to><name-without-from>`; else silent no-op (the user-rename-mid-monitoring guard). `<to>` may be empty (prefix strip); `<from>` must be non-empty (else exit 3) |
-
-**Exit codes** (both verbs): `0` = renamed OR no-op; `2` = pane missing (tmux stderr propagated); `3` = any other tmux failure (tmux not running, socket error, rename failed, argument usage error — e.g., empty `<char>` or `<from>`). The 2/3 split lets a removing caller treat "pane gone" (exit 2) as successful removal. No `$TMUX` gate — tmux's own exec failure surfaces as exit 3, so the verbs work via `--server` targeting from outside a tmux client.
-
-**Output**: plain `renamed: <old> -> <new>` on rename, empty stdout on no-op; `--json` always emits one `{"pane","old","new","action"}` object (`action`: `renamed`|`noop`).
-
 ### open — `fab pane open --provider <name> [--role <role>] [-c <dir>] [--json] [--server <name>]`
 
 The provider-generic pane spawn — no dispatch record, no `.fab-dispatch/` state. Resolves the provider's `interactive_command` exactly as `fab agent` does (project config per-field merged over the built-in table; works outside a fab repo, where the built-in table alone applies), fills `{model}`/`{effort}` via the standard precedence with the provider pinned at invocation time (`--role` selects whose fills apply, the `default` role otherwise — the opposite of `fab agent --provider`'s deliberate fill bypass), and spawns the composed command as a **plain split** of the current window when the invoker is a tmux pane on the target server (`$TMUX_PANE` set, no `--server`), an **unnamed new window** otherwise. No worker-column placement, no `fab-{id}-{stage}` title — placement and identity are dispatch policy; `fab dispatch open` is the record-keeping binding over this primitive (§ fab dispatch). Unknown provider → the shared lookup error naming the available providers (exit 1); a provider with no `interactive_command` → hard error naming it (`configure providers.<name>.interactive_command`, exit 1); unreachable tmux or a failed spawn → exit 3. Success: `opened pane %N (provider <name>)`, plus a `server: <name>` line when non-default; `--json` instead emits `{"pane","provider","server"}` (server `null` for the default socket). Probe the new pane with `fab pane ready`, then hand it a prompt with `fab pane deliver`.
@@ -100,29 +87,6 @@ Verified delivery addressed by pane id — the same choreography `fab dispatch d
 ### kill — `fab pane kill <pane> [--server <name>]`
 
 The record-free generic kill — exposes the shared `KillPane` helper with the family's validated exit-code contract. *Dispatch-internal — skill-facing pane removal rides the agent-state-gated `rk mux kill` (see the § fab pane note above); this verb backs rk-less probe cleanups and the pane arm.* Validates the pane first, then kills it. Success: `killed <pane>`, plus a `server: <name>` line when non-default. Pane missing → exit 2 (`Error: pane <id> not found`); other tmux failure → exit 3. No dispatch-record interaction, no `.fab-dispatch/` state — `fab dispatch kill` (record-keyed, ungated recovery) is unaffected and remains the pipeline's kill.
-
-### questions — `fab pane questions [--all-sessions] [--panes <id>...] [--json] [--server <name>]`
-
-Sweep candidate panes for pending questions/prompts — fab-operator's §5 Question Detection policy mechanized into the binary. A **first-class skill-facing verb** (NOT dispatch-internal, unlike `capture`/`process`/`kill` — the deliberate carve-out: this is a policy-bearing sweep, not a peek primitive). Per candidate: capture the last 20 lines (fixed, not a flag), apply the two guards, scan bottom-most-first for the mechanical indicator classes, and report matches + skip reasons. Detection input only — never a license to send blind (the operator's pre-send gate and re-capture-before-send guard still run before any send).
-
-| Flag | Description |
-|------|-------------|
-| `--panes <id>...` | Explicit pane IDs to sweep (repeatable/comma-separated); mutually exclusive with `--all-sessions`; skips the `$TMUX` check and resolves IDs server-wide |
-| `--all-sessions` | Discover candidates across all sessions (skips the `$TMUX` check) |
-| `--json` | Emit the JSON result below |
-
-Discovery modes (`--all-sessions`, or no flags = current session, requires `$TMUX`) sweep only panes whose resolved `agent_state` is `waiting`/`idle` (see § agent state above) — unknown (`—`) and `active` panes are excluded by construction. `--panes` takes the IDs verbatim and applies the state check per pane during the sweep.
-
-| JSON field | Type / meaning |
-|------------|----------------|
-| `matches[].pane` | Pane ID of a matched candidate |
-| `matches[].agent_state` | `waiting` / `idle`, as read at sweep time |
-| `matches[].indicator` | `question_mark` / `yes_no` / `action_word` / `imperative_question` / `colon_prompt` / `enumerated_options` / `press_key` |
-| `matches[].snippet` | The matched line |
-| `skipped[].pane` | Candidate pane that did not match |
-| `skipped[].reason` | `state_changed` / `capture_failed` / `blank_capture` / `turn_boundary` / `no_indicator` |
-
-Both arrays encode `[]` when empty (never `null`). Human output: one line per match (`pane [agent_state] indicator: snippet`), one line per skip (`pane: reason`), then `N matched, M skipped`; an empty candidate set prints `No candidate panes.`. **Exit codes** follow `map`, not the per-pane 2/3 scheme: `0` on any clean sweep regardless of match/skip counts (a dead candidate is a normal `capture_failed` skip, not a failure); non-zero only on usage error (`$TMUX` unset with no targeting flag → `ERROR: not inside a tmux session`) or a hard discovery failure (tmux unreachable).
 
 ---
 

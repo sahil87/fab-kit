@@ -8,8 +8,8 @@ import (
 )
 
 // paneValidationExitCode maps a pane.ValidatePane failure to the pane-family
-// exit-code scheme shared with window-name's tmuxExitCode: 2 = pane missing,
-// 3 = any other tmux failure (dead server, bad socket). Classification rides
+// exit-code scheme: 2 = pane missing, 3 = any other tmux failure (dead
+// server, bad socket). Classification rides
 // on the error value (pane.PaneNotFoundError) — no string matching.
 func paneValidationExitCode(err error) int {
 	var nf *pane.PaneNotFoundError
@@ -23,7 +23,7 @@ func paneCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pane",
 		Short: "Tmux pane operations",
-		Long:  "Tmux pane operations: map, capture, process, window-name, open, ready, deliver, kill, questions",
+		Long:  "Tmux pane operations: map, capture, process, open, ready, deliver, kill",
 	}
 
 	cmd.PersistentFlags().StringP("server", "L", "", "Target tmux socket label (passed as 'tmux -L <name>'). Defaults to $TMUX / tmux default socket.")
@@ -32,12 +32,10 @@ func paneCmd() *cobra.Command {
 		paneMapCmd(),
 		paneCaptureCmd(),
 		paneProcessCmd(),
-		paneWindowNameCmd(),
 		paneOpenCmd(),
 		paneReadyCmd(),
 		paneDeliverCmd(),
 		paneKillCmd(),
-		paneQuestionsCmd(),
 	)
 
 	return cmd

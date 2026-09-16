@@ -83,7 +83,7 @@ func TestPaneReady_NonReadyReports(t *testing.T) {
 }
 
 // TestPaneReady_JSON pins the --json shape for all three classifications —
-// always exactly one object (the window-name precedent), state/pane/server/
+// always exactly one object (the pane-family --json precedent), state/pane/server/
 // snippet, snippet "" on a blank screen, server null on the default socket —
 // and that every classification still exits 0 (the report object is the sole
 // discriminator).

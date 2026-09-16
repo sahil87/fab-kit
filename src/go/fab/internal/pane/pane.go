@@ -68,9 +68,9 @@ func WithServer(server string, args ...string) []string {
 // RunCmd executes an external command, capturing stdout and stderr
 // separately. Returns the raw stdout string (untrimmed — callers that need
 // trimming do it themselves, so capture-style output is never altered), the
-// raw stderr bytes, and the exec error. Generalizes the ReadWindowName
-// capture pattern for any subprocess (tmux, git, wt) so call sites stop
-// discarding the child's diagnostic.
+// raw stderr bytes, and the exec error. The single subprocess-capture pattern
+// for any child command (tmux, git, wt), so call sites stop discarding the
+// child's diagnostic.
 func RunCmd(name string, args ...string) (string, []byte, error) {
 	return RunCmdContext(context.Background(), name, args...)
 }
@@ -106,7 +106,7 @@ func StderrError(err error, stderr []byte) error {
 // opposed to other tmux failures such as a dead server or socket error).
 // Matching is case-insensitive substring, mirroring tmux's "can't find pane"
 // / "no such pane" wording across versions. Shared by ValidatePane and the
-// window-name verbs' exit-code mapping.
+// pane-family exit-code mapping.
 func IsPaneMissing(stderr []byte) bool {
 	s := strings.ToLower(string(stderr))
 	return strings.Contains(s, "can't find pane") ||
@@ -386,17 +386,6 @@ func CurrentCommand(server, paneID string) (string, error) {
 		return "", StderrError(fmt.Errorf("pane %s: %w", paneID, err), stderr)
 	}
 	return strings.TrimSpace(out), nil
-}
-
-// ReadWindowName returns the current window name for a tmux pane via
-// `tmux display-message -p -t <pane> '#W'`. Returns the trimmed name, the
-// tmux stderr bytes (useful for exit-code mapping — callers can distinguish
-// "pane missing" from other tmux errors by inspecting stderr), and any exec
-// error. If server is non-empty, the tmux invocation is scoped to that server
-// via `-L <server>`.
-func ReadWindowName(paneID, server string) (string, []byte, error) {
-	out, stderr, err := RunCmd("tmux", WithServer(server, "display-message", "-p", "-t", paneID, "#W")...)
-	return strings.TrimSpace(out), stderr, err
 }
 
 // GetPanePID returns the shell PID of a tmux pane. If server is non-empty, the
