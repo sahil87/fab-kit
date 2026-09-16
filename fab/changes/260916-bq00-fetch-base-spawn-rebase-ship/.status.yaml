@@ -10,7 +10,7 @@ progress:
     review: done
     hydrate: done
     ship: done
-    review-pr: active
+    review-pr: done
 plan:
     generated: true
     task_count: 5
@@ -34,7 +34,7 @@ stage_metrics:
     review: {started_at: "2026-09-16T14:24:31Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-16T14:27:45Z"}
     hydrate: {started_at: "2026-09-16T14:27:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-16T14:28:26Z"}
     ship: {started_at: "2026-09-16T14:28:26Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-16T14:29:37Z"}
-    review-pr: {started_at: "2026-09-16T14:29:37Z", driver: git-pr, iterations: 1}
+    review-pr: {started_at: "2026-09-16T14:29:37Z", driver: git-pr, iterations: 1, completed_at: "2026-09-16T14:41:20Z"}
 prs:
     - https://github.com/sahil87/fab-kit/pull/681
 base_branch: main
@@ -55,4 +55,4 @@ true_impact:
 summary: Operator spawns fetch origin and pin every new-branch wt create to the fetched default-branch SHA; /git-pr rebases onto origin/<base_branch> before push (3a-ter, --force-with-lease on re-push, unclear conflict aborts and STOPs ship); merge-auto pre-spawn rebase wording replaced by the spawn-time base pin
 # base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-09-16T14:29:37Z
+last_updated: 2026-09-16T14:41:20Z
