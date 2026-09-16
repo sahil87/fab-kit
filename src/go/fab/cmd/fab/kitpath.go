@@ -17,7 +17,7 @@ func kitPathCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("cannot resolve kit path: %w\nRun 'fab sync' or 'fab upgrade-repo' to populate the cache", err)
 			}
-			fmt.Fprint(cmd.OutOrStdout(), dir)
+			fmt.Fprintln(cmd.OutOrStdout(), dir)
 			return nil
 		},
 	}
