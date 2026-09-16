@@ -8,7 +8,7 @@ The operator (`/fab-operator`) is a long-running coordination layer that sits in
 
 ## Version History
 
-The current operator (v12) evolved through twelve iterations:
+The current operator (v13) evolved through thirteen iterations:
 
 | Version | Key addition |
 |---------|-------------|
@@ -24,3 +24,4 @@ The current operator (v12) evolved through twelve iterations:
 | v10 | rk-mandatory skill (one startup gate; 27 fallback passages deleted), CLI reference split by command family (`_cli-fab-operator` / `_cli-fab-pane`), live cadence from `rk cron list --json` in the ready line and compact frame |
 | v11 | Generic tracked items — one `tracked:` list with a probe loop and derived schedule replaces the monitored/watches/autopilot/notes sections, `track` verb family, one-table frame (2026-09-11, change 260911-4a8m) |
 | v12 | fab owns the operator-tick entry end-to-end — the clock reconcile seeds it when the server has none, and `fab operator clock sync` heals and reads it for Init and the per-tick frame (2026-09-12, change 260912-bjrk) |
+| v13 | Review-PR Recovery — a stuck `review-pr` is one condition with a reason (`no-reviewer` / `ci-failed` / `conflicting`), each with one bounded action (re-send once / one CI fix round / rebase-and-re-arm once) recorded on the item's `scope.recovery`; unreviewed merges are reported, never silent (2026-09-16, change 260916-vb4l) |

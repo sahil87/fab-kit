@@ -83,7 +83,7 @@ Run `fab agent review-pr -o yaml`, surface the resolved YAML (at minimum `provid
 
 **If no actionable reviews** (no automated reviewer available, or reviews with no inline comments to process): the stage completes as `done` — this is a successful no-op.
 
-**If timeout** (Copilot review requested but not available within 10 minutes — git-pr-review's Step 6 timeout outcome): the subagent deliberately leaves `review-pr` `active` (no finish, no fail); report the pending message **instead of** `Pipeline complete.` and stop — see the Review-PR timeout row in Error Handling for the exact string.
+**If timeout** (Copilot review requested but not available within 10 minutes — git-pr-review's Step 6 timeout outcome; first timeout in the activation only — a second consecutive timeout on the same PR exits as a `no-reviews` outcome with reason `review-gate-unavailable`, so report its `summary`): the subagent deliberately leaves `review-pr` `active` (no finish, no fail); report the pending message **instead of** `Pipeline complete.` and stop — see the Review-PR timeout row in Error Handling for the exact string. `/fab-fff` does NOT re-dispatch on the first timeout — the second invocation comes from the operator's `no-reviewer` re-send (`fab-operator.md` § Review-PR Recovery) or a user re-run.
 
 On success: `progress.review-pr` becomes `done`.
 
@@ -115,7 +115,7 @@ Shared rows: see `_pipeline.md` § Shared Error Handling (with `{driver}` = `fab
 |-----------|--------|
 | Ship fails | Stop with git-pr error. User retries /fab-fff <change> or /git-pr {name}. |
 | Review-PR fails | Stop with git-pr-review error. User retries /fab-fff <change> or /git-pr-review {name}. |
-| Review-PR timeout (Copilot review requested, not yet available) | Stage deliberately left `active`. Report `Review-PR pending (Copilot review requested, timed out waiting) — re-run /git-pr-review {name} when ready` and stop — no finish, no fail. |
+| Review-PR timeout (Copilot review requested, not yet available) | Stage deliberately left `active` (first timeout in the activation; a second consecutive timeout on the same PR is a `no-reviews` outcome with reason `review-gate-unavailable` — report its `summary`). Report `Review-PR pending (Copilot review requested, timed out waiting) — re-run /git-pr-review {name} when ready` and stop — no finish, no fail. |
 
 CLI-arm rows (Step 4/5 dispatched via `_preamble.md` § CLI-Adapter Dispatch — the observations map onto the outcomes above; no new recovery rules):
 
@@ -123,6 +123,6 @@ CLI-arm rows (Step 4/5 dispatched via `_preamble.md` § CLI-Adapter Dispatch —
 |----------|--------|
 | `done` + ship result `status: failure` | The Ship fails row above — STOP with the result's reported `reason`; the stage stays `active` for user retry |
 | `done` + review-pr result `outcome: failure` | The Review-PR fails row above — STOP with the result's reported `reason`; the stage stays `active` for user retry |
-| `done` + review-pr result `outcome: timeout` | The Review-PR timeout row above, verbatim — the timeout is an outcome, not a failure |
-| `done` + review-pr result `outcome: no-reviews` | Successful no-op — the worker finished the stage `done` itself |
+| `done` + review-pr result `outcome: timeout` | The Review-PR timeout row above, verbatim — the timeout is an outcome, not a failure (first timeout in the activation; a second consecutive timeout on the same PR is a `no-reviews` outcome with reason `review-gate-unavailable` — report its `summary`) |
+| `done` + review-pr result `outcome: no-reviews` | Successful no-op — the worker finished the stage `done` itself (the summary may name reason `review-gate-unavailable` — the terminalized second-timeout exit; still a successful no-op) |
 | `failed` / `failed (no-result)` / `orphaned` | Canon recovery table (`_preamble.md` § CLI-Adapter Dispatch) |
