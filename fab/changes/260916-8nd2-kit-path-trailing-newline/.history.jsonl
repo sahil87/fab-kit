@@ -1,0 +1,12 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-16T11:05:29Z"}
+{"args":"fab kit-path prints a newline-terminated line: fmt.Fprint -\u003e fmt.Fprintln in kitpath.go, add kitpath_test.go, replace the 'No trailing newline or decoration' sentence in _cli-fab.md, doc sweep; fixes fused output in /fab-setup migrations pre-flight chain","cmd":"fab-new","event":"command","ts":"2026-09-16T11:05:29Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-09-16T11:07:50Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-09-16T11:08:18Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-16T11:09:04Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-16T11:10:51Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-16T11:13:49Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-16T11:18:13Z"}
+{"event":"review","result":"passed","ts":"2026-09-16T11:18:13Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-16T11:18:31Z"}
+{"action":"enter","driver":"git-pr","event":"stage-transition","stage":"review-pr","ts":"2026-09-16T11:20:51Z"}
+{"event":"review","result":"passed","ts":"2026-09-16T11:25:10Z"}
