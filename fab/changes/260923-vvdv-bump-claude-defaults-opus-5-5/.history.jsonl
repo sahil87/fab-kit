@@ -1,0 +1,11 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-09-23T05:17:56Z"}
+{"args":"Bump the kit-shipped Claude default model profiles from Claude Opus 5 to Claude Opus 5.5 (claude-opus-5-5) in src/go/fab/defaults.yaml — default/doing/review/hydrate rows, effort stays high; Sonnet rows unchanged; sweep spec table, test pins, _cli-fab.md examples, memory citations","cmd":"fab-new","event":"command","ts":"2026-09-23T05:17:56Z"}
+{"delta":"+0.0","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-09-23T05:20:22Z"}
+{"cmd":"fab-proceed","event":"command","ts":"2026-09-23T05:20:42Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-09-23T05:21:41Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-09-23T05:23:00Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-09-23T05:23:14Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-09-23T05:27:24Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-09-23T05:30:46Z"}
+{"event":"review","result":"passed","ts":"2026-09-23T05:30:46Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-09-23T05:31:09Z"}

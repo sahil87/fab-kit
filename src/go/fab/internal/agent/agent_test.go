@@ -62,11 +62,11 @@ func TestResolveDefaults(t *testing.T) {
 // TestConfigReferenceDocumentsProviderFill in cmd/fab.
 func TestDefaultRoleProfilesArePinned(t *testing.T) {
 	pinned := map[string]Profile{
-		RoleDefault:  {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
+		RoleDefault:  {Provider: "claude", Model: "claude-opus-5-5", Effort: "high"},
 		RoleOperator: {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
-		RoleDoing:    {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
-		RoleReview:   {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
-		RoleHydrate:  {Provider: "claude", Model: "claude-opus-5", Effort: "high"},
+		RoleDoing:    {Provider: "claude", Model: "claude-opus-5-5", Effort: "high"},
+		RoleReview:   {Provider: "claude", Model: "claude-opus-5-5", Effort: "high"},
+		RoleHydrate:  {Provider: "claude", Model: "claude-opus-5-5", Effort: "high"},
 		RoleFast:     {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
 	}
 	if len(pinned) != len(RoleNames()) {
