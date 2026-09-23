@@ -622,6 +622,18 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 **Rejected**: Splitting user-facing resolution guidance between `fab agent` and the deprecated compatibility command, or treating executable strings as outside the documentation claim.
 *Introduced by*: 260901-u6es-fab-agent-yaml-skill-migration
 
+### The Kit Default Is the Cheapest Top-Tier Opus, Never Fable
+**Decision**: The built-in Claude fills pin the `default`, `doing`, `review`, and `hydrate` roles to the cheapest model in the top coding tier (`claude-opus-5-5`), and the `operator`/`fast` roles to the current Sonnet. Fable is never a kit default; a user who wants it dials a role through the config cascade (a system-tier `providers.claude.profiles.default.model` override is the established shape).
+**Why**: The kit default is what every un-overridden project pays for on every dispatch, so it should sit at the best price/capability point of the tier rather than at the tier's ceiling. Opus 5.5 is a same-tier successor to Opus 5 at a lower list price with the same context window, output cap, tokenizer, and feature set, so nothing about the roles' judgment profile argued for staying on the older pin.
+**Rejected**: `claude-fable-5-1` as the `default` fill (about 2.5x the price with additional safety gating — a per-user choice the cascade already supports, not a kit-wide one); raising `review` to `xhigh` alongside the bump (a separate judgment about the critic's cost/benefit, not part of a model bump).
+*Introduced by*: 260923-vvdv-bump-claude-defaults-opus-5-5
+
+### Explicit `effort` on the Opus Fills Is Load-Bearing
+**Decision**: Every Opus row in the built-in Claude fills carries an explicit `effort: high`, and the fill block's comment in `src/go/fab/defaults.yaml` records why: fab never relies on a model's built-in effort default. Both claude command templates substitute `--effort {effort}` and the operator launcher substitutes the profile's effort, so the fill value is the only thing that keeps those roles at `high`.
+**Why**: Opus 5.5's built-in default effort is `medium`, one level below the `high` the role rationale in `stage-models.md` § Default role profiles argues for. Treating the effort column as redundant with the model's own default would silently step every un-overridden Opus dispatch down a level the moment the fill was dropped.
+**Rejected**: Leaving the effort column implicit on rows where it matched the model's default (the coupling to a model-side default is exactly the drift this pin prevents); documenting the constraint only in the spec (the value's own file is where the next editor looks first — the spec sentence and the YAML comment carry it together, with the YAML beside the value).
+*Introduced by*: 260923-vvdv-bump-claude-defaults-opus-5-5
+
 ## Consumers
 
 The provider/role resolution feeds three runtime consumers:

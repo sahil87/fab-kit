@@ -116,12 +116,15 @@ providers:
     headless_command: 'claude -p --permission-mode bypassPermissions --model {model} --effort {effort}'
     # The six role fills. `default` doubles as this provider's cross-role
     # fallback: a role absent here resolves the `default` entry, then empty.
+    # The explicit effort is load-bearing: Opus 5.5's built-in default effort
+    # is `medium`, so dropping `effort: high` would silently step every Opus
+    # dispatch down a level (both command templates above pass --effort).
     profiles:
-      default:  { model: claude-opus-5,   effort: high }
+      default:  { model: claude-opus-5-5, effort: high }
       operator: { model: claude-sonnet-5, effort: medium }
-      doing:    { model: claude-opus-5,   effort: high }
-      review:   { model: claude-opus-5,   effort: high }
-      hydrate:  { model: claude-opus-5,   effort: high }
+      doing:    { model: claude-opus-5-5, effort: high }
+      review:   { model: claude-opus-5-5, effort: high }
+      hydrate:  { model: claude-opus-5-5, effort: high }
       fast:     { model: claude-sonnet-5, effort: medium }
   codex:
     # `codex exec` is a SUBCOMMAND (not a flag) and reads the prompt from stdin,

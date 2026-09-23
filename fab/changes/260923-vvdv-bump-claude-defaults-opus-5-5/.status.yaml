@@ -1,0 +1,59 @@
+id: vvdv
+name: 260923-vvdv-bump-claude-defaults-opus-5-5
+created: 2026-09-23T05:17:56Z
+created_by: Sahil Ahuja
+change_type: chore
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: done
+plan:
+    generated: true
+    task_count: 6
+    acceptance_count: 21
+    acceptance_completed: 21
+confidence:
+    certain: 8
+    confident: 4
+    tentative: 0
+    unresolved: 0
+    score: 4.8
+    fuzzy: true
+    dimensions:
+        signal: 82.5
+        reversibility: 90.0
+        competence: 85.0
+        disambiguation: 83.8
+stage_metrics:
+    intake: {started_at: "2026-09-23T05:17:56Z", driver: fab-new, iterations: 1, completed_at: "2026-09-23T05:23:14Z"}
+    apply: {started_at: "2026-09-23T05:23:14Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-23T05:27:24Z"}
+    review: {started_at: "2026-09-23T05:27:24Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-23T05:30:46Z"}
+    hydrate: {started_at: "2026-09-23T05:30:46Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-23T05:31:09Z"}
+    ship: {started_at: "2026-09-23T05:31:09Z", driver: fab-fff, iterations: 1, completed_at: "2026-09-23T05:33:48Z"}
+    review-pr: {started_at: "2026-09-23T05:33:48Z", driver: git-pr, iterations: 1, completed_at: "2026-09-23T05:40:07Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/684
+change_type_source: explicit
+base_branch: main
+true_impact:
+    added: 390
+    deleted: 19
+    net: 371
+    excluding:
+        added: 18
+        deleted: 12
+        net: 6
+    tests:
+        added: 4
+        deleted: 4
+        net: 0
+    computed_at: "2026-09-23T05:33:48Z"
+    computed_at_stage: ship
+summary: Bumped the built-in Claude fills for default/doing/review/hydrate from claude-opus-5 to claude-opus-5-5 (effort high kept explicit and documented as load-bearing under Opus 5.5's medium built-in default); spec mirror table, pinned test, CLI reference examples, and the config-upgrade digest catalog updated in lockstep; Sonnet rows unchanged
+# base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-09-23T05:40:07Z

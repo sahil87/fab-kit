@@ -169,9 +169,12 @@ var knownGeneratedSystemParagraphDigests = map[string]struct{}{
 	// Current dispatch advert with the column_width 45 / min_cols 50 defaults
 	// (260909-tdij).
 	"e4a2622f4043fb0f0c459f51eab6711005c273fd711a89e415ad359e42aec582": {},
-	// Current providers advert: the fill-roster prose now calls codex's map dense
-	// and only agy's sparse (260908-wcib).
+	// Providers advert with the claude Opus rows on claude-opus-5 (260908-wcib
+	// through v2.28.3).
 	"1890978e77061f64dddd12fc7c19759b5fee1c3196f061ce1b13d5bd1a35107f": {},
+	// Current providers advert: the claude default/doing/review/hydrate fills
+	// moved to claude-opus-5-5 (260923-vvdv).
+	"b40b5eca67d75dc524c8baf01e0357a9784c48b7e6b6cb552327582b92454acd": {},
 }
 
 // fenceHeaderComment returns the explanatory preamble emitted at the top of a
