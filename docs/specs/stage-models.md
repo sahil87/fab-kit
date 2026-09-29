@@ -126,11 +126,11 @@ versioned with the kit and is the single file to edit when a new model ships.
 | Role | Provider | Model | Effort |
 |------|----------|-------|--------|
 | `default` | `claude` | `claude-opus-5-5` | `high` |
-| `operator` | `claude` | `claude-sonnet-5` | `medium` |
+| `operator` | `claude` | `claude-sonnet-5-5` | `medium` |
 | `doing` | `claude` | `claude-opus-5-5` | `high` |
 | `review` | `claude` | `claude-opus-5-5` | `high` |
 | `hydrate` | `claude` | `claude-opus-5-5` | `high` |
-| `fast` | `claude` | `claude-sonnet-5` | `medium` |
+| `fast` | `claude` | `claude-sonnet-5-5` | `medium` |
 
 This is the verified mirror of what `defaults.yaml` composes. A drift-guard test fails if the two
 disagree (see § Drift guard).
@@ -149,9 +149,11 @@ coding/agentic strength that earns `doing` its Opus is what the user is talking 
 `high` is the recommended effort sweet spot. `operator` runs
 Sonnet/`medium` (highest-volume coordinator, pattern-matching work, escalation discipline makes the
 cheaper model safe). `fast` sits at the mechanical floor on Sonnet/`medium` — effort at `medium` (not
-`low`) buys margin for faithful PR-description comprehension. The explicit `high` on the Opus rows is
-load-bearing, not decorative: Opus 5.5's built-in default effort is `medium`, and fab passes `--effort`
-on every CLI arm, so the profile value is what keeps those roles at `high`. Cost-conscious projects opt
+`low`) buys margin for faithful PR-description comprehension. The explicit effort is
+load-bearing in both directions, not decorative, because fab passes `--effort` on every CLI arm and never
+relies on a model's own default: Opus 5.5 defaults to `medium`, so the explicit `high` is what keeps those
+roles at `high`; Sonnet 5.5 defaults to `high`, so the explicit `medium` is what keeps `operator` and `fast`
+at `medium`. Cost-conscious projects opt
 any role down themselves (see § Config schema).
 
 ---

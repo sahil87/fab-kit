@@ -63,11 +63,11 @@ func TestResolveDefaults(t *testing.T) {
 func TestDefaultRoleProfilesArePinned(t *testing.T) {
 	pinned := map[string]Profile{
 		RoleDefault:  {Provider: "claude", Model: "claude-opus-5-5", Effort: "high"},
-		RoleOperator: {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
+		RoleOperator: {Provider: "claude", Model: "claude-sonnet-5-5", Effort: "medium"},
 		RoleDoing:    {Provider: "claude", Model: "claude-opus-5-5", Effort: "high"},
 		RoleReview:   {Provider: "claude", Model: "claude-opus-5-5", Effort: "high"},
 		RoleHydrate:  {Provider: "claude", Model: "claude-opus-5-5", Effort: "high"},
-		RoleFast:     {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
+		RoleFast:     {Provider: "claude", Model: "claude-sonnet-5-5", Effort: "medium"},
 	}
 	if len(pinned) != len(RoleNames()) {
 		t.Fatalf("pinned table covers %d roles, but %d roles exist — add the new role here", len(pinned), len(RoleNames()))
@@ -934,9 +934,11 @@ func TestResolveRole(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveRole(operator): %v", err)
 	}
-	want := Profile{Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"}
+	// Derived, not restated: defaults.yaml is the one place a fill is spelled,
+	// and TestDefaultRoleProfilesArePinned is the one place its value is pinned.
+	want, _ := DefaultProfile(RoleOperator)
 	if got != want {
-		t.Errorf("ResolveRole(operator) = %+v, want %+v", got, want)
+		t.Errorf("ResolveRole(operator) = %+v, want built-in default %+v", got, want)
 	}
 
 	if _, err := ResolveRole(nil, "bogus"); err == nil {
