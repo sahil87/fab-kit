@@ -494,7 +494,9 @@ agent:
 	if err != nil {
 		t.Fatalf("resolve-agent ship: %v", err)
 	}
-	want := "model=claude-sonnet-5\neffort=medium\nprovider=codex\ndispatch=codex  exec  -m claude-sonnet-5  -c reasoning=medium\n"
+	fastModel := wantRoleModel(t, agent.RoleFast)
+	fastEffort := wantRoleEffort(t, agent.RoleFast)
+	want := "model=" + fastModel + "\neffort=" + fastEffort + "\nprovider=codex\ndispatch=codex  exec  -m " + fastModel + "  -c reasoning=" + fastEffort + "\n"
 	if out != want {
 		t.Errorf("output = %q, want %q (whitespace preserved via spawn.WithProfile)", out, want)
 	}

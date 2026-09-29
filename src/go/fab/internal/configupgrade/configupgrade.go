@@ -172,9 +172,14 @@ var knownGeneratedSystemParagraphDigests = map[string]struct{}{
 	// Providers advert with the claude Opus rows on claude-opus-5 (260908-wcib
 	// through v2.28.3).
 	"1890978e77061f64dddd12fc7c19759b5fee1c3196f061ce1b13d5bd1a35107f": {},
-	// Current providers advert: the claude default/doing/review/hydrate fills
-	// moved to claude-opus-5-5 (260923-vvdv).
+	// Providers advert with the claude default/doing/review/hydrate fills on
+	// claude-opus-5-5 and the operator/fast fills still on claude-sonnet-5
+	// (260923-vvdv).
 	"b40b5eca67d75dc524c8baf01e0357a9784c48b7e6b6cb552327582b92454acd": {},
+	// Current providers advert: the claude operator/fast fills moved to
+	// claude-sonnet-5-5, putting all six claude fills on the 5.5 generation
+	// (260929-9dwn).
+	"ab93e3cc8204e7179344b8497fbfa089a83c3943ce4c72b0821b5cadfc084d59": {},
 }
 
 // fenceHeaderComment returns the explanatory preamble emitted at the top of a
