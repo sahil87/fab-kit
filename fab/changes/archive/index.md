@@ -1,5 +1,6 @@
 # Archive Index
 
+- **261007-gyp9-early-draft-pr-live-meta** — Early draft PR + live, refreshable `## Meta` block
 - **260915-vy27-per-change-base-branch** — Per-Change Base Branch — Record `base_branch` in `.status.yaml` and Read It on Every Base-Relative Surface
 - **260913-iyb4-operator-spawn-session-selector** — Operator Spawn Target-Session Selector — Deterministic, Never Asks
 - **260913-ga0v-operator-skill-user-level-shim** — User-Level fab-operator Skill Shim — the Operator Resolves From a Neutral cwd
