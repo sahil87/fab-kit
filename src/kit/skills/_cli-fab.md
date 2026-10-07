@@ -29,6 +29,7 @@ metadata:
 - fab skill
 - fab impact
 - fab pr-meta
+- fab pr-sync
 - fab docs-index
 - fab fab-help
 - fab help-dump
@@ -85,7 +86,7 @@ All commands accept the unified `<change>`: 4-char ID (`yobi`), folder substring
 
 ### Commands covered in `_preamble` Common fab Commands
 
-`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab doctor`, `fab migrations-status`, `fab kit-path`, `fab setup`, `fab shell-init`, `fab skill`, `fab impact`, `fab pr-meta`, `fab docs-index`, `fab fab-help`, `fab help-dump`, `fab batch`) and extended flag details for the above.
+`fab preflight`, `fab score`, `fab log command`, `fab change`, `fab resolve`, `fab status` — headline coverage lives there. Sections below document the remaining commands (`fab doctor`, `fab migrations-status`, `fab kit-path`, `fab setup`, `fab shell-init`, `fab skill`, `fab impact`, `fab pr-meta`, `fab pr-sync`, `fab docs-index`, `fab fab-help`, `fab help-dump`, `fab batch`) and extended flag details for the above.
 
 ---
 
@@ -668,7 +669,7 @@ Self-contained data sourcing — the command reads everything else itself:
 - Impact math: reuses `internal/impact` (`ComputeForRepo`) against the merge-base of HEAD vs the change's recorded `base_branch` (`origin/<base_branch>`, when set and resolvable), else `origin/HEAD`'s target, else `origin/main`, else `origin/master`, computed internally.
 - Git/`gh` context: branch (`git branch --show-current`) and owner/repo (`gh repo view --json nameWithOwner`) for blob URLs.
 
-Output — the exact `## Meta` block markdown, in element order **table → Impact → optional Issues → Pipeline** (each block blank-line separated so GitHub renders them as distinct elements):
+Output — the exact `## Meta` block markdown, wrapped in the `<!-- fab pr-meta:start -->` / `<!-- fab pr-meta:end -->` marker lines (part of the rendered output — they are what `fab pr-sync` splices between on refresh), in element order **table → Impact → optional Issues → Pipeline** (each block blank-line separated so GitHub renders them as distinct elements):
 - The 5-column table (`Change ID | Type | Confidence | Plan | Review`) with `—` fallbacks, the `Change ID` value backtick-wrapped when present (the bare `—` fallback is not), a ` ✓` Plan completion suffix when both task and acceptance pairs are complete, and a `✓/✗ {N} cycle{s}` Review cell.
 - Impact: one normalized `Impact | +/− | Net` table (right-aligned numeric columns, Net retained) followed by a `<sub>` provenance caption; there is no `**Impact**:` lead-in. The table drops rows but never reshapes:
 
@@ -690,7 +691,31 @@ Exit codes:
 
 Graceful degradation: an unreachable `gh` leaves owner/repo empty so Pipeline stages render as plain-text labels (never a hard error); a missing/failed merge-base drops only the Impact block.
 
-Consumers: `/git-pr` Step 3c (renders the PR body `## Meta` block, pasted verbatim).
+Consumers: `/git-pr` Step 3c (renders the PR body `## Meta` block, pasted verbatim) and `fab pr-sync` (same render, spliced into an existing PR body).
+
+---
+
+## fab pr-sync
+
+```
+fab pr-sync <change> --type <type> [--issues "DEV-1 DEV-2"]
+```
+
+Refreshes the marker-delimited `## Meta` block of the current branch's open PR. Renders the block (the same `internal/prmeta` inputs as `fab pr-meta`), reads the PR's current body via `gh pr view --json body`, splices the fresh block in, compares, and applies via `gh pr edit --body-file -` **only when the body changed** — a second run with unchanged inputs is a no-op and issues no edit.
+
+Arguments and flags: identical to `fab pr-meta` (`<change>` resolution, required `--type`, optional `--issues`).
+
+Splice contract (the pure `prmeta.Splice` function — no I/O, no network):
+- **Markers present** — everything from `<!-- fab pr-meta:start -->` through `<!-- fab pr-meta:end -->` is replaced; every other byte (`## Summary`, `## Changes`, human edits) is preserved exactly. Those sections are authored once at PR create and never refreshed.
+- **Bare `## Meta` heading, no markers** (a pre-marker PR body) — the whole unmarked section (heading through the next top-level `## ` heading, or end of body) is adopted: replaced in place by the marker-wrapped block, never duplicated.
+- **No `## Meta` at all** — the marker-wrapped block is prepended ahead of the existing body.
+- All three paths are idempotent: splicing twice with unchanged inputs yields a byte-identical body.
+
+Exit codes:
+- `0` — the block was refreshed (`PR meta refreshed`) or already current (`PR meta already current — no edit`).
+- non-zero — no fab context (change unresolved or `.status.yaml` absent) or no open PR on the branch; no side effects. Mirrors `fab pr-meta`'s graceful-degradation contract.
+
+Consumers: `_pipeline.md` § PR Boundary Procedure (every stage boundary), `/git-pr` Step 3d (ship-stage sync on an existing OPEN PR). Orchestrators call it; stage workers never do — dispatch prompts never name `fab pr-sync`.
 
 ---
 

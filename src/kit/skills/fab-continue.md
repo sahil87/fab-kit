@@ -87,6 +87,8 @@ Ship and review-pr are the local delta: they resolve their roles, then delegate 
 | `review-pr` | `failed` | *(Keys on `progress.review-pr == failed` via the guard above — the same progress-map mechanism as the `review`/`failed` row.)* `fab agent review-pr -o yaml` (surface and branch on `dispatch:` presence — same as the `active` row) → Re-execute `/git-pr-review` behavior **with the resolved change as the explicit `<change>` argument** — its Step 0 runs `fab status start <change> review-pr`, and the CLI's review-pr `start` transition accepts `failed → active`; from there it routes terminal paths through its Step 6 with the same only-if-still-active guards as the row above. Do NOT route through `reset` — reset's From-set is `{done, ready, skipped}` (excludes `failed`); the CLI would error |
 | all `done` | — | Block: "Change is complete." |
 
+> **PR boundary actions.** Every `finish` of apply / review / hydrate in the table above is followed by the matching boundary of `_pipeline.md` § PR Boundary Procedure (apply-exit open / review-pass / hydrate) — that section owns the mechanics; this skill points, never restates. The sequencer runs the procedure inline in its own context, after reading the dispatched worker's result. The ship/review-pr rows delegate to `/git-pr` / `/git-pr-review`, which handle the PR themselves.
+
 ### Step 2: Load Context
 
 Load per `_preamble.md` layers. Stage-specific additions: intake loads memory files; apply loads intake + plan (if it already exists) + source code; review adds plan + memory; hydrate loads memory index + target files.

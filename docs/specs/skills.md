@@ -102,7 +102,7 @@ Consumer reads _generation.md (via helpers: declaration)
 └─ 9 Advance — fab status advance <change> intake
 ```
 
-`_pipeline` — shared pipeline bracket for /fab-ff and /fab-fff (/fab-adopt partially consumes the rework loop + hydrate dispatch), with the inline plan co-gen + one-time light/full lane fork at apply entry (≤ 5 tasks → light):
+`_pipeline` — shared pipeline bracket for /fab-ff and /fab-fff (/fab-adopt partially consumes the rework loop + hydrate dispatch), with the inline plan co-gen + one-time light/full lane fork at apply entry (≤ 5 tasks → light) and the PR Boundary Procedure at each stage boundary:
 
 ```text
 Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
@@ -112,12 +112,12 @@ Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
 │  ├─ Fork once on plan task count (≤5 → LIGHT / >5 → FULL; --light/--full override, mutually exclusive)
 │  ├─ LIGHT: tasks executed inline (no dispatch, no YAML stage resolution, session model)
 │  ├─ FULL: apply worker dispatched with plan pre-existing (task execution only) via fab agent apply -o yaml (dispatch: absent ⇒ native Agent / present ⇒ CLI adapter)
-│  └─ fab status finish intake/apply
+│  └─ fab status finish intake/apply → PR Boundary: apply-exit open (commit → rebase + lease-push → gh pr create --draft → fab pr-sync; progress.ship untouched)
 ├─ Step 2 Review → subagent /fab-continue Review (_review.md) — ALWAYS a fresh dispatched worker, both lanes
-│  ├─ Pass: finish review → Step 3
-│  └─ Fail: auto-rework loop ≤{max_cycles} (light: rework inline; full: resume apply worker when reachable; fresh review each cycle); exhaustion: fab status fail review → STOP
-├─ Step 3 Hydrate — LIGHT: inline / FULL: subagent /fab-continue Hydrate → fab status finish hydrate
-└─ {terminal} = hydrate → complete / review-pr → driver Steps 3.5–5 (3.5 link Linear issue — optional, inline in BOTH lanes / 4 ship / 5 review-pr — inline in the light lane, dispatched in the full lane)
+│  ├─ Pass: finish review → PR Boundary: commit + plain push (no rebase) + fab pr-sync → Step 3
+│  └─ Fail: auto-rework loop ≤{max_cycles} (light: rework inline; full: resume apply worker when reachable; fresh review each cycle) — rework cycles never push; exhaustion: fab status fail review → STOP
+├─ Step 3 Hydrate — LIGHT: inline / FULL: subagent /fab-continue Hydrate → fab status finish hydrate → PR Boundary: commit + docs-index refresh + plain push + fab pr-sync
+└─ {terminal} = hydrate → complete (an OPEN draft PR remains for a later /git-pr to finalize) / review-pr → driver Steps 3.5–5 (3.5 link Linear issue — optional, inline in BOTH lanes / 4 ship — /git-pr finalizes the open PR / 5 review-pr — inline in the light lane, dispatched in the full lane)
 ```
 
 `_review` — shared review logic run by the dispatched review worker (a `mode` parameter — full | diff-only — selects whether plan-conformance steps run):
@@ -522,11 +522,11 @@ User invokes /fab-continue [change-name] [stage]
 
 ## `/fab-ff` (Fast Forward)
 
-**Purpose**: Fast-forward apply → review → hydrate (everything after intake). Gated on the single intake confidence gate (flat 3.0), with sub-agent review (dispatched in both lanes), auto-rework loop (up to `{max_cycles}` cycles — the code-review.md Rework Budget knob, default 3 — with prioritized findings), and stop on exhaustion. Accepts `--force` to bypass the gate and `--light`/`--full` to force the lane. No `/fab-clarify` runs inside the bracket.
+**Purpose**: Fast-forward apply → review → hydrate (everything after intake). Gated on the single intake confidence gate (flat 3.0), with sub-agent review (dispatched in both lanes), auto-rework loop (up to `{max_cycles}` cycles — the code-review.md Rework Budget knob, default 3 — with prioritized findings), and stop on exhaustion. Accepts `--force` to bypass the gate and `--light`/`--full` to force the lane. No `/fab-clarify` runs inside the bracket. The bracket's PR Boundary Procedure runs at every stage boundary — the draft PR opens at apply exit, and the review-pass/hydrate boundaries push and sync its Meta block — so the run ends with an OPEN draft PR a later `/git-pr` finalizes.
 
 **Source ownership**: `_pipeline.md` owns the shared arguments, framing, output
-skeleton, Steps 1–3, and Stage Dispatch Procedure. `fab-ff.md` binds only the
-`fab-ff`/`hydrate` driver delta.
+skeleton, Steps 1–3, the Stage Dispatch Procedure, and the PR Boundary
+Procedure. `fab-ff.md` binds only the `fab-ff`/`hydrate` driver delta.
 
 **Context**: config, constitution, `intake.md`, target memory file(s) from `docs/memory/` (loaded once for the apply → hydrate run)
 
@@ -550,6 +550,7 @@ skeleton, Steps 1–3, and Stage Dispatch Procedure. `fab-ff.md` binds only the
 4. **On pass** — advance to hydrate
 5. **On fail** — auto-rework loop (up to `{max_cycles}` cycles, default 3): triage findings by priority, autonomously select rework path (fix code, revise plan, revise requirements), re-apply (light lane: inline; full lane — resume-first: continue the named `apply-{id}` worker on the native arm when reachable, else dispatch fresh), spawn fresh sub-agent for re-review. Escalation after 2 consecutive fix-code attempts. Stop after `{max_cycles}` failed cycles with summary.
 6. Hydrate into `docs/memory/` (inline in the light lane, dispatched in the full lane)
+7. **PR Boundary Procedure** (owned by `_pipeline.md`): the draft PR opens at apply exit (commit → rebase with pre-fetch lease-push → `gh pr create --draft` → `fab pr-sync`); the review-pass and hydrate boundaries commit + plain-push (no rebase) + `fab pr-sync`; the hydrate boundary also refreshes the memory indexes (`fab docs-index docs/memory`, separate commit). Rework cycles never push — one push lands when review passes.
 
 
 **Flow**:
@@ -568,7 +569,7 @@ User invokes /fab-ff [change-name] [--force]
 
 ## `/fab-fff` (Full Autonomous Pipeline)
 
-**Purpose**: Run the entire automated Fab pipeline — apply → review → hydrate → ship → review-pr — in a single invocation (everything after intake). Gated on the single intake confidence gate (flat 3.0, same as `/fab-ff`). No `/fab-clarify` runs inside the bracket. Autonomously reworks on review failure using sub-agent review with prioritized findings (`{max_cycles}`-cycle retry cap — code-review.md Rework Budget knob, default 3 — escalation after 2 consecutive fix-code failures). Accepts `--force` to bypass the gate and `--light`/`--full` to force the lane.
+**Purpose**: Run the entire automated Fab pipeline — apply → review → hydrate → ship → review-pr — in a single invocation (everything after intake). Gated on the single intake confidence gate (flat 3.0, same as `/fab-ff`). No `/fab-clarify` runs inside the bracket. Autonomously reworks on review failure using sub-agent review with prioritized findings (`{max_cycles}`-cycle retry cap — code-review.md Rework Budget knob, default 3 — escalation after 2 consecutive fix-code failures). Accepts `--force` to bypass the gate and `--light`/`--full` to force the lane. The draft PR opens at apply exit and is pushed/synced at the review-pass and hydrate boundaries (`_pipeline.md` § PR Boundary Procedure), so CI overlaps review and hydrate; the ship stage then finalizes the already-open PR.
 
 **Source ownership**: `_pipeline.md` owns shared framing and Steps 1–3;
 `fab-fff.md` owns only the `fab-fff`/`review-pr` binding plus the optional Linear link step, ship, and PR review.
@@ -600,10 +601,10 @@ User invokes /fab-ff [change-name] [--force]
 4. **Step 2 — Review**: Dispatch to review sub-agent (fresh context, prioritized findings — dispatched in BOTH lanes). On failure, triage findings by priority and autonomously select rework path (fix code, revise plan, revise requirements), then re-apply (light lane: inline; full lane — resume-first: continue the named `apply-{id}` worker on the native arm when reachable, else dispatch fresh). Re-review via fresh sub-agent. Retry up to `{max_cycles}` cycles (default 3; escalation after 2 consecutive fix-code). Bail with summary after `{max_cycles}` failed cycles.
 5. **Step 3 — Hydrate**: Hydrate into memory (inline in the light lane, dispatched in the full lane).
 6. **Step 3.5 — Link Linear Issue (optional)**: Run the `/fab-issue` behavior inline in BOTH lanes (no dispatch and no YAML stage resolution) — its gate chain skips gracefully (an unconfigured project sees zero behavior change), the promptless deferral applies, and a skip never blocks ship.
-7. **Step 4 — Ship**: Run `/git-pr` to commit, push, and create PR (dispatched in the full lane, inline in the light lane).
+7. **Step 4 — Ship**: Run `/git-pr` to commit, push, and create or finalize the PR (dispatched in the full lane, inline in the light lane).
 8. **Step 5 — Review-PR**: Run `/git-pr-review` to process PR review comments (dispatched in the full lane, inline in the light lane).
 
-**Key difference from `/fab-ff`**: The difference is scope only. `/fab-fff` extends through ship and review-pr (with the optional `/fab-issue` Linear link step before ship); `/fab-ff` stops at hydrate — it is deliberately NOT wired with the link step (no ship stage follows), so `/fab-ff` users run `/fab-issue` manually. Both have the identical single intake gate, no in-bracket clarify, and identical auto-rework (`{max_cycles}`-cycle cap with escalation, default 3). Both accept `--force` to bypass the gate, and both fork once at apply entry into the light/full lane on plan task count (≤ 5 → light), with `--light`/`--full` overrides.
+**Key difference from `/fab-ff`**: The difference is scope only. `/fab-fff` extends through ship and review-pr (with the optional `/fab-issue` Linear link step before ship); `/fab-ff` stops at hydrate — it is deliberately NOT wired with the link step (no ship stage follows), so `/fab-ff` users run `/fab-issue` manually, and an ff run ends with an OPEN draft PR (opened at apply exit by the bracket's PR Boundary Procedure) that a later `/git-pr` finalizes. Both have the identical single intake gate, no in-bracket clarify, and identical auto-rework (`{max_cycles}`-cycle cap with escalation, default 3). Both accept `--force` to bypass the gate, and both fork once at apply entry into the light/full lane on plan task count (≤ 5 → light), with `--light`/`--full` overrides.
 
 
 **Flow**:
@@ -693,14 +694,14 @@ User invokes /fab-proceed
 3. **Step 2 (state)**: `fab status skip {name} apply` (cascades downstream → skipped) then `fab status reset {name} review fab-adopt` (skipped → active, downstream → pending) — yields `apply=skipped, review=active`, **no Go change**; record the fact via `fab status set-summary`.
 4. **Step 3 — Review** (dispatched, `mode: diff-only` — the `_review.md` parameter): the orchestrator owns the verdict (pass incl. zero-findings best-effort → `finish review`; fail → auto-rework per `_pipeline.md` budget when autonomous, hand findings back when interactive).
 5. **Step 4 — Hydrate** (dispatched, verbatim per `_pipeline.md` Step 3): the permanent-loss recovery — `docs/memory/` finally reflects what shipped → `finish hydrate`.
-6. **Step 5 — Ship**: `/git-pr {name}` retrofits `## Meta` onto the OPEN PR (its Step 3d, gated on body-lacks-`## Meta`) or creates the PR fresh when `none`; `finish ship` auto-activates review-pr.
+6. **Step 5 — Ship**: `/git-pr {name}` syncs `## Meta` on the OPEN PR (its Step 3d, delegated to `fab pr-sync` — marker splice, no-op when current) or creates the PR fresh when `none`; `finish ship` auto-activates review-pr.
 7. **Step 6**: land in review-pr; print the honest-state summary and `Next: /git-pr-review`.
 
 **Key properties**:
 - Only **apply** is `skipped`; every other stage runs for real (just late)
 - Diff-only review via the general `mode` parameter on `_review.md` — not an adopt-specific branch
-- State composed from existing `skip`/`reset` transitions; PR Meta retrofit reuses `fab pr-meta` + `gh pr edit` — **no Go change**
-- Idempotent guards: re-run after the change is created routes to `/fab-continue` via the collision guard; the Meta retrofit is body-gated
+- State composed from existing `skip`/`reset` transitions; the PR Meta sync delegates to `fab pr-sync` — **no adopt-specific Go change**
+- Idempotent guards: re-run after the change is created routes to `/fab-continue` via the collision guard; the Meta sync no-ops on a current block
 
 
 **Flow**:
@@ -712,7 +713,7 @@ User invokes /fab-adopt [<slug>]
 ├─ Bash: fab status skip apply / reset review / set-summary
 ├─ Review (dispatched, mode: diff-only): pass → finish review / fail → auto-rework or hand back
 ├─ Hydrate (dispatched) → finish hydrate
-├─ Ship: dispatch /git-pr {name} (retrofit existing PR or fresh PR)
+├─ Ship: dispatch /git-pr {name} (sync Meta on existing PR or fresh PR)
 └─ Land in review-pr → summary + Next: /git-pr-review
 ```
 
@@ -1428,7 +1429,7 @@ User invokes /code-dedupe [scope]
 
 ## `/git-pr [<change>] [<type>]`
 
-**Purpose**: Autonomously commit, push, and create a draft GitHub PR. No questions, no prompts. Covers stage 5 (Ship) of the pipeline.
+**Purpose**: Autonomously commit, push, and create or finalize a draft GitHub PR. No questions, no prompts. Covers stage 5 (Ship) of the pipeline. When the bracket already opened the draft PR at apply exit (`_pipeline.md` § PR Boundary Procedure), ship finalizes it — rebase, push, Meta sync via `fab pr-sync`, `fab status add-pr` — instead of creating.
 
 **Arguments** (both optional, in any order — classified by value):
 - `[<change>]` *(optional)* — explicit change to target instead of the active one: any argument that is NOT one of the 7 PR types. Resolved transiently (`.fab-status.yaml` untouched); an explicit argument that fails to resolve STOPs (caller error — never a silent fallback to the active change). Pass the change folder name, not a bare 4-char id: an id spelling a type word (`feat`, `docs`, `test`) would be classified as a type.
@@ -1456,7 +1457,7 @@ User invokes /code-dedupe [scope]
 - Requires `gh` CLI authenticated (`gh auth login`)
 - Stops immediately on `main`/`master` branch — run `/git-branch` first
 - Branch-matches-change guard: when a change is resolved, the current branch must equal its folder name (or contain it as a substring) — a mismatch STOPs before any status mutation, commit, or push; no autonomous checkout
-- Idempotent — skips steps already done (no PR created if one exists)
+- Idempotent — skips steps already done (no PR created if one exists; `fab pr-sync` no-ops on a current Meta block)
 - Marks the `ship` stage done, auto-activates `review-pr`
 
 **Context**: Does not require an active fab change — works as a standalone git tool. With an active change, reads `intake.md` for PR title/summary.
@@ -1473,11 +1474,11 @@ User invokes /code-dedupe [scope]
 ├─ 3a Commit: expected-area guard for untracked files → git add -u + in-area untracked → commit
 ├─ 3a-bis (if {has_fab} + committed): Bash: fab docs-index docs/memory → commit docs/memory drift (no --amend)
 ├─ 3a-ter Rebase: capture upstream OID → git fetch origin → STOP if origin/<branch> moved → git rebase origin/$base_branch (missing ref → warn + skip; unclear conflict → abort + STOP); 3b Push (--force-with-lease=<branch>:<pre-fetch OID> after a rebase); 3c Create PR (no OPEN PR): Read intake → Bash: fab pr-meta → ## Meta block → gh pr create --draft --base <base_branch> (--fill fallback; base = recorded base_branch, else default branch)
-├─ 3d Retrofit ## Meta onto existing OPEN PR (idempotent prepend)
+├─ 3d Sync ## Meta on existing OPEN PR via fab pr-sync (marker-delimited splice — refreshes a stale block, adopts a pre-marker bare ## Meta in place; no-op when current)
 └─ 4a–4c: fab status add-pr + finish ship stage; commit + push .status.yaml/.history.jsonl
 ```
 
-**Tools**: Read (intake — PR title, Summary, Changes), Bash (git, gh, fab status; `fab pr-meta` renders the entire `## Meta` block — self-contained; non-zero/empty → Meta omitted).
+**Tools**: Read (intake — PR title, Summary, Changes), Bash (git, gh, fab status; `fab pr-meta` renders the entire marker-wrapped `## Meta` block — self-contained; non-zero/empty → Meta omitted; `fab pr-sync` owns the refresh on existing PRs).
 
 **Sub-agents**: None.
 

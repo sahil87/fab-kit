@@ -1,6 +1,6 @@
 ---
 name: _pipeline
-description: "Shared ff/fff pipeline bracket — intake gate, inline plan co-gen at apply entry with the one-time light/full lane fork on task count (light lane runs apply/hydrate inline; review stays dispatched in both lanes), apply → review → hydrate steps, auto-rework loop with explicit per-cycle choreography (cycle cap from code-review.md Rework Budget, default 3), and the exhaustion stop. Parameterized by driver name and terminal stage. Full bracket used by /fab-ff and /fab-fff; /fab-adopt is a partial consumer (reuses the auto-rework loop + hydrate dispatch, not the full bracket)."
+description: "Shared ff/fff pipeline bracket — intake gate, inline plan co-gen at apply entry with the one-time light/full lane fork on task count (light lane runs apply/hydrate inline; review stays dispatched in both lanes), apply → review → hydrate steps, auto-rework loop with explicit per-cycle choreography (cycle cap from code-review.md Rework Budget, default 3), the exhaustion stop, and the PR Boundary Procedure (draft PR opens at apply exit; review-pass/hydrate boundaries commit + plain-push + Meta sync). Parameterized by driver name and terminal stage. Full bracket used by /fab-ff and /fab-fff; /fab-adopt is a partial consumer (reuses the auto-rework loop + hydrate dispatch, not the full bracket)."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -22,6 +22,7 @@ metadata:
 - Pre-flight
 - Context Loading
 - Behavior
+- PR Boundary Procedure
 - Light Lane
 - Shared Error Handling
 
@@ -98,6 +99,33 @@ For every apply, review, and hydrate dispatch below:
 4. Read the returned result; the bracket remains the pure sequencer and owns every `finish`/`fail`/`reset` transition.
 5. For review, resolve once for the single review worker and include `change_type` from `.status.yaml` in the prompt.
 
+### PR Boundary Procedure
+
+This section **owns** every PR-side action at a stage boundary — the drivers (`fab-ff.md`, `fab-fff.md`, `fab-continue.md`) point here and never restate these mechanics (owner-or-pointer, `fab/project/code-quality.md` § Anti-Patterns). The commit/rebase/push/create mechanics themselves stay owned by `git-pr.md`; this procedure references its steps. Two boundary kinds:
+
+**Apply-exit open** (runs once, immediately after Step 1's `finish apply`):
+
+0. Skip the whole open when `gh pr view` already shows an OPEN PR for the branch (a resume where the open already landed — Constitution III).
+1. Commit the apply output per `git-pr.md` Step 3a (expected-area guard included). Clean tree → no commit.
+2. Rebase + push per `git-pr.md` Steps 3a-ter/3b. This open and the ship stage are the **only** two sites that rebase — the pre-fetch lease discipline applies verbatim: `{lease_oid}` captured **before** `git fetch origin`, the push uses the explicit `--force-with-lease="<branch>:<lease_oid>"` form (never the bare flag), and the remote-branch divergence guard STOPs the run without rewriting history.
+3. Create the draft PR per `git-pr.md` Step 3c (`gh pr create --draft --base "$base_branch"` with the `fab pr-meta` body assembly; `$base_branch` resolved per `git-pr.md` Step 1).
+4. Sync the Meta block: `fab pr-sync {name} --type {type} [--issues …]` (`_cli-fab.md` § fab pr-sync) — immediately after create this is normally a no-op.
+
+**Review-pass / hydrate boundaries** (after the stage's `finish` transition):
+
+1. Commit new work per `git-pr.md` Step 3a. Clean tree → no commit AND no push.
+2. At the **hydrate** boundary only: refresh the memory indexes per `git-pr.md` Step 3a-bis (the separate `docs: refresh memory indexes` commit, the empty-commit guard, and the never-hand-merge rule all apply verbatim) — hydrate is the stage that writes `docs/memory/`, so the refresh lives at this boundary; `git-pr.md`'s own ship-time run stays as the idempotent backstop.
+3. Plain `git push` — NO rebase, NO `--force-with-lease` of any form.
+4. Sync the Meta block: `fab pr-sync {name} --type {type} [--issues …]`.
+
+**Rules:**
+
+- Pushes fire at stage boundaries only. An auto-rework cycle inside review NEVER pushes; the push happens once, when review finally passes.
+- The apply-exit open is a non-stage orchestrator step: it MUST NOT touch `progress.ship` or any `stage_metrics` entry. The `ship` stage keeps running `/git-pr` verbatim — it finds the OPEN PR, rebases, pushes, syncs Meta, and finalizes (`fab status add-pr`, `finish ship`).
+- Orchestrator-owned in both lanes. Full lane: the orchestrator commits, pushes, and syncs AFTER reading the dispatched worker's result, before the next dispatch. Light lane: the same steps run inline. Stage workers gain no git/`gh`/`fab pr-sync` obligation — dispatch prompts never name them.
+- Fail fast: a failed commit, rebase-guard STOP, push, or PR create aborts the run with the git/gh error (mirroring `git-pr.md` § Rules).
+- Intermediate CI runs triggered by these pushes are deliberate signal — never suppress them.
+
 ### Resumability
 
 Check `progress` from preflight. Skip stages already `done`. If `{terminal}: done`, the pipeline is already complete. If `progress.review` is `failed` (a prior exhaustion stop or an interrupted fail→reset sequence), run `fab status start <change> review` first — the review-specific failed→active transition — then resume from Step 2.
@@ -120,7 +148,7 @@ No `/fab-clarify` runs here. Under-specified requirements are resolved inline as
 
 **If task fails**: STOP with `Task {ID} failed: {reason}. Investigate and re-run /{driver} <change>.`
 
-On success (either lane): run `fab status finish <change> apply {driver}`.
+On success (either lane): run `fab status finish <change> apply {driver}`, then run the **apply-exit open** of § PR Boundary Procedure (draft PR created here; `progress.ship` untouched).
 
 ### Light Lane
 
@@ -136,7 +164,7 @@ The lane decision is Step 1's one-time fork; this section owns the light-lane ex
 
 Run the Stage Dispatch Procedure for `review`, targeting `/fab-continue` Review Behavior for `{id}`. The single worker reads `_review.md`, runs both checklists inline, and returns one structured findings set (must-fix / should-fix / nice-to-have) with a pass/fail verdict.
 
-**Pass**: run `fab status finish <change> review {driver}`. Proceed to Step 3 (Hydrate).
+**Pass**: run `fab status finish <change> review {driver}`, then run the **review-pass boundary** of § PR Boundary Procedure. Proceed to Step 3 (Hydrate).
 
 **Fail**: enter the Auto-Rework Loop below.
 
@@ -156,7 +184,7 @@ The agent triages the sub-agent's prioritized findings and autonomously selects 
 2. **Triage + rework action**: triage the prioritized findings, select exactly one path per the decision heuristics below, and apply its edits (uncheck tasks / edit `plan.md` / edit `## Requirements`).
 3. **Re-dispatch apply (resume-first)** — **FULL lane**: reach the existing apply worker when there is one, by the arm's own mechanism — the native handle `apply-{id}` from **this** orchestrator session, or the still-live apply **pane** delivered into with `fab dispatch deliver <change> apply --prompt-file …`. Both are owned by `_preamble.md` § Worker Continuation (naming, the continuation prompt's content rules, block-contract restatement, profile fixity, and the fallback). Otherwise run the Stage Dispatch Procedure for `apply` with the Step 1 target — today's behavior verbatim, and the mandatory fallback in every unreachable case § Worker Continuation enumerates. `/fab-adopt`'s partial consumption of this loop always runs this FULL branch (adoption has no lane fork). **LIGHT lane**: run the rework inline in this orchestrator's own context per § Light Lane (no dispatch, no continuation — the orchestrator is the apply author). **Either way**, on success run `fab status finish <change> apply {driver}` — this auto-activates review (review → `active`), the **one** counted transition that advances `stage_metrics.review.iterations` for this cycle (`status.go:627`). Re-entering review here via `finish apply` (not `reset review`, not any non-`active` path) is what makes the cycle count truthfully; this `finish apply` MUST run every cycle, even when item 2 was a trivial fix.
 4. **Fresh re-review**: run the Stage Dispatch Procedure for `review` with the Step 2 target in a **fresh** worker. Never reuse a prior review worker's context.
-5. **Verdict**: pass → run `fab status finish <change> review {driver}` and proceed to Step 3. Fail → if fewer than `{max_cycles}` cycles have run, start the next cycle at item 1 (the fail+reset pair fires again); after the `{max_cycles}`-th failed cycle, stop per **Stop** below.
+5. **Verdict**: pass → run `fab status finish <change> review {driver}`, then run the **review-pass boundary** of § PR Boundary Procedure (the one push for the whole rework run — cycles themselves never push), and proceed to Step 3. Fail → if fewer than `{max_cycles}` cycles have run, start the next cycle at item 1 (the fail+reset pair fires again); after the `{max_cycles}`-th failed cycle, stop per **Stop** below.
 
 **Worker release** (FULL lane only — the light lane has no apply worker): once review passes (item 5's `finish review`) or the loop stops at exhaustion, the orchestrator STOPS continuing the apply worker — never message it again. On the **native** arm release is passive: no teardown call exists or is needed, the handle is simply never used. On the **pane** arm this moment is the one `_preamble.md` § CLI-Adapter Dispatch step 3 deferred the apply reap to precisely so the pane could be resumed — take the reap action there, including its arm gate, rather than any restatement here. Hydrate (Step 3) and every later stage always dispatch a fresh worker.
 
@@ -187,7 +215,7 @@ Run /fab-continue <change> for manual rework options.
 
 **LIGHT lane**: run `/fab-continue` Hydrate Behavior for `{id}` inline per § Light Lane (no dispatch, no `fab agent hydrate -o yaml` resolution). **FULL lane**: run the Stage Dispatch Procedure for `hydrate`, targeting `/fab-continue` Hydrate Behavior for `{id}`. Either way the behavior validates review passed, hydrates `docs/memory/`, and returns completion status.
 
-On success: run `fab status finish <change> hydrate {driver}`.
+On success: run `fab status finish <change> hydrate {driver}`, then run the **hydrate boundary** of § PR Boundary Procedure.
 
 When `{terminal}` is `hydrate`, the pipeline is complete here. When `{terminal}` is `review-pr`, continue with the driver's own Steps 3.5–5 (`fab-fff.md`).
 

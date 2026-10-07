@@ -25,7 +25,7 @@ helpers: [_srad, _generation, _review, _pipeline]
 
 Bring a **completed-but-off-pipeline** change into the Fab pipeline. The trigger is mid-flight adoption (scenario B): a feature branch whose code was authored **without** fab, with an **OPEN PR or no PR yet** — typically after a reviewer points out "you skipped fab-kit and might have missed a few checks."
 
-Of the six stages, exactly one — **apply** — cannot meaningfully re-run on an adopted change (the code already exists; there is nothing to generate). Every other stage *can* run for real, just *late*: intake reconstructed from the diff, review run on the diff before merge, hydrate writing memory before merge, ship retrofitting the PR decoration, review-pr resuming normally. So `/fab-adopt` is **not** a parallel "fake pipeline" — it is the *real* pipeline entered late, with apply skipped.
+Of the six stages, exactly one — **apply** — cannot meaningfully re-run on an adopted change (the code already exists; there is nothing to generate). Every other stage *can* run for real, just *late*: intake reconstructed from the diff, review run on the diff before merge, hydrate writing memory before merge, ship refreshing the PR's Meta block, review-pr resuming normally. So `/fab-adopt` is **not** a parallel "fake pipeline" — it is the *real* pipeline entered late, with apply skipped.
 
 `/fab-adopt` is a thin orchestrator: it reuses existing skills/procedures as sub-agents (the `/fab-proceed` / `/fab-ff` pattern) and introduces only what is genuinely new (the diff→intake and thin diff→plan procedures in `_generation.md`, and `_review.md`'s `diff-only` mode).
 
@@ -112,9 +112,9 @@ The adopt-specific delta is **`mode: diff-only`** (`_review.md`): omit plan-conf
 
 Reuse `_pipeline.md` Step 3 and its Stage Dispatch Procedure. This is the permanent-loss recovery — `docs/memory/` finally reflects what shipped. On success: `fab status finish {name} hydrate {driver}`.
 
-### Step 5 — Ship (retrofit Meta onto the existing PR)
+### Step 5 — Ship (refresh Meta on the existing PR)
 
-Dispatch `/git-pr {name}` (pass the **folder name**, not a bare id). Because the PR is OPEN (or `none`), `/git-pr` takes its existing-PR path (or creates the PR fresh when `pr_state == none`). Its **Step 3d body-retrofit** injects the `## Meta` block when the open PR's body lacks one (idempotent — gated on body-lacks-`## Meta`). `/git-pr` runs `finish ship` itself (best-effort), which auto-activates review-pr.
+Dispatch `/git-pr {name}` (pass the **folder name**, not a bare id). Because the PR is OPEN (or `none`), `/git-pr` takes its existing-PR path (or creates the PR fresh when `pr_state == none`). Its **Step 3d Meta sync** delegates to `fab pr-sync`, which refreshes the open PR's `## Meta` block in place — splicing between the markers, or adopting a pre-marker bare `## Meta` section rather than duplicating it (idempotent — a no-op when the block is already current). `/git-pr` runs `finish ship` itself (best-effort), which auto-activates review-pr.
 
 ### Step 6 — Land in review-pr
 
@@ -129,7 +129,7 @@ Adopted {name}.
   apply     — skipped (code authored off-pipeline)
   review    ✓ ran (diff-only)
   hydrate   ✓ ran (docs/memory/ updated)
-  ship      ✓ ran (## Meta retrofitted onto the PR)
+  ship      ✓ ran (## Meta synced onto the PR)
   review-pr → active
 
 Only apply is skipped; every other stage genuinely ran (just late, after the code was written).
@@ -155,7 +155,7 @@ apply → skipped, review → active
 {hydrate output}
 
 --- Ship ---
-{git-pr output, incl. Meta retrofit}
+{git-pr output, incl. Meta sync}
 
 {honest-state summary}
 
@@ -185,8 +185,8 @@ Next: /git-pr-review
 
 | Property | Value |
 |----------|-------|
-| Idempotent? | Partially — Step 0 guards STOP cleanly before any mutation; the collision guard makes a re-run after the change is created route to `/fab-continue` rather than re-create. The dispatched stages (review/hydrate/ship) are themselves resumable/idempotent, and the Step 5 Meta retrofit is gated on body-lacks-`## Meta` |
+| Idempotent? | Partially — Step 0 guards STOP cleanly before any mutation; the collision guard makes a re-run after the change is created route to `/fab-continue` rather than re-create. The dispatched stages (review/hydrate/ship) are themselves resumable/idempotent, and the Step 5 Meta sync (`fab pr-sync`) no-ops when the block is already current |
 | Advances stage? | Yes — reconstructs intake, marks apply `skipped`, then runs review → hydrate → ship → review-pr via existing transitions |
 | Modifies `.fab-status.yaml`? | Yes — activates the reconstructed change (Step 1) |
-| Modifies git state? | Indirectly — Step 5's `/git-pr` commits/pushes the reconstructed `fab/` artifacts and retrofits the PR body; `/fab-adopt` makes no commit itself |
-| Go change? | None — state composed from existing `skip`/`reset` transitions; Meta retrofit reuses `fab pr-meta` + `gh pr edit` |
+| Modifies git state? | Indirectly — Step 5's `/git-pr` commits/pushes the reconstructed `fab/` artifacts and syncs the PR body's Meta block; `/fab-adopt` makes no commit itself |
+| Go change? | None — state composed from existing `skip`/`reset` transitions; Meta sync delegates to `fab pr-sync` |
