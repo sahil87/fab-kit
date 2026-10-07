@@ -654,3 +654,220 @@ func TestGather_OriginHeadOnlyHasImpact(t *testing.T) {
 		t.Errorf("expected non-zero impact.added, got %d", d.Impact.Added)
 	}
 }
+
+// --- Marker contract + Splice (gyp9) ---
+
+// TestRender_Markers pins the marker contract: Render's output begins with the
+// start marker, ends with the end marker (no trailing newline, so Splice stays
+// byte-idempotent), and the content between them is the byte-identical
+// pre-marker block.
+func TestRender_Markers(t *testing.T) {
+	got := Render(baseData())
+
+	if !strings.HasPrefix(got, metaStart+"\n") {
+		t.Errorf("render must begin with the start marker, got prefix %q", got[:40])
+	}
+	if !strings.HasSuffix(got, "\n"+metaEnd) {
+		t.Errorf("render must end with the end marker, got suffix %q", got[len(got)-40:])
+	}
+
+	between := got[len(metaStart)+1 : len(got)-len("\n"+metaEnd)]
+	if !strings.HasPrefix(between, "## Meta\n\n| Change ID | Type") {
+		t.Errorf("content between markers must open with the Meta heading + table, got:\n%s", between)
+	}
+	if !strings.Contains(between, "**Pipeline:**") {
+		t.Errorf("content between markers must end in the Pipeline line, got:\n%s", between)
+	}
+	if strings.Contains(between, metaStart) || strings.Contains(between, metaEnd) {
+		t.Errorf("markers must not nest inside the block, got:\n%s", between)
+	}
+}
+
+// spliceFixture returns a freshly rendered block for the splice cases.
+func spliceFixture() string {
+	return Render(baseData())
+}
+
+// TestSplice covers the three input shapes (marked replace, unmarked adoption,
+// absent prepend), byte-preservation of surrounding prose, and idempotency.
+func TestSplice(t *testing.T) {
+	rendered := spliceFixture()
+	// A stale marked block: same markers, older content (pre-change counts).
+	stale := metaStart + "\n## Meta\n\n| Change ID | Type | Confidence | Plan | Review |\n" +
+		"|-----------|------|------------|------|--------|\n" +
+		"| `rj31` | feat | 4.2/5.0 | 0/8 tasks, 0/9 acceptance | — |\n\n" +
+		"**Pipeline:** intake ✓ → apply → review → hydrate → ship → review-pr\n" + metaEnd
+
+	const prose = "## Summary\n\nHand-edited prose the sync must never touch.\n"
+
+	t.Run("marked body: replace between markers, prose byte-identical", func(t *testing.T) {
+		body := stale + "\n\n" + prose
+		got := Splice(body, rendered)
+		want := rendered + "\n\n" + prose
+		if got != want {
+			t.Errorf("splice =\n%q\nwant\n%q", got, want)
+		}
+		if strings.Contains(got, "0/8 tasks") {
+			t.Error("stale content survived the splice")
+		}
+	})
+
+	t.Run("unmarked body: bare ## Meta adopted in place, not duplicated", func(t *testing.T) {
+		unmarked := "## Meta\n\n| Change ID | Type |\n|---|---|\n| `old1` | feat |\n"
+		body := unmarked + "\n" + prose
+		got := Splice(body, rendered)
+		want := rendered + "\n\n" + prose
+		if got != want {
+			t.Errorf("adoption =\n%q\nwant\n%q", got, want)
+		}
+		if strings.Count(got, metaHeading) != 1 || strings.Count(got, metaStart) != 1 {
+			t.Errorf("adoption duplicated the Meta block, got:\n%s", got)
+		}
+	})
+
+	t.Run("unmarked body with leading content: prefix preserved", func(t *testing.T) {
+		body := "# PR title\n\n## Meta\n\nold stuff\n\n## Summary\n\nx\n"
+		got := Splice(body, rendered)
+		want := "# PR title\n\n" + rendered + "\n\n## Summary\n\nx\n"
+		if got != want {
+			t.Errorf("adoption =\n%q\nwant\n%q", got, want)
+		}
+	})
+
+	t.Run("unmarked Meta as last section", func(t *testing.T) {
+		body := "## Summary\n\nx\n\n## Meta\n\nold stuff\n"
+		got := Splice(body, rendered)
+		want := "## Summary\n\nx\n\n" + rendered
+		if got != want {
+			t.Errorf("adoption =\n%q\nwant\n%q", got, want)
+		}
+	})
+
+	t.Run("no Meta at all: block prepended ahead of the body", func(t *testing.T) {
+		body := prose
+		got := Splice(body, rendered)
+		want := rendered + "\n\n" + prose
+		if got != want {
+			t.Errorf("prepend =\n%q\nwant\n%q", got, want)
+		}
+	})
+
+	t.Run("empty body", func(t *testing.T) {
+		if got := Splice("", rendered); got != rendered {
+			t.Errorf("empty-body splice = %q, want the rendered block", got)
+		}
+	})
+
+	t.Run("idempotent on every input shape", func(t *testing.T) {
+		bodies := map[string]string{
+			"marked":   stale + "\n\n" + prose,
+			"unmarked": "## Meta\n\nold\n\n" + prose,
+			"absent":   prose,
+			"empty":    "",
+		}
+		for name, body := range bodies {
+			once := Splice(body, rendered)
+			twice := Splice(once, rendered)
+			if twice != once {
+				t.Errorf("%s: second splice diverged\nfirst:\n%q\nsecond:\n%q", name, once, twice)
+			}
+		}
+	})
+
+	t.Run("pure function: same inputs, same output", func(t *testing.T) {
+		body := stale + "\n\n" + prose
+		if Splice(body, rendered) != Splice(body, rendered) {
+			t.Error("Splice is not deterministic")
+		}
+	})
+
+	t.Run("fence-aware: a ## line inside a fence does not end the span", func(t *testing.T) {
+		// A hand-edited Meta region that quotes markdown. The fenced `## Notes`
+		// must not be read as the next section, or the tail survives the splice.
+		body := "## Meta\n\nold table\n\n```markdown\n## Notes\nmore old meta\n```\n\n" + prose
+		got := Splice(body, rendered)
+		want := rendered + "\n\n" + prose
+		if got != want {
+			t.Errorf("fenced splice =\n%q\nwant\n%q", got, want)
+		}
+		if strings.Contains(got, "more old meta") {
+			t.Error("stale fenced Meta tail survived the splice")
+		}
+	})
+
+	t.Run("fence-aware: a ## Meta inside a fence is not the section start", func(t *testing.T) {
+		body := "# PR title\n\n```markdown\n## Meta\nquoted example\n```\n\n## Meta\n\nreal old meta\n\n" + prose
+		got := Splice(body, rendered)
+		if strings.Contains(got, "real old meta") {
+			t.Error("the real Meta section was not replaced")
+		}
+		if !strings.Contains(got, "quoted example") {
+			t.Error("the fenced example was clobbered")
+		}
+		if strings.Count(got, metaStart) != 1 {
+			t.Errorf("expected exactly one start marker, got:\n%s", got)
+		}
+	})
+
+	t.Run("dangling start marker is absorbed, not doubled", func(t *testing.T) {
+		// A truncated body: start marker present, end marker lost.
+		body := metaStart + "\n## Meta\n\ntruncated old meta\n\n" + prose
+		got := Splice(body, rendered)
+		if strings.Count(got, metaStart) != 1 {
+			t.Errorf("orphaned start marker was not absorbed, got:\n%s", got)
+		}
+		if strings.Contains(got, "truncated old meta") {
+			t.Error("truncated Meta content survived the splice")
+		}
+		if !strings.Contains(got, prose) {
+			t.Error("prose did not survive")
+		}
+	})
+
+	t.Run("fence-aware paths stay idempotent", func(t *testing.T) {
+		for _, body := range []string{
+			"## Meta\n\nold\n\n```markdown\n## Notes\nx\n```\n\n" + prose,
+			metaStart + "\n## Meta\n\ntruncated\n\n" + prose,
+		} {
+			once := Splice(body, rendered)
+			if twice := Splice(once, rendered); twice != once {
+				t.Errorf("not idempotent:\nonce  =%q\ntwice =%q", once, twice)
+			}
+		}
+	})
+
+	t.Run("fence-aware: a fenced start-marker example does not pair with the real end marker", func(t *testing.T) {
+		// Human-authored prose quoting the marker convention inside a fence,
+		// sitting BEFORE the real marked Meta block. A raw substring search
+		// would pair the fenced example with the real end marker and delete
+		// everything between them.
+		body := "## Notes\n\n```markdown\n" + metaStart + "\nquoted example\n```\n\n" + stale + "\n\n" + prose
+		got := Splice(body, rendered)
+		want := "## Notes\n\n```markdown\n" + metaStart + "\nquoted example\n```\n\n" + rendered + "\n\n" + prose
+		if got != want {
+			t.Errorf("splice =\n%q\nwant\n%q", got, want)
+		}
+		if strings.Contains(got, "0/8 tasks") {
+			t.Error("stale content survived the splice")
+		}
+		if !strings.Contains(got, "quoted example") {
+			t.Error("the fenced example was clobbered")
+		}
+	})
+
+	t.Run("fence-aware: a fenced end marker is not the span end", func(t *testing.T) {
+		// A real marked block whose stale content quotes the end marker inside
+		// a fence. The span must run to the REAL unfenced end marker, not stop
+		// at the fenced quote.
+		body := metaStart + "\n## Meta\n\nold meta\n\n```\n" + metaEnd + "\n```\n\nmore old meta\n" + metaEnd + "\n\n" + prose
+		got := Splice(body, rendered)
+		want := rendered + "\n\n" + prose
+		if got != want {
+			t.Errorf("splice =\n%q\nwant\n%q", got, want)
+		}
+		if strings.Contains(got, "more old meta") {
+			t.Error("stale content past the fenced end-marker quote survived the splice")
+		}
+	})
+
+}

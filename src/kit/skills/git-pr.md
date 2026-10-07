@@ -1,6 +1,6 @@
 ---
 name: git-pr
-description: "Autonomously commit, push, and create a draft GitHub PR — no prompts, no questions."
+description: "Autonomously commit, push, and create or finalize a draft GitHub PR — no prompts, no questions."
 allowed-tools: Bash(git:*), Bash(gh:*)
 ---
 
@@ -155,7 +155,7 @@ If the MERGED STOP did not fire, run each step in order, skipping steps that are
 
 Nothing to do.
 ```
-Before stopping, run **Step 3d** (Meta retrofit — the body may still lack `## Meta` even when the code is already shipped), then attempt to record the existing PR URL per Steps 4a–4c (silently, no errors). Then STOP. (Step 3d is itself idempotent — a body that already has `## Meta` is a no-op — so the "already shipped" path stays a clean re-run.)
+Before stopping, run **Step 3d** (Meta sync — the body may still carry a stale or unmarked `## Meta` even when the code is already shipped), then attempt to record the existing PR URL per Steps 4a–4c (silently, no errors). Then STOP. (Step 3d is itself idempotent — `fab pr-sync` is a no-op when the body's Meta region is already current — so the "already shipped" path stays a clean re-run.)
 
 **Otherwise**, print the header and execute:
 
@@ -210,7 +210,7 @@ fi
 
 Print (ONLY when a follow-up commit was actually made): `  ✓ commit — "docs: refresh memory indexes"`
 
-> **Why here, why gated.** Ship is the first stage where `git log` can project the change's content commit into freeze-on-write `log.md`; hydrate is pre-commit. This sub-step makes no push (3b pushes both commits) and is a silent no-op when `{has_fab}` is false.
+> **Why here, why gated.** The hydrate boundary (`_pipeline.md` § PR Boundary Procedure) is the primary memory-index refresh site — hydrate is the stage that writes `docs/memory/`. This ship-time run is retained as the idempotent **backstop** (byte-stable; a no-op when nothing drifted) for ships that did not pass through a bracket hydrate boundary — standalone `/git-pr`, `/fab-adopt`, pre-bracket changes. This sub-step makes no push (3b pushes both commits) and is a silent no-op when `{has_fab}` is false.
 
 #### 3a-ter. Rebase onto Base (if has_unpushed or just committed)
 
@@ -288,7 +288,7 @@ Print: `  ✓ push   — origin/<branch>`
    META=$(fab pr-meta "{name}" --type {type} --issues "{issues}" 2>/dev/null) || META=""
    ```
 
-   - If exit 0 and `META` is non-empty: the `## Meta` block is `$META` **verbatim** — do not reformat, re-wrap, or re-derive any of it.
+   - If exit 0 and `META` is non-empty: the `## Meta` block is `$META` **verbatim** — do not reformat, re-wrap, or re-derive any of it. The block is wrapped in `<!-- fab pr-meta:start -->` / `<!-- fab pr-meta:end -->` markers; they are what a later `fab pr-sync` refresh splices between (Step 3d, `_pipeline.md` § PR Boundary Procedure), so they MUST survive into the PR body untouched.
    - If exit non-zero or `META` is empty (no fab context, change unresolved, or `.status.yaml` absent): omit the `## Meta` block entirely, exactly as the legacy `{has_fab} = false` path did.
 
    `fab pr-meta` degrades gracefully on its own: an unreachable `gh` falls back to plain-text Pipeline labels, and a missing/failed merge-base or a `+0/−0` `true` diff drops only the Impact block — none of these break the block or the PR.
@@ -309,6 +309,8 @@ Print: `  ✓ push   — origin/<branch>`
 
    When `{has_fab}` is false (or `$META` is empty), the body becomes just `## Summary` + `## Changes` (or just `## Summary` if no intake exists).
 
+   `## Summary` and `## Changes` are authored **once**, here at create — `fab pr-sync` refreshes only the marker-delimited Meta region and never re-authors them.
+
    **Summary text**: 1–3 sentences. Source:
    - If `{has_fab}` AND `{has_intake}`: derive from intake's `## Why` section.
    - Otherwise: auto-generate from commit messages or `git diff --stat`.
@@ -326,33 +328,29 @@ Print: `  ✓ push   — origin/<branch>`
 
 Print: `  ✓ pr     — <PR URL>`
 
-**If an OPEN PR already exists** (from Step 1), just print: `  ✓ pr     — <existing PR URL> (existing)`, then run **Step 3d** (Meta retrofit).
+**If an OPEN PR already exists** (from Step 1), just print: `  ✓ pr     — <existing PR URL> (existing)`, then run **Step 3d** (Meta sync).
 
-#### 3d. Retrofit `## Meta` onto an existing OPEN PR (if `{has_fab}` AND an OPEN PR already existed)
+#### 3d. Sync `## Meta` on an existing OPEN PR (if `{has_fab}` AND an OPEN PR already existed)
 
-`/git-pr` injects `## Meta` only on PR **create** (Step 3c). An OPEN PR authored off-pipeline (or created before fab adopted this branch) therefore has a body with **no `## Meta` block**. This sub-step closes that gap — it is the ship-stage Meta retrofit `/fab-adopt` relies on, but it is general: any OPEN-PR ship benefits.
+`/git-pr` injects `## Meta` only on PR **create** (Step 3c). An OPEN PR — authored off-pipeline, opened early by the pipeline's apply-exit open (`_pipeline.md` § PR Boundary Procedure), or created before this branch carried markers — can carry a **stale or unmarked** Meta block. This sub-step refreshes it via `fab pr-sync`; it is the ship-stage Meta sync `/fab-adopt` relies on, but it is general: any OPEN-PR ship benefits.
 
 Gated on BOTH — skip the entire sub-step otherwise:
 
 - `{has_fab}` (Step 0) is true, AND
-- the PR was **already OPEN** at Step 1 (`pr_state` = `OPEN`) — i.e. Step 3c did NOT just create it (a freshly created PR already carries `## Meta` from 3c, so retrofitting would be redundant).
+- the PR was **already OPEN** at Step 1 (`pr_state` = `OPEN`) — i.e. Step 3c did NOT just create it (a freshly created PR already carries the current `## Meta` from 3c, so syncing would be redundant).
 
-When both hold:
+When both hold, delegate the whole render → splice → compare → apply dance to `fab pr-sync` (`_cli-fab.md` § fab pr-sync) — same `{name}`, resolved `{type}`, space-joined `{issues}`:
 
-1. Fetch the current PR body into `existing_body`: `existing_body=$(gh pr view --json body -q '.body')`.
-2. **Idempotency guard**: if the body already contains a `## Meta` heading, make **no** edit — print nothing and continue (a second run is a no-op; Constitution III).
-3. Otherwise render the Meta block via `fab pr-meta` (reusing Step 3c's mechanism — same `{name}`, resolved `{type}`, space-joined `{issues}`):
-   ```bash
-   META=$(fab pr-meta "{name}" --type {type} --issues "{issues}" 2>/dev/null) || META=""
-   ```
-   - If exit non-zero or `META` is empty (no fab context / change unresolved / `.status.yaml` absent): make **no** edit and continue silently — same graceful degradation as Step 3c's Meta omission.
-4. Prepend the rendered Meta block to the existing body (Meta first, then a blank line, then the original body verbatim) and apply it via stdin (avoids shell-quoting issues with multi-line bodies):
-   ```bash
-   printf '%s\n\n%s\n' "$META" "$existing_body" | gh pr edit --body-file -
-   ```
-5. If the `gh pr edit` fails → report the error and STOP.
+```bash
+fab pr-sync "{name}" --type {type} --issues "{issues}"
+```
 
-Print (ONLY when an edit was actually made): `  ✓ meta   — retrofitted ## Meta onto existing PR`
+`fab pr-sync` renders the marker-delimited block, reads the current body, splices between the `<!-- fab pr-meta:start/end -->` markers (adopting a pre-marker bare `## Meta` section in place — replaced, never duplicated), and applies via `gh pr edit` **only when the body changed** — a current body is a no-op (Constitution III). `## Summary`, `## Changes`, and any human edit survive byte-identical.
+
+- If it exits non-zero → report the error and STOP (the gate above means fab context and an open PR both exist, so a non-zero here is operational — fail fast per Rules).
+- If it reports a no-op → print nothing and continue.
+
+Print (ONLY when an edit was actually made): `  ✓ meta   — synced ## Meta on existing PR`
 
 ### Step 4a: Record PR URL
 
@@ -426,7 +424,7 @@ Derived from [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.
 
 | Property | Value |
 |----------|-------|
-| Idempotent? | Yes — guarded no-op paths; see Steps 3a-bis (byte-stable memory), 3d (Meta retrofit), and 4a/4c (idempotent status + staged-diff guard) |
+| Idempotent? | Yes — guarded no-op paths; see Steps 3a-bis (byte-stable memory), 3d (Meta sync — `fab pr-sync` no-ops on a current body), and 4a/4c (idempotent status + staged-diff guard) |
 | Advances stage? | Yes — ship (start/finish, best-effort) |
 | Modifies `.fab-status.yaml`? | No |
 | Modifies git state? | Yes — commit, rebase onto `origin/<base_branch>` (3a-ter), push (`--force-with-lease` after a rebase), PR creation |

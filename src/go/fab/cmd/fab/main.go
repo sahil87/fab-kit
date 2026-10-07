@@ -41,6 +41,7 @@ func newRootCmd() *cobra.Command {
 		kitPathCmd(),
 		impactCmd(),
 		prMetaCmd(),
+		prSyncCmd(),
 		docsIndexCmd(),
 		memoryIndexCmd(),
 		shellInitCmd(),

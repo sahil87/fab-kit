@@ -284,7 +284,7 @@ Run `fab doctor` to check all prerequisites (git, yq, direnv hook, etc.) and dia
 - **A stage fails mid-way** - run `/fab-continue` to resume from the last checkpoint. All stage artifacts are persisted, so no progress is lost.
 - **AI produces bad code** - the review sub-agent catches it. `/fab-ff` and `/fab-fff` auto-loop between apply and review (up to 3 cycles) before escalating to you.
 - **Abandon a change** - delete the change folder, or run `/fab-archive` to move it to the archive.
-- **You built something without Fab and opened a PR** - run `/fab-adopt` on the branch to bring it into the pipeline mid-flight. It reconstructs the intake and plan from the diff, runs review and hydrate (so `docs/memory/` stays the source of truth), and retro-fits the PR's `## Meta` block — only `apply` is marked skipped, since the code already exists.
+- **You built something without Fab and opened a PR** - run `/fab-adopt` on the branch to bring it into the pipeline mid-flight. It reconstructs the intake and plan from the diff, runs review and hydrate (so `docs/memory/` stays the source of truth), and syncs the PR's `## Meta` block — only `apply` is marked skipped, since the code already exists.
 
 ## Why Fab Kit
 

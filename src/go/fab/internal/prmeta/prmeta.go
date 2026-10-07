@@ -31,6 +31,23 @@ import (
 // pipelineStages is the fixed pipeline order rendered in the **Pipeline** line.
 var pipelineStages = []string{"intake", "apply", "review", "hydrate", "ship", "review-pr"}
 
+// Meta block splice markers. Render wraps its output in this HTML-comment pair
+// so a later refresh is a pure replace-between-markers operation — the same
+// convention memoryindex uses for its manual block (metaStart/metaEnd mirror
+// its manualStart/manualEnd naming). The markers are part of the rendered
+// output: Splice replaces from the start marker through the end marker
+// inclusive with a freshly rendered (marker-wrapped) block.
+const (
+	metaStart = "<!-- fab pr-meta:start -->"
+	metaEnd   = "<!-- fab pr-meta:end -->"
+)
+
+// metaHeading is the bare `## Meta` heading recognized on first refresh of a
+// pre-marker PR body: the unmarked section (heading through the next top-level
+// `## ` heading, or end of body) is adopted — replaced in place by the
+// marker-wrapped block — never duplicated.
+const metaHeading = "## Meta"
+
 // Data holds every resolved input the Meta block renderer needs. It is produced
 // by Gather (from the live repo) or constructed directly by tests. All fields
 // are plain values so Render is a pure function of Data.
@@ -83,14 +100,22 @@ type Data struct {
 	Version string
 }
 
-// Render assembles the complete `## Meta` block markdown for d. It is a pure
-// function: identical Data always yields identical output. The block always
-// contains the heading, table, and Pipeline line; the Issues and Impact blocks
-// are conditional. Element order (260625 layout revision): heading → table →
+// Render assembles the complete `## Meta` block markdown for d, wrapped in the
+// metaStart/metaEnd marker pair. It is a pure function: identical Data always
+// yields identical output. Between the markers the block always contains the
+// heading, table, and Pipeline line; the Issues and Impact blocks are
+// conditional. Element order (260625 layout revision): heading → table →
 // Impact-table + caption → optional Issues → Pipeline (last). Each table and
 // paragraph is separated by a blank line so GitHub renders them as distinct
-// elements.
+// elements. The output carries no trailing newline after metaEnd so Splice
+// stays byte-idempotent.
 func Render(d Data) string {
+	return metaStart + "\n" + renderMetaBody(d) + "\n" + metaEnd
+}
+
+// renderMetaBody builds the block content between the markers (the pre-marker
+// Render output, byte-identical).
+func renderMetaBody(d Data) string {
 	var b strings.Builder
 	b.WriteString("## Meta\n\n")
 	b.WriteString(renderTable(d))
@@ -106,6 +131,150 @@ func Render(d Data) string {
 	b.WriteString("\n\n")
 	b.WriteString(renderPipeline(d))
 	return b.String()
+}
+
+// Splice returns body with its Meta block replaced by rendered (a fresh
+// marker-wrapped Render output). It is a pure function — no I/O, no network —
+// and handles three input shapes:
+//
+//   - markers present: everything from metaStart through metaEnd inclusive is
+//     replaced; every other byte (## Summary, ## Changes, human edits) is
+//     preserved exactly. Both markers are located OUTSIDE fenced code blocks —
+//     a fenced marker example (prose quoting the convention) must never pair
+//     with the real end marker and swallow the bytes between them.
+//   - a bare `## Meta` heading with no markers (a pre-marker PR body): the
+//     whole unmarked section — heading through the next top-level `## `
+//     heading, or end of body — is adopted, replaced in place by the
+//     marker-wrapped block rather than duplicated.
+//   - no `## Meta` at all: the marker-wrapped block is prepended ahead of the
+//     existing body.
+//
+// All three paths are idempotent: Splice(Splice(body, r), r) is byte-identical
+// to Splice(body, r).
+func Splice(body, rendered string) string {
+	lines := strings.Split(body, "\n")
+	fenced := fenceMask(lines)
+
+	// Byte offset of each line's first character, so a substring hit can be
+	// mapped back to its line and checked against the fence mask.
+	lineStart := make([]int, len(lines))
+	off := 0
+	for i, l := range lines {
+		lineStart[i] = off
+		off += len(l) + 1
+	}
+	lineOf := func(pos int) int {
+		ln := 0
+		for i := 1; i < len(lines) && lineStart[i] <= pos; i++ {
+			ln = i
+		}
+		return ln
+	}
+	// findUnfenced returns the byte offset of the first occurrence of token at
+	// or after `from` that sits on an unfenced line, or -1.
+	findUnfenced := func(token string, from int) int {
+		for from < len(body) {
+			i := strings.Index(body[from:], token)
+			if i < 0 {
+				return -1
+			}
+			i += from
+			if !fenced[lineOf(i)] {
+				return i
+			}
+			from = i + 1
+		}
+		return -1
+	}
+
+	if a := findUnfenced(metaStart, 0); a >= 0 {
+		if b := findUnfenced(metaEnd, a+len(metaStart)); b >= 0 {
+			end := b + len(metaEnd)
+			return body[:a] + rendered + body[end:]
+		}
+	}
+
+	// A dangling start marker (start present, end lost to a truncated body)
+	// counts as the span start, so the orphan is absorbed rather than left
+	// above the freshly spliced block as a second marker.
+	start := -1
+	for i, l := range lines {
+		if fenced[i] {
+			continue
+		}
+		if l == metaHeading || strings.TrimSpace(l) == metaStart {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		if body == "" {
+			return rendered
+		}
+		return rendered + "\n\n" + body
+	}
+
+	// Scan for the span end past the `## Meta` heading itself: when start
+	// landed on a dangling marker the heading sits directly below it, and
+	// treating that heading as the boundary would end the span immediately.
+	scanFrom := start + 1
+	if strings.TrimSpace(lines[start]) == metaStart && scanFrom < len(lines) && lines[scanFrom] == metaHeading {
+		scanFrom++
+	}
+
+	end := len(lines)
+	for i := scanFrom; i < len(lines); i++ {
+		if fenced[i] {
+			continue
+		}
+		if strings.HasPrefix(lines[i], "## ") {
+			end = i
+			break
+		}
+	}
+
+	var sb strings.Builder
+	if start > 0 {
+		sb.WriteString(strings.Join(lines[:start], "\n"))
+		sb.WriteString("\n")
+	}
+	sb.WriteString(rendered)
+	if end < len(lines) {
+		sb.WriteString("\n\n")
+		sb.WriteString(strings.Join(lines[end:], "\n"))
+	}
+	return sb.String()
+}
+
+// fenceMask marks each line that sits inside a fenced code block (and the fence
+// lines themselves). Splice's heading scans consult it so a `## ` line written
+// inside a fence — a hand-edited Meta region quoting markdown, say — is never
+// mistaken for a real section boundary. A fence opened with ``` closes only
+// with ```, so a stray ~~~ inside it cannot flip the state.
+func fenceMask(lines []string) []bool {
+	mask := make([]bool, len(lines))
+	fence := ""
+	for i, l := range lines {
+		t := strings.TrimSpace(l)
+		marker := ""
+		switch {
+		case strings.HasPrefix(t, "```"):
+			marker = "```"
+		case strings.HasPrefix(t, "~~~"):
+			marker = "~~~"
+		}
+		if marker != "" && (fence == "" || fence == marker) {
+			mask[i] = true
+			if fence == "" {
+				fence = marker
+			} else {
+				fence = ""
+			}
+			continue
+		}
+		mask[i] = fence != ""
+	}
+	return mask
 }
 
 // renderTable renders the 5-column Meta table (header + separator + single row).
