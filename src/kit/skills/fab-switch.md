@@ -105,7 +105,7 @@ Tip: run /git-branch to create or switch to the matching branch
 
 | Condition | Output behavior |
 |-----------|-----------------|
-| All stages done or trailing stages skipped | `Next:` shows only `/fab-archive` |
+| All automatic stages done or trailing stages skipped (a still-`pending` manual-only review-pr counts as resolved; an `active`/`failed` review-pr run surfaces as routing) | `Next:` shows only `/fab-archive` |
 | No argument | Read `fab change list` (`name:display_stage:display_state:score`) and show confidence beside stage in the numbered list |
 | `--none` | Omit Tip; show `No active change.` or, if already deactivated, `No active change (already deactivated).` |
 

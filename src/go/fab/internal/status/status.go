@@ -510,7 +510,12 @@ func ProgressLine(statusFile *sf.StatusFile) string {
 		case "skipped":
 			parts = append(parts, ss.Stage+" ⏭")
 		case "pending":
-			hasPending = true
+			// review-pr is manual-only (261007-4p4z): while still pending it
+			// does not block the completion ✓ once ship is done. An active or
+			// failed review-pr run still surfaces via its own glyph.
+			if ss.Stage != "review-pr" {
+				hasPending = true
+			}
 		}
 	}
 

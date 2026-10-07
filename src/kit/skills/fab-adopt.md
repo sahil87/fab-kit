@@ -132,7 +132,7 @@ Adopted {name}.
   ship      ✓ ran (## Meta synced onto the PR)
   review-pr · pending (run /git-pr-review manually if the PR needs triage)
 
-Only apply is skipped; every other pipeline stage genuinely ran (just late, after the code was written).
+Only apply is skipped; the automatic stages genuinely ran (just late, after the code was written) — review-pr stays pending for optional manual triage.
 ```
 
 ---

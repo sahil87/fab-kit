@@ -243,7 +243,7 @@ checklist:
 # session, native, and headless capabilities; codex, agy, and kimi ship both command
 # fields without native capability. Under the default mode, claude resolves native
 # while the non-claude built-ins descend to headless.
-# (Automated PR reviewer toggles moved to code-review.md § Review Tools — absent = enabled.)
+# (Automated PR reviewer toggles were retired outright in 2.29.0 with no destination — fab never requests reviews, so there is no knob to configure.)
 # Per-provider notes (kept out of the blocks below so uncommenting a whole block
 # stays valid YAML): claude -p and codex exec both read the prompt from stdin.
 # Codex carries --dangerously-bypass-approvals-and-sandbox; agy carries

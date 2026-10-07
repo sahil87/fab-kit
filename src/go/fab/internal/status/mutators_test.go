@@ -228,12 +228,41 @@ func TestProgressLine_RendersEachStateGlyph(t *testing.T) {
 	statusFile.SetProgress("review", "failed")
 	statusFile.SetProgress("hydrate", "skipped")
 	statusFile.SetProgress("ship", "active")
-	// review-pr stays pending → omitted from the line, suppresses the ✓.
+	// review-pr stays pending → omitted from the line; the active ship
+	// suppresses the ✓ (a pending review-pr alone no longer does).
 
 	got := ProgressLine(statusFile)
 	want := "intake → apply ◷ → review ✗ → hydrate ⏭ → ship ⏳"
 	if got != want {
 		t.Errorf("ProgressLine = %q, want %q", got, want)
+	}
+}
+
+func TestProgressLine_ShipDonePendingReviewPrGetsCheckmark(t *testing.T) {
+	statusFile, _ := loadFixture(t)
+	for _, stage := range sf.StageOrder {
+		statusFile.SetProgress(stage, "done")
+	}
+	statusFile.SetProgress("review-pr", "pending")
+
+	got := ProgressLine(statusFile)
+	want := "intake → apply → review → hydrate → ship ✓"
+	if got != want {
+		t.Errorf("ProgressLine = %q, want %q (pending manual-only review-pr must not suppress the ✓)", got, want)
+	}
+}
+
+func TestProgressLine_ActiveReviewPrSuppressesCheckmark(t *testing.T) {
+	statusFile, _ := loadFixture(t)
+	for _, stage := range sf.StageOrder {
+		statusFile.SetProgress(stage, "done")
+	}
+	statusFile.SetProgress("review-pr", "active")
+
+	got := ProgressLine(statusFile)
+	want := "intake → apply → review → hydrate → ship → review-pr ⏳"
+	if got != want {
+		t.Errorf("ProgressLine = %q, want %q (an active manual review-pr run still surfaces)", got, want)
 	}
 }
 

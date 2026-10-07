@@ -116,6 +116,7 @@ stateDiagram-v2
 
     hydrate --> ship: /git-pr
     ship --> review_pr: /git-pr-review (manual)
+    ship --> [*]: /fab-archive
     review_pr --> [*]: /fab-archive
 
     state "review-pr" as review_pr

@@ -238,6 +238,11 @@ Skills MUST end their output with a `Next:` line derived from the State Table be
 - **review (pass)**: `progress.review == done`
 - **review (fail)**: `progress.review == failed`
 - **hydrate**: `progress.hydrate == done`
+- **ship**: `progress.ship == done` AND `progress."review-pr" == pending`
+- **review-pr (pass)**: `progress."review-pr" == done`
+- **review-pr (fail)**: `progress."review-pr" == failed`
+
+Precedence: an `active`/`ready` stage is caught by the generic intake/apply rule before any `done`-state row; among the `done`-state rows, later rows supersede earlier ones — so a finished manual triage run (`review-pr` `done`/`failed`) outranks the ship row, and `ship: done` with `review-pr: pending` (the automatic pipeline complete, manual triage not started) deterministically selects `/fab-archive`.
 
 ### Lookup Procedure
 

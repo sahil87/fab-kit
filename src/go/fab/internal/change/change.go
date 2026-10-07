@@ -237,8 +237,9 @@ func Switch(fabRoot, name string) (string, error) {
 	fmt.Fprintf(&output, "Confidence:  %s\n", confDisplay)
 
 	// The Next: line mirrors /fab-status: the routing stage paired with the
-	// command that drives that stage. Only when every stage is resolved
-	// (done/skipped) does it collapse to the bare post-pipeline suggestion
+	// command that drives that stage. Only when the automatic pipeline has
+	// run its course (done/skipped, plus a still-pending manual-only
+	// review-pr) does it collapse to the bare post-pipeline suggestion
 	// `/fab-archive` — CurrentStage's all-done fallback returns "review-pr",
 	// which previously mis-printed `/fab-archive` while review-pr work
 	// remained.
@@ -251,13 +252,20 @@ func Switch(fabRoot, name string) (string, error) {
 	return output.String(), nil
 }
 
-// allStagesResolved reports whether every pipeline stage is done or skipped.
+// allStagesResolved reports whether the automatic pipeline has run its
+// course: every stage done or skipped. review-pr is manual-only
+// (261007-4p4z), so a still-pending review-pr counts as resolved; an active
+// or failed review-pr run does not — it surfaces as routing instead.
 func allStagesResolved(statusFile *sf.StatusFile) bool {
 	for _, stage := range sf.StageOrder {
 		state := statusFile.GetProgress(stage)
-		if state != "done" && state != "skipped" {
-			return false
+		if state == "done" || state == "skipped" {
+			continue
 		}
+		if stage == "review-pr" && state == "pending" {
+			continue
+		}
+		return false
 	}
 	return true
 }
