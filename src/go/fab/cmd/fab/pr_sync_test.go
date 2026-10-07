@@ -79,6 +79,39 @@ func TestPrSyncCmd_NoFabContextExitsNonZero(t *testing.T) {
 	}
 }
 
+// TestBranchMatchesChange covers the pr-sync branch guard (the analog of
+// git-pr.md Step 0 item 4): exact match, substring match, detached HEAD, and
+// mismatch.
+func TestBranchMatchesChange(t *testing.T) {
+	const folder = "261007-gyp9-early-draft-pr-live-meta"
+
+	t.Run("exact match", func(t *testing.T) {
+		if err := branchMatchesChange(folder, folder); err != nil {
+			t.Errorf("exact match must pass, got: %v", err)
+		}
+	})
+
+	t.Run("substring match", func(t *testing.T) {
+		if err := branchMatchesChange("feat/"+folder, folder); err != nil {
+			t.Errorf("substring match must pass, got: %v", err)
+		}
+	})
+
+	t.Run("detached HEAD", func(t *testing.T) {
+		err := branchMatchesChange("", folder)
+		if err == nil || !strings.Contains(err.Error(), "detached HEAD") {
+			t.Errorf("empty branch must error naming detached HEAD, got: %v", err)
+		}
+	})
+
+	t.Run("mismatch", func(t *testing.T) {
+		err := branchMatchesChange("261001-abcd-some-other-change", folder)
+		if err == nil || !strings.Contains(err.Error(), "does not match") {
+			t.Errorf("mismatched branch must error, got: %v", err)
+		}
+	})
+}
+
 // TestSyncPRBody covers the network-free core: the no-op-on-equal-body path
 // (no write issued), the apply-on-change path, and the read-failure path
 // (no open PR → error, no write).

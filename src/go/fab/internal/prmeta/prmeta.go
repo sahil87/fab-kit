@@ -139,7 +139,9 @@ func renderMetaBody(d Data) string {
 //
 //   - markers present: everything from metaStart through metaEnd inclusive is
 //     replaced; every other byte (## Summary, ## Changes, human edits) is
-//     preserved exactly.
+//     preserved exactly. Both markers are located OUTSIDE fenced code blocks —
+//     a fenced marker example (prose quoting the convention) must never pair
+//     with the real end marker and swallow the bytes between them.
 //   - a bare `## Meta` heading with no markers (a pre-marker PR body): the
 //     whole unmarked section — heading through the next top-level `## `
 //     heading, or end of body — is adopted, replaced in place by the
@@ -150,15 +152,47 @@ func renderMetaBody(d Data) string {
 // All three paths are idempotent: Splice(Splice(body, r), r) is byte-identical
 // to Splice(body, r).
 func Splice(body, rendered string) string {
-	if a := strings.Index(body, metaStart); a >= 0 {
-		if b := strings.Index(body[a+len(metaStart):], metaEnd); b >= 0 {
-			end := a + len(metaStart) + b + len(metaEnd)
+	lines := strings.Split(body, "\n")
+	fenced := fenceMask(lines)
+
+	// Byte offset of each line's first character, so a substring hit can be
+	// mapped back to its line and checked against the fence mask.
+	lineStart := make([]int, len(lines))
+	off := 0
+	for i, l := range lines {
+		lineStart[i] = off
+		off += len(l) + 1
+	}
+	lineOf := func(pos int) int {
+		ln := 0
+		for i := 1; i < len(lines) && lineStart[i] <= pos; i++ {
+			ln = i
+		}
+		return ln
+	}
+	// findUnfenced returns the byte offset of the first occurrence of token at
+	// or after `from` that sits on an unfenced line, or -1.
+	findUnfenced := func(token string, from int) int {
+		for from < len(body) {
+			i := strings.Index(body[from:], token)
+			if i < 0 {
+				return -1
+			}
+			i += from
+			if !fenced[lineOf(i)] {
+				return i
+			}
+			from = i + 1
+		}
+		return -1
+	}
+
+	if a := findUnfenced(metaStart, 0); a >= 0 {
+		if b := findUnfenced(metaEnd, a+len(metaStart)); b >= 0 {
+			end := b + len(metaEnd)
 			return body[:a] + rendered + body[end:]
 		}
 	}
-
-	lines := strings.Split(body, "\n")
-	fenced := fenceMask(lines)
 
 	// A dangling start marker (start present, end lost to a truncated body)
 	// counts as the span start, so the orphan is absorbed rather than left

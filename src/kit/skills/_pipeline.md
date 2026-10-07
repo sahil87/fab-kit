@@ -103,9 +103,11 @@ For every apply, review, and hydrate dispatch below:
 
 This section **owns** every PR-side action at a stage boundary — the drivers (`fab-ff.md`, `fab-fff.md`, `fab-continue.md`) point here and never restate these mechanics (owner-or-pointer, `fab/project/code-quality.md` § Anti-Patterns). The commit/rebase/push/create mechanics themselves stay owned by `git-pr.md`; this procedure references its steps. Two boundary kinds:
 
+**Boundary preflight** (runs once, before either boundary kind fires): the steps below reuse `git-pr.md`'s mutating steps but never run their prerequisites, so bind those inputs and guards here first — the branch-matches-change guard (`git-pr.md` Step 0 item 4), the detached-HEAD and default-branch guards (`git-pr.md` Step 2), `$base_branch` (`git-pr.md` Step 1), and the `fab pr-sync` inputs `{name}`, `{type}` (`git-pr.md` Step 0b ladder), `{issues}` (`git-pr.md` Step 1). A guard failure STOPs the run before any commit, push, create, or sync — `/{driver} <change>` may be driving a non-active override, and skipping the guard would commit and push from a branch that does not match the resolved change.
+
 **Apply-exit open** (runs once, immediately after Step 1's `finish apply`):
 
-0. Skip the whole open when `gh pr view` already shows an OPEN PR for the branch (a resume where the open already landed — Constitution III).
+0. If `gh pr view` already shows an OPEN PR for the branch, skip step 3 (creation) only — steps 1, 2, and 4 still run (Constitution III). The skip exists for resumes where the open already landed, but a manually opened PR or a prior partial run takes the same path; every remaining step is idempotent (clean tree → no commit, nothing to push → no push, current Meta → no edit), so the apply output and Meta refresh still reach the PR.
 1. Commit the apply output per `git-pr.md` Step 3a (expected-area guard included). Clean tree → no commit.
 2. Rebase + push per `git-pr.md` Steps 3a-ter/3b. This open and the ship stage are the **only** two sites that rebase — the pre-fetch lease discipline applies verbatim: `{lease_oid}` captured **before** `git fetch origin`, the push uses the explicit `--force-with-lease="<branch>:<lease_oid>"` form (never the bare flag), and the remote-branch divergence guard STOPs the run without rewriting history.
 3. Create the draft PR per `git-pr.md` Step 3c (`gh pr create --draft --base "$base_branch"` with the `fab pr-meta` body assembly; `$base_branch` resolved per `git-pr.md` Step 1).
@@ -129,6 +131,8 @@ This section **owns** every PR-side action at a stage boundary — the drivers (
 ### Resumability
 
 Check `progress` from preflight. Skip stages already `done`. If `{terminal}: done`, the pipeline is already complete. If `progress.review` is `failed` (a prior exhaustion stop or an interrupted fail→reset sequence), run `fab status start <change> review` first — the review-specific failed→active transition — then resume from Step 2.
+
+**Boundary replay.** Each boundary runs AFTER its stage's `finish` transition and fails fast (§ PR Boundary Procedure Rules), so a commit/push/create/sync failure can leave a stage `done` with its boundary unlanded — a plain resume would skip the done stage and advance without ever retrying the open or push. On resume, therefore, replay the boundary for each skipped `done` stage before advancing: apply `done` → the apply-exit open; review `done` → the review-pass boundary; hydrate `done` → the hydrate boundary. Every boundary action is idempotent (clean tree → no commit, nothing to push → no push, OPEN PR → creation skipped, current Meta → no edit), so the replay lands exactly the missing actions and nothing else.
 
 **Lane re-derivation.** The lane is never persisted — on any resume where Step 1's co-gen is skipped because `plan.md` already exists (including `progress.apply: done`, where Step 1 is skipped entirely), RE-DERIVE the lane deterministically by the same rule: count the task entries in the existing `plan.md` `## Tasks` (all phases) against the ≤ 5 threshold. `--light` / `--full` are per-invocation flags and take precedence when re-passed. Step 3 and the Auto-Rework Loop rely on this re-derived lane.
 

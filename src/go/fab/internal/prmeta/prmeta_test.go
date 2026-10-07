@@ -836,4 +836,38 @@ func TestSplice(t *testing.T) {
 		}
 	})
 
+	t.Run("fence-aware: a fenced start-marker example does not pair with the real end marker", func(t *testing.T) {
+		// Human-authored prose quoting the marker convention inside a fence,
+		// sitting BEFORE the real marked Meta block. A raw substring search
+		// would pair the fenced example with the real end marker and delete
+		// everything between them.
+		body := "## Notes\n\n```markdown\n" + metaStart + "\nquoted example\n```\n\n" + stale + "\n\n" + prose
+		got := Splice(body, rendered)
+		want := "## Notes\n\n```markdown\n" + metaStart + "\nquoted example\n```\n\n" + rendered + "\n\n" + prose
+		if got != want {
+			t.Errorf("splice =\n%q\nwant\n%q", got, want)
+		}
+		if strings.Contains(got, "0/8 tasks") {
+			t.Error("stale content survived the splice")
+		}
+		if !strings.Contains(got, "quoted example") {
+			t.Error("the fenced example was clobbered")
+		}
+	})
+
+	t.Run("fence-aware: a fenced end marker is not the span end", func(t *testing.T) {
+		// A real marked block whose stale content quotes the end marker inside
+		// a fence. The span must run to the REAL unfenced end marker, not stop
+		// at the fenced quote.
+		body := metaStart + "\n## Meta\n\nold meta\n\n```\n" + metaEnd + "\n```\n\nmore old meta\n" + metaEnd + "\n\n" + prose
+		got := Splice(body, rendered)
+		want := rendered + "\n\n" + prose
+		if got != want {
+			t.Errorf("splice =\n%q\nwant\n%q", got, want)
+		}
+		if strings.Contains(got, "more old meta") {
+			t.Error("stale content past the fenced end-marker quote survived the splice")
+		}
+	})
+
 }
