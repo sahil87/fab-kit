@@ -412,8 +412,7 @@ the `/fab-continue`-behavior workers (apply, review, hydrate). Dispatched **ship
 workers self-manage their **own** stage's `fab status` start/finish/fail on every adapter, exactly as
 the standalone `/git-pr` / `/git-pr-review` skills do; the orchestrator owns sequencing and never runs
 a transition for a stage whose worker owns it (the dispatching rows' only-if-still-active guards are
-the reconciliation seam). Obligations 1–3 bind these workers unchanged, and a Copilot-poll timeout is
-an `outcome: timeout` **result** (dispatch-state `done`), never an infra failure.
+the reconciliation seam). Obligations 1–3 bind these workers unchanged.
 
 ### The five-state machine (every adapter observes a subset of it)
 

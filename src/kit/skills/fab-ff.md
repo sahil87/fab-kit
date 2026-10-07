@@ -29,7 +29,7 @@ Execute the **shared pipeline bracket** (`_pipeline.md`, loaded via `helpers:`) 
 | Parameter | Value |
 |-----------|-------|
 | `{driver}` | `fab-ff` |
-| `{terminal}` | `hydrate` — the pipeline ends after the bracket's Step 3; there are no ship/review-pr steps, but the PR Boundary Procedure ran at every boundary, leaving an OPEN draft PR for a later `/git-pr` to finalize |
+| `{terminal}` | `hydrate` — the pipeline ends after the bracket's Step 3; there is no ship step, but the PR Boundary Procedure ran at every boundary, leaving an OPEN draft PR for a later `/git-pr` to finalize |
 
 The bracket defines everything else: pre-flight (intake prerequisite + intake gate), context loading, resumability, Steps 1–3 (apply → review → hydrate) with the inline plan co-gen and one-time light/full lane fork, the auto-rework loop with its per-cycle choreography, and the exhaustion stop.
 

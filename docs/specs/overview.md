@@ -36,7 +36,7 @@ After bootstrapping, use `/docs-hydrate-memory` to ingest existing documentation
 
 ## The 6 Stages
 
-Changes progress through 6 stages: `intake → apply → review → hydrate → ship → review-pr`. Intake is the only stage requiring human judgment (gated by the single intake confidence gate); everything after intake runs unattended unless review-rework exhausts or PR feedback arrives:
+Changes progress through 6 stages: `intake → apply → review → hydrate → ship → review-pr`. Intake is the only stage requiring human judgment (gated by the single intake confidence gate); everything after intake runs unattended unless review-rework exhausts, and the automatic pipeline terminates at `ship` — `review-pr` is entered only manually, via `/git-pr-review`:
 
 ```mermaid
 flowchart TD
@@ -50,7 +50,7 @@ flowchart TD
     end
     subgraph completion ["Completion"]
         direction LR
-        AR["4 HYDRATE"] --> SH["5 SHIP"] --> RP["6 REVIEW-PR"]
+        AR["4 HYDRATE"] --> SH["5 SHIP"] -- "/git-pr-review (manual)" --> RP["6 REVIEW-PR"]
     end
 
     B --> A
@@ -70,7 +70,7 @@ flowchart TD
 | 3 | **Review** | Validate via sub-agent | validation report | Single sub-agent review with prioritized findings (must-fix / should-fix / nice-to-have); it inspects items under `plan.md` `## Acceptance` against `## Requirements` and judges the diff on its own merits |
 | 4 | **Hydrate** | Complete & hydrate | memory updates | Hydrate the plan's requirements into memory files |
 | 5 | **Ship** | Commit, push, create PR | draft GitHub PR | `/git-pr` autonomously commits, pushes, and opens a draft PR (branch-matches-change guard; records the PR URL in `.status.yaml`) |
-| 6 | **Review-PR** | Process PR feedback | fixes + replies | `/git-pr-review` requests/fetches reviews (Copilot or human), triages each comment as fix/defer/skip, applies fixes, posts replies |
+| 6 | **Review-PR** | Process PR feedback | fixes + replies | Entered manually. `/git-pr-review` fetches existing reviews (Copilot or human), triages each comment as fix/defer/skip, applies fixes, posts replies; on a review-less PR it prints `No reviews on PR #{number}.` and exits as a clean no-op |
 
 ### User Flow
 
@@ -88,15 +88,15 @@ For detailed visual maps of how commands connect — including shortcuts, rework
 | `/fab-draft` | Create change intake without activating | `intake.md`, `.status.yaml` |
 | `/fab-continue [<stage>]` | Next artifact (or reset to stage) | Next stage artifact |
 | `/fab-ff` | Fast-forward through hydrate (intake-gated) | apply (plan + execute) + sub-agent review + hydrate |
-| `/fab-fff` | Fast-forward-further through review-pr (confidence-gated) | All artifacts through hydrate + ship + review-pr |
+| `/fab-fff` | Fast-forward through ship (confidence-gated) | All artifacts through hydrate + ship |
 | `/fab-clarify` | Deepen current artifact | Refined artifact (in place) |
 | `/fab-continue` → apply | Implement | Code changes |
 | `/fab-continue` → review | Validate (sub-agent) | Prioritized findings report |
 | `/fab-continue` → hydrate | Complete & hydrate | Updated memory |
 | `/fab-proceed` | Context-aware orchestrator — runs needed prefix steps (fab-new, fab-switch, git-branch), then delegates to `/fab-fff` | Full pipeline from conversation context |
-| `/fab-adopt` | Adopt a completed off-pipeline change (OPEN/not-yet-created PR) — reconstruct intake + plan from the diff, run review (diff-only) → hydrate → ship → review-pr with apply `skipped` | Reconstructed intake + thin plan; pipeline entered late |
+| `/fab-adopt` | Adopt a completed off-pipeline change (OPEN/not-yet-created PR) — reconstruct intake + plan from the diff, run review (diff-only) → hydrate → ship with apply `skipped` | Reconstructed intake + thin plan; pipeline entered late |
 | `/git-pr` | Ship — commit, push, create draft PR | Draft PR, `ship` done |
-| `/git-pr-review` | Process PR review comments (fix/defer/skip + replies) | Fix commits + replies, `review-pr` done |
+| `/git-pr-review` | Manually process PR review comments (fix/defer/skip + replies; clean no-op when no reviews) | Fix commits + replies, `review-pr` done |
 | `/fab-archive` | Archive completed change | Folder moved to archive/ |
 | `/fab-switch` | Change active change | Updated pointer file |
 | `/fab-status` | Check progress | Status display |
@@ -149,7 +149,7 @@ For detailed visual maps of how commands connect — including shortcuts, rework
 ```bash
 /fab-new Add loading spinner to submit button
 /fab-fff
-# → Fast-forwards through apply (plan + execute), review, hydrate, ship, and PR review
+# → Fast-forwards through apply (plan + execute), review, hydrate, and ship
 ```
 
 ---

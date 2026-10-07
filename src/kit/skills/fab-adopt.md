@@ -1,6 +1,6 @@
 ---
 name: fab-adopt
-description: "Adopt a completed off-pipeline change (a feature branch with an OPEN or not-yet-created PR, authored without fab) into the Fab pipeline — reconstruct intake + plan from the diff, run review/hydrate/ship/review-pr for real, with apply marked skipped."
+description: "Adopt a completed off-pipeline change (a feature branch with an OPEN or not-yet-created PR, authored without fab) into the Fab pipeline — reconstruct intake + plan from the diff, run review/hydrate/ship for real, with apply marked skipped."
 helpers: [_srad, _generation, _review, _pipeline]
 ---
 
@@ -25,7 +25,7 @@ helpers: [_srad, _generation, _review, _pipeline]
 
 Bring a **completed-but-off-pipeline** change into the Fab pipeline. The trigger is mid-flight adoption (scenario B): a feature branch whose code was authored **without** fab, with an **OPEN PR or no PR yet** — typically after a reviewer points out "you skipped fab-kit and might have missed a few checks."
 
-Of the six stages, exactly one — **apply** — cannot meaningfully re-run on an adopted change (the code already exists; there is nothing to generate). Every other stage *can* run for real, just *late*: intake reconstructed from the diff, review run on the diff before merge, hydrate writing memory before merge, ship refreshing the PR's Meta block, review-pr resuming normally. So `/fab-adopt` is **not** a parallel "fake pipeline" — it is the *real* pipeline entered late, with apply skipped.
+Of the six stages, exactly one — **apply** — cannot meaningfully re-run on an adopted change (the code already exists; there is nothing to generate). Every other stage *can* run for real, just *late*: intake reconstructed from the diff, review run on the diff before merge, hydrate writing memory before merge, ship refreshing the PR's Meta block. So `/fab-adopt` is **not** a parallel "fake pipeline" — it is the *real* pipeline entered late, with apply skipped. (`review-pr` is the manual PR-triage stage — it is never auto-entered, here or elsewhere; run `/git-pr-review` yourself if the PR needs triage.)
 
 `/fab-adopt` is a thin orchestrator: it reuses existing skills/procedures as sub-agents (the `/fab-proceed` / `/fab-ff` pattern) and introduces only what is genuinely new (the diff→intake and thin diff→plan procedures in `_generation.md`, and `_review.md`'s `diff-only` mode).
 
@@ -114,11 +114,11 @@ Reuse `_pipeline.md` Step 3 and its Stage Dispatch Procedure. This is the perman
 
 ### Step 5 — Ship (refresh Meta on the existing PR)
 
-Dispatch `/git-pr {name}` (pass the **folder name**, not a bare id). Because the PR is OPEN (or `none`), `/git-pr` takes its existing-PR path (or creates the PR fresh when `pr_state == none`). Its **Step 3d Meta sync** delegates to `fab pr-sync`, which refreshes the open PR's `## Meta` block in place — splicing between the markers, or adopting a pre-marker bare `## Meta` section rather than duplicating it (idempotent — a no-op when the block is already current). `/git-pr` runs `finish ship` itself (best-effort), which auto-activates review-pr.
+Dispatch `/git-pr {name}` (pass the **folder name**, not a bare id). Because the PR is OPEN (or `none`), `/git-pr` takes its existing-PR path (or creates the PR fresh when `pr_state == none`). Its **Step 3d Meta sync** delegates to `fab pr-sync`, which refreshes the open PR's `## Meta` block in place — splicing between the markers, or adopting a pre-marker bare `## Meta` section rather than duplicating it (idempotent — a no-op when the block is already current). `/git-pr` runs `finish ship` itself (best-effort) — ship is the terminal stage, so the adoption is complete there.
 
-### Step 6 — Land in review-pr
+### Step 6 — Land at ship done
 
-After ship, `review-pr` is active; render the closing line from § Output.
+After ship, the pipeline is complete (`review-pr` stays `pending` — manual triage only); render the closing line from § Output.
 
 **Honest-state summary** the skill prints at the end:
 
@@ -130,9 +130,9 @@ Adopted {name}.
   review    ✓ ran (diff-only)
   hydrate   ✓ ran (docs/memory/ updated)
   ship      ✓ ran (## Meta synced onto the PR)
-  review-pr → active
+  review-pr · pending (run /git-pr-review manually if the PR needs triage)
 
-Only apply is skipped; every other stage genuinely ran (just late, after the code was written).
+Only apply is skipped; every other pipeline stage genuinely ran (just late, after the code was written).
 ```
 
 ---
@@ -159,7 +159,7 @@ apply → skipped, review → active
 
 {honest-state summary}
 
-Next: /git-pr-review
+Next: /fab-archive, /git-pr-review
 ```
 
 ---
@@ -186,7 +186,7 @@ Next: /git-pr-review
 | Property | Value |
 |----------|-------|
 | Idempotent? | Partially — Step 0 guards STOP cleanly before any mutation; the collision guard makes a re-run after the change is created route to `/fab-continue` rather than re-create. The dispatched stages (review/hydrate/ship) are themselves resumable/idempotent, and the Step 5 Meta sync (`fab pr-sync`) no-ops when the block is already current |
-| Advances stage? | Yes — reconstructs intake, marks apply `skipped`, then runs review → hydrate → ship → review-pr via existing transitions |
+| Advances stage? | Yes — reconstructs intake, marks apply `skipped`, then runs review → hydrate → ship via existing transitions |
 | Modifies `.fab-status.yaml`? | Yes — activates the reconstructed change (Step 1) |
 | Modifies git state? | Indirectly — Step 5's `/git-pr` commits/pushes the reconstructed `fab/` artifacts and syncs the PR body's Meta block; `/fab-adopt` makes no commit itself |
 | Go change? | None — state composed from existing `skip`/`reset` transitions; Meta sync delegates to `fab pr-sync` |

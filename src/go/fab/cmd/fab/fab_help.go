@@ -179,7 +179,7 @@ func renderWorkflow(w io.Writer) {
 	fmt.Fprintln(w, "  /fab-new ─→ /fab-continue (or /fab-ff) ─→ /fab-archive")
 	fmt.Fprintln(w, "               ↕ /fab-clarify")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "  Pipeline stages: intake → apply → review → hydrate → ship → review-pr")
+	fmt.Fprintln(w, "  Pipeline stages: intake → apply → review → hydrate → ship (terminal) → review-pr (manual, /git-pr-review)")
 }
 
 // skillEntry holds a discovered skill name and description.

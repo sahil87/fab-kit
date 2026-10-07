@@ -369,7 +369,7 @@ If `{has_fab}` (Step 0) and `progress.ship` was started in Step 0a (not already 
 fab status finish {name} ship git-pr 2>/dev/null || true
 ```
 
-This marks `ship` as `done` and auto-activates `review-pr`. Best-effort — failures silently ignored.
+This marks `ship` as `done` — the pipeline's terminal stage. Best-effort — failures silently ignored.
 
 ### Step 4c: Commit and Push Status Update
 

@@ -83,7 +83,7 @@ spawns a fresh sub-agent, up to 3 cycles) before escalating to you:
 | Command | Covers | Use when |
 |---------|--------|----------|
 | `/fab-ff` | apply → review → hydrate | You want the change implemented and reviewed, but will ship the PR yourself. Falls back to interactive rework after exhausting auto-retries. |
-| `/fab-fff` | apply → review → hydrate → ship → review-PR | You want the full path through a raised PR and its review, hands-off. |
+| `/fab-fff` | apply → review → hydrate → ship | You want the full path through a raised PR, hands-off. Triage review feedback afterwards with `/git-pr-review`. |
 | `/fab-proceed` | detects state, runs any setup steps (new / switch / branch), then delegates to `/fab-fff` | You are not sure what state the change is in and want one command to do the right thing. |
 
 All three are gated by the intake confidence score: low ambiguity runs unattended; high ambiguity

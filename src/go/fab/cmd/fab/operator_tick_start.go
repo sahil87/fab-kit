@@ -160,10 +160,11 @@ func tickFullDue(raw interface{}, now time.Time) bool {
 // tickTerminusStage is the pipeline terminus — the only stage at which an
 // entry with no stop_stage completes. Completion there is a display-state
 // check (done/skipped), never bare stage membership: a change entering
-// hydrate or ship under /fab-fff is mid-pipeline, not complete. Callers that
+// hydrate under /fab-fff is mid-pipeline, not complete. Callers that
 // deliberately park earlier (a /fab-ff run stops after hydrate) express that
-// through stop_stage.
-const tickTerminusStage = "review-pr"
+// through stop_stage; a caller that wants to cover manual PR triage parks at
+// review-pr via an explicit stop_stage.
+const tickTerminusStage = "ship"
 
 // stageFinished reports whether a display state means the stage is over —
 // the shared test for "at the terminus" and "at the stop_stage".
@@ -456,7 +457,7 @@ func stageOrderIndex(stage string) int {
 // tickCompleted is the pane built-in completion predicate — a
 // display-state check at a stage, NEVER a stage diff (a change completing at
 // its final stage never changes its stage string; only display_state flips).
-// stop_stage null: AT the terminus (review-pr) with display_state
+// stop_stage null: AT the terminus (ship) with display_state
 // done/skipped. stop_stage set: past the stop in stage order, or AT the stop
 // with display_state done/skipped (a finished stop-stage auto-activates the
 // next stage, so equality alone would race the transition).

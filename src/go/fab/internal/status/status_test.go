@@ -271,6 +271,45 @@ func TestIntakeFinishAutoActivatesApply(t *testing.T) {
 	}
 }
 
+// TestShipFinishDoesNotAutoActivateReviewPr verifies ship is the automatic
+// pipeline's terminal stage: finishing ship marks it done but leaves
+// review-pr pending; every earlier finish still auto-activates its successor;
+// and review-pr stays reachable via an explicit start.
+func TestShipFinishDoesNotAutoActivateReviewPr(t *testing.T) {
+	statusFile, path := loadFixture(t)
+	dir := filepath.Dir(path)
+
+	for _, stage := range []string{"intake", "apply", "review", "hydrate"} {
+		if err := statusFile.SetProgress(stage, "active"); err != nil {
+			t.Fatalf("SetProgress %s: %v", stage, err)
+		}
+		if err := Finish(statusFile, path, dir, stage, "test"); err != nil {
+			t.Fatalf("Finish %s: %v", stage, err)
+		}
+	}
+	if got := statusFile.GetProgress("ship"); got != "active" {
+		t.Fatalf("ship should auto-activate after hydrate, got %q", got)
+	}
+
+	if err := Finish(statusFile, path, dir, "ship", "test"); err != nil {
+		t.Fatalf("Finish ship: %v", err)
+	}
+	if got := statusFile.GetProgress("ship"); got != "done" {
+		t.Errorf("ship = %q, want done", got)
+	}
+	if got := statusFile.GetProgress("review-pr"); got != "pending" {
+		t.Errorf("review-pr = %q, want pending (ship is terminal; review-pr is manual-only)", got)
+	}
+
+	// review-pr stays reachable via an explicit start (the /git-pr-review path).
+	if err := Start(statusFile, path, dir, "review-pr", "test", "", ""); err != nil {
+		t.Fatalf("Start review-pr: %v", err)
+	}
+	if got := statusFile.GetProgress("review-pr"); got != "active" {
+		t.Errorf("review-pr = %q, want active after explicit start", got)
+	}
+}
+
 // --- AllowedStates enforcement on transitions (k4ge) ---
 
 func TestLookupTransition_RejectsForbiddenTargets(t *testing.T) {

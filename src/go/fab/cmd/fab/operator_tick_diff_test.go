@@ -330,9 +330,9 @@ func TestOperatorTickDiff_AllEventKinds(t *testing.T) {
 	m004 := paneItem("m004", "%4", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z") // recycled pane, now hosts no change
 	m004.Scope["pane_pid"] = 100
 	items := []trackedItem{
-		// done: stage string UNCHANGED (review-pr → review-pr), only the
+		// done: stage string UNCHANGED (ship → ship), only the
 		// display state flipped — the case a stage-diff provably cannot catch.
-		paneItem("c001", "%1", "/r/a", "s1", "review-pr", "2026-01-01T00:00:00Z"),
+		paneItem("c001", "%1", "/r/a", "s1", "ship", "2026-01-01T00:00:00Z"),
 		paneItem("d002", "%2", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"), // pane absent → pane_death
 		m003,
 		m004,
@@ -342,7 +342,7 @@ func TestOperatorTickDiff_AllEventKinds(t *testing.T) {
 	}
 	seedDiffState(t, items)
 	stubSnapshot(t, []paneRow{
-		snapRow("%1", "c001", "review-pr", "done", "idle", "8m"),
+		snapRow("%1", "c001", "ship", "done", "idle", "8m"),
 		snapRow("%3", "zz99", "apply", "active", "active", ""),
 		snapRow("%4", "", "—", "—", "active", ""),
 		snapRow("%5", "a005", "review", "active", "active", ""),
@@ -592,13 +592,13 @@ func TestOperatorTickDiff_LevelTriggeredReEmitUntilRemove(t *testing.T) {
 	m003 := paneItem("m003", "%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z")
 	m003.Scope["pane_pid"] = 100 // fingerprint differs below → recycled pane
 	items := []trackedItem{
-		paneItem("c001", "%1", "/r/a", "s1", "review-pr", "2026-01-01T00:00:00Z"),
+		paneItem("c001", "%1", "/r/a", "s1", "ship", "2026-01-01T00:00:00Z"),
 		paneItem("d002", "%2", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
 		m003,
 	}
 	path := seedDiffState(t, items)
 	stubSnapshot(t, []paneRow{
-		snapRow("%1", "c001", "review-pr", "done", "idle", "8m"),
+		snapRow("%1", "c001", "ship", "done", "idle", "8m"),
 		snapRow("%3", "zz99", "apply", "active", "active", ""),
 	})
 	stubPanePIDs(t, map[string]int{"%3": 200})
@@ -665,12 +665,13 @@ func TestOperatorTickDiff_CompletionPredicateBranches(t *testing.T) {
 		// stop_stage null, hydrate done but pipeline continues (the transient
 		// finish→ship-start window, or a parked /fab-ff run) → NOT done.
 		paneItem("s008", "%8", "/r/a", "s1", "hydrate", "2026-01-01T00:00:00Z"),
-		// stop_stage null, AT the terminus but still active (awaiting a PR review) → NOT done.
+		// stop_stage null, review-pr done — the manual stage sits past the
+		// terminus in stage order but is not the terminus → NOT done.
 		paneItem("s009", "%9", "/r/a", "s1", "review-pr", "2026-01-01T00:00:00Z"),
 		// stop_stage null, terminus done → done.
-		paneItem("s010", "%10", "/r/a", "s1", "review-pr", "2026-01-01T00:00:00Z"),
-		// stop_stage null, terminus skipped (review-pr disabled at ship) → done.
-		paneItem("s011", "%11", "/r/a", "s1", "review-pr", "2026-01-01T00:00:00Z"),
+		paneItem("s010", "%10", "/r/a", "s1", "ship", "2026-01-01T00:00:00Z"),
+		// stop_stage null, terminus skipped → done.
+		paneItem("s011", "%11", "/r/a", "s1", "ship", "2026-01-01T00:00:00Z"),
 	}
 	seedDiffState(t, items)
 	stubSnapshot(t, []paneRow{
@@ -682,9 +683,9 @@ func TestOperatorTickDiff_CompletionPredicateBranches(t *testing.T) {
 		snapRow("%6", "s006", "apply", "active", "active", ""),
 		snapRow("%7", "s007", "hydrate", "active", "active", ""),
 		snapRow("%8", "s008", "hydrate", "done", "idle", "2m"),
-		snapRow("%9", "s009", "review-pr", "active", "active", ""),
-		snapRow("%10", "s010", "review-pr", "done", "idle", "5m"),
-		snapRow("%11", "s011", "review-pr", "skipped", "idle", "5m"),
+		snapRow("%9", "s009", "review-pr", "done", "idle", "5m"),
+		snapRow("%10", "s010", "ship", "done", "idle", "5m"),
+		snapRow("%11", "s011", "ship", "skipped", "idle", "5m"),
 	})
 
 	doc := parseTickDiff(t, runTickDiff(t))
@@ -833,13 +834,13 @@ func TestOperatorTickDiff_Candidates(t *testing.T) {
 
 func TestOperatorTickDiff_Items(t *testing.T) {
 	items := []trackedItem{
-		paneItem("f001", "%1", "/r/b", "s2", "review-pr", "2026-01-03T00:00:00Z"),
+		paneItem("f001", "%1", "/r/b", "s2", "ship", "2026-01-03T00:00:00Z"),
 		paneItem("f002", "%2", "/r/a", "s2", "apply", "2026-01-02T00:00:00Z"),
 		paneItem("f003", "%3", "/r/a", "s1", "apply", "2026-01-01T00:00:00Z"),
 		paneItem("f004", "%4", "/r/a", "s1", "review", "2026-01-04T00:00:00Z"), // pane dead
 	}
 	seedDiffState(t, items)
-	row1 := snapRow("%1", "f001", "review-pr", "done", "idle", "12m")
+	row1 := snapRow("%1", "f001", "ship", "done", "idle", "12m")
 	row1.prURL = "https://github.com/acme/foo/pull/412"
 	row1.repo = "/r/b"
 	row1.session = "s2"
@@ -869,7 +870,7 @@ func TestOperatorTickDiff_Items(t *testing.T) {
 	if f1["change"] != "f001" {
 		t.Errorf("f001 change = %v, want f001", f1["change"])
 	}
-	if f1["stage"] != "review-pr" || f1["display_state"] != "done" {
+	if f1["stage"] != "ship" || f1["display_state"] != "done" {
 		t.Errorf("f001 joined row wrong: %v", f1)
 	}
 	if f1["pr_url"] != "https://github.com/acme/foo/pull/412" {
@@ -1166,8 +1167,8 @@ func TestOperatorTickDiff_HeldPendingChain(t *testing.T) {
 		t.Errorf("k8ds state = %v, want live", row["state"])
 	}
 
-	// k8ds completes (review-pr done) → ef56 goes pending with next: spawn.
-	stubSnapshot(t, []paneRow{snapRow("%7", "k8ds", "review-pr", "done", "idle", "1m")})
+	// k8ds completes (ship done) → ef56 goes pending with next: spawn.
+	stubSnapshot(t, []paneRow{snapRow("%7", "k8ds", "ship", "done", "idle", "1m")})
 	doc = parseTickDiff(t, runTickDiff(t))
 	if findDelta(doc, "done", "k8ds") == nil {
 		t.Fatalf("done delta for k8ds missing: %v", doc.Deltas)
@@ -1594,10 +1595,10 @@ func TestOperatorTickDiff_PaneCompletionPersistsAcrossPaneDeath(t *testing.T) {
 	// disappears before the operator acks still emits the level-triggered
 	// done (with then) — never pane_death.
 	then := "spawn n34 in ~/code/hexokit via /fab-fff"
-	it := paneItem("s010", "%10", "/r/a", "s1", "review-pr", "2026-01-01T00:00:00Z")
+	it := paneItem("s010", "%10", "/r/a", "s1", "ship", "2026-01-01T00:00:00Z")
 	it.Then = &then
 	path := seedDiffState(t, []trackedItem{it})
-	stubSnapshot(t, []paneRow{snapRow("%10", "s010", "review-pr", "done", "idle", "5m")})
+	stubSnapshot(t, []paneRow{snapRow("%10", "s010", "ship", "done", "idle", "5m")})
 
 	doc := parseTickDiff(t, runTickDiff(t))
 	if d := findDelta(doc, "done", "s010"); d == nil || d["then"] != then {
@@ -1914,9 +1915,9 @@ func TestOperatorTickDiff_DonePredicateSplitOnChange(t *testing.T) {
 		}
 	})
 
-	t.Run("change non-null at review-pr done completes with done_at", func(t *testing.T) {
-		path := seedDiffState(t, []trackedItem{paneItem("s010", "%10", "/r/a", "s1", "review-pr", "2026-01-01T00:00:00Z")})
-		stubSnapshot(t, []paneRow{snapRow("%10", "s010", "review-pr", "done", "idle", "5m")})
+	t.Run("change non-null at ship done completes with done_at", func(t *testing.T) {
+		path := seedDiffState(t, []trackedItem{paneItem("s010", "%10", "/r/a", "s1", "ship", "2026-01-01T00:00:00Z")})
+		stubSnapshot(t, []paneRow{snapRow("%10", "s010", "ship", "done", "idle", "5m")})
 
 		doc := parseTickDiff(t, runTickDiff(t))
 		if d := findDelta(doc, "done", "s010"); d == nil {
@@ -1929,11 +1930,11 @@ func TestOperatorTickDiff_DonePredicateSplitOnChange(t *testing.T) {
 
 	t.Run("an appearing change at the terminus completes the same tick", func(t *testing.T) {
 		// The baseline writer runs before the predicate: a raw spawn whose
-		// change appears already at review-pr done completes on that tick.
+		// change appears already at ship done completes on that tick.
 		it := paneItem("raw-spawn", "%1", "/r/a", "s1", "", "2026-01-01T00:00:00Z")
 		it.Scope["change"] = nil
 		seedDiffState(t, []trackedItem{it})
-		stubSnapshot(t, []paneRow{snapRow("%1", "4a8m", "review-pr", "done", "idle", "5m")})
+		stubSnapshot(t, []paneRow{snapRow("%1", "4a8m", "ship", "done", "idle", "5m")})
 
 		doc := parseTickDiff(t, runTickDiff(t))
 		if d := findDelta(doc, "done", "raw-spawn"); d == nil {

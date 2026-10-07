@@ -1,7 +1,8 @@
 # fab skill bundle
 
 Usage briefing for an agent operating an installed `fab` from any repo. `fab` drives a
-six-stage, spec-first change pipeline (intake → apply → review → hydrate → ship → review-pr)
+six-stage, spec-first change pipeline (intake → apply → review → hydrate → ship, then
+review-pr only as a manual `/git-pr-review` triage step)
 plus workspace, batch, and multi-agent coordination tooling. Plain-markdown prompts, no SDK.
 
 This is the offline, version-locked companion to `fab -h` (flag reference) and the
@@ -84,8 +85,9 @@ fab is one member of the [shll toolkit](https://shll.ai) and composes with its s
   `/fab-ff`, `/fab-fff`, `/git-pr`, …) into the repo's agent directories. Those skills are
   how a harness actually drives the pipeline; the `fab` binary is their engine.
 
-Typical flow: `/fab-new <desc>` → `/fab-continue` (repeat per stage) or `/fab-fff` (run the
-whole pipeline gated on the single intake confidence gate).
+Typical flow: `/fab-new <desc>` → `/fab-continue` (repeat per stage) or `/fab-fff` (run
+unattended through `ship`, gated on the single intake confidence gate; `review-pr` is then
+entered manually via `/git-pr-review`).
 
 ## Output & exit-code contracts
 

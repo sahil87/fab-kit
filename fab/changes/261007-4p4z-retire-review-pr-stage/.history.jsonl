@@ -1,0 +1,10 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-10-07T19:34:17Z"}
+{"args":"Retire review-pr as a pipeline stage — ship becomes terminal, /git-pr-review becomes a manual triage-only skill; delete the Copilot request/poll/timeout machinery and the orchestrator wiring; drop review-pr from the rendered Pipeline line; replace the operator's hardcoded review-pr completion predicate","cmd":"fab-new","event":"command","ts":"2026-10-07T19:34:17Z"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-10-07T19:40:08Z"}
+{"delta":"+0.0","event":"confidence","score":4,"trigger":"calc-score","ts":"2026-10-07T19:40:20Z"}
+{"delta":"+0.8","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-10-07T19:41:22Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-10-07T19:44:23Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-10-07T20:02:34Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-10-07T20:09:48Z"}
+{"event":"review","result":"passed","ts":"2026-10-07T20:09:48Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-10-07T20:23:13Z"}

@@ -157,7 +157,9 @@ func Advance(statusFile *sf.StatusFile, statusPath, stage, driver string) error 
 	return statusFile.Save(statusPath)
 }
 
-// Finish transitions a stage to done and auto-activates the next pending stage.
+// Finish transitions a stage to done and auto-activates the next pending
+// stage, except at sf.AutoAdvanceTerminal ("ship"): the automatic pipeline
+// ends there and review-pr is entered only via an explicit Start.
 // If a post hook is configured for the stage, it runs after the transition.
 // A failing post hook causes the stage to fail.
 func Finish(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver string) error {
@@ -176,15 +178,18 @@ func Finish(statusFile *sf.StatusFile, statusPath, fabRoot, stage, driver string
 	}
 	applyMetricsSideEffect(statusFile, fabRoot, stage, targetState, "", "", "")
 
-	// Auto-activate next pending stage
-	nextStage := sf.NextStage(stage)
-	if nextStage != "" {
-		nextState := statusFile.GetProgress(nextStage)
-		if nextState == "pending" {
-			if err := statusFile.SetProgress(nextStage, "active"); err != nil {
-				return err
+	// Auto-activate next pending stage — the automatic pipeline ends at
+	// AutoAdvanceTerminal ("ship"); review-pr is only entered manually.
+	if stage != sf.AutoAdvanceTerminal {
+		nextStage := sf.NextStage(stage)
+		if nextStage != "" {
+			nextState := statusFile.GetProgress(nextStage)
+			if nextState == "pending" {
+				if err := statusFile.SetProgress(nextStage, "active"); err != nil {
+					return err
+				}
+				applyMetricsSideEffect(statusFile, fabRoot, nextStage, "active", driver, "", "")
 			}
-			applyMetricsSideEffect(statusFile, fabRoot, nextStage, "active", driver, "", "")
 		}
 	}
 

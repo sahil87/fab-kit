@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1270" height="560" viewBox="0 0 1270 560" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="Stage coverage by command: a matrix whose rows are pipeline stages (context, intake, change active, branch name, apply, review, hydrate, ship, review-pr) and whose columns are commands. fab-discuss covers context. fab-draft covers intake. fab-switch covers change active. git-branch covers branch name. fab-new covers intake, change active, and branch name. fab-continue, fab-ff, fab-fff, and fab-proceed each cover apply, review, and hydrate; fff and proceed also cover ship and review-pr. git-pr covers ship. git-pr-review covers review-pr. fab-adopt enters mid-flight: it covers intake, review, hydrate, ship, and review-pr, and marks apply skipped.">
+<svg xmlns="http://www.w3.org/2000/svg" width="1270" height="560" viewBox="0 0 1270 560" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="Stage coverage by command: a matrix whose rows are pipeline stages (context, intake, change active, branch name, apply, review, hydrate, ship, review-pr) and whose columns are commands. fab-discuss covers context. fab-draft covers intake. fab-switch covers change active. git-branch covers branch name. fab-new covers intake, change active, and branch name. fab-continue, fab-ff, fab-fff, and fab-proceed each cover apply, review, and hydrate; fff and proceed also cover ship (the terminal stage). git-pr covers ship. git-pr-review covers review-pr (manual). fab-adopt enters mid-flight: it covers intake, review, hydrate, and ship, and marks apply skipped.">
   <title>Stage coverage by command</title>
-  <desc>Matrix of pipeline stages (rows) by command (columns). Cyan = Explore, Amber = Manual, Blue-grey dashed = Git utilities, Green = Automated pipeline, Grey = pipeline stage row labels, Hatched grey = stage skipped. fab-discuss to context; fab-draft to intake; fab-switch to change active; git-branch to branch name; fab-new to intake, change active, branch name; fab-continue, fab-ff, fab-fff, fab-proceed to apply, review, hydrate; fab-fff and fab-proceed also to ship and review-pr; git-pr to ship; git-pr-review to review-pr; fab-adopt to intake, review, hydrate, ship, review-pr with apply skipped.</desc>
+  <desc>Matrix of pipeline stages (rows) by command (columns). Cyan = Explore, Amber = Manual, Blue-grey dashed = Git utilities, Green = Automated pipeline, Grey = pipeline stage row labels, Hatched grey = stage skipped. fab-discuss to context; fab-draft to intake; fab-switch to change active; git-branch to branch name; fab-new to intake, change active, branch name; fab-continue, fab-ff, fab-fff, fab-proceed to apply, review, hydrate; fab-fff and fab-proceed also to ship (the terminal stage); git-pr to ship; git-pr-review to review-pr (manual); fab-adopt to intake, review, hydrate, ship with apply skipped.</desc>
 
   <defs>
     <!-- diagonal hatch for the "skipped" cell -->
@@ -142,7 +142,7 @@
     <rect x="860" y="352" width="84" height="30" rx="5" fill="#b0bec5" stroke="#546e7a" stroke-width="1.5" stroke-dasharray="5 5"/>
     <text x="902" y="371">PR reviewed</text>
 
-    <!-- fab-fff (col x=950) : apply, review, hydrate, ship (dashed), review-pr (dashed) -->
+    <!-- fab-fff (col x=950) : apply, review, hydrate, ship (dashed) — ship is terminal -->
     <rect x="950" y="208" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
     <text x="992" y="227">apply</text>
     <rect x="950" y="244" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
@@ -151,10 +151,8 @@
     <text x="992" y="299">hydrate</text>
     <rect x="950" y="316" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5" stroke-dasharray="5 5"/>
     <text x="992" y="335">PR raised</text>
-    <rect x="950" y="352" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5" stroke-dasharray="5 5"/>
-    <text x="992" y="371">PR reviewed</text>
 
-    <!-- fab-proceed (col x=1040) : intake, change active, branch name(dashed), apply, review, hydrate, ship(dashed), review-pr(dashed) -->
+    <!-- fab-proceed (col x=1040) : intake, change active, branch name(dashed), apply, review, hydrate, ship(dashed) — ship is terminal -->
     <rect x="1040" y="100" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
     <text x="1082" y="119">intake</text>
     <rect x="1040" y="136" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
@@ -169,10 +167,8 @@
     <text x="1082" y="299">hydrate</text>
     <rect x="1040" y="316" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5" stroke-dasharray="5 5"/>
     <text x="1082" y="335">PR raised</text>
-    <rect x="1040" y="352" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5" stroke-dasharray="5 5"/>
-    <text x="1082" y="371">PR reviewed</text>
 
-    <!-- fab-adopt (col x=1130) : intake, review, hydrate, ship(dashed), review-pr(dashed); apply SKIPPED (hatched) -->
+    <!-- fab-adopt (col x=1130) : intake, review, hydrate, ship(dashed); apply SKIPPED (hatched) — lands at ship done -->
     <rect x="1130" y="100" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5"/>
     <text x="1172" y="119">from diff</text>
     <rect x="1130" y="208" width="84" height="30" rx="5" fill="url(#skip-hatch)" stroke="#9e9e9e" stroke-width="1.5"/>
@@ -183,8 +179,6 @@
     <text x="1172" y="299">hydrate</text>
     <rect x="1130" y="316" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5" stroke-dasharray="5 5"/>
     <text x="1172" y="335">PR meta</text>
-    <rect x="1130" y="352" width="84" height="30" rx="5" fill="#81c784" stroke="#2E7D32" stroke-width="1.5" stroke-dasharray="5 5"/>
-    <text x="1172" y="371">PR reviewed</text>
   </g>
 
   <!-- ===== Legend ===== -->

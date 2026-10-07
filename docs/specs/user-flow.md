@@ -6,7 +6,7 @@
 
 ## 1. How Development Works Today
 
-The stages every developer already follows — define what to build (intake), capture requirements + plan + code it (apply), review it, close it. Fab doesn't invent new stages; it gives each one a name and a place. Human judgment is frontloaded to intake; everything after runs unattended.
+The stages every developer already follows — define what to build (intake), capture requirements + plan + code it (apply), review it, close it. Fab doesn't invent new stages; it gives each one a name and a place. Human judgment is frontloaded to intake; everything after runs unattended through ship (the terminal stage) — review-pr is entered only manually.
 
 ```mermaid
 flowchart TD
@@ -14,7 +14,7 @@ flowchart TD
     A -->|"validate"| R[review]
     R -->|"document learnings"| H[hydrate]
     H -->|"commit & push"| SH[ship]
-    SH -->|"process feedback"| RP[review-pr]
+    SH -.->|"process feedback (manual)"| RP[review-pr]
     RP -->|"close"| AR[archive]
 
     %% Rework
@@ -35,7 +35,7 @@ flowchart TD
 
 ## 2. The Same Flow, With Fab
 
-Each transition is now a `/fab-*` command. `/fab-ff` fast-forwards from intake through hydrate; `/fab-fff` fast-forwards further through ship and PR review. `/fab-archive` is a separate housekeeping step after the pipeline completes. `/fab-adopt` is the **alternate entry point** for work that bypassed the pipeline: a branch authored without fab (with an OPEN or not-yet-created PR) enters *late* — intake is reconstructed from the diff, **apply is `skipped`**, and review (diff-only) → hydrate → ship → review-pr run for real. `/fab-issue` is an optional side step — it links the change to a Linear issue (find-or-create) any time before ship so `/git-pr` renders the issue ID into the PR title; `/fab-fff` runs it automatically as its pre-ship Step 3.5.
+Each transition is now a `/fab-*` command. `/fab-ff` fast-forwards from intake through hydrate; `/fab-fff` fast-forwards further through ship (the terminal stage of the automatic pipeline). `/fab-archive` is a separate housekeeping step after the pipeline completes. `/fab-adopt` is the **alternate entry point** for work that bypassed the pipeline: a branch authored without fab (with an OPEN or not-yet-created PR) enters *late* — intake is reconstructed from the diff, **apply is `skipped`**, and review (diff-only) → hydrate → ship run for real. `/fab-issue` is an optional side step — it links the change to a Linear issue (find-or-create) any time before ship so `/git-pr` renders the issue ID into the PR title; `/fab-fff` runs it automatically as its pre-ship Step 3.5.
 
 ```mermaid
 flowchart TD
@@ -45,21 +45,22 @@ flowchart TD
     A -->|"/fab-continue"| R[review]
     R -->|"/fab-continue"| H[hydrate]
     H -->|"/git-pr"| SH[ship]
-    SH -->|"/git-pr-review"| RP[review-pr]
+    SH -.->|"/git-pr-review (manual)"| RP[review-pr]
 
     %% Optional Linear linking (any time before ship; automatic in /fab-fff Step 3.5)
     H -.->|"/fab-issue
     (optional — find-or-create Linear issue)"| SH
 
     %% Post-pipeline housekeeping
-    RP -->|"/fab-archive"| AR[archive]
+    SH -->|"/fab-archive"| AR[archive]
+    RP -->|"/fab-archive"| AR
 
     %% Shortcuts
     B -->|"/fab-ff
     (fast-forward, confidence-gated)"| H
     B -->|"/fab-fff
-    (fast-forward-further, confidence-gated)"| RP
-    IDEA -->|"/fab-proceed"| RP
+    (fast-forward-further, confidence-gated)"| SH
+    IDEA -->|"/fab-proceed"| SH
 
     %% Adoption — alternate entry for off-pipeline work (apply skipped)
     OFF[off-pipeline branch
@@ -103,7 +104,7 @@ stateDiagram-v2
 
     intake --> apply: /fab-continue (co-generates plan.md, runs tasks)
     intake --> hydrate: /fab-ff (fast-forward, intake-gated)
-    intake --> review_pr: /fab-fff (fast-forward-further, intake-gated)
+    intake --> ship: /fab-fff (fast-forward-further, intake-gated)
 
     apply --> review: /fab-continue
 
@@ -114,7 +115,7 @@ stateDiagram-v2
     state "apply (revise requirements)" as earlier_stage
 
     hydrate --> ship: /git-pr
-    ship --> review_pr: /git-pr-review
+    ship --> review_pr: /git-pr-review (manual)
     review_pr --> [*]: /fab-archive
 
     state "review-pr" as review_pr
@@ -207,7 +208,7 @@ stateDiagram-v2
 
 | Event | Side-effect |
 |-------|-------------|
-| **finish** | If the next stage in the pipeline is `pending`, it is automatically set to `active` |
+| **finish** | If the next stage in the pipeline is `pending`, it is automatically set to `active` — except at ship: the automatic pipeline ends there, so finishing ship does **not** auto-activate review-pr (it is entered only manually) |
 | **reset** | All downstream stages are cascaded to `pending` |
 | **skip** | All downstream `pending` stages are cascaded to `skipped` |
 

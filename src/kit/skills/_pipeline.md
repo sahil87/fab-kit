@@ -14,7 +14,7 @@ metadata:
 > `/fab-adopt` is a partial consumer: it reuses only § Auto-Rework Loop and
 > Step 3's hydrate dispatch, not the full bracket.
 >
-> Driver-specific ship/review-pr steps, output deltas, and errors stay local.
+> Driver-specific ship steps, output deltas, and errors stay local.
 
 ## Contents
 
@@ -42,7 +42,7 @@ They accept the same arguments:
   skip the task-count check at the fork (Step 1). Passing both is a usage error.
 
 The driver binds `{driver}` to its command name for status events and re-run
-guidance, `{terminal}` to `hydrate` (`fab-ff`) or `review-pr` (`fab-fff`), and
+guidance, `{terminal}` to `hydrate` (`fab-ff`) or `ship` (`fab-fff`), and
 `{confidence header}` to the exact header line its own § Output defines (the
 `--force` suffix above appends to that line).
 Every output includes the driver header, Implementation, Review, and Hydrate
@@ -158,7 +158,7 @@ On success (either lane): run `fab status finish <change> apply {driver}`, then 
 
 The lane decision is Step 1's one-time fork; this section owns the light-lane execution-locus rules. v1 is skill-prose only: the lane lives in the orchestrator's context for the run — zero new states, transitions, `.status.yaml` schema fields, or config knobs, and both lanes fire the same `finish`/`fail`/`reset` choreography in the same order (the review cycle-count invariant in § Auto-Rework Loop holds verbatim).
 
-- **Inline**: apply task execution (Step 1) and hydrate (Step 3), plus — for `{terminal} = review-pr` only — ship and review-pr (the driver's Steps 4–5; its Step 3.5 Linear link is inline in BOTH lanes — see `fab-fff.md`). An inline stage runs the same `/fab-continue` Behavior section (or `/git-pr` / `/git-pr-review` behavior) a dispatched worker would, in the orchestrator's own context: no dispatch, no `fab agent <stage> -o yaml` resolution, session model throughout (per `_preamble.md` § Per-Stage Model Resolution, an undispatched stage MAY report the configured profile but MUST NOT switch the session model). Inline ship/review-pr are today's standalone path — those skills keep managing their own stage transitions exactly as standalone. Inline review-pr also removes the yield-seam hazard `fab-fff.md` Step 5's synchronous-poll directive exists to fight: the Copilot poll runs in the main context with no subagent yield risk.
+- **Inline**: apply task execution (Step 1) and hydrate (Step 3), plus — for `{terminal} = ship` only — ship (the driver's Step 4; its Step 3.5 Linear link is inline in BOTH lanes — see `fab-fff.md`). An inline stage runs the same `/fab-continue` Behavior section (or the `/git-pr` behavior) a dispatched worker would, in the orchestrator's own context: no dispatch, no `fab agent <stage> -o yaml` resolution, session model throughout (per `_preamble.md` § Per-Stage Model Resolution, an undispatched stage MAY report the configured profile but MUST NOT switch the session model). Inline ship is today's standalone path — `/git-pr` keeps managing its own stage transitions exactly as standalone.
 - **Dispatched**: review (Step 2 and every re-review) stays a fresh dispatched worker in BOTH lanes — reviewer independence is the pipeline's highest-value dispatch; author self-review would share the author's blind spots, and a fresh reviewer over a tiny diff is cheap anyway.
 - **Rework**: light-lane rework stays inline under the same `{max_cycles}` budget and the same per-cycle fail+reset choreography (§ Auto-Rework Loop item 3 runs the rework inline instead of re-dispatching); exhaustion parks `review: failed` exactly as in the full lane, and a parked light run re-enters however the user chooses, including `--full`. Worker continuation (`_preamble.md` § Worker Continuation) is a FULL-lane-only concern — in the light lane the orchestrator IS the apply author and remembers what the reviewer rejected.
 
@@ -221,7 +221,7 @@ Run /fab-continue <change> for manual rework options.
 
 On success: run `fab status finish <change> hydrate {driver}`, then run the **hydrate boundary** of § PR Boundary Procedure.
 
-When `{terminal}` is `hydrate`, the pipeline is complete here. When `{terminal}` is `review-pr`, continue with the driver's own Steps 3.5–5 (`fab-fff.md`).
+When `{terminal}` is `hydrate`, the pipeline is complete here. When `{terminal}` is `ship`, continue with the driver's own Steps 3.5–4 (`fab-fff.md`).
 
 ---
 

@@ -199,7 +199,7 @@ These command families cover ~90% of skill usage. See `_cli-fab` for the full re
 | `fab log command "<skill>" [<change>]` | Best-effort command telemetry — always exits 0 given valid usage (internal failures become a stderr warning, never an error; cobra arg-count errors are usage errors that exit 2 before RunE). No shell guard needed. | `fab log command "fab-continue" "<id>"` |
 | `fab change <sub>` | Change lifecycle: `new --slug <slug>`, `switch <name>\|--none`, `resolve [<override>]`, `rename`, `list [--archive] [--show-stats]`, `archive <change>`, `restore <change> [--switch]`. | `fab resolve --folder` *(note: the query flags live on top-level `fab resolve` only — `fab change resolve` takes a bare `[<override>]`, no flags)* |
 | `fab resolve [--id\|--folder\|--dir\|--status\|--pane] [--or-none] [<change>]` | Pure query — converts change reference to canonical output (4-char ID by default). No side effects. `--or-none` makes absence a first-class result: prints exactly `(none)`, exit 0 (not-found always; ambiguous only bare — real errors stay non-zero). The probe form for "is a change active?"; `fab preflight` stays the strict validation gate. | `fab resolve --folder --or-none` |
-| `fab status <sub> <change>` | State machine + metadata. Key subcommands: `finish <stage>` (auto-activates next), `advance <stage>`, `start <stage>`, `reset <stage>`, `skip <stage>`, `fail <stage>` (review/review-pr only), `set-change-type <type>`, `set-acceptance <field> <value>` (updates `plan:` block), `add-issue <id>`, `add-pr <url>`. | `fab status finish <id> <stage>` |
+| `fab status <sub> <change>` | State machine + metadata. Key subcommands: `finish <stage>` (auto-activates next, except after `ship` — the automatic pipeline ends there and `review-pr` is entered only by an explicit `start`), `advance <stage>`, `start <stage>`, `reset <stage>`, `skip <stage>`, `fail <stage>` (review/review-pr only), `set-change-type <type>`, `set-acceptance <field> <value>` (updates `plan:` block), `add-issue <id>`, `add-pr <url>`. | `fab status finish <id> <stage>` |
 
 **Key behaviors** to remember without loading `_cli-fab`:
 
@@ -227,7 +227,7 @@ Skills MUST end their output with a `Next:` line derived from the State Table be
 | review (pass) | /fab-continue | /fab-continue |
 | review (fail) | *(rework menu)* | — |
 | hydrate | /git-pr, /fab-archive | /git-pr |
-| ship | /git-pr-review | /git-pr-review |
+| ship | /fab-archive, /git-pr-review | /fab-archive |
 | review-pr (pass) | /fab-archive | /fab-archive |
 | review-pr (fail) | /git-pr-review | /git-pr-review |
 
@@ -492,16 +492,16 @@ The gate **amortizes**: first-run walls are mostly workspace-scoped (trust is pe
    ```
 
    ```yaml
-   # review-pr (mirrors git-pr-review's four-class Step 6 outcome)
+   # review-pr (mirrors git-pr-review's three-class Step 6 outcome)
    stage: review-pr
    status: success            # the WORKER/infra outcome
-   outcome: success           # success | failure | no-reviews | timeout — the Step 6 outcome class
+   outcome: success           # success | failure | no-reviews — the Step 6 outcome class
    summary: "3 comments triaged: 2 fixed, 1 deferred"
    # on outcome: failure only:
    reason: "no PR found on this branch"
    ```
 
-   The **`status` vs `verdict` split is load-bearing**: a completed review with `verdict: fail` is dispatch-state `done` (result present) — the orchestrator then takes the normal review-fail path. Dispatch-state `failed` is reserved for worker/infrastructure failure. The review-pr **`status` vs `outcome` split mirrors it**: `outcome: failure` and `outcome: timeout` are dispatch-state `done` (result present), never dispatch-state `failed` — a first timeout maps to the orchestrator's existing leave-`active` + pending-message path, not the restart budget; the second consecutive timeout on the same PR exits as `no-reviews` (reason `review-gate-unavailable`) — report its `summary`.
+   The **`status` vs `verdict` split is load-bearing**: a completed review with `verdict: fail` is dispatch-state `done` (result present) — the orchestrator then takes the normal review-fail path. Dispatch-state `failed` is reserved for worker/infrastructure failure. The review-pr **`status` vs `outcome` split mirrors it**: `outcome: failure` is dispatch-state `done` (result present), never dispatch-state `failed`; `outcome: no-reviews` is a successful no-op — `/git-pr-review` is a manual triage skill and never requests a review.
 2. **Carry the standard subagent context files** — `fab/project/config.yaml`, `fab/project/constitution.md`, and (optional) `context.md` / `code-quality.md` / `code-review.md` (§ Standard Subagent Context). Already true for native prompts; the CLI prompt content MUST carry the same instruction — a worker on a fresh harness has no other awareness of project principles. **This obligation binds every *dispatch***; a **continuation** message to an already-running named worker carries obligations 1 and 3 only, because the worker already holds the context files (§ Worker Continuation).
 3. **End with a terminal `fab status refresh <change>` epilogue** (the worker substitutes the 4-char change ID it was dispatched with) so the worker recomputes state from artifacts after finishing (the 3a pull-based recompute). This is the sole `fab status` command a dispatched block runs — see the block-contract carve-out below.
 
@@ -509,7 +509,7 @@ The gate **amortizes**: first-run walls are mostly workspace-scoped (trust is pe
 
 **Block-contract carve-out.** The universal block-contract line the dispatch sites carry — "do NOT run `fab status` commands; return results only" — is refined to prohibit `fab status` **transition** commands (`start`/`advance`/`finish`/`reset`/`fail`/`skip`) while **REQUIRING** the terminal `fab status refresh <change>`: refresh is a pull-based recompute, not a transition, so it does not violate the invariant that **the orchestrator (sequencer) owns all transitions**. Every adapter's block prompt carries this carve-out — including a pane dispatch, where a user may converse with the worker mid-stage: **steering is contract-neutral**, so a steered worker still owes its result file and its terminal refresh, and still never runs a transition command.
 
-**Self-managing stages (ship/review-pr).** Dispatched **ship** and **review-pr** workers (`/fab-fff` Steps 4–5, `/fab-continue`'s ship/review-pr rows) are exempt from the transition prohibition above: they self-manage their **own** stage's `fab status` start/finish/fail exactly as the standalone `/git-pr` / `/git-pr-review` skills do, on every adapter — their prompts carry obligations 1–3 but NOT the prohibition. The orchestrator still owns sequencing and never runs a transition for a stage whose worker owns it; the dispatching rows' only-if-still-active guards are the reconciliation seam. Steering stays contract-neutral for these workers too — a steered ship/review-pr pane worker still owes its result file and terminal refresh.
+**Self-managing stages (ship/review-pr).** Dispatched **ship** and **review-pr** workers (`/fab-fff` Step 4, `/fab-continue`'s ship/review-pr rows) are exempt from the transition prohibition above: they self-manage their **own** stage's `fab status` start/finish/fail exactly as the standalone `/git-pr` / `/git-pr-review` skills do, on every adapter — their prompts carry obligations 1–3 but NOT the prohibition. The orchestrator still owns sequencing and never runs a transition for a stage whose worker owns it; the dispatching rows' only-if-still-active guards are the reconciliation seam. Steering stays contract-neutral for these workers too — a steered ship/review-pr pane worker still owes its result file and terminal refresh.
 
 ---
 
