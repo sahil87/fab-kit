@@ -741,29 +741,29 @@ func TestSwitch_NextDerivation(t *testing.T) {
 			wantNext: "Next:        ship (via /git-pr)",
 		},
 		{
-			name:     "review-pr active routes to git-pr-review, not fab-archive",
+			name:     "review-pr active routes to git-pr-review",
 			progress: [6]string{"done", "done", "done", "done", "done", "active"},
 			wantNext: "Next:        review-pr (via /git-pr-review)",
 		},
 		{
-			name:     "ship done with pending manual-only review-pr collapses to fab-archive",
+			name:     "ship done with pending manual-only review-pr routes to git-pr-review",
 			progress: [6]string{"done", "done", "done", "done", "done", "pending"},
-			wantNext: "Next:        /fab-archive",
+			wantNext: "Next:        /git-pr-review",
 		},
 		{
-			name:     "review-pr failed surfaces git-pr-review, not fab-archive",
+			name:     "review-pr failed surfaces git-pr-review",
 			progress: [6]string{"done", "done", "done", "done", "done", "failed"},
 			wantNext: "Next:        review-pr (via /git-pr-review)",
 		},
 		{
-			name:     "all done collapses to fab-archive",
+			name:     "all done prints Pipeline complete",
 			progress: [6]string{"done", "done", "done", "done", "done", "done"},
-			wantNext: "Next:        /fab-archive",
+			wantNext: "Pipeline complete.",
 		},
 		{
-			name:     "hydrate done with trailing skipped collapses to fab-archive",
+			name:     "hydrate done with trailing skipped prints Pipeline complete",
 			progress: [6]string{"done", "done", "done", "done", "skipped", "skipped"},
-			wantNext: "Next:        /fab-archive",
+			wantNext: "Pipeline complete.",
 		},
 	}
 

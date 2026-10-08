@@ -1,0 +1,53 @@
+id: or8g
+name: 261008-or8g-ship-copilot-request-drop-archive-nudge
+created: 2026-10-08T05:35:32Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: active
+    hydrate: pending
+    ship: pending
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 12
+    acceptance_count: 23
+    acceptance_completed: 0
+confidence:
+    certain: 10
+    confident: 7
+    tentative: 0
+    unresolved: 0
+    score: 4.3
+    fuzzy: true
+    dimensions:
+        signal: 77.9
+        reversibility: 82.9
+        competence: 85.9
+        disambiguation: 82.1
+stage_metrics:
+    intake: {started_at: "2026-10-08T05:35:32Z", driver: fab-new, iterations: 1, completed_at: "2026-10-08T07:52:29Z"}
+    apply: {started_at: "2026-10-08T07:52:29Z", driver: fab-fff, iterations: 1, completed_at: "2026-10-08T07:59:02Z"}
+    review: {started_at: "2026-10-08T07:59:02Z", driver: fab-fff, iterations: 1}
+prs: []
+base_branch: main
+true_impact:
+    added: 0
+    deleted: 0
+    net: 0
+    excluding:
+        added: 0
+        deleted: 0
+        net: 0
+    tests:
+        added: 0
+        deleted: 0
+        net: 0
+    computed_at: "2026-10-08T07:59:02Z"
+    computed_at_stage: apply
+# base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-10-08T07:59:02Z

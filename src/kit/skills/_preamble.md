@@ -216,6 +216,8 @@ Skills MUST end their output with a `Next:` line derived from the State Table be
 
 **Format**: `Next: /fab-command` or `Next: /fab-commandA, /fab-commandB, or /fab-commandC`
 
+**No-command terminal state**: when the state reached has no available commands (the `review-pr (pass)` row), omit the `Next:` line and print `Pipeline complete.` instead. This does not change `/fab-ff`'s and `/fab-fff`'s existing `Pipeline complete.` + `Next: {per state table}` rendering — their terminal states (`hydrate` and `ship` respectively) still carry a command.
+
 ### State Table
 
 | State | Available commands | Default |
@@ -226,9 +228,9 @@ Skills MUST end their output with a `Next:` line derived from the State Table be
 | apply | /fab-continue | /fab-continue |
 | review (pass) | /fab-continue | /fab-continue |
 | review (fail) | *(rework menu)* | — |
-| hydrate | /git-pr, /fab-archive | /git-pr |
-| ship | /fab-archive, /git-pr-review | /fab-archive |
-| review-pr (pass) | /fab-archive | /fab-archive |
+| hydrate | /git-pr | /git-pr |
+| ship | /git-pr-review | /git-pr-review |
+| review-pr (pass) | — | — |
 | review-pr (fail) | /git-pr-review | /git-pr-review |
 
 **State derivation**:
@@ -242,7 +244,7 @@ Skills MUST end their output with a `Next:` line derived from the State Table be
 - **review-pr (pass)**: `progress."review-pr" == done`
 - **review-pr (fail)**: `progress."review-pr" == failed`
 
-Precedence: an `active`/`ready` stage is caught by the generic intake/apply rule before any `done`-state row; among the `done`-state rows, later rows supersede earlier ones — so a finished manual triage run (`review-pr` `done`/`failed`) outranks the ship row, and `ship: done` with `review-pr: pending` (the automatic pipeline complete, manual triage not started) deterministically selects `/fab-archive`.
+Precedence: an `active`/`ready` stage is caught by the generic intake/apply rule before any `done`-state row; among the `done`-state rows, later rows supersede earlier ones — so a finished manual triage run (`review-pr` `done`/`failed`) outranks the ship row, and `ship: done` with `review-pr: pending` (the automatic pipeline complete, manual triage not started) deterministically selects `/git-pr-review`.
 
 ### Lookup Procedure
 

@@ -43,7 +43,7 @@ Render in this order:
 
 1. Version header, change name, and live branch
 2. `display_stage` + `display_state` as `Stage: {stage} ({N}/6) — {state}`
-3. Routing stage/default command as `Next: {stage} (via {command})`, or `Next: /fab-archive` when complete
+3. Routing stage/default command as `Next: {stage} (via {command})`; when every stage is resolved, `Next: /git-pr-review` while `review-pr` is still `pending`, or `Pipeline complete.` (no `Next:` line) once `review-pr` is `done`/`skipped`
 4. Progress table, then plan task/acceptance counts
 5. Confidence
 6. Optional Impact and refactor-growth lines

@@ -371,6 +371,33 @@ fab status finish {name} ship git-pr 2>/dev/null || true
 
 This marks `ship` as `done` — the pipeline's terminal stage. Best-effort — failures silently ignored.
 
+### Step 4b-bis: Request Copilot Review
+
+Runs only on the ship path — when a PR URL is known (from Step 3c's create or the existing OPEN PR from Step 1) AND Step 3's MERGED STOP did not fire. It MUST NOT fire on a merged PR; when no PR exists, skip silently.
+
+1. **Idempotence probe** — skip the request silently when Copilot is already a requested reviewer OR has already submitted a review (re-running `/git-pr` on a shipped PR must not re-request):
+
+   ```bash
+   # pending request — REST surface (the GraphQL-backed `gh pr view --json reviewRequests`
+   # omits bot reviewers, so it would always read empty and re-request on every run)
+   gh api "repos/{owner}/{repo}/pulls/{number}/requested_reviewers" --jq '.users[].login' 2>/dev/null
+   # already-submitted review
+   gh pr view {number} --json reviews --jq '.reviews[].author.login' 2>/dev/null
+   ```
+
+   The two surfaces render the bot under different logins — match each surface's own form: `Copilot` under REST `requested_reviewers`, `copilot-pull-request-reviewer` among review authors (prefix match — the login may render with a `[bot]` suffix). If either probe matches, skip silently.
+2. **Request** (only when the probe found neither):
+
+   ```bash
+   gh pr edit {pr_url_or_number} --add-reviewer copilot-pull-request-reviewer 2>/dev/null \
+     || echo "  ! copilot review request skipped (no entitlement or gh error)"
+   ```
+3. **Best-effort, always** — a failure (no Copilot entitlement in the repo/org, a `gh` error, a network timeout) prints the one-line warning above and NEVER fails the ship. This step never STOPs, never retries, never blocks Step 4c.
+
+Print on success: `  ✓ review — requested copilot-pull-request-reviewer`
+
+This step is a request only — no polling, no waiting, no gate, no timeout budget, no config knob.
+
 ### Step 4c: Commit and Push Status Update
 
 If Step 4a successfully recorded a PR URL (`{has_fab}` is true and `fab status add-pr` ran):
@@ -401,6 +428,7 @@ Shipped.
 - Skip steps that are already done (no uncommitted → skip commit, nothing to push → skip rebase + push, OPEN PR exists → skip create)
 - Always operate on CWD — no repo detection
 - No merge support — stop at PR creation
+- The Copilot review request (Step 4b-bis) is best-effort — never blocks shipping
 
 ---
 
@@ -424,7 +452,7 @@ Derived from [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.
 
 | Property | Value |
 |----------|-------|
-| Idempotent? | Yes — guarded no-op paths; see Steps 3a-bis (byte-stable memory), 3d (Meta sync — `fab pr-sync` no-ops on a current body), and 4a/4c (idempotent status + staged-diff guard) |
+| Idempotent? | Yes — guarded no-op paths; see Steps 3a-bis (byte-stable memory), 3d (Meta sync — `fab pr-sync` no-ops on a current body), 4b-bis (probe skips an already-requested/reviewed Copilot), and 4a/4c (idempotent status + staged-diff guard) |
 | Advances stage? | Yes — ship (start/finish, best-effort) |
 | Modifies `.fab-status.yaml`? | No |
 | Modifies git state? | Yes — commit, rebase onto `origin/<base_branch>` (3a-ter), push (`--force-with-lease` after a rebase), PR creation |
