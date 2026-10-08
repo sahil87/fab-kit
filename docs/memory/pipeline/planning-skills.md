@@ -10,7 +10,7 @@ description: "`/fab-new`, `/fab-draft`, `/fab-clarify`, `/fab-ff`, `/fab-fff` �
 
 The planning skills (`/fab-new`, `/fab-clarify`) handle the single planning stage of the 6-stage Fab pipeline: **intake**. They produce the only pre-code planning artifact (`intake.md`), which defines *what* changes and *why*. Intake is also the sole confidence gate — all human judgment is frontloaded here. Requirement capture and the implementation plan are co-generated into a single `plan.md` at apply entry — see [execution-skills.md](/pipeline/execution-skills.md) — not by a planning skill. There is no `spec` stage or `spec.md` artifact (j6cs).
 
-`/fab-fff` and `/fab-ff` are also documented here because their planning behavior originated as planning skills. `/fab-fff` is the **full-pipeline command** (intake → review-pr, intake-gated, no frontloaded questions, autonomous rework). `/fab-ff` is the **fast-forward command** (intake → hydrate, intake-gated, autonomous rework). See sections below for details.
+`/fab-fff` and `/fab-ff` are also documented here because their planning behavior originated as planning skills. `/fab-fff` is the **full-pipeline command** (intake → ship, intake-gated, no frontloaded questions, autonomous rework). `/fab-ff` is the **fast-forward command** (intake → hydrate, intake-gated, autonomous rework). See sections below for details.
 
 ## Shared Generation Partial
 
@@ -165,7 +165,7 @@ Reset is primarily used after review identifies issues upstream — including re
 
 ### `/fab-fff [<change-name>]` (Full Pipeline)
 
-`/fab-fff` runs the entire Fab pipeline in a single invocation: apply (which generates the unified `plan.md` at entry — `## Requirements` + `## Tasks` + `## Acceptance` — then executes tasks) → review → hydrate → ship → review-pr. Gated on a **single intake confidence gate** (flat 3.0) (j6cs) (there is no spec step, spec gate, or auto-clarify invocation). Autonomously reworks on review failure with bounded retry (up to `{max_cycles}` cycles — the `Max cycles:` knob in `fab/project/code-review.md` § Rework Budget, default 3 (c5tr); escalation after 2 consecutive fix-code failures, a threshold that stays fixed). Accepts an optional change-name argument to target a specific change instead of the active one in `.fab-status.yaml`. Accepts `--force` to bypass the gate. `fab-fff.md` is a **thin wrapper over the shared pipeline bracket** (szxd) `_pipeline.md` (declared via `helpers: [_generation, _review, _srad, _pipeline]`): the wrapper holds Purpose + Arguments + a two-row parameter table (`{driver}` = `fab-fff`, `{terminal}` = `review-pr`) plus the fff-only optional Step 3.5 (Linear issue find-or-create link, run inline in both lanes — owned by [issue-linking.md](/pipeline/issue-linking.md)) and Steps 4–5 (ship, review-pr — incl. the timeout outcome) and driver-specific Output/error rows; the bracket holds everything the two drivers share — pre-flight (intake prerequisite + intake gate), context loading, resumability, Steps 1–3 (apply → review → hydrate), the auto-rework loop with its per-cycle choreography, the exhaustion stop, and the shared error rows with `{driver}`-parameterized messages.
+`/fab-fff` runs the entire Fab pipeline in a single invocation: apply (which generates the unified `plan.md` at entry — `## Requirements` + `## Tasks` + `## Acceptance` — then executes tasks) → review → hydrate → ship. Gated on a **single intake confidence gate** (flat 3.0) (j6cs) (there is no spec step, spec gate, or auto-clarify invocation). Autonomously reworks on review failure with bounded retry (up to `{max_cycles}` cycles — the `Max cycles:` knob in `fab/project/code-review.md` § Rework Budget, default 3 (c5tr); escalation after 2 consecutive fix-code failures, a threshold that stays fixed). Accepts an optional change-name argument to target a specific change instead of the active one in `.fab-status.yaml`. Accepts `--force` to bypass the gate. `fab-fff.md` is a **thin wrapper over the shared pipeline bracket** (szxd) `_pipeline.md` (declared via `helpers: [_generation, _review, _srad, _pipeline]`): the wrapper holds Purpose + Arguments + a two-row parameter table (`{driver}` = `fab-fff`, `{terminal}` = `ship`) plus the fff-only optional Step 3.5 (Linear issue find-or-create link, run inline in both lanes — owned by [issue-linking.md](/pipeline/issue-linking.md)) and Step 4 (ship) and driver-specific Output/error rows; the bracket holds everything the two drivers share — pre-flight (intake prerequisite + intake gate), context loading, resumability, Steps 1–3 (apply → review → hydrate), the auto-rework loop with its per-cycle choreography, the exhaustion stop, and the shared error rows with `{driver}`-parameterized messages. Ship success ends the pipeline — the driver reports `Pipeline complete.`; `review-pr` stays `pending` (PR triage is a manual `/git-pr-review` invocation, not a pipeline step).
 
 #### Minimum Prerequisite
 
@@ -183,7 +183,6 @@ There are no auto-clarify checkpoints (j6cs). The intake gate is the only "bounc
 4. Validate implementation via review behavior — on failure, autonomously selects rework path (fix code, revise plan, revise requirements) and retries (max `{max_cycles}` cycles, default 3)
 5. Hydrate into memory files
 6. Ship (dispatch `/git-pr`)
-7. Review-PR (dispatch `/git-pr-review`)
 
 #### Autonomous Review Rework
 
@@ -191,7 +190,7 @@ On review failure, `/fab-fff` autonomously selects the rework path based on fail
 
 #### When to Use
 
-- Want the full pipeline from intake through PR review in one command
+- Want the full pipeline from intake through ship in one command
 - Clear requirements upfront, want to reach completion quickly with safety nets
 - Changes needing a quality gate — the single intake gate blocks too-ambiguous changes before apply
 
@@ -237,7 +236,7 @@ On review failure, `/fab-ff` autonomously selects the rework path based on failu
 
 #### When to Use
 
-- Small, well-understood changes that don't need ship/review-pr
+- Small, well-understood changes that don't need ship
 - Want to reach hydrate quickly with safety nets (intake gate + auto-rework)
 - After raising confidence via `/fab-clarify` to meet the threshold
 
@@ -380,10 +379,10 @@ Calling `/fab-clarify` multiple times is safe — it refines the intake further 
 *Introduced by*: 260212-a4bd-unify-fab-continue; *Updated by*: 260611-szxd-skills-twins-self-duplication-refactor (shared bracket extracted to `_pipeline.md`; wrappers shrank to parameter tables + driver-specific content)
 
 ### Scope Differentiation: fab-fff (Full Pipeline) vs fab-ff (Fast-Forward)
-**Decision**: The difference between `/fab-ff` and `/fab-fff` is scope only. `/fab-ff` runs intake → hydrate; `/fab-fff` extends through ship → review-pr. Both have the identical single intake confidence gate, identical autonomous rework (`{max_cycles}`-cycle cap, escalation rule), and accept `--force` to bypass the gate. No frontloaded questions in either skill.
-**Why**: The naming intuition: `ff` (fast-forward) = "get me to hydrate quickly." `fff` (fast-forward-further) = "go all the way through PR review." Scope is the only axis of differentiation — behavior (gate, rework) is identical. This simplifies the mental model: choose ff or fff based on how far you want to go, not based on behavioral differences.
+**Decision**: The difference between `/fab-ff` and `/fab-fff` is scope only. `/fab-ff` runs intake → hydrate; `/fab-fff` extends through ship (the pipeline's terminal stage). Both have the identical single intake confidence gate, identical autonomous rework (`{max_cycles}`-cycle cap, escalation rule), and accept `--force` to bypass the gate. No frontloaded questions in either skill.
+**Why**: The naming intuition: `ff` (fast-forward) = "get me to hydrate quickly." `fff` (fast-forward-further) = "go all the way through ship." Scope is the only axis of differentiation — behavior (gate, rework) is identical. This simplifies the mental model: choose ff or fff based on how far you want to go, not based on behavioral differences.
 **Rejected**: Previous design differentiated on behavior (gates, frontloaded questions, rework style) — too many axes of variation, confusing mental model.
-*Introduced by*: 260215-237b-DEV-1027-redefine-ff-fff-scope; *Updated by*: 260216-knmw-DEV-1030-swap-ff-fff-review-rework (swapped review failure behavior); 260314-q5p9-redesign-ff-fff-scopes (scope-only differentiation, identical gates on both, no frontloaded questions)
+*Introduced by*: 260215-237b-DEV-1027-redefine-ff-fff-scope; *Updated by*: 260216-knmw-DEV-1030-swap-ff-fff-review-rework (swapped review failure behavior); 260314-q5p9-redesign-ff-fff-scopes (scope-only differentiation, identical gates on both, no frontloaded questions); 261007-4p4z-retire-review-pr-stage (fff's terminal is `ship` — review-pr is a manual stage, no longer part of either driver's scope)
 
 ### ID-Collision Re-Runs Route to Resume, Not Error (g1-2)
 **Decision**: When `/fab-new` or `/fab-draft` is re-run with a backlog or Linear ID that already has an existing non-archived change, the skill detects the collision in Step 3 (backlog: `fab resolve --id {id} --or-none` compared for **equality** with `{id}` — exact-ID anchored (w7dp), so a substring hit inside another change's slug cannot false-positive into resume; the `--or-none` flag (dow0) makes "no existing change" a `(none)` + exit `0` success answer rather than a red error, and the equality compare naturally rejects `(none)`; Linear: `grep -lw "{ISSUE_ID}" fab/changes/*/.status.yaml` over the issues arrays — word-anchored (uliv) so `DEV-123` doesn't match `DEV-1234`; Linear IDs never appear in folder names) and routes to resume (`/fab-switch {name}` + `/fab-continue`) instead of surfacing the raw `Change ID already in use` error. `change.go` keeps its collision error unchanged as the safety net (backlog IDs only). Natural-language re-runs intentionally create a new change each run.

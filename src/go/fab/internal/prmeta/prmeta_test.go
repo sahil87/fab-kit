@@ -133,7 +133,7 @@ func TestRender_Pipeline(t *testing.T) {
 		got := renderPipeline(baseData())
 		want := "**Pipeline:** [intake](https://github.com/o/r/blob/b/fab/changes/260604-rj31-mechanical-pr-meta/intake.md) ✓ → " +
 			"[apply](https://github.com/o/r/blob/b/fab/changes/260604-rj31-mechanical-pr-meta/plan.md) ✓ → " +
-			"review ✓ → hydrate → ship → review-pr"
+			"review ✓ → hydrate → ship"
 		if got != want {
 			t.Errorf("pipeline =\n%q\nwant\n%q", got, want)
 		}
@@ -144,7 +144,7 @@ func TestRender_Pipeline(t *testing.T) {
 		d.IntakeURL = ""
 		d.ApplyURL = ""
 		got := renderPipeline(d)
-		want := "**Pipeline:** intake ✓ → apply ✓ → review ✓ → hydrate → ship → review-pr"
+		want := "**Pipeline:** intake ✓ → apply ✓ → review ✓ → hydrate → ship"
 		if got != want {
 			t.Errorf("pipeline =\n%q\nwant\n%q", got, want)
 		}

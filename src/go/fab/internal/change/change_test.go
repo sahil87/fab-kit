@@ -746,6 +746,16 @@ func TestSwitch_NextDerivation(t *testing.T) {
 			wantNext: "Next:        review-pr (via /git-pr-review)",
 		},
 		{
+			name:     "ship done with pending manual-only review-pr collapses to fab-archive",
+			progress: [6]string{"done", "done", "done", "done", "done", "pending"},
+			wantNext: "Next:        /fab-archive",
+		},
+		{
+			name:     "review-pr failed surfaces git-pr-review, not fab-archive",
+			progress: [6]string{"done", "done", "done", "done", "done", "failed"},
+			wantNext: "Next:        review-pr (via /git-pr-review)",
+		},
+		{
 			name:     "all done collapses to fab-archive",
 			progress: [6]string{"done", "done", "done", "done", "done", "done"},
 			wantNext: "Next:        /fab-archive",

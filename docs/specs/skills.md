@@ -117,7 +117,7 @@ Driver (fab-ff / fab-fff) reads _pipeline.md with {driver}/{terminal} bound
 │  ├─ Pass: finish review → PR Boundary: commit + plain push (no rebase) + fab pr-sync → Step 3
 │  └─ Fail: auto-rework loop ≤{max_cycles} (light: rework inline; full: resume apply worker when reachable; fresh review each cycle) — rework cycles never push; exhaustion: fab status fail review → STOP
 ├─ Step 3 Hydrate — LIGHT: inline / FULL: subagent /fab-continue Hydrate → fab status finish hydrate → PR Boundary: commit + docs-index refresh + plain push + fab pr-sync
-└─ {terminal} = hydrate → complete (an OPEN draft PR remains for a later /git-pr to finalize) / review-pr → driver Steps 3.5–5 (3.5 link Linear issue — optional, inline in BOTH lanes / 4 ship — /git-pr finalizes the open PR / 5 review-pr — inline in the light lane, dispatched in the full lane)
+└─ {terminal} = hydrate → complete (an OPEN draft PR remains for a later /git-pr to finalize) / ship → driver Steps 3.5–4 (3.5 link Linear issue — optional, inline in BOTH lanes / 4 ship — /git-pr finalizes the open PR) → `Pipeline complete.` (review-pr is entered only manually)
 ```
 
 `_review` — shared review logic run by the dispatched review worker (a `mode` parameter — full | diff-only — selects whether plan-conformance steps run):
@@ -510,7 +510,7 @@ User invokes /fab-continue [change-name] [stage]
 │    pass → finish review + set-acceptance / fail → fail review + reset apply (rework options)
 │  HYDRATE (dispatched): Write/Edit docs/memory/** → set-summary → fab docs-index docs/memory → finish hydrate
 │  SHIP: delegate to /git-pr <change>
-│  REVIEW-PR: delegate to /git-pr-review <change> (first timeout → stage left active; 2nd consecutive → no-reviews finish, reason review-gate-unavailable)
+│  REVIEW-PR: delegate to /git-pr-review <change> (the manual dispatch path)
 └─ Output: summary + Next: line
 ```
 
@@ -569,10 +569,10 @@ User invokes /fab-ff [change-name] [--force]
 
 ## `/fab-fff` (Full Autonomous Pipeline)
 
-**Purpose**: Run the entire automated Fab pipeline — apply → review → hydrate → ship → review-pr — in a single invocation (everything after intake). Gated on the single intake confidence gate (flat 3.0, same as `/fab-ff`). No `/fab-clarify` runs inside the bracket. Autonomously reworks on review failure using sub-agent review with prioritized findings (`{max_cycles}`-cycle retry cap — code-review.md Rework Budget knob, default 3 — escalation after 2 consecutive fix-code failures). Accepts `--force` to bypass the gate and `--light`/`--full` to force the lane. The draft PR opens at apply exit and is pushed/synced at the review-pass and hydrate boundaries (`_pipeline.md` § PR Boundary Procedure), so CI overlaps review and hydrate; the ship stage then finalizes the already-open PR.
+**Purpose**: Run the entire automated Fab pipeline — apply → review → hydrate → ship — in a single invocation (everything after intake, terminating at ship; review-pr is entered only manually). Gated on the single intake confidence gate (flat 3.0, same as `/fab-ff`). No `/fab-clarify` runs inside the bracket. Autonomously reworks on review failure using sub-agent review with prioritized findings (`{max_cycles}`-cycle retry cap — code-review.md Rework Budget knob, default 3 — escalation after 2 consecutive fix-code failures). Accepts `--force` to bypass the gate and `--light`/`--full` to force the lane. The draft PR opens at apply exit and is pushed/synced at the review-pass and hydrate boundaries (`_pipeline.md` § PR Boundary Procedure), so CI overlaps review and hydrate; the ship stage then finalizes the already-open PR.
 
 **Source ownership**: `_pipeline.md` owns shared framing and Steps 1–3;
-`fab-fff.md` owns only the `fab-fff`/`review-pr` binding plus the optional Linear link step, ship, and PR review.
+`fab-fff.md` owns only the `fab-fff`/`ship` binding plus the optional Linear link step and ship.
 
 **Prerequisite**: Active change with completed `intake.md`.
 
@@ -589,8 +589,6 @@ User invokes /fab-ff [change-name] [--force]
 → ... (memory hydrated)
 → --- Ship ---
 → ... (PR created)
-→ --- Review-PR ---
-→ ... (PR review processed)
 → "Pipeline complete."
 ```
 
@@ -601,10 +599,9 @@ User invokes /fab-ff [change-name] [--force]
 4. **Step 2 — Review**: Dispatch to review sub-agent (fresh context, prioritized findings — dispatched in BOTH lanes). On failure, triage findings by priority and autonomously select rework path (fix code, revise plan, revise requirements), then re-apply (light lane: inline; full lane — resume-first: continue the named `apply-{id}` worker on the native arm when reachable, else dispatch fresh). Re-review via fresh sub-agent. Retry up to `{max_cycles}` cycles (default 3; escalation after 2 consecutive fix-code). Bail with summary after `{max_cycles}` failed cycles.
 5. **Step 3 — Hydrate**: Hydrate into memory (inline in the light lane, dispatched in the full lane).
 6. **Step 3.5 — Link Linear Issue (optional)**: Run the `/fab-issue` behavior inline in BOTH lanes (no dispatch and no YAML stage resolution) — its gate chain skips gracefully (an unconfigured project sees zero behavior change), the promptless deferral applies, and a skip never blocks ship.
-7. **Step 4 — Ship**: Run `/git-pr` to commit, push, and create or finalize the PR (dispatched in the full lane, inline in the light lane).
-8. **Step 5 — Review-PR**: Run `/git-pr-review` to process PR review comments (dispatched in the full lane, inline in the light lane).
+7. **Step 4 — Ship**: Run `/git-pr` to commit, push, and create or finalize the PR (dispatched in the full lane, inline in the light lane) — the terminal step; reports `Pipeline complete.` after ship.
 
-**Key difference from `/fab-ff`**: The difference is scope only. `/fab-fff` extends through ship and review-pr (with the optional `/fab-issue` Linear link step before ship); `/fab-ff` stops at hydrate — it is deliberately NOT wired with the link step (no ship stage follows), so `/fab-ff` users run `/fab-issue` manually, and an ff run ends with an OPEN draft PR (opened at apply exit by the bracket's PR Boundary Procedure) that a later `/git-pr` finalizes. Both have the identical single intake gate, no in-bracket clarify, and identical auto-rework (`{max_cycles}`-cycle cap with escalation, default 3). Both accept `--force` to bypass the gate, and both fork once at apply entry into the light/full lane on plan task count (≤ 5 → light), with `--light`/`--full` overrides.
+**Key difference from `/fab-ff`**: The difference is scope only. `/fab-fff` extends through ship (with the optional `/fab-issue` Linear link step before ship); `/fab-ff` stops at hydrate — it is deliberately NOT wired with the link step (no ship stage follows), so `/fab-ff` users run `/fab-issue` manually, and an ff run ends with an OPEN draft PR (opened at apply exit by the bracket's PR Boundary Procedure) that a later `/git-pr` finalizes. Both have the identical single intake gate, no in-bracket clarify, and identical auto-rework (`{max_cycles}`-cycle cap with escalation, default 3). Both accept `--force` to bypass the gate, and both fork once at apply entry into the light/full lane on plan task count (≤ 5 → light), with `--light`/`--full` overrides.
 
 
 **Flow**:
@@ -612,17 +609,14 @@ User invokes /fab-ff [change-name] [--force]
 ```text
 User invokes /fab-fff [change-name] [--force]
 ├─ Read: _preamble.md, helpers incl. _pipeline.md
-├─ Execute the _pipeline.md bracket ({driver}=fab-fff, {terminal}=review-pr)
+├─ Execute the _pipeline.md bracket ({driver}=fab-fff, {terminal}=ship)
 ├─ Link Linear Issue: /fab-issue {name} (optional, inline both lanes; gate skips never block ship)
-├─ Ship: /git-pr {name} (own ship transitions) — full lane: dispatched; light lane: inline
-└─ Review-PR: /git-pr-review {name} — full lane: dispatched (sync-poll directive); light lane: inline (directive moot)
-   ├─ [success / no-reviews] stage done; [failure] STOP with the error
-   └─ [timeout] first in activation: stage left active; report pending + re-run guidance (2nd consecutive on the same PR → no-reviews, review-gate-unavailable)
+└─ Ship: /git-pr {name} (own ship transitions) — full lane: dispatched; light lane: inline → `Pipeline complete.`
 ```
 
 **Tools**: Read (`_preamble.md`, helpers); all other tool use lives in the bracket and the dispatched skills.
 
-**Sub-agents**: Bracket sub-agents per `_pipeline.md` (`/fab-continue` Apply, Review, Hydrate) plus `/git-pr` and `/git-pr-review`.
+**Sub-agents**: Bracket sub-agents per `_pipeline.md` (`/fab-continue` Apply, Review, Hydrate) plus `/git-pr`.
 
 ---
 
@@ -682,7 +676,7 @@ User invokes /fab-proceed
 
 ## `/fab-adopt`
 
-**Purpose**: Bring a **completed-but-off-pipeline** change into the Fab pipeline (scenario B — a feature branch authored without fab, with an **OPEN** or **not-yet-created** PR). It is the *real* pipeline entered late, with **apply** marked `skipped` (the only stage that cannot meaningfully re-run when the code already exists); intake/review/hydrate/ship/review-pr all genuinely run. A **MERGED** PR (scenario A — retroactive backfill) is out of scope and STOPs at Step 0. A thin orchestrator on the `/fab-proceed`/`/fab-ff` pattern — `helpers: [_srad, _generation, _review, _pipeline]`.
+**Purpose**: Bring a **completed-but-off-pipeline** change into the Fab pipeline (scenario B — a feature branch authored without fab, with an **OPEN** or **not-yet-created** PR). It is the *real* pipeline entered late, with **apply** marked `skipped` (the only stage that cannot meaningfully re-run when the code already exists); intake/review/hydrate/ship all genuinely run. A **MERGED** PR (scenario A — retroactive backfill) is out of scope and STOPs at Step 0. A thin orchestrator on the `/fab-proceed`/`/fab-ff` pattern — `helpers: [_srad, _generation, _review, _pipeline]`.
 
 **Prerequisite**: An active branch (not detached HEAD, not the default branch) with a non-empty diff against the base-branch merge-base (PR `baseRefName` when a PR exists, else the default branch), and no fab change already mapping to that branch.
 
@@ -694,8 +688,8 @@ User invokes /fab-proceed
 3. **Step 2 (state)**: `fab status skip {name} apply` (cascades downstream → skipped) then `fab status reset {name} review fab-adopt` (skipped → active, downstream → pending) — yields `apply=skipped, review=active`, **no Go change**; record the fact via `fab status set-summary`.
 4. **Step 3 — Review** (dispatched, `mode: diff-only` — the `_review.md` parameter): the orchestrator owns the verdict (pass incl. zero-findings best-effort → `finish review`; fail → auto-rework per `_pipeline.md` budget when autonomous, hand findings back when interactive).
 5. **Step 4 — Hydrate** (dispatched, verbatim per `_pipeline.md` Step 3): the permanent-loss recovery — `docs/memory/` finally reflects what shipped → `finish hydrate`.
-6. **Step 5 — Ship**: `/git-pr {name}` syncs `## Meta` on the OPEN PR (its Step 3d, delegated to `fab pr-sync` — marker splice, no-op when current) or creates the PR fresh when `none`; `finish ship` auto-activates review-pr.
-7. **Step 6**: land in review-pr; print the honest-state summary and `Next: /git-pr-review`.
+6. **Step 5 — Ship**: `/git-pr {name}` syncs `## Meta` on the OPEN PR (its Step 3d, delegated to `fab pr-sync` — marker splice, no-op when current) or creates the PR fresh when `none`, then `finish ship`.
+7. **Step 6 — Land at ship done**: print the honest-state summary and `Next: /fab-archive` (`/git-pr-review` remains available manually).
 
 **Key properties**:
 - Only **apply** is `skipped`; every other stage runs for real (just late)
@@ -714,7 +708,7 @@ User invokes /fab-adopt [<slug>]
 ├─ Review (dispatched, mode: diff-only): pass → finish review / fail → auto-rework or hand back
 ├─ Hydrate (dispatched) → finish hydrate
 ├─ Ship: dispatch /git-pr {name} (sync Meta on existing PR or fresh PR)
-└─ Land in review-pr → summary + Next: /git-pr-review
+└─ Land at ship done → summary + Next: /fab-archive (/git-pr-review available manually)
 ```
 
 **Tools**: Bash (`git`, `gh pr view`, `fab change new`, `fab status`, `fab score`), Read (diff, PR body, templates), Write (`intake.md`, `plan.md`), Agent (review + hydrate, `/git-pr`).
@@ -1141,8 +1135,8 @@ Explicit skill sends and spawn prompts follow `_cli-agents.md` § Skill Prompts,
 
 **Key properties**:
 - **Coordinates, never executes** — every task, bug report, or idea the user hands the operator is a work request: a fresh report spawns a freshly created worktree agent (`wt create --non-interactive`), and a report naming a live tracked item is sent to that item's existing agent; pipeline work never runs in the operator's own pane, and reading code to reproduce or diagnose, or editing files, in that pane counts as executing. Direct actions are the closed §1 maintenance allowlist: merge PR, archive, worktree deletion, rebase/cherry-pick for dependency resolution and review-pr recovery, `fab operator track` verbs, and pane sends/answers/nudges.
-- **Pipeline-first routing** — new work always enters through `/fab-new` then a pipeline command; raw inline implementation instructions are never dispatched to agent panes (the single exception: Review-PR Recovery's CI fix request, which amends a shipped change).
-- **Review-PR Recovery** — a stuck `review-pr` is one condition with a reason (`no-reviewer` / `ci-failed` / `conflicting`), each with one bounded action (re-send `/git-pr-review` once / one CI fix round to the authoring pane / rebase-and-re-arm once) recorded on the `github-pr` item's `scope.recovery`; the armed PR stays armed during a round, and an exhausted round falls back to halt-dependents-only + disarm + escalate with the agent's diagnosis attached. Unreviewed merges are always named in the tick report (` · unreviewed` + `merged with review gate unavailable: …`) — never silent, never a prompt.
+- **Pipeline-first routing** — new work always enters through `/fab-new` then a pipeline command; raw inline implementation instructions are never dispatched to agent panes (the single exception: PR Recovery's CI fix request, which amends a shipped change).
+- **PR Recovery** — a shipped PR that cannot merge (detected on armed `github-pr` items, not on a stuck `review-pr` stage) is one condition with a reason (`ci-failed` / `conflicting`), each with one bounded action (one CI fix round to the authoring pane / rebase-and-re-arm once) recorded on the `github-pr` item's `scope.recovery`; the armed PR stays armed during a round, and an exhausted round falls back to halt-dependents-only + disarm + escalate with the agent's diagnosis attached. Unreviewed merges are always named in the tick report (` · unreviewed`) — never silent, never a prompt.
 - **State is re-derived, never remembered** — live state is re-queried before every action; continuity across compaction or `/clear` comes from the server-keyed operator state file (a one-shot `/fab-operator` reload re-loads the procedure; the tick payload itself stays the bare `operator tick`).
 - Ends with its own status frame rather than a `Next:` line.
 
@@ -1458,7 +1452,7 @@ User invokes /code-dedupe [scope]
 - Stops immediately on `main`/`master` branch — run `/git-branch` first
 - Branch-matches-change guard: when a change is resolved, the current branch must equal its folder name (or contain it as a substring) — a mismatch STOPs before any status mutation, commit, or push; no autonomous checkout
 - Idempotent — skips steps already done (no PR created if one exists; `fab pr-sync` no-ops on a current Meta block)
-- Marks the `ship` stage done, auto-activates `review-pr`
+- Marks the `ship` stage done — the terminal automatic stage; `review-pr` is entered only manually
 
 **Context**: Does not require an active fab change — works as a standalone git tool. With an active change, reads `intake.md` for PR title/summary.
 
@@ -1484,13 +1478,12 @@ User invokes /code-dedupe [scope]
 
 ---
 
-## `/git-pr-review [<change>] [--tool <name>]`
+## `/git-pr-review [<change>]`
 
 **Purpose**: Process GitHub PR review comments on the current branch's PR. Handles feedback from any reviewer — human or bot. Covers stage 6 (Review-PR) of the pipeline.
 
 **Arguments**:
-- `[<change>]` *(optional)* — explicit change to target instead of the active one: any positional (non-flag) argument; `--tool` and its value are consumed as the flag, never as a change reference. Resolved transiently (`.fab-status.yaml` untouched); an explicit argument that fails to resolve STOPs (caller error), while argless resolution failure proceeds with no change context. When a change is resolved, the branch-matches-change guard STOPs on mismatch before any status mutation.
-- `--tool <name>` *(optional)* — force a specific review tool. Valid values: `copilot` (only). Bypasses the Review Tools check (`code-review.md` § Review Tools).
+- `[<change>]` *(optional)* — explicit change to target instead of the active one: any positional argument. Resolved transiently (`.fab-status.yaml` untouched); an explicit argument that fails to resolve STOPs (caller error), while argless resolution failure proceeds with no change context. When a change is resolved, the branch-matches-change guard STOPs on mismatch before any status mutation.
 
 **Example**:
 ```
@@ -1502,32 +1495,31 @@ User invokes /code-dedupe [scope]
 
 **Behavior**:
 1. Resolve the PR for the current branch via `gh pr view`
-2. **If no reviews exist** — request a Copilot review (`gh pr edit --add-reviewer copilot-pull-request-reviewer`) and poll every 30 seconds for up to 10 minutes (20 attempts). If the review arrives, process its comments in the same run; if not, the timeout is logged to the change history (`fab log command` marker `timeout pr=<n>`, counted per stage activation) and the **first** timeout leaves `review-pr` `active` with a re-run message — a **second consecutive** timeout on the same PR finishes the stage unreviewed via the no-reviews outcome (reason `review-gate-unavailable`, logged). Copilot is the only automated reviewer, honoring the Copilot toggle in `code-review.md` § Review Tools (absent = enabled).
+2. **If no reviews exist** — print `No reviews on PR #{number}.` and exit as a clean successful no-op (the no-reviews outcome; re-running is idempotent). The skill never requests a review.
 3. **If reviews with inline comments exist** — fetch all comments, triage each:
    - **fix**: applies a targeted code change, then posts `Fixed — {description}. ({sha})` as a reply
    - **defer**: posts `Deferred — {reason}.`
    - **skip**: posts `Skipped — {reason}.`
    - **informational**: no reply
 4. Commit and push any fixes, then post all replies
-5. Route every terminal outcome through Step 6: success / no-reviews → `fab status finish review-pr`; failure → `fab status fail review-pr`; timeout → stage deliberately left `active` (no finish, no fail) — first timeout in the activation only; a second consecutive timeout on the same PR exits via no-reviews with reason `review-gate-unavailable`. Two direct-STOP exceptions never reach Step 6: invalid `--tool` value (Step 1.5) and commit/push failure (Step 5, after `git reset`).
+5. Route every terminal outcome through Step 6 — the outcome classes are exactly success / no-reviews → `fab status finish review-pr`; failure → `fab status fail review-pr`. One direct-STOP exception never reaches Step 6: commit/push failure (Step 5, after `git reset`).
 
 **Key properties**:
 - Fully autonomous — never asks questions, never presents options
 - Targeted fixes only — does not modify code beyond what each comment addresses
-- Idempotent — re-running after fixes finds no new modifications; re-running after replies skips already-replied comments
-- The Copilot request honors the Copilot toggle in `fab/project/code-review.md` § Review Tools (absent = enabled)
+- Idempotent — re-running after fixes finds no new modifications; re-running after replies skips already-replied comments; re-running on a review-less PR is a clean no-op
 
 
 **Flow**:
 
 ```text
-/git-pr-review [<change>] [--tool <name>]
+/git-pr-review [<change>]
 ├─ Start: Bash: fab change resolve → {name}; branch-matches-change guard → STOP on mismatch/detached; fab status start review-pr
-├─ Resolve PR (gh pr view, gh repo view); validate --tool (copilot only) or STOP
-├─ Detect: [comments exist] → triage / [none] → request Copilot review, poll gh pr view 30s×20 synchronously → [timeout] log marker; 1st in activation: Step 6 timeout (stage stays active) / 2nd consecutive, or marker unreadable (count 0, fail closed): Step 6 no-reviews (review-gate-unavailable)
+├─ Resolve PR (gh pr view, gh repo view)
+├─ Detect: [comments exist] → triage / [none] → print `No reviews on PR #{number}.` → Step 6 no-reviews (clean no-op)
 ├─ Fetch: Bash: gh api --paginate pulls/{n}/comments (reply comments skipped)
 ├─ Triage fix/defer/skip/informational → Read + Edit fixes → commit + push ([commit fails] reset + STOP; [push fails] keep commit, no replies)
-├─ Post disposition replies (dedup existing, best-effort POSTs); Step 6: fab status finish / fail / timeout-left-active
+├─ Post disposition replies (dedup existing, best-effort POSTs); Step 6: fab status finish / fail
 └─ Step 6.5 (success only, idempotent): commit + best-effort push .status.yaml/.history.jsonl; yq phase tracking on .status.yaml
 ```
 

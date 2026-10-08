@@ -147,7 +147,7 @@ func TestRenderWorkflow_SixStagePipeline(t *testing.T) {
 	renderWorkflow(&buf)
 	out := buf.String()
 
-	want := "Pipeline stages: intake → apply → review → hydrate → ship → review-pr"
+	want := "Pipeline stages: intake → apply → review → hydrate → ship (terminal) → review-pr (manual, /git-pr-review)"
 	if !strings.Contains(out, want) {
 		t.Errorf("workflow output missing %q, got:\n%s", want, out)
 	}

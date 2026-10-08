@@ -1,16 +1,14 @@
 ---
 name: git-pr-review
-description: "Process PR review comments — triage and fix feedback from any reviewer (human or bot). When no reviews exist, requests a Copilot review and waits up to 10 minutes for it to appear; a second consecutive timeout on the same PR finishes the stage unreviewed (reason `review-gate-unavailable`)."
+description: "Process PR review comments — triage and fix feedback from any reviewer (human or bot). Manual triage only: never requests a review; when no reviews exist it reports and exits cleanly."
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(command:*)
 ---
 
-# /git-pr-review [<change>] [--tool <name>]
+# /git-pr-review [<change>]
 
-Process GitHub PR review comments on the current branch's PR. Handles feedback from any reviewer — human or bot. When no reviews exist, requests an automated Copilot review and polls for up to 10 minutes for it to appear. Fully autonomous — no questions, no prompts.
+Process GitHub PR review comments on the current branch's PR. Handles feedback from any reviewer — human or bot. Manual triage only — it NEVER requests a review; when no reviews exist it prints `No reviews on PR #{number}.` and exits as a clean no-op. Fully autonomous — no questions, no prompts.
 
-**`<change>` argument** *(optional)*: an explicit change to target instead of the active one — resolved transiently in Step 0 (`.fab-status.yaml` untouched). Arguments are classified by value: `--tool` and the value following it are consumed as the flag; any remaining positional argument is the change reference (a `--tool` value can never be misread as a change).
-
-**`--tool` flag**: Names the review tool Step 2 Phase 2 requests when no reviews exist, overriding the `code-review.md` § Review Tools check (a forced tool is attempted even when that section disables it). Valid values: `copilot` — currently the only wired tool, and also the default.
+**`<change>` argument** *(optional)*: an explicit change to target instead of the active one — resolved transiently in Step 0 (`.fab-status.yaml` untouched). Any positional argument is the change reference.
 
 ---
 
@@ -60,19 +58,7 @@ This is best-effort — failures are silently ignored. The `start` command handl
 4. If the command succeeds, capture `{number}` and `{url}` from the response.
 5. Get owner/repo: `gh repo view --json nameWithOwner -q '.nameWithOwner'`
 
-### Step 1.5: Parse `--tool` Flag
-
-If the invocation includes `--tool <name>`:
-
-1. Validate `<name>` is one of: `copilot` (case-insensitive, normalize to lowercase)
-2. If invalid → print `Invalid tool: {name}. Valid values: copilot.` and STOP
-3. Store the forced tool name for use in Step 2 Phase 2
-
 ### Step 2: Detect Reviews and Route
-
-Check for existing reviews with comments, then route accordingly.
-
-**Phase 1 — Check for existing reviews with comments**:
 
 Fetch all reviews on the PR:
 
@@ -86,84 +72,11 @@ If the count is > 0, check for actual inline comments:
 gh api repos/{owner}/{repo}/pulls/{number}/comments --jq 'length'
 ```
 
-If comments exist → proceed directly to Step 3 (skip Phase 2 — no Copilot review is requested when existing reviews with comments are found).
+If comments exist → proceed directly to Step 3.
 
-If reviews exist but no inline comments → print `Reviews exist but no actionable inline comments to process. Check the PR directly for reviewer feedback.` and go to Step 6 with outcome **no-reviews**. This prevents re-requesting automated reviews when a human reviewer left only a body-level comment (e.g., a summary in the review dialog).
+If reviews exist but no inline comments → print `Reviews exist but no actionable inline comments to process. Check the PR directly for reviewer feedback.` and go to Step 6 with outcome **no-reviews**. A human reviewer may leave only a body-level comment (e.g., a summary in the review dialog) — there is nothing to triage inline.
 
-If no reviews at all → proceed to Phase 2.
-
-**Phase 2 — Copilot Review Request**:
-
-Request an automated Copilot review and wait for it to appear.
-
-**Forced tool override**: If `--tool copilot` was provided (Step 1.5), skip the config check below and proceed directly to the Copilot request.
-
-**Configuration**: Read the `copilot` entry from `fab/project/code-review.md` § Review Tools. Only the `copilot` entry is honored here. An absent § Review Tools section — or an absent `copilot` entry — means Copilot is enabled; it is disabled only when the section lists `- copilot: false`.
-
-If the `copilot` entry is `false` (and `--tool copilot` was **not** provided): print `No automated reviewer available. Run /git-pr-review when reviews are added.` and go to Step 6 with outcome **no-reviews** (clean finish).
-
-| Phase | Surface | Login/value | Rule |
-|-------|---------|-------------|------|
-| Request | `gh pr edit --add-reviewer` | `copilot-pull-request-reviewer` | This is the value passed to the CLI |
-| Request confirmation | REST `requested_reviewers` | `Copilot` | The request-side entry surfaces under this distinct login |
-| Landed review | `reviews[].author.login` | `copilot-pull-request-reviewer` (commonly displayed as `copilot-pull-request-reviewer[bot]`) | The request argument empirically matches the landed author, not the request-side display |
-| Poll | `.reviews` author predicate | `author.login == "copilot-pull-request-reviewer"` | MUST match this, never `Copilot`; otherwise a landed review is missed and the poll times out |
-
-**GraphQL trap:** `reviewRequests` omits bot/app reviewers like Copilot. Confirm requests with REST `gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers`, never GraphQL.
-
-> **Synchronous-poll discipline — the subagent MUST NOT yield mid-poll.** When `/git-pr-review` runs dispatched (e.g. from `/fab-fff` Step 5 — as a native subagent or a CLI-adapter worker), the Copilot poll below MUST run **synchronously to completion within this single invocation**: the subagent MUST NOT yield, return, or hand back control while the poll is pending — it stays in the loop until a review appears or all 20 attempts (30s × 20 / 10-minute window) are exhausted, then proceeds to Step 3 or the timeout exit. This is a permanent, non-negotiable directive (prior efforts stalled mid-poll and left `review-pr` stuck `active`). Copilot reviews land ~4.5–6.5 min after the request — inside the window — so patience-to-completion is correct, never an early return. On the **pane** arm the directive is moot by construction — a pane worker cannot yield — but it rides the dispatch prompt verbatim on every arm.
-
-**Copilot request and poll**:
-
-1. Attempt: `gh pr edit {number} --add-reviewer copilot-pull-request-reviewer` (the value `--add-reviewer` takes — correct here; note this is the same string as the landed-review author login, even though the resulting `requested_reviewers` entry surfaces as login `Copilot` — see the two-login note above).
-2. **On success** (exit 0):
-   - Print: `Copilot review requested. Waiting up to 10 minutes...`
-   - *(Optional request confirmation — GraphQL omits bot reviewers, so use REST if confirming:* `gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers` *should now list the Copilot reviewer surfacing under login `Copilot`.)*
-   - Poll every 30 seconds, up to 20 attempts (run this loop **synchronously to completion** — do NOT yield or return between attempts, per the discipline note above). The predicate matches the **review-author** login `copilot-pull-request-reviewer` (the login on the landed `reviews` object — NOT the `Copilot` login that surfaces under `requested_reviewers`):
-     ```bash
-     gh pr view {number} --json reviews -q '.reviews | map(select(.author.login == "copilot-pull-request-reviewer")) | length'
-     ```
-   - When Copilot review count > 0: proceed to Step 3 (Fetch Comments)
-   - If 20 attempts exhausted without a Copilot-authored review, the **timeout budget** runs — the review gate gets two invocations on the same PR (two consecutive timeouts ≈ 20 minutes), after which the stage terminalizes. The budget applies **only when Step 0 resolved a change** — with no change there is no history file and no stage, so the counting below is skipped and the pre-budget behavior stands (print the pending message, go to Step 6 with outcome **timeout**):
-     1. **Record the timeout** for this PR (`fab log command` is pure telemetry — always exits 0, needs no shell guard):
-
-        ```bash
-        fab log command "git-pr-review" {name} "timeout pr={number}"
-        ```
-
-     2. **Count consecutive timeouts on this PR within the current stage activation.** The window opens at the most recent `review-pr` `stage-transition` line in the change history (written when `fab status finish <change> ship` auto-activates `review-pr`, or when Step 0's `fab status start` moves `pending`/`failed → active`; a `start` on an already-`active` stage fails harmlessly (swallowed by the call site's `|| true`) and writes nothing, so two back-to-back invocations share one window). Count `timeout pr={number}` markers after it:
-
-        ```bash
-        hist="fab/changes/{name}/.history.jsonl"
-        timeouts=$(awk -v pr="{number}" '
-          /"event":"stage-transition"/ && /"stage":"review-pr"/ { n = 0; next }
-          index($0, "\"args\":\"timeout pr=" pr "\"") { n++ }
-          END { print n + 0 }' "$hist")
-        ```
-
-        (The `awk` matches the JSON line by substring; key order is irrelevant. A `fab status reset review-pr` or a re-ship writes a fresh transition line and so resets the count — "consecutive" is per activation, never lifetime.)
-     3. **Branch on the count:**
-        - `timeouts = 0` — the marker just recorded is not readable: the history write failed (`fab log command` is best-effort and swallows write errors, so an unwritable `.history.jsonl` would never accumulate markers and the count would never reach 2 — the absorbing stuck state this budget exists to eliminate). Fail **closed**: terminalize now — print
-
-          ```
-          Review gate unavailable — no Copilot review landed on PR #{number} and the
-          timeout-budget carrier (.history.jsonl) is unwritable. Finishing review-pr
-          unreviewed (reason: review-gate-unavailable).
-          ```
-
-          record the reason — `fab log command "git-pr-review" {name} "review-gate-unavailable pr={number}"` (also best-effort) — and go to Step 6 with outcome **no-reviews**
-        - `timeouts = 1` (first timeout in this activation) → print `Copilot review requested but not yet available. Re-run /git-pr-review to process when ready.` — when an explicit `<change>` was passed in Step 0, include it in the suggested command (`Re-run /git-pr-review <change> …`; an argless re-run would resolve the active change instead) — and go to Step 6 with outcome **timeout** (no error, no fail event — the requested review is still pending)
-        - `timeouts ≥ 2` (second consecutive timeout on this PR — the review gate is unavailable) → print
-
-          ```
-          Review gate unavailable — no Copilot review landed after 2 requests on PR #{number}
-          (~20 minutes). Finishing review-pr unreviewed (reason: review-gate-unavailable).
-          ```
-
-          record the reason — `fab log command "git-pr-review" {name} "review-gate-unavailable pr={number}"` — and go to Step 6 with outcome **no-reviews**. Step 6's existing `no-reviews` row finishes the stage and its Step 6.5 commit ships the reason marker with the PR's branch; nothing new is added to Step 6's stage actions — the second timeout *is* a `no-reviews` outcome with a reason.
-3. **On failure** (non-zero exit from `gh pr edit`):
-   - Print: `No automated reviewer available. Run /git-pr-review when reviews are added.`
-   - Go to Step 6 with outcome **no-reviews** (clean finish — no error, no fail event)
+If no reviews at all → print `No reviews on PR #{number}.` and go to Step 6 with outcome **no-reviews** (a clean, successful no-op). `/git-pr-review` NEVER requests a review — requesting one (or not) is the user's call, made outside fab.
 
 ### Step 3: Fetch Comments
 
@@ -265,20 +178,19 @@ Print: `Replied to {N} comment(s): {F} fix, {D} defer, {S} skip`
 
 ### Step 6: Update Review-PR Stage
 
-Step 6 is the exit point for every terminal path after Step 0. Step 1.5 (invalid `--tool`) and Step 5 commit/push failures are the direct-STOP exceptions. When Step 0 resolved a change, use this outcome table:
+Step 6 is the exit point for every terminal path after Step 0. Step 5 commit/push failures are the direct-STOP exceptions. When Step 0 resolved a change, use this outcome table:
 
 | Outcome | Includes | Stage action | Commit status in Step 6.5? |
 |---------|----------|--------------|----------------------------|
 | **success** | Comments processed/pushed; no actionable comments | `fab status finish <change> review-pr git-pr-review 2>/dev/null || true` | Yes |
 | **failure** | `gh` missing; no PR; processing error | `fab status fail <change> review-pr git-pr-review 2>/dev/null || true` | No — never commit half-finished state |
-| **no-reviews** | No reviews; no actionable inline comments; no automated reviewer; **second consecutive Copilot timeout on the same PR, or a first timeout whose history marker is not readable (unwritable `.history.jsonl` fails closed) — reason `review-gate-unavailable`, logged best-effort** | `fab status finish <change> review-pr git-pr-review 2>/dev/null || true` (successful no-op) | Yes |
-| **timeout** | Copilot still pending after 10 minutes — **first timeout in this activation only**; the timeout marker `timeout pr=<n>` is logged to the change history so the next invocation can count it | Leave `review-pr` `active`: no finish/fail; preserve the explicit-change re-run guidance | No |
+| **no-reviews** | No reviews on the PR; reviews with no actionable inline comments | `fab status finish <change> review-pr git-pr-review 2>/dev/null || true` (successful no-op) | Yes |
 
 All `fab status` calls are best-effort — failures silently ignored to avoid blocking the PR review workflow.
 
-**Result-file summary (dispatched arms).** When run as a `/fab-fff` Step 5 / `/fab-continue` worker, the terminalized second-timeout exit writes `outcome: no-reviews` with a `summary` that names the reason — e.g. `summary: "review gate unavailable: 2 Copilot timeouts on PR #681; finished review-pr unreviewed"`. The orchestrators already treat `no-reviews` as a successful no-op, so only the reported string changes.
+**Result-file summary (dispatched arms).** When run as a dispatched worker (e.g. from `/fab-continue`), the no-reviews exit writes `outcome: no-reviews`; orchestrators treat it as a successful no-op.
 
-**Idempotency.** Re-running `/git-pr-review` after the terminalized finish is a clean no-op on every path: Step 0's `start` fails harmlessly on `done` (swallowed by its `|| true`, no transition line written); Phase 1 either finds a review that landed late (processed normally — the stage is already `done`, so `finish` no-ops) or finds none (Phase 2 requests again and may time out again — the count is now ≥ 2, so it exits via `no-reviews`, `finish` no-ops, and Step 6.5 finds nothing staged). No marker is ever removed; the count window resets only on a fresh `review-pr` `stage-transition` line (a `reset` or re-ship — a deliberate re-entry, so the budget starts over).
+**Idempotency.** Re-running `/git-pr-review` is a clean no-op on every path: Step 0's `start` fails harmlessly on `done` (swallowed by its `|| true`, no transition line written); a re-run on a review-less PR reports `No reviews on PR #{number}.` again, makes no commit, and leaves state unchanged; a review that landed late is processed normally — the stage is already `done`, so `finish` no-ops and Step 6.5 finds nothing staged.
 
 ### Step 6.5: Commit Status Updates
 
@@ -301,7 +213,7 @@ When a change is resolved (active or explicit), update `stage_metrics.review-pr.
 
 | Phase | When set |
 |-------|----------|
-| `received` | Reviews detected (Step 2, Phase 1 hit) |
+| `received` | Reviews detected (Step 2) |
 | `triaging` | Before classifying comments (Step 4 start) |
 | `fixing` | Before applying fixes (Step 4, `fix` comments found) |
 | `pushed` | After commit and push (Step 5 success) |

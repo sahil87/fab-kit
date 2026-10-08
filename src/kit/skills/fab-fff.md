@@ -1,6 +1,6 @@
 ---
 name: fab-fff
-description: "Full pipeline — implementation, sub-agent review, hydrate, ship, and PR review — gated on the single intake confidence gate, with the one-time light/full lane fork on plan task count (--light/--full override; light lane runs everything but review inline) and autonomous rework with bounded retry. Not for micro changes: a single-spot edit with no memory/spec impact and no behavior-contract change — make it directly and commit, no fab (when unsure, use fab); a follow-up tweak to a change still in flight is not new work — amend that change."
+description: "Full pipeline — implementation, sub-agent review, hydrate, and ship — gated on the single intake confidence gate, with the one-time light/full lane fork on plan task count (--light/--full override; light lane runs everything but review inline) and autonomous rework with bounded retry. Not for micro changes: a single-spot edit with no memory/spec impact and no behavior-contract change — make it directly and commit, no fab (when unsure, use fab); a follow-up tweak to a change still in flight is not new work — amend that change."
 helpers: [_generation, _review, _srad, _pipeline]
 ---
 
@@ -22,7 +22,7 @@ helpers: [_generation, _review, _srad, _pipeline]
 
 ## Purpose
 
-Run `_pipeline.md` § Driver Framing, then continue through ship and review-pr.
+Run `_pipeline.md` § Driver Framing, then continue through ship.
 
 ---
 
@@ -39,15 +39,15 @@ Execute the **shared pipeline bracket** (`_pipeline.md`, loaded via `helpers:`) 
 | Parameter | Value |
 |-----------|-------|
 | `{driver}` | `fab-fff` |
-| `{terminal}` | `review-pr` — after the bracket's Step 3 (hydrate), continue with Steps 3.5–5 below |
+| `{terminal}` | `ship` — after the bracket's Step 3 (hydrate), continue with Steps 3.5–4 below |
 
-The bracket defines pre-flight (intake prerequisite + intake gate), context loading, resumability, Steps 1–3 (apply → review → hydrate) with the inline plan co-gen and one-time light/full lane fork, the auto-rework loop with its per-cycle choreography, the PR Boundary Procedure at the Steps 1–3 boundaries (draft PR opened at apply exit; review-pass/hydrate push + Meta sync), and the exhaustion stop. The three steps below (3.5–5) are fff-only.
+The bracket defines pre-flight (intake prerequisite + intake gate), context loading, resumability, Steps 1–3 (apply → review → hydrate) with the inline plan co-gen and one-time light/full lane fork, the auto-rework loop with its per-cycle choreography, the PR Boundary Procedure at the Steps 1–3 boundaries (draft PR opened at apply exit; review-pass/hydrate push + Meta sync), and the exhaustion stop. The two steps below (3.5–4) are fff-only.
 
-Steps 1–5 all branch on `dispatch:` key presence per `_preamble.md` § CLI-Adapter Dispatch — Steps 1–3 via `_pipeline.md` § Stage Dispatch Procedure, Steps 4–5 via their own two-branch text below. The fff-only delta is that Steps 4–5 dispatch full `/git-pr` and `/git-pr-review` behaviors with **self-managed stage transitions** — those skills manage their own `fab status` transitions, so their prompts do not carry the block-contract transition prohibition (the carve-out is owned by `_preamble.md` § Dispatch-Prompt Obligations).
+Steps 1–4 all branch on `dispatch:` key presence per `_preamble.md` § CLI-Adapter Dispatch — Steps 1–3 via `_pipeline.md` § Stage Dispatch Procedure, Step 4 via its own two-branch text below. The fff-only delta is that Step 4 dispatches the full `/git-pr` behavior with **self-managed stage transitions** — that skill manages its own `fab status` transitions, so its prompt does not carry the block-contract transition prohibition (the carve-out is owned by `_preamble.md` § Dispatch-Prompt Obligations).
 
-**Light lane** (`_pipeline.md` § Light Lane owns the mechanics): Steps 4–5 run inline in the orchestrator's context, and the Step 5 synchronous-poll directive is moot there. In the full lane Steps 4–5 dispatch exactly as written below.
+**Light lane** (`_pipeline.md` § Light Lane owns the mechanics): Step 4 runs inline in the orchestrator's context. In the full lane Step 4 dispatches exactly as written below.
 
-> **`{name}`** — the change's **folder name** from the preflight YAML (`name` field). Steps 4–5 pass `{name}`, never the 4-char `{id}`: git-pr classifies any argument matching one of the 7 PR type words as a `<type>`, and a 4-char id can collide with `feat`, `docs`, or `test` — a folder name (`{YYMMDD}-{XXXX}-{slug}`) never matches a type token.
+> **`{name}`** — the change's **folder name** from the preflight YAML (`name` field). Step 4 passes `{name}`, never the 4-char `{id}`: git-pr classifies any argument matching one of the 7 PR type words as a `<type>`, and a 4-char id can collide with `feat`, `docs`, or `test` — a folder name (`{YYMMDD}-{XXXX}-{slug}`) never matches a type token.
 
 ### Step 3.5: Link Linear Issue (optional)
 
@@ -66,26 +66,7 @@ Run `fab agent ship -o yaml`, surface the resolved YAML (at minimum `provider`/`
 
 **If git-pr fails**: STOP with the error from git-pr. The ship stage remains `active` for user retry.
 
-On success: `progress.ship` becomes `done`, `progress.review-pr` auto-activates.
-
-### Step 5: Review-PR
-
-*(Skip if `progress.review-pr` is `done`.)* *(**Light lane**: run `/git-pr-review {name}` inline per the Behavior note above; the synchronous-poll directive below is moot inline.)*
-
-Run `fab agent review-pr -o yaml`, surface the resolved YAML (at minimum `provider`/`model`/`model_alias`/`effort` and `dispatch:` presence), then branch on the `dispatch:` key — the same two-branch rule as Step 4:
-
-- **`dispatch:` absent** (native rung) — dispatch `/git-pr-review` as subagent through the two model/effort seams. The prompt instructs it to invoke `/git-pr-review {name}` (the **explicit change argument**, same transient-override + branch-guard contract as Step 4). The subagent detects existing reviews, triages comments, applies fixes, and pushes. If no reviews exist, it requests a Copilot review and polls up to 10 minutes — see the timeout outcome below. Handles `fab status` integration internally (start/finish/fail review-pr stage). Returns completion status.
-- **`dispatch:` present** — dispatch the same `/git-pr-review {name}` prompt through the CLI adapter per `_preamble.md` § CLI-Adapter Dispatch (rung branch, blocking `fab dispatch wait`, state handling, done-read reap under the "every other stage" row — exactly as Step 4). The worker writes `review-pr-result.yaml` (`status`, `outcome` — `success | failure | no-reviews | timeout`, git-pr-review's own Step 6 classes — and `summary`, plus `reason` on `outcome: failure`) and self-manages the review-pr stage's start/finish/fail exactly as on the native arm (the same `_preamble.md` § Dispatch-Prompt Obligations carve-out Step 4 points at). The synchronous-poll directive below is baked into the dispatched prompt on **every arm**; on the pane arm it is moot by construction — a pane worker cannot yield.
-
-> **Synchronous-poll directive (bake into the dispatch prompt on every arm).** The review-pr dispatch prompt MUST instruct the `/git-pr-review` subagent to **complete the Copilot poll synchronously and not yield mid-poll**: if it requests a Copilot review and enters the 30s × 20 (10-minute) poll, it MUST stay in that poll loop within the single invocation — never yielding, returning, or handing back control while the poll is pending — until a review appears or all 20 attempts are exhausted. The poll **stays inside `/git-pr-review`** (the subagent owns request + poll + triage synchronously); the wait is NOT relocated to this orchestrator. Carry the rationale in the prompt — see `git-pr-review.md` Step 2 Phase 2's synchronous-poll discipline note (it mirrors that note into the dispatch seam). Load-bearing on the native arm; moot by construction on the pane arm.
-
-**If review-pr fails** (no PR found, processing error): STOP with the error.
-
-**If no actionable reviews** (no automated reviewer available, or reviews with no inline comments to process): the stage completes as `done` — this is a successful no-op.
-
-**If timeout** (Copilot review requested but not available within 10 minutes — git-pr-review's Step 6 timeout outcome; first timeout in the activation only — a second consecutive timeout on the same PR exits as a `no-reviews` outcome with reason `review-gate-unavailable`, so report its `summary`): the subagent deliberately leaves `review-pr` `active` (no finish, no fail); report the pending message **instead of** `Pipeline complete.` and stop — see the Review-PR timeout row in Error Handling for the exact string. `/fab-fff` does NOT re-dispatch on the first timeout — the second invocation comes from the operator's `no-reviewer` re-send (`fab-operator.md` § Review-PR Recovery) or a user re-run.
-
-On success: `progress.review-pr` becomes `done`.
+On success: `progress.ship` becomes `done` — the pipeline is complete. (`review-pr` stays `pending`; PR triage is a manual `/git-pr-review` invocation, not a pipeline step.)
 
 ---
 
@@ -101,9 +82,7 @@ render:
 ```
 
 After Hydrate, append the Step 3.5 Linear-link report (one line), then the Ship
-and Review-PR output sections. On the Step 5 timeout
-outcome, replace `Pipeline complete.` with the exact pending message in Error
-Handling.
+output section. Ship success ends the pipeline — report `Pipeline complete.`
 
 ---
 
@@ -114,15 +93,10 @@ Shared rows: see `_pipeline.md` § Shared Error Handling (with `{driver}` = `fab
 | Condition | Action |
 |-----------|--------|
 | Ship fails | Stop with git-pr error. User retries /fab-fff <change> or /git-pr {name}. |
-| Review-PR fails | Stop with git-pr-review error. User retries /fab-fff <change> or /git-pr-review {name}. |
-| Review-PR timeout (Copilot review requested, not yet available) | Stage deliberately left `active` (first timeout in the activation; a second consecutive timeout on the same PR is a `no-reviews` outcome with reason `review-gate-unavailable` — report its `summary`). Report `Review-PR pending (Copilot review requested, timed out waiting) — re-run /git-pr-review {name} when ready` and stop — no finish, no fail. |
 
-CLI-arm rows (Step 4/5 dispatched via `_preamble.md` § CLI-Adapter Dispatch — the observations map onto the outcomes above; no new recovery rules):
+CLI-arm rows (Step 4 dispatched via `_preamble.md` § CLI-Adapter Dispatch — the observations map onto the outcomes above; no new recovery rules):
 
 | Observed | Action |
 |----------|--------|
 | `done` + ship result `status: failure` | The Ship fails row above — STOP with the result's reported `reason`; the stage stays `active` for user retry |
-| `done` + review-pr result `outcome: failure` | The Review-PR fails row above — STOP with the result's reported `reason`; the stage stays `active` for user retry |
-| `done` + review-pr result `outcome: timeout` | The Review-PR timeout row above, verbatim — the timeout is an outcome, not a failure (first timeout in the activation; a second consecutive timeout on the same PR is a `no-reviews` outcome with reason `review-gate-unavailable` — report its `summary`) |
-| `done` + review-pr result `outcome: no-reviews` | Successful no-op — the worker finished the stage `done` itself (the summary may name reason `review-gate-unavailable` — the terminalized second-timeout exit; still a successful no-op) |
 | `failed` / `failed (no-result)` / `orphaned` | Canon recovery table (`_preamble.md` § CLI-Adapter Dispatch) |

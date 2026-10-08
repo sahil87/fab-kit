@@ -41,8 +41,9 @@ excepted on the transition half — they self-manage their own stage's transitio
 ## Why this is possible now
 
 The pipeline already dispatches most post-intake stages as **sub-agents** (see `_preamble.md`
-§ Subagent Dispatch). The move to sub-agents was driven by context isolation — a six-stage autonomous
-pipeline cannot fit in one context window, so each stage runs in a fresh context and returns a
+§ Subagent Dispatch). The move to sub-agents was driven by context isolation — a six-stage pipeline
+whose automatic run spans five stages (review-pr is entered manually) cannot fit in one context
+window, so each stage runs in a fresh context and returns a
 structured result (the exceptions — a *continued* native apply worker across rework cycles, and the
 `/fab-ff`/`/fab-fff` **light lane**, which runs non-review stages inline in the orchestrator's context
 with no dispatch at all (`_pipeline.md` § Light Lane) — change nothing here: the continued worker's
@@ -740,9 +741,10 @@ inherited session model now resolve a role like every other:
   dispatching that worker — surfacing the required YAML keys, then **branching on `dispatch:` key
   presence like every other dispatch site**: absent ⇒ the native arm applies the two seams (empty ⇒
   omit); present ⇒ the CLI adapter per `_preamble.md` § CLI-Adapter Dispatch — **mirroring
-  `/fab-fff`'s full-lane Steps 4–5 exactly** (in the light lane those steps run inline with no
-  YAML resolution). This closes the caller asymmetry where `/fab-fff` resolved a role for
-  ship/review-pr but plain `/fab-continue` did not. `/git-pr` and `/git-pr-review` self-manage their own
+  `/fab-fff`'s full-lane ship step exactly** (`/fab-fff` terminates at ship — review-pr is dispatched
+  only via `/fab-continue` or run manually with `/git-pr-review`; in the light lane those steps run
+  inline with no YAML resolution). This closes the caller asymmetry where `/fab-fff` resolved a role
+  for ship/review-pr but plain `/fab-continue` did not. `/git-pr` and `/git-pr-review` self-manage their own
   `fab status` transitions on every arm — their dispatch prompts carry the result-file and
   terminal-refresh obligations but not the block-contract transition prohibition (the carve-out is
   owned by [`harness-adapters.md`](harness-adapters.md) § Dispatch-prompt obligations).

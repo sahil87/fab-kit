@@ -29,7 +29,9 @@ import (
 )
 
 // pipelineStages is the fixed pipeline order rendered in the **Pipeline** line.
-var pipelineStages = []string{"intake", "apply", "review", "hydrate", "ship", "review-pr"}
+// review-pr is excluded: it is a manual stage, not part of the automatic
+// pipeline, so a trailing unticked segment would read as unfinished.
+var pipelineStages = []string{"intake", "apply", "review", "hydrate", "ship"}
 
 // Meta block splice markers. Render wraps its output in this HTML-comment pair
 // so a later refresh is a pure replace-between-markers operation — the same

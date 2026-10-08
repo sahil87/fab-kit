@@ -480,8 +480,32 @@ func TestNextStage(t *testing.T) {
 	if NextStage("hydrate") != "ship" {
 		t.Error("after hydrate should be ship")
 	}
+	// Stage-order lookup is unchanged by the auto-advance terminal: NextStage
+	// keeps returning review-pr for ship; only status.Finish declines to act
+	// on it (see AutoAdvanceTerminal).
+	if NextStage("ship") != "review-pr" {
+		t.Error("after ship should be review-pr")
+	}
 	if NextStage("review-pr") != "" {
 		t.Error("after review-pr should be empty")
+	}
+}
+
+// TestAutoAdvanceTerminal pins the automatic pipeline's terminal stage and
+// the intact six-stage order (review-pr stays a valid, manually-reachable
+// stage — no .status.yaml migration).
+func TestAutoAdvanceTerminal(t *testing.T) {
+	if AutoAdvanceTerminal != "ship" {
+		t.Errorf("AutoAdvanceTerminal = %q, want ship", AutoAdvanceTerminal)
+	}
+	want := []string{"intake", "apply", "review", "hydrate", "ship", "review-pr"}
+	if len(StageOrder) != len(want) {
+		t.Fatalf("StageOrder = %v, want %v", StageOrder, want)
+	}
+	for i, s := range want {
+		if StageOrder[i] != s {
+			t.Fatalf("StageOrder = %v, want %v", StageOrder, want)
+		}
 	}
 }
 

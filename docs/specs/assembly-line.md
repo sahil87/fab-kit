@@ -86,7 +86,7 @@ A real morning with 5 changes from your backlog:
 |------|-----|----|
 | 9:00 | `fab batch new --all` — 5 tmux tabs open. Hop between them, answer clarifying questions, shape each intake. | — |
 | 9:25 | Intakes done. `fab batch switch --all` — 5 worktrees created, 5 Claude sessions open. Run `/fab-fff` in each tab. | Starts planning and implementing all 5 in parallel. |
-| 9:30 | Start creating next batch of intakes from backlog. Or do deep work — design, architecture, code review. | Working. Each change progresses independently through apply → review → hydrate (everything after intake runs unattended). |
+| 9:30 | Start creating next batch of intakes from backlog. Or do deep work — design, architecture, code review. | Working. Each change progresses independently through apply → review → hydrate (everything after intake runs unattended through ship, the terminal stage; review-pr is entered only manually). |
 | 10:15 | — | First 3 changes complete. Waiting for review. |
 | 10:15 | Review 3 completed changes. Merge, archive. | Still working on remaining 2. |
 | 10:30 | Send next batch. | Finishes remaining 2. Picks up new batch. |
@@ -118,7 +118,7 @@ fab batch switch --all
 # Run /fab-fff in each tab — AI takes over
 ```
 
-Each change runs the full pipeline (apply — plan generation + execution — then review, hydrate, ship, and review-pr) independently. Worktree isolation means zero conflicts between parallel changes.
+Each change runs the automatic pipeline (apply — plan generation + execution — then review, hydrate, and ship) independently. Worktree isolation means zero conflicts between parallel changes.
 
 ### 3. While AI works, create the next batch
 

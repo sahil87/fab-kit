@@ -14,6 +14,12 @@ var StageOrder = []string{
 	"intake", "apply", "review", "hydrate", "ship", "review-pr",
 }
 
+// AutoAdvanceTerminal is the stage after which Finish stops auto-activating
+// the next stage. Finishing "ship" completes the automatic pipeline;
+// "review-pr" is reachable only via an explicit `fab status start` (the manual
+// /git-pr-review path).
+const AutoAdvanceTerminal = "ship"
+
 // change_type_source enum values. An absent/empty field is treated as
 // SourceInferred (back-compat): pre-existing changes with no field behave
 // exactly as before — re-inference allowed. set-change-type marks SourceExplicit
