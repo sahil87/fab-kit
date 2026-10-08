@@ -143,44 +143,44 @@ A failing request — no Copilot entitlement in the repo or org, a `gh` error, a
 
 ### Functional Completeness
 
-- [ ] A-001 R1: `git-pr.md` carries the request step between Step 4b and Step 4c, and Step 3c is unmodified
-- [ ] A-002 R2: The probe uses REST `requested_reviewers` for the pending half and matches both `Copilot` and `copilot-pull-request-reviewer`
-- [ ] A-003 R3: The step prints one warning on failure, never STOPs, and § Rules states the best-effort contract
-- [ ] A-004 R4: The three state-table rows and the Precedence paragraph contain no `/fab-archive`
-- [ ] A-005 R5: The no-command terminal-state rule is documented and consistent with `_pipeline.md`
-- [ ] A-006 R6: `change.go` renders `/git-pr-review` when review-pr is pending and `Pipeline complete.` when it is done/skipped
-- [ ] A-007 R8: `fab-status.md`, `fab-adopt.md`, and `fab-switch.md` carry no routed `/fab-archive`
-- [ ] A-008 R9: `docs/specs/skills.md` restates the new routing
+- [x] A-001 R1: `git-pr.md` carries the request step between Step 4b and Step 4c, and Step 3c is unmodified
+- [x] A-002 R2: The probe uses REST `requested_reviewers` for the pending half and matches both `Copilot` and `copilot-pull-request-reviewer`
+- [x] A-003 R3: The step prints one warning on failure, never STOPs, and § Rules states the best-effort contract
+- [x] A-004 R4: The three state-table rows and the Precedence paragraph contain no `/fab-archive`
+- [x] A-005 R5: The no-command terminal-state rule is documented and consistent with `_pipeline.md`
+- [x] A-006 R6: `change.go` renders `/git-pr-review` when review-pr is pending and `Pipeline complete.` when it is done/skipped
+- [x] A-007 R8: `fab-status.md`, `fab-adopt.md`, and `fab-switch.md` carry no routed `/fab-archive`
+- [x] A-008 R9: `docs/specs/skills.md` restates the new routing
 
 ### Behavioral Correctness
 
-- [ ] A-009 R2: Re-running `/git-pr` on a PR that already has a Copilot request or review issues no second request
-- [ ] A-010 R6: The not-all-resolved branch of `Switch()` is behaviourally unchanged
-- [ ] A-011 R4: The skill-side state table and the Go `Switch()` output agree for every progress state
+- [x] A-009 R2: Re-running `/git-pr` on a PR that already has a Copilot request or review issues no second request
+- [x] A-010 R6: The not-all-resolved branch of `Switch()` is behaviourally unchanged
+- [x] A-011 R4: The skill-side state table and the Go `Switch()` output agree for every progress state
 
 ### Removal Verification
 
-- [ ] A-012 R8: A repo-wide `grep -rn "fab-archive"` shows no remaining hit that presents it as a routed next command
-- [ ] A-013 R7: No Go test still expects `Next:        /fab-archive`
+- [x] A-012 R8: A repo-wide `grep -rn "fab-archive"` shows no remaining hit that presents it as a routed next command
+- [x] A-013 R7: No Go test still expects `Next:        /fab-archive`
 
 ### Scenario Coverage
 
-- [ ] A-014 R7: `go test ./internal/change/...` passes from the `src/go/fab` module root
-- [ ] A-015 R1: The apply-exit draft open path (Steps 3a/3a-ter/3b/3c) requests no review
+- [x] A-014 R7: `go test ./internal/change/...` passes from the `src/go/fab` module root
+- [x] A-015 R1: The apply-exit draft open path (Steps 3a/3a-ter/3b/3c) requests no review
 
 ### Edge Cases & Error Handling
 
-- [ ] A-016 R3: The request does not fire on the MERGED/already-shipped STOP path
-- [ ] A-017 R3: A repo with no Copilot entitlement still ships successfully
+- [x] A-016 R3: The request does not fire on the MERGED/already-shipped STOP path
+- [x] A-017 R3: A repo with no Copilot entitlement still ships successfully
 
 ### Code Quality
 
-- [ ] A-018 Pattern consistency: The new `git-pr.md` step matches the surrounding step structure and `  ✓ {thing} — {detail}` output style
-- [ ] A-019 No unnecessary duplication: Existing probe/guard idioms in `git-pr.md` are reused rather than reinvented
-- [ ] A-020 Deployed-content citation rule: The new `git-pr.md` step restates the two-login and REST-vs-GraphQL facts inline and cites no `docs/specs/*`, `docs/memory/*`, `docs/site/*`, or `src/go/*` path (Constitution V)
-- [ ] A-021 Canonical sources only: Every edit lands in `src/kit/skills/*.md`; no deployed copy under `.agents/skills/` or `.claude/skills/` is edited
-- [ ] A-022 Sibling sweeps: The whole sweep class was swept up front, not reactively after review
-- [ ] A-023 CLI reference: Either `_cli-fab.md` needs no update (no signature change) or the required note was added — the call is made explicitly, not by omission
+- [x] A-018 Pattern consistency: The new `git-pr.md` step matches the surrounding step structure and `  ✓ {thing} — {detail}` output style
+- [x] A-019 No unnecessary duplication: Existing probe/guard idioms in `git-pr.md` are reused rather than reinvented
+- [x] A-020 Deployed-content citation rule: The new `git-pr.md` step restates the two-login and REST-vs-GraphQL facts inline and cites no `docs/specs/*`, `docs/memory/*`, `docs/site/*`, or `src/go/*` path (Constitution V)
+- [x] A-021 Canonical sources only: Every edit lands in `src/kit/skills/*.md`; no deployed copy under `.agents/skills/` or `.claude/skills/` is edited
+- [x] A-022 Sibling sweeps: The whole sweep class was swept up front, not reactively after review
+- [x] A-023 CLI reference: Either `_cli-fab.md` needs no update (no signature change) or the required note was added — the call is made explicitly, not by omission
 
 ## Notes
 
@@ -188,6 +188,10 @@ A failing request — no Copilot entitlement in the repo or org, a `gh` error, a
 - All acceptance items must pass before `/fab-continue` (hydrate)
 - If an item is not applicable, mark checked and prefix with **N/A**: `- [x] A-NNN **N/A**: {reason}`
 - The intake's "Known environment hazard" (stale deployed `_preamble`) is already resolved: `fab/.fab-version` was bumped 2.28.3 → 2.28.7 and `fab sync` redeployed all 41 skills before apply started. Do not act on that warning.
+
+## Deletion Candidates
+
+- None — this change rewrites routing-table prose and terminal-output branches in place; the `/fab-archive` skill, `fab change archive`, and `fab batch archive` remain live by design (post-merge housekeeping, explicitly out of scope for removal).
 
 ## Assumptions
 
