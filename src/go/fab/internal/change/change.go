@@ -208,6 +208,7 @@ func Switch(fabRoot, name string) (string, error) {
 	routingStage := "unknown"
 	confDisplay := "not yet scored"
 	allResolved := false
+	reviewPRPending := false
 
 	if statusFile, err := sf.Load(statusPath); err == nil {
 		ds, dstate := status.DisplayStage(statusFile)
@@ -215,6 +216,7 @@ func Switch(fabRoot, name string) (string, error) {
 		displayState = dstate
 		routingStage = status.CurrentStage(statusFile)
 		allResolved = allStagesResolved(statusFile)
+		reviewPRPending = statusFile.GetProgress("review-pr") == "pending"
 
 		c := statusFile.Confidence
 		totalCounts := c.Certain + c.Confident + c.Tentative + c.Unresolved
@@ -237,14 +239,20 @@ func Switch(fabRoot, name string) (string, error) {
 	fmt.Fprintf(&output, "Confidence:  %s\n", confDisplay)
 
 	// The Next: line mirrors /fab-status: the routing stage paired with the
-	// command that drives that stage. Only when the automatic pipeline has
-	// run its course (done/skipped, plus a still-pending manual-only
-	// review-pr) does it collapse to the bare post-pipeline suggestion
-	// `/fab-archive` — CurrentStage's all-done fallback returns "review-pr",
-	// which previously mis-printed `/fab-archive` while review-pr work
-	// remained.
+	// command that drives that stage. When the automatic pipeline has run its
+	// course (done/skipped, plus a still-pending manual-only review-pr), the
+	// routing stage no longer applies — CurrentStage's all-done fallback
+	// returns "review-pr", which mis-prints while review-pr work remains. The
+	// terminal rendering splits in two: a still-pending review-pr points at
+	// the bare manual-triage command `/git-pr-review`; once review-pr is done
+	// or skipped there is no next command, so the block ends with
+	// "Pipeline complete." and no Next: line.
 	if allResolved {
-		fmt.Fprintf(&output, "Next:        /fab-archive")
+		if reviewPRPending {
+			fmt.Fprintf(&output, "Next:        /git-pr-review")
+		} else {
+			fmt.Fprintf(&output, "Pipeline complete.")
+		}
 	} else {
 		fmt.Fprintf(&output, "Next:        %s (via %s)", routingStage, defaultCommand(routingStage))
 	}
@@ -465,8 +473,9 @@ func findCollision(changesDir, changeID string) string {
 // defaultCommand maps a routing stage to the command that drives that
 // stage's work (aligned with /fab-status and the _preamble.md state table):
 // pipeline stages run via /fab-continue, ship via /git-pr, review-pr via
-// /git-pr-review. The all-done case is handled by the caller (allStagesResolved
-// → /fab-archive), not by this map.
+// /git-pr-review. The all-done case is handled by the caller
+// (allStagesResolved → bare /git-pr-review while review-pr is pending, else
+// "Pipeline complete."), not by this map.
 func defaultCommand(stage string) string {
 	switch stage {
 	case "intake", "apply", "review", "hydrate":

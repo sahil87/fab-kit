@@ -197,7 +197,7 @@ Skills MUST end their output with a `Next:` line suggesting the available follow
 | `/fab-continue` → apply | apply done | `Next: /fab-continue (review)` |
 | `/fab-continue` → review (pass) | review done | `Next: /fab-continue (hydrate)` |
 | `/fab-continue` → review (fail) | review failed | *(contextual — see [Review Behavior](#review-behavior-via-fab-continue) for fix options)* |
-| `/fab-continue` → hydrate | hydrated | `Next: /fab-archive` |
+| `/fab-continue` → hydrate | hydrated | `Next: /git-pr` |
 
 ---
 
@@ -689,7 +689,7 @@ User invokes /fab-proceed
 4. **Step 3 — Review** (dispatched, `mode: diff-only` — the `_review.md` parameter): the orchestrator owns the verdict (pass incl. zero-findings best-effort → `finish review`; fail → auto-rework per `_pipeline.md` budget when autonomous, hand findings back when interactive).
 5. **Step 4 — Hydrate** (dispatched, verbatim per `_pipeline.md` Step 3): the permanent-loss recovery — `docs/memory/` finally reflects what shipped → `finish hydrate`.
 6. **Step 5 — Ship**: `/git-pr {name}` syncs `## Meta` on the OPEN PR (its Step 3d, delegated to `fab pr-sync` — marker splice, no-op when current) or creates the PR fresh when `none`, then `finish ship`.
-7. **Step 6 — Land at ship done**: print the honest-state summary and `Next: /fab-archive` (`/git-pr-review` remains available manually).
+7. **Step 6 — Land at ship done**: print the honest-state summary and `Next: /git-pr-review`.
 
 **Key properties**:
 - Only **apply** is `skipped`; every other stage runs for real (just late)
@@ -708,7 +708,7 @@ User invokes /fab-adopt [<slug>]
 ├─ Review (dispatched, mode: diff-only): pass → finish review / fail → auto-rework or hand back
 ├─ Hydrate (dispatched) → finish hydrate
 ├─ Ship: dispatch /git-pr {name} (sync Meta on existing PR or fresh PR)
-└─ Land at ship done → summary + Next: /fab-archive (/git-pr-review available manually)
+└─ Land at ship done → summary + Next: /git-pr-review
 ```
 
 **Tools**: Bash (`git`, `gh pr view`, `fab change new`, `fab status`, `fab score`), Read (diff, PR body, templates), Write (`intake.md`, `plan.md`), Agent (review + hydrate, `/git-pr`).
@@ -856,7 +856,7 @@ The applying agent triages review comments by priority — not all comments need
 ```
 /fab-continue
 → "Hydrated memory: docs/memory/auth/authentication.md"
-→ "Next: /fab-archive"
+→ "Next: /git-pr"
 ```
 
 **Behavior**:

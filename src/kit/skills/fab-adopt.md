@@ -159,7 +159,7 @@ apply → skipped, review → active
 
 {honest-state summary}
 
-Next: /fab-archive, /git-pr-review
+Next: /git-pr-review
 ```
 
 ---

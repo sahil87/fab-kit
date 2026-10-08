@@ -1,0 +1,11 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-10-08T05:35:32Z"}
+{"args":"Request Copilot review at ship (new git-pr step after 4b, idempotent + best-effort) and remove /fab-archive from the Next-Steps routing table (preamble state table, fab-status, and the Go binary's allResolved branch)","cmd":"fab-new","event":"command","ts":"2026-10-08T05:35:32Z"}
+{"delta":"+4.3","event":"confidence","score":4.3,"trigger":"calc-score","ts":"2026-10-08T05:39:21Z"}
+{"delta":"+0.0","event":"confidence","score":4.3,"trigger":"calc-score","ts":"2026-10-08T05:39:35Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-10-08T05:40:47Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-10-08T07:52:16Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-10-08T07:52:29Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-10-08T07:59:02Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-10-08T08:04:48Z"}
+{"event":"review","result":"passed","ts":"2026-10-08T08:04:48Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-10-08T08:09:17Z"}
