@@ -1,5 +1,14 @@
 # Archive Index
 
+- **261007-4p4z-retire-review-pr-stage** — Retire `review-pr` as a pipeline stage — ship becomes terminal, `/git-pr-review` becomes a manual skill
+- **260929-9dwn-bump-claude-defaults-sonnet-5-5** — Bump Claude Default Model Profiles to Sonnet 5.5
+- **260923-vvdv-bump-claude-defaults-opus-5-5** — Bump Claude Default Model Profiles to Opus 5.5
+- **260916-vb4l-review-pr-recovery** — Review-PR Recovery — Terminalize a Stuck Review-PR Stage, One Bounded Recovery Shape for the Operator
+- **260916-uzvg-delete-pane-questions-window-name** — Delete the dead `fab pane questions` and `fab pane window-name` verbs
+- **260916-bq00-fetch-base-spawn-rebase-ship** — Fetch the Base Before Spawning a Worktree, Rebase onto the Base at Ship
+- **260916-8nd2-kit-path-trailing-newline** — `fab kit-path` prints a newline-terminated line
+- **260915-znw8-fab-incognito-skill** — fab-incognito — Discussion-Priming Skill That Loads Process Knowledge, Not Project Memory
+- **260720-dow0-resolve-or-none-flag** — fab current + fab resolve rework — absence as a first-class query result
 - **261007-gyp9-early-draft-pr-live-meta** — Early draft PR + live, refreshable `## Meta` block
 - **260915-vy27-per-change-base-branch** — Per-Change Base Branch — Record `base_branch` in `.status.yaml` and Read It on Every Base-Relative Surface
 - **260913-iyb4-operator-spawn-session-selector** — Operator Spawn Target-Session Selector — Deterministic, Never Asks
