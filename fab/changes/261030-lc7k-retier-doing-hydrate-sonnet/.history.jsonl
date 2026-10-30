@@ -1,0 +1,10 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-10-30T09:37:21Z"}
+{"args":"Move the kit's built-in Claude fills for doing and hydrate from claude-opus-5-5/high to claude-sonnet-5-5/high (kit-wide default)","cmd":"fab-new","event":"command","ts":"2026-10-30T09:37:21Z"}
+{"delta":"+0.0","event":"confidence","score":5,"trigger":"calc-score","ts":"2026-10-30T09:39:06Z"}
+{"cmd":"fab-switch","event":"command","ts":"2026-10-30T09:39:32Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-10-30T09:39:53Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-10-30T09:39:53Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-10-30T09:41:54Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-10-30T09:47:22Z"}
+{"event":"review","result":"passed","ts":"2026-10-30T09:47:22Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-10-30T09:48:20Z"}
