@@ -139,7 +139,7 @@ disagree (see § Drift guard).
 **Why these defaults.** `doing` runs Sonnet at `high` — apply is the highest-output-volume stage, and
 the kit default accepts the apply↔review coupling risk (see § apply↔review coupling) in exchange for
 Sonnet-rate apply; a project that wants an Opus author sets `agent.profiles.doing`. `review` runs
-Opus/`high` — code review is a named Opus strength, and review is now the pipeline's only Opus stage:
+Opus/`high` — code review is a named Opus strength, and review is now the only Opus stage downstream of intake:
 the critic carries the judgment a cheaper author may miss (author/critic separation is enforced by the
 *fresh context and adversarial framing*, not by model choice). `hydrate` runs Sonnet/`high` — it writes
 memory from a finished, reviewed diff, which is summarization well within Sonnet's range. Note

@@ -66,7 +66,7 @@ The § Default role profiles mirror table SHALL show `doing`/`hydrate` on `claud
 ### Design Decisions
 
 #### Kit Default Runs `doing` and `hydrate` on Sonnet 5.5, `review` Stays Opus
-**Decision**: The Claude `doing` and `hydrate` fills move to `claude-sonnet-5-5`/`high` kit-wide; `default` and `review` stay `claude-opus-5-5`/`high`, making review the pipeline's only Opus stage.
+**Decision**: The Claude `doing` and `hydrate` fills move to `claude-sonnet-5-5`/`high` kit-wide; `default` and `review` stay `claude-opus-5-5`/`high`, making review the only Opus stage downstream of intake (`intake` rides `default`).
 **Why**: `doing` (apply) and `hydrate` are the highest-output-volume stages; hydrate writes memory from a finished, reviewed diff (within Sonnet's range). The owner chose the kit-wide default over a personal override. Accepted tradeoff: per the apply↔review coupling, a cheaper author under an Opus critic may raise must-fix findings and rework cycles (cap 3) — unmeasured; a project that sees it sets `agent.profiles.doing` back to Opus.
 **Rejected**: machine-local `--system` override (owner wants it for everyone); hydrate-only re-tier (agent's counter-proposal, owner held on `doing`); dropping the now-default-equal explicit `effort: high` (fab never relies on a model's default).
 *Introduced by*: 261030-lc7k-retier-doing-hydrate-sonnet
@@ -95,33 +95,33 @@ The § Default role profiles mirror table SHALL show `doing`/`hydrate` on `claud
 
 ### Functional Completeness
 
-- [ ] A-001 R1: `defaults.yaml` fills `doing`/`hydrate` with `claude-sonnet-5-5`/`high`; the other four Claude rows and all other provider blocks are byte-unchanged
-- [ ] A-002 R2: The `defaults.yaml` comment names the three effort facts and no longer calls all Sonnet rows `medium`
-- [ ] A-003 R3: `TestDefaultRoleProfilesArePinned` pins the new values and passes
-- [ ] A-004 R4: The stage-models mirror table matches `defaults.yaml` (`TestDocTablesMatchAgentMaps` passes)
-- [ ] A-005 R5: All three `fab resolve-agent apply` examples in `_cli-fab.md` show the Sonnet fill (`model=claude-sonnet-5-5` / `model=sonnet`)
-- [ ] A-006 R6: The new digest is the catalog's last entry, labelled current with `261030-lc7k`; `ab93e3cc…` relabelled historical; no entry removed
+- [x] A-001 R1: `defaults.yaml` fills `doing`/`hydrate` with `claude-sonnet-5-5`/`high`; the other four Claude rows and all other provider blocks are byte-unchanged
+- [x] A-002 R2: The `defaults.yaml` comment names the three effort facts and no longer calls all Sonnet rows `medium`
+- [x] A-003 R3: `TestDefaultRoleProfilesArePinned` pins the new values and passes
+- [x] A-004 R4: The stage-models mirror table matches `defaults.yaml` (`TestDocTablesMatchAgentMaps` passes)
+- [x] A-005 R5: All three `fab resolve-agent apply` examples in `_cli-fab.md` show the Sonnet fill (`model=claude-sonnet-5-5` / `model=sonnet`)
+- [x] A-006 R6: The new digest is the catalog's last entry, labelled current with `261030-lc7k`; `ab93e3cc…` relabelled historical; no entry removed
 
 ### Behavioral Correctness
 
-- [ ] A-007 R1: `fab agent apply -o yaml` / `fab agent hydrate -o yaml` built from the branch resolve `claude-sonnet-5-5`/`high`/`sonnet`; `review` resolves Opus
-- [ ] A-008 R4: The spec's "Why these defaults", § apply↔review coupling, and § Model upgrade path contain no present-truth claim that `doing`/`hydrate` run Opus or that `doing` and `review` share a profile; the coupling mechanism and the accepted, unmeasured risk + `agent.profiles.doing` override are stated
+- [x] A-007 R1: `fab agent apply -o yaml` / `fab agent hydrate -o yaml` built from the branch resolve `claude-sonnet-5-5`/`high`/`sonnet`; `review` resolves Opus
+- [x] A-008 R4: The spec's "Why these defaults", § apply↔review coupling, and § Model upgrade path contain no present-truth claim that `doing`/`hydrate` run Opus or that `doing` and `review` share a profile; the coupling mechanism and the accepted, unmeasured risk + `agent.profiles.doing` override are stated
 
 ### Scenario Coverage
 
-- [ ] A-009 R6: `go test ./internal/agent/... ./internal/configupgrade/... ./cmd/fab/...` passes from `src/go/fab`
+- [x] A-009 R6: `go test ./internal/agent/... ./internal/configupgrade/... ./cmd/fab/...` passes from `src/go/fab`
 
 ### Edge Cases & Error Handling
 
-- [ ] A-010 R4: Any retitled heading has no dangling inbound anchor links in `docs/` or `src/kit/`
+- [x] A-010 R4: Any retitled heading has no dangling inbound anchor links in `docs/` or `src/kit/`
 
 ### Code Quality
 
-- [ ] A-011 Pattern consistency: New catalog comments and YAML alignment follow the surrounding entries' style
-- [ ] A-012 No unnecessary duplication: Spec prose states each fact once (no restated table values in prose beyond what the paragraph already did)
-- [ ] A-013 Canonical source only: no edits under `.agents/skills/` or `.claude/skills/`
-- [ ] A-014 Deployed content cites no fab-kit-only paths in the `_cli-fab.md` edit
-- [ ] A-015 Go files are gofmt-clean
+- [x] A-011 Pattern consistency: New catalog comments and YAML alignment follow the surrounding entries' style
+- [x] A-012 No unnecessary duplication: Spec prose states each fact once (no restated table values in prose beyond what the paragraph already did)
+- [x] A-013 Canonical source only: no edits under `.agents/skills/` or `.claude/skills/`
+- [x] A-014 Deployed content cites no fab-kit-only paths in the `_cli-fab.md` edit
+- [x] A-015 Go files are gofmt-clean
 
 ## Notes
 
