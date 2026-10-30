@@ -176,10 +176,14 @@ var knownGeneratedSystemParagraphDigests = map[string]struct{}{
 	// claude-opus-5-5 and the operator/fast fills still on claude-sonnet-5
 	// (260923-vvdv).
 	"b40b5eca67d75dc524c8baf01e0357a9784c48b7e6b6cb552327582b92454acd": {},
-	// Current providers advert: the claude operator/fast fills moved to
-	// claude-sonnet-5-5, putting all six claude fills on the 5.5 generation
-	// (260929-9dwn).
+	// Providers advert with all six claude fills on the 5.5 generation —
+	// default/doing/review/hydrate on claude-opus-5-5, operator/fast on
+	// claude-sonnet-5-5 (260929-9dwn).
 	"ab93e3cc8204e7179344b8497fbfa089a83c3943ce4c72b0821b5cadfc084d59": {},
+	// Current providers advert: the claude doing/hydrate fills moved to
+	// claude-sonnet-5-5 (effort high), leaving default/review on
+	// claude-opus-5-5 (261030-lc7k).
+	"2f55e041d31fb0a03cd59b73feeef8759f78662c1276b2d5e83f4082c8ed1ec5": {},
 }
 
 // fenceHeaderComment returns the explanatory preamble emitted at the top of a

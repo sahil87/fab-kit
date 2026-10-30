@@ -128,33 +128,35 @@ versioned with the kit and is the single file to edit when a new model ships.
 |------|----------|-------|--------|
 | `default` | `claude` | `claude-opus-5-5` | `high` |
 | `operator` | `claude` | `claude-sonnet-5-5` | `medium` |
-| `doing` | `claude` | `claude-opus-5-5` | `high` |
+| `doing` | `claude` | `claude-sonnet-5-5` | `high` |
 | `review` | `claude` | `claude-opus-5-5` | `high` |
-| `hydrate` | `claude` | `claude-opus-5-5` | `high` |
+| `hydrate` | `claude` | `claude-sonnet-5-5` | `high` |
 | `fast` | `claude` | `claude-sonnet-5-5` | `medium` |
 
 This is the verified mirror of what `defaults.yaml` composes. A drift-guard test fails if the two
 disagree (see § Drift guard).
 
-**Why these defaults.** `doing` runs Opus at `high` — Opus is the strongest coding/agentic model, and
-`high` is the recommended effort sweet spot (`xhigh` buys marginal gains at disproportionate
-latency/cost); a strong author minimizes rework cycles per the apply↔review coupling (see §
-apply↔review coupling). `review` runs Opus/`high` — code review is a named Opus strength, and the
-critic gets the same top-end model as the author so it can actually catch what the author missed
-(author/critic separation is enforced by the *fresh context and adversarial framing*, not by a weaker
-model). `hydrate` runs Opus/`high` — knowledge work and memory writing are named Opus strengths. Note
+**Why these defaults.** `doing` runs Sonnet at `high` — apply is the highest-output-volume stage, and
+the kit default accepts the apply↔review coupling risk (see § apply↔review coupling) in exchange for
+Sonnet-rate apply; a project that wants an Opus author sets `agent.profiles.doing`. `review` runs
+Opus/`high` — code review is a named Opus strength, and review is now the pipeline's only Opus stage:
+the critic carries the judgment a cheaper author may miss (author/critic separation is enforced by the
+*fresh context and adversarial framing*, not by model choice). `hydrate` runs Sonnet/`high` — it writes
+memory from a finished, reviewed diff, which is summarization well within Sonnet's range. Note
 that on the native dispatch arm the effort half is advisory anyway (§ Effort asymmetry), so the model
 choice is what actually carries. `default` runs
-Opus/`high` — the role covers interactive sessions and advisory intake scoring, where the same
-coding/agentic strength that earns `doing` its Opus is what the user is talking to directly, and
-`high` is the recommended effort sweet spot. `operator` runs
+Opus/`high` — the role covers interactive sessions and advisory intake scoring, where the user is
+talking to the model directly and the intake's judgment calls gate the whole pipeline, and
+`high` is the recommended effort sweet spot (`xhigh` buys marginal gains at disproportionate
+latency/cost). `operator` runs
 Sonnet/`medium` (highest-volume coordinator, pattern-matching work, escalation discipline makes the
 cheaper model safe). `fast` sits at the mechanical floor on Sonnet/`medium` — effort at `medium` (not
 `low`) buys margin for faithful PR-description comprehension. The explicit effort is
 load-bearing in both directions, not decorative, because fab passes `--effort` on every CLI arm and never
-relies on a model's own default: Opus 5.5 defaults to `medium`, so the explicit `high` is what keeps those
-roles at `high`; Sonnet 5.5 defaults to `high`, so the explicit `medium` is what keeps `operator` and `fast`
-at `medium`. Cost-conscious projects opt
+relies on a model's own default: Opus 5.5 defaults to `medium`, so the explicit `high` is what keeps the
+Opus roles at `high`; Sonnet 5.5 defaults to `high`, so the explicit `medium` is what keeps `operator` and
+`fast` at `medium`. `doing`/`hydrate`'s `high` equals Sonnet 5.5's default today and stays explicit anyway —
+the next Sonnet may default differently. Cost-conscious projects opt
 any role down themselves (see § Config schema).
 
 ---
@@ -842,7 +844,7 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
 
 ---
 
-## apply↔review coupling: why apply is `doing`, not cheaper
+## apply↔review coupling
 
 The apply stage produces the diff the review stage critiques, so the two are **economically coupled**:
 if `apply` runs on a cheaper model than `review`, a sharper reviewer bounces the cheaper executor's
@@ -850,16 +852,17 @@ work more often, driving **more rework cycles** (capped at 3 per `code-review.md
 review rounds can cost more than running `apply` on the capable model once. "Cheaper apply = cheaper
 pipeline" is therefore *not* strictly true.
 
-This is why `apply` stays in `doing` on a top-end author rather than dropping to a cheap model: apply
-has the highest output volume (which argues for the cheaper model), but the coupling argues louder — a
-strong author minimizes the rework cycles a sharp reviewer would otherwise trigger.
+Apply also has the highest output volume, which argues for the cheaper model. The kit default takes
+that side: `doing` runs on Sonnet while `review` stays on Opus, **accepting** the coupling risk. Whether
+a Sonnet author under an Opus critic actually raises must-fix findings and rework cycles is
+**unmeasured** — the mechanism is real, its size is not known. A project that sees elevated rework sets
+`agent.profiles.doing` back to an Opus model.
 
-`doing` and `review` are **separate roles that currently resolve to the same profile** (see
-§ Default role profiles for the shipped values). The separation is structural, not a model-diversity
-claim: keeping two roles lets a project dial the critic independently of the author without touching
-the taxonomy, and the author/critic separation that actually does the work is the **fresh context and
-adversarial framing**, not a different model. A project that wants a genuinely different critic sets
-`agent.profiles.review`; fab does not ship that as the default.
+`doing` and `review` are **separate roles that resolve to different models** (see § Default role
+profiles for the shipped values) — the role separation is what makes disagreeing with the default a
+one-row config change rather than a taxonomy change. The author/critic separation that actually does
+the work is the **fresh context and adversarial framing**, not model diversity; the different models
+are a cost choice, not a review-quality mechanism.
 
 ---
 
@@ -868,9 +871,9 @@ adversarial framing**, not a different model. A project that wants a genuinely d
 The shipped assignment is the table in § Default role profiles, which is the drift-guarded mirror of
 `defaults.yaml` and the only place this spec states model IDs. (Deliberate: prose that restates the
 IDs rots silently between bumps, which is exactly what happened to this section before.) The durable
-shape is the rationale in that section: the frontier model wherever the named strengths are code
-review, agentic execution, memory writing, and direct interactive work, Sonnet at the mechanical
-floor and for the highest-volume coordinator.
+shape is the rationale in that section: the frontier model for code review and direct interactive
+work; Sonnet for the high-volume author and memory writer (`doing`, `hydrate`), at the mechanical
+floor, and for the highest-volume coordinator.
 
 fab bumps the values in **one place** (the `providers.claude.profiles` block of `defaults.yaml`) each
 release, and every non-overriding project upgrades for free. The per-role fill table is fab's curated

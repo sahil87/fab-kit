@@ -323,12 +323,12 @@ dispatch=<command>
 
 ```
 $ fab resolve-agent apply
-model=claude-opus-5-5
+model=claude-sonnet-5-5
 effort=high
 provider=claude
 
 $ fab resolve-agent apply --alias
-model=opus
+model=sonnet
 effort=high
 provider=claude
 
@@ -371,7 +371,7 @@ dispatch=codex exec --dangerously-bypass-approvals-and-sandbox -m <codex-model-i
 # a bare within-role override (equally legal on `fab agent` — final
 # post-refill layer there too):
 $ fab resolve-agent apply --effort medium
-model=claude-opus-5-5
+model=claude-sonnet-5-5
 effort=medium
 provider=claude
 ```
