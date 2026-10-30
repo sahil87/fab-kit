@@ -446,7 +446,7 @@ func (w *setupWizard) askAdvanced() {
 		{key: "agent.profiles.review.provider", text: "agent.profiles.review.provider — provider override for the review role.", options: providers, inheritAs: "(inherit agent.workers)"},
 		{key: "dispatch.column_width", text: "dispatch.column_width — pane-worker column width, in percent of the window.", validate: func(s string) bool {
 			n, err := strconv.Atoi(s)
-			return err == nil && n > 0 && n < 100
+			return err == nil && n >= config.MinDispatchColumnWidth && n <= config.MaxDispatchColumnWidth
 		}},
 		{key: "dispatch.reap_done", text: "dispatch.reap_done — kill a done worker's pane once its result lands (true/false).", validate: func(s string) bool {
 			_, err := strconv.ParseBool(s)

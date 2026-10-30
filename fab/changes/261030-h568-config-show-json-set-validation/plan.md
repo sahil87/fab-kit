@@ -138,8 +138,8 @@ In both `--origin --json` forms, a row for `agent.profiles.<role>.provider|model
 ### Phase 2: Core Implementation
 
 - [x] T003 `src/go/fab/cmd/fab/config.go` (or a new sibling `config_validate.go`): add `validateSetValue(key, rawValue string) error` implementing R4 (enum/range against the T001 symbols and `config.ValidAutopilotMergeModes`; ints parsed from the already-kind-checked value) and R5 (provider keys — `agent.session`, `agent.workers`, `agent.profiles.<role>.provider` — against `agent.ProviderNames(cfg)` where `cfg` is `config.FromMap` of the `loadReadLayers` effective map, falling back to `config.LoadLayersNoProject()` when loading fails). Errors: `invalid value "weird" for dispatch.mode — must be one of: pane, native, headless` style, naming key + value + accepted set/range <!-- R4 -->
-- [x] T004 Wire `validateSetValue` into `configSetCmd` (after the empty-value guard, before any write) and into `setupWizard.writeOne` in `src/go/fab/cmd/fab/setup_wizard.go` before `configupgrade.Set`/`SetSystem`. Keep the kind-check error ordering: a kind mismatch (e.g. `column_width abc`) must still report the existing kind error — run `configupgrade`'s kind check first or make `validateSetValue` skip values that don't parse as the key's kind <!-- R5 -->
-- [x] T005 `src/go/fab/cmd/fab/config.go`: refactor the provenance walk (`originLine`, `cascadeTier.origin/stackOrigin`, `flattenOrigin`, `stackLines`, `keyedOriginLines`, `renderOriginLines`) so each row keeps the raw value, tier kind, origin detail (env var name w/o `$`, path, or ""), and status; the text renderer reproduces today's strings byte-for-byte (`renderScalar` for winner-only values, `renderCompactValue` for keyed stack values, `$VAR`/path/`default` labels, `  (effective)`/`  (shadowed)` markers, the undefined and ancestor lines) <!-- R10 -->
+- [x] T004 Wire `validateSetValue` into `configSetCmd` (after the empty-value guard, before any write) and into `setupWizard.writeOne` in `src/go/fab/cmd/fab/setup_wizard.go` before `configupgrade.Set`/`SetSystem`. Keep the kind-check error ordering: a kind mismatch (e.g. `column_width abc`) must still report the existing kind error — run `configupgrade`'s kind check first or make `validateSetValue` skip values that don't parse as the key's kind <!-- R5 --> <!-- rework: wizard column_width validator re-spells the bound — use config.Min/MaxDispatchColumnWidth -->
+- [x] T005 `src/go/fab/cmd/fab/config.go`: refactor the provenance walk (`originLine`, `cascadeTier.origin/stackOrigin`, `flattenOrigin`, `stackLines`, `keyedOriginLines`, `renderOriginLines`) so each row keeps the raw value, tier kind, origin detail (env var name w/o `$`, path, or ""), and status; the text renderer reproduces today's strings byte-for-byte (`renderScalar` for winner-only values, `renderCompactValue` for keyed stack values, `$VAR`/path/`default` labels, `  (effective)`/`  (shadowed)` markers, the undefined and ancestor lines) <!-- R10 --> <!-- rework: originLine.origin() duplicates cascadeTier.stackOrigin label rule — extract one stackLabel helper -->
 - [x] T006 `src/go/fab/cmd/fab/config.go`: add `--json` to `configShowCmd` and JSON renderers for all four forms (R1 plain/keyed value; R2 winner-only rows; R3 keyed stack rows, `[]` for undefined, single null row for ancestor-replaced). Ensure typed values (float64 integral defaults encode as ints — `encoding/json` does this for float64 45 → `45`; verify) and that `map[any]any` values are normalized via `asGenericMap` before marshalling. Match `configref.RenderJSON`'s indentation <!-- R1 -->
 - [x] T007 `src/go/fab/cmd/fab/config.go`: implement `derived_from` (R8) — for `default`-tier rows of `agent.profiles.<role>.{provider,model,effort}`, resolve the source via `agent.ResolveRoleWithSource` on the same knobs-only (provider) / fills-only (model, effort) projections `configref.DefaultsMapFor` uses (export small helpers from `configref` if needed rather than duplicating them), map the source to a leaf key (`agent.workers`, `agent.session`, `providers.<p>.profiles.<r>.model|effort`), and resolve that key's winning tier through `descendPath` over the ALREADY-loaded layers. Omit when source is `built-in`/`flag`, the key is undefined, or its winner is `default` <!-- R8 -->
 
@@ -151,8 +151,8 @@ In both `--origin --json` forms, a row for `agent.profiles.<role>.provider|model
 ### Phase 4: Polish
 
 - [x] T010 [P] `src/go/fab/cmd/fab/config.go` cobra help: `show` Long/Example gain `--json` (incl. `fab config show --origin --json`); `set` Long gains the value-domain validation sentence (keep the shadow-warning sentence). Check `shll standards` for help/`--json` conventions if `shll` is available <!-- R9 -->
-- [x] T011 [P] `src/kit/skills/_cli-fab.md` § fab config: signature block (`show [key] [--origin] [--json]`), the show mode table gains the JSON forms, a row-schema subsection (fields, `origin` vocabulary, `origin_detail`, `status`, optional `derived_from`, `[]`/ancestor-null edge cases, a JSON example), fix "Requires a fab repo" → project-less degrade (env > system > defaults); § fab config set / unset gains the value-domain rules (accepted sets/ranges, provider table definition, write-time only) and notes notices work outside a project. Also sweep `src/go/fab/cmd/fab/skill.md` if it restates the show forms <!-- R9 -->
-- [x] T012 [P] `docs/specs/config.md`: minimal additions next to the `fab config show` bullet (JSON is the machine contract; one schema; `derived_from`) and the `set` description (write-time value-domain validation; read path stays fail-open) <!-- R9 -->
+- [x] T011 [P] `src/kit/skills/_cli-fab.md` § fab config: signature block (`show [key] [--origin] [--json]`), the show mode table gains the JSON forms, a row-schema subsection (fields, `origin` vocabulary, `origin_detail`, `status`, optional `derived_from`, `[]`/ancestor-null edge cases, a JSON example), fix "Requires a fab repo" → project-less degrade (env > system > defaults); § fab config set / unset gains the value-domain rules (accepted sets/ranges, provider table definition, write-time only) and notes notices work outside a project. Also sweep `src/go/fab/cmd/fab/skill.md` if it restates the show forms <!-- R9 --> <!-- rework: derived_from omission rule under-stated — model/effort only when the fill leaf itself is set by env/system/project -->
+- [x] T012 [P] `docs/specs/config.md`: minimal additions next to the `fab config show` bullet (JSON is the machine contract; one schema; `derived_from`) and the `set` description (write-time value-domain validation; read path stays fail-open) <!-- R9 --> <!-- rework: same derived_from omission-rule wording fix as T011 -->
 
 ## Execution Order
 
@@ -162,47 +162,51 @@ In both `--origin --json` forms, a row for `agent.profiles.<role>.provider|model
 
 ### Functional Completeness
 
-- [ ] A-001 R1: `show --json` prints a JSON object of the composed config and `show <key> --json` prints a typed JSON value
-- [ ] A-002 R2: `show --origin --json` rows carry exactly `key`, typed `value`, `origin` ∈ {default, env, system, project}, `origin_detail`, `status: effective` (plus optional `derived_from`)
-- [ ] A-003 R3: keyed `--origin --json` lists the full stack winner-first with effective/shadowed status
-- [ ] A-004 R4: `dispatch.mode`, `column_width`, `min_cols`, `min_rows`, `autopilot.merge_mode` out-of-domain values are refused non-zero with nothing written
-- [ ] A-005 R5: provider keys are validated against built-ins ∪ cascaded `providers:` keys, error lists available names
-- [ ] A-006 R6: `GetDispatchMode` with an invalid mode and nil `warnw` warns on stderr and returns the default — no panic
-- [ ] A-007 R7: `set --system` shadow warning and `unset --system` live-tier notice fire from a project-less cwd
-- [ ] A-008 R8: derived default-tier role rows carry `derived_from` with the knob/fill key and its tier
-- [ ] A-009 R9: `_cli-fab.md`, `docs/specs/config.md`, and cobra help document `--json` and set validation
+- [x] A-001 R1: `show --json` prints a JSON object of the composed config and `show <key> --json` prints a typed JSON value
+- [x] A-002 R2: `show --origin --json` rows carry exactly `key`, typed `value`, `origin` ∈ {default, env, system, project}, `origin_detail`, `status: effective` (plus optional `derived_from`)
+- [x] A-003 R3: keyed `--origin --json` lists the full stack winner-first with effective/shadowed status
+- [x] A-004 R4: `dispatch.mode`, `column_width`, `min_cols`, `min_rows`, `autopilot.merge_mode` out-of-domain values are refused non-zero with nothing written
+- [x] A-005 R5: provider keys are validated against built-ins ∪ cascaded `providers:` keys, error lists available names
+- [x] A-006 R6: `GetDispatchMode` with an invalid mode and nil `warnw` warns on stderr and returns the default — no panic
+- [x] A-007 R7: `set --system` shadow warning and `unset --system` live-tier notice fire from a project-less cwd
+- [x] A-008 R8: derived default-tier role rows carry `derived_from` with the knob/fill key and its tier
+- [x] A-009 R9: `_cli-fab.md`, `docs/specs/config.md`, and cobra help document `--json` and set validation
 
 ### Behavioral Correctness
 
-- [ ] A-010 R10: all pre-existing show/origin text tests pass unmodified
-- [ ] A-011 R4: the read-path accessors and the set validator share one source for each accepted set/range (no duplicate literal)
+- [x] A-010 R10: all pre-existing show/origin text tests pass unmodified
+- [x] A-011 R4: the read-path accessors and the set validator share one source for each accepted set/range (no duplicate literal)
 
 ### Scenario Coverage
 
-- [ ] A-012 R2: a test exercises project-less cwd with env + system + default rows and checks `origin_detail` for each
-- [ ] A-013 R5: a test covers the `fab setup` wizard write path refusing an invalid value
-- [ ] A-014 R7: a test covers project-less `set --system` shadowed by an env var
+- [x] A-012 R2: a test exercises project-less cwd with env + system + default rows and checks `origin_detail` for each
+- [x] A-013 R5: a test covers the `fab setup` wizard write path refusing an invalid value
+- [x] A-014 R7: a test covers project-less `set --system` shadowed by an env var
 
 ### Edge Cases & Error Handling
 
-- [ ] A-015 R3: undefined key prints `[]`; ancestor-replaced descendant prints one `value: null` effective row
-- [ ] A-016 R5: a malformed project file does not make `set --system agent.workers codex` fail (fallback provider table)
-- [ ] A-017 R4: a kind mismatch (`column_width abc`, `reap_done bogus`) still reports the existing kind error
-- [ ] A-018 R8: no config anywhere ⇒ no `derived_from`; a role with its own `agent.profiles.<role>.provider` override ⇒ provider row won by that tier carries no `derived_from`
+- [x] A-015 R3: undefined key prints `[]`; ancestor-replaced descendant prints one `value: null` effective row
+- [x] A-016 R5: a malformed project file does not make `set --system agent.workers codex` fail (fallback provider table)
+- [x] A-017 R4: a kind mismatch (`column_width abc`, `reap_done bogus`) still reports the existing kind error
+- [x] A-018 R8: no config anywhere ⇒ no `derived_from`; a role with its own `agent.profiles.<role>.provider` override ⇒ provider row won by that tier carries no `derived_from`
 
 ### Code Quality
 
-- [ ] A-019 Pattern consistency: new code follows naming and structural patterns of `cmd/fab/config.go` and `internal/config`
-- [ ] A-020 No unnecessary duplication: one provenance walk, one layer loader, one validator, existing `configref` knob/fill projections reused
-- [ ] A-021 Readability: no new god function (>50 lines without clear reason); no magic strings/numbers for modes or bounds
-- [ ] A-022 CLI ⇒ docs + tests: `_cli-fab.md` updated and every Go change has tests; tests isolate HOME
-- [ ] A-023 Deployed content cites no fab-kit-only paths (`_cli-fab.md` restates rules, no `docs/specs`/`src/go` pointers)
+- [x] A-019 Pattern consistency: new code follows naming and structural patterns of `cmd/fab/config.go` and `internal/config`
+- [x] A-020 No unnecessary duplication: one provenance walk, one layer loader, one validator, existing `configref` knob/fill projections reused (rework 1: `originLine.origin()` and `cascadeTier.stackOrigin` now share `stackLabel`/`originLabel`)
+- [x] A-021 Readability: no new god function (>50 lines without clear reason); no magic strings/numbers for modes or bounds
+- [x] A-022 CLI ⇒ docs + tests: `_cli-fab.md` updated and every Go change has tests; tests isolate HOME
+- [x] A-023 Deployed content cites no fab-kit-only paths (`_cli-fab.md` restates rules, no `docs/specs`/`src/go` pointers)
 
 ## Notes
 
 - Check items as you review: `- [x]`
 - All acceptance items must pass before `/fab-continue` (hydrate)
 - If an item is not applicable, mark checked and prefix with **N/A**: `- [x] A-NNN **N/A**: {reason}`
+
+## Deletion Candidates
+
+- None — this change adds new functionality without making existing code redundant (the cycle-1 candidates — `stackOrigin`'s duplicated label rule and the wizard's re-spelled column_width bounds — were resolved in rework; the show command's inline layer loader and `effectiveTierFor`'s FabRoot-only loader were already folded into `loadReadLayers`)
 
 ## Assumptions
 

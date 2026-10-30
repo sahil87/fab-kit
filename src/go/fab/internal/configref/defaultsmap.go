@@ -116,6 +116,9 @@ func resolveDerivedRole(cfg *config.Config, role string) (roleProfileDefault, Ro
 	if sources.Provider == agentBuiltinSource {
 		sources.Provider = "" // no user config involved: the default tier is the whole truth
 	}
+	// A deprecated flat providers.<p>.model/.effort is folded into profiles.default by
+	// ResolveProvider, so its reported source key (providers.<p>.profiles.default.model)
+	// is defined by no tier and derived_from is omitted for that legacy spelling.
 	if fs.Model != "" {
 		sources.Model = fs.Model + ".model"
 	}

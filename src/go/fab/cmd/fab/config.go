@@ -568,20 +568,14 @@ func (o originLine) origin() string {
 	if o.kind == "" {
 		return "(no tier defines this key)"
 	}
-	label := originLabel(o.kind, o.detail)
 	if !o.stacked {
-		return label
-	}
-	// A tier whose label IS its own word (`default`, and an environment leaf with no
-	// recorded variable) prints that word once rather than twice.
-	if label != o.kind {
-		label = o.kind + " " + label
+		return originLabel(o.kind, o.detail)
 	}
 	marker := "  (shadowed)"
 	if o.status == statusEffective {
 		marker = "  (effective)"
 	}
-	return label + marker
+	return stackLabel(o.kind, o.detail) + marker
 }
 
 // topLevelKey collapses a dotted registry key to its top-level YAML key
@@ -653,16 +647,22 @@ func (t cascadeTier) origin(key string, envOrigins map[string]string) string {
 	return originLabel(t.kind, t.detail(key, envOrigins))
 }
 
-// stackOrigin is the keyed full-stack label: the tier word plus its label, so a
+// stackLabel is the keyed full-stack label: the tier word plus its label, so a
 // listing of several tiers reads as a stack rather than as two bare file paths. A
 // tier whose label IS its own word (`default`, and an environment leaf with no
 // recorded variable) prints that word once rather than twice.
-func (t cascadeTier) stackOrigin(key string, envOrigins map[string]string) string {
-	origin := t.origin(key, envOrigins)
-	if origin == t.kind {
-		return t.kind
+func stackLabel(kind, detail string) string {
+	label := originLabel(kind, detail)
+	if label == kind {
+		return kind
 	}
-	return t.kind + " " + origin
+	return kind + " " + label
+}
+
+// stackOrigin is stackLabel for a cascade tier at key (the shadow and live-tier
+// notices name the winning tier this way).
+func (t cascadeTier) stackOrigin(key string, envOrigins map[string]string) string {
+	return stackLabel(t.kind, t.detail(key, envOrigins))
 }
 
 // cascadeTiers returns the four tiers for one top-level key, highest precedence

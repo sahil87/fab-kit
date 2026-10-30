@@ -536,8 +536,12 @@ environment walk cannot drift from the reference schema.
   single row schema (`key`, typed `value`, `origin`, `origin_detail`, `status`, optional
   `derived_from`); new fields are added only as optional ones, per the toolkit's machine-format
   stability rule. The default-tier `agent.profiles.<role>.*` rows are derived, so they keep
-  `origin: default` (the tier that holds the row) and add `derived_from` naming the config key that
-  actually determined the value and its own tier; relabelling the text form the same way is a
+  `origin: default` (the tier that holds the row) and may add `derived_from` naming the config leaf that
+  determined the value and that leaf's own tier — present only when that tier is env/system/project. A
+  provider row carries it when `agent.workers`/`agent.session` is user-set; a model/effort row only when
+  the provider-fill leaf itself (e.g. `providers.agy.profiles.doing.model`) is user-set, so a built-in fill
+  is never attributed even when a user knob selected its provider (the provider row's `derived_from`
+  explains that). Relabelling the text form the same way is a
   deliberate follow-up, not part of this contract.
 - `fab config explain [<key>] [--json]` — the registry documentation query. Bare forms render the
   full commented YAML or JSON table; keyed forms render the owning segment or its row(s).
