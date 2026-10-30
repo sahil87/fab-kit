@@ -390,7 +390,7 @@ provider=claude
 
 ```
 fab config explain [key]      # registry documentation; --json for field rows
-fab config show [key]         # effective config; --origin adds provenance
+fab config show [key]         # effective config; --origin adds provenance, --json is machine-readable
 fab config set <key> <value>  # set one project override; --system targets user config
 fab config unset <key>        # restore inheritance; --system targets user config
 fab config init               # generate fab/project/config.yaml from the registry (--print previews, --force overwrites)
@@ -437,7 +437,7 @@ The `providers:` block documents fab-kit's **four built-in providers** — `clau
 
 Tiers merge **per leaf**: maps merge per-key (the `agent.profiles` precedent), lists replace (never concatenate), scalars replace, and each leaf takes the value of the highest tier that defines it **non-empty**. An **empty leaf — `null`, `""`, `[]`, `{}` — falls through** to the tier below instead of shadowing it, at every tier including the environment; there is no explicit-null override. `false` and `0` are real values and are never skipped (a `dispatch.reap_done: false` resolves `false`). Environment names are mechanically `FAB_` + the uppercase dotted registry key with `.` replaced by `_`; values are parsed as YAML, so scalars, lists, and maps retain config types. The loader walks only the ordered registry keys, honors only `scope: system`/`both`, treats an empty value as unset, and fails open: a malformed value or project-scoped override emits a `fab: warning:` on stderr and is skipped; unrelated/unknown `FAB_*` variables are never scanned. The deliberately advertised variables are `FAB_AGENT_WORKERS` and `FAB_AGENT_SESSION`; similarly named `FAB_AGENTS` is unrelated and has no config meaning. The file-layer behavior is otherwise unchanged: an absent or malformed/unreadable system file is skipped (with a warning for malformed/unreadable), while a malformed *project* file still errors. Warnings never change stdout contracts or exit codes.
 
-### fab config show `[key] [--origin]`
+### fab config show `[key] [--origin] [--json]`
 
 Pure query (no file writes) for the current repo. Config resolves over a four-tier cascade — environment > system `~/.fab-kit/config.yaml` > project > built-in defaults — with per-leaf deep merge and empty-skip (an empty value never overrides a set one).
 
@@ -447,12 +447,17 @@ Pure query (no file writes) for the current repo. Config resolves over a four-ti
 | `fab config show --origin` | Effective values including defaults, WINNER only — one line per leaf with origin `$ENV_VARIABLE` / `system path` / `project path` / `default`; map fields (`agent.profiles`, `providers`) drill down per key |
 | `fab config show <key>` | Effective value including the built-in default; scalar/list values are raw, map values are YAML subtrees |
 | `fab config show <key> --origin` | The key's FULL STACK — one line per tier that defines it, highest first, as `key = value  # <tier> <label>  (effective\|shadowed)`; a map-valued key drills down per leaf, each leaf listing its own tiers |
+| `fab config show --json` | The composed config as ONE JSON object, typed values |
+| `fab config show <key> --json` | The key's effective value as one JSON value (string, number, bool, array, object, or `null`) |
+| `fab config show --origin --json` | JSON array of leaf rows, WINNER only — the same leaves and order as the text form |
+| `fab config show <key> --origin --json` | JSON array of leaf rows forming the key's full stack, winner first (a map-valued key drills down per leaf) |
 
 ```
 fab config show                        # fully composed effective config as YAML
 fab config show --origin               # each field: value + origin ($ENV_VARIABLE / system path / project path / default)
 fab config show agent.workers          # one effective value
 fab config show agent.workers --origin # every tier that defines it, winner first
+fab config show --origin --json        # machine-readable provenance, one typed row per leaf
 ```
 
 The keyed `--origin` listing is the answer to "why is my override not taking effect" — a shadowed tier is printed rather than inferred:
@@ -463,7 +468,42 @@ agent.workers = kimi3    # system /home/u/.fab-kit/config.yaml  (shadowed)
 agent.workers = claude   # default  (shadowed)
 ```
 
-Accepts at most one known dotted key; unknown keys fail non-zero naming the key. Requires a fab repo (walks up for `fab/`, like `fab preflight`). Writes no file. Bare output is the fully composed YAML view; `--origin` changes presentation by adding provenance, not composition.
+Accepts at most one known dotted key; unknown keys fail non-zero naming the key (nothing is printed to stdout). Works with or without a fab repo: outside a project it degrades to the project-free tiers (environment > system > built-in defaults) instead of failing. Writes no file. Bare output is the fully composed YAML view; `--origin` changes presentation by adding provenance, not composition.
+
+**`--json` is a pure format switch** over the four forms above — same leaves, same order, same semantics; text output is byte-unchanged without it. Every document is one JSON value plus a trailing newline, indented two spaces like `fab config explain --json`. Values are **typed** (an int prints `45`, a bool `true`, a list a JSON array) — never a pre-rendered string. The two `--origin --json` forms share one row schema:
+
+```json
+{
+  "key": "agent.workers",
+  "value": "codex",
+  "origin": "env",
+  "origin_detail": "FAB_AGENT_WORKERS",
+  "status": "effective"
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `key` | Dotted leaf key |
+| `value` | The leaf's value, typed (string / number / bool / array / `null`) |
+| `origin` | The tier supplying the row: exactly one of `default`, `env`, `system`, `project` |
+| `origin_detail` | The environment variable NAME without `$` (a leaf under a map-valued env row names the registry-row variable, e.g. `FAB_AGENT_PROFILES`), the absolute file path for `system`/`project`, or `""` for `default`. Always present |
+| `status` | `effective` or `shadowed`. Every row of the winner-only form is `effective`; in the keyed full-stack form the first row per leaf is `effective` (the winner) and the rest `shadowed` |
+| `derived_from` | **Optional** — see below; omitted otherwise |
+
+The keyed full-stack form lists, per leaf, one row per defining tier, winner first:
+
+```json
+[
+  {"key": "agent.workers", "value": "codex",  "origin": "env",     "origin_detail": "FAB_AGENT_WORKERS",          "status": "effective"},
+  {"key": "agent.workers", "value": "agy",    "origin": "system",  "origin_detail": "/home/u/.fab-kit/config.yaml", "status": "shadowed"},
+  {"key": "agent.workers", "value": "claude", "origin": "default", "origin_detail": "",                           "status": "shadowed"}
+]
+```
+
+Edge cases mirror the text form: a key no tier defines prints `[]`; a descendant whose ancestor a higher tier replaces with a non-map prints exactly one row — the requested key, `value: null`, the replacing tier's `origin`/`origin_detail`, `status: effective`.
+
+**`derived_from`**: the `agent.profiles.<role>.{provider,model,effort}` rows of the `default` tier are not literal built-ins — they are derived from the live config (the role's provider comes from the `agent.session`/`agent.workers` knob; its model/effort from that provider's fills). So `origin: default` alone would hide why a role's provider is `agy`. Such a row carries `derived_from: {key, origin, origin_detail}` naming the config key that determined the value (`agent.workers`, `agent.session`, or the fill leaf such as `providers.agy.profiles.doing.model`) and THAT key's own winning tier. It is omitted when the value came from the built-in defaults alone, and never appears on a row won by `env`/`system`/`project` (those are literal user values). It rides the JSON rows only; the text `--origin` form still prints `# default` for these rows.
 
 ### fab config set / unset
 
@@ -477,6 +517,21 @@ Both route through `internal/configupgrade`'s comment-preserving path splicer an
 A `set` whose key a **higher tier already defines** still writes and still exits 0, but prints a `fab: warning:` on stderr naming the tier that wins (`fab: warning: agent.workers is shadowed by env $FAB_AGENT_WORKERS — the written value is not in effect`). Writing `--system` over a project-file value is NOT shadowed — the system tier outranks it.
 
 `unset` stays kind-ungated so it can repair any current value shape, removes only the live override, and lets the fence advertise the field again. Unsetting a known absent key exits 0 with a notice that names the tier where the key IS live and the command that would remove it (`live in system ~/.fab-kit/config.yaml — use: fab config unset agent.workers --system`; for an environment tier it says so and notes that `unset` cannot remove a variable). A key supplied only by the built-in default gets the bare no-op notice. The shared value parser remains collection-aware (flow or block style) solely because environment overlays accept lists and maps; that broader ENV contract does not widen `set`. Relative to the pre-2.17.3 env layer, four degenerate spellings now warn-and-skip instead of resolving to surprising values: whitespace-only, comment-only, multi-document, and bare-date (`!!timestamp`) env values are rejected per-variable, fail-open.
+
+**Value-domain validation** (write-time only). After the kind check, `set` — and the `fab setup` wizard's writes — refuse a value outside the key's accepted set or range, exiting non-zero with an `ERROR:` line that names the key, the value, and the accepted set, and writing nothing:
+
+| Key | Accepted |
+|-----|----------|
+| `dispatch.mode` | `pane`, `native`, `headless` |
+| `dispatch.column_width` | integer 1–99 |
+| `dispatch.min_cols`, `dispatch.min_rows` | integer ≥ 1 |
+| `dispatch.reap_done` | bool (already enforced by the kind check) |
+| `autopilot.merge_mode` | `cherry-pick-ladder`, `merge-auto`, `stacked-prs` |
+| `agent.session`, `agent.workers`, `agent.profiles.<role>.provider` | a provider in the **effective providers table** — fab's built-in providers plus the `providers:` keys of the config visible from the cwd (project ⊕ system ⊕ env inside a project; system ⊕ env outside one). The error lists the available names. If the read model cannot be loaded (e.g. a malformed project file) the check falls back to the project-free cascade rather than failing the write |
+
+A value that does not parse as the key's kind (`dispatch.column_width abc`) still reports the kind error. The READ path is unchanged and stays fail-open: a hand-edited out-of-range value degrades with a `fab: warning:` to the built-in default (an invalid `dispatch.mode` falls back to `native`), and provider names resolve provider-neutrally. `unset` never inspects a value — it is the repair path.
+
+The shadow warning and `unset`'s live-tier notice resolve the read model the way `show` does, so they fire from a directory outside any fab project too (project-free tiers: environment > system > defaults).
 
 Without `--system`, the target is `fab/project/config.yaml`. With it, the target is `~/.fab-kit/config.yaml`; only `scope: system`/`both` keys are accepted, and a missing file is created with the canonical fence-owned system header inside its managed reference fence. Live keys stay above that fence, and `set --system` / `unset --system` regenerate it through the same target-aware writer as upgrade. Unknown keys fail naming the key and point to `fab config explain`.
 

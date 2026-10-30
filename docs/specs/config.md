@@ -489,7 +489,7 @@ environment walk cannot drift from the reference schema.
 
 ### Six intent-grouped verbs
 
-- `fab config show [<key>] [--origin]` — a pure query. Plain bare output prints the fully composed
+- `fab config show [<key>] [--origin] [--json]` — a pure query. Plain bare output prints the fully composed
   environment-over-system-over-project-over-built-in-defaults config as YAML. `--origin` adds per-field provenance (exact
   `$FAB_…` variable / system path / project path / `default`, following the
   `git config --show-origin` precedent) with per-key drill-down for map-valued fields. Bare
@@ -528,6 +528,17 @@ environment walk cannot drift from the reference schema.
   shadowing the knob's provider while the model/effort leaves report the overridden provider's fill as
   `default (effective)`. Resolution stays provider-neutral: a knob or override naming a provider fab
   ships nothing for is reported verbatim, with empty fills falling through under empty-skip.
+
+  **`--json` is the machine contract.** A pure format switch over the four forms — text is
+  byte-unchanged without it — so a consumer (a settings UI driving `fab config set`) never parses the
+  presentation text. The provenance walk produces structured rows that both renderers consume, so the two
+  formats cannot diverge on leaves, order, or edge cases. `--origin --json` is one flat array under a
+  single row schema (`key`, typed `value`, `origin`, `origin_detail`, `status`, optional
+  `derived_from`); new fields are added only as optional ones, per the toolkit's machine-format
+  stability rule. The default-tier `agent.profiles.<role>.*` rows are derived, so they keep
+  `origin: default` (the tier that holds the row) and add `derived_from` naming the config key that
+  actually determined the value and its own tier; relabelling the text form the same way is a
+  deliberate follow-up, not part of this contract.
 - `fab config explain [<key>] [--json]` — the registry documentation query. Bare forms render the
   full commented YAML or JSON table; keyed forms render the owning segment or its row(s).
   `reference` is an invisible compatibility alias.
@@ -547,7 +558,19 @@ environment walk cannot drift from the reference schema.
   (`agent.workers is shadowed by env $FAB_AGENT_WORKERS — the written value is not in effect`). It fires
   for either target — project shadowed by system or environment, `--system` shadowed by environment —
   and NOT for `--system` over a project value, which the system tier outranks. The check is fail-open:
-  an unresolvable repo or unreadable layer prints nothing rather than failing a completed write.
+  an unresolvable repo or unreadable layer prints nothing rather than failing a completed write. The
+  notice (and `unset`'s live-tier notice) resolves the read model the way `show` does, so it also
+  fires from a directory outside any fab project.
+
+  **`set` validates the value's domain at write time.** After the kind check, a value outside the key's
+  accepted set or range is refused, writing nothing: `dispatch.mode` (`pane`/`native`/`headless`),
+  `dispatch.column_width` (1–99), `dispatch.min_cols`/`min_rows` (≥ 1), `autopilot.merge_mode`, and the
+  provider keys (`agent.session`, `agent.workers`, `agent.profiles.<role>.provider`) against the effective
+  providers table — built-ins plus the `providers:` keys of the cascade visible from the cwd. The accepted
+  sets and bounds are exported once and shared with the read-path accessors. Validation stays at the
+  write chokepoint: the read path is still fail-open and provider-neutral (a hand-edited bad value
+  degrades to the default with a warning — a malformed personal preference must not brick every repo),
+  and `unset`, the repair path, never inspects a value.
 
   `unset` is deliberately kind-ungated so
   it can repair malformed overrides. System writes accept only `scope: system`/`both`, keep live

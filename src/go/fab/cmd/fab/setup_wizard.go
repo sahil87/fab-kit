@@ -502,6 +502,10 @@ func (w *setupWizard) diffAndWrite() error {
 // shadow warning so a write shadowed by a higher tier says so.
 func (w *setupWizard) writeOne(c wizardAnswer) error {
 	out := w.cmd.OutOrStdout()
+	layers, _ := loadReadLayers() // one load per write, shared with the shadow notice; fail-open
+	if err := validateSetValue(c.key, c.answer, layers); err != nil {
+		return err
+	}
 	var result configupgrade.Result
 	var err error
 	if w.opts.project {
@@ -520,6 +524,6 @@ func (w *setupWizard) writeOne(c wizardAnswer) error {
 	for _, line := range result.Report {
 		fmt.Fprintf(out, "  - %s\n", line)
 	}
-	warnIfShadowed(w.cmd, c.key, mutationTier(!w.opts.project))
+	warnIfShadowed(w.cmd, c.key, mutationTier(!w.opts.project), layers)
 	return nil
 }

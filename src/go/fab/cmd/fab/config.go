@@ -252,7 +252,7 @@ func renderReference(asJSON bool, key ...string) (string, error) {
 // was expected to win. KEYED --origin goes further and lists the key's whole
 // stack, so a shadowed override is visible rather than having to be inferred.
 func configShowCmd() *cobra.Command {
-	var withOrigin bool
+	var withOrigin, asJSON bool
 	cmd := &cobra.Command{
 		Use:   "show [key]",
 		Short: "Print the effective (post-cascade) config, optionally with per-field provenance",
@@ -269,7 +269,10 @@ func configShowCmd() *cobra.Command {
 			"(agent.profiles, providers). With a KEY and --origin, prints the key's " +
 			"full stack instead — " +
 			"one line per tier that defines it, the winner marked (effective) and the " +
-			"rest (shadowed). Pure query — writes no file.",
+			"rest (shadowed). With --json, prints the same data as one machine-readable " +
+			"JSON document: the composed config as an object, a key's typed value, or " +
+			"with --origin an array of {key, value, origin, origin_detail, status} rows " +
+			"(plus derived_from on derived role defaults). Pure query — writes no file.",
 		Example: `  # Print the fully composed effective config (built-in defaults included)
   fab config show
 
@@ -280,7 +283,10 @@ func configShowCmd() *cobra.Command {
   fab config show agent.workers
 
   # List every tier that defines one key, winner first
-  fab config show agent.workers --origin`,
+  fab config show agent.workers --origin
+
+  # Machine-readable provenance, one typed row per leaf
+  fab config show --origin --json`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Read-only: `show` reads the cascade, never change state, so with no
@@ -288,32 +294,23 @@ func configShowCmd() *cobra.Command {
 			// built-in defaults) instead of failing closed. Bare config writes keep
 			// the FabRoot gate, while their --system forms resolve the user config
 			// directly. See cmd/fab/skill.md.
-			var layers *config.Layers
-			if fabRoot, err := resolve.FabRoot(); err == nil {
-				projectPath := filepath.Join(fabRoot, "project", "config.yaml")
-				layers, err = config.LoadLayers(projectPath)
-				if err != nil {
-					return err
-				}
-			} else if !errors.Is(err, resolve.ErrNoFabRoot) {
-				// Broken environment (unreadable cwd), not "no project".
+			layers, err := loadReadLayers()
+			if err != nil {
 				return err
-			} else {
-				layers = config.LoadLayersNoProject()
 			}
 			defaults, err := readModelDefaults(layers)
 			if err != nil {
 				return err
 			}
 			if len(args) == 1 {
-				out, err := renderShowKey(layers, defaults, args[0], withOrigin)
+				out, err := renderShowKey(layers, defaults, args[0], withOrigin, asJSON)
 				if err != nil {
 					return err
 				}
 				fmt.Fprint(cmd.OutOrStdout(), out)
 				return nil
 			}
-			out, err := renderShow(layers, defaults, withOrigin)
+			out, err := renderShow(layers, defaults, withOrigin, asJSON)
 			if err != nil {
 				return err
 			}
@@ -322,7 +319,25 @@ func configShowCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&withOrigin, "origin", false, "Annotate each field with its provenance; with a key, list every tier that defines it")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Print machine-readable JSON instead of YAML/text (typed values; one row per leaf with --origin)")
 	return cmd
+}
+
+// loadReadLayers loads the config read model from the current directory: the full
+// cascade inside a fab project, the project-free layers (env > system) outside one.
+// It is the one place that decision lives — `show` reads through it, and so do the
+// set/unset shadow notices, which must work from a project-less cwd (a daemon whose
+// cwd is $HOME) exactly as `show` does. An error is a broken environment (an
+// unreadable cwd or layer), never "no project".
+func loadReadLayers() (*config.Layers, error) {
+	fabRoot, err := resolve.FabRoot()
+	if errors.Is(err, resolve.ErrNoFabRoot) {
+		return config.LoadLayersNoProject(), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return config.LoadLayers(filepath.Join(fabRoot, "project", "config.yaml"))
 }
 
 // readModelDefaults projects the registry's built-in defaults into the bottom
@@ -348,7 +363,7 @@ func readModelDefaults(layers *config.Layers) (map[string]any, error) {
 // it, highest precedence first, the winner marked (effective) and the rest
 // (shadowed). A map-valued key drills down per leaf, each leaf listing its own
 // defining tiers.
-func renderShowKey(layers *config.Layers, defaults map[string]any, key string, withOrigin bool) (string, error) {
+func renderShowKey(layers *config.Layers, defaults map[string]any, key string, withOrigin, asJSON bool) (string, error) {
 	if _, ok, err := configref.ResolveKey(key); err != nil {
 		return "", err
 	} else if !ok {
@@ -359,7 +374,7 @@ func renderShowKey(layers *config.Layers, defaults map[string]any, key string, w
 
 	if withOrigin {
 		lines := keyedOriginLines(key, cascadeTiers(defaults, layers, top), layers.EnvOrigins)
-		return renderOriginLines(lines), nil
+		return emitOriginLines(lines, layers, defaults, asJSON)
 	}
 
 	effective := config.MergeLayers(subtreeLayer(defaults, top), subtreeLayer(layers.Project, top),
@@ -367,6 +382,9 @@ func renderShowKey(layers *config.Layers, defaults map[string]any, key string, w
 	value, present := valueAtPath(effective[top], parts[1:])
 	if !present {
 		value = nil
+	}
+	if asJSON {
+		return encodeConfigJSON(jsonSafe(value))
 	}
 	if _, isMap := asGenericMap(value); isMap {
 		data, err := yaml.Marshal(value)
@@ -412,7 +430,7 @@ func renderOriginLines(lines []originLine) string {
 	}
 	var b strings.Builder
 	for _, line := range lines {
-		fmt.Fprintf(&b, "%-*s  # %s\n", width, line.left(), line.origin)
+		fmt.Fprintf(&b, "%-*s  # %s\n", width, line.left(), line.origin())
 	}
 	return b.String()
 }
@@ -447,16 +465,19 @@ func flowStyle(node *yaml.Node) {
 // renderShow renders the fully composed effective config, plain (merged YAML) or
 // with per-field provenance. It is factored out of the cobra RunE so it is
 // unit-testable.
-func renderShow(layers *config.Layers, defaults map[string]any, withOrigin bool) (string, error) {
+func renderShow(layers *config.Layers, defaults map[string]any, withOrigin, asJSON bool) (string, error) {
 	if !withOrigin {
 		effective := config.MergeLayers(defaults, layers.Effective)
+		if asJSON {
+			return encodeConfigJSON(jsonSafe(effective))
+		}
 		data, err := yaml.Marshal(effective)
 		if err != nil {
 			return "", err
 		}
 		return string(data), nil
 	}
-	return renderShowOrigin(layers, defaults)
+	return renderShowOrigin(layers, defaults, asJSON)
 }
 
 // renderShowOrigin walks the field registry and prints each field's effective
@@ -465,7 +486,7 @@ func renderShow(layers *config.Layers, defaults map[string]any, withOrigin bool)
 // (environment > system > project > built-in defaults) and flattens to leaves,
 // printing `dotted.key = value  # origin` where origin is the highest tier that
 // DEFINES the leaf. The keyed form (renderShowKey) lists the whole stack instead.
-func renderShowOrigin(layers *config.Layers, defaults map[string]any) (string, error) {
+func renderShowOrigin(layers *config.Layers, defaults map[string]any, asJSON bool) (string, error) {
 	fields, err := configref.Fields()
 	if err != nil {
 		return "", err
@@ -483,22 +504,85 @@ func renderShowOrigin(layers *config.Layers, defaults map[string]any) (string, e
 		lines = append(lines, flattenOrigin(top, cascadeTiers(defaults, layers, top), layers.EnvOrigins)...)
 	}
 
-	if len(lines) == 0 {
+	if len(lines) == 0 && !asJSON {
 		return "# (no fields resolved)\n", nil
 	}
 	// Deterministic output: registry order already governs the top-level walk;
 	// within a subtree flattenOrigin sorts leaf keys, so the whole thing is stable.
-	return renderOriginLines(lines), nil
+	return emitOriginLines(lines, layers, defaults, asJSON)
 }
 
-// originLine is one flattened leaf: its dotted key, rendered value, and origin.
+// emitOriginLines renders provenance rows as aligned text or as the JSON array. The
+// derived_from annotation is JSON-only, so it is computed only on that path.
+func emitOriginLines(lines []originLine, layers *config.Layers, defaults map[string]any, asJSON bool) (string, error) {
+	if !asJSON {
+		return renderOriginLines(lines), nil
+	}
+	annotateDerived(lines, layers, defaults)
+	return renderOriginJSON(lines)
+}
+
+// Row statuses: the winner-only listing marks every row effective; the keyed stack
+// marks its first row per leaf effective and the rest shadowed.
+const (
+	statusEffective = "effective"
+	statusShadowed  = "shadowed"
+)
+
+// originLine is one provenance row: a flattened leaf's dotted key, its RAW value,
+// and the tier that supplies it. The text and JSON renderers both consume it, so
+// the two forms cannot diverge on leaves, order, or edge cases.
 type originLine struct {
 	key    string
-	value  string
-	origin string
+	value  any
+	kind   string // tier kind; "" marks the "no tier defines this key" row
+	detail string // env variable name (no `$`), file path, or "" for default
+	status string
+	// stacked selects the keyed full-stack text rendering (compact flow values, tier
+	// word before the label, (effective)/(shadowed) marker) over the winner-only one.
+	stacked bool
+	// derived is set only on JSON rows (annotateDerived); the text form never shows it.
+	derived *derivedFrom
 }
 
-func (o originLine) left() string { return o.key + " = " + o.value }
+// newOriginLine builds the row for tier t at key.
+func newOriginLine(key string, value any, t cascadeTier, envOrigins map[string]string, status string, stacked bool) originLine {
+	return originLine{key: key, value: value, kind: t.kind, detail: t.detail(key, envOrigins), status: status, stacked: stacked}
+}
+
+func (o originLine) left() string {
+	switch {
+	case o.kind == "":
+		return o.key + " = null"
+	case o.stacked:
+		// The keyed listing renders a list/map leaf in compact FLOW style ([a, b]) —
+		// one stack line per tier stays readable only if the value is one token-ish
+		// run, which the winner-only listing does not need.
+		return o.key + " = " + renderCompactValue(o.value)
+	}
+	return o.key + " = " + renderScalar(o.value)
+}
+
+// origin is the text form's right-hand label.
+func (o originLine) origin() string {
+	if o.kind == "" {
+		return "(no tier defines this key)"
+	}
+	label := originLabel(o.kind, o.detail)
+	if !o.stacked {
+		return label
+	}
+	// A tier whose label IS its own word (`default`, and an environment leaf with no
+	// recorded variable) prints that word once rather than twice.
+	if label != o.kind {
+		label = o.kind + " " + label
+	}
+	marker := "  (shadowed)"
+	if o.status == statusEffective {
+		marker = "  (effective)"
+	}
+	return label + marker
+}
 
 // topLevelKey collapses a dotted registry key to its top-level YAML key
 // ("agent.profiles" → "agent", "project.name" → "project", "source_paths" →
@@ -532,20 +616,41 @@ type cascadeTier struct {
 
 func (t cascadeTier) defines() bool { return !config.IsEmptyValue(t.value) }
 
-// origin is the winner-only label: the exact environment variable, the project or
-// system file path, or `default`.
-func (t cascadeTier) origin(key string, envOrigins map[string]string) string {
+// detail names the tier's concrete source for key: the environment variable
+// (without its `$`; "" when none is recorded), the project or system file path, or
+// "" for the built-in defaults.
+func (t cascadeTier) detail(key string, envOrigins map[string]string) string {
 	switch t.kind {
 	case tierEnv:
-		if variable := envOrigin(key, envOrigins); variable != "" {
-			return variable
-		}
-		return tierEnv // no recorded variable: the tier word is the only honest label
+		return envOrigin(key, envOrigins)
 	case tierDefault:
-		return tierDefault
+		return ""
 	default:
 		return t.label
 	}
+}
+
+// originLabel is the text label for a tier: the exact `$VARIABLE`, the project or
+// system file path, or `default`. An environment tier with no recorded variable
+// prints the tier word — the only honest label.
+func originLabel(kind, detail string) string {
+	switch kind {
+	case tierEnv:
+		if detail != "" {
+			return "$" + detail
+		}
+		return tierEnv
+	case tierDefault:
+		return tierDefault
+	default:
+		return detail
+	}
+}
+
+// origin is the winner-only label: the exact environment variable, the project or
+// system file path, or `default`.
+func (t cascadeTier) origin(key string, envOrigins map[string]string) string {
+	return originLabel(t.kind, t.detail(key, envOrigins))
 }
 
 // stackOrigin is the keyed full-stack label: the tier word plus its label, so a
@@ -659,7 +764,7 @@ func flattenOrigin(prefix string, tiers []cascadeTier, envOrigins map[string]str
 	}
 	winner := defining[0]
 	if _, isMap := asGenericMap(winner.value); !isMap {
-		return []originLine{{key: prefix, value: renderScalar(winner.value), origin: winner.origin(prefix, envOrigins)}}
+		return []originLine{newOriginLine(prefix, winner.value, winner, envOrigins, statusEffective, false)}
 	}
 	mergeable := mergeableTiers(tiers)
 	var out []originLine
@@ -713,7 +818,7 @@ func descendPath(tiers []cascadeTier, key string) pathDescent {
 // inventing a descendant. A map-valued key drills down per leaf, each leaf listing
 // its own stack.
 func keyedOriginLines(key string, tiers []cascadeTier, envOrigins map[string]string) []originLine {
-	undefined := []originLine{{key: key, value: "null", origin: "(no tier defines this key)"}}
+	undefined := []originLine{{key: key}}
 	descent := descendPath(tiers, key)
 	switch {
 	case !descent.found:
@@ -721,8 +826,9 @@ func keyedOriginLines(key string, tiers []cascadeTier, envOrigins map[string]str
 	case descent.ancestor != nil:
 		// The requested descendant resolves to null; the replacing ancestor's tier
 		// is the provenance to report.
-		return []originLine{{key: key, value: "null",
-			origin: descent.ancestor.stackOrigin(descent.ancestorKey, envOrigins) + "  (effective)"}}
+		row := newOriginLine(descent.ancestorKey, nil, *descent.ancestor, envOrigins, statusEffective, true)
+		row.key = key // the detail is recorded at the ancestor's granularity; the row reports the requested key
+		return []originLine{row}
 	}
 	lines := stackLines(key, descent.tiers, envOrigins)
 	if len(lines) == 0 {
@@ -741,18 +847,11 @@ func stackLines(prefix string, tiers []cascadeTier, envOrigins map[string]string
 	if _, isMap := asGenericMap(defining[0].value); !isMap {
 		out := make([]originLine, 0, len(defining))
 		for i, t := range defining {
-			marker := "  (shadowed)"
+			status := statusShadowed
 			if i == 0 {
-				marker = "  (effective)"
+				status = statusEffective
 			}
-			out = append(out, originLine{
-				key: prefix,
-				// The keyed listing renders a list/map leaf in compact FLOW style
-				// ([a, b]) — one stack line per tier stays readable only if the value
-				// is one token-ish run, which the winner-only listing does not need.
-				value:  renderCompactValue(t.value),
-				origin: t.stackOrigin(prefix, envOrigins) + marker,
-			})
+			out = append(out, newOriginLine(prefix, t.value, t, envOrigins, status, true))
 		}
 		return out
 	}
@@ -764,7 +863,7 @@ func stackLines(prefix string, tiers []cascadeTier, envOrigins map[string]string
 	return out
 }
 
-// envOrigin returns the `$VARIABLE` that supplied an environment leaf, or "" when
+// envOrigin returns the VARIABLE name (no `$`) that supplied an environment leaf, or "" when
 // no variable is recorded for it (unreachable in practice — the overlay and the
 // origin map are written together). Origins are stored at registry-row
 // granularity, so leaves beneath a map-valued row use the longest matching
@@ -781,7 +880,7 @@ func envOrigin(key string, origins map[string]string) string {
 	if bestVar == "" {
 		return ""
 	}
-	return "$" + bestVar
+	return bestVar
 }
 
 // asGenericMap coerces a decoded YAML value to map[string]any when it is a
@@ -845,9 +944,13 @@ func configSetCmd() *cobra.Command {
 			"comment-preserving config engine. Collection-valued keys and values require a manual " +
 			"config-file edit. An EMPTY value is refused: an empty leaf falls through to the next " +
 			"tier and can never be effective — `fab config unset` is the verb for removing an " +
-			"override. When a higher-precedence tier already defines the key, the write succeeds " +
-			"(exit 0) with a warning naming the tier that wins. Use --system for " +
-			"~/.fab-kit/config.yaml; project-scoped keys are refused there.",
+			"override. A value outside the key's accepted set or range is refused before " +
+			"anything is written (dispatch.mode, dispatch.column_width, dispatch.min_cols, " +
+			"dispatch.min_rows, autopilot.merge_mode, and the provider keys agent.session, " +
+			"agent.workers, agent.profiles.<role>.provider). When a higher-precedence tier " +
+			"already defines the key, the write succeeds (exit 0) with a warning naming the " +
+			"tier that wins. Use --system for ~/.fab-kit/config.yaml; project-scoped keys " +
+			"are refused there.",
 		Example: `  fab config set agent.workers codex
   fab config set dispatch.column_width 42
   fab config set agent.session codex --system`,
@@ -858,6 +961,14 @@ func configSetCmd() *cobra.Command {
 				return fmt.Errorf("refusing to set %q to an empty value: an empty leaf (null, \"\", [], {}) "+
 					"falls through to the next config tier and can never be effective — "+
 					"run `fab config unset %s` to remove the override instead", key, key)
+			}
+			// ONE read-model load per invocation, shared by the value gate and the
+			// shadow notice. Taken before the write: the notice only asks about tiers
+			// ABOVE the write target, which the write cannot change. Fail-open — a
+			// load error leaves layers nil and the notice silent.
+			layers, _ := loadReadLayers()
+			if err := validateSetValue(key, rawValue, layers); err != nil {
+				return err
 			}
 			path, err := configMutationPath(system)
 			if err != nil {
@@ -880,7 +991,7 @@ func configSetCmd() *cobra.Command {
 			for _, line := range result.Report {
 				fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", line)
 			}
-			warnIfShadowed(cmd, key, mutationTier(system))
+			warnIfShadowed(cmd, key, mutationTier(system), layers)
 			return nil
 		},
 	}
@@ -916,9 +1027,13 @@ func mutationTier(system bool) string {
 // warnIfShadowed prints a `fab: warning:` on stderr when a tier ABOVE the write
 // target already defines the key, so a write that cannot take effect says so
 // instead of succeeding silently. The write itself is valid, so the exit code
-// stays 0. Fail-open: an unresolvable read model simply prints nothing.
-func warnIfShadowed(cmd *cobra.Command, key, target string) {
-	winner, envOrigins, ok := effectiveTierFor(key)
+// stays 0. Fail-open: an unresolvable read model (nil layers) simply prints nothing.
+// layers is the read model the caller already loaded for this invocation.
+func warnIfShadowed(cmd *cobra.Command, key, target string, layers *config.Layers) {
+	if layers == nil {
+		return
+	}
+	winner, envOrigins, ok := effectiveTierIn(layers, key)
 	if !ok || tierRank(winner.kind) >= tierRank(target) {
 		return
 	}
@@ -968,15 +1083,15 @@ func tierRank(kind string) int {
 // key no tier defines all report ok=false, because these notices must never fail a
 // mutation that already succeeded.
 func effectiveTierFor(key string) (cascadeTier, map[string]string, bool) {
-	fabRoot, err := resolve.FabRoot()
+	layers, err := loadReadLayers()
 	if err != nil {
 		return cascadeTier{}, nil, false
 	}
-	projectPath := filepath.Join(fabRoot, "project", "config.yaml")
-	layers, err := config.LoadLayers(projectPath)
-	if err != nil {
-		return cascadeTier{}, nil, false
-	}
+	return effectiveTierIn(layers, key)
+}
+
+// effectiveTierIn is effectiveTierFor over an already-loaded read model.
+func effectiveTierIn(layers *config.Layers, key string) (cascadeTier, map[string]string, bool) {
 	defaults, err := readModelDefaults(layers)
 	if err != nil {
 		return cascadeTier{}, nil, false

@@ -217,3 +217,49 @@ func roleField(t *testing.T, defaults map[string]any, role, field string) string
 	value, _ := entry[field].(string)
 	return value
 }
+
+// TestDerivedRoleSources: each derived default-tier leaf reports the config key it
+// was derived from — the depth knob for the provider, the provider fill for
+// model/effort — and "" when only built-ins were involved.
+func TestDerivedRoleSources(t *testing.T) {
+	t.Run("nil config is all built-in provider, fills still named", func(t *testing.T) {
+		sources, err := DerivedRoleSources(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := sources["doing"].Provider; got != "" {
+			t.Errorf("built-in provider must have no source key, got %q", got)
+		}
+	})
+
+	t.Run("knob and fills", func(t *testing.T) {
+		cfg := &config.Config{Agent: config.AgentConfig{Workers: "agy", Session: "codex"}}
+		sources, err := DerivedRoleSources(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := sources["doing"].Provider; got != "agent.workers" {
+			t.Errorf("doing provider source = %q, want agent.workers", got)
+		}
+		if got := sources["operator"].Provider; got != "agent.session" {
+			t.Errorf("operator provider source = %q, want agent.session", got)
+		}
+		if got := sources["doing"].Model; got != "providers.agy.profiles.doing.model" && got != "providers.agy.profiles.default.model" {
+			t.Errorf("doing model source = %q, want a providers.agy.profiles.*.model path", got)
+		}
+	})
+
+	t.Run("per-role provider override is stripped from the provider leaf", func(t *testing.T) {
+		cfg := &config.Config{Agent: config.AgentConfig{
+			Workers:  "agy",
+			Profiles: map[string]config.RoleProfile{"review": {Provider: "codex"}},
+		}}
+		sources, err := DerivedRoleSources(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := sources["review"].Provider; got != "agent.workers" {
+			t.Errorf("provider leaf derives from the knob, not the override, got %q", got)
+		}
+	})
+}

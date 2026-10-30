@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -338,6 +339,23 @@ var (
 // second literal exists anywhere. Its first entry is the built-in default; a
 // wiring-guard test pins DefaultAutopilotMergeMode equal to it.
 var ValidAutopilotMergeModes = []string{"cherry-pick-ladder", "merge-auto", "stacked-prs"}
+
+// ValidDispatchModes is the accepted-value set for dispatch.mode — the rungs of
+// the pane → native → headless ladder. Like ValidAutopilotMergeModes it is
+// fab-owned policy exported once, so GetDispatchMode's validity test and
+// `fab config set`'s write gate read the same list.
+var ValidDispatchModes = []string{"pane", "native", "headless"}
+
+// Bounds of the dispatch integer knobs, named once so the read-path accessors
+// (which degrade out-of-range values to the default) and `fab config set` (which
+// refuses them) cannot disagree. column_width is a percent of the window: 0 would
+// give the worker nothing and 100 would leave the dispatching agent nothing.
+// min_cols/min_rows are floors with no upper bound.
+const (
+	MinDispatchColumnWidth = 1
+	MaxDispatchColumnWidth = 99
+	MinDispatchFloor       = 1
+)
 
 // Config holds the parsed project config relevant to the fab binary. It is
 // the single owner of fab/project/config.yaml parsing — every key the fab
@@ -1003,13 +1021,11 @@ func (c *Config) GetDispatchMode() string {
 	if c == nil || c.Dispatch.Mode == "" {
 		return DefaultDispatchMode
 	}
-	switch c.Dispatch.Mode {
-	case "pane", "native", "headless":
+	if slices.Contains(ValidDispatchModes, c.Dispatch.Mode) {
 		return c.Dispatch.Mode
-	default:
-		fmt.Fprintf(warnw, "fab: warning: invalid dispatch.mode %q; using %q\n", c.Dispatch.Mode, DefaultDispatchMode)
-		return DefaultDispatchMode
 	}
+	warnf("fab: warning: invalid dispatch.mode %q; using %q\n", c.Dispatch.Mode, DefaultDispatchMode)
+	return DefaultDispatchMode
 }
 
 // GetDispatchColumnWidth returns dispatch.column_width — the pane-worker column's
@@ -1025,7 +1041,7 @@ func (c *Config) GetDispatchColumnWidth() int {
 	if c == nil {
 		return DefaultDispatchColumnWidth
 	}
-	if w := c.Dispatch.ColumnWidth; w > 0 && w < 100 {
+	if w := c.Dispatch.ColumnWidth; w >= MinDispatchColumnWidth && w <= MaxDispatchColumnWidth {
 		return w
 	}
 	return DefaultDispatchColumnWidth
@@ -1043,7 +1059,7 @@ func (c *Config) GetDispatchMinCols() int {
 	if c == nil {
 		return DefaultDispatchMinCols
 	}
-	if v := c.Dispatch.MinCols; v > 0 {
+	if v := c.Dispatch.MinCols; v >= MinDispatchFloor {
 		return v
 	}
 	return DefaultDispatchMinCols
@@ -1057,7 +1073,7 @@ func (c *Config) GetDispatchMinRows() int {
 	if c == nil {
 		return DefaultDispatchMinRows
 	}
-	if v := c.Dispatch.MinRows; v > 0 {
+	if v := c.Dispatch.MinRows; v >= MinDispatchFloor {
 		return v
 	}
 	return DefaultDispatchMinRows
