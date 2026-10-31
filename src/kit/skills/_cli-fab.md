@@ -527,7 +527,7 @@ A `set` whose key a **higher tier already defines** still writes and still exits
 | `dispatch.min_cols`, `dispatch.min_rows` | integer ≥ 1 |
 | `dispatch.reap_done` | bool (already enforced by the kind check) |
 | `autopilot.merge_mode` | `cherry-pick-ladder`, `merge-auto`, `stacked-prs` |
-| `agent.session`, `agent.workers`, `agent.profiles.<role>.provider` | a provider in the **effective providers table** — fab's built-in providers plus the `providers:` keys of the config visible from the cwd (project ⊕ system ⊕ env inside a project; system ⊕ env outside one). The error lists the available names. If the read model cannot be loaded (e.g. a malformed project file) the check falls back to the project-free cascade rather than failing the write |
+| `agent.session`, `agent.workers`, `agent.profiles.<role>.provider` | a provider in the **effective providers table** — fab's built-in providers plus the `providers:` keys of the config visible from the cwd (project ⊕ system ⊕ env inside a project; system ⊕ env outside one). The error lists the available names. If the read model cannot be loaded (e.g. a malformed project file) the check falls back to the fail-open project-free cascade (a schema-incompatible system file is dropped; env providers are kept) rather than failing the write |
 
 A value that does not parse as the key's kind (`dispatch.column_width abc`) still reports the kind error. The READ path is unchanged and stays fail-open: a hand-edited out-of-range value degrades with a `fab: warning:` to the built-in default (an invalid `dispatch.mode` falls back to `native`), and provider names resolve provider-neutrally. `unset` never inspects a value — it is the repair path.
 

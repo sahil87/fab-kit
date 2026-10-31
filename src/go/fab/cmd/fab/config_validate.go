@@ -55,18 +55,22 @@ func validateEnum(key string, value any, accepted []string) error {
 }
 
 // validateIntRange refuses an int outside lo..hi; hi <= 0 means no upper bound.
+// yaml.v3 decodes an integer too large for int as int64/uint64 — still a YAML
+// integer to the writer, but one the typed config cannot load, so it is refused.
 func validateIntRange(key string, value any, lo, hi int) error {
-	n, ok := value.(int)
-	if !ok {
+	switch n := value.(type) {
+	case int:
+		if n >= lo && (hi <= 0 || n <= hi) {
+			return nil
+		}
+	case int64, uint64:
+	default:
 		return nil // kind mismatch: left to the writer
 	}
-	if n >= lo && (hi <= 0 || n <= hi) {
-		return nil
-	}
 	if hi <= 0 {
-		return fmt.Errorf("invalid value %d for %s — must be an integer of at least %d", n, key, lo)
+		return fmt.Errorf("invalid value %v for %s — must be an integer of at least %d", value, key, lo)
 	}
-	return fmt.Errorf("invalid value %d for %s — must be an integer from %d to %d", n, key, lo, hi)
+	return fmt.Errorf("invalid value %v for %s — must be an integer from %d to %d", value, key, lo, hi)
 }
 
 // isProviderKey reports whether key names a provider: the two depth knobs and any
@@ -93,15 +97,15 @@ func validateProviderName(key, name string, layers *config.Layers) error {
 
 // effectiveProvidersConfig is the read model's effective config for the provider
 // table, from the layers the caller loaded. When they are absent or will not decode
-// (a malformed project file) it falls back to the project-free cascade rather than
-// failing the write for that reason alone — the built-in providers are always
-// acceptable.
+// (a malformed project file) it falls back to config.LoadNoProject's fail-open
+// cascade — which drops a schema-incompatible system file but keeps the env
+// providers — rather than failing the write for that reason alone; the built-in
+// providers are always acceptable.
 func effectiveProvidersConfig(layers *config.Layers) *config.Config {
 	if layers != nil {
 		if cfg, err := config.FromMap(layers.Effective); err == nil {
 			return cfg
 		}
 	}
-	cfg, _ := config.FromMap(config.LoadLayersNoProject().Effective)
-	return cfg
+	return config.LoadNoProject()
 }

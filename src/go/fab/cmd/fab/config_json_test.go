@@ -389,6 +389,8 @@ func TestConfigSet_RefusesOutOfDomainValuesWithoutWriting(t *testing.T) {
 		{"dispatch.column_width", "0", []string{"dispatch.column_width", "1 to 99"}},
 		{"dispatch.min_cols", "0", []string{"dispatch.min_cols", "at least 1"}},
 		{"dispatch.min_rows", "0", []string{"dispatch.min_rows", "at least 1"}},
+		{"dispatch.column_width", "9223372036854775808", []string{"dispatch.column_width", "9223372036854775808", "1 to 99"}},
+		{"dispatch.min_cols", "9223372036854775808", []string{"dispatch.min_cols", "at least 1"}},
 		{"autopilot.merge_mode", "chaos", []string{"autopilot.merge_mode", "chaos", "cherry-pick-ladder"}},
 		{"agent.workers", "bogus", []string{"agent.workers", "bogus", "agy, claude, codex, kimi"}},
 		{"agent.session", "bogus", []string{"agent.session", "bogus", "available:"}},
@@ -520,6 +522,19 @@ func TestConfigSet_MalformedProjectStillAcceptsBuiltinProvider(t *testing.T) {
 	}
 	if _, _, err := runConfigSplit(t, "set", "--system", "agent.workers", "bogus"); err == nil {
 		t.Error("an unknown provider must still be refused under the fallback table")
+	}
+}
+
+// TestConfigSet_IncompatibleSystemFileKeepsEnvProviders: a system file that is
+// valid YAML but schema-incompatible is dropped by the fallback, and the env
+// overlay's providers survive it.
+func TestConfigSet_IncompatibleSystemFileKeepsEnvProviders(t *testing.T) {
+	home := setupProjectless(t)
+	writeSystemConfig(t, home, "dispatch: oops\n")
+	t.Setenv("FAB_PROVIDERS", `{mytool: {headless_command: "mytool run"}}`)
+
+	if _, _, err := runConfigSplit(t, "set", "--system", "agent.workers", "mytool"); err != nil {
+		t.Fatalf("an env-defined provider must be accepted when the system file is schema-incompatible: %v", err)
 	}
 }
 
