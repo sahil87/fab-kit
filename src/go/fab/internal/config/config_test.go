@@ -1503,6 +1503,37 @@ func TestGetDispatchMode_NilEmptyAndInvalid(t *testing.T) {
 	}
 }
 
+// TestGetDispatchMode_InvalidWithNilWriterDoesNotPanic: production leaves warnw
+// nil (nil means os.Stderr, resolved at call time). The accessor's warning must go
+// through warnf like every other site — a direct Fprintf to the nil writer was a
+// nil-pointer panic on any machine with a bad dispatch.mode. Every other test in
+// this package assigns warnw, which is how the regression went unseen.
+func TestGetDispatchMode_InvalidWithNilWriterDoesNotPanic(t *testing.T) {
+	prevWarnw, prevStderr := warnw, os.Stderr
+	warnw = nil
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = w
+	t.Cleanup(func() { warnw, os.Stderr = prevWarnw, prevStderr })
+
+	cfg := &Config{Dispatch: DispatchConfig{Mode: "weird"}}
+	got := cfg.GetDispatchMode()
+	w.Close()
+	var captured bytes.Buffer
+	if _, err := captured.ReadFrom(r); err != nil {
+		t.Fatal(err)
+	}
+	if got != DefaultDispatchMode {
+		t.Errorf("invalid mode = %q, want %q", got, DefaultDispatchMode)
+	}
+	want := "fab: warning: invalid dispatch.mode \"weird\"; using \"native\"\n"
+	if captured.String() != want {
+		t.Errorf("stderr = %q, want %q", captured.String(), want)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // dispatch.column_width — the pane-worker column width (scope `both`).
 // ---------------------------------------------------------------------------

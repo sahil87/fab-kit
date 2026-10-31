@@ -54,7 +54,8 @@ One line per capability, keyed to its command:
 - **Panes / operator** — `fab pane {map,capture,process,open,ready,deliver,kill}` inspects and
   drives tmux panes; `fab operator` launches the coordination tab.
 - **Config** — `fab config {show,explain,set,unset,init,upgrade}` inspects and
-  surgically updates `config.yaml`; `show <key> --origin` gives provenance and
+  surgically updates `config.yaml`; `show <key> --origin` gives provenance (add
+  `--json` for typed machine-readable rows), `set` refuses out-of-range values, and
   `reference` remains a compatibility alias for `explain`.
 - **Documentation** — `fab docs-index [root-path] [--check [--json]]` regenerates configured
   roots (default `docs/memory`); FKF logs are opt-in. Accepted README landings preserve prose

@@ -87,19 +87,73 @@ const agentProfilesKey = "agent.profiles"
 // unknown role name is ResolveRole's only error).
 func liveRoleProfiles(cfg *config.Config) (map[string]roleProfileDefault, error) {
 	names := agent.RoleNames()
-	knobs := knobsOnly(cfg)
-	fills := fillsOnly(cfg)
 	out := make(map[string]roleProfileDefault, len(names))
 	for _, name := range names {
-		kp, err := agent.ResolveRole(knobs, name)
+		profile, _, err := resolveDerivedRole(cfg, name)
 		if err != nil {
 			return nil, err
 		}
-		fp, err := agent.ResolveRole(fills, name)
+		out[name] = profile
+	}
+	return out, nil
+}
+
+// resolveDerivedRole is the one derivation of a role's default-tier row: the
+// provider leaf from the knobs-only config, model/effort from the fills-only one,
+// plus the config key each leaf was derived from. liveRoleProfiles and
+// DerivedRoleSources both read it, so a reported source can never name a key that
+// did not produce the shown value.
+func resolveDerivedRole(cfg *config.Config, role string) (roleProfileDefault, RoleSources, error) {
+	kp, ks, err := agent.ResolveRoleWithSource(knobsOnly(cfg), role, agent.Overrides{})
+	if err != nil {
+		return roleProfileDefault{}, RoleSources{}, err
+	}
+	fp, fs, err := agent.ResolveRoleWithSource(fillsOnly(cfg), role, agent.Overrides{})
+	if err != nil {
+		return roleProfileDefault{}, RoleSources{}, err
+	}
+	sources := RoleSources{Provider: ks.Provider}
+	if sources.Provider == agentBuiltinSource {
+		sources.Provider = "" // no user config involved: the default tier is the whole truth
+	}
+	// A deprecated flat providers.<p>.model/.effort is folded into profiles.default by
+	// ResolveProvider, so its reported source key (providers.<p>.profiles.default.model)
+	// is defined by no tier and derived_from is omitted for that legacy spelling.
+	if fs.Model != "" {
+		sources.Model = fs.Model + ".model"
+	}
+	if fs.Effort != "" {
+		sources.Effort = fs.Effort + ".effort"
+	}
+	return roleProfileDefault{Provider: kp.Provider, Model: fp.Model, Effort: fp.Effort}, sources, nil
+}
+
+// agentBuiltinSource is agent.Source's spelling for "supplied by the built-in
+// defaults, not by any configuration key".
+const agentBuiltinSource = "built-in"
+
+// RoleSources names, per derived `agent.profiles.<role>.*` leaf, the dotted config
+// key the default-tier value was derived from — `agent.workers`/`agent.session` for
+// the provider, `providers.<p>.profiles.<role|default>.model|effort` for the
+// fills. A leaf is "" when it came from the built-in defaults alone (or nothing).
+type RoleSources struct {
+	Provider string
+	Model    string
+	Effort   string
+}
+
+// DerivedRoleSources reports, for every role, where each derived default-tier leaf
+// came from (see RoleSources), resolved against the LIVE config the same way
+// DefaultsMapFor derives the values.
+func DerivedRoleSources(cfg *config.Config) (map[string]RoleSources, error) {
+	names := agent.RoleNames()
+	out := make(map[string]RoleSources, len(names))
+	for _, name := range names {
+		_, sources, err := resolveDerivedRole(cfg, name)
 		if err != nil {
 			return nil, err
 		}
-		out[name] = roleProfileDefault{Provider: kp.Provider, Model: fp.Model, Effort: fp.Effort}
+		out[name] = sources
 	}
 	return out, nil
 }

@@ -446,7 +446,7 @@ func (w *setupWizard) askAdvanced() {
 		{key: "agent.profiles.review.provider", text: "agent.profiles.review.provider — provider override for the review role.", options: providers, inheritAs: "(inherit agent.workers)"},
 		{key: "dispatch.column_width", text: "dispatch.column_width — pane-worker column width, in percent of the window.", validate: func(s string) bool {
 			n, err := strconv.Atoi(s)
-			return err == nil && n > 0 && n < 100
+			return err == nil && n >= config.MinDispatchColumnWidth && n <= config.MaxDispatchColumnWidth
 		}},
 		{key: "dispatch.reap_done", text: "dispatch.reap_done — kill a done worker's pane once its result lands (true/false).", validate: func(s string) bool {
 			_, err := strconv.ParseBool(s)
@@ -502,6 +502,10 @@ func (w *setupWizard) diffAndWrite() error {
 // shadow warning so a write shadowed by a higher tier says so.
 func (w *setupWizard) writeOne(c wizardAnswer) error {
 	out := w.cmd.OutOrStdout()
+	layers, _ := loadReadLayers() // one load per write, shared with the shadow notice; fail-open
+	if err := validateSetValue(c.key, c.answer, layers); err != nil {
+		return err
+	}
 	var result configupgrade.Result
 	var err error
 	if w.opts.project {
@@ -520,6 +524,6 @@ func (w *setupWizard) writeOne(c wizardAnswer) error {
 	for _, line := range result.Report {
 		fmt.Fprintf(out, "  - %s\n", line)
 	}
-	warnIfShadowed(w.cmd, c.key, mutationTier(!w.opts.project))
+	warnIfShadowed(w.cmd, c.key, mutationTier(!w.opts.project), layers)
 	return nil
 }
