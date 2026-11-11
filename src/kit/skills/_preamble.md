@@ -47,7 +47,7 @@ Before generating or validating any artifact, load the relevant context layers b
 
 ### 1. Always Load
 
-This layer applies to every skill **unless the skill's own Context Loading section says otherwise** — the skill file wins. The exception set is **derived, never enumerated here**: consult the skill file itself (its `## Context Loading` section, or an explicit context note near its header) for any override — e.g., `/fab-setup` and `/docs-hydrate-memory` skip the layer entirely, `/fab-operator` loads a reduced 3-file set, `/fab-incognito` loads a reduced 5-file `fab/project/` set and skips both doc indexes. A skill that declares no override loads the full layer.
+This layer applies to every skill **unless the skill's own Context Loading section says otherwise** — the skill file wins. The exception set is **derived, never enumerated here**: consult the skill file itself (its `## Context Loading` section, or an explicit context note near its header) for any override — e.g., `/fab-setup` and `/docs-hydrate-memory` skip the layer entirely, `/fab-operator` loads a reduced 3-file set plus its optional `operator.md` addendum, `/fab-incognito` loads a reduced 5-file `fab/project/` set and skips both doc indexes. A skill that declares no override loads the full layer.
 
 Read these files first — they define the project's identity, constraints, and documentation landscape:
 
