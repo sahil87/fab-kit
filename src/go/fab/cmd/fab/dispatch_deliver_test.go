@@ -73,8 +73,9 @@ func newTmuxPane(t *testing.T, server, command string, width int) (tmux func(arg
 }
 
 // awaitTakeover waits until the pane's foreground is the fixture's own program.
-// Every non-empty fixture ends by exec'ing a non-shell (`exec cat`, or `sleep`
-// as the last command of `sh -c`), but until then the foreground reads `tmux`
+// Every non-empty fixture ends by EXPLICITLY exec'ing a non-shell (`exec cat`,
+// `exec sleep`) — the test default-shell is /bin/sh, which, unlike zsh, does not
+// exec the last command of a list on its own — but until then the foreground reads `tmux`
 // (the forked child before its exec) or `sh` (still running the fixture's
 // leading commands) — and a probe in that window is correctly classified
 // `booting` by the agent-takeover precondition, failing any fixture that

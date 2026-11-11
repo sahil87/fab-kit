@@ -25,7 +25,7 @@ const parkedPaneCommand = "stty -echo; echo TRUST-THIS-FOLDER-WALL; exec sleep 3
 
 // bootingPaneCommand is the same swallowed input on a screen that has not been
 // drawn yet — a TUI still starting rather than a wall holding the input.
-const bootingPaneCommand = "stty -echo; sleep 300"
+const bootingPaneCommand = "stty -echo; exec sleep 300"
 
 // readyPaneCommand is the live-agent stand-in for every "ready" fixture: a
 // NON-shell foreground that still echoes typed text and reacts to Enter. This
