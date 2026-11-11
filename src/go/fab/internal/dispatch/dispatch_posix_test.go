@@ -40,16 +40,6 @@ func launchWrappedWorker(t *testing.T, shellPath, rcDelay, cmd string, timeout i
 	return dir, pgid
 }
 
-func wrapShells() map[string]string {
-	shells := map[string]string{"sh": "/bin/sh"}
-	for _, name := range []string{"bash", "zsh"} {
-		if path, err := exec.LookPath(name); err == nil {
-			shells[name] = path
-		}
-	}
-	return shells
-}
-
 // TestKillGroupStopsAnRcLoadingWorker pins KillGroup against the
 // interactive-shell launch: interactive shells ignore SIGTERM, so a kill that
 // lands while the worker's shell is still loading its rc must not let the shell

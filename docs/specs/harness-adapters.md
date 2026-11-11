@@ -263,8 +263,8 @@ Mechanics, all fixed by this spec:
   multi-thousand-token prompt cannot ride `send-keys` or argv reliably — and the worker is later typed a
   **one-line pointer** to that path. The composed `interactive_command` reaches tmux with nothing
   appended to it — only wrapped as `${SHELL:-/bin/sh} -i -c '<cmd>'` so the worker inherits the env the
-  user's interactive rc exports (provider auth tokens, PATH). Every provider launch fab hands to tmux or
-  `sh` carries that wrap; without it a worker boots at a login wall, and a provider whose login state
+  user's interactive rc exports (provider auth tokens, PATH). Every dispatch, pane, operator and batch
+  provider launch carries that wrap (`fab agent`, which runs in the caller's own shell, does not); without it a worker boots at a login wall, and a provider whose login state
   still draws its ordinary input box (observed: claude's "Not logged in") reads as `ready` to the
   text-free readiness gate, so the delivered prompt goes nowhere.
 
@@ -350,7 +350,7 @@ Mechanics, all fixed by this spec:
   - `mode: headless (descended: pane unavailable: no tmux; native unavailable)`
   - `mode: headless (descended: pane unavailable: tmux unreachable; native unavailable)`
   - `mode: headless (descended: pane unavailable: no interactive_command; native unavailable)`
-- **No timeout**: `--timeout` is enforced by the headless `sh -c` wrapper (POSIX `timeout`), which pane
+- **No timeout**: `--timeout` is enforced by the headless `sh -c` wrapper (`timeout -s HUP`), which pane
   mode never constructs, so no pane entry accepts one — `open` does not register the flag at all, and on
   `restart` the pair remains a usage error rather than a silently unenforced bound.
 - **The done worker's lifecycle ends in an OPTIONAL, orchestrator-invoked reap.** A pane worker never
@@ -431,7 +431,7 @@ handle), the headless mode via `fab dispatch status` (pid liveness + `{stage}.ex
 |-------|---------|--------|----------|------|
 | `running` | the worker is still executing | ✓ | ✓ | ✓ |
 | `done` | finished successfully **with a result** | ✓ | ✓ | ✓ |
-| `failed` | non-zero exit (includes `124`, the POSIX `timeout` code) | ✓ | ✓ | — |
+| `failed` | non-zero exit (includes `124`, the `timeout` code) | ✓ | ✓ | — |
 | `failed (no-result)` | **exited clean but wrote no result** — a contract violation, NOT done | ✓ | ✓ | — |
 | `orphaned` | the worker died with no recorded exit (reboot / `kill -9` / crash / pane killed) | ✓ | ✓ | ✓ |
 

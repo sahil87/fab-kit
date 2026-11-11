@@ -84,7 +84,7 @@ func addLaunchFlags(cmd *cobra.Command, role paneRole) *launchFlags {
 		return f
 	}
 
-	cmd.Flags().IntVar(&f.timeout, "timeout", 0, "Enforce a POSIX `timeout <secs>` inside the launch wrapper (0 = none); implies --headless")
+	cmd.Flags().IntVar(&f.timeout, "timeout", 0, "Enforce a `timeout -s HUP <secs>` inside the launch wrapper (0 = none); implies --headless")
 	cmd.Flags().BoolVar(&f.headlessMode, "headless", false, "Force a detached headless worker, overriding dispatch.mode for this launch")
 	cmd.Flags().BoolVar(&f.paneMode, "pane", false, "Force an interactive tmux worker — a pane split into your own window, or a new window when you are not in one (requires a reachable tmux server)")
 	cmd.Flags().StringVarP(&f.server, "server", "L", "", "Target tmux socket label (passed as 'tmux -L <name>'); implies pane mode. Defaults to $TMUX / tmux default socket; ignored in headless mode")
@@ -109,7 +109,7 @@ func addLaunchFlags(cmd *cobra.Command, role paneRole) *launchFlags {
 // no ladder consultation at all — the verb IS the selection. Otherwise the
 // explicit-first ladder runs exactly as before.
 //
-// --timeout is implemented as POSIX `timeout N` INSIDE the headless `sh -c`
+// --timeout is implemented as `timeout -s HUP N` INSIDE the headless `sh -c`
 // wrapper, which pane mode never constructs. Silently ignoring it under --pane
 // would advertise a bound nothing enforces, so the combination is a usage error.
 // Keyed on Flags().Changed (was the flag SUPPLIED) rather than the value,
@@ -143,7 +143,7 @@ func (f *launchFlags) resolveMode(cmd *cobra.Command, cfg *config.Config, prov c
 	}
 
 	if f.paneMode && cmd.Flags().Changed("timeout") {
-		return "", "", paneTarget{}, fmt.Errorf("--pane and --timeout are mutually exclusive: --timeout is enforced by the headless launch wrapper (POSIX `timeout`), which pane mode does not use")
+		return "", "", paneTarget{}, fmt.Errorf("--pane and --timeout are mutually exclusive: --timeout is enforced by the headless launch wrapper (`timeout`), which pane mode does not use")
 	}
 	tmux := dispatch.TmuxAbsent
 	if os.Getenv("TMUX") != "" {
@@ -229,7 +229,7 @@ func dispatchStartCmd() *cobra.Command {
   # Force headless for an unattended run that happens to live inside a tmux tab
   fab dispatch start b91h apply --headless < prompt.md
 
-  # Enforce a 30-minute POSIX timeout (implies headless)
+  # Enforce a 30-minute timeout (implies headless)
   fab dispatch start --timeout 1800 b91h apply < prompt.md`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -575,8 +575,9 @@ func missingCommandError(stage, providerName, field string) error {
 }
 
 // launchPane opens the interactive worker in a tmux pane and records the pane
-// identity on rec. It delivers NO PROMPT: the composed interactive_command is
-// passed to tmux verbatim, as pure launch grammar.
+// identity on rec. It delivers NO PROMPT: nothing is appended to the composed
+// interactive_command — pure launch grammar, run under the user's interactive
+// shell (spawn.WithInteractiveShell).
 //
 // Prompt delivery is a separate, VERIFIED step (`fab dispatch deliver`, behind
 // the readiness gate). Appending the pointer as a spawn argument — the previous

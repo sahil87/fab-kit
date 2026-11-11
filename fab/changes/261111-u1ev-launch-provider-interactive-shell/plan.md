@@ -141,6 +141,7 @@
 - [x] T012 `dispatch.KillGroup` sends SIGTERM then SIGHUP (interactive shells ignore SIGTERM); `WrapperArgv` uses `timeout -s HUP`; live tests `TestKillGroupStopsAnRcLoadingWorker` and `TestWrapperArgvTimeoutLeavesNoSurvivor` (real setsid `Launch`) in `internal/dispatch/dispatch_posix_test.go` <!-- R4 -->
 - [x] T013 Sweep + doc fixes: `_cli-agents.md` "verbatim" claim; `_cli-fab-pane.md` launch paragraph moved to its own `#### Interactive-shell launch` subsection with the inside-fallback order, HUP signalling, exec-vs-fork wording, and the accurate POSIX-only limitation; pointers from `_cli-fab-operator.md` and `_cli-fab.md`; `create.go` / `launchHeadless` comments; `harness-adapters.md` login-wall wording and timeout form <!-- R8 -->
 - [x] T014 Cycle 2: `_cli-fab-pane.md` § kill documents SIGTERM then SIGHUP plus the known `--timeout` process-group gap (also in `KillGroup`'s doc); R4/A-003 text updated to `timeout -s HUP`; rc-external-command foreground caveat; launch claims in `defaults.yaml` / `_cli-fab.md` narrowed to dispatch/pane/operator/batch (not `fab agent`) <!-- R8 -->
+- [x] T015 Cycle 3 (escalated to revise-plan after two fix-code rounds each missed sweep hits): explicit grep sweep across Go help/comments (`src/go/fab/**/*.go`), `src/kit/skills/`, `docs/specs/`, `defaults.yaml`, and `internal/configref` for launch-sense "verbatim", "POSIX `timeout`", pre-wrap `sh -c '<cmd> <` forms, "every tmux shell command", and SIGTERM-only kill claims — fixed `fab dispatch open --help`, the `launchPane` comment, `--timeout` flag/help/error text, `fab config explain providers` (interactive-shell launch + per-repo wrap unnecessary), the over-broad "every place" claims in `_cli-fab-pane.md` / `harness-adapters.md`, the `--workers` prefix prose, and documented the rc-foreground false-`ready` caveat (backlog [ow43]) plus rc `exec`/stdin risks; deduped the test shell-list helper <!-- R8 -->
 ## Acceptance
 
 ### Functional Completeness
@@ -166,6 +167,8 @@
 
 - [x] A-011 R1: double wrap works in pane and headless shapes (test + evidence)
 - [x] A-012 R4: agy/kimi nested-shell headless commands survive the wrap (test case with embedded `'`)
+
+- [ ] A-018 R8: a repo-wide grep finds no launch-sense "verbatim", POSIX-`timeout`, pre-wrap `sh -c '<cmd>` or SIGTERM-only kill claim in Go help text/comments, `src/kit/skills/`, `docs/specs/`, `defaults.yaml`, or the `fab config explain providers` reference; resolver-sense "verbatim" survives
 
 ### Code Quality
 

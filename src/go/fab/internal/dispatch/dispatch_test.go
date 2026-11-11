@@ -1019,6 +1019,18 @@ func TestDeliveredChangesNoState(t *testing.T) {
 	}
 }
 
+// wrapShells returns the shells the interactive-shell wrap can land on that are
+// installed here: always /bin/sh, plus bash and zsh when on PATH.
+func wrapShells() map[string]string {
+	shells := map[string]string{"sh": "/bin/sh"}
+	for _, name := range []string{"bash", "zsh"} {
+		if path, err := exec.LookPath(name); err == nil {
+			shells[name] = path
+		}
+	}
+	return shells
+}
+
 // TestWrapperArgvLive runs the composed headless wrapper for real under each
 // $SHELL the interactive-shell wrap can land on (bash, zsh, /bin/sh, and unset
 // → /bin/sh), with HOME pointed at an empty dir so no developer rc loads. It
@@ -1031,12 +1043,8 @@ func TestWrapperArgvLive(t *testing.T) {
 	if _, err := exec.LookPath("timeout"); err != nil {
 		t.Skip("timeout not available")
 	}
-	shells := map[string]string{"sh": "/bin/sh", "unset": ""}
-	for _, name := range []string{"bash", "zsh"} {
-		if path, err := exec.LookPath(name); err == nil {
-			shells[name] = path
-		}
-	}
+	shells := wrapShells()
+	shells["unset"] = ""
 	cases := []struct {
 		name     string
 		cmd      string
