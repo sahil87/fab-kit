@@ -785,12 +785,24 @@ func TestCurrentCommand_Integration(t *testing.T) {
 	}
 
 	t.Run("sh foreground is a shell", func(t *testing.T) {
-		cmd, err := CurrentCommand(server, paneID)
-		if err != nil {
-			t.Fatalf("CurrentCommand: %v", err)
-		}
-		if !IsShellCommand(cmd) {
-			t.Errorf("CurrentCommand = %q, want a known shell for a pane running sh", cmd)
+		// Until the pane's forked child execs sh, the foreground reads `tmux`;
+		// how long that lasts depends on the host, so wait it out.
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			cmd, err := CurrentCommand(server, paneID)
+			if err != nil {
+				t.Fatalf("CurrentCommand: %v", err)
+			}
+			if cmd != "" && cmd != "tmux" {
+				if !IsShellCommand(cmd) {
+					t.Errorf("CurrentCommand = %q, want a known shell for a pane running sh", cmd)
+				}
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("CurrentCommand = %q, want the pane's sh to have started", cmd)
+			}
+			time.Sleep(100 * time.Millisecond)
 		}
 	})
 
