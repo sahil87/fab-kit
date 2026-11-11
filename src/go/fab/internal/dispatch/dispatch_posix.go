@@ -57,11 +57,13 @@ func Alive(pid int) bool {
 }
 
 // KillGroup sends SIGTERM, then SIGHUP, to the whole process group (negative
-// pgid) so the detached command and all its children die together. SIGHUP is
+// pgid) so the detached command and its children die together. SIGHUP is
 // load-bearing: the worker runs under the user's interactive shell
 // (spawn.WithInteractiveShell), and interactive shells IGNORE SIGTERM — a kill
 // landing while that shell is still loading rc files would otherwise leave it
-// alive to start the provider afterwards, unsupervised. It is idempotent: ESRCH
+// alive to start the provider afterwards, unsupervised. Known gap: under
+// --timeout, `timeout` moves itself into its own process group, so the group
+// signal reaches only the outer wrapper shell. It is idempotent: ESRCH
 // ("no such process" — the group is already gone) is a benign no-op, not an
 // error. pgid <= 0 is rejected to avoid signalling pid 0 / the caller's own
 // group via a negative argument.

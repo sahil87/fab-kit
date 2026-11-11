@@ -92,7 +92,8 @@ autopilot:
 # landed), so pane capability no longer depends on whether a CLI accepts a positional
 # initial prompt.
 #
-# fab LAUNCHES both commands under the user's interactive shell —
+# fab's dispatch, pane, operator, and batch launches run both commands under the
+# user's interactive shell —
 # ${SHELL:-/bin/sh} -i -c '<command>' — because tmux and the headless wrapper
 # otherwise run them non-interactively, without the rc files where users export
 # provider auth tokens and PATH. Do not hand-wrap a command in `$SHELL -i -c` in

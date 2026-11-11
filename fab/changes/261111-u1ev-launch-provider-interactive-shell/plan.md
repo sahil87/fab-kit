@@ -42,11 +42,11 @@
 ### Dispatch: Headless Launch
 
 #### R4: The headless wrapper runs the provider under the interactive shell
-`dispatch.WrapperArgv` (`internal/dispatch/dispatch.go`) SHALL compose `[sh, -c, "[timeout N ]${SHELL:-/bin/sh} -i -c '<cmd>' < '{prompt}' > '{log}' 2>&1; echo $? > '{exit}'"]`, using `spawn.WithInteractiveShell(cmd)` for the `<cmd>` slot. The outer `sh -c` supervisor, `SysProcAttr{Setsid:true}` detach, and `timeout` placement (prefixing the wrapped command) are unchanged. Behavior: stdin redirection reaches the provider, the exit file records the provider's exit code, `timeout` kills the provider (exit 124, no survivors), and nested-shell headless built-ins (`sh -c '… -p "$(cat)"'`) still receive the prompt. Shell startup noise (bash's "no job control in this shell", rc-file output) MAY appear in `{stage}.log` and is acceptable — the result file, not the log, is the success token.
+`dispatch.WrapperArgv` (`internal/dispatch/dispatch.go`) SHALL compose `[sh, -c, "[timeout -s HUP N ]${SHELL:-/bin/sh} -i -c '<cmd>' < '{prompt}' > '{log}' 2>&1; echo $? > '{exit}'"]`, using `spawn.WithInteractiveShell(cmd)` for the `<cmd>` slot. The outer `sh -c` supervisor, `SysProcAttr{Setsid:true}` detach, and `timeout` placement (prefixing the wrapped command) are unchanged. Behavior: stdin redirection reaches the provider, the exit file records the provider's exit code, `timeout` kills the provider (exit 124, no survivors), and nested-shell headless built-ins (`sh -c '… -p "$(cat)"'`) still receive the prompt. Shell startup noise (bash's "no job control in this shell", rc-file output) MAY appear in `{stage}.log` and is acceptable — the result file, not the log, is the success token.
 
 - **GIVEN** `cmd = codex exec`, timeout 600
 - **WHEN** `WrapperArgv` composes
-- **THEN** argv[2] is `timeout 600 ${SHELL:-/bin/sh} -i -c 'codex exec' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`
+- **THEN** argv[2] is `timeout -s HUP 600 ${SHELL:-/bin/sh} -i -c 'codex exec' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`
 
 - **GIVEN** `$SHELL` is `/bin/bash`, `zsh`, or unset
 - **WHEN** the wrapper runs a stand-in provider that reads stdin and exits 7
@@ -130,25 +130,26 @@
 - [x] T008 Update `src/go/fab/internal/pane/create.go` creator doc comments (OpenWindow/OpenManualWindow/OpenSplitPane/OpenPlainPane) and `spawn.WithShellFallback`'s doc to mention callers pass the interactive-shell-wrapped command; confirm `internal/pane/gate.go` is unchanged <!-- R3 -->
 - [x] T009 Run `go test ./...` from `src/go/fab` (scoped packages first: `./internal/spawn ./internal/dispatch ./cmd/fab`), fix failures (tests conform to the requirements) <!-- R2 -->
 
+### Phase 3: Polish
+
+- [x] T010 Update launch prose per R8: `src/go/fab/defaults.yaml` provider comment block (launch under the interactive shell; per-repo wrap unnecessary but harmless), `src/kit/skills/_cli-fab-pane.md` (pane-mode table cell, `open` paragraph, headless wrapper line ~151, `fab pane open`), `src/kit/skills/_cli-fab.md` § providers paragraph, `docs/specs/harness-adapters.md` (lines ~139, ~170, ~264) and `docs/specs/stage-models.md` where they describe the launch; sweep `grep -rn "verbatim\|sh -c '<"` across `src/kit docs/specs src/go/fab/defaults.yaml` and fix every launch-sense hit, preserving resolver-sense "verbatim"; re-run any defaults.yaml / config-explain / kit-citation guard tests <!-- R8 -->
+
+
 ### Phase 4: Review Rework (cycle 1)
 
 - [x] T011 Move the interactive-spawn fallback INSIDE the wrap in `cmd/fab/operator.go`, `batch_new.go`, `batch_switch.go`; update `spawn.WithInteractiveShell` / `WithShellFallback` docs, `TestWithInteractiveShell_FallbackInside`, the `unwrapInteractiveShell` test helper, and add live `TestInteractiveSpawnFallbackKeepsThePane` in `cmd/fab/launch_wrap_test.go` <!-- R6 -->
 - [x] T012 `dispatch.KillGroup` sends SIGTERM then SIGHUP (interactive shells ignore SIGTERM); `WrapperArgv` uses `timeout -s HUP`; live tests `TestKillGroupStopsAnRcLoadingWorker` and `TestWrapperArgvTimeoutLeavesNoSurvivor` (real setsid `Launch`) in `internal/dispatch/dispatch_posix_test.go` <!-- R4 -->
 - [x] T013 Sweep + doc fixes: `_cli-agents.md` "verbatim" claim; `_cli-fab-pane.md` launch paragraph moved to its own `#### Interactive-shell launch` subsection with the inside-fallback order, HUP signalling, exec-vs-fork wording, and the accurate POSIX-only limitation; pointers from `_cli-fab-operator.md` and `_cli-fab.md`; `create.go` / `launchHeadless` comments; `harness-adapters.md` login-wall wording and timeout form <!-- R8 -->
-
-### Phase 3: Polish
-
-- [x] T010 Update launch prose per R8: `src/go/fab/defaults.yaml` provider comment block (launch under the interactive shell; per-repo wrap unnecessary but harmless), `src/kit/skills/_cli-fab-pane.md` (pane-mode table cell, `open` paragraph, headless wrapper line ~151, `fab pane open`), `src/kit/skills/_cli-fab.md` § providers paragraph, `docs/specs/harness-adapters.md` (lines ~139, ~170, ~264) and `docs/specs/stage-models.md` where they describe the launch; sweep `grep -rn "verbatim\|sh -c '<"` across `src/kit docs/specs src/go/fab/defaults.yaml` and fix every launch-sense hit, preserving resolver-sense "verbatim"; re-run any defaults.yaml / config-explain / kit-citation guard tests <!-- R8 -->
-
+- [x] T014 Cycle 2: `_cli-fab-pane.md` § kill documents SIGTERM then SIGHUP plus the known `--timeout` process-group gap (also in `KillGroup`'s doc); R4/A-003 text updated to `timeout -s HUP`; rc-external-command foreground caveat; launch claims in `defaults.yaml` / `_cli-fab.md` narrowed to dispatch/pane/operator/batch (not `fab agent`) <!-- R8 -->
 ## Acceptance
 
 ### Functional Completeness
 
 - [x] A-001 R1: `spawn.WithInteractiveShell` exists, returns `${SHELL:-/bin/sh} -i -c '<cmd>'` with `'\''` quoting via `shellquote.Single`, and is covered by table tests including double wrap
 - [x] A-002 R2: `launchPane` wraps once before the shape branch; split, window, and manual-window paths all receive the wrapped command; `SpawnCmd` stays unwrapped
-- [x] A-003 R4: `WrapperArgv` composes `[timeout N ]${SHELL:-/bin/sh} -i -c '<cmd>' < prompt > log 2>&1; echo $? > exit` under `sh -c`, pinned by exact-string tests
+- [x] A-003 R4: `WrapperArgv` composes `[timeout -s HUP N ]${SHELL:-/bin/sh} -i -c '<cmd>' < prompt > log 2>&1; echo $? > exit` under `sh -c`, pinned by exact-string tests
 - [x] A-004 R5: `fab pane open` passes the wrapped command to `OpenPlainPane`, pinned by `TestPaneOpen_SpawnShapes`
-- [x] A-005 R6: operator / batch new / batch switch compose `WithInteractiveShell(WithShellFallback(withWorkersEnv(…)))`, pinned by updated tests and the live `TestInteractiveSpawnFallbackKeepsThePane` (bash/zsh/sh; fails under the old outside order). Original finding:  — NOT MET (review): the composition is implemented and pinned as written, but R6's "unchanged pane-survival behavior" fails live — with bash/zsh as tmux's default-shell the outer `; exec "$SHELL"` fallback dies on tty EIO after the agent exits (the inner `-i` shell moved the terminal's foreground process group); only dash survives. Fallback placed INSIDE the wrap survives in all three
+- [x] A-005 R6: operator / batch new / batch switch compose `WithInteractiveShell(WithShellFallback(withWorkersEnv(…)))`, pinned by updated tests and the live `TestInteractiveSpawnFallbackKeepsThePane` (bash/zsh/sh; fails under the old outside order).
 - [x] A-006 R8: launch prose in defaults.yaml, `_cli-fab-pane.md`, `_cli-fab.md`, and the specs describes the interactive-shell launch and states the per-repo wrap is unnecessary
 
 ### Behavioral Correctness
@@ -171,7 +172,7 @@
 - [x] A-013 Pattern consistency: new code follows the naming/doc-comment style of `WithShellFallback` / `WithProfile`
 - [x] A-014 No unnecessary duplication: quoting reuses `shellquote.Single`; no new quoting helper
 - [x] A-015 Readability over cleverness: composition order is explicit and commented at each interactive-spawn site
-- [x] A-016 CLI reference + tests: `_cli-fab-pane.md` / `_cli-fab.md` updated alongside Go changes; every changed `.go` file ships test updates
+- [x] A-016 CLI reference + tests: `_cli-fab-pane.md` / `_cli-fab.md` updated alongside Go changes; every changed `.go` file ships test updates (cycle 2: § kill now documents SIGTERM then SIGHUP)
 - [x] A-017 Deployed content cites no fab-kit-only paths: `src/kit/` edits restate rules and point at no `docs/` / `src/go/` path
 
 ## Notes

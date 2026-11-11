@@ -149,7 +149,8 @@ func TestWithInteractiveShell_FallbackInside(t *testing.T) {
 
 // TestWithShellFallback pins the interactive-spawn shell fallback: the exact
 // suffix `; exec "$SHELL"` appended by plain concatenation (no idempotence
-// check — callers compose it exactly once, as the final step).
+// check — callers compose it exactly once, then wrap the result in
+// WithInteractiveShell).
 func TestWithShellFallback(t *testing.T) {
 	tests := []struct {
 		name string

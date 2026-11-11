@@ -13,7 +13,7 @@ progress:
     review-pr: pending
 plan:
     generated: true
-    task_count: 13
+    task_count: 14
     acceptance_count: 17
     acceptance_completed: 17
 confidence:
@@ -30,24 +30,24 @@ confidence:
         disambiguation: 81.4
 stage_metrics:
     intake: {started_at: "2026-11-11T09:01:16Z", driver: fab-new, iterations: 1, completed_at: "2026-11-11T09:03:01Z"}
-    apply: {started_at: "2026-11-11T09:35:13Z", driver: fab-fff, iterations: 2, completed_at: "2026-11-11T09:42:28Z"}
-    review: {started_at: "2026-11-11T09:42:28Z", driver: fab-fff, iterations: 2}
+    apply: {started_at: "2026-11-11T09:50:34Z", driver: fab-fff, iterations: 3, completed_at: "2026-11-11T09:51:23Z"}
+    review: {started_at: "2026-11-11T09:51:23Z", driver: fab-fff, iterations: 3}
 prs: []
 base_branch: main
 true_impact:
-    added: 0
-    deleted: 0
-    net: 0
+    added: 324
+    deleted: 120
+    net: 204
     excluding:
-        added: 0
-        deleted: 0
-        net: 0
+        added: 272
+        deleted: 89
+        net: 183
     tests:
-        added: 0
-        deleted: 0
-        net: 0
-    computed_at: "2026-11-11T09:42:29Z"
+        added: 186
+        deleted: 28
+        net: 158
+    computed_at: "2026-11-11T09:51:23Z"
     computed_at_stage: apply
 # base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-11-11T09:42:29Z
+last_updated: 2026-11-11T09:51:23Z

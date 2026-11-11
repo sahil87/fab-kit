@@ -74,7 +74,8 @@ func Command(configPath string) string {
 // forks it into its own foreground process group and waits (dash) — either way
 // the provider becomes the pane's foreground process (`#{pane_current_command}`
 // reads the provider once started; while rc files load it reads the shell,
-// which the readiness gate treats as booting) and the pane still dies with the
+// which the readiness gate treats as booting — or briefly any external command
+// the rc runs) and the pane still dies with the
 // provider. The wrap adds NO `exec "$SHELL"` tail — dispatch pane workers rely
 // on pane death as their terminal event.
 //
