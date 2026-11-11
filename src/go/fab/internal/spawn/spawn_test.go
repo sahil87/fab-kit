@@ -136,11 +136,12 @@ func TestWithInteractiveShell(t *testing.T) {
 	}
 }
 
-// TestWithInteractiveShell_FallbackOutside pins the composition order for
-// interactive spawns: the `; exec "$SHELL"` fallback sits OUTSIDE the wrap.
-func TestWithInteractiveShell_FallbackOutside(t *testing.T) {
-	got := WithShellFallback(WithInteractiveShell(`claude '/fab-operator'`))
-	want := `${SHELL:-/bin/sh} -i -c 'claude '\''/fab-operator'\'''; exec "$SHELL"`
+// TestWithInteractiveShell_FallbackInside pins the composition order for
+// interactive spawns: the `; exec "$SHELL"` fallback sits INSIDE the wrap, run
+// by the interactive shell that owns the terminal.
+func TestWithInteractiveShell_FallbackInside(t *testing.T) {
+	got := WithInteractiveShell(WithShellFallback(`claude '/fab-operator'`))
+	want := `${SHELL:-/bin/sh} -i -c 'claude '\''/fab-operator'\''; exec "$SHELL"'`
 	if got != want {
 		t.Errorf("composed = %q, want %q", got, want)
 	}

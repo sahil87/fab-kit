@@ -140,12 +140,11 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag, quietF
 		// Open tmux window
 		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single(agent.SkillPrompt(provider, "fab-switch", match)))
 		shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
-		// Interactive spawn: run the agent under the user's interactive shell
-		// (rc-exported env such as provider auth tokens), then the shell
-		// fallback keeps the pane (and its cwd) alive as the user's interactive
-		// shell after the agent exits. The env prefix stays inside the wrap.
-		shellCmd = spawn.WithInteractiveShell(shellCmd)
-		shellCmd = spawn.WithShellFallback(shellCmd)
+		// Interactive spawn: the shell fallback keeps the pane (and its cwd)
+		// alive as the user's interactive shell after the agent exits; both it
+		// and the env prefix run INSIDE the interactive-shell wrap (rc-exported
+		// env such as provider auth tokens; see spawn.WithInteractiveShell).
+		shellCmd = spawn.WithInteractiveShell(spawn.WithShellFallback(shellCmd))
 		exec.Command("tmux", "new-window", "-n", match, "-c", wtPath, shellCmd).Run()
 	}
 

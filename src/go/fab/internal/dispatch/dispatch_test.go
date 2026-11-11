@@ -782,10 +782,10 @@ func TestWrapperArgv(t *testing.T) {
 			wantScript: `${SHELL:-/bin/sh} -i -c 'claude --dangerously-skip-permissions' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`,
 		},
 		{
-			name:       "with timeout prefixes the wrapped command with POSIX timeout",
+			name:       "with timeout prefixes the wrapped command with timeout -s HUP",
 			cmd:        "codex exec",
 			timeout:    600,
-			wantScript: `timeout 600 ${SHELL:-/bin/sh} -i -c 'codex exec' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`,
+			wantScript: `timeout -s HUP 600 ${SHELL:-/bin/sh} -i -c 'codex exec' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`,
 		},
 		{
 			// agy/kimi headless built-ins are themselves `sh -c '…'`: the
@@ -800,7 +800,7 @@ func TestWrapperArgv(t *testing.T) {
 			name:       "already-wrapped user command nests with a timeout",
 			cmd:        `${SHELL:-/bin/sh} -i -c 'claude -p'`,
 			timeout:    30,
-			wantScript: `timeout 30 ${SHELL:-/bin/sh} -i -c '${SHELL:-/bin/sh} -i -c '\''claude -p'\''' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`,
+			wantScript: `timeout -s HUP 30 ${SHELL:-/bin/sh} -i -c '${SHELL:-/bin/sh} -i -c '\''claude -p'\''' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`,
 		},
 	}
 	for _, tt := range tests {

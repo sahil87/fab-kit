@@ -704,7 +704,8 @@ func notePanePID(warn io.Writer, rec *dispatch.Dispatch, paneID, server string) 
 }
 
 // launchHeadless launches the detached wrapper and records the pid/pgid on rec:
-// setsid semantics over `sh -c '<cmd> < prompt > log 2>&1; echo $? > exit'`.
+// setsid semantics over `sh -c '<interactive-shell-wrapped cmd> < prompt > log
+// 2>&1; echo $? > exit'` (dispatch.WrapperArgv owns the composition).
 func launchHeadless(rec *dispatch.Dispatch, resolvedCmd, repoRoot, dir, stage, promptPath string, timeout int) (string, error) {
 	argv := dispatch.WrapperArgv(resolvedCmd,
 		promptPath, dispatch.LogPath(dir, stage), dispatch.ExitPath(dir, stage), timeout)

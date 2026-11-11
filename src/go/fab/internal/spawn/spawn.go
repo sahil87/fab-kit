@@ -66,32 +66,37 @@ func Command(configPath string) string {
 // the headless wrapper's `sh -c`): the user's shell when $SHELL is set, `/bin/sh`
 // when it is unset or empty. The command itself is single-quoted (via
 // shellquote.Single: embedded single quotes use the close/escape/reopen idiom)
-// and inserted UNEXPANDED, so
-// everything inside it (`$(basename "$(pwd)")`, `"$(cat)"`) is evaluated by the
-// inner interactive shell, after rc files have loaded.
+// and inserted UNEXPANDED, so everything inside it (`$(basename "$(pwd)")`,
+// `"$(cat)"`) is evaluated by the inner interactive shell, after rc files have
+// loaded.
 //
-// An interactive shell given a sole `-c` command execs it, so the provider
-// replaces the shell: it becomes the pane's foreground process
-// (`#{pane_current_command}` reads the provider once started; while rc files
-// load it reads the shell, which the readiness gate treats as booting) and the
-// pane still dies with the provider. The wrap adds NO `exec "$SHELL"` tail —
-// dispatch pane workers rely on pane death as their terminal event.
+// The interactive shell either execs a sole simple `-c` command (bash, zsh) or
+// forks it into its own foreground process group and waits (dash) — either way
+// the provider becomes the pane's foreground process (`#{pane_current_command}`
+// reads the provider once started; while rc files load it reads the shell,
+// which the readiness gate treats as booting) and the pane still dies with the
+// provider. The wrap adds NO `exec "$SHELL"` tail — dispatch pane workers rely
+// on pane death as their terminal event.
 //
-// Composition order: wrap first, fallback outside —
-// WithShellFallback(WithInteractiveShell(cmd)) — so an interactive spawn's
-// pane is taken over by the user's shell after the agent exits, exactly as
-// without the wrap. Any env prefix (the workers env) goes INSIDE the wrap so it
-// is set after the rc files load and scopes the agent command only.
+// Composition order for interactive spawns: the shell fallback goes INSIDE the
+// wrap — WithInteractiveShell(WithShellFallback(cmd)) — so the same interactive
+// shell that owns the terminal runs `exec "$SHELL"` after the agent exits. With
+// the fallback OUTSIDE, the outer non-interactive shell runs it from a process
+// group that no longer owns the terminal, and bash/zsh die on their first tty
+// read, taking the pane with them. Any env prefix (the workers env) also goes
+// INSIDE the wrap, so it is set after the rc files load and scopes the agent
+// command only.
 //
 // There is no idempotence detection: an already-wrapped command (a repo that
 // hand-wraps its interactive_command the same way) simply nests — the outer
 // interactive shell runs the inner one, which runs the provider. That works;
 // it only sources the rc files twice, and the per-repo wrap is unnecessary.
 //
-// Limitation: when $SHELL names a non-POSIX shell (fish, nushell) the quoted
-// command is interpreted by that shell. The built-in commands use POSIX
-// `$(…)` substitution, which fish >= 3.4 accepts but nushell does not; no
-// shell detection is attempted.
+// Limitation: the wrap assumes POSIX shells. On the tmux paths the outer
+// `${SHELL:-/bin/sh}` is expanded by tmux's default-shell, so a non-POSIX
+// default-shell (fish, nushell) rejects the `${VAR:-default}` syntax and the
+// launch fails; a non-POSIX $SHELL would likewise interpret the quoted command
+// itself. No shell detection is attempted.
 func WithInteractiveShell(cmd string) string {
 	return `${SHELL:-/bin/sh} -i -c ` + shellquote.Single(cmd)
 }
@@ -103,8 +108,9 @@ func WithInteractiveShell(cmd string) string {
 // Interactive spawns only — dispatch pane workers (pane.OpenWindow /
 // pane.OpenSplitPane callers in dispatch_start.go, `fab dispatch open`,
 // `fab pane open`) deliberately do NOT use it: their state machine treats
-// pane death as the worker's terminal event. Callers compose it OUTSIDE
-// WithInteractiveShell: WithShellFallback(WithInteractiveShell(cmd)).
+// pane death as the worker's terminal event. Callers compose it INSIDE
+// WithInteractiveShell — WithInteractiveShell(WithShellFallback(cmd)) — see
+// WithInteractiveShell for why the outside order kills the pane.
 func WithShellFallback(cmd string) string {
 	return cmd + `; exec "$SHELL"`
 }

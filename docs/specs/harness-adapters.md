@@ -136,7 +136,7 @@ The headless path: the worker is a **detached CLI process** (e.g. `claude …` o
 launched and observed via `fab dispatch` (see [`_cli-fab-pane.md`](../../src/kit/skills/_cli-fab-pane.md)
 § fab dispatch). It exists because the native path is **tmux/in-harness-bound** and cannot drive a
 stage on a CI box, a remote host, or a different agent CLI. `fab dispatch start` launches the resolved
-provider `headless_command` detached via `sh -c '${SHELL:-/bin/sh} -i -c '\''<cmd>'\'' < prompt > log 2>&1; echo $? > exit'` launched with
+provider `headless_command` detached via `sh -c '${SHELL:-/bin/sh} -i -c '\''<cmd>'\'' < prompt > log 2>&1; echo $? > exit'` (`--timeout` prefixes `timeout -s HUP N`) launched with
 `setsid` semantics (the shell is the supervisor — no Go process remains, so the dispatch survives the
 orchestrator dying), tracks it
 under `.fab-dispatch/{id}/`, and the orchestrator observes all five states **via `fab dispatch status` /
@@ -264,8 +264,9 @@ Mechanics, all fixed by this spec:
   **one-line pointer** to that path. The composed `interactive_command` reaches tmux with nothing
   appended to it — only wrapped as `${SHELL:-/bin/sh} -i -c '<cmd>'` so the worker inherits the env the
   user's interactive rc exports (provider auth tokens, PATH). Every provider launch fab hands to tmux or
-  `sh` carries that wrap; without it a worker boots at a login wall that the text-free readiness gate
-  cannot distinguish from a ready prompt.
+  `sh` carries that wrap; without it a worker boots at a login wall, and a provider whose login state
+  still draws its ordinary input box (observed: claude's "Not logged in") reads as `ready` to the
+  text-free readiness gate, so the delivered prompt goes nowhere.
 
   The delivery choreography, run by `fab dispatch deliver`, MUST verify every step that could silently
   do nothing: confirm readiness → clear the input line → type the pointer → **check it echoed** →

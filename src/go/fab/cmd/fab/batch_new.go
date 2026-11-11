@@ -140,12 +140,11 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 		// launch failure names it as the recovery/cleanup hint.
 		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single(agent.SkillPrompt(provider, "fab-new", content)))
 		shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
-		// Interactive spawn: run the agent under the user's interactive shell
-		// (rc-exported env such as provider auth tokens), then the shell
-		// fallback keeps the pane (and its cwd) alive as the user's interactive
-		// shell after the agent exits. The env prefix stays inside the wrap.
-		shellCmd = spawn.WithInteractiveShell(shellCmd)
-		shellCmd = spawn.WithShellFallback(shellCmd)
+		// Interactive spawn: the shell fallback keeps the pane (and its cwd)
+		// alive as the user's interactive shell after the agent exits; both it
+		// and the env prefix run INSIDE the interactive-shell wrap (rc-exported
+		// env such as provider auth tokens; see spawn.WithInteractiveShell).
+		shellCmd = spawn.WithInteractiveShell(spawn.WithShellFallback(shellCmd))
 		if _, stderr, err := pane.RunCmd("tmux", "new-window", "-n", "fab-"+id, "-c", wtPath, shellCmd); err != nil {
 			fmt.Fprintf(errW, "  [%s] FAILED: tmux new-window: %v (worktree already created at %s)\n",
 				id, pane.StderrError(err, stderr), wtPath)

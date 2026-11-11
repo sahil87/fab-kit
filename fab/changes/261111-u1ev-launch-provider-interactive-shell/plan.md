@@ -63,12 +63,17 @@
 
 ### Interactive Spawns
 
-#### R6: Operator, batch new, and batch switch launch under the wrap, fallback outside
-`cmd/fab/operator.go`, `cmd/fab/batch_new.go`, `cmd/fab/batch_switch.go` SHALL compose `spawn.WithShellFallback(spawn.WithInteractiveShell(withWorkersEnv(spawnCmd + " " + quotedPrompt, …)))`: the workers env prefix inside the wrap (scoped to the agent, set after rc loads), the `; exec "$SHELL"` fallback outside it (unchanged pane-survival behavior).
+#### R6: Operator, batch new, and batch switch launch under the wrap, fallback inside
+`cmd/fab/operator.go`, `cmd/fab/batch_new.go`, `cmd/fab/batch_switch.go` SHALL compose `spawn.WithInteractiveShell(spawn.WithShellFallback(withWorkersEnv(spawnCmd + " " + quotedPrompt, …)))`: the workers env prefix and the `; exec "$SHELL"` fallback both INSIDE the wrap, so the pane still survives the agent's exit as the user's interactive shell under bash, zsh, and dash. (Revised at review: with the fallback OUTSIDE the wrap, bash/zsh die on their first tty read after the agent exits — the inner `-i` shell took the terminal's foreground process group — and the pane closes.)
+<!-- clarified: fallback moved inside the wrap — user decision 2's intent is that interactive spawns keep a working fallback; the outside order broke it under bash/zsh (live-verified) -->
 
 - **GIVEN** `fab operator` with `--workers codex`
 - **WHEN** the tmux `new-window` command is composed
-- **THEN** it is `${SHELL:-/bin/sh} -i -c 'FAB_AGENT_WORKERS=codex claude … '\''/fab-operator'\'''; exec "$SHELL"`
+- **THEN** it is `${SHELL:-/bin/sh} -i -c 'FAB_AGENT_WORKERS=codex claude … '\''/fab-operator'\''; exec "$SHELL"'`
+
+- **GIVEN** a bash, zsh, or dash default-shell
+- **WHEN** the interactive-spawned agent exits
+- **THEN** the pane is still alive and a typed command is answered by a shell
 
 #### R7: Non-provider and caller-shell launches are not wrapped
 `fab agent` (execs the provider in the caller's own interactive shell) and `internal/hooks` (`sh -c` of user stage hooks, not provider commands) SHALL NOT be wrapped. The apply survey SHALL confirm no other provider-launch site exists (any found gets the wrap + a test).
@@ -125,6 +130,12 @@
 - [x] T008 Update `src/go/fab/internal/pane/create.go` creator doc comments (OpenWindow/OpenManualWindow/OpenSplitPane/OpenPlainPane) and `spawn.WithShellFallback`'s doc to mention callers pass the interactive-shell-wrapped command; confirm `internal/pane/gate.go` is unchanged <!-- R3 -->
 - [x] T009 Run `go test ./...` from `src/go/fab` (scoped packages first: `./internal/spawn ./internal/dispatch ./cmd/fab`), fix failures (tests conform to the requirements) <!-- R2 -->
 
+### Phase 4: Review Rework (cycle 1)
+
+- [x] T011 Move the interactive-spawn fallback INSIDE the wrap in `cmd/fab/operator.go`, `batch_new.go`, `batch_switch.go`; update `spawn.WithInteractiveShell` / `WithShellFallback` docs, `TestWithInteractiveShell_FallbackInside`, the `unwrapInteractiveShell` test helper, and add live `TestInteractiveSpawnFallbackKeepsThePane` in `cmd/fab/launch_wrap_test.go` <!-- R6 -->
+- [x] T012 `dispatch.KillGroup` sends SIGTERM then SIGHUP (interactive shells ignore SIGTERM); `WrapperArgv` uses `timeout -s HUP`; live tests `TestKillGroupStopsAnRcLoadingWorker` and `TestWrapperArgvTimeoutLeavesNoSurvivor` (real setsid `Launch`) in `internal/dispatch/dispatch_posix_test.go` <!-- R4 -->
+- [x] T013 Sweep + doc fixes: `_cli-agents.md` "verbatim" claim; `_cli-fab-pane.md` launch paragraph moved to its own `#### Interactive-shell launch` subsection with the inside-fallback order, HUP signalling, exec-vs-fork wording, and the accurate POSIX-only limitation; pointers from `_cli-fab-operator.md` and `_cli-fab.md`; `create.go` / `launchHeadless` comments; `harness-adapters.md` login-wall wording and timeout form <!-- R8 -->
+
 ### Phase 3: Polish
 
 - [x] T010 Update launch prose per R8: `src/go/fab/defaults.yaml` provider comment block (launch under the interactive shell; per-repo wrap unnecessary but harmless), `src/kit/skills/_cli-fab-pane.md` (pane-mode table cell, `open` paragraph, headless wrapper line ~151, `fab pane open`), `src/kit/skills/_cli-fab.md` § providers paragraph, `docs/specs/harness-adapters.md` (lines ~139, ~170, ~264) and `docs/specs/stage-models.md` where they describe the launch; sweep `grep -rn "verbatim\|sh -c '<"` across `src/kit docs/specs src/go/fab/defaults.yaml` and fix every launch-sense hit, preserving resolver-sense "verbatim"; re-run any defaults.yaml / config-explain / kit-citation guard tests <!-- R8 -->
@@ -133,35 +144,35 @@
 
 ### Functional Completeness
 
-- [ ] A-001 R1: `spawn.WithInteractiveShell` exists, returns `${SHELL:-/bin/sh} -i -c '<cmd>'` with `'\''` quoting via `shellquote.Single`, and is covered by table tests including double wrap
-- [ ] A-002 R2: `launchPane` wraps once before the shape branch; split, window, and manual-window paths all receive the wrapped command; `SpawnCmd` stays unwrapped
-- [ ] A-003 R4: `WrapperArgv` composes `[timeout N ]${SHELL:-/bin/sh} -i -c '<cmd>' < prompt > log 2>&1; echo $? > exit` under `sh -c`, pinned by exact-string tests
-- [ ] A-004 R5: `fab pane open` passes the wrapped command to `OpenPlainPane`, pinned by `TestPaneOpen_SpawnShapes`
-- [ ] A-005 R6: operator / batch new / batch switch compose env → wrap → fallback, pinned by updated tests
-- [ ] A-006 R8: launch prose in defaults.yaml, `_cli-fab-pane.md`, `_cli-fab.md`, and the specs describes the interactive-shell launch and states the per-repo wrap is unnecessary
+- [x] A-001 R1: `spawn.WithInteractiveShell` exists, returns `${SHELL:-/bin/sh} -i -c '<cmd>'` with `'\''` quoting via `shellquote.Single`, and is covered by table tests including double wrap
+- [x] A-002 R2: `launchPane` wraps once before the shape branch; split, window, and manual-window paths all receive the wrapped command; `SpawnCmd` stays unwrapped
+- [x] A-003 R4: `WrapperArgv` composes `[timeout N ]${SHELL:-/bin/sh} -i -c '<cmd>' < prompt > log 2>&1; echo $? > exit` under `sh -c`, pinned by exact-string tests
+- [x] A-004 R5: `fab pane open` passes the wrapped command to `OpenPlainPane`, pinned by `TestPaneOpen_SpawnShapes`
+- [x] A-005 R6: operator / batch new / batch switch compose `WithInteractiveShell(WithShellFallback(withWorkersEnv(…)))`, pinned by updated tests and the live `TestInteractiveSpawnFallbackKeepsThePane` (bash/zsh/sh; fails under the old outside order). Original finding:  — NOT MET (review): the composition is implemented and pinned as written, but R6's "unchanged pane-survival behavior" fails live — with bash/zsh as tmux's default-shell the outer `; exec "$SHELL"` fallback dies on tty EIO after the agent exits (the inner `-i` shell moved the terminal's foreground process group); only dash survives. Fallback placed INSIDE the wrap survives in all three
+- [x] A-006 R8: launch prose in defaults.yaml, `_cli-fab-pane.md`, `_cli-fab.md`, and the specs describes the interactive-shell launch and states the per-repo wrap is unnecessary
 
 ### Behavioral Correctness
 
-- [ ] A-007 R4: live headless test passes for `/bin/sh`, bash, zsh (when present), and unset `SHELL`: stdin reaches the provider, exit code is the provider's, `timeout` yields 124, nested `"$(cat)"` receives the prompt
-- [ ] A-008 R2: a pane integration test observes the wrapped `#{pane_start_command}`
+- [x] A-007 R4: live headless test passes for `/bin/sh`, bash, zsh (when present), and unset `SHELL`: stdin reaches the provider, exit code is the provider's, `timeout` yields 124, nested `"$(cat)"` receives the prompt
+- [x] A-008 R2: a pane integration test observes the wrapped `#{pane_start_command}`
 
 ### Scenario Coverage
 
-- [ ] A-009 R3: `internal/pane/gate.go` has no diff; the foreground-command behavior under the wrap is evidenced (Notes § Verification Evidence)
-- [ ] A-010 R7: the spawn-site survey is recorded in Notes; `fab agent` and `internal/hooks` are unwrapped
+- [x] A-009 R3: `internal/pane/gate.go` has no diff; the foreground-command behavior under the wrap is evidenced (Notes § Verification Evidence)
+- [x] A-010 R7: the spawn-site survey is recorded in Notes; `fab agent` and `internal/hooks` are unwrapped
 
 ### Edge Cases & Error Handling
 
-- [ ] A-011 R1: double wrap works in pane and headless shapes (test + evidence)
-- [ ] A-012 R4: agy/kimi nested-shell headless commands survive the wrap (test case with embedded `'`)
+- [x] A-011 R1: double wrap works in pane and headless shapes (test + evidence)
+- [x] A-012 R4: agy/kimi nested-shell headless commands survive the wrap (test case with embedded `'`)
 
 ### Code Quality
 
-- [ ] A-013 Pattern consistency: new code follows the naming/doc-comment style of `WithShellFallback` / `WithProfile`
-- [ ] A-014 No unnecessary duplication: quoting reuses `shellquote.Single`; no new quoting helper
-- [ ] A-015 Readability over cleverness: composition order is explicit and commented at each interactive-spawn site
-- [ ] A-016 CLI reference + tests: `_cli-fab-pane.md` / `_cli-fab.md` updated alongside Go changes; every changed `.go` file ships test updates
-- [ ] A-017 Deployed content cites no fab-kit-only paths: `src/kit/` edits restate rules and point at no `docs/` / `src/go/` path
+- [x] A-013 Pattern consistency: new code follows the naming/doc-comment style of `WithShellFallback` / `WithProfile`
+- [x] A-014 No unnecessary duplication: quoting reuses `shellquote.Single`; no new quoting helper
+- [x] A-015 Readability over cleverness: composition order is explicit and commented at each interactive-spawn site
+- [x] A-016 CLI reference + tests: `_cli-fab-pane.md` / `_cli-fab.md` updated alongside Go changes; every changed `.go` file ships test updates
+- [x] A-017 Deployed content cites no fab-kit-only paths: `src/kit/` edits restate rules and point at no `docs/` / `src/go/` path
 
 ## Notes
 
@@ -190,7 +201,7 @@ Pane — scratch server (`tmux -L`), `new-window "${SHELL:-/bin/sh} -i -c 'sleep
 | `cmd/fab/dispatch_start.go` `launchPane` → `pane.OpenWindow` / `OpenSplitPane` / `OpenManualWindow` | provider `interactive_command` via tmux | yes (once, before the shape branch) |
 | `internal/dispatch` `WrapperArgv` (via `launchHeadless`) | provider `headless_command` via `sh -c` | yes (inside `WrapperArgv`) |
 | `cmd/fab/pane_open.go` → `pane.OpenPlainPane` | provider `interactive_command` via tmux | yes |
-| `cmd/fab/operator.go`, `batch_new.go`, `batch_switch.go` → `tmux new-window` | session provider + skill prompt via tmux | yes, fallback outside |
+| `cmd/fab/operator.go`, `batch_new.go`, `batch_switch.go` → `tmux new-window` | session provider + skill prompt via tmux | yes, fallback inside the wrap (revised at review) |
 | `cmd/fab/agent.go` `execAgent` (`syscall.Exec`) | provider in the caller's own shell process | no (by decision) |
 | `cmd/fab/operator.go` `execOperator` → `rk operator` | rk owns the launch (run-kit wraps its own agent panes) | no |
 | `internal/hooks` `sh -c` | user stage hooks, not a provider | no |
@@ -198,6 +209,10 @@ Pane — scratch server (`tmux -L`), `new-window "${SHELL:-/bin/sh} -i -c 'sleep
 ### Apply-time finding
 
 With `/bin/sh` (dash) as tmux's `default-shell`, an explicit `exec` inside the wrapped command leaves the outer `sh -c` as the foreground process-group leader (`#{pane_current_command}` = `sh`), while a plain simple command (every built-in) is forked by the interactive inner shell into its own process group and reads as the provider. The parked-wall test fixture therefore uses `exec sleep 300` under raw tmux (not wrapped) to model "provider is foreground" independent of the developer's shell; `TestMain` pins `SHELL=/bin/sh` so tmux-backed tests never start the developer's interactive shell (zsh's new-user wizard appears under the temp HOME otherwise).
+
+## Deletion Candidates
+
+- None — this change adds new functionality without making existing code redundant (the hand-wrapped `interactive_command` it obsoletes lives in consuming repos' config, e.g. hexokit, not in fab-kit).
 
 ## Assumptions
 
@@ -207,5 +222,7 @@ With `/bin/sh` (dash) as tmux's `default-shell`, an explicit `exec` inside the w
 | 2 | Certain | Pane wrap is applied once at the top of `launchPane`, leaving `internal/pane` creators mechanism-only | All three creators are reached only through launchPane's branches; wrapping before the branch makes a miss impossible | S:85 R:90 A:90 D:85 |
 | 3 | Confident | Live headless tests run hermetically (`HOME` → temp dir, `SHELL` per subtest) and skip when a shell is absent | Avoids loading the developer's rc in CI/tests; zsh may be absent in CI | S:70 R:90 A:80 D:75 |
 | 4 | Confident | Shell startup noise in `{stage}.log` is accepted and documented, not suppressed | Result file is the success token; suppressing stderr would hide real rc errors; probes show the provider output and exit code are intact | S:70 R:85 A:75 D:70 |
+| 5 | Confident | Interactive-spawn fallback composed INSIDE the wrap, reversing the planned outside order | Review found the outside order kills the pane under bash/zsh (live-verified); inside keeps the pane alive in bash/zsh/dash, which is what user decision 2 asked to preserve | S:80 R:85 A:80 D:70 |
+| 6 | Confident | Timeout signal changed to SIGHUP and kill adds SIGHUP after SIGTERM | Interactive shells ignore SIGTERM; live tests show TERM-only lets an rc-loading or compound-command worker continue | S:75 R:85 A:80 D:70 |
 
-4 assumptions (2 certain, 2 confident, 0 tentative).
+6 assumptions (2 certain, 4 confident, 0 tentative).

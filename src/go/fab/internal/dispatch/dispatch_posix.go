@@ -56,8 +56,12 @@ func Alive(pid int) bool {
 	return false
 }
 
-// KillGroup sends SIGTERM to the whole process group (negative pgid) so the
-// detached command and all its children die together. It is idempotent: ESRCH
+// KillGroup sends SIGTERM, then SIGHUP, to the whole process group (negative
+// pgid) so the detached command and all its children die together. SIGHUP is
+// load-bearing: the worker runs under the user's interactive shell
+// (spawn.WithInteractiveShell), and interactive shells IGNORE SIGTERM — a kill
+// landing while that shell is still loading rc files would otherwise leave it
+// alive to start the provider afterwards, unsupervised. It is idempotent: ESRCH
 // ("no such process" — the group is already gone) is a benign no-op, not an
 // error. pgid <= 0 is rejected to avoid signalling pid 0 / the caller's own
 // group via a negative argument.
@@ -65,9 +69,10 @@ func KillGroup(pgid int) error {
 	if pgid <= 0 {
 		return fmt.Errorf("invalid pgid %d", pgid)
 	}
-	err := syscall.Kill(-pgid, syscall.SIGTERM)
-	if err == nil || err == syscall.ESRCH {
-		return nil
+	for _, sig := range []syscall.Signal{syscall.SIGTERM, syscall.SIGHUP} {
+		if err := syscall.Kill(-pgid, sig); err != nil && err != syscall.ESRCH {
+			return fmt.Errorf("kill process group %d: %w", pgid, err)
+		}
 	}
-	return fmt.Errorf("kill process group %d: %w", pgid, err)
+	return nil
 }
