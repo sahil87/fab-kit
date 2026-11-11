@@ -42,7 +42,8 @@ func runDeliver(t *testing.T, args ...string) (stdout, stderr string, err error)
 // foreground, which the gate's agent-takeover precondition classifies
 // `booting` (the cooked-tty false-echo window is the exact failure the gate
 // now closes), so a bare shell can no longer stand in for an agent.
-// tmux absence is a skip, never a failure.
+// A non-empty command is returned only once its program has taken the pane's
+// foreground (awaitTakeover). tmux absence is a skip, never a failure.
 func newTmuxPane(t *testing.T, server, command string, width int) (tmux func(args ...string) (string, error), paneID string) {
 	t.Helper()
 	if _, err := exec.LookPath("tmux"); err != nil {
@@ -65,7 +66,33 @@ func newTmuxPane(t *testing.T, server, command string, width int) (tmux func(arg
 	if err != nil || paneID == "" {
 		t.Fatalf("resolve pane id: %v (%q)", err, paneID)
 	}
+	if command != "" {
+		awaitTakeover(t, tmux, paneID)
+	}
 	return tmux, paneID
+}
+
+// awaitTakeover waits until the pane's foreground is the fixture's own program.
+// Every non-empty fixture ends by exec'ing a non-shell (`exec cat`, or `sleep`
+// as the last command of `sh -c`), but until then the foreground reads `tmux`
+// (the forked child before its exec) or `sh` (still running the fixture's
+// leading commands) — and a probe in that window is correctly classified
+// `booting` by the agent-takeover precondition, failing any fixture that
+// expects `parked` or `ready`. How long the window lasts depends on the host's
+// process start-up cost, so it is waited out rather than raced.
+func awaitTakeover(t *testing.T, tmux func(args ...string) (string, error), paneID string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	var cur string
+	for time.Now().Before(deadline) {
+		out, err := tmux("display-message", "-p", "-t", paneID, "#{pane_current_command}")
+		cur = out
+		if err == nil && cur != "" && cur != "tmux" && !pane.IsShellCommand(cur) {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("pane %s foreground never left the shell (last %q)", paneID, cur)
 }
 
 // settledPane returns the pane's content once its initial screen has finished
