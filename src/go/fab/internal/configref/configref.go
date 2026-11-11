@@ -813,7 +813,10 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# headless and therefore descend from the default native preference to headless.\n" +
 		"# interactive_command is pure LAUNCH GRAMMAR: fab appends nothing to it, and a\n" +
 		"# pane worker's stage prompt is delivered afterwards by `fab dispatch deliver`,\n" +
-		"# which types a pointer through tmux and verifies it landed. Every supported agent\n" +
+		"# which types a pointer through tmux and verifies it landed. fab's dispatch, pane,\n" +
+		"# operator and batch launches run both commands under the user's interactive\n" +
+		"# shell (${SHELL:-/bin/sh} -i -c '...') so rc-exported env (auth tokens, PATH) is\n" +
+		"# present — hand-wrapping a command that way here is unnecessary. Every supported agent\n" +
 		"# CLI has an interactive mode, so pane launch grammar is the built-in expectation;\n" +
 		"# the generic readiness gate owns first-run walls and input-echo validation. What\n" +
 		"# varies by CLI and needs probing is HEADLESS prompt grammar. A user-defined\n" +

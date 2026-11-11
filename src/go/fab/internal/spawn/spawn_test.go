@@ -136,11 +136,12 @@ func TestWithInteractiveShell(t *testing.T) {
 	}
 }
 
-// TestWithInteractiveShell_FallbackOutside pins the composition order for
-// interactive spawns: the `; exec "$SHELL"` fallback sits OUTSIDE the wrap.
-func TestWithInteractiveShell_FallbackOutside(t *testing.T) {
-	got := WithShellFallback(WithInteractiveShell(`claude '/fab-operator'`))
-	want := `${SHELL:-/bin/sh} -i -c 'claude '\''/fab-operator'\'''; exec "$SHELL"`
+// TestWithInteractiveShell_FallbackInside pins the composition order for
+// interactive spawns: the `; exec "$SHELL"` fallback sits INSIDE the wrap, run
+// by the interactive shell that owns the terminal.
+func TestWithInteractiveShell_FallbackInside(t *testing.T) {
+	got := WithInteractiveShell(WithShellFallback(`claude '/fab-operator'`))
+	want := `${SHELL:-/bin/sh} -i -c 'claude '\''/fab-operator'\''; exec "$SHELL"'`
 	if got != want {
 		t.Errorf("composed = %q, want %q", got, want)
 	}
@@ -148,7 +149,8 @@ func TestWithInteractiveShell_FallbackOutside(t *testing.T) {
 
 // TestWithShellFallback pins the interactive-spawn shell fallback: the exact
 // suffix `; exec "$SHELL"` appended by plain concatenation (no idempotence
-// check — callers compose it exactly once, as the final step).
+// check — callers compose it exactly once, then wrap the result in
+// WithInteractiveShell).
 func TestWithShellFallback(t *testing.T) {
 	tests := []struct {
 		name string

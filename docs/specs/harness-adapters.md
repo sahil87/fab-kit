@@ -136,7 +136,7 @@ The headless path: the worker is a **detached CLI process** (e.g. `claude …` o
 launched and observed via `fab dispatch` (see [`_cli-fab-pane.md`](../../src/kit/skills/_cli-fab-pane.md)
 § fab dispatch). It exists because the native path is **tmux/in-harness-bound** and cannot drive a
 stage on a CI box, a remote host, or a different agent CLI. `fab dispatch start` launches the resolved
-provider `headless_command` detached via `sh -c '${SHELL:-/bin/sh} -i -c '\''<cmd>'\'' < prompt > log 2>&1; echo $? > exit'` launched with
+provider `headless_command` detached via `sh -c '${SHELL:-/bin/sh} -i -c '\''<cmd>'\'' < prompt > log 2>&1; echo $? > exit'` (`--timeout` prefixes `timeout -s HUP N`) launched with
 `setsid` semantics (the shell is the supervisor — no Go process remains, so the dispatch survives the
 orchestrator dying), tracks it
 under `.fab-dispatch/{id}/`, and the orchestrator observes all five states **via `fab dispatch status` /
@@ -263,9 +263,10 @@ Mechanics, all fixed by this spec:
   multi-thousand-token prompt cannot ride `send-keys` or argv reliably — and the worker is later typed a
   **one-line pointer** to that path. The composed `interactive_command` reaches tmux with nothing
   appended to it — only wrapped as `${SHELL:-/bin/sh} -i -c '<cmd>'` so the worker inherits the env the
-  user's interactive rc exports (provider auth tokens, PATH). Every provider launch fab hands to tmux or
-  `sh` carries that wrap; without it a worker boots at a login wall that the text-free readiness gate
-  cannot distinguish from a ready prompt.
+  user's interactive rc exports (provider auth tokens, PATH). Every dispatch, pane, operator and batch
+  provider launch carries that wrap (`fab agent`, which runs in the caller's own shell, does not); without it a worker boots at a login wall, and a provider whose login state
+  still draws its ordinary input box (observed: claude's "Not logged in") reads as `ready` to the
+  text-free readiness gate, so the delivered prompt goes nowhere.
 
   The delivery choreography, run by `fab dispatch deliver`, MUST verify every step that could silently
   do nothing: confirm readiness → clear the input line → type the pointer → **check it echoed** →
@@ -349,7 +350,7 @@ Mechanics, all fixed by this spec:
   - `mode: headless (descended: pane unavailable: no tmux; native unavailable)`
   - `mode: headless (descended: pane unavailable: tmux unreachable; native unavailable)`
   - `mode: headless (descended: pane unavailable: no interactive_command; native unavailable)`
-- **No timeout**: `--timeout` is enforced by the headless `sh -c` wrapper (POSIX `timeout`), which pane
+- **No timeout**: `--timeout` is enforced by the headless `sh -c` wrapper (`timeout -s HUP`), which pane
   mode never constructs, so no pane entry accepts one — `open` does not register the flag at all, and on
   `restart` the pair remains a usage error rather than a silently unenforced bound.
 - **The done worker's lifecycle ends in an OPTIONAL, orchestrator-invoked reap.** A pane worker never
@@ -430,7 +431,7 @@ handle), the headless mode via `fab dispatch status` (pid liveness + `{stage}.ex
 |-------|---------|--------|----------|------|
 | `running` | the worker is still executing | ✓ | ✓ | ✓ |
 | `done` | finished successfully **with a result** | ✓ | ✓ | ✓ |
-| `failed` | non-zero exit (includes `124`, the POSIX `timeout` code) | ✓ | ✓ | — |
+| `failed` | non-zero exit (includes `124`, the `timeout` code) | ✓ | ✓ | — |
 | `failed (no-result)` | **exited clean but wrote no result** — a contract violation, NOT done | ✓ | ✓ | — |
 | `orphaned` | the worker died with no recorded exit (reboot / `kill -9` / crash / pane killed) | ✓ | ✓ | ✓ |
 

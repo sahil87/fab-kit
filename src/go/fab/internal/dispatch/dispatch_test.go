@@ -782,10 +782,10 @@ func TestWrapperArgv(t *testing.T) {
 			wantScript: `${SHELL:-/bin/sh} -i -c 'claude --dangerously-skip-permissions' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`,
 		},
 		{
-			name:       "with timeout prefixes the wrapped command with POSIX timeout",
+			name:       "with timeout prefixes the wrapped command with timeout -s HUP",
 			cmd:        "codex exec",
 			timeout:    600,
-			wantScript: `timeout 600 ${SHELL:-/bin/sh} -i -c 'codex exec' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`,
+			wantScript: `timeout -s HUP 600 ${SHELL:-/bin/sh} -i -c 'codex exec' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`,
 		},
 		{
 			// agy/kimi headless built-ins are themselves `sh -c '…'`: the
@@ -800,7 +800,7 @@ func TestWrapperArgv(t *testing.T) {
 			name:       "already-wrapped user command nests with a timeout",
 			cmd:        `${SHELL:-/bin/sh} -i -c 'claude -p'`,
 			timeout:    30,
-			wantScript: `timeout 30 ${SHELL:-/bin/sh} -i -c '${SHELL:-/bin/sh} -i -c '\''claude -p'\''' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`,
+			wantScript: `timeout -s HUP 30 ${SHELL:-/bin/sh} -i -c '${SHELL:-/bin/sh} -i -c '\''claude -p'\''' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`,
 		},
 	}
 	for _, tt := range tests {
@@ -1019,6 +1019,18 @@ func TestDeliveredChangesNoState(t *testing.T) {
 	}
 }
 
+// wrapShells returns the shells the interactive-shell wrap can land on that are
+// installed here: always /bin/sh, plus bash and zsh when on PATH.
+func wrapShells() map[string]string {
+	shells := map[string]string{"sh": "/bin/sh"}
+	for _, name := range []string{"bash", "zsh"} {
+		if path, err := exec.LookPath(name); err == nil {
+			shells[name] = path
+		}
+	}
+	return shells
+}
+
 // TestWrapperArgvLive runs the composed headless wrapper for real under each
 // $SHELL the interactive-shell wrap can land on (bash, zsh, /bin/sh, and unset
 // → /bin/sh), with HOME pointed at an empty dir so no developer rc loads. It
@@ -1031,12 +1043,8 @@ func TestWrapperArgvLive(t *testing.T) {
 	if _, err := exec.LookPath("timeout"); err != nil {
 		t.Skip("timeout not available")
 	}
-	shells := map[string]string{"sh": "/bin/sh", "unset": ""}
-	for _, name := range []string{"bash", "zsh"} {
-		if path, err := exec.LookPath(name); err == nil {
-			shells[name] = path
-		}
-	}
+	shells := wrapShells()
+	shells["unset"] = ""
 	cases := []struct {
 		name     string
 		cmd      string

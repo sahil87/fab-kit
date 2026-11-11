@@ -122,7 +122,7 @@ printf '%s\n' "$@" >> ` + capture,
 
 	// Interactive spawn grammar: the new-window shell-command argument (the
 	// LAST captured line of the single new-window call) is the agent command
-	// under the interactive-shell wrap, the shell fallback OUTSIDE the wrap, and
+	// under the interactive-shell wrap, the shell fallback INSIDE the wrap as its tail, and
 	// the FAB_AGENT_WORKERS= prefix leading INSIDE it (capturedSpawnInner
 	// asserts the wrap + fallback grammar).
 	if !strings.HasPrefix(inner, "FAB_AGENT_WORKERS=") {

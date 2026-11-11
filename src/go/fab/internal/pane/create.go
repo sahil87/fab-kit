@@ -97,7 +97,10 @@ func ServerReachable(server string) error {
 // left-hand side including any shell expansions it carries (e.g.
 // `$(basename "$(pwd)")` in the built-in claude interactive_command), which expand
 // at invocation inside the new window — the `_cli-agents.md` § Spawn
-// Composition contract.
+// Composition contract. Every caller passes the provider command already
+// wrapped by spawn.WithInteractiveShell (`${SHELL:-/bin/sh} -i -c '<cmd>'`), so
+// the expansions run in the user's interactive shell after its rc loads; the
+// same holds for OpenManualWindow, OpenSplitPane, and OpenPlainPane.
 func OpenWindow(server, name, dir, cmd string) (paneID string, err error) {
 	return runPaneCreator(server, "new-window", name,
 		"new-window", "-P", "-F", "#{pane_id}", "-n", name, "-c", dir, cmd)

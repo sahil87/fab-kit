@@ -41,9 +41,11 @@ func dispatchOpenCmd() *cobra.Command {
 			"The worker's prompt is handed over afterwards by `fab dispatch deliver`, behind\n" +
 			"the `fab dispatch ready` readiness gate — a freshly spawned agent TUI may still\n" +
 			"be booting or parked behind a first-run wall, and answering one is the\n" +
-			"orchestrator's judgment, not the binary's. The composed interactive_command is\n" +
-			"launched verbatim, so prompt delivery no longer depends on whether a provider's\n" +
-			"CLI accepts a positional prompt.\n\n" +
+			"orchestrator's judgment, not the binary's. Nothing is appended to the composed\n" +
+			"interactive_command (it runs under the user's interactive shell,\n" +
+			"${SHELL:-/bin/sh} -i -c '...', so rc-exported env such as auth tokens is\n" +
+			"present), so prompt delivery no longer depends on whether a provider's CLI\n" +
+			"accepts a positional prompt.\n\n" +
 			"Pane mode is explicit here: unreachable tmux or a provider with no\n" +
 			"interactive_command is a hard error, not a descent to headless.",
 		Example: `  # Open the worker, gate it, then deliver its prompt

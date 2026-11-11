@@ -439,7 +439,7 @@ func TestRunBatchNew_WorkersOverride(t *testing.T) {
 
 	// Interactive spawn grammar: the new-window shell-command argument (the
 	// LAST captured line of the single new-window call) is the agent command
-	// under the interactive-shell wrap, the shell fallback OUTSIDE the wrap, and
+	// under the interactive-shell wrap, the shell fallback INSIDE the wrap as its tail, and
 	// the FAB_AGENT_WORKERS= prefix leading INSIDE it (capturedSpawnInner
 	// asserts the wrap + fallback grammar).
 	if !strings.HasPrefix(inner, "FAB_AGENT_WORKERS=") {
@@ -448,8 +448,9 @@ func TestRunBatchNew_WorkersOverride(t *testing.T) {
 }
 
 // TestRunBatchNew_ShellFallback verifies the interactive spawn grammar: the
-// composed new-window shell command ends with the `; exec "$SHELL"` fallback
-// so the pane survives the agent's exit.
+// composed new-window shell command carries the `; exec "$SHELL"` fallback as
+// the tail of the interactive-shell-wrapped command, so the pane survives the
+// agent's exit.
 func TestRunBatchNew_ShellFallback(t *testing.T) {
 	root := chdirBatchNewFixture(t, testBacklog)
 	writeBatchNewConfig(t, root, "claude")
@@ -463,9 +464,5 @@ func TestRunBatchNew_ShellFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading tmux capture: %v", err)
 	}
-	lines := strings.Split(strings.TrimRight(string(args), "\n"), "\n")
-	last := lines[len(lines)-1]
-	if !strings.HasSuffix(last, `; exec "$SHELL"`) {
-		t.Errorf("new-window shell command missing shell fallback suffix, last arg = %q", last)
-	}
+	capturedSpawnInner(t, args) // asserts the wrap + the fallback inside it
 }

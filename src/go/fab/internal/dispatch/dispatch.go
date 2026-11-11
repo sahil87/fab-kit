@@ -213,17 +213,20 @@ func DirFor(repoRoot, id string) string {
 //
 //	sh -c '${SHELL:-/bin/sh} -i -c '\''<cmd>'\'' < {prompt} > {log} 2>&1; echo $? > {exit}'
 //
-// With timeoutSecs > 0 the wrapped command is prefixed with POSIX `timeout`:
+// With timeoutSecs > 0 the wrapped command is prefixed with `timeout -s HUP`:
 //
-//	sh -c 'timeout <secs> ${SHELL:-/bin/sh} -i -c '\''<cmd>'\'' < {prompt} > {log} 2>&1; echo $? > {exit}'
+//	sh -c 'timeout -s HUP <secs> ${SHELL:-/bin/sh} -i -c '\''<cmd>'\'' < {prompt} > {log} 2>&1; echo $? > {exit}'
 //
 // The resolved provider command runs under the user's interactive shell
 // (spawn.WithInteractiveShell) so env exported only by interactive-shell
 // startup (provider auth tokens, PATH additions) is present — the plain
 // `sh -c` supervisor sources no rc files. The `< {prompt}` redirection is
-// applied by the outer sh to the interactive shell, which execs the sole `-c`
-// command, so stdin reaches the provider unchanged; the recorded exit code is
-// the provider's, and `timeout` kills the provider (exit 124). Shell startup
+// applied by the outer sh to the interactive shell, which execs (bash, zsh) or
+// forks and waits on (dash) the `-c` command, so stdin reaches the provider
+// unchanged and the recorded exit code is the provider's. The timeout signal is
+// SIGHUP, not timeout's default SIGTERM: interactive shells ignore SIGTERM, so
+// with a compound command (`a; b`) a TERM would kill `a` and leave the shell
+// alive to run `b`; HUP ends the shell and the provider alike (exit 124). Shell startup
 // noise (bash's "no job control in this shell", rc-file output) can land in
 // {stage}.log — acceptable: the result file, not the log, is the success token.
 //
@@ -237,7 +240,7 @@ func DirFor(repoRoot, id string) string {
 // immediately while the real worker runs under an untracked pid — breaking
 // liveness/refuse-if-running/kill. One detach mechanism, the trackable one.
 // Timeout is enforced entirely inside the wrapper (no Go timer, no daemon); a
-// timed-out command exits 124 (POSIX convention), surfacing as `failed` via the
+// timed-out command exits 124 (the `timeout` convention), surfacing as `failed` via the
 // normal exit-code path. Paths are single-quoted defensively; cmd is the
 // resolved spawn command, quoted whole into the interactive-shell wrap (its
 // own inner quoting stays the resolver's/user's concern — it is passed through
@@ -250,7 +253,7 @@ func DirFor(repoRoot, id string) string {
 func WrapperArgv(cmd, promptPath, logPath, exitPath string, timeoutSecs int) []string {
 	inner := spawn.WithInteractiveShell(cmd)
 	if timeoutSecs > 0 {
-		inner = "timeout " + strconv.Itoa(timeoutSecs) + " " + inner
+		inner = "timeout -s HUP " + strconv.Itoa(timeoutSecs) + " " + inner
 	}
 	script := fmt.Sprintf("%s < %s > %s 2>&1; echo $? > %s",
 		inner, shellQuote(promptPath), shellQuote(logPath), shellQuote(exitPath))
