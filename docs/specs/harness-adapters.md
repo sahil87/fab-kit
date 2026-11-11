@@ -136,7 +136,7 @@ The headless path: the worker is a **detached CLI process** (e.g. `claude …` o
 launched and observed via `fab dispatch` (see [`_cli-fab-pane.md`](../../src/kit/skills/_cli-fab-pane.md)
 § fab dispatch). It exists because the native path is **tmux/in-harness-bound** and cannot drive a
 stage on a CI box, a remote host, or a different agent CLI. `fab dispatch start` launches the resolved
-provider `headless_command` detached via `sh -c '<cmd> < prompt > log 2>&1; echo $? > exit'` launched with
+provider `headless_command` detached via `sh -c '${SHELL:-/bin/sh} -i -c '\''<cmd>'\'' < prompt > log 2>&1; echo $? > exit'` launched with
 `setsid` semantics (the shell is the supervisor — no Go process remains, so the dispatch survives the
 orchestrator dying), tracks it
 under `.fab-dispatch/{id}/`, and the orchestrator observes all five states **via `fab dispatch status` /
@@ -167,7 +167,7 @@ the worker its prompt are two separate events with a decision between them, so t
 
 | Verb | Does | Reports |
 |------|------|---------|
-| `fab dispatch open <change> <stage>` | spawns the pane from the composed `interactive_command` **verbatim** and persists the stdin prompt to `{stage}-prompt.md`; delivers **nothing** | `opened <id>/<stage> (…)` |
+| `fab dispatch open <change> <stage>` | spawns the pane from the composed `interactive_command` (nothing appended; run under the user's interactive shell) and persists the stdin prompt to `{stage}-prompt.md`; delivers **nothing** | `opened <id>/<stage> (…)` |
 | `fab dispatch ready <change> <stage>` | mechanically probes whether the pane accepts typed input — gated on **agent takeover**: a shell foreground classifies `booting` with nothing typed; past takeover the classification delegates to `rk mux await --ready` when a sentinel-capable rk is on PATH (fail-open to fab's own raw-tmux classifier) | `ready` \| `booting` \| `parked` (+ pane, socket, capture snippet) |
 | `fab dispatch deliver <change> <stage> [--prompt-file <p>]` | types the prompt pointer and verifies it landed | `delivered <id>/<stage> (…)` |
 
@@ -261,8 +261,11 @@ Mechanics, all fixed by this spec:
 - **Prompt delivery is POST-SPAWN and VERIFIED.** The full stage prompt is persisted to
   `.fab-dispatch/{id}/{stage}-prompt.md` (the same path the headless mode uses) — a
   multi-thousand-token prompt cannot ride `send-keys` or argv reliably — and the worker is later typed a
-  **one-line pointer** to that path. The composed `interactive_command` reaches tmux **verbatim**: fab
-  appends nothing to it.
+  **one-line pointer** to that path. The composed `interactive_command` reaches tmux with nothing
+  appended to it — only wrapped as `${SHELL:-/bin/sh} -i -c '<cmd>'` so the worker inherits the env the
+  user's interactive rc exports (provider auth tokens, PATH). Every provider launch fab hands to tmux or
+  `sh` carries that wrap; without it a worker boots at a login wall that the text-free readiness gate
+  cannot distinguish from a ready prompt.
 
   The delivery choreography, run by `fab dispatch deliver`, MUST verify every step that could silently
   do nothing: confirm readiness → clear the input line → type the pointer → **check it echoed** →

@@ -610,6 +610,12 @@ func missingCommandError(stage, providerName, field string) error {
 // pane ID afterwards, so status/kill/capture need no shape awareness.
 func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoot, id, stage, server string, target paneTarget) (string, error) {
 	title := dispatch.WindowName(id, stage)
+	// Every creator below receives the provider command under the user's
+	// interactive shell, so rc-exported env (provider auth tokens, PATH) is
+	// present. Wrapped once, before the shape branch, so no creator can miss it;
+	// no shell fallback — pane death is the worker's terminal event. The record's
+	// SpawnCmd keeps the unwrapped command.
+	launchCmd := spawn.WithInteractiveShell(resolvedCmd)
 
 	var paneID, report string
 	var err error
@@ -640,7 +646,7 @@ func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoo
 				target.columnWidth, target.minCols, target.minRows); below {
 				fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", warning)
 				var warnings []error
-				paneID, warnings, err = pane.OpenManualWindow(server, title, repoRoot, resolvedCmd)
+				paneID, warnings, err = pane.OpenManualWindow(server, title, repoRoot, launchCmd)
 				// Sizing failures after a successful new-window are cosmetic: the
 				// worker is running and its pane ID is already in hand.
 				for _, w := range warnings {
@@ -655,7 +661,7 @@ func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoo
 		}
 		if !demoted {
 			var warnings []error
-			paneID, warnings, err = pane.OpenSplitPane(server, place, title, repoRoot, resolvedCmd)
+			paneID, warnings, err = pane.OpenSplitPane(server, place, title, repoRoot, launchCmd)
 			// Cosmetic-only failures (a size tmux would not take, a title it would not
 			// set): the worker is running and its pane ID — the real identity — is
 			// already recorded, so these warn rather than aborting.
@@ -668,7 +674,7 @@ func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoo
 			report = fmt.Sprintf("pane %s, split, title %s", paneID, title)
 		}
 	} else {
-		paneID, err = pane.OpenWindow(server, title, repoRoot, resolvedCmd)
+		paneID, err = pane.OpenWindow(server, title, repoRoot, launchCmd)
 		if err != nil {
 			return "", err
 		}

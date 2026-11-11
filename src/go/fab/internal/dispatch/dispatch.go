@@ -19,7 +19,8 @@
 //	{stage}-result.yaml — the dispatched agent's result (contract; 3d owns content)
 //
 // The launch is supervisor-free: `sh -c '<cmd> < prompt > log 2>&1; echo $? >
-// exit'` makes the SHELL the supervisor (records the exit code itself), and
+// exit'` (where <cmd> runs under the user's interactive shell — see
+// WrapperArgv) makes the SHELL the supervisor (records the exit code itself), and
 // Launch's SysProcAttr{Setsid:true} detaches that shell into its own session/
 // process group so the dispatch survives the orchestrator dying — no Go process
 // remains in the loop. (The intake's `setsid sh -c` form describes the intent;
@@ -41,6 +42,7 @@ import (
 	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/atomicfile"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/spawn"
 	"gopkg.in/yaml.v3"
 )
 
@@ -209,11 +211,21 @@ func DirFor(repoRoot, id string) string {
 
 // WrapperArgv composes the detached-launch argv:
 //
-//	sh -c '<cmd> < {prompt} > {log} 2>&1; echo $? > {exit}'
+//	sh -c '${SHELL:-/bin/sh} -i -c '\''<cmd>'\'' < {prompt} > {log} 2>&1; echo $? > {exit}'
 //
-// With timeoutSecs > 0 the resolved command is wrapped in POSIX `timeout`:
+// With timeoutSecs > 0 the wrapped command is prefixed with POSIX `timeout`:
 //
-//	sh -c 'timeout <secs> <cmd> < {prompt} > {log} 2>&1; echo $? > {exit}'
+//	sh -c 'timeout <secs> ${SHELL:-/bin/sh} -i -c '\''<cmd>'\'' < {prompt} > {log} 2>&1; echo $? > {exit}'
+//
+// The resolved provider command runs under the user's interactive shell
+// (spawn.WithInteractiveShell) so env exported only by interactive-shell
+// startup (provider auth tokens, PATH additions) is present — the plain
+// `sh -c` supervisor sources no rc files. The `< {prompt}` redirection is
+// applied by the outer sh to the interactive shell, which execs the sole `-c`
+// command, so stdin reaches the provider unchanged; the recorded exit code is
+// the provider's, and `timeout` kills the provider (exit 124). Shell startup
+// noise (bash's "no job control in this shell", rc-file output) can land in
+// {stage}.log — acceptable: the result file, not the log, is the success token.
 //
 // The whole pipeline is a single `sh -c` script string so the SHELL is the
 // supervisor (it records $? itself) — no Go supervisor process remains in the
@@ -227,17 +239,18 @@ func DirFor(repoRoot, id string) string {
 // Timeout is enforced entirely inside the wrapper (no Go timer, no daemon); a
 // timed-out command exits 124 (POSIX convention), surfacing as `failed` via the
 // normal exit-code path. Paths are single-quoted defensively; cmd is the
-// resolved spawn command inserted verbatim (its own quoting is the
-// resolver's/user's concern, per the verbatim pass-through philosophy).
+// resolved spawn command, quoted whole into the interactive-shell wrap (its
+// own inner quoting stays the resolver's/user's concern — it is passed through
+// unchanged, never validated or rewritten).
 //
 // This is pure string composition (no syscalls), so it lives in the
 // platform-independent core rather than the build-tagged launch files — the
 // argv contract is identical on every platform, even where Launch is
 // unsupported (Windows). Only the process launch/signal syscalls are split.
 func WrapperArgv(cmd, promptPath, logPath, exitPath string, timeoutSecs int) []string {
-	inner := cmd
+	inner := spawn.WithInteractiveShell(cmd)
 	if timeoutSecs > 0 {
-		inner = "timeout " + strconv.Itoa(timeoutSecs) + " " + cmd
+		inner = "timeout " + strconv.Itoa(timeoutSecs) + " " + inner
 	}
 	script := fmt.Sprintf("%s < %s > %s 2>&1; echo $? > %s",
 		inner, shellQuote(promptPath), shellQuote(logPath), shellQuote(exitPath))

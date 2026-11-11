@@ -176,6 +176,7 @@ func TestDispatchOpen_Integration(t *testing.T) {
 	if strings.Contains(captured, ".fab-dispatch/") || strings.Contains(captured, "line two") {
 		t.Errorf("pane received prompt content (%q); open delivers nothing", captured)
 	}
+	assertWrappedPaneLaunch(t, tmux, rec.Pane, rec.SpawnCmd)
 	// The pane is observably alive (the liveness signal status keys on).
 	if !pane.PaneAlive(rec.Pane, server) {
 		t.Errorf("pane %s should be alive right after open", rec.Pane)
@@ -486,6 +487,7 @@ func TestDispatchOpen_SplitPane_Integration(t *testing.T) {
 	if !pane.PaneAlive(rec.Pane, "") {
 		t.Errorf("pane %s should be alive right after open", rec.Pane)
 	}
+	assertWrappedPaneLaunch(t, tmuxScoped, rec.Pane, rec.SpawnCmd)
 	// The discriminator is recorded in the split shape too — same record, same
 	// open-time read (a default-socket dispatch this time).
 	if wantPID, err := pane.GetPanePID(rec.Pane, ""); err != nil {
@@ -878,6 +880,7 @@ func TestDispatchOpen_BelowFloorDemotesToSizedWindow(t *testing.T) {
 	if got := paneFormat(t, tmuxScoped, rec.Pane, "#W"); got != dispatch.WindowName(id, "apply") {
 		t.Errorf("worker window name = %q, want %q", got, dispatch.WindowName(id, "apply"))
 	}
+	assertWrappedPaneLaunch(t, tmuxScoped, rec.Pane, rec.SpawnCmd)
 	// ...and its window is manually sized to the fallback constants, immune to the
 	// viewer sizing that shrank the dispatcher's window.
 	if got := paneInt(t, tmuxScoped, rec.Pane, "#{window_width}"); got != pane.ManualWindowCols {

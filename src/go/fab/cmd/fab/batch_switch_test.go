@@ -516,7 +516,7 @@ func TestRunBatchSwitch_SpawnCommandProfileInjection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("reading tmux capture: %v", err)
 		}
-		got := string(args)
+		got := capturedSpawnInner(t, args)
 		if strings.Contains(got, "{model}") || strings.Contains(got, "{effort}") {
 			t.Errorf("literal placeholder braces reached tmux:\n%s", got)
 		}
@@ -543,7 +543,7 @@ func TestRunBatchSwitch_SpawnCommandProfileInjection(t *testing.T) {
 			t.Fatalf("reading tmux capture: %v", err)
 		}
 		model, effort := roleFill(t, agent.RoleDefault)
-		if want := fmt.Sprintf("claude --dangerously-skip-permissions --model %s --effort %s '/fab-switch", model, effort); !strings.Contains(string(args), want) {
+		if want := fmt.Sprintf("claude --dangerously-skip-permissions --model %s --effort %s '/fab-switch", model, effort); !strings.Contains(capturedSpawnInner(t, args), want) {
 			t.Errorf("non-templated interactive_command missing the appended default profile:\n%s", string(args))
 		}
 	})
@@ -570,20 +570,18 @@ func TestRunBatchSwitch_WorkersOverride(t *testing.T) {
 	}
 	model, effort := roleFill(t, agent.RoleDefault)
 	want := fmt.Sprintf("FAB_AGENT_WORKERS='co'\\''dex; $(touch nope)' claude --model %s --effort %s '/fab-switch", model, effort)
-	if !strings.Contains(string(args), want) {
+	inner := capturedSpawnInner(t, args)
+	if !strings.Contains(inner, want) {
 		t.Errorf("tmux command missing safely quoted workers prefix %q:\n%s", want, args)
 	}
 
 	// Interactive spawn grammar: the new-window shell-command argument (the
-	// LAST captured line of the single new-window call) must end with the
-	// shell fallback suffix, with the FAB_AGENT_WORKERS= prefix still leading.
-	lines := strings.Split(strings.TrimRight(string(args), "\n"), "\n")
-	last := lines[len(lines)-1]
-	if !strings.HasSuffix(last, `; exec "$SHELL"`) {
-		t.Errorf("new-window shell command missing shell fallback suffix, last arg = %q", last)
-	}
-	if !strings.HasPrefix(last, "FAB_AGENT_WORKERS=") {
-		t.Errorf("FAB_AGENT_WORKERS= prefix must still lead the composed command, last arg = %q", last)
+	// LAST captured line of the single new-window call) is the agent command
+	// under the interactive-shell wrap, the shell fallback OUTSIDE the wrap, and
+	// the FAB_AGENT_WORKERS= prefix leading INSIDE it (capturedSpawnInner
+	// asserts the wrap + fallback grammar).
+	if !strings.HasPrefix(inner, "FAB_AGENT_WORKERS=") {
+		t.Errorf("FAB_AGENT_WORKERS= prefix must lead the wrapped command, inner = %q", inner)
 	}
 }
 

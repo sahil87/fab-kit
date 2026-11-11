@@ -191,7 +191,7 @@ func TestPaneOpen_SpawnShapes(t *testing.T) {
 		if !strings.HasPrefix(spawn, "new-window ") {
 			t.Errorf("spawn = %q, want an unnamed new-window", spawn)
 		}
-		for _, frag := range []string{"-P", "-F", "#{pane_id}", "-c " + dir, "kimi --auto"} {
+		for _, frag := range []string{"-P", "-F", "#{pane_id}", "-c " + dir, `${SHELL:-/bin/sh} -i -c 'kimi --auto`} {
 			if !strings.Contains(spawn, frag) {
 				t.Errorf("spawn = %q, want it to carry %q", spawn, frag)
 			}

@@ -21,7 +21,7 @@ import (
 // mechanically indistinguishable from a first-run trust dialog, which is the
 // point: the gate classifies by echo and stability, never by dialog text. `stty
 // -echo` stops the tty echoing what is typed, and `sleep` never reads it.
-const parkedPaneCommand = "stty -echo; echo TRUST-THIS-FOLDER-WALL; sleep 300"
+const parkedPaneCommand = "stty -echo; echo TRUST-THIS-FOLDER-WALL; exec sleep 300"
 
 // bootingPaneCommand is the same swallowed input on a screen that has not been
 // drawn yet — a TUI still starting rather than a wall holding the input.
