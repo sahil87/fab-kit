@@ -92,6 +92,12 @@ autopilot:
 # landed), so pane capability no longer depends on whether a CLI accepts a positional
 # initial prompt.
 #
+# fab LAUNCHES both commands under the user's interactive shell —
+# ${SHELL:-/bin/sh} -i -c '<command>' — because tmux and the headless wrapper
+# otherwise run them non-interactively, without the rc files where users export
+# provider auth tokens and PATH. Do not hand-wrap a command in `$SHELL -i -c` in
+# your config: it is unnecessary (a pre-wrapped command still works; it nests).
+#
 # Every supported agent CLI has an interactive mode, so pane launch grammar is the
 # built-in expectation. The generic readiness gate owns provider first-run walls and
 # input-echo validation; HEADLESS prompt grammar is the capability that varies and

@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/shellquote"
@@ -64,10 +63,9 @@ func TestSkillPromptLaunchers(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				const suffix = `; exec "$SHELL"`
-				if !strings.HasSuffix(string(windowCommand), suffix) {
-					t.Fatalf("missing shell fallback: %s", windowCommand)
-				}
+				// The agent command runs under the interactive-shell wrap with the
+				// shell fallback outside it; evaluate the unwrapped inner command.
+				inner := unwrapInteractiveShell(t, string(windowCommand), true)
 				prefix := "/"
 				if provider == "codex" {
 					prefix = "$"
@@ -80,7 +78,7 @@ func TestSkillPromptLaunchers(t *testing.T) {
 				for _, name := range []string{"claude", "codex", "agy", "kimi", "custom"} {
 					prelude += name + `() { for arg do last=$arg; done; printf '%s' "$last"; }; `
 				}
-				got, err := exec.Command("/bin/sh", "-c", prelude+strings.TrimSuffix(string(windowCommand), suffix)).Output()
+				got, err := exec.Command("/bin/sh", "-c", prelude+inner).Output()
 				if err != nil || string(got) != want {
 					t.Fatalf("launcher prompt = %q, error %v; want %q; command %s", got, err, want, windowCommand)
 				}

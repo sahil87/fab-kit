@@ -36,6 +36,11 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	os.Setenv("HOME", home)
+	// Provider launches run under `${SHELL:-/bin/sh} -i -c` (spawn.WithInteractiveShell);
+	// pin the shell so tmux-backed tests never start the developer's interactive
+	// shell (rc files, or zsh's new-user wizard under the temp HOME). Scratch tmux
+	// servers inherit it as their default-shell.
+	os.Setenv("SHELL", "/bin/sh")
 	for _, key := range configscope.DottedKeys() {
 		os.Unsetenv("FAB_" + strings.ToUpper(strings.ReplaceAll(key, ".", "_")))
 	}

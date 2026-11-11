@@ -1,0 +1,7 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-11-11T09:01:16Z"}
+{"args":"Launch provider commands through the user's interactive shell (hexokit backlog [sca2])","cmd":"fab-new","event":"command","ts":"2026-11-11T09:01:16Z"}
+{"delta":"+0.0","event":"confidence","score":4.5,"trigger":"calc-score","ts":"2026-11-11T09:02:40Z"}
+{"delta":"+0.0","event":"confidence","score":4.5,"trigger":"calc-score","ts":"2026-11-11T09:02:49Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-11-11T09:02:58Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-11-11T09:03:01Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-11-11T09:16:40Z"}

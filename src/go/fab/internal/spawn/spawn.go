@@ -5,6 +5,7 @@ import (
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/shellquote"
 )
 
 // DefaultSpawnCommand is the fallback interactive command Command returns when
@@ -50,6 +51,51 @@ func Command(configPath string) string {
 	return DefaultSpawnCommand
 }
 
+// WithInteractiveShell wraps a resolved provider command so it runs under the
+// user's interactive shell: `${SHELL:-/bin/sh} -i -c '<cmd>'`.
+//
+// Why: tmux runs a new-window/split-window shell-command through its
+// default-shell `-c`, and headless dispatch runs the worker through a plain
+// `sh -c` — both NON-interactive, so neither sources the user's interactive rc
+// files (~/.zshrc, ~/.bashrc). Env exported only there (provider auth tokens
+// such as CLAUDE_CODE_OAUTH_TOKEN, PATH additions) would be missing and the
+// provider would boot unauthenticated or not be found. Running the command
+// through `$SHELL -i -c` loads the rc first.
+//
+// `${SHELL:-/bin/sh}` is expanded by the OUTER shell (tmux's default-shell, or
+// the headless wrapper's `sh -c`): the user's shell when $SHELL is set, `/bin/sh`
+// when it is unset or empty. The command itself is single-quoted (via
+// shellquote.Single: embedded single quotes use the close/escape/reopen idiom)
+// and inserted UNEXPANDED, so
+// everything inside it (`$(basename "$(pwd)")`, `"$(cat)"`) is evaluated by the
+// inner interactive shell, after rc files have loaded.
+//
+// An interactive shell given a sole `-c` command execs it, so the provider
+// replaces the shell: it becomes the pane's foreground process
+// (`#{pane_current_command}` reads the provider once started; while rc files
+// load it reads the shell, which the readiness gate treats as booting) and the
+// pane still dies with the provider. The wrap adds NO `exec "$SHELL"` tail —
+// dispatch pane workers rely on pane death as their terminal event.
+//
+// Composition order: wrap first, fallback outside —
+// WithShellFallback(WithInteractiveShell(cmd)) — so an interactive spawn's
+// pane is taken over by the user's shell after the agent exits, exactly as
+// without the wrap. Any env prefix (the workers env) goes INSIDE the wrap so it
+// is set after the rc files load and scopes the agent command only.
+//
+// There is no idempotence detection: an already-wrapped command (a repo that
+// hand-wraps its interactive_command the same way) simply nests — the outer
+// interactive shell runs the inner one, which runs the provider. That works;
+// it only sources the rc files twice, and the per-repo wrap is unnecessary.
+//
+// Limitation: when $SHELL names a non-POSIX shell (fish, nushell) the quoted
+// command is interpreted by that shell. The built-in commands use POSIX
+// `$(…)` substitution, which fish >= 3.4 accepts but nushell does not; no
+// shell detection is attempted.
+func WithInteractiveShell(cmd string) string {
+	return `${SHELL:-/bin/sh} -i -c ` + shellquote.Single(cmd)
+}
+
 // WithShellFallback appends the interactive-spawn shell fallback so the pane
 // survives the agent's exit: the agent runs as the wrapper shell's foreground
 // child (a two-command string defeats the wrapper shell's exec optimisation)
@@ -57,7 +103,8 @@ func Command(configPath string) string {
 // Interactive spawns only — dispatch pane workers (pane.OpenWindow /
 // pane.OpenSplitPane callers in dispatch_start.go, `fab dispatch open`,
 // `fab pane open`) deliberately do NOT use it: their state machine treats
-// pane death as the worker's terminal event.
+// pane death as the worker's terminal event. Callers compose it OUTSIDE
+// WithInteractiveShell: WithShellFallback(WithInteractiveShell(cmd)).
 func WithShellFallback(cmd string) string {
 	return cmd + `; exec "$SHELL"`
 }

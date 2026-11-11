@@ -112,7 +112,7 @@ func runPaneOpen(cmd *cobra.Command, provider, role, dir string, jsonFlag bool) 
 	// A pane id is meaningless cross-socket, so --server always opens a window;
 	// only an invoker that IS a tmux pane on the target server gets the split.
 	split := os.Getenv("TMUX_PANE") != "" && !serverSet
-	paneID, err := pane.OpenPlainPane(server, split, absDir, resolvedCmd)
+	paneID, err := pane.OpenPlainPane(server, split, absDir, spawn.WithInteractiveShell(resolvedCmd))
 	if err != nil {
 		fmt.Fprintf(cmd.ErrOrStderr(), "Error: %s\n", err)
 		os.Exit(3)

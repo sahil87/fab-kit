@@ -85,6 +85,67 @@ func TestCommand_InvalidYAML(t *testing.T) {
 	}
 }
 
+// TestWithInteractiveShell pins the interactive-shell launch wrap: the exact
+// `${SHELL:-/bin/sh} -i -c '<cmd>'` shape, close/escape/reopen quoting of
+// embedded single quotes, the inner command left unexpanded, and nesting (no
+// idempotence detection) for an already-wrapped command.
+func TestWithInteractiveShell(t *testing.T) {
+	tests := []struct {
+		name string
+		cmd  string
+		want string
+	}{
+		{
+			name: "plain command",
+			cmd:  `claude --model x`,
+			want: `${SHELL:-/bin/sh} -i -c 'claude --model x'`,
+		},
+		{
+			name: "command substitution stays unexpanded inside the quotes",
+			cmd:  `claude --model x -n "$(basename "$(pwd)")"`,
+			want: `${SHELL:-/bin/sh} -i -c 'claude --model x -n "$(basename "$(pwd)")"'`,
+		},
+		{
+			name: "embedded single quotes use the close/escape/reopen idiom (agy/kimi shape)",
+			cmd:  `sh -c 'kimi -p "$(cat)"'`,
+			want: `${SHELL:-/bin/sh} -i -c 'sh -c '\''kimi -p "$(cat)"'\'''`,
+		},
+		{
+			name: "already-wrapped command nests",
+			cmd:  `${SHELL:-/bin/sh} -i -c 'claude'`,
+			want: `${SHELL:-/bin/sh} -i -c '${SHELL:-/bin/sh} -i -c '\''claude'\'''`,
+		},
+		{
+			name: "workers env prefix stays inside the quotes",
+			cmd:  `FAB_AGENT_WORKERS=codex claude '/fab-operator'`,
+			want: `${SHELL:-/bin/sh} -i -c 'FAB_AGENT_WORKERS=codex claude '\''/fab-operator'\'''`,
+		},
+		{
+			name: "empty command yields an empty quoted argument",
+			cmd:  "",
+			want: `${SHELL:-/bin/sh} -i -c ''`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := WithInteractiveShell(tc.cmd)
+			if got != tc.want {
+				t.Errorf("WithInteractiveShell(%q) = %q, want %q", tc.cmd, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestWithInteractiveShell_FallbackOutside pins the composition order for
+// interactive spawns: the `; exec "$SHELL"` fallback sits OUTSIDE the wrap.
+func TestWithInteractiveShell_FallbackOutside(t *testing.T) {
+	got := WithShellFallback(WithInteractiveShell(`claude '/fab-operator'`))
+	want := `${SHELL:-/bin/sh} -i -c 'claude '\''/fab-operator'\'''; exec "$SHELL"`
+	if got != want {
+		t.Errorf("composed = %q, want %q", got, want)
+	}
+}
+
 // TestWithShellFallback pins the interactive-spawn shell fallback: the exact
 // suffix `; exec "$SHELL"` appended by plain concatenation (no idempotence
 // check — callers compose it exactly once, as the final step).

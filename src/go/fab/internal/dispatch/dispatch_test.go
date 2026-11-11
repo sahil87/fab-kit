@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -778,13 +779,28 @@ func TestWrapperArgv(t *testing.T) {
 			name:       "no timeout",
 			cmd:        "claude --dangerously-skip-permissions",
 			timeout:    0,
-			wantScript: "claude --dangerously-skip-permissions < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'",
+			wantScript: `${SHELL:-/bin/sh} -i -c 'claude --dangerously-skip-permissions' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`,
 		},
 		{
-			name:       "with timeout wraps in POSIX timeout",
+			name:       "with timeout prefixes the wrapped command with POSIX timeout",
 			cmd:        "codex exec",
 			timeout:    600,
-			wantScript: "timeout 600 codex exec < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'",
+			wantScript: `timeout 600 ${SHELL:-/bin/sh} -i -c 'codex exec' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`,
+		},
+		{
+			// agy/kimi headless built-ins are themselves `sh -c '…'`: the
+			// embedded single quotes use the close/escape/reopen idiom and the
+			// `$(cat)` stays unexpanded for the inner shell.
+			name:       "nested sh -c built-in (agy/kimi shape) is quoted whole",
+			cmd:        `sh -c 'kimi -m k2 -p "$(cat)"'`,
+			timeout:    0,
+			wantScript: `${SHELL:-/bin/sh} -i -c 'sh -c '\''kimi -m k2 -p "$(cat)"'\''' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`,
+		},
+		{
+			name:       "already-wrapped user command nests with a timeout",
+			cmd:        `${SHELL:-/bin/sh} -i -c 'claude -p'`,
+			timeout:    30,
+			wantScript: `timeout 30 ${SHELL:-/bin/sh} -i -c '${SHELL:-/bin/sh} -i -c '\''claude -p'\''' < 'p.md' > 'l.log' 2>&1; echo $? > 'e.exit'`,
 		},
 	}
 	for _, tt := range tests {
@@ -808,7 +824,7 @@ func TestWrapperArgv(t *testing.T) {
 
 func TestWrapperArgvQuotesPathsWithSpaces(t *testing.T) {
 	argv := WrapperArgv("cmd", "/a b/p.md", "/a b/l.log", "/a b/e.exit", 0)
-	want := "cmd < '/a b/p.md' > '/a b/l.log' 2>&1; echo $? > '/a b/e.exit'"
+	want := "${SHELL:-/bin/sh} -i -c 'cmd' < '/a b/p.md' > '/a b/l.log' 2>&1; echo $? > '/a b/e.exit'"
 	if argv[2] != want {
 		t.Errorf("script = %q, want %q", argv[2], want)
 	}
@@ -999,6 +1015,70 @@ func TestDeliveredChangesNoState(t *testing.T) {
 		}
 		if got := DerivePaneState(true, false); got != StateDone {
 			t.Errorf("delivered=%v: result-present derivation = %q, want %q", delivered, got, StateDone)
+		}
+	}
+}
+
+// TestWrapperArgvLive runs the composed headless wrapper for real under each
+// $SHELL the interactive-shell wrap can land on (bash, zsh, /bin/sh, and unset
+// → /bin/sh), with HOME pointed at an empty dir so no developer rc loads. It
+// pins the launch semantics the wrap must preserve: stdin redirection reaches
+// the provider, the exit file records the provider's own code, `timeout` still
+// kills the provider (124), a nested `sh -c '… "$(cat)"'` headless built-in
+// (agy/kimi shape) still receives the prompt, and a pre-wrapped user command
+// (double wrap) still runs.
+func TestWrapperArgvLive(t *testing.T) {
+	if _, err := exec.LookPath("timeout"); err != nil {
+		t.Skip("timeout not available")
+	}
+	shells := map[string]string{"sh": "/bin/sh", "unset": ""}
+	for _, name := range []string{"bash", "zsh"} {
+		if path, err := exec.LookPath(name); err == nil {
+			shells[name] = path
+		}
+	}
+	cases := []struct {
+		name     string
+		cmd      string
+		timeout  int
+		wantExit string
+		wantLog  string
+	}{
+		{"stdin reaches the provider and its exit code is recorded", `wc -c; exit 7`, 0, "7", "13"},
+		{"timeout kills the provider", `sleep 30`, 1, "124", ""},
+		{"nested sh -c built-in receives the prompt", `sh -c 'echo "got:$(cat)"'`, 0, "0", "got:hello prompt"},
+		{"double wrap still runs the provider", `${SHELL:-/bin/sh} -i -c 'wc -c; exit 5'`, 0, "5", "13"},
+	}
+	for shellName, shellPath := range shells {
+		for _, tc := range cases {
+			t.Run(shellName+"/"+tc.name, func(t *testing.T) {
+				dir := t.TempDir()
+				prompt, log, exit := filepath.Join(dir, "p.md"), filepath.Join(dir, "l.log"), filepath.Join(dir, "e.exit")
+				if err := os.WriteFile(prompt, []byte("hello prompt\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				argv := WrapperArgv(tc.cmd, prompt, log, exit, tc.timeout)
+				c := exec.Command(argv[0], argv[1:]...)
+				c.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + dir, "ZDOTDIR=" + dir}
+				if shellPath != "" {
+					c.Env = append(c.Env, "SHELL="+shellPath)
+				}
+				// zsh's new-user wizard only runs when no startup file exists.
+				if err := os.WriteFile(filepath.Join(dir, ".zshrc"), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				if out, err := c.CombinedOutput(); err != nil {
+					t.Fatalf("wrapper failed: %v (%s)", err, out)
+				}
+				gotExit, _ := os.ReadFile(exit)
+				if strings.TrimSpace(string(gotExit)) != tc.wantExit {
+					t.Errorf("exit = %q, want %q", strings.TrimSpace(string(gotExit)), tc.wantExit)
+				}
+				gotLog, _ := os.ReadFile(log)
+				if tc.wantLog != "" && !strings.Contains(string(gotLog), tc.wantLog) {
+					t.Errorf("log = %q, want it to contain %q", gotLog, tc.wantLog)
+				}
+			})
 		}
 	}
 }
