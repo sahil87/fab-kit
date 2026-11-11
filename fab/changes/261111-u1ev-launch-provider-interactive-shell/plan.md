@@ -168,7 +168,7 @@
 - [x] A-011 R1: double wrap works in pane and headless shapes (test + evidence)
 - [x] A-012 R4: agy/kimi nested-shell headless commands survive the wrap (test case with embedded `'`)
 
-- [ ] A-018 R8: a repo-wide grep finds no launch-sense "verbatim", POSIX-`timeout`, pre-wrap `sh -c '<cmd>` or SIGTERM-only kill claim in Go help text/comments, `src/kit/skills/`, `docs/specs/`, `defaults.yaml`, or the `fab config explain providers` reference; resolver-sense "verbatim" survives
+- [x] A-018 R8: a repo-wide grep finds no launch-sense "verbatim", POSIX-`timeout`, pre-wrap `sh -c '<cmd>` or SIGTERM-only kill claim in Go help text/comments, `src/kit/skills/`, `docs/specs/`, `defaults.yaml`, or the `fab config explain providers` reference; resolver-sense "verbatim" survives
 
 ### Code Quality
 

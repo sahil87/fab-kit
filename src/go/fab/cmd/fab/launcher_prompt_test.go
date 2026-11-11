@@ -64,7 +64,7 @@ func TestSkillPromptLaunchers(t *testing.T) {
 					t.Fatal(err)
 				}
 				// The agent command runs under the interactive-shell wrap with the
-				// shell fallback outside it; evaluate the unwrapped inner command.
+				// shell fallback inside it as its tail; evaluate the unwrapped command.
 				inner := unwrapInteractiveShell(t, string(windowCommand), true)
 				prefix := "/"
 				if provider == "codex" {

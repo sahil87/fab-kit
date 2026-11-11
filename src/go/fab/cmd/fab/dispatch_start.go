@@ -84,7 +84,7 @@ func addLaunchFlags(cmd *cobra.Command, role paneRole) *launchFlags {
 		return f
 	}
 
-	cmd.Flags().IntVar(&f.timeout, "timeout", 0, "Enforce a `timeout -s HUP <secs>` inside the launch wrapper (0 = none); implies --headless")
+	cmd.Flags().IntVar(&f.timeout, "timeout", 0, "Kill the headless worker after `secs` seconds (timeout -s HUP inside the launch wrapper; 0 = none); implies --headless")
 	cmd.Flags().BoolVar(&f.headlessMode, "headless", false, "Force a detached headless worker, overriding dispatch.mode for this launch")
 	cmd.Flags().BoolVar(&f.paneMode, "pane", false, "Force an interactive tmux worker — a pane split into your own window, or a new window when you are not in one (requires a reachable tmux server)")
 	cmd.Flags().StringVarP(&f.server, "server", "L", "", "Target tmux socket label (passed as 'tmux -L <name>'); implies pane mode. Defaults to $TMUX / tmux default socket; ignored in headless mode")
