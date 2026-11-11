@@ -9,7 +9,7 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
+    ship: done
     review-pr: pending
 plan:
     generated: true
@@ -33,13 +33,14 @@ stage_metrics:
     apply: {started_at: "2026-11-11T10:01:25Z", driver: fab-fff, iterations: 4, completed_at: "2026-11-11T10:03:16Z"}
     review: {started_at: "2026-11-11T10:03:16Z", driver: fab-fff, iterations: 4, completed_at: "2026-11-11T10:09:54Z"}
     hydrate: {started_at: "2026-11-11T10:09:54Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-11T10:15:56Z"}
-    ship: {started_at: "2026-11-11T10:15:56Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-11-11T10:15:56Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-11T10:16:09Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/699
 base_branch: main
 true_impact:
-    added: 388
-    deleted: 161
-    net: 227
+    added: 481
+    deleted: 200
+    net: 281
     excluding:
         added: 304
         deleted: 113
@@ -48,9 +49,9 @@ true_impact:
         added: 193
         deleted: 36
         net: 157
-    computed_at: "2026-11-11T10:15:56Z"
-    computed_at_stage: hydrate
+    computed_at: "2026-11-11T10:16:09Z"
+    computed_at_stage: ship
 summary: Provider launches run under the user's interactive shell (${SHELL:-/bin/sh} -i -c) at the dispatch/headless/pane-open/operator/batch seams, shell fallback inside the wrap, SIGHUP kill/timeout for wrapped workers
 # base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-11-11T10:15:56Z
+last_updated: 2026-11-11T10:16:09Z
