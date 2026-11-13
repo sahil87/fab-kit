@@ -13,6 +13,19 @@
 > state file location, `$XDG_STATE_HOME/run-kit/cron/<server-slug>.yaml`).
 > Kept below as historical record.
 
+> **Reboot hole closed (2026-11-13).** The rk-daemon boot unit this plan asked
+> run-kit to file (§ 1 Reboot story, § 5 and § 7 follow-up lists, § 8) shipped in
+> HexoKit as `rk daemon autostart on|off|status`: a systemd user unit on Linux, a
+> LaunchAgent on macOS, that starts the daemon once at boot or login and never
+> restarts it. It is opt-in — off by default, turned on per machine with
+> `rk daemon autostart on` — so the hole stays open wherever nobody ran it. The
+> lingering caveat remains: on Linux the unit starts the daemon at boot only with
+> `loginctl enable-linger <user>`; without it the daemon starts at first login and
+> goes down with the last logout (macOS always starts at login). This replaces the
+> interim advice below (an OS user timer: `loginctl enable-linger` plus a one-line
+> timer). See HexoKit's `docs/memory/run-kit/daemon-autostart.md` and
+> `fab/plans/sahil/26-11-11-rk-daemon-autostart.md`. The text below is unchanged.
+
 > Plan doc — written 2026-09-03 from the dev-ws-sahil01 incident investigation
 > (a `/loop 3m "operator tick"` silently killed by an accidental Ctrl-C; the
 > session then asserted the loop was alive; three monitored workers ran
