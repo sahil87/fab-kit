@@ -51,9 +51,11 @@ func operatorClockSyncCmd() *cobra.Command {
 			"role:operator row; mutes an unmuted entry when nothing is tracked and clears a\n" +
 			"standing mute or lease when work is tracked; applies the derived schedule via\n" +
 			"one `rk cron edit` only when the live entry differs. Exits non-zero with one\n" +
-			"stderr line when the entry can neither be resolved nor seeded.",
+			"stderr line when the entry can neither be resolved nor seeded.\n\n" +
+			"Under a capable rk (HexoKit's operator), this verb is deprecated and only runs\n" +
+			"'rk cron list'; it seeds, mutes, and edits nothing.",
 		Args: cobra.NoArgs,
-		RunE: runOperatorClockSync,
+		RunE: handoverOr(delegateClockSync, runOperatorClockSync),
 	}
 }
 

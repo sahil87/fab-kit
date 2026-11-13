@@ -44,6 +44,9 @@ func TestMain(m *testing.M) {
 	for _, key := range configscope.DottedKeys() {
 		os.Unsetenv("FAB_" + strings.ToUpper(strings.ReplaceAll(key, ".", "_")))
 	}
+	// Hand-over probe defaults to false so every pre-existing operator test
+	// exercises the fallback arm; tests opt in via stubOperatorHandover.
+	rkOperatorHandover = func() bool { return false }
 	rkDir := ""
 	if os.Getenv("FAB_TEST_RK_ARM") != "1" {
 		rkDir, err = os.MkdirTemp("", "fab-cmd-test-rk-")

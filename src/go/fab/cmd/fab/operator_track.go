@@ -48,8 +48,9 @@ func operatorTrackAddCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <id>",
 		Short: "Add a tracked item (the kind fills its defaults; flags override)",
+		Long:  "Add a tracked item (the kind fills its defaults; flags override)\n\nUnder a capable rk (HexoKit's operator), this verb is deprecated and delegates to 'rk operator track add'.",
 		Args:  cobra.ExactArgs(1),
-		RunE:  runOperatorTrackAdd,
+		RunE:  handoverOr(delegateTrackVerb("add"), runOperatorTrackAdd),
 	}
 	f := cmd.Flags()
 	f.String("kind", "", "item kind: pane | github-pr | linear | slack | shell | task | note (required)")
@@ -461,8 +462,9 @@ func operatorTrackUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update <id>",
 		Short: "Mutate a tracked item's cadence, predicate, deps, scope, or paused flag",
+		Long:  "Mutate a tracked item's cadence, predicate, deps, scope, or paused flag\n\nUnder a capable rk (HexoKit's operator), this verb is deprecated and delegates to 'rk operator track update' (--pause, --resume, and --text map to 'rk operator track pause', 'resume', and 'note').",
 		Args:  cobra.ExactArgs(1),
-		RunE:  runOperatorTrackUpdate,
+		RunE:  handoverOr(delegateTrackUpdate, runOperatorTrackUpdate),
 	}
 	f := cmd.Flags()
 	f.String("check-every", "", "probe cadence (floor 1m; null for pane/none items)")
@@ -576,8 +578,9 @@ func operatorTrackRmCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "rm <id>",
 		Short: "Remove a tracked item (the ack for done; a pane item's branch_map entry is retained)",
+		Long:  "Remove a tracked item (the ack for done; a pane item's branch_map entry is retained)\n\nUnder a capable rk (HexoKit's operator), this verb is deprecated and delegates to 'rk operator track rm'.",
 		Args:  cobra.ExactArgs(1),
-		RunE:  runOperatorTrackRm,
+		RunE:  handoverOr(delegateTrackVerb("rm"), runOperatorTrackRm),
 	}
 }
 
@@ -638,8 +641,9 @@ func operatorTrackObserveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "observe <id>",
 		Short: "Record an agent-probe result (--json) or failure (--error) for a tracked item",
+		Long:  "Record an agent-probe result (--json) or failure (--error) for a tracked item\n\nUnder a capable rk (HexoKit's operator), this verb is deprecated and delegates to 'rk operator track observe'.",
 		Args:  cobra.ExactArgs(1),
-		RunE:  runOperatorTrackObserve,
+		RunE:  handoverOr(delegateTrackVerb("observe"), runOperatorTrackObserve),
 	}
 	cmd.Flags().String("json", "", "observed fields as a JSON object (stored per probe.fields, or whole when fields is empty)")
 	cmd.Flags().String("error", "", "probe failure message (increments failures; the third pauses the item)")
@@ -791,8 +795,9 @@ func operatorTrackListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List tracked items (one line per item: id · kind · state · checked age · next)",
+		Long:  "List tracked items (one line per item: id · kind · state · checked age · next)\n\nUnder a capable rk (HexoKit's operator), this verb is deprecated and delegates to 'rk operator track list'.",
 		Args:  cobra.NoArgs,
-		RunE:  runOperatorTrackList,
+		RunE:  handoverOr(delegateTrackVerb("list"), runOperatorTrackList),
 	}
 	cmd.Flags().String("kind", "", "filter to one kind")
 	cmd.Flags().Bool("json", false, "print the items array as JSON")
@@ -955,8 +960,9 @@ func operatorTrackClockCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "clock",
 		Short: "Override the derived operator-tick cadence for a bounded time (or clear with --off)",
+		Long:  "Override the derived operator-tick cadence for a bounded time (or clear with --off).\n\nUnder a capable rk (HexoKit's operator), this verb is deprecated and refuses with exit 1: tune the operator loop with 'rk cron edit' or 'rk cron mute'.",
 		Args:  cobra.NoArgs,
-		RunE:  runOperatorTrackClock,
+		RunE:  handoverOr(refuseTrackClock, runOperatorTrackClock),
 	}
 	cmd.Flags().String("every", "", "fixed cadence (schedule kind every)")
 	cmd.Flags().String("idle-every", "", "idle-keyed cadence (schedule kind idle-every)")

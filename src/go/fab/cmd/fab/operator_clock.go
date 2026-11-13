@@ -23,7 +23,9 @@ import (
 // through `rk cron edit` only on change. Every rk call is LookPath-gated,
 // argv-only, bounded by rkCronTimeout, and fail-silent — absent or older rk
 // degrades to the loud-but-safe posture (ticks keep arriving) and never
-// changes a verb's exit code or stdout. No -L <server> is passed: the
+// changes a verb's exit code or stdout. Under a capable rk (the hand-over
+// probe, operator_handover.go) rk's daemon owns the cron file: every write
+// entry point below is gated off so fab never mutes, edits, or seeds it. No -L <server> is passed: the
 // operator verbs have no server flag, so rk's own $TMUX derivation is the
 // addressing.
 
@@ -203,6 +205,9 @@ func operatorCronAddArgv() []string {
 // other rk failure. Seeding is not conditioned on tracked-ness — the mute
 // rule that follows in the same pass mutes a fresh entry on an untracked set.
 func ensureOperatorCronRow() (operatorCronRow, bool) {
+	if rkOperatorHandover() {
+		return operatorCronRow{}, false
+	}
 	candidates, ok := listOperatorCronRows()
 	if !ok {
 		return operatorCronRow{}, false
@@ -221,6 +226,9 @@ func ensureOperatorCronRow() (operatorCronRow, bool) {
 // tie — a dead clock). A lock or path failure is a silent no-seed, like
 // every other rk failure.
 func seedOperatorCronRow() (operatorCronRow, bool) {
+	if rkOperatorHandover() {
+		return operatorCronRow{}, false
+	}
 	statePath, err := operatorStatePath()
 	if err != nil {
 		return operatorCronRow{}, false
@@ -252,7 +260,7 @@ func seedOperatorCronRow() (operatorCronRow, bool) {
 // user-set lease survives unrelated mutations. Fail-silent: all errors are
 // swallowed and nothing is written to stdout/stderr.
 func syncOperatorClock(before, after bool) {
-	if before == after {
+	if before == after || rkOperatorHandover() {
 		return
 	}
 	row, ok := ensureOperatorCronRow()
@@ -274,7 +282,7 @@ func syncOperatorClock(before, after bool) {
 // drifted and never disturbs a user's lease. Fail-silent like
 // syncOperatorClock.
 func muteOperatorClockIfUntracked(data map[string]interface{}) {
-	if operatorTracked(data) {
+	if operatorTracked(data) || rkOperatorHandover() {
 		return
 	}
 	row, ok := ensureOperatorCronRow()
@@ -290,6 +298,9 @@ func muteOperatorClockIfUntracked(data map[string]interface{}) {
 // tick-start keeps muteOperatorClockIfUntracked's one-direction form (its
 // unmute direction stays edge-triggered via syncOperatorClock).
 func reconcileOperatorMute(data map[string]interface{}, row operatorCronRow) {
+	if rkOperatorHandover() {
+		return
+	}
 	tracked := operatorTracked(data)
 	switch {
 	case !tracked && !row.Muted:
@@ -432,6 +443,9 @@ func durationsEqual(a, b string) bool {
 // expires). Fail-silent: never changes the verb's exit, stdout, or saved
 // state.
 func reconcileOperatorSchedule(data map[string]interface{}) {
+	if rkOperatorHandover() {
+		return
+	}
 	items, err := decodeTrackedItems(data)
 	if err != nil {
 		return

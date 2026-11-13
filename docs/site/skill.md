@@ -115,7 +115,7 @@ entered manually via `/git-pr-review`).
   to the version-pinned `fab-go` engine. You never call `fab-kit`/`fab-go` directly.
 - **Agent directories hold deployed copies.** `fab sync` always writes `.agents/skills/`;
   `.claude/skills/` requires `claude`, and `.opencode/commands/` requires `opencode`. It also writes
-  the machine-level `fab-operator` pointer skill to `~/.agents/skills/` (always) and
+  the machine-level `fab-operator` pointer skill (which tries `rk skill operator` first) to `~/.agents/skills/` (always) and
   `~/.claude/skills/` (when `claude` is available). Never hand-edit a deployed skill — your edit is lost on the
   next sync. In the fab-kit repo itself, the canonical source is `src/kit/skills/`.
 - **`fab skill` ≠ fab's kit-skills.** *This* command (the toolkit-standard bundle you are
