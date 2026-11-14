@@ -290,6 +290,16 @@ New projects get this line from the scaffold; the migration surfaces it to proje
 - **Informational, no restructure.** The field is optional and absent on every existing change, and every consumer falls back to the resolved default branch, so there is nothing to rewrite — the file's Changes section is intentionally **None**. Pre-check: `fab status get-base-branch <any-change>` prints an empty line (the expected absent state). Verification: `fab status validate-status-file <change>` exits 0 on an untouched change (the new key is optional), and `set-base-branch` → `get-base-branch` round-trips.
 - **Version slot.** The file ships named `2.27.0-to-2.28.0` with the exact range stated as release-owned and set at release time — the Summary describes the feature and the verbs rather than asserting the bump as made (the `2.19.4-to-2.20.0` / `2.23.17-to-2.24.0` release-owned precedent).
 
+### `2.28.16-to-2.29.0` Operator Hand-over Migration (no edits, no data move)
+
+`src/kit/migrations/2.28.16-to-2.29.0.md` documents the operator hand-over to HexoKit: when the installed rk lists both `check` and `brief` under `rk operator --help`, `fab operator track|tick-start|clock` deprecate and delegate, fab stops writing rk's cron file, and `/fab-operator` points at `rk skill operator` with the `_operator-legacy` partial as the fallback (see [runtime/operator.md](/runtime/operator.md) § HexoKit Hand-over).
+
+- **The migration edits nothing and the binary moves no data.** fab's `$XDG_STATE_HOME/fab/operator/<slug>.yaml` is only ever read — by `rk operator adopt`, which imports the tracked items and `branch_map`. The Changes section carries per-tmux-server hand-over steps done with the user: stop or idle the old operator chat, upgrade fab and rk, `rk operator adopt --dry-run` then `rk operator adopt` (idempotent), confirm with `rk cron list` that rk's daemon seeded the target-less `operator loop` entry and **muted, never deleted,** the legacy `operator tick` entry, open the new chat via `rk operator`, and watch one wake → check → run → note cycle.
+- **Pre-check is a capability probe.** `rk operator --help` listing `check` and `brief`; with rk absent or older the migration is a no-op and every `fab operator` verb behaves as before.
+- **Rollback and verification.** Rollback mutes the `operator loop` entry and unmutes the legacy one (`rk cron mute <id>` / `--off`); fab's state file was never modified. Verification: `rk cron list` shows exactly one unmuted operator clock, and `fab operator clock sync` prints the deprecation line and unmutes nothing.
+- **Deployed-content discipline.** The file names rk commands and behaviour in prose and cites no fab-kit-only path (Constitution V; `TestKitContentCitesNoRepoLocalPaths` guards it).
+- **Version slot.** The file ships named `2.28.16-to-2.29.0` with the range stated as release-owned and set at release time (the `2.27.0-to-2.28.0` precedent).
+
 ### Version Drift Detection
 
 - **`fab upgrade-repo`**: after sync, runs `DiscoverMigrations` against the target version's cached `migrations/` dir and the current `fab/.kit-migration-version` (mechanical relevance check, not string inequality). Three terminal cases:
