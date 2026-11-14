@@ -6,6 +6,8 @@ The operator (`/fab-operator`) is a long-running coordination layer that sits in
 |---------|---------|
 | `/fab-operator` | Multi-agent coordination — monitoring, auto-answering, tracked work queues, dependency-aware spawning |
 
+Under a capable rk the `fab operator` verbs are deprecated and delegate to `rk operator`; `/fab-operator` is a short pointer that follows `rk skill operator`, falling back to the legacy skill (`_operator-legacy`) when rk is absent or older.
+
 ## Version History
 
 The current operator (v13) evolved through thirteen iterations:
@@ -25,3 +27,4 @@ The current operator (v13) evolved through thirteen iterations:
 | v11 | Generic tracked items — one `tracked:` list with a probe loop and derived schedule replaces the monitored/watches/autopilot/notes sections, `track` verb family, one-table frame (2026-09-11, change 260911-4a8m) |
 | v12 | fab owns the operator-tick entry end-to-end — the clock reconcile seeds it when the server has none, and `fab operator clock sync` heals and reads it for Init and the per-tick frame (2026-09-12, change 260912-bjrk) |
 | v13 | PR Recovery — a shipped PR that cannot merge (a stuck `review-pr` stage at the time; recovery now detects armed `github-pr` items after 261007-4p4z removed the `no-reviewer` reason) is one condition with a reason (`ci-failed` / `conflicting`), each with one bounded action (one CI fix round / rebase-and-re-arm once) recorded on the item's `scope.recovery`; unreviewed merges are reported, never silent (2026-09-16, change 260916-vb4l) |
+| v14 | Hand-over to HexoKit — fab `operator` verbs deprecate and delegate under rk ≥ v3.22.13 (`rk operator check`/`brief` present), fab stops writing rk's cron file, `/fab-operator` becomes a pointer to `rk skill operator` with the legacy body kept as the `_operator-legacy` fallback; deletion pending F2 (2026-11-13, change 261113-915b) |

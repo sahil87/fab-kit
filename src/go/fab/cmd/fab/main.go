@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -93,6 +94,7 @@ func run(args []string, outW, errW io.Writer) int {
 	root := newRootCmd()
 	root.SetArgs(args)
 	root.SetOut(outW)
+	root.SetErr(errW)
 
 	// Inject cobra's auto-generated help/completion commands BEFORE wrapping, so
 	// their RunE handlers participate in the reached-run-phase signal. Execute()
@@ -110,6 +112,12 @@ func run(args []string, outW, errW io.Writer) int {
 	markRunReached(root, &reached)
 
 	if err := root.Execute(); err != nil {
+		// A delegated rk process's exit code passes through unchanged; rk's
+		// inherited stdio has already reported, so nothing more is printed.
+		var ec *exitCodeError
+		if errors.As(err, &ec) {
+			return ec.code
+		}
 		fmt.Fprintf(errW, "ERROR: %s\n", err)
 		if reached {
 			return 1

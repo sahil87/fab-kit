@@ -1,0 +1,15 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-11-13T01:56:14Z"}
+{"args":"Plan step F1 (Hand over: deprecate fab operator, stop seeding the operator tick cron entry, /fab-operator becomes a pointer to HexoKit's chat skill, migration file) from the plan at /home/sahil/code/sahil87/hexokit.worktrees/arcing-fjord/fab/plans/sahil/26-11-10-operator-to-hexokit.md. HexoKit run-kit v3.22.13 (R1-R5) is released; delegate to it when present, otherwise keep today's behaviour. Do not run fab sync, brew upgrade, or restart anything on the live server; C1 does that with the user.","cmd":"fab-new","event":"command","ts":"2026-11-13T01:56:14Z"}
+{"delta":"+3.7","event":"confidence","score":3.7,"trigger":"calc-score","ts":"2026-11-13T01:58:08Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-11-13T01:59:35Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-11-13T01:59:42Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-11-13T10:03:11Z"}
+{"event":"review","result":"failed","ts":"2026-11-14T07:54:55Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-11-14T07:54:55Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-11-14T07:59:28Z"}
+{"event":"review","result":"failed","ts":"2026-11-14T08:04:23Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-11-14T08:04:23Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-11-14T08:06:35Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-11-14T08:09:56Z"}
+{"event":"review","result":"passed","ts":"2026-11-14T08:09:56Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-11-14T08:13:45Z"}

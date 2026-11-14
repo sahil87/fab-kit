@@ -34,6 +34,9 @@ or create one running the operator-role session command with its fab-operator
 skill prompt, prefixed for the launched provider (the skill_prefix key of
 'fab agent operator -o yaml').`,
 		RunE: runOperator,
+		// Under a capable rk (hand-over probe) every subcommand prints one
+		// deprecation line; the bare launcher is exempt.
+		PersistentPreRunE: operatorDeprecationHook,
 	}
 	cmd.Flags().String("workers", "", "set FAB_AGENT_WORKERS in the launched operator tab")
 	cmd.AddCommand(

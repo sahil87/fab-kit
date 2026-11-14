@@ -9,10 +9,15 @@ description: {DESCRIPTION}
 > operator logic. It exists so `/fab-operator` resolves from any directory, including the
 > home-directory window `rk operator -L <server>` opens for the operator-tick respawn.
 
-1. **Inside a fab project** (a `fab/project/config.yaml` exists at or above the current
+1. **HexoKit first**: run `command -v rk >/dev/null 2>&1 && rk skill operator`. It succeeds when
+   it exits 0 and its output's first heading is `# HexoKit skill: operator` — then follow that
+   output as the operator chat skill and stop here. (The project's `/fab-operator` pointer states
+   this probe's full rule; it is repeated here only because this file is generated separately.)
+   On any failure continue with 2.
+2. **Inside a fab project** (a `fab/project/config.yaml` exists at or above the current
    directory): read `.agents/skills/fab-operator/SKILL.md` at that project's root and follow
    it — the project's deployed copy governs, including its helpers under `.agents/skills/`.
-   If that file is missing, continue with 2.
-2. **Otherwise**: run `fab kit-path`, read `<kit-path>/skills/fab-operator.md`, and follow it.
+   If that file is missing, continue with 3.
+3. **Otherwise**: run `fab kit-path`, read `<kit-path>/skills/fab-operator.md`, and follow it.
    Wherever that skill or `_preamble` says to read `.agents/skills/{x}/SKILL.md`, read
    `<kit-path>/skills/{x}.md` instead — the flat kit copy of the same file.

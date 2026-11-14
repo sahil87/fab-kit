@@ -56,8 +56,9 @@ func operatorTickStartCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tick-start",
 		Short: "Increment tick_count and record last_tick_at in the server-keyed operator state file",
+		Long:  "Increment tick_count and record last_tick_at in the server-keyed operator state file\n\nUnder a capable rk (HexoKit's operator), this verb is deprecated and delegates to 'rk operator check'.",
 		Args:  cobra.NoArgs,
-		RunE:  runOperatorTickStart,
+		RunE:  handoverOr(delegateTickStart, runOperatorTickStart),
 	}
 	cmd.Flags().Bool("diff", false, "also probe the tracked items (pane join + due shell probes): emit deltas/candidates/needs_check/items blocks and update the baselines in the same write")
 	cmd.Flags().Bool("quiet", false, "with --diff: on a no-delta tick within 10m of the last full document, replace the items: block with a fleet_summary: count block")
