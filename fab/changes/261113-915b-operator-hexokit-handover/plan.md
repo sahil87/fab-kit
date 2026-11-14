@@ -313,18 +313,18 @@ now, which breaks rk-less users and is F2's job.
 
 ### Phase 1: Setup
 
-- [x] T001 Add the hand-over probe in `src/go/fab/cmd/fab/operator_handover.go` (new): a pure help-text matcher `rkHelpHasHandover(help string) bool` (row-anchored `check` + `brief`), the memoized injectable seam `rkOperatorHandover func() bool` (LookPath + `rk operator --help` with `rkCronTimeout`, fail-silent), a `printOperatorDeprecation(cmd, verb, replacement string)` stderr helper, and an argv-only `runRkDelegate(cmd, args ...string) error` that inherits stdio and maps rk's exit status to fab's exit code (start failure → 1). Reuse existing exit-code plumbing in `src/go/fab/cmd/fab` (look for how other commands return a specific exit code) <!-- R1 -->
+- [x] T001 Add the hand-over probe in `src/go/fab/cmd/fab/operator_handover.go` (new): a pure help-text matcher `rkHelpHasHandover(help string) bool` (row-anchored `check` + `brief`), the memoized injectable seam `rkOperatorHandover func() bool` (LookPath + `rk operator --help` with `rkCronTimeout`, fail-silent), a `printOperatorDeprecation(cmd, verb, replacement string)` stderr helper, and an argv-only `runRkDelegate(cmd, args ...string) error` that inherits stdio and maps rk's exit status to fab's exit code (start failure → 1). Reuse existing exit-code plumbing in `src/go/fab/cmd/fab` (look for how other commands return a specific exit code) <!-- R1 --> <!-- rework: scope rkHelpHasHandover's row scan to the 'Available Commands:' block (a wrapped Long line starting with check/brief must not count; add a test); map a negative rk ExitCode (signal-killed) to exit 1 -->
 - [x] T002 Add `src/go/fab/cmd/fab/operator_handover_test.go`: matcher table test using captured v3.22.12 help (no `check`/`brief` rows; include a decoy line mentioning "check" mid-sentence) → false, and v3.22.13 help → true; probe with rk absent (empty PATH) → false and no output. Set the package-level test default so `rkOperatorHandover` is stubbed false for all existing tests (e.g. in an existing `TestMain`, or per-test helper) <!-- R1, R8 -->
 
 ### Phase 2: Core Implementation
 
-- [x] T003 Wire the deprecation line into every `fab operator` subcommand (`track` + all its verbs, `tick-start`, `clock sync`, `state`, `branch-map` verbs, `time`) in `src/go/fab/cmd/fab/operator*.go`, firing only when the probe is true, and never on the bare launcher or `fab agent` <!-- R2 -->
-- [x] T004 Implement `track` delegation in `src/go/fab/cmd/fab/operator_track.go`: a generic `rkArgvFromChangedFlags(cmd)` builder (stringArray repeats, strings comma-join, skip `help`), per-verb delegation at the top of each RunE for add/list/rm/observe, and the `update` split (update-with-other-flags → pause → resume → note; stop at first non-zero; `--pause`+`--resume` usage error before any rk call). The delegated arm never opens fab's state file <!-- R3 -->
+- [x] T003 Wire the deprecation line into every `fab operator` subcommand (`track` + all its verbs, `tick-start`, `clock sync`, `state`, `branch-map` verbs, `time`) in `src/go/fab/cmd/fab/operator*.go`, firing only when the probe is true, and never on the bare launcher or `fab agent` <!-- R2 --> <!-- rework: 'track clock' must not print 'delegating to rk cron edit' — it delegates nothing; use no-counterpart/refusal wording and update TestOperatorReplacement -->
+- [x] T004 Implement `track` delegation in `src/go/fab/cmd/fab/operator_track.go`: a generic `rkArgvFromChangedFlags(cmd)` builder (stringArray repeats, strings comma-join, skip `help`), per-verb delegation at the top of each RunE for add/list/rm/observe, and the `update` split (update-with-other-flags → pause → resume → note; stop at first non-zero; `--pause`+`--resume` usage error before any rk call). The delegated arm never opens fab's state file <!-- R3 --> <!-- rework: --text → 'rk operator track note <id> -- <text>' (insert '--' so a leading '-' or a bare '-' is not parsed as a flag/stdin); also make extract leaf verbs list/update/pause/resume/note and the deprecation format strings named constants (A-023) -->
 - [x] T005 Implement `tick-start` delegation in `src/go/fab/cmd/fab/operator_tick_start.go`: probe true → deprecation + `rk operator check` and nothing else <!-- R4 -->
 - [x] T006 Implement the `track clock` refusal (exit 1, pointer line, no rk call, no write) in `src/go/fab/cmd/fab/operator_track.go` (or wherever `track clock` lives) <!-- R5 -->
 - [x] T007 Implement the `clock sync` rk arm in `src/go/fab/cmd/fab/operator_clock_sync.go`: probe true → deprecation + `rk cron list` passthrough (inherited stdio, rk's exit code), before the state-file stat <!-- R6 -->
 - [x] T008 Add the cron-write gate in `src/go/fab/cmd/fab/operator_clock.go` at `ensureOperatorCronRow`/`seedOperatorCronRow`, `syncOperatorClock`, `muteOperatorClockIfUntracked`, `reconcileOperatorMute`, `reconcileOperatorSchedule`, and any clock-override path that issues `rk cron edit` (grep `rkCronRunner("cron"` to find every write site) <!-- R7 -->
-- [x] T009 Tests in `src/go/fab/cmd/fab/operator_handover_test.go` (or the matching `_test.go` files): with probe stubbed true and `rkCronRunner` + the delegate runner stubbed to record argv — add/list/rm/observe argv; update split ordering and stop-on-failure; `--pause --resume` usage error with zero rk calls; tick-start → `operator check`; track clock → exit 1 with zero rk calls; clock sync → only `cron list`; gate → no `cron add`/`cron mute`/`cron edit` from `syncOperatorClock(false,true)`, `reconcileOperatorMute`, `muteOperatorClockIfUntracked`, `ensureOperatorCronRow`, `reconcileOperatorSchedule`; delegated verbs leave a temp `XDG_STATE_HOME` empty; deprecation line on stderr only. The delegate runner needs an injectable seam (e.g. `rkDelegateRunner`) so no real rk runs <!-- R2, R3, R4, R5, R6, R7 -->
+- [x] T009 Tests in `src/go/fab/cmd/fab/operator_handover_test.go` (or the matching `_test.go` files): with probe stubbed true and `rkCronRunner` + the delegate runner stubbed to record argv — add/list/rm/observe argv; update split ordering and stop-on-failure; `--pause --resume` usage error with zero rk calls; tick-start → `operator check`; track clock → exit 1 with zero rk calls; clock sync → only `cron list`; gate → no `cron add`/`cron mute`/`cron edit` from `syncOperatorClock(false,true)`, `reconcileOperatorMute`, `muteOperatorClockIfUntracked`, `ensureOperatorCronRow`, `reconcileOperatorSchedule`; delegated verbs leave a temp `XDG_STATE_HOME` empty; deprecation line on stderr only. The delegate runner needs an injectable seam (e.g. `rkDelegateRunner`) so no real rk runs <!-- R2, R3, R4, R5, R6, R7 --> <!-- rework: cover the '--' note argv, the Available-Commands-scoped matcher decoy, the track-clock deprecation wording, and the negative-exit-code → 1 mapping -->
 - [x] T010 Run `go test ./...` in `src/go/fab` with the probe defaulting to false and confirm all pre-existing operator tests pass unchanged <!-- R8 -->
 
 ### Phase 3: Integration & Edge Cases
@@ -336,9 +336,11 @@ now, which breaks rk-less users and is F2's job.
 
 ### Phase 4: Polish
 
-- [x] T015 Update `src/kit/skills/_cli-fab-operator.md` (probe, deprecation, mapping table incl. update split + note-append shift, tick-start, track clock refusal, clock sync arm, cron-write gate, fallback unchanged). Add one-sentence delegation notes to the Go `Long` help of delegated verbs. Update `src/kit/skills/fab-help.md`, `src/go/fab/cmd/fab/fab_help.go` and `src/go/fab/cmd/fab/skill.md` where they describe `/fab-operator` <!-- R13 -->
-- [x] T016 [P] Update `docs/specs/operator.md` (v14 row + one-line note) and the `/fab-operator` section of `docs/specs/skills.md` per R14 <!-- R14 -->
+- [x] T015 Update `src/kit/skills/_cli-fab-operator.md` (probe, deprecation, mapping table incl. update split + note-append shift, tick-start, track clock refusal, clock sync arm, cron-write gate, fallback unchanged). Add one-sentence delegation notes to the Go `Long` help of delegated verbs. Update `src/kit/skills/fab-help.md`, `src/go/fab/cmd/fab/fab_help.go` and `src/go/fab/cmd/fab/skill.md` where they describe `/fab-operator` <!-- R13 --> <!-- rework: MUST-FIX _cli-fab-operator.md:28 still says 'The operator subcommand family is never delegated' — qualify it to defer to § Hand-over to HexoKit; re-sweep the file for any other never-delegated claim -->
+- [x] T016 [P] Update `docs/specs/operator.md` (v14 row + one-line note) and the `/fab-operator` section of `docs/specs/skills.md` per R14 <!-- R14 --> <!-- rework: docs/specs/architecture.md:504's list of deployed underscore partials omits _operator-legacy.md — add it (aggregate-spec sibling sweep) -->
 - [x] T017 Run `go test ./...` in both `src/go/fab` and `src/go/fab-kit` (includes `TestKitContentCitesNoRepoLocalPaths`, `clifab_doc_test`, `fab_help_test`) and `gofmt -l`. Do not run `fab sync` <!-- R8, R12, R13 -->
+
+- [x] T018 Rework cycle 2 (revise plan — aggregate-spec sibling sweep): (a) `docs/specs/skills.md` ~:54 helpers mapping row: `fab-operator` now declares no helpers; add/re-point the row so `_operator-legacy` carries `[_cli-fab-operator, _cli-fab-pane, _cli-agents, _cli-external]`; (b) `docs/specs/skills.md` ~:151 always-load exceptions: `/fab-operator` is a pointer that loads nothing, and its `_operator-legacy` fallback loads the reduced config/constitution/context set (match `src/kit/skills/_preamble.md` ~:50); (c) `docs/specs/architecture.md` ~:500 user-level pointer row: add that it tries `rk skill operator` first (match `fab-setup.md` / `docs/site/skill.md` wording); (d) `src/kit/skills/_cli-fab-operator.md` § Hand-over to HexoKit: name the second semantic shift — delegated `track add` without `--mode` leaves mode unset under rk (fab's `autopilot.merge_mode` config default no longer applies); (e) nice-to-have: make `add`/`rm`/`observe` named constants like `rkListVerb`, and add a one-line comment that `update --pause=false`/`--resume=false` alone is an intended no-op. Then grep `docs/specs/` and `src/kit/` once more for any remaining per-skill fact that still describes `/fab-operator` as the full operator <!-- R13, R14 -->
 
 ## Execution Order
 
@@ -350,52 +352,56 @@ now, which breaks rk-less users and is F2's job.
 
 ### Functional Completeness
 
-- [ ] A-001 R1: The probe returns true only for help text with `check` and `brief` command rows, is memoized, LookPath-gated and fail-silent
-- [ ] A-002 R2: Every `fab operator` subcommand prints exactly one stderr deprecation line under a capable rk, and none otherwise; the bare launcher and `fab agent` never print it
-- [ ] A-003 R3: `track add/list/rm/observe/update` delegate with correctly rebuilt argv, inherited stdio and rk's exit code; `update` splits into update → pause → resume → note
-- [ ] A-004 R4: `tick-start [--diff] [--quiet]` delegates to exactly `rk operator check` and writes no fab state
-- [ ] A-005 R5: `track clock` under a capable rk exits 1 with the `rk cron edit`/`mute --for` pointer and makes no rk call
-- [ ] A-006 R6: `clock sync` under a capable rk runs only `rk cron list`
-- [ ] A-007 R7: No `rk cron add`, `rk cron mute` (either direction) or `rk cron edit` is issued by any clock path while the probe is true
-- [ ] A-008 R9: `fab-operator.md` is a short rk-first pointer with the heading-checked probe, adopt hint and legacy fallback
-- [ ] A-009 R10: `_operator-legacy.md` holds the previous body verbatim under internal-partial frontmatter with the original helpers, and kit cross-references to legacy sections point at it
-- [ ] A-010 R11: The user-level template probes `rk skill operator` first, then keeps today's two steps
-- [ ] A-011 R12: The migration file exists with Summary/Pre-check/Changes/Verification, no-edit/no-data-move statements, adopt + loop-seed/mute + rollback steps
-- [ ] A-012 R13: `_cli-fab-operator.md`, `_preamble.md`, fab-help surfaces and Go help text describe the hand-over consistently
-- [ ] A-013 R14: `docs/specs/operator.md` and `docs/specs/skills.md` carry the hand-over row/section
+- [x] A-001 R1: The probe returns true only for help text with `check` and `brief` command rows, is memoized, LookPath-gated and fail-silent
+- [x] A-002 R2: Every `fab operator` subcommand prints exactly one stderr deprecation line under a capable rk, and none otherwise; the bare launcher and `fab agent` never print it
+- [x] A-003 R3: `track add/list/rm/observe/update` delegate with correctly rebuilt argv, inherited stdio and rk's exit code; `update` splits into update → pause → resume → note
+- [x] A-004 R4: `tick-start [--diff] [--quiet]` delegates to exactly `rk operator check` and writes no fab state
+- [x] A-005 R5: `track clock` under a capable rk exits 1 with the `rk cron edit`/`mute --for` pointer and makes no rk call
+- [x] A-006 R6: `clock sync` under a capable rk runs only `rk cron list`
+- [x] A-007 R7: No `rk cron add`, `rk cron mute` (either direction) or `rk cron edit` is issued by any clock path while the probe is true
+- [x] A-008 R9: `fab-operator.md` is a short rk-first pointer with the heading-checked probe, adopt hint and legacy fallback
+- [x] A-009 R10: `_operator-legacy.md` holds the previous body verbatim under internal-partial frontmatter with the original helpers, and kit cross-references to legacy sections point at it
+- [x] A-010 R11: The user-level template probes `rk skill operator` first, then keeps today's two steps
+- [x] A-011 R12: The migration file exists with Summary/Pre-check/Changes/Verification, no-edit/no-data-move statements, adopt + loop-seed/mute + rollback steps
+- [x] A-012 R13: `_cli-fab-operator.md`, `_preamble.md`, fab-help surfaces and Go help text describe the hand-over consistently
+- [x] A-013 R14: `docs/specs/operator.md` and `docs/specs/skills.md` carry the hand-over row/section
 
 ### Behavioral Correctness
 
-- [ ] A-014 R8: With the probe false, every pre-existing operator test passes without modification beyond the stub default
-- [ ] A-015 R7: The tracked-set untracked→tracked flip no longer issues `mute --off` under a capable rk (regression test present)
+- [x] A-014 R8: With the probe false, every pre-existing operator test passes without modification beyond the stub default
+- [x] A-015 R7: The tracked-set untracked→tracked flip no longer issues `mute --off` under a capable rk (regression test present)
 
 ### Scenario Coverage
 
-- [ ] A-016 R1: Tests cover v3.22.12 help (false, including a decoy mid-sentence "check"), v3.22.13 help (true), and rk absent (false)
-- [ ] A-017 R3: Tests cover the mixed `update` split ordering, stop-on-first-failure, and `--pause --resume` usage error with zero rk calls
+- [x] A-016 R1: Tests cover v3.22.12 help (false, including a decoy mid-sentence "check"), v3.22.13 help (true), and rk absent (false)
+- [x] A-017 R3: Tests cover the mixed `update` split ordering, stop-on-first-failure, and `--pause --resume` usage error with zero rk calls
 
 ### Edge Cases & Error Handling
 
-- [ ] A-018 R3: A delegate whose rk process cannot start returns exit 1 with an error, and a non-zero rk exit is propagated unchanged
-- [ ] A-019 R3: Delegated verbs neither create nor modify fab's state file (temp `XDG_STATE_HOME` stays empty)
+- [x] A-018 R3: A delegate whose rk process cannot start returns exit 1 with an error, and a non-zero rk exit is propagated unchanged
+- [x] A-019 R3: Delegated verbs neither create nor modify fab's state file (temp `XDG_STATE_HOME` stays empty)
 
 ### Code Quality
 
-- [ ] A-020 Pattern consistency: New seams mirror `rkOperatorPath`/`rkCronRunner` (injectable package vars, argv-only, bounded, fail-silent); naming matches the surrounding `operator_*.go` files
-- [ ] A-021 No unnecessary duplication: One argv builder and one delegate runner serve every delegated verb; `pane.RunCmdContext`/existing exec helpers are reused where they fit
-- [ ] A-022 Readability over cleverness: Delegation is a short early-return arm at the top of each RunE, not interleaved with fallback logic; no god functions (>50 lines) introduced
-- [ ] A-023 No magic strings: rk verb names, the help-row tokens and the deprecation template are named constants
-- [ ] A-024 CLI ⇒ docs + tests: Every changed `fab operator` behaviour is documented in `_cli-fab-operator.md` and covered by tests
-- [ ] A-025 Canonical source only: No edits under `.agents/skills/` or `.claude/skills/`; kit changes live in `src/kit/`
-- [ ] A-026 Deployed content cites no fab-kit-only paths: The pointer, legacy partial, template and migration pass `TestKitContentCitesNoRepoLocalPaths`
-- [ ] A-027 Owner-or-pointer: The probe success rule is stated once in the pointer skill (owner) and referenced, not restated, by the template, or restated only because the template is a separately generated file. A justification comment is acceptable
-- [ ] A-028 Sibling sweep: All `fab-operator.md §` legacy-section citations across `src/kit/` and the aggregate specs are updated
+- [x] A-020 Pattern consistency: New seams mirror `rkOperatorPath`/`rkCronRunner` (injectable package vars, argv-only, bounded, fail-silent); naming matches the surrounding `operator_*.go` files
+- [x] A-021 No unnecessary duplication: One argv builder and one delegate runner serve every delegated verb; `pane.RunCmdContext`/existing exec helpers are reused where they fit
+- [x] A-022 Readability over cleverness: Delegation is a short early-return arm at the top of each RunE, not interleaved with fallback logic; no god functions (>50 lines) introduced
+- [x] A-023 No magic strings: rk verb names (operator/track/cron/check/brief and the leaf verbs list/update/pause/resume/note), the help-row header, the `--` terminator and the deprecation templates are named constants
+- [x] A-024 CLI ⇒ docs + tests: Every changed `fab operator` behaviour is documented in `_cli-fab-operator.md` and covered by tests
+- [x] A-025 Canonical source only: No edits under `.agents/skills/` or `.claude/skills/`; kit changes live in `src/kit/`
+- [x] A-026 Deployed content cites no fab-kit-only paths: The pointer, legacy partial, template and migration pass `TestKitContentCitesNoRepoLocalPaths`
+- [x] A-027 Owner-or-pointer: The probe success rule is stated once in the pointer skill (owner) and referenced, not restated, by the template, or restated only because the template is a separately generated file. A justification comment is acceptable
+- [x] A-028 Sibling sweep: All `fab-operator.md §` legacy-section citations across `src/kit/` and the aggregate specs are updated
 
 ## Notes
 
 - Check items as you review: `- [x]`
 - All acceptance items must pass before `/fab-continue` (hydrate)
 - If an item is not applicable, mark checked and prefix with **N/A**: `- [x] A-NNN **N/A**: {reason}`
+
+## Deletion Candidates
+
+- None — this change adds the hand-over arm without making existing code redundant: every fallback path (`runOperatorTrack*`, `runOperatorTickStart`, `runOperatorClockSync`, the clock reconcile, the legacy skill body) stays reachable when the probe is false, and its removal is the plan's later deletion step, not this change's.
 
 ## Assumptions
 

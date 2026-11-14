@@ -50,7 +50,7 @@ func operatorTrackAddCmd() *cobra.Command {
 		Short: "Add a tracked item (the kind fills its defaults; flags override)",
 		Long:  "Add a tracked item (the kind fills its defaults; flags override)\n\nUnder a capable rk (HexoKit's operator), this verb is deprecated and delegates to 'rk operator track add'.",
 		Args:  cobra.ExactArgs(1),
-		RunE:  handoverOr(delegateTrackVerb("add"), runOperatorTrackAdd),
+		RunE:  handoverOr(delegateTrackVerb(rkAddVerb), runOperatorTrackAdd),
 	}
 	f := cmd.Flags()
 	f.String("kind", "", "item kind: pane | github-pr | linear | slack | shell | task | note (required)")
@@ -580,7 +580,7 @@ func operatorTrackRmCmd() *cobra.Command {
 		Short: "Remove a tracked item (the ack for done; a pane item's branch_map entry is retained)",
 		Long:  "Remove a tracked item (the ack for done; a pane item's branch_map entry is retained)\n\nUnder a capable rk (HexoKit's operator), this verb is deprecated and delegates to 'rk operator track rm'.",
 		Args:  cobra.ExactArgs(1),
-		RunE:  handoverOr(delegateTrackVerb("rm"), runOperatorTrackRm),
+		RunE:  handoverOr(delegateTrackVerb(rkRmVerb), runOperatorTrackRm),
 	}
 }
 
@@ -643,7 +643,7 @@ func operatorTrackObserveCmd() *cobra.Command {
 		Short: "Record an agent-probe result (--json) or failure (--error) for a tracked item",
 		Long:  "Record an agent-probe result (--json) or failure (--error) for a tracked item\n\nUnder a capable rk (HexoKit's operator), this verb is deprecated and delegates to 'rk operator track observe'.",
 		Args:  cobra.ExactArgs(1),
-		RunE:  handoverOr(delegateTrackVerb("observe"), runOperatorTrackObserve),
+		RunE:  handoverOr(delegateTrackVerb(rkObserveVerb), runOperatorTrackObserve),
 	}
 	cmd.Flags().String("json", "", "observed fields as a JSON object (stored per probe.fields, or whole when fields is empty)")
 	cmd.Flags().String("error", "", "probe failure message (increments failures; the third pauses the item)")
@@ -797,7 +797,7 @@ func operatorTrackListCmd() *cobra.Command {
 		Short: "List tracked items (one line per item: id · kind · state · checked age · next)",
 		Long:  "List tracked items (one line per item: id · kind · state · checked age · next)\n\nUnder a capable rk (HexoKit's operator), this verb is deprecated and delegates to 'rk operator track list'.",
 		Args:  cobra.NoArgs,
-		RunE:  handoverOr(delegateTrackVerb("list"), runOperatorTrackList),
+		RunE:  handoverOr(delegateTrackVerb(rkListVerb), runOperatorTrackList),
 	}
 	cmd.Flags().String("kind", "", "filter to one kind")
 	cmd.Flags().Bool("json", false, "print the items array as JSON")

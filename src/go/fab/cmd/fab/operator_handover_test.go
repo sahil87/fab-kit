@@ -52,6 +52,11 @@ func TestRkHelpHasHandover(t *testing.T) {
 		{"check only", "Available Commands:\n  check   x\n", false},
 		{"brief only", "Available Commands:\n  brief   x\n", false},
 		{"empty", "", false},
+		// A description line outside Available Commands that starts with
+		// "check"/"brief" is not a row.
+		{"decoy outside block", "Open the operator.\n\ncheck the operator\nbrief yourself first\n\nAvailable Commands:\n  adopt   x\n\nFlags:\n  -h, --help\n", false},
+		{"decoy after block", "Available Commands:\n  adopt   x\n\ncheck    wrapped line\nbrief    wrapped line\n", false},
+		{"no header", "  check   x\n  brief   y\n", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -227,9 +232,11 @@ func TestHandoverTrackUpdateSplit(t *testing.T) {
 			[][]string{{"operator", "track", "update", "w1", "--then", "x"}, {"operator", "track", "pause", "w1"}}},
 		{"pause only", []string{"track", "update", "w1", "--pause"}, [][]string{{"operator", "track", "pause", "w1"}}},
 		{"resume only", []string{"track", "update", "w1", "--resume"}, [][]string{{"operator", "track", "resume", "w1"}}},
-		{"text only", []string{"track", "update", "w1", "--text", "hello"}, [][]string{{"operator", "track", "note", "w1", "hello"}}},
+		{"text only", []string{"track", "update", "w1", "--text", "hello"}, [][]string{{"operator", "track", "note", "w1", "--", "hello"}}},
 		{"update then note", []string{"track", "update", "w1", "--check-every", "5m", "--text", "t"},
-			[][]string{{"operator", "track", "update", "w1", "--check-every", "5m"}, {"operator", "track", "note", "w1", "t"}}},
+			[][]string{{"operator", "track", "update", "w1", "--check-every", "5m"}, {"operator", "track", "note", "w1", "--", "t"}}},
+		{"dash-leading text", []string{"track", "update", "w1", "--text", "--force"}, [][]string{{"operator", "track", "note", "w1", "--", "--force"}}},
+		{"bare dash text", []string{"track", "update", "w1", "--text", "-"}, [][]string{{"operator", "track", "note", "w1", "--", "-"}}},
 		{"plain update", []string{"track", "update", "w1", "--depends-on", "a,b"},
 			[][]string{{"operator", "track", "update", "w1", "--depends-on", "a,b"}}},
 	}
@@ -285,6 +292,14 @@ func TestHandoverDelegateExitCodes(t *testing.T) {
 			t.Errorf("exit = %d, want 5", code)
 		}
 	})
+	t.Run("signal-killed rk (negative code) maps to 1", func(t *testing.T) {
+		stubOperatorHandover(t, true)
+		handoverSandbox(t)
+		stubRkDelegate(t, nil, -1)
+		if code, _, _ := runFabOp("operator", "track", "rm", "w1"); code != 1 {
+			t.Errorf("exit = %d, want 1", code)
+		}
+	})
 	t.Run("rk cannot start", func(t *testing.T) {
 		stubOperatorHandover(t, true)
 		handoverSandbox(t)
@@ -338,6 +353,15 @@ func TestHandoverTrackClockRefused(t *testing.T) {
 		t.Errorf("rk calls = %v / cron calls = %v, want none", *calls, *cron)
 	}
 	assertNoStateFile(t, statePath)
+	if n := countDeprecations(stderr); n != 1 {
+		t.Errorf("deprecation lines = %d, want 1 (stderr %q)", n, stderr)
+	}
+	if strings.Contains(stderr, "delegating to") {
+		t.Errorf("stderr = %q: track clock delegates nothing, so the deprecation line must not say it does", stderr)
+	}
+	if !strings.Contains(stderr, "no rk counterpart") {
+		t.Errorf("stderr = %q, want the no-counterpart deprecation wording", stderr)
+	}
 }
 
 // --- R6: clock sync -----------------------------------------------------------
@@ -413,7 +437,7 @@ func TestOperatorReplacement(t *testing.T) {
 		"track add":   "rk operator track add",
 		"tick-start":  "rk operator check",
 		"clock sync":  "rk cron list",
-		"track clock": "rk cron edit",
+		"track clock": "",
 		"time":        "",
 		"state":       "",
 	} {

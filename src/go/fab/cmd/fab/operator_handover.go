@@ -31,18 +31,46 @@ const (
 	// must list for the hand-over to be live.
 	rkCheckVerb = "check"
 	rkBriefVerb = "brief"
+	// The leaf verbs under `rk operator track` (rkListVerb also names
+	// `rk cron list`).
+	rkAddVerb     = "add"
+	rkRmVerb      = "rm"
+	rkObserveVerb = "observe"
+	rkListVerb    = "list"
+	rkUpdateVerb  = "update"
+	rkPauseVerb   = "pause"
+	rkResumeVerb  = "resume"
+	rkNoteVerb    = "note"
+	// rkCommandsHeader opens the command listing in cobra help; the matcher
+	// scans only the block under it.
+	rkCommandsHeader = "Available Commands:"
+	// argsTerminator ends flag parsing so a following value that starts with
+	// "-" (or is a bare "-") is a positional.
+	argsTerminator = "--"
+
+	// Deprecation line templates: a verb with an rk counterpart delegates to
+	// it; one without says so.
+	deprecationDelegateFmt  = "fab operator %s is deprecated — delegating to '%s' (HexoKit now owns the operator)\n"
+	deprecationNoCounterFmt = "fab operator %s is deprecated — HexoKit now owns the operator ('rk operator'); no rk counterpart\n"
+	// trackClockRefusal is the `track clock` refusal line under a capable rk.
+	trackClockRefusal = "fab operator track clock no longer sets the clock: tune the 'operator loop' entry with 'rk cron edit <id>' or 'rk cron mute <id> --for <dur>' (find the id with 'rk cron list')"
 )
 
 // rkHelpHasHandover is the pure help-text matcher behind the probe: true only
-// when the help's command listing carries a row for BOTH `check` and `brief`.
-// A row is a line whose first whitespace-delimited token is the subcommand
-// name — a mid-sentence mention is not a row.
+// when the `Available Commands:` block carries a row for BOTH `check` and
+// `brief`. A row is a line in that block (it ends at the first blank line)
+// whose first whitespace-delimited token is the subcommand name — a
+// mid-sentence mention, or a description line outside the block, is not a row.
 func rkHelpHasHandover(help string) bool {
-	var check, brief bool
+	var check, brief, inBlock bool
 	for _, line := range strings.Split(help, "\n") {
 		fields := strings.Fields(line)
-		if len(fields) == 0 {
+		if !inBlock {
+			inBlock = strings.TrimSpace(line) == rkCommandsHeader
 			continue
+		}
+		if len(fields) == 0 {
+			break
 		}
 		switch fields[0] {
 		case rkCheckVerb:
@@ -104,11 +132,15 @@ var rkDelegateRunner = func(args ...string) (int, error) {
 
 // runRkDelegate runs one rk invocation through the seam and maps the outcome
 // to fab's: a start failure is an operational error (exit 1), a non-zero rk
-// exit becomes the same fab exit code.
+// exit becomes the same fab exit code, and a negative code (rk killed by a
+// signal, reported as -1 by os/exec) becomes exit 1.
 func runRkDelegate(args ...string) error {
 	code, err := rkDelegateRunner(args...)
 	if err != nil {
 		return fmt.Errorf("cannot run rk %s: %w", strings.Join(args, " "), err)
+	}
+	if code < 0 {
+		code = 1
 	}
 	if code != 0 {
 		return &exitCodeError{code: code}
@@ -130,7 +162,8 @@ func handoverOr(delegate, fallback func(cmd *cobra.Command, args []string) error
 
 // operatorReplacement names the rk command replacing a fab operator verb
 // (keyed by the verb path under `fab operator`); verbs with no rk
-// counterpart map to "".
+// counterpart (`track clock` included — it is refused, not delegated) map to
+// "".
 func operatorReplacement(verb string) string {
 	switch {
 	case verb == "tick-start":
@@ -138,7 +171,7 @@ func operatorReplacement(verb string) string {
 	case verb == "clock sync":
 		return "rk cron list"
 	case verb == "track clock":
-		return "rk cron edit"
+		return ""
 	case strings.HasPrefix(verb, "track "):
 		return "rk operator " + verb
 	}
@@ -148,10 +181,10 @@ func operatorReplacement(verb string) string {
 // printOperatorDeprecation writes the one-line deprecation notice for a verb.
 func printOperatorDeprecation(w io.Writer, verb string) {
 	if repl := operatorReplacement(verb); repl != "" {
-		fmt.Fprintf(w, "fab operator %s is deprecated — delegating to '%s' (HexoKit now owns the operator)\n", verb, repl)
+		fmt.Fprintf(w, deprecationDelegateFmt, verb, repl)
 		return
 	}
-	fmt.Fprintf(w, "fab operator %s is deprecated — HexoKit now owns the operator ('rk operator'); no rk counterpart\n", verb)
+	fmt.Fprintf(w, deprecationNoCounterFmt, verb)
 }
 
 // operatorDeprecationHook is the PersistentPreRunE on `fab operator`: under a
@@ -216,17 +249,19 @@ func delegateTrackUpdate(cmd *cobra.Command, args []string) error {
 	f := cmd.Flags()
 	steps := [][]string{}
 	if rest := rkArgvFromChangedFlags(cmd, "pause", "resume", "text"); len(rest) > 0 || !(f.Changed("pause") || f.Changed("resume") || f.Changed("text")) {
-		steps = append(steps, append([]string{rkOperatorVerb, rkTrackVerb, "update", id}, rest...))
+		steps = append(steps, append([]string{rkOperatorVerb, rkTrackVerb, rkUpdateVerb, id}, rest...))
 	}
+	// `--pause=false` / `--resume=false` on its own is an intended no-op: no
+	// update step (a flag is "changed") and no pause/resume step either.
 	if pause, _ := f.GetBool("pause"); f.Changed("pause") && pause {
-		steps = append(steps, []string{rkOperatorVerb, rkTrackVerb, "pause", id})
+		steps = append(steps, []string{rkOperatorVerb, rkTrackVerb, rkPauseVerb, id})
 	}
 	if resume, _ := f.GetBool("resume"); f.Changed("resume") && resume {
-		steps = append(steps, []string{rkOperatorVerb, rkTrackVerb, "resume", id})
+		steps = append(steps, []string{rkOperatorVerb, rkTrackVerb, rkResumeVerb, id})
 	}
 	if f.Changed("text") {
 		text, _ := f.GetString("text")
-		steps = append(steps, []string{rkOperatorVerb, rkTrackVerb, "note", id, text})
+		steps = append(steps, []string{rkOperatorVerb, rkTrackVerb, rkNoteVerb, id, argsTerminator, text})
 	}
 	for _, argv := range steps {
 		if err := runRkDelegate(argv...); err != nil {
@@ -245,12 +280,12 @@ func delegateTickStart(cmd *cobra.Command, args []string) error {
 // delegateClockSync shows rk's cron entries in place of seeding or reconciling
 // anything.
 func delegateClockSync(cmd *cobra.Command, args []string) error {
-	return runRkDelegate(rkCronVerb, "list")
+	return runRkDelegate(rkCronVerb, rkListVerb)
 }
 
 // refuseTrackClock is `track clock` under a capable rk: it writes nothing and
 // points at the rk cron verbs that now own the operator loop's cadence.
 func refuseTrackClock(cmd *cobra.Command, args []string) error {
-	fmt.Fprintln(cmd.ErrOrStderr(), "fab operator track clock no longer sets the clock: tune the 'operator loop' entry with 'rk cron edit <id>' or 'rk cron mute <id> --for <dur>' (find the id with 'rk cron list')")
+	fmt.Fprintln(cmd.ErrOrStderr(), trackClockRefusal)
 	return &exitCodeError{code: 1}
 }
