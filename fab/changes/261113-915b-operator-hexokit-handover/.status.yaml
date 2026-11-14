@@ -9,7 +9,7 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
+    ship: done
     review-pr: pending
 plan:
     generated: true
@@ -33,14 +33,15 @@ stage_metrics:
     apply: {started_at: "2026-11-14T08:04:23Z", driver: fab-fff, iterations: 3, completed_at: "2026-11-14T08:06:35Z"}
     review: {started_at: "2026-11-14T08:06:35Z", driver: fab-fff, iterations: 3, completed_at: "2026-11-14T08:09:56Z"}
     hydrate: {started_at: "2026-11-14T08:09:56Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-14T08:13:45Z"}
-    ship: {started_at: "2026-11-14T08:13:45Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-11-14T08:13:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-14T08:14:54Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/701
 base_branch: main
 change_type_source: explicit
 true_impact:
-    added: 2736
-    deleted: 899
-    net: 1837
+    added: 2816
+    deleted: 928
+    net: 1888
     excluding:
         added: 1870
         deleted: 892
@@ -49,9 +50,9 @@ true_impact:
         added: 524
         deleted: 0
         net: 524
-    computed_at: "2026-11-14T08:13:45Z"
-    computed_at_stage: hydrate
+    computed_at: "2026-11-14T08:14:54Z"
+    computed_at_stage: ship
 summary: 'Operator hand-over to HexoKit: runtime/operator gains § HexoKit Hand-over (probe, deprecation, delegation mapping, track clock refusal, clock sync passthrough, cron-write gate, rk-first pointer + _operator-legacy fallback) and three Design Decisions; legacy fab-operator.md § citations re-pointed to _operator-legacy.md across operator/agent-primitives/kit-architecture/context-loading; kit-architecture + migrations + setup updated'
 # base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-11-14T08:13:45Z
+last_updated: 2026-11-14T08:14:54Z
