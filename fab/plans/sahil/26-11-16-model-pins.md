@@ -11,7 +11,7 @@ model strings, so a stale one only fails when a stage dispatches. Six things cau
    so the pin never moves when the kit ships a newer model.
 2. **The kit's Claude fills are concrete IDs** (`claude-opus-5-5`, `claude-sonnet-5-5`). Even an
    unpinned config waits for a kit release; the providers advert has been re-rolled four times for
-   Claude ID bumps alone (`configupgrade.go` legacy digests, 260908-wcib → 261030-lc7k).
+   Claude fill changes alone (`configupgrade.go` legacy digests, 260908-wcib → 261030-lc7k).
 3. **The model list is the kit's guess, not the tool's truth.** The UI's suggestions are the kit's
    fills, so they lag the tools (codex's own default is already `gpt-6.1-sol`; fab's fill is
    `gpt-5.6-sol`) and never show models the user added (custom Claude Code models, kimi aliases).
@@ -85,7 +85,9 @@ you come back to edit.
     for agy and kimi, whose commands carry no `{effort}`.
   - **Rename exposure:** `providerNames` derives the tool list from `providers.` rows of
     `fab config show --json`, and writes go to `agent.profiles.<role>.provider`. A fab release
-    that renames both without aliases empties the tool list and fails every tool write.
+    that renames both without aliases empties the tool list and fails every tool write. rk's spawn
+    path is not exposed: `riff.ResolveAgent` reads only `command` and `skill_prefix` from
+    `fab agent -o yaml`, never `provider:`.
 - **Rename size:** "provider" appears ~1,000 times in fab-kit Go (non-test), ~490 in `src/kit`,
   ~1,400 in docs; ~130 in hexokit's Agents tab code.
 - **User's machine config** (`~/.fab-kit/config.yaml`): `agent.profiles.review: { provider: codex, model: gpt-5.6-sol, effort: high }`.
@@ -103,7 +105,9 @@ you come back to edit.
 3. Merge mode: `cherry-pick-ladder` (PRs created, merged after the user's review). A cross-repo
    dependency means "merged **and released**", not just merged.
 4. Same-repo steps that edit the same files run in order, not in parallel: fab-kit
-   F1 → N1 → (F2, D1, F3); hexokit H1 → H2 → H5 → H4 → H3.
+   F1 → D1 → F3 → F2 → N1; hexokit H1 → H2 → H5 → H4 → H3. The rename comes **last** so the
+   steps that fix the user's problem never wait on it; D1/F3/F2 use today's `provider` spelling
+   and N1 renames them with everything else.
 5. **N1 must not be released before H5 is released.** H5 makes hexokit read both spellings, so the
    Agents tab keeps working on either side of the rename.
 6. U1 edits the user's machine config. The operator never does it; it reminds the user once.
@@ -119,14 +123,15 @@ you come back to edit.
 | **H1** | hexokit | Role model cell: inherit-first list that opens unfiltered, custom entry, stale-pin flag, tool change resets model/effort | — | M | — |
 | **H2** | hexokit | Backend: inherit label honours `profiles.default`; effort disabled for tools without `{effort}` | H1 | S | — |
 | **H5** | hexokit | Read and write both `providers`/`provider` and `clis`/`cli` spellings; relabel "Provider" → "CLI" | H2 | S | — |
-| **N1** | fab-kit | Rename provider → cli across config, flags, output, skills and docs, with a deprecation window | F1, H5 **released** before N1 releases | L | — |
-| **D1** | fab-kit | `fab agent models`: ask each tool for its models | N1 | M | — |
-| **F3** | fab-kit | Native rung descends when the model has no Agent-tool alias | N1 | S | — |
-| **F2** | fab-kit | Reserved "use the tool's default" model value | N1 | S | **user gate** (pick the token) |
+| **D1** | fab-kit | `fab agent models`: ask each tool for its models | F1 | M | — |
+| **F3** | fab-kit | Native rung descends when the model has no Agent-tool alias | D1 | S | — |
+| **F2** | fab-kit | Reserved "use the tool's default" model value | F3 | S | **user gate** (pick the token) |
+| **N1** | fab-kit | Rename provider → cli across config, flags, output, skills and docs, with a deprecation window | F2, H5 **released** before N1 releases | L | — |
 | **H4** | hexokit | Suggestions and per-model efforts from `fab agent models` | D1 released, H5 | M | — |
 | **H3** | hexokit | Offer the F2 value in the model list | F2 released, H4 | S | — |
 
-F1 and H1 start at once. H1 fixes the bug the user hit and needs nothing from fab.
+F1 and H1 start at once. H1 fixes the bug the user hit and needs nothing from fab. N1 is last on
+purpose: it is the largest step, it waits on a hexokit release, and nothing the user feels depends on it.
 
 ---
 
@@ -171,7 +176,9 @@ In `settings-agents-panel.tsx`:
   (kimi reports hundreds of aliases) without changing the option order or commit behaviour.
 - **Stale pin:** replace the bare ⚠ (`mismatch`) with an inline note: "pinned to `<value>`, which
   `<tool>` doesn't offer — inherit `<inherited>` instead?" plus a one-click action that commits
-  `null`. Show it only when the suggestion list is non-empty and lacks the override.
+  `null`. Show it only when the suggestion list is non-empty and lacks the override. For claude
+  the wording is "not in the list — inherit `<inherited>` to track the latest", because Claude Code
+  accepts any full model ID: a pinned `claude-opus-5-5` is stale, not invalid.
 - **Tool change:** `RoleRow`'s tool `onChange` sends one patch `{provider: v, model: null, effort: null}`,
   leaving out the model key when the current model override is offered by the new tool and the
   effort key when the effort override is in `doc.effortSuggestions`. Picking "inherit" for the
@@ -220,7 +227,9 @@ The word is decided: `cli` (user, 2026-11-16), label "CLI", prose "CLI tool".
 - Rename Go identifiers, skill prose (`_cli-fab*.md`, `_preamble.md`, `fab-setup.md`, the
   operator skills), specs and memory. Where "provider" means a model vendor, leave it.
 - `docs/specs/glossary.md` gains "CLI tool" and records the rename.
-- Non-goals: any behaviour change. A pure rename plus compatibility.
+- Non-goals: any behaviour change. A pure rename plus compatibility. rk's own "provider" naming
+  for agent CLIs (`cmd/rk/agent_registry.go`, `riff`) is rk's business and out of scope; hexokit
+  relabels only the fab-facing Agents tab (H5).
 - Do not release until H5 is released (rule 5). State the deprecation window in the release notes.
 
 ### D1 — Ask each tool for its models (fab-kit)
@@ -239,7 +248,11 @@ New verb `fab agent models [<cli>] [--json]`, listing what each tool offers:
     top-level `model`. Efforts `low…max`.
   - **kimi:** `[models."<alias>"]` keys of `~/.kimi-code/config.toml`; default from `default_model`.
   - **agy:** fills only until someone probes what agy exposes.
-- User-defined tools: optional `clis.<name>.models_command` that prints the same JSON rows.
+- Config locations honour the tools' own overrides: `CLAUDE_CONFIG_DIR` (default `~/.claude`;
+  merge `settings.local.json` over `settings.json`), `CODEX_HOME` (default `~/.codex`), and
+  kimi's `~/.kimi-code`.
+- User-defined tools: optional `providers.<name>.models_command` that prints the same JSON rows
+  (N1 renames the key with the rest).
 - Read-only; no cache in v1 (callers fetch on demand). Note the codex surface is a debug command:
   pin its parse to the fields above and test against a recorded fixture.
 - Tests: each adapter against fixtures, including malformed input and timeout.
@@ -253,7 +266,8 @@ New verb `fab agent models [<cli>] [--json]`, listing what each tool offers:
 - Then: a non-empty model with an empty `model_alias` makes the native rung unavailable for that
   role, so resolution descends to the next rung the tool supports (headless for claude), and
   `fab agent -o yaml` says why (e.g. `dispatch.reason: model has no native alias`). An empty model
-  keeps today's inherit behaviour.
+  keeps today's inherit behaviour, and so will F2's token once it lands (F2 treats it as empty
+  before this rule runs).
 - Non-goals: aliasing custom models.
 
 ### F2 — "Use the tool's default" value (fab-kit, user gate)
@@ -264,6 +278,7 @@ Ask the user for the token before starting (proposal: `cli-default`). Then:
   tool's default applies) and for `model_alias` (empty → omit the Agent tool's `model` param, so
   the native rung inherits the session model).
 - `fab config set` accepts it where it refuses `""`. It is a real value, so it wins over lower tiers.
+- The token is exempt from F3's descend rule: it resolves to an empty model before the rung check.
 - `fab agent -o yaml` reports `model: ""` with `source.model` naming the key that held the token.
 - `fab agent models` (D1) shows it as the first row per tool, labelled with the discovered default
   (`tool default (gpt-6.1-sol)`).
@@ -296,3 +311,4 @@ Display a row holding the token as "tool default", not the raw string.
 | N1 | Length of the deprecation window for the old spellings (one minor release proposed) |
 | F2 | Token spelling (`cli-default` proposed). Must not collide with a real model id |
 | D1 | Whether to cache discovery (codex's call is a process launch per settings-page visit). v1 says no |
+| D1 | Whether `fab agent <stage> -o yaml` should warn on stderr when the resolved model is not in the discovered list — it would catch a stale pin before dispatch (the original complaint), at the cost of a tool launch per resolution. Candidate follow-up once D1 shows how fast discovery is |
