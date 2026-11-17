@@ -158,44 +158,48 @@ they enumerate native's prerequisites or the descent-reason strings.
 
 ### Functional Completeness
 
-- [ ] A-001 R1: `agent.HasNativeModel` exists in `internal/agent`, returns true for empty/aliases/versioned Claude IDs and false otherwise, and is the only native-alias predicate used by resolution and rung selection
-- [ ] A-002 R2: `SelectMode` takes a `NativeAvailability`; the no-capability skip text is still exactly `native unavailable`, and the alias skip text is `native unavailable: model has no native alias`
-- [ ] A-003 R3: `fab agent -o yaml` emits `dispatch.reason` after `command` when a descent happened and omits it otherwise; `fab resolve-agent` line output is unchanged in shape
-- [ ] A-004 R4: `dispatchResolutionFor`, `resolveMode`, the pane re-descent, and `ProbeDispatchMode` all apply the predicate
-- [ ] A-005 R5: The no-rung error for the alias case names the model and the missing alias, omits the `native` remedy, and wraps `ErrNoMode`
-- [ ] A-006 R6: An empty resolved model stays native; the F2 hand-off is documented in the predicate's comment and in the docs
-- [ ] A-007 R7: `_preamble.md`, `_cli-fab.md`, `_cli-fab-pane.md`, configref prose, `stage-models.md`, and `harness-adapters.md` state the native model prerequisite and the new reason string
+- [x] A-001 R1: `agent.HasNativeModel` exists in `internal/agent`, returns true for empty/aliases/versioned Claude IDs and false otherwise, and is the only native-alias predicate used by resolution and rung selection
+- [x] A-002 R2: `SelectMode` takes a `NativeAvailability`; the no-capability skip text is still exactly `native unavailable`, and the alias skip text is `native unavailable: model has no native alias`
+- [x] A-003 R3: `fab agent -o yaml` emits `dispatch.reason` after `command` when a descent happened and omits it otherwise; `fab resolve-agent` line output is unchanged in shape
+- [x] A-004 R4: `dispatchResolutionFor`, `resolveMode`, the pane re-descent, and `ProbeDispatchMode` all apply the predicate
+- [x] A-005 R5: The no-rung error for the alias case names the model and the missing alias, omits the `native` remedy, and wraps `ErrNoMode`
+- [x] A-006 R6: An empty resolved model stays native; the F2 hand-off is documented in the predicate's comment and in the docs
+- [x] A-007 R7: `_preamble.md`, `_cli-fab.md`, `_cli-fab-pane.md`, configref prose, `stage-models.md`, and `harness-adapters.md` state the native model prerequisite and the new reason string
 
 ### Behavioral Correctness
 
-- [ ] A-008 R1: A claude role pinned to `glm-latest[1m]` under `dispatch.mode: native` now resolves `dispatch.rung: headless` with the model in the command, instead of native
-- [ ] A-009 R4: `fab dispatch start` for that stage launches headless instead of refusing with `nativeDispatchError`
+- [x] A-008 R1: A claude role pinned to `glm-latest[1m]` under `dispatch.mode: native` now resolves `dispatch.rung: headless` with the model in the command, instead of native
+- [x] A-009 R4: `fab dispatch start` for that stage launches headless instead of refusing with `nativeDispatchError`
 
 ### Scenario Coverage
 
-- [ ] A-010 R2: Dispatch-package tests cover native-preference alias descent, pane+no-tmux two-rung descent, alias-caused `ErrNoMode`, and pane-with-tmux unaffected
-- [ ] A-011 R3: cmd tests cover glm reason, codex `native unavailable` reason, and no reason under headless preference
-- [ ] A-012 R4: a `fab dispatch start` test and a setupcheck probe test cover the alias descent
+- [x] A-010 R2: Dispatch-package tests cover native-preference alias descent, pane+no-tmux two-rung descent, alias-caused `ErrNoMode`, and pane-with-tmux unaffected
+- [x] A-011 R3: cmd tests cover glm reason, codex `native unavailable` reason, and no reason under headless preference
+- [x] A-012 R4: a `fab dispatch start` test and a setupcheck probe test cover the alias descent
 
 ### Edge Cases & Error Handling
 
-- [ ] A-013 R6: `--model=` (empty override) and unpinned alias fills keep the native rung (no `dispatch:`)
-- [ ] A-014 R5: native-only user provider + alias-less model produces the R5 error
+- [x] A-013 R6: `--model=` (empty override) and unpinned alias fills keep the native rung (no `dispatch:`)
+- [x] A-014 R5: native-only user provider + alias-less model produces the R5 error
 
 ### Code Quality
 
-- [ ] A-015 Pattern consistency: New code follows naming and structural patterns of surrounding code (`TmuxAvailability` idiom, pure selector, cobra-layer env reads)
-- [ ] A-016 No unnecessary duplication: the alias check exists once and every site reuses it
-- [ ] A-017 Readability over cleverness: no god functions introduced; `resolveMode`/`dispatchResolutionFor` stay focused
-- [ ] A-018 No magic strings: skip texts are named constants/values in `internal/dispatch`
-- [ ] A-019 Canonical source only: no edits under `.agents/skills/` or `.claude/skills/`; deployed skill edits cite no fab-kit-only paths
-- [ ] A-020 Go changes ship tests and the CLI reference partials (`_cli-fab.md`, `_cli-fab-pane.md`) are updated
+- [x] A-015 Pattern consistency: New code follows naming and structural patterns of surrounding code (`TmuxAvailability` idiom, pure selector, cobra-layer env reads)
+- [x] A-016 No unnecessary duplication: the alias check exists once and every site reuses it
+- [x] A-017 Readability over cleverness: no god functions introduced; `resolveMode`/`dispatchResolutionFor` stay focused
+- [x] A-018 No magic strings: skip texts are named constants/values in `internal/dispatch`
+- [x] A-019 Canonical source only: no edits under `.agents/skills/` or `.claude/skills/`; deployed skill edits cite no fab-kit-only paths
+- [x] A-020 Go changes ship tests and the CLI reference partials (`_cli-fab.md`, `_cli-fab-pane.md`) are updated
 
 ## Notes
 
 - Check items as you review: `- [x]`
 - All acceptance items must pass before `/fab-continue` (hydrate)
 - If an item is not applicable, mark checked and prefix with **N/A**: `- [x] A-NNN **N/A**: {reason}`
+
+## Deletion Candidates
+
+None — this change adds new functionality without making existing code redundant (the `SelectMode` `native bool` input was replaced in place, not left behind).
 
 ## Assumptions
 
