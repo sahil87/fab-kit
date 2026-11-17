@@ -47,7 +47,7 @@ Before generating or validating any artifact, load the relevant context layers b
 
 ### 1. Always Load
 
-This layer applies to every skill **unless the skill's own Context Loading section says otherwise** — the skill file wins. The exception set is **derived, never enumerated here**: consult the skill file itself (its `## Context Loading` section, or an explicit context note near its header) for any override — e.g., `/fab-setup` and `/docs-hydrate-memory` skip the layer entirely, `/fab-operator` is a pointer that loads nothing (its legacy fallback partial, `_operator-legacy`, loads a reduced 3-file set plus its optional `operator.md` addendum), `/fab-incognito` loads a reduced 5-file `fab/project/` set and skips both doc indexes. A skill that declares no override loads the full layer.
+This layer applies to every skill **unless the skill's own Context Loading section says otherwise** — the skill file wins. The exception set is **derived, never enumerated here**: consult the skill file itself (its `## Context Loading` section, or an explicit context note near its header) for any override — e.g., `/fab-setup` and `/docs-hydrate-memory` skip the layer entirely, `/fab-incognito` loads a reduced 5-file `fab/project/` set and skips both doc indexes. A skill that declares no override loads the full layer.
 
 Read these files first — they define the project's identity, constraints, and documentation landscape:
 
@@ -116,13 +116,13 @@ helpers: [_generation, _review, _srad, _pipeline]
 ---
 ```
 
-**Allowed values**: `_generation`, `_review`, `_cli-fab`, `_cli-fab-operator`, `_cli-fab-pane`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`.
+**Allowed values**: `_generation`, `_review`, `_cli-fab`, `_cli-fab-pane`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`.
 
 **Not allowed** (inlined into this preamble): `_naming`, `_cli-rk`.
 
 **Implicit** (never list): `_preamble` itself is loaded universally.
 
-**Semantics**: After reading `_preamble` and before executing the skill body, the agent MUST read `.agents/skills/{helper}/SKILL.md` for each declared helper — or, when that deployed file does not exist (a skill launched outside any `fab sync`-deployed project, e.g. the operator from a neutral directory via its user-level pointer skill), `$(fab kit-path)/skills/{helper}.md`, the flat kit copy of the same file. Skills that declare no `helpers:` list (or an empty list) load only `_preamble`.
+**Semantics**: After reading `_preamble` and before executing the skill body, the agent MUST read `.agents/skills/{helper}/SKILL.md` for each declared helper. Skills that declare no `helpers:` list (or an empty list) load only `_preamble`.
 
 **Stage-conditional loading**: A skill MAY instead load a helper at its point of use via an explicit in-body read instruction (e.g., "read `.agents/skills/_review/SKILL.md` before entering Review Behavior"). Frontmatter `helpers:` declares unconditional pre-body loads; in-body read instructions declare conditional ones — a helper loaded this way is intentionally absent from the frontmatter list. `/fab-continue` uses this for `_generation` (apply entry / intake regeneration) and `_review` (review stage).
 
@@ -184,7 +184,7 @@ command -v rk >/dev/null 2>&1            # in conditionals
 
 ### Command Reference (delegated to `rk skill`; fab-owned usage in `_cli-external.md`)
 
-The `rk` command surface — `rk context` (server-URL discovery, iframe windows, the proxy pattern, the Visual Display Recipe) and the `rk notify` contract — is **tool-owned**: read it at use-time via `command -v rk >/dev/null 2>&1 && rk skill` (gated, fail-silent). An installed `rk` may predate its `skill` subcommand, so **capability-probe** it — `rk skill` failing (non-zero exit or no output) is the probe — and fall back **silently** to the shll.ai bundle-page pointer `https://shll.ai/rk/skill` (present-but-old → the pointer; absent → the `command -v` gate skips entirely). The **fab-owned** rk usage is indexed in **`_cli-external.md` § rk (HexoKit)**, loaded by operator skills only (not the always-load layer): the operator's escalation `rk notify` send (message/title template) owned there in place, plus a pointer to the operator's startup role self-mark (owned by `_operator-legacy.md` §2 Startup). The detection/fail-silent rule plus this `rk skill` delegation (with its version-skew fallback) is the only rk content every skill carries inline — the command surface itself is not.
+The `rk` command surface — `rk context` (server-URL discovery, iframe windows, the proxy pattern, the Visual Display Recipe) and the `rk notify` contract — is **tool-owned**: read it at use-time via `command -v rk >/dev/null 2>&1 && rk skill` (gated, fail-silent). An installed `rk` may predate its `skill` subcommand, so **capability-probe** it — `rk skill` failing (non-zero exit or no output) is the probe — and fall back **silently** to the shll.ai bundle-page pointer `https://shll.ai/rk/skill` (present-but-old → the pointer; absent → the `command -v` gate skips entirely). The **fab-owned** rk usage is indexed in **`_cli-external.md` § rk (HexoKit)** (not the always-load layer), including the pipeline escalation `rk notify` send (message/title template). The detection/fail-silent rule plus this `rk skill` delegation (with its version-skew fallback) is the only rk content every skill carries inline — the command surface itself is not.
 
 ---
 
@@ -212,7 +212,7 @@ These command families cover ~90% of skill usage. See `_cli-fab` for the full re
 
 ## Next Steps Convention
 
-Skills MUST end their output with a `Next:` line derived from the State Table below, unless the skill's own Output or Key Properties section defines a different ending (e.g., `/fab-discuss`'s and `/fab-incognito`'s ready signals, `/fab-operator`'s status frame, the `/git-*` skills' own completion output) — the skill file wins, mirroring the §1 context-loading contract. Look up the state reached (not the skill name) and list the available commands. The default command SHOULD be listed first.
+Skills MUST end their output with a `Next:` line derived from the State Table below, unless the skill's own Output or Key Properties section defines a different ending (e.g., `/fab-discuss`'s and `/fab-incognito`'s ready signals, the `/git-*` skills' own completion output) — the skill file wins, mirroring the §1 context-loading contract. Look up the state reached (not the skill name) and list the available commands. The default command SHOULD be listed first.
 
 **Format**: `Next: /fab-command` or `Next: /fab-commandA, /fab-commandB, or /fab-commandC`
 
@@ -309,7 +309,7 @@ Immediately before dispatching a pipeline-stage sub-agent, the dispatching skill
 fab agent <stage> -o yaml
 ```
 
-The structured output carries the resolved `provider`, full `model`, `model_alias`, `effort`, composed `command`, per-field `source`, and optional `dispatch:` mapping. `model_alias` is the native Agent-tool alias for recognized Claude model IDs and is empty for non-Claude IDs; `dispatch:` is absent exactly when the native rung resolves and otherwise carries the labelled `rung` plus the composed `command`. The resolver's role/depth/fill precedence and the YAML schema live in `_cli-fab-operator.md` § fab agent. Resolved strings pass through verbatim — fab validates no effort enum and corrects no incompatible pair.
+The structured output carries the resolved `provider`, full `model`, `model_alias`, `effort`, composed `command`, per-field `source`, and optional `dispatch:` mapping. `model_alias` is the native Agent-tool alias for recognized Claude model IDs and is empty for non-Claude IDs; `dispatch:` is absent exactly when the native rung resolves and otherwise carries the labelled `rung` plus the composed `command`. The resolver's role/depth/fill precedence and the YAML schema live in `_cli-fab.md` § fab agent. Resolved strings pass through verbatim — fab validates no effort enum and corrects no incompatible pair.
 
 | Profile half | Native Agent-tool seam | Empty value | Constraint |
 |--------------|------------------------|-------------|------------|
@@ -324,7 +324,7 @@ User-directed overrides are per invocation and ride the same single `fab agent <
 | Cross-provider `--provider` | Native arm only; it **CANNOT move a stage onto CLI dispatch** because `fab dispatch start` takes no override flags and re-resolves from config | A `dispatch:` mapping caused only by the override is not actionable; a non-Claude model has no native Agent-tool seam |
 | Config override (`agent.workers` / `agent.session` / `agent.profiles.<role>.provider`) | Resolver and `fab dispatch start` | Sole executable cross-provider path; built-in providers refill from their own `profiles`, while a provider with no fills resolves empty/inherit unless paired with `--model` or configured fills |
 
-Every dispatch site MUST surface the resolved YAML — at minimum `provider`, `model`, `model_alias`, `effort`, and `dispatch:` presence; an all-empty resolution is a signal to flag, not a reason to dispatch blind. The YAML supplies the Agent-tool-valid alias directly in `model_alias`. The operator launcher is the deliberate exception: it composes the full model and effort from its in-process profile rather than consuming the YAML's native seam; `WithProfile` substitutes `{model}`/`{effort}` in templated `interactive_command` values (dropping an empty placeholder and its preceding flag) or appends `--model <full-id> --effort <level>` to plain commands.
+Every dispatch site MUST surface the resolved YAML — at minimum `provider`, `model`, `model_alias`, `effort`, and `dispatch:` presence; an all-empty resolution is a signal to flag, not a reason to dispatch blind. The YAML supplies the Agent-tool-valid alias directly in `model_alias`.
 
 Every post-intake stage uses this resolution before its dispatched sub-agent, including plain `/fab-continue` (the one by-design no-dispatch exception: the `/fab-ff`/`/fab-fff` light lane runs non-review stages inline — `_pipeline.md` § Light Lane); intake remains in the main session. A stage skill genuinely run without dispatch MAY report the configured profile but MUST NOT attempt to switch the session model.
 
@@ -369,7 +369,7 @@ Branch once, at the single surfaced `fab agent <stage> -o yaml` result:
 | Absent | Native Agent-tool dispatch; the resolver selected the native rung | Use the model/effort seams above |
 | Present | CLI adapter (`fab dispatch`); stages may mix adapters | The mapping carries the selected pane/headless `command` with full model ID and substituted effort, so do not apply the native seams, execute the value, or resolve again |
 
-`dispatch.mode` is a preference ceiling over `pane → native → headless`. The resolver starts at that rung and descends only, using provider capabilities (`interactive_command`, `native`, `headless_command`) plus `$TMUX`; command presence describes how a rung runs and never selects policy by itself. The result still has only the two branches above: the `dispatch:` key is absent iff native resolved and present with the already-substituted pane/headless command otherwise. Dispatch sites branch only on key presence and never execute `dispatch.command`; `_cli-fab-operator.md` § fab agent owns the ladder and no-rung errors.
+`dispatch.mode` is a preference ceiling over `pane → native → headless`. The resolver starts at that rung and descends only, using provider capabilities (`interactive_command`, `native`, `headless_command`) plus `$TMUX`; command presence describes how a rung runs and never selects policy by itself. The result still has only the two branches above: the `dispatch:` key is absent iff native resolved and present with the already-substituted pane/headless command otherwise. Dispatch sites branch only on key presence and never execute `dispatch.command`; `_cli-fab.md` § fab agent owns the ladder and no-rung errors.
 
 When `dispatch:` is present:
 

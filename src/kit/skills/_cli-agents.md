@@ -1,6 +1,6 @@
 ---
 name: _cli-agents
-description: "Agent-CLI interaction reference — the generic spawn / pre-send-validation / peek / await procedures for driving another agent CLI in a tmux pane (extracted from fab-operator), plus a four-provider operational dictionary (claude, codex, agy, kimi) carrying stable invocation grammar and model-discovery recipes rather than volatile model catalogs. Opt-in via `helpers:`; not part of the always-load layer."
+description: "Agent-CLI interaction reference — the generic spawn / pre-send-validation / peek / await procedures for driving another agent CLI in a tmux pane (extracted from the retired fab-operator skill), plus a four-provider operational dictionary (claude, codex, agy, kimi) carrying stable invocation grammar and model-discovery recipes rather than volatile model catalogs. Opt-in via `helpers:`; not part of the always-load layer."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -34,9 +34,9 @@ metadata:
 
 This file carries **only the generic mechanics** of interacting with an agent CLI: composing its invocation, opening it in a pane, delivering a prompt reliably, reading its output and state, and waiting for it.
 
-It deliberately carries **no orchestration policy**. Repo targeting, worktree creation, change-pointer activation, tracked-item enrollment, dependency resolution, queue choreography, confirmation tiers, and bounded-retry budgets are **operator** concerns and live in `_operator-legacy.md` (with the fab-owned `wt`/tmux choreography in `_cli-external.md`). A consumer of this file supplies its own policy around these primitives.
+It deliberately carries **no orchestration policy**. Repo targeting, worktree creation, change-pointer activation, confirmation tiers, and bounded-retry budgets are the consumer's policy. This file supplies only the reusable primitives.
 
-The `fab` commands referenced here (`fab agent`, `fab pane open`/`ready`/`deliver`, `fab pane map`) are documented in `_cli-fab-operator.md` (`fab agent`) and `_cli-fab-pane.md` (`fab pane …`) — load them too when you need their exhaustive flag surface. Messaging into an existing agent pane rides `rk mux send`/`rk mux await`, and pane peek, removal, and process-tree inspection ride the substrate twins `rk mux capture`/`rk mux kill`/`rk mux process` (tool-owned contracts: `rk skill`; fab-owned usage summarized in § Pre-Send Validation, § Peek, and § Await below). fab's own `fab pane capture`/`kill`/`process` are dispatch-internal — kept for the rk-less pane arm per cli-layering Part 7 (`_cli-fab-pane.md` § fab pane).
+The `fab` commands referenced here (`fab agent`, `fab pane open`/`ready`/`deliver`, `fab pane map`) are documented in `_cli-fab.md` (`fab agent`) and `_cli-fab-pane.md` (`fab pane …`) — load them too when you need their exhaustive flag surface. Messaging into an existing agent pane rides `rk mux send`/`rk mux await`, and pane peek, removal, and process-tree inspection ride the substrate twins `rk mux capture`/`rk mux kill`/`rk mux process` (tool-owned contracts: `rk skill`; fab-owned usage summarized in § Pre-Send Validation, § Peek, and § Await below). fab's own `fab pane capture`/`kill`/`process` are dispatch-internal — kept for the rk-less pane arm per cli-layering Part 7 (`_cli-fab-pane.md` § fab pane).
 
 ---
 
@@ -62,16 +62,16 @@ fab agent --provider codex --model <id> --effort <level> --print     # explicit 
 # Inspection taps.
 fab agent apply -t                    # the unsubstituted template (placeholders intact)
 fab agent doing --headless --print    # the headless_command slot instead of interactive_command
-fab agent apply -o yaml               # full structured resolution; schema: _cli-fab-operator.md § fab agent
+fab agent apply -o yaml               # full structured resolution; schema: _cli-fab.md § fab agent
 ```
 
 > **Every built-in provider has a session form.** Composition needs an `interactive_command`, and `claude`, `codex`, `agy`, and `kimi` all ship one. A wholly user-defined provider may deliberately omit the field; either form then errors actionably, naming the `providers.<name>.interactive_command` key to set.
 
-**Which form to use.** Use the **selector** form when the spawn should inherit fab's role/budget policy (a pipeline-shaped worker, the operator's own coordinator) — including which provider the `agent.session` knob points Tier-1 agents at; a stage name is just shorthand for its mapped role. Use the **provider** form when the question is mechanical — "give me a codex session right here" — with no role to speak of. `--model`/`--effort` are legal on ANY form as final post-refill overrides (a selector combined with `--provider` re-resolves the role's fills from that provider instead — see `_cli-fab-operator.md` § fab agent). **No `providers:` block is needed for either form**: `claude`, `codex`, `agy`, and `kimi` are built-in providers.
+**Which form to use.** Use the **selector** form when the spawn should inherit fab's role/budget policy (a pipeline-shaped worker, a named coordinator role) — including which provider the `agent.session` knob points Tier-1 agents at; a stage name is just shorthand for its mapped role. Use the **provider** form when the question is mechanical — "give me a codex session right here" — with no role to speak of. `--model`/`--effort` are legal on ANY form as final post-refill overrides (a selector combined with `--provider` re-resolves the role's fills from that provider instead — see `_cli-fab.md` § fab agent). **No `providers:` block is needed for either form**: `claude`, `codex`, `agy`, and `kimi` are built-in providers.
 
 **Empty model/effort is a feature.** Omitting `--model`/`--effort` on the provider form leaves the value empty, and the composition rule drops the placeholder's token *and* a preceding `-`-flag while retaining fixed flags — so `fab agent --provider codex --print` against `codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}` yields `codex --dangerously-bypass-approvals-and-sandbox`. The installed CLI's own default model applies while the built-in's deliberate full-auto posture remains. This is how you spawn a provider whose current model IDs you do not know.
 
-**Provider-form caveat:** the bare `fab agent --provider <name>` form bypasses role resolution and both per-role fill sources, so its profile is exactly the passed flags; when fills should apply, use a selector (optionally with `--provider` to re-resolve them from the named provider) or pass `--model` explicitly. See `_cli-fab-operator.md` § fab agent for the fill ladder and model-free Codex example.
+**Provider-form caveat:** the bare `fab agent --provider <name>` form bypasses role resolution and both per-role fill sources, so its profile is exactly the passed flags; when fills should apply, use a selector (optionally with `--provider` to re-resolve them from the named provider) or pass `--model` explicitly. See `_cli-fab.md` § fab agent for the fill ladder and model-free Codex example.
 
 **Open it in a pane** — the mechanized form composes *and* spawns in one step, with **no prompt attached**:
 
@@ -98,12 +98,12 @@ rk tab new [--session =<session>] --cwd <dir> --name <name> --ready --json -- <c
 
 #### Skill Prompts
 
-An explicit skill invocation is `<prefix><skill>[ <arguments>]`, where the prefix belongs to the **receiving** harness: `codex` ⇒ `$`, every other or unknown provider ⇒ `/`. `internal/agent.SkillPrefix` owns the rule; `fab agent … -o yaml` exposes it as `skill_prefix` (`_cli-fab-operator.md` § fab agent). This applies to initial prompts and to skill commands routed into existing panes.
+An explicit skill invocation is `<prefix><skill>[ <arguments>]`, where the prefix belongs to the **receiving** harness: `codex` ⇒ `$`, every other or unknown provider ⇒ `/`. `internal/agent.SkillPrefix` owns the rule; `fab agent … -o yaml` exposes it as `skill_prefix` (`_cli-fab.md` § fab agent). This applies to initial prompts and to skill commands routed into existing panes.
 
 1. **Identify the receiver.**
    - *Fresh default-role spawn*: resolve the target repo once with `fab agent default -o yaml --repo <target-repo>` and read both `command` (the session command — byte-identical to what `--print` would emit) and `skill_prefix` from that one document. Do not run `--print` separately or resolve the provider a second way.
    - *Other fresh roles*: the `skill_prefix` of the resolution already made for that launch (`fab agent <role> -o yaml`).
-   - *Existing pane*: the live agent process per § Peek's process-tree command; the interactive harness executable — including a child beneath a wrapper shell — is the receiver. Never identify it from prompt text, a nested tool worker, the operator's own provider, a model ID, or the repo's current default. Unknown ⇒ `/`. This does not bypass the caller's state/confirmation gate.
+   - *Existing pane*: the live agent process per § Peek's process-tree command; the interactive harness executable — including a child beneath a wrapper shell — is the receiver. Never identify it from prompt text, a nested tool worker, the launcher's provider, a model ID, or the repo's current default. Unknown ⇒ `/`. This does not bypass the caller's state/confirmation gate.
 2. **Compose and quote once.** Render `<prefix><skill>[ <arguments>]` with the arguments verbatim, then deliver the whole prompt as **one token** exactly like any other initial prompt — one trailing argv token for a new tab (§ Spawn Composition's spawn-embedding rule, no shell quoting), the normal send mechanism (`rk mux send <pane> "<prompt>"`) plus the pre-send gate for an existing pane. Never embed a literal `$`-prefixed skill inside an outer double-quoted shell string.
 3. **Keep message types distinct.** Only explicit skill invocations take a prefix. Ordinary prompts, answers, keys, `Read <path> and execute it.` pointers, and native TUI controls such as `/loop` or `/clear` use their own contracts and are not transformed.
 
@@ -183,7 +183,7 @@ Each entry below carries only **stable invocation grammar** and **discovery reci
 | Structured output | `claude -p --output-format stream-json` |
 | Profile flags | `--model <id> --effort <level>` (the CLI accepts full IDs *and* short aliases) |
 | Session naming | `-n <name>` names the session (the built-in `interactive_command` uses `-n "$(basename "$(pwd)")"`) |
-| Model discovery | The installed CLI's own help is authoritative: `claude --help` for the `--model` flag's accepted forms. fab's own `model_alias` mapping (`opus`/`sonnet`/`haiku`/`fable`) is an Agent-tool adapter, not a claude-CLI constraint — see `_cli-fab-operator.md` § fab agent |
+| Model discovery | The installed CLI's own help is authoritative: `claude --help` for the `--model` flag's accepted forms. fab's own `model_alias` mapping (`opus`/`sonnet`/`haiku`/`fable`) is an Agent-tool adapter, not a claude-CLI constraint — see `_cli-fab.md` § fab agent |
 
 **Agent-state instrumentation.** Claude Code is one of the harnesses `rk agent setup` instruments (alongside Codex, Copilot, Gemini, and OpenCode); instrumentation is an environment property, not a provider guarantee.
 

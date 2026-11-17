@@ -126,9 +126,8 @@ func runPaneMap(cmd *cobra.Command, args []string) error {
 
 // collectPaneRows runs the discovery+resolve pipeline: pane enumeration
 // (delegated rk path with silent internal fallback) followed by the per-pane
-// cache/resolve loop. Extracted from runPaneMap so `fab operator tick-start
-// --diff` reuses the SAME snapshot the operator used to fetch via
-// `fab pane map --all-sessions --json` — one enumeration path, no duplicate.
+// cache/resolve loop. Extracted from runPaneMap so callers reuse one
+// enumeration path with no duplicate snapshot logic.
 func collectPaneRows(mode sessionMode, sessionName, server string) ([]paneRow, error) {
 	// Discover tmux panes. Enumeration prefers run-kit's native substrate view
 	// (`rk mux panes --json` — reconciled agent state, internal sessions
@@ -168,14 +167,6 @@ func collectPaneRows(mode sessionMode, sessionName, server string) ([]paneRow, e
 		}
 	}
 	return rows, nil
-}
-
-// tickSnapshotRows is the `fab operator tick-start --diff` pane-snapshot
-// source: the full-server row set (all sessions, current socket). Package-level
-// var so tick-diff tests can stub the seam without a live tmux server (the
-// rkPanesRunner / operatorStatePathOverride precedent).
-var tickSnapshotRows = func() ([]paneRow, error) {
-	return collectPaneRows(sessionAll, "", "")
 }
 
 // worktreeRootForPane returns the pane's git worktree root, "" when cwd is

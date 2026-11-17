@@ -1,0 +1,9 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-11-17T02:23:40Z"}
+{"args":"Implement step F2 (Delete fab operator) for fab-kit — delete operator code, skill, _cli-fab-operator.md, user-level pointer template; retire autopilot.merge_mode with migration note; keep fab agent, fab pane, fab status set-base-branch; keep /fab-operator pointer to rk skill operator","cmd":"fab-new","event":"command","ts":"2026-11-17T02:23:40Z"}
+{"delta":"+3.4","event":"confidence","score":3.4,"trigger":"calc-score","ts":"2026-11-17T02:25:48Z"}
+{"delta":"+0.3","event":"confidence","score":3.7,"trigger":"calc-score","ts":"2026-11-17T02:36:03Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-11-17T02:36:27Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-11-17T02:36:31Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-11-17T02:39:00Z"}
+{"delta":"+0.1","event":"confidence","score":3.8,"trigger":"calc-score","ts":"2026-11-17T02:50:40Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-11-17T03:07:39Z"}

@@ -222,7 +222,7 @@ checklist:
 # Provider capability grammar (top-level). Each provider maps an opaque, user-chosen
 # name to independent interactive_command, headless_command, and native capabilities.
 # interactive_command opens an interactive agent
-# SESSION (fab operator / fab batch / fab agent — and `fab dispatch open`,
+# SESSION (rk operator / fab batch / fab agent — and `fab dispatch open`,
 # the interactive-pane stage adapter); headless_command runs ONE
 # headless STAGE task via `fab dispatch` (which pipes the stage prompt to the
 # command's STDIN). native:true records an Agent-tool seam. Capability presence
@@ -292,7 +292,7 @@ providers:
 
 # agent.session / agent.workers are the TWO ADVERTISED KNOBS, selecting a provider
 # by agent DEPTH: session = the Tier-1 roles you talk to (default, operator —
-# fab agent / fab operator / fab batch), workers = the Tier-2 roles pipeline stages
+# fab agent / rk operator / fab batch), workers = the Tier-2 roles pipeline stages
 # dispatch to (doing, review, hydrate, fast). Both default to claude, and both are
 # scope `both`, so "claude for what I talk to, codex for the workers" is settable
 # once per machine. fab owns a FIXED, non-overridable stage→role mapping
@@ -497,11 +497,10 @@ The `.fab-*` gitignore pattern also covers transient dirs like `.fab-dispatch/`.
 | Claude Code | `.claude/skills/{name}/SKILL.md` | Directory-based **copies** | `claude` available |
 | OpenCode (`opencode`) | `.opencode/commands/{name}.md` | Flat-file copies | When `opencode` is available |
 | Agents dir | `.agents/skills/{name}/SKILL.md` | Directory-based copies | Every sync |
-| User (machine) | `~/.agents/skills/fab-operator/SKILL.md` (always), `~/.claude/skills/fab-operator/SKILL.md` (when `claude` is available) | Pointer that tries `rk skill operator` first, then falls back to `$(fab kit-path)/skills/fab-operator.md` | Every sync |
 
 `.agents/skills/` is the **generic** workspace directory: codex, agy and kimi all discover skills there natively, so none of them gets a per-brand directory. That one-target-per-skill-set rule is deliberate — deploying the same skills to both a generic and a per-brand directory is what makes a CLI that reads both report every skill twice. `FAB_AGENTS` can override availability for the gated Claude Code and OpenCode rows in tests and CI, but it cannot suppress `.agents/skills/`. The Claude gate is computed once per sync and also controls `.claude/` scaffold writes (including settings permissions) and legacy agent cleanup; when closed, sync preserves existing `.claude/` content and creates none.
 
-All `*.md` skill files are deployed, including underscore partials (`_preamble.md`, `_generation.md`, `_review.md`, `_srad.md`, `_pipeline.md`, `_intake.md`, `_cli-fab.md`, `_cli-fab-operator.md`, `_cli-fab-pane.md`, `_cli-external.md`, `_cli-agents.md`, `_operator-legacy.md`), which carry `user-invocable: false` frontmatter to prevent direct invocation. The skill prompt files are agent-agnostic markdown; only the deployment locations and formats differ per agent.
+All `*.md` skill files are deployed, including underscore partials (`_preamble.md`, `_generation.md`, `_review.md`, `_srad.md`, `_pipeline.md`, `_intake.md`, `_cli-fab.md`, `_cli-fab-pane.md`, `_cli-external.md`, `_cli-agents.md`), which carry `user-invocable: false` frontmatter to prevent direct invocation. The skill prompt files are agent-agnostic markdown; only the deployment locations and formats differ per agent.
 
 Because Claude Code deployments are **copies** (not symlinks), they go stale when the kit updates — re-run `fab sync` after an upgrade (preflight warns when `$(fab kit-path)/VERSION` and the project's pinned version in `fab/.fab-version` diverge). In the fab-kit dev repo, never edit `.claude/skills/` directly — `src/kit/skills/` is canonical and `fab sync` overwrites the copies.
 
@@ -632,5 +631,5 @@ Skills loading context will naturally scope to the relevant section based on wha
 | `fab/changes/` (flat) | Fine — changes reference affected packages in their plan |
 | `docs/memory/` (domain-based) | Already monorepo-friendly |
 | `fab/project/constitution.md` | Shared principles apply repo-wide; use sections for package-specific conventions if needed |
-| `.claude/skills/` (when `claude` is available), `.agents/skills/` (always) | One skill set per repo — correct for a single `fab/` (the machine-level `fab-operator` pointer under `~/` is deliberately per-machine, not per-repo) |
+| `.claude/skills/` (when `claude` is available), `.agents/skills/` (always) | One skill set per repo — correct for a single `fab/` |
 | Git branches | Repo-wide by nature — matches single `fab/` model |

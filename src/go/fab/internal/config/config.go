@@ -73,8 +73,7 @@ type ProviderProfile struct {
 // string).
 //
 //   - InteractiveCommand opens an interactive agent SESSION (the relocated
-//     agent.spawn_command semantics — consumed by fab operator / fab batch /
-//     fab agent).
+//     agent.spawn_command semantics — consumed by fab batch / fab agent).
 //   - HeadlessCommand runs ONE headless stage task via fab dispatch.
 //   - Native declares that the provider can run through the native Agent-tool
 //     adapter. Provider names are opaque, so this capability is shipped data.
@@ -269,17 +268,6 @@ type DispatchConfig struct {
 	ReapDone    *bool  `yaml:"reap_done"`
 }
 
-// AutopilotConfig models the `autopilot:` section of config.yaml — the operator
-// autopilot's standing merge-mode preference (scope `both`, so a single
-// ~/.fab-kit/config.yaml setting covers every repo on the machine).
-//
-// MergeMode names the merge topology `fab operator autopilot start` adopts when
-// its --mode flag is absent. The accepted-value set is fab-owned policy and lives
-// Go-side (ValidAutopilotMergeModes); this field is the tunable preference.
-type AutopilotConfig struct {
-	MergeMode string `yaml:"merge_mode"`
-}
-
 // The five built-in dispatch defaults. They are VARS carrying NO literal values
 // because they no longer own a value: the single value source for all five is the
 // `dispatch:` block of the module-root embedded defaults.yaml (parsed by internal/agent), and internal/agent's
@@ -321,27 +309,10 @@ var (
 	// DefaultDispatchColumnWidth it is the canonical symbol both the accessor
 	// below and internal/configref's registry row read, so the default exists once.
 	DefaultDispatchReapDone bool
-
-	// DefaultAutopilotMergeMode is the built-in autopilot.merge_mode — the merge
-	// topology `fab operator autopilot start` adopts when neither its --mode flag
-	// nor a configured preference names one. Like the dispatch defaults above it
-	// is a VAR carrying NO literal: the single value source is the `autopilot:`
-	// block of the module-root embedded defaults.yaml (parsed by internal/agent), pushed in by
-	// internal/agent's init(). It is the canonical symbol both
-	// GetAutopilotMergeMode and internal/configref consume.
-	DefaultAutopilotMergeMode string
 )
 
-// ValidAutopilotMergeModes is the accepted-value set for autopilot.merge_mode
-// (and `fab operator autopilot start --mode`). It is fab-owned POLICY — which
-// merge topologies exist — so it stays Go-side (like GetDispatchMode's switch),
-// exported once here so cmd/fab and internal/configref share one list and no
-// second literal exists anywhere. Its first entry is the built-in default; a
-// wiring-guard test pins DefaultAutopilotMergeMode equal to it.
-var ValidAutopilotMergeModes = []string{"cherry-pick-ladder", "merge-auto", "stacked-prs"}
-
 // ValidDispatchModes is the accepted-value set for dispatch.mode — the rungs of
-// the pane → native → headless ladder. Like ValidAutopilotMergeModes it is
+// the pane → native → headless ladder. It is
 // fab-owned policy exported once, so GetDispatchMode's validity test and
 // `fab config set`'s write gate read the same list.
 var ValidDispatchModes = []string{"pane", "native", "headless"}
@@ -384,7 +355,6 @@ type Config struct {
 	Agent      AgentConfig               `yaml:"agent"`
 	Project    ProjectConfig             `yaml:"project"`
 	Dispatch   DispatchConfig            `yaml:"dispatch"`
-	Autopilot  AutopilotConfig           `yaml:"autopilot"`
 }
 
 // Load reads fab/project/config.yaml from fabRoot and returns the parsed config.
@@ -1100,22 +1070,4 @@ func (c *Config) GetLinearWorkspace() string {
 		return ""
 	}
 	return c.Project.LinearWorkspace
-}
-
-// GetAutopilotMergeMode returns autopilot.merge_mode — the standing merge-mode
-// preference for `fab operator autopilot start` — or DefaultAutopilotMergeMode
-// when unset (nil-safe: a nil *Config and an empty field both read as unset).
-//
-// Deliberate divergence from GetDispatchMode's warn-and-fail-open posture: this
-// accessor does NOT validate. An invalid configured value is returned raw, and
-// the consuming command (`fab operator autopilot start`) validates it against
-// ValidAutopilotMergeModes and errors actionably — merging is destructive-tier
-// behavior, so silently falling back to a different topology than the one the
-// user configured is the wrong failure mode, and only the command knows the
-// value's source well enough to name it in the error.
-func (c *Config) GetAutopilotMergeMode() string {
-	if c == nil || c.Autopilot.MergeMode == "" {
-		return DefaultAutopilotMergeMode
-	}
-	return c.Autopilot.MergeMode
 }

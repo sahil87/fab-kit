@@ -1,6 +1,6 @@
 ---
 name: _cli-external
-description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, and rk (HexoKit). Carries only fab-owned content (the operator's worktree probe-and-route spawning recipe, the escalation rk-notify usage plus pointers to the operator's startup role self-mark, the rk-mux agent-messaging and pane peek/kill/process usage, the operator-clock mute/lease, and the tmux/pane notes); each owned tool's usage knowledge is delegated to `<tool> skill` at use-time (`command -v`-gated fail-silent for all four owned binaries, with a version-skew fallback to the shll.ai bundle page), and its exhaustive command tree to `<tool> help-dump`. Loaded by operator skills only."
+description: "External CLI tool reference — wt (worktree manager), idea (backlog manager), hop (multi-repo navigator), tmux, and rk (HexoKit). Carries only fab-owned integration content; each tool's usage knowledge is delegated to `<tool> skill` at use-time and its exhaustive command tree to `<tool> help-dump`."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -8,7 +8,7 @@ metadata:
 ---
 # External CLI Tool Reference
 
-> Loaded by operator skills only (not part of the always-load layer). Documents non-fab CLI tools used for multi-agent coordination.
+> Loaded on demand (not part of the always-load layer). Documents non-fab CLI tools used by fab workflows.
 
 ## Contents
 
@@ -25,13 +25,11 @@ metadata:
 
 This file documents only **fab-owned** content — what each tool *is* in one line,
 and the fab-specific integration knowledge that no tool's own documentation
-carries (the operator's worktree probe-and-route spawning recipe, the escalation
-`rk notify` usage and the pointer to the operator's startup role self-mark, the
-pane-substrate delegation notes — skill-facing capture/kill/process ride rk's
-`mux` twins, with fab's copies dispatch-internal). It deliberately does **not**
-restate any tool-owned usage knowledge: that is delegated to each owned tool's
-own bundle at use-time, so this file never goes stale against a tool's release
-cadence.
+carries (the pipeline escalation `rk notify` usage and the pane-substrate
+delegation notes — skill-facing capture/kill/process ride rk's `mux` twins, with
+fab's copies dispatch-internal). It deliberately does **not** restate any
+tool-owned usage knowledge: that is delegated to each owned tool's own bundle at
+use-time, so this file never goes stale against a tool's release cadence.
 
 Each owned tool exposes two version-locked surfaces: `<tool> skill` for its usage
 briefing and `<tool> help-dump` for its exhaustive command tree and flags.
@@ -56,12 +54,9 @@ byte-stable per release.
 **Version-skew fallback (required).** An installed tool may predate its `skill`
 subcommand. The invocation MUST **capability-probe** it — `<tool> skill` failing
 (non-zero exit, or no output) is the probe — and fall back **silently** to the
-shll.ai bundle-page pointer `https://shll.ai/<tool>/skill`; operator context
-loading MUST NOT break or surface an error on an older binary. This composes with
+shll.ai bundle-page pointer `https://shll.ai/<tool>/skill`. This composes with
 the `command -v` gate: **absent** binary → skip entirely; **present but old** →
-the fallback pointer. The retained fab-owned choreography already covers the
-operator-critical `wt` semantics, so the fallback never needs to reproduce a tool
-gist.
+the fallback pointer.
 
 ### The `help-dump` contract
 
@@ -91,10 +86,9 @@ it does not contain `captured_at`.
 ### Functional entry points
 
 The fail-silent rule governs informational delegations. `wt` remains
-**functionally required** for worktree-based flows — the operator's
-spawn-in-worktree sequence (`_operator-legacy.md` §2 wt Gate) and `fab batch
-new`/`switch` (an upfront `exec.LookPath("wt")` guard in the binary). Those entry
-points do NOT silently skip: they stop with an actionable install hint
+**functionally required** for `fab batch new`/`switch` (an upfront
+`exec.LookPath("wt")` guard in the binary). Those entry points do NOT silently
+skip: they stop with an actionable install hint
 (`… install it via: brew install sahil87/tap/wt`).
 
 ---
@@ -105,33 +99,13 @@ points do NOT silently skip: they stop with an actionable install hint
 `brew install sahil87/tap/wt`; required worktree entry points stop with that hint
 when it is absent (per § Functional entry points).
 
-> `wt`'s command set (`list`/`create`/`delete`/…), the `wt create` flags
-> (`--non-interactive`/`--name`/`--reuse`/`--base`/`--checkout` + the
-> positional `[branch]`), and its branch-selection contract (positional is
-> new-branch-only, exit 2 on an existing branch; `--checkout <branch>` is the
-> existing-branch opt-in and conflicts with both `--base` and the positional) are
-> **tool-owned** — read them at use-time via `wt skill` (usage) / `wt help-dump`
-> (flags), gated per § Delegation and binary gate. What stays below is
-> **fab-owned**: how the operator drives `wt create` for spawning, and which wt
-> form the fab routing rule selects when (that decision is fab's).
-
-> **Repo-targeted spawning (operator).** `wt` operates on the **current working directory's** repo. For multi-repo coordination, the operator MUST run `wt create` **in the target repo's directory** (the agent's absolute main-worktree root), so the new worktree lands under `$(dirname <target-repo>)/<repo-name>.worktrees/` — not under the operator's own repo. Composing the session command is a separate step with its own `--repo` targeting rule — see `_cli-agents.md` § Spawn Composition (and `_operator-legacy.md` §6 for the operator's always-pass-`--repo` policy).
-
-### Operator Spawning Rules
-
-The change's branch usually already exists (created by `/fab-new` Step 11 in the original checkout), so **probe branch existence and route** — the existing branch takes `--checkout`, a missing one the positional (wt's positional is new-branch-only; the exact contract is in `wt skill`, per § Reference Model). Probe local first (`git show-ref --verify --quiet refs/heads/<change-folder-name>`), then remote (`git ls-remote --heads origin <change-folder-name>`):
-
-```
-# branch exists (the common case) → put the worktree ON the existing branch
-wt create --non-interactive --name <name> --checkout <change-folder-name>
-
-# branch missing → fetch first, then create it (new-branch positional) off the fetched default-branch tip
-git fetch origin || exit 1     # failed fetch = hard spawn STOP, no wt create (_operator-legacy.md §6 step 3)
-base_sha=$(git rev-parse "origin/${default_branch}")   # {default_branch}: _operator-legacy.md § Dependency Resolution step 0
-wt create --non-interactive --name <name> --base "$base_sha" <change-folder-name>
-```
-
-The worktree gets a random name; the branch matches the change. **Every new-branch form carries `--base "$base_sha"`** — the fetched **commit SHA**, never the ref name `origin/{default_branch}` (a remote-tracking start-point sets upstream tracking on the new branch, which breaks `/fab-new` Step 11's rename guard; `_operator-legacy.md` §6 step 3 owns the rule and the rationale). The `--checkout` form takes no `--base` (wt rejects the pair; the checked-out branch is already the intended base). A spawn with no change branch — a repo with **no** `fab/`, or a bare spawn with no task — runs the same fetch, then `wt create --non-interactive [--name <name>] --base "$base_sha"` with no branch argument; wt then puts the worktree on a new branch of the worktree's name (`_operator-legacy.md` §6 Working a Change). The surrounding choreography — when to spawn, the new-change-from-backlog case, branch alignment — is operator policy in `_operator-legacy.md` §6 (the pane kind).
+`wt`'s command set (`list`/`create`/`delete`/…), the `wt create` flags
+(`--non-interactive`/`--name`/`--reuse`/`--base`/`--checkout` + the positional
+`[branch]`), and its branch-selection contract (positional is new-branch-only,
+exit 2 on an existing branch; `--checkout <branch>` is the existing-branch opt-in
+and conflicts with both `--base` and the positional) are **tool-owned** — read
+them at use-time via `wt skill` (usage) / `wt help-dump` (flags), gated per §
+Delegation and binary gate.
 
 ---
 
@@ -153,13 +127,11 @@ delegate per § Delegation and binary gate.
 enumerates worktrees within a repo, while `hop` enumerates registered repos.
 Its discovery grammar is tool-owned; delegate per § Delegation and binary gate.
 
-**Why it matters to the operator (fab-owned).** Multi-repo coordination needs the absolute main-worktree root of a *sibling* repo — e.g. to spawn an agent into it (see the **Repo-targeted spawning** note in the `wt` section, which requires running `wt create` in the target repo's directory and reading `fab agent --print --repo <target-repo>`). `hop` is how an agent **discovers** those locations rather than hardcoding paths; the specific discovery command is in `hop skill`.
-
 ---
 
 ## tmux
 
-Terminal multiplexer commands used by the operator for agent observation and interaction.
+Terminal multiplexer commands used for agent observation and interaction.
 
 ### Commands
 
@@ -169,17 +141,17 @@ Terminal multiplexer commands used by the operator for agent observation and int
 
 ### Usage Notes
 
-- **Pane mapping across sessions**: The operator's tick snapshots **all** sessions on its tmux server internally via `fab operator tick-start --diff` (see `_cli-fab-operator.md` § fab operator tick-start), not just the operator's own session; `fab pane map --all-sessions --json` remains the on-demand surface. The snapshot rows carry a per-row `repo` field (the pane's absolute main-worktree root, `null` when unresolved) used to group the full status frame by repo then session.
+- **Pane mapping across sessions**: `fab pane map --all-sessions --json` is the on-demand surface. Rows carry a per-row `repo` field (the pane's absolute main-worktree root, `null` when unresolved).
 - **Pane capture**: Use `rk mux capture` (substrate-enriched capture — last-N tail, `--raw`/`--json`, reconciled agent state). Usage ownership is in `_cli-agents.md` § Peek. (`fab pane capture` is dispatch-internal — kept for the rk-less pane arm; see `_cli-fab-pane.md` § fab pane.)
-- **Send keys**: Use `rk mux send` (it carries built-in pane-existence and agent-state validation with probe-verified delivery). Usage ownership is in `_cli-agents.md` § Pre-Send Validation and `_operator-legacy.md` §3/§5.
-- **Agent-session spawning** rides `rk tab new` (argv tokens after `--`, the rk-appended shell fallback, the `--ready` verdict) — the fab-owned usage is owned by `_cli-agents.md` § Spawn Composition ("Open it in a pane"); window marks (`rk tab mark`/`rk tab note`) and the §8 `--session` override are operator policy, in `_operator-legacy.md` §6; the landing session itself is `rk tab new`'s role-aware default. The rk verbs' contracts are tool-owned (`rk skill`).
+- **Send keys**: Use `rk mux send` (it carries built-in pane-existence and agent-state validation with probe-verified delivery). Usage ownership is in `_cli-agents.md` § Pre-Send Validation.
+- **Agent-session spawning** rides `rk tab new` (argv tokens after `--`, the rk-appended shell fallback, the `--ready` verdict) — the fab-owned usage is owned by `_cli-agents.md` § Spawn Composition ("Open it in a pane"). The rk verbs' contracts are tool-owned (`rk skill`).
 
 ---
 
 ## rk (HexoKit)
 
-HexoKit is the tmux session manager with a web UI that may host the operator's
-session. The Homebrew formula and primary binary are `run-kit`
+HexoKit is the tmux session manager with a web UI that may host agent sessions.
+The Homebrew formula and primary binary are `run-kit`
 (`sahil87/tap/run-kit`); `rk` is the invocation used throughout fab skills.
 
 `rk`'s command surface is tool-owned; delegate per § Delegation and binary gate.
@@ -188,28 +160,28 @@ visual display recipe.
 
 The **dynamic** environment (current server URL, session, pane) stays in `rk context` — run at use-time, never hardcoded. `rk skill` is the static usage briefing; `rk context` reports the live environment (the two are distinct per `shll standards skill`).
 
-### Operator escalation send (fab-owned)
+### Pipeline escalation send (fab-owned)
 
-The operator's non-blocking Strategic escalation (`_operator-legacy.md` §5) uses `rk notify` as its out-of-band notification send — the fab-specific usage (message/title template), relying on HexoKit's fail-silent-by-contract guarantee:
+A pipeline's non-blocking escalation uses `rk notify` as its out-of-band
+notification send, relying on HexoKit's fail-silent-by-contract guarantee:
 
 ```sh
-rk notify "{change}: {summary} ({repo})" --title "Operator: strategic question"
+rk notify "{change}: {summary} ({repo})" --title "Fab: strategic question"
 ```
 
-This is the operator's *usage* of the tool, not the `rk notify` contract itself (that is tool-owned — see `rk skill`).
-
-### Operator role self-mark (fab-owned — pointer)
-
-The second fab-owned rk usage — the fail-silent `rk role operator` self-mark that pins the operator window in HexoKit's dashboard — is owned by `_operator-legacy.md` §2 Startup (§ Role Mark). The `@rk_win_role` option contract and its one-operator-per-server radio semantics are tool-owned; see `rk skill`.
+This is fab's *usage* of the tool, not the `rk notify` contract itself (that is
+tool-owned — see `rk skill`).
 
 ### Agent messaging (fab-owned — pointer)
 
-The third fab-owned rk usage — agent messaging via `rk mux send`/`rk mux await` — is owned by `_cli-agents.md` § Pre-Send Validation / § Await and `_operator-legacy.md` §3/§5. The verbs' full contract (gate matrix, probe-verified delivery, report words) is tool-owned; see `rk skill`.
+Agent messaging via `rk mux send`/`rk mux await` is owned by `_cli-agents.md` §
+Pre-Send Validation / § Await. The verbs' full contract (gate matrix,
+probe-verified delivery, report words) is tool-owned; see `rk skill`.
 
 ### Pane peek/kill/process (fab-owned — pointer)
 
-The fourth fab-owned rk usage — pane peek via `rk mux capture`, pane removal via the agent-state-gated `rk mux kill`, and process-tree inspection via `rk mux process` — is owned by `_cli-agents.md` § Peek (the operator's per-tick question detection rides `rk mux capture --classify` — `_operator-legacy.md` §5). The verbs' full contracts are tool-owned; see `rk skill`. fab's own `fab pane capture`/`kill`/`process` remain dispatch-internal for the rk-less pane arm (`_cli-fab-pane.md` § fab pane).
-
-### Operator clock mute/lease (fab-owned — pointer)
-
-The fifth fab-owned rk usage — muting and unmuting the operator-tick cron entry (`rk cron mute <id>` / `--for <dur>` / `--off`) — is owned by `_operator-legacy.md` §4 Mute and Lease (the skill-side lease policy) and `_cli-fab-operator.md` § fab operator (the Go-side tracked-set mute/unmute, in the shared **Clock side effect** paragraph). This file restates neither rule.
+Pane peek via `rk mux capture`, pane removal via the agent-state-gated `rk mux
+kill`, and process-tree inspection via `rk mux process` are owned by
+`_cli-agents.md` § Peek. The verbs' full contracts are tool-owned; see `rk skill`.
+fab's own `fab pane capture`/`kill`/`process` remain dispatch-internal for the
+rk-less pane arm (`_cli-fab-pane.md` § fab pane).

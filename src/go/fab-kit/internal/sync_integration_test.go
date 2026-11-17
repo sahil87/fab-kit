@@ -572,21 +572,14 @@ func TestSync_WithoutClaudePreservesExistingTree(t *testing.T) {
 	}
 }
 
-// TestSync_WritesUserLevelOperatorSkill pins the Sync wiring: a full sync
-// against a kit carrying the pointer template leaves the machine-level
-// fab-operator skill under the harness HOME (both tiers — the fixture sets
-// FAB_AGENTS=claude) and prints the tally line.
-func TestSync_WritesUserLevelOperatorSkill(t *testing.T) {
+// TestSync_CleansRetiredUserOperatorSkills pins the full Sync wiring for both
+// user-level tiers and proves sync does not recreate the retired template.
+func TestSync_CleansRetiredUserOperatorSkills(t *testing.T) {
 	setupSyncRepo(t)
 	home := os.Getenv("HOME")
-	kitDir := filepath.Join(home, ".fab-kit", "versions", "dev", "kit")
-	if err := os.MkdirAll(filepath.Join(kitDir, "templates"), 0755); err != nil {
-		t.Fatal(err)
+	for _, tier := range []string{".agents", ".claude"} {
+		writeUserOperatorSkill(t, filepath.Join(home, tier, "skills", "fab-operator", "SKILL.md"), fabGeneratedUserOperatorSkill)
 	}
-	os.WriteFile(filepath.Join(kitDir, "skills", "fab-operator.md"),
-		[]byte("---\nname: fab-operator\ndescription: \"Coordinate fab agents.\"\n---\n\n# /fab-operator\n"), 0644)
-	os.WriteFile(filepath.Join(kitDir, "templates", "user-skill-fab-operator.md"),
-		[]byte(userSkillFixtureTemplate), 0644)
 
 	var err error
 	out := captureStdout(t, func() {
@@ -596,17 +589,11 @@ func TestSync_WritesUserLevelOperatorSkill(t *testing.T) {
 		t.Fatalf("Sync: %v\noutput:\n%s", err, out)
 	}
 	for _, tier := range []string{".agents", ".claude"} {
-		dest := filepath.Join(home, tier, "skills", "fab-operator", "SKILL.md")
-		data, err := os.ReadFile(dest)
-		if err != nil {
-			t.Errorf("user-level %s tier not written: %v", tier, err)
-			continue
-		}
-		if !strings.Contains(string(data), `description: "Coordinate fab agents."`) {
-			t.Errorf("user-level %s tier carries the kit description verbatim, got:\n%s", tier, data)
+		if _, err := os.Stat(filepath.Join(home, tier, "skills", "fab-operator")); !os.IsNotExist(err) {
+			t.Errorf("retired user-level %s tier still exists: %v", tier, err)
 		}
 	}
-	if !strings.Contains(out, "User-level skill (fab-operator): written") {
-		t.Errorf("expected the user-level tally line, got:\n%s", out)
+	if got := strings.Count(out, "User-level skill (fab-operator): removed (retired)"); got != 2 {
+		t.Errorf("removed tally count = %d, want 2; output:\n%s", got, out)
 	}
 }

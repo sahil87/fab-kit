@@ -143,14 +143,11 @@ under `.fab-dispatch/{id}/`, and the orchestrator observes all five states **via
 `fab dispatch wait`** (derived from on-disk signals plus a pid liveness probe) rather than a held handle.
 POSIX-only in v1.
 
-> `fab dispatch`'s **headless** mode is deliberately **parallel to and independent of** `fab pane` /
-> `fab operator`. Those stay the *interactive operator-visibility* path (a human watching a tracked set
-> of tmux panes with operator-owned lifecycles); headless dispatch is the *unattended pipeline* path
-> (launch-and-poll). Making `fab pane` grow a headless mode was rejected — pane observation (tmux
-> capture) and headless observation (exit-file polling) are different models. The pane **dispatch** mode
-> below does not undo that split: it *consumes* tmux as a launch surface for a pipeline worker, while
-> operator tracking and window marks remain the operator's, never a
-> dispatch's (see § Pane dispatch is not operator enrollment).
+> `fab dispatch`'s **headless** mode is deliberately **parallel to and independent of** `fab pane`.
+> Pane observation is interactive (tmux capture); headless dispatch is the *unattended pipeline* path
+> (launch-and-poll). Making `fab pane` grow a headless mode was rejected — these are different
+> observation models. The pane **dispatch** mode below consumes tmux only as a launch surface for a
+> pipeline worker.
 
 ### 3. Interactive-pane adapter — `fab dispatch open` → `ready` → `deliver`
 
@@ -195,7 +192,7 @@ Mechanics, all fixed by this spec:
   composes — with `{model}`/`{effort}` substituted through the shared `internal/spawn` resolution. This is
   why pane mode needs **no new provider config field**: the interactive invocation is already in the
   provider table. It MUST NOT read or fall back to `headless_command`. Interactive **human-facing** spawns
-  (the operator launcher, operator-spawned agent windows, `fab batch new`/`switch`) carry a shell fallback
+  (HexoKit-spawned agent windows and `fab batch new`/`switch`) carry a shell fallback
   (`; exec "$SHELL"`) so the pane survives the agent's exit; dispatch pane workers do **not**, because this
   adapter's `running`/`done`/`orphaned` subset treats pane death as the worker's terminal event.
 - **Where the pane opens — TWO SHAPES, one identity.** Both are the `_cli-agents.md` § Spawn Composition
@@ -263,7 +260,7 @@ Mechanics, all fixed by this spec:
   multi-thousand-token prompt cannot ride `send-keys` or argv reliably — and the worker is later typed a
   **one-line pointer** to that path. The composed `interactive_command` reaches tmux with nothing
   appended to it — only wrapped as `${SHELL:-/bin/sh} -i -c '<cmd>'` so the worker inherits the env the
-  user's interactive rc exports (provider auth tokens, PATH). Every dispatch, pane, operator and batch
+  user's interactive rc exports (provider auth tokens, PATH). Every dispatch, pane, and batch
   provider launch carries that wrap (`fab agent`, which runs in the caller's own shell, does not); without it a worker boots at a login wall, and a provider whose login state
   still draws its ordinary input box (observed: claude's "Not logged in") reads as `ready` to the
   text-free readiness gate, so the delivered prompt goes nowhere.
@@ -679,9 +676,9 @@ the native adapter's model seam is the Agent tool's `model` param — a Claude-a
 `--provider` override** the **sole executable path** is a config override — a depth knob (`agent.workers`/`agent.session`) or
 `agent.profiles.<role>.provider` — that `dispatch start`'s
 own re-resolution will see. Nothing else moves: pane composes the resolved provider's existing
-`interactive_command` (the same field `fab agent` and the operator launcher compose) through the same
+`interactive_command` (the same field `fab agent` composes) through the same
 `internal/spawn` substitution. Mode selection is **per invocation**: explicit flags first, otherwise the
 configured descending ladder (§ 3's *Mode selection*), never a property inferred from command presence.
 A provider whose **pane-dispatch** grammar genuinely diverges from the interactive command it shares
-with `fab agent` and the operator launcher would be the trigger to add a dedicated pane field
+with `fab agent` would be the trigger to add a dedicated pane field
 (distinct from `interactive_command`) later — a data-only config addition, not a protocol change.

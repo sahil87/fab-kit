@@ -52,7 +52,7 @@ One line per capability, keyed to its command:
   instead of polling for one, and `reap` reclaims a done pane worker's pane (a reported
   no-op for every other dispatch).
 - **Panes / operator** — `fab pane {map,capture,process,open,ready,deliver,kill}` inspects and
-  drives tmux panes; `fab operator` launches the coordination tab.
+  drives tmux panes; `rk operator` launches the coordination tab.
 - **Config** — `fab config {show,explain,set,unset,init,upgrade}` inspects and
   surgically updates `config.yaml`; `show <key> --origin` gives provenance (add
   `--json` for typed machine-readable rows), `set` refuses out-of-range values, and
@@ -114,10 +114,7 @@ entered manually via `/git-pr-review`).
   `doctor`, and `migrations-status` to the `fab-kit` workspace binary; everything else goes
   to the version-pinned `fab-go` engine. You never call `fab-kit`/`fab-go` directly.
 - **Agent directories hold deployed copies.** `fab sync` always writes `.agents/skills/`;
-  `.claude/skills/` requires `claude`, and `.opencode/commands/` requires `opencode`. It also writes
-  the machine-level `fab-operator` pointer skill (which tries `rk skill operator` first) to `~/.agents/skills/` (always) and
-  `~/.claude/skills/` (when `claude` is available). Never hand-edit a deployed skill — your edit is lost on the
-  next sync. In the fab-kit repo itself, the canonical source is `src/kit/skills/`.
+  `.claude/skills/` requires `claude`, and `.opencode/commands/` requires `opencode`. It never writes user-level skills; stale fab-generated `fab-operator` pointers are removed instead. Never hand-edit a deployed skill — your edit is lost on the next sync. In the fab-kit repo itself, the canonical source is `src/kit/skills/`.
 - **`fab skill` ≠ fab's kit-skills.** *This* command (the toolkit-standard bundle you are
   reading) is unrelated to fab's own "skills" — the `/fab-*` markdown prompts `fab sync`
   deploys. Same word, two concepts: `fab skill` prints this one static page; the kit-skills

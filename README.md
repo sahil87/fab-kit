@@ -280,7 +280,7 @@ Run `fab doctor` to check all prerequisites (git, yq, direnv hook, etc.) and dia
 
 - `direnv allow` doesn't work - reload your shell or run `eval "$(direnv export zsh)"`
 - `/fab-setup` not recognized - re-run `fab sync` to deploy skills
-- **After cloning a repo that uses Fab Kit** - run `fab sync` once. Fab's deployed skill copies in `.agents/skills/` (always), `.claude/skills/` (when `claude` is available), and the other agent targets are ignored via a generated per-target `.gitignore`, so each developer needs to deploy them locally. The same sync also writes the machine-level `fab-operator` pointer skill (`~/.agents/skills/fab-operator/SKILL.md`, plus `~/.claude/skills/fab-operator/SKILL.md` when `claude` is available), so `/fab-operator` resolves from any directory.
+- **After cloning a repo that uses Fab Kit** - run `fab sync` once. Fab's deployed skill copies in `.agents/skills/` (always), `.claude/skills/` (when `claude` is available), and the other agent targets are ignored via a generated per-target `.gitignore`, so each developer needs to deploy them locally. The same sync removes stale fab-generated `fab-operator` pointers from user-level skill directories.
 - **A stage fails mid-way** - run `/fab-continue` to resume from the last checkpoint. All stage artifacts are persisted, so no progress is lost.
 - **AI produces bad code** - the review sub-agent catches it. `/fab-ff` and `/fab-fff` auto-loop between apply and review (up to 3 cycles) before escalating to you.
 - **Abandon a change** - delete the change folder, or run `/fab-archive` to move it to the archive.
@@ -466,13 +466,13 @@ Grades aggregate into a **confidence score** that gates `/fab-ff`. If ambiguity 
 
 ### Multi-Agent Coordination
 
-The operator (`/fab-operator`) is a long-running coordination layer that sits in its own tmux pane, observing and directing agents across other panes. It is optional and useful when running multiple agent sessions simultaneously.
+HexoKit's operator (`rk operator`) is a long-running coordination layer that sits in its own tmux pane, observing and directing agents across other panes. It is optional and useful when running multiple agent sessions simultaneously.
 
 | Command | Purpose |
 |---------|---------|
-| `/fab-operator` | Multi-agent coordination — monitoring, auto-answering, autopilot queues, dependency-aware spawning |
+| `rk operator` | Multi-agent coordination — monitoring, auto-answering, autopilot queues, dependency-aware spawning |
 
-[Operator version history →](https://github.com/sahil87/fab-kit/blob/main/docs/specs/operator.md)
+[Operator ownership →](https://github.com/sahil87/fab-kit/blob/main/docs/specs/operator.md)
 
 ### CLI Subcommands
 
@@ -484,7 +484,6 @@ The operator (`/fab-operator`) is a long-running coordination layer that sits in
 | `fab config init` / `upgrade` | Bootstrap or reconcile config files |
 | `fab doctor` | Diagnose common setup issues |
 | `fab fab-help` | Print workflow overview to terminal |
-| `fab operator` | Launch operator in a dedicated tmux tab |
 | `fab batch new` | Create worktree tabs from backlog items |
 | `fab batch switch` | Open tmux tabs in worktrees for one or more changes |
 | `fab batch archive` | Archive multiple completed changes in one session |

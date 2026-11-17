@@ -27,8 +27,6 @@ func validateSetValue(key, rawValue string, layers *config.Layers) error {
 	switch {
 	case key == "dispatch.mode":
 		return validateEnum(key, value, config.ValidDispatchModes)
-	case key == "autopilot.merge_mode":
-		return validateEnum(key, value, config.ValidAutopilotMergeModes)
 	case key == "dispatch.column_width":
 		return validateIntRange(key, value, config.MinDispatchColumnWidth, config.MaxDispatchColumnWidth)
 	case key == "dispatch.min_cols", key == "dispatch.min_rows":

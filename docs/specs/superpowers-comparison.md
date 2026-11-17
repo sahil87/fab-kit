@@ -15,7 +15,7 @@ Both are "pure prompt play" — markdown skill files + shell scripts, no runtime
 | **Memory / knowledge management** | First-class `docs/memory/` system — hydrate stage writes post-implementation truth back into memory files, creating institutional knowledge | No equivalent — knowledge lives in the codebase and git history only |
 | **Specs as separate artifact** | Distinct pre-implementation specs (`docs/specs/`) vs post-implementation memory — the gap between intent and reality is explicitly tracked | Design document produced during brainstorming, but no persistent spec layer separate from code |
 | **TDD enforcement** | No dedicated TDD skill — tests are part of apply/review but not a rigid RED-GREEN-REFACTOR cycle | Core differentiator — strict TDD with a dedicated skill that will *delete code written before tests* |
-| **Multi-agent coordination** | Operator system (`/fab-operator`) with dependency-aware spawning, tmux pane routing, tracked work queues, proactive monitoring | Simpler model — fresh subagent per task, parallel dispatch for independent tasks, two-stage review |
+| **Multi-agent coordination** | HexoKit operator (`rk operator`) with dependency-aware spawning, tmux pane routing, tracked work queues, proactive monitoring | Simpler model — fresh subagent per task, parallel dispatch for independent tasks, two-stage review |
 | **Portability** | Self-contained `src/kit/` — `cp -r` into any project | Platform shims for Claude Code, Cursor, Codex, Gemini CLI — broader agent compatibility |
 | **Assumption tracking** | Explicit assumption tables with grades (Certain/Confident/Tentative/Unresolved) persisted in artifacts, scannable by `/fab-clarify` | Implicit — assumptions surface during brainstorming discussion but aren't formally tracked |
 | **Change lifecycle** | Full lifecycle: backlog → change → archive, with status tracking, checklist scoring, and PR integration | Per-branch lifecycle: worktree → implement → merge/discard |
@@ -32,7 +32,7 @@ Superpowers' plans are described as "clear enough for an enthusiastic junior eng
 
 ### Fresh-agent-per-task isolation
 
-Superpowers dispatches a clean subagent for each task specifically to prevent context drift. Fab's operator system is more sophisticated (dependency-aware, monitoring), but the "clean slate per task" principle is worth preserving — accumulated context can cause subtle regressions.
+Superpowers dispatches a clean subagent for each task specifically to prevent context drift. HexoKit's operator system is more sophisticated (dependency-aware, monitoring), but the "clean slate per task" principle is worth preserving — accumulated context can cause subtle regressions.
 
 ### Platform portability
 
