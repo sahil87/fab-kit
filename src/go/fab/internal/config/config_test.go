@@ -1923,3 +1923,18 @@ func TestLoadNoProject_IncompatibleSystemLayerKeepsEnv(t *testing.T) {
 		t.Errorf("agent.session = %q, want the env layer's %q to survive the bad system layer", got, "codex")
 	}
 }
+
+func TestLoadProviderModelsCommand(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("providers:\n  mytool:\n    models_command: 'mytool models --json'\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadPath(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider, ok := cfg.GetProvider("mytool")
+	if !ok || provider.ModelsCommand != "mytool models --json" {
+		t.Fatalf("models_command = %q, ok=%v", provider.ModelsCommand, ok)
+	}
+}

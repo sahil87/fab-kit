@@ -1,0 +1,54 @@
+id: rhpz
+name: 261117-rhpz-agent-models-discovery
+created: 2026-11-17T19:15:19Z
+created_by: sahil-noon
+change_type: feat
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: active
+    hydrate: pending
+    ship: pending
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 14
+    acceptance_count: 23
+    acceptance_completed: 0
+confidence:
+    certain: 4
+    confident: 11
+    tentative: 0
+    unresolved: 0
+    score: 3.2
+    fuzzy: true
+    dimensions:
+        signal: 72.3
+        reversibility: 79.0
+        competence: 75.7
+        disambiguation: 70.7
+stage_metrics:
+    intake: {started_at: "2026-11-17T19:15:19Z", driver: fab-new, iterations: 1, completed_at: "2026-11-17T19:19:22Z"}
+    apply: {started_at: "2026-11-17T19:19:22Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-17T19:38:51Z"}
+    review: {started_at: "2026-11-17T19:38:51Z", driver: fab-fff, iterations: 1}
+prs: []
+change_type_source: explicit
+base_branch: main
+true_impact:
+    added: 751
+    deleted: 117
+    net: 634
+    excluding:
+        added: 174
+        deleted: 63
+        net: 111
+    tests:
+        added: 98
+        deleted: 28
+        net: 70
+    computed_at: "2026-11-17T19:38:51Z"
+    computed_at_stage: apply
+# base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-11-17T19:38:51Z

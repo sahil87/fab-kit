@@ -19,8 +19,8 @@ shape; this tells you *which* command to reach for and how the pieces compose.
   workflow; the actual editing is still your job, driven by the skills fab deploys.
 - Do **not** invoke fab in a repo with no `fab/` directory for project-state commands: they
   fail closed with `ERROR: fab/ directory not found`. Config-free commands still work —
-  `fab agent`, `fab resolve-agent`, `fab config show` and `fab config explain` resolve the
-  **project-free cascade** there (`env > system > built-in defaults`, project tier dropped),
+  `fab agent`, `fab agent models`, `fab resolve-agent`, `fab config show` and `fab config explain`
+  resolve the **project-free cascade** there (`env > system > built-in defaults`, project tier dropped),
   so a machine-wide `~/.fab-kit/config.yaml` still applies. Bare `config` writes stay
   project-gated, while the `--system` forms of `set`, `unset`, `init`, and `upgrade`
   target `~/.fab-kit/config.yaml` without requiring a fab repo. `upgrade --all` still

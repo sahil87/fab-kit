@@ -75,10 +75,11 @@ type ProviderProfile struct {
 //   - InteractiveCommand opens an interactive agent SESSION (the relocated
 //     agent.spawn_command semantics — consumed by fab batch / fab agent).
 //   - HeadlessCommand runs ONE headless stage task via fab dispatch.
+//   - ModelsCommand prints model-discovery rows for fab agent models.
 //   - Native declares that the provider can run through the native Agent-tool
 //     adapter. Provider names are opaque, so this capability is shipped data.
 //
-// The two command fields are deliberately NOT merged into one: session and
+// The two launch command fields are deliberately NOT merged into one: session and
 // dispatch are different invocations of the same binary (claude interactive `-n`
 // vs headless `-p`; codex TUI vs `codex exec`), and no single template expresses
 // both. Both strings pass through verbatim — fab applies NO validation against any
@@ -115,6 +116,7 @@ type ProviderProfile struct {
 type ProviderConfig struct {
 	InteractiveCommand string `yaml:"interactive_command"`
 	HeadlessCommand    string `yaml:"headless_command"`
+	ModelsCommand      string `yaml:"models_command"`
 	Native             bool   `yaml:"native"`
 	// NativeSet preserves YAML presence so an explicit `native: false` can
 	// override a built-in true value during the provider-table merge.

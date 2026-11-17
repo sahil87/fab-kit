@@ -420,6 +420,20 @@ in the binary, so an upgrade refreshes them and no project pins rot in place.
 **Provider names are opaque — fab NEVER infers a provider from a model string** (`claude-*` → claude
 would need a provider registry, which the no-validation/provider-neutrality contract refuses).
 
+### Model discovery — `fab agent models`
+
+`fab agent models [provider] [--json] [--repo <path>]` asks each tool what it offers and always merges
+in the resolved provider's profile fills. Rows carry `{cli, id, label, efforts, default, source}`;
+`source` distinguishes discovered `tool` rows, built-in `alias` rows, and `fill` rows. Tool rows retain
+tool order, fills are sorted and deduplicated by ID with precedence `tool > alias > fill`, and an
+unlisted tool default is appended.
+
+Codex discovery runs the bounded debug command `codex debug models` and reads `$CODEX_HOME/config.toml`;
+Claude reads its settings and local override under `$CLAUDE_CONFIG_DIR`; Kimi reads model tables from
+`~/.kimi-code/config.toml`; agy returns fills only. Optional `providers.<name>.models_command` replaces
+the built-in adapter with a command that prints the same row array. Discovery is read-only, uncached,
+and fails open to fills with stderr warnings rather than blocking a caller.
+
 ### Fill precedence
 
 ```

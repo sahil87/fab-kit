@@ -268,6 +268,7 @@ type providerProfileDefault struct {
 type providerDefault struct {
 	InteractiveCommand string                            `json:"interactive_command,omitempty"`
 	HeadlessCommand    string                            `json:"headless_command,omitempty"`
+	ModelsCommand      string                            `json:"models_command,omitempty"`
 	Native             bool                              `json:"native,omitempty"`
 	Profiles           map[string]providerProfileDefault `json:"profiles,omitempty"`
 }
@@ -301,6 +302,7 @@ func providerDefaults() (map[string]providerDefault, error) {
 		defaults[name] = providerDefault{
 			InteractiveCommand: p.InteractiveCommand,
 			HeadlessCommand:    p.HeadlessCommand,
+			ModelsCommand:      p.ModelsCommand,
 			Native:             p.Native,
 			Profiles:           profiles,
 		}
@@ -651,7 +653,7 @@ checklist:
 			Key:         "providers",
 			Default:     providers,
 			Kind:        configvalue.KindMapping,
-			Description: "Named agent capability grammars: four built-in providers with per-role fills on the kit-release cadence. Each provider MAY carry interactive_command (pane/session), headless_command (headless stage task), and native (native Agent-tool capability); presence describes how and never selects dispatch mode. Command fields are never merged or substituted for one another. profiles supplies {model}/{effort} placeholders with precedence invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty. Fill roster: claude and codex ship all six role fills (dense maps), agy a sparse map whose `default` entry is the cross-role fallback, and kimi NO fills at all (its -m takes a user-config model alias, so the empty model drops the flag and the CLI's own default_model applies). Provider names are opaque, user-chosen strings.",
+			Description: "Named agent capability grammars: four built-in providers with per-role fills on the kit-release cadence. Each provider MAY carry interactive_command (pane/session), headless_command (headless stage task), optional models_command (JSON model rows for fab agent models, replacing its built-in adapter), and native (native Agent-tool capability); presence describes how and never selects dispatch mode. Command fields are never merged or substituted for one another. profiles supplies {model}/{effort} placeholders with precedence invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty. Fill roster: claude and codex ship all six role fills (dense maps), agy a sparse map whose `default` entry is the cross-role fallback, and kimi NO fills at all (its -m takes a user-config model alias, so the empty model drops the flag and the CLI's own default_model applies). Provider names are opaque, user-chosen strings.",
 			Scope:       ScopeBoth,
 			// Demoted from the managed fence (260806-j9nh) for the same reason as
 			// agent.profiles: naming a built-in in a knob needs no providers: block at
@@ -744,8 +746,8 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# agent.workers, above) needs no `providers:` entry at all, so it is documented\n" +
 		"# here rather than scaffolded into your config. Full schema: docs/specs/config.md.\n" +
 		"#\n" +
-		"# Each provider MAY carry two command fields plus native capability (the command\n" +
-		"# fields are NOT merged — interactive and headless are different invocations):\n" +
+		"# Each provider MAY carry two launch command fields, optional model discovery,\n" +
+		"# plus native capability (the launch fields are NOT merged):\n" +
 		"#   interactive_command — opens an interactive agent SESSION (fab batch /\n" +
 		"#                         fab agent). {model}/{effort} placeholders\n" +
 		"#                         are substituted from the resolved role profile, or\n" +
@@ -758,6 +760,9 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#                         is NO substitution between command fields; fab\n" +
 		"#                         dispatch pipes the stage prompt to the command's\n" +
 		"#                         STDIN.\n" +
+		"#   models_command      — optional discovery override for fab agent models. Runs\n" +
+		"#                         through sh -c and prints a JSON array of model rows;\n" +
+		"#                         replaces the provider's built-in discovery adapter.\n" +
 		"#   native              — declares native Agent-tool capability. Provider names\n" +
 		"#                         are opaque, so fab never infers this capability from a\n" +
 		"#                         name.\n" +
@@ -1313,7 +1318,7 @@ func ResolveKey(key string) (KeyMatch, bool, error) {
 		return dynamicMatch(fields, "providers", configvalue.KindMapping)
 
 	case len(parts) == 3 && parts[0] == "providers" &&
-		contains([]string{"interactive_command", "headless_command"}, parts[2]):
+		contains([]string{"interactive_command", "headless_command", "models_command"}, parts[2]):
 		return dynamicMatch(fields, "providers", configvalue.KindString)
 
 	case len(parts) == 3 && parts[0] == "providers" && parts[2] == "profiles":
