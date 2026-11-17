@@ -27,13 +27,14 @@ type claudeModelPicker struct {
 	} `json:"options"`
 }
 
+// discoverClaude combines built-in aliases with the user's configured model-picker options.
 func discoverClaude(env environment) ([]Row, string, error) {
-	directory, err := claudeConfigDir(env)
+	directory, err := configPath(env, "CLAUDE_CONFIG_DIR", ".claude", "")
 	if err != nil {
 		return nil, "", fmt.Errorf("resolve CLAUDE_CONFIG_DIR: %w", err)
 	}
-	base, baseErr := readClaudeSettings(joinPath(directory, "settings.json"))
-	local, localErr := readClaudeSettings(joinPath(directory, "settings.local.json"))
+	base, baseErr := readClaudeSettings(filepath.Join(directory, "settings.json"))
+	local, localErr := readClaudeSettings(filepath.Join(directory, "settings.local.json"))
 	if local.Model != nil {
 		base.Model = local.Model
 	}
@@ -76,17 +77,6 @@ func claudeRow(id, label, source string) Row {
 	return Row{ID: id, Label: label, Efforts: append([]string(nil), claudeEfforts...), Source: source}
 }
 
-func claudeConfigDir(env environment) (string, error) {
-	if directory, ok := env.lookupEnv("CLAUDE_CONFIG_DIR"); ok && directory != "" {
-		return directory, nil
-	}
-	home, err := env.homeDir()
-	if err != nil {
-		return "", err
-	}
-	return joinPath(home, ".claude"), nil
-}
-
 func readClaudeSettings(path string) (claudeSettings, error) {
 	var settings claudeSettings
 	data, err := os.ReadFile(path)
@@ -94,14 +84,10 @@ func readClaudeSettings(path string) (claudeSettings, error) {
 		return settings, nil
 	}
 	if err != nil {
-		return settings, fmt.Errorf("read claude %s: %w", pathBase(path), err)
+		return settings, fmt.Errorf("read claude %s: %w", filepath.Base(path), err)
 	}
 	if err := json.Unmarshal(data, &settings); err != nil {
-		return claudeSettings{}, fmt.Errorf("parse claude %s: %w", pathBase(path), err)
+		return claudeSettings{}, fmt.Errorf("parse claude %s: %w", filepath.Base(path), err)
 	}
 	return settings, nil
-}
-
-func pathBase(path string) string {
-	return filepath.Base(path)
 }

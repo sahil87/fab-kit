@@ -42,6 +42,38 @@ command = "ignored"
 	}
 }
 
+func TestTOMLScannerSkipsUnsupportedMultilineValues(t *testing.T) {
+	doc, err := parseTOML([]byte(`default_model = "k3"
+[providers.example]
+ports = [1, 2]
+"a=b" = 1
+args = [
+  "--flag",
+  "[not-a-header]",
+]
+description = """
+multi-line value
+[also-not-a-header]
+"""
+display_name = 42
+[models.real]
+display_name = "Real"
+support_efforts = ["low"]
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.top["default_model"] != "k3" {
+		t.Errorf("top-level default = %q", doc.top["default_model"])
+	}
+	if len(doc.tables) != 2 || doc.tables[1].header != "models.real" {
+		t.Fatalf("tables = %+v", doc.tables)
+	}
+	if got := doc.tables[1].strings["display_name"]; got != "Real" {
+		t.Errorf("model display_name = %q", got)
+	}
+}
+
 func TestTOMLScannerMalformedInput(t *testing.T) {
 	for _, input := range []string{
 		`[models."broken"`,
@@ -49,6 +81,7 @@ func TestTOMLScannerMalformedInput(t *testing.T) {
 		"[models.broken]\nsupport_efforts = [ \"low\" \"high\" ]",
 		"default_model = unquoted",
 		"[models.broken]\nsupport_efforts = high",
+		"[providers.x]\nargs = [\n  \"never closed\"\n[models.lost]\ndisplay_name = \"Lost\"",
 	} {
 		if _, err := parseTOML([]byte(input)); err == nil {
 			t.Errorf("parseTOML(%q) succeeded, want error", input)

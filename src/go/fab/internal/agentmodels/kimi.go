@@ -5,6 +5,7 @@ import (
 	"os"
 )
 
+// discoverKimi lists the model aliases in the user's kimi-code configuration.
 func discoverKimi(env environment) ([]Row, string, error) {
 	path, err := configPath(env, "", ".kimi-code", "config.toml")
 	if err != nil {

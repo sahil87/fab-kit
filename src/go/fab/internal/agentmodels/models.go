@@ -20,12 +20,16 @@ import (
 const discoveryTimeout = 3 * time.Second
 
 const (
-	SourceTool  = "tool"
+	// SourceTool marks a model reported by the tool or its models_command.
+	SourceTool = "tool"
+	// SourceAlias marks a built-in Claude family alias.
 	SourceAlias = "alias"
-	SourceFill  = "fill"
+	// SourceFill marks a model supplied by the resolved provider's role fills.
+	SourceFill = "fill"
 )
 
-// Row is one model offered by a tool or supplied by a provider fill.
+// Row is one model offered by a tool or supplied by a provider fill. Efforts is
+// normalized to an empty array when the tool reports no per-model set.
 type Row struct {
 	CLI     string   `json:"cli"`
 	ID      string   `json:"id"`
@@ -84,9 +88,6 @@ func discoverWith(cfg *config.Config, name string, env environment) ([]Row, []st
 		if err != nil {
 			warnings = append(warnings, err.Error())
 		}
-	}
-	for i := range rows {
-		rows[i].CLI = name
 	}
 	rows = append(rows, providerFills(provider)...)
 	rows = mergeRows(rows, defaultID)
@@ -221,8 +222,4 @@ func configPath(env environment, override, directory, filename string) (string, 
 		return "", err
 	}
 	return filepath.Join(home, directory, filename), nil
-}
-
-func joinPath(elements ...string) string {
-	return filepath.Join(elements...)
 }

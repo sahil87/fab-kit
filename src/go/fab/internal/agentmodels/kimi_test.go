@@ -45,6 +45,32 @@ command = "also-ignored"
 	}
 }
 
+func TestKimiIgnoresUnsupportedValuesInOtherTables(t *testing.T) {
+	home := t.TempDir()
+	writeTestFile(t, filepath.Join(home, ".kimi-code", "config.toml"), `default_model = "real"
+[providers.example]
+ports = [1, 2]
+args = [
+  "--flag",
+  "[not-a-header]",
+]
+description = """
+multi-line value
+[also-not-a-header]
+"""
+[models.real]
+display_name = "Real"
+`)
+	t.Setenv("HOME", home)
+	rows, defaultID, err := discoverKimi(defaultEnvironment())
+	if err != nil || defaultID != "real" {
+		t.Fatalf("defaultID=%q err=%v", defaultID, err)
+	}
+	if len(rows) != 1 || rows[0].ID != "real" || rows[0].Label != "Real" {
+		t.Fatalf("rows = %+v", rows)
+	}
+}
+
 func TestKimiMissingFileSilent(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	rows, defaultID, err := discoverKimi(defaultEnvironment())

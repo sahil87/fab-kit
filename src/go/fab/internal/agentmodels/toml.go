@@ -20,69 +20,191 @@ type tomlTable struct {
 	arrays  map[string][]string
 }
 
+type tomlParser struct {
+	doc          tomlDocument
+	current      int
+	continuation *tomlContinuation
+}
+
 func parseTOML(data []byte) (tomlDocument, error) {
-	doc := tomlDocument{top: make(map[string]string)}
-	current := -1
+	parser := tomlParser{
+		doc:     tomlDocument{top: make(map[string]string)},
+		current: -1,
+	}
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	lineNumber := 0
 	for scanner.Scan() {
 		lineNumber++
-		line := strings.TrimSpace(stripTOMLComment(scanner.Text()))
-		if line == "" {
-			continue
-		}
-		if strings.HasPrefix(line, "[") {
-			header, array, err := parseTOMLHeader(line)
-			if err != nil {
-				return doc, fmt.Errorf("line %d: malformed table header", lineNumber)
-			}
-			doc.tables = append(doc.tables, tomlTable{
-				header:  header,
-				array:   array,
-				strings: make(map[string]string),
-				arrays:  make(map[string][]string),
-			})
-			current = len(doc.tables) - 1
-			continue
-		}
-		key, value, ok := strings.Cut(line, "=")
-		if !ok {
-			continue
-		}
-		key, value = strings.TrimSpace(key), strings.TrimSpace(value)
-		if current < 0 {
-			parsed, isString, err := parseTOMLString(value)
-			if err != nil || (!isString && (key == "model" || key == "default_model")) {
-				return doc, fmt.Errorf("line %d: malformed string for %s", lineNumber, key)
-			}
-			if isString {
-				doc.top[key] = parsed
-			}
-			continue
-		}
-		table := &doc.tables[current]
-		parsed, isString, err := parseTOMLString(value)
-		if err != nil || (!isString && key == "display_name") {
-			return doc, fmt.Errorf("line %d: malformed string for %s", lineNumber, key)
-		}
-		if isString {
-			table.strings[key] = parsed
-			continue
-		}
-		if strings.HasPrefix(value, "[") {
-			parsed, err := parseTOMLStringArray(value)
-			if err != nil {
-				return doc, fmt.Errorf("line %d: malformed array for %s", lineNumber, key)
-			}
-			table.arrays[key] = parsed
-		} else if key == "support_efforts" {
-			return doc, fmt.Errorf("line %d: malformed array for %s", lineNumber, key)
+		if err := parser.consumeLine(scanner.Text(), lineNumber); err != nil {
+			return parser.doc, err
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return doc, fmt.Errorf("read TOML: %w", err)
+		return parser.doc, fmt.Errorf("read TOML: %w", err)
 	}
-	return doc, nil
+	// A skipped value still open at EOF has swallowed every later line, so the
+	// document is incomplete — surface it rather than return a silently short read.
+	if parser.continuation != nil {
+		return parser.doc, fmt.Errorf("unterminated value at end of file")
+	}
+	return parser.doc, nil
+}
+
+func (p *tomlParser) consumeLine(raw string, lineNumber int) error {
+	if p.continuation != nil {
+		if p.continuation.consume(raw) {
+			p.continuation = nil
+		}
+		return nil
+	}
+	line := strings.TrimSpace(stripTOMLComment(raw))
+	if line == "" {
+		return nil
+	}
+	if strings.HasPrefix(line, "[") {
+		return p.startTable(line, lineNumber)
+	}
+	key, value, ok := cutTOMLKeyValue(line)
+	if !ok {
+		return nil
+	}
+	key, value = strings.TrimSpace(key), strings.TrimSpace(value)
+	if p.current < 0 {
+		return p.consumeTopLevel(key, value, lineNumber)
+	}
+	return p.consumeTableValue(key, value, lineNumber)
+}
+
+// cutTOMLKeyValue splits a `key = value` line at the first '=' outside a quoted
+// key, so a quoted key containing '=' (`"a=b" = 1`) is not cut inside the quotes.
+func cutTOMLKeyValue(line string) (key, value string, ok bool) {
+	var quote byte
+	for index := 0; index < len(line); index++ {
+		switch {
+		case quote == '"' && line[index] == '\\':
+			index++
+		case quote != 0:
+			if line[index] == quote {
+				quote = 0
+			}
+		case line[index] == '"' || line[index] == '\'':
+			quote = line[index]
+		case line[index] == '=':
+			return line[:index], line[index+1:], true
+		}
+	}
+	return "", "", false
+}
+
+func (p *tomlParser) startTable(line string, lineNumber int) error {
+	header, array, err := parseTOMLHeader(line)
+	if err != nil {
+		return fmt.Errorf("line %d: malformed table header", lineNumber)
+	}
+	p.doc.tables = append(p.doc.tables, tomlTable{
+		header:  header,
+		array:   array,
+		strings: make(map[string]string),
+		arrays:  make(map[string][]string),
+	})
+	p.current = len(p.doc.tables) - 1
+	return nil
+}
+
+func (p *tomlParser) consumeTopLevel(key, value string, lineNumber int) error {
+	if key != "model" && key != "default_model" {
+		p.skipUnsupported(value)
+		return nil
+	}
+	parsed, ok, err := parseTOMLString(value)
+	if err != nil || !ok {
+		return fmt.Errorf("line %d: malformed string for %s", lineNumber, key)
+	}
+	p.doc.top[key] = parsed
+	return nil
+}
+
+func (p *tomlParser) consumeTableValue(key, value string, lineNumber int) error {
+	table := &p.doc.tables[p.current]
+	isModel := !table.array && strings.HasPrefix(table.header, "models.")
+	if !isModel || (key != "display_name" && key != "support_efforts") {
+		p.skipUnsupported(value)
+		return nil
+	}
+	if key == "display_name" {
+		parsed, ok, err := parseTOMLString(value)
+		if err != nil || !ok {
+			return fmt.Errorf("line %d: malformed string for %s", lineNumber, key)
+		}
+		table.strings[key] = parsed
+		return nil
+	}
+	parsed, err := parseTOMLStringArray(value)
+	if err != nil {
+		return fmt.Errorf("line %d: malformed array for %s", lineNumber, key)
+	}
+	table.arrays[key] = parsed
+	return nil
+}
+
+// skipUnsupported records enough lexical state to ignore arrays and quoted
+// strings spanning lines. The adapters deliberately support only the small TOML
+// subset they read; every other value is skipped without interpreting its content.
+func (p *tomlParser) skipUnsupported(value string) {
+	var continuation tomlContinuation
+	if !continuation.consume(value) {
+		p.continuation = &continuation
+	}
+}
+
+type tomlContinuation struct {
+	brackets int
+	quote    byte
+	triple   string
+}
+
+func (c *tomlContinuation) consume(line string) bool {
+	for index := 0; index < len(line); index++ {
+		if c.triple != "" {
+			if strings.HasPrefix(line[index:], c.triple) {
+				c.triple = ""
+				index += 2
+			}
+			continue
+		}
+		if c.quote != 0 {
+			if c.quote == '"' && line[index] == '\\' {
+				index++
+				continue
+			}
+			if line[index] == c.quote {
+				c.quote = 0
+			}
+			continue
+		}
+		if line[index] == '#' {
+			return c.brackets == 0
+		}
+		if strings.HasPrefix(line[index:], `"""`) || strings.HasPrefix(line[index:], "'''") {
+			c.triple = line[index : index+3]
+			index += 2
+			continue
+		}
+		if line[index] == '"' || line[index] == '\'' {
+			c.quote = line[index]
+			continue
+		}
+		switch line[index] {
+		case '[':
+			c.brackets++
+		case ']':
+			c.brackets--
+			if c.brackets <= 0 {
+				return true
+			}
+		}
+	}
+	return c.brackets == 0 && c.quote == 0 && c.triple == ""
 }
 
 func parseTOMLHeader(line string) (string, bool, error) {

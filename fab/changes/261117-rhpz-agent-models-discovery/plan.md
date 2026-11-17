@@ -119,16 +119,16 @@ agy SHALL have no adapter: fills only and no warning. A user-defined provider wi
 ### Phase 2: Core Implementation
 
 - [x] T003 Create `src/go/fab/internal/agentmodels/` with `models.go`: `Row` type (JSON tags per R3, `Efforts` never nil), source constants, `discoveryTimeout` named constant (3s), a `Discover(cfg *config.Config, name string) (rows []Row, warnings []string)` entry that selects `models_command` > built-in adapter by name > none, then merges fills and the default per R4; dedupe helper; an injectable environment struct (home dir, env lookup, command runner) so tests can isolate `HOME`/`CLAUDE_CONFIG_DIR`/`CODEX_HOME`/`PATH` <!-- R3, R4, R8 -->
-- [x] T004 [P] `internal/agentmodels/toml.go`: minimal line scanner — top-level `key = "string"` before the first header, `[a."b"]` / `[a.b]` / `[[x]]` header tracking, and inside a table `key = "string"` and single-line `key = [ "a", "b" ]`; comments and blank lines skipped; never returns content from tables the caller did not ask for <!-- R5, R7 -->
-- [x] T005 [P] `internal/agentmodels/codex.go`: run `codex debug models` with `exec.CommandContext` + timeout; pinned parse struct (slug, display_name, visibility, supported_reasoning_levels[].effort); keep `list`; default from `$CODEX_HOME/config.toml` via the scanner; errors → warnings <!-- R5 -->
-- [x] T006 [P] `internal/agentmodels/claude.go`: settings.json + settings.local.json merge under `$CLAUDE_CONFIG_DIR`; aliases unless `replaceBuiltInOptions`; options → rows; default; fixed efforts `low, medium, high, xhigh, max` (named constant) <!-- R6 -->
+- [x] T004 [P] `internal/agentmodels/toml.go`: minimal line scanner — top-level `key = "string"` before the first header, `[a."b"]` / `[a.b]` / `[[x]]` header tracking, and inside a table `key = "string"` and single-line `key = [ "a", "b" ]`; comments and blank lines skipped; never returns content from tables the caller did not ask for <!-- R5, R7 --> <!-- rework: scanner must skip unsupported/multi-line values outside consumed keys instead of failing the whole file -->
+- [x] T005 [P] `internal/agentmodels/codex.go`: run `codex debug models` with `exec.CommandContext` + timeout; pinned parse struct (slug, display_name, visibility, supported_reasoning_levels[].effort); keep `list`; default from `$CODEX_HOME/config.toml` via the scanner; errors → warnings <!-- R5 --> <!-- rework: join run error with config-parse error in the warning -->
+- [x] T006 [P] `internal/agentmodels/claude.go`: settings.json + settings.local.json merge under `$CLAUDE_CONFIG_DIR`; aliases unless `replaceBuiltInOptions`; options → rows; default; fixed efforts `low, medium, high, xhigh, max` (named constant) <!-- R6 --> <!-- rework: route claudeConfigDir through configPath; drop pathBase wrapper -->
 - [x] T007 [P] `internal/agentmodels/kimi.go`: `~/.kimi-code/config.toml` model tables → rows with `display_name`/`support_efforts`; `default_model`; missing file silent <!-- R7 -->
 - [x] T008 `internal/agentmodels/command.go`: `models_command` runner via `sh -c` with timeout; JSON array parse; overwrite `cli`/`source`; drop empty ids; errors → warnings <!-- R9 -->
 - [x] T009 `src/go/fab/cmd/fab/agent_models.go`: cobra `models` child (`Use: "models [provider]"`, `cobra.MaximumNArgs(1)`, `--json`, `--repo`), unknown-provider error listing `agent.ProviderNames`, JSON array vs aligned table (`text/tabwriter`) on stdout, warnings to stderr; register via `cmd.AddCommand(agentModelsCmd())` in `agentCmd()` (`src/go/fab/cmd/fab/agent.go`) <!-- R1, R2 -->
 
 ### Phase 3: Integration & Edge Cases
 
-- [x] T010 Adapter tests with fixtures under `src/go/fab/internal/agentmodels/testdata/`: recorded codex `debug models` JSON (incl. a `hide` row and an `ultra` effort), malformed JSON, missing `models`, non-zero exit, timeout (stub script that sleeps, on a temp `PATH`, with a short test timeout), binary absent; codex default via `CODEX_HOME`; claude aliases-only / options+labels / `replaceBuiltInOptions` / local-over-base / malformed / `CLAUDE_CONFIG_DIR`; kimi quoted + bare headers, display_name/support_efforts, default_model, `[providers.*]` secrets never surfaced, missing file silent; `models_command` valid / cli+source overwritten / non-zero / malformed / timeout; TOML scanner unit cases <!-- R5, R6, R7, R9 -->
+- [x] T010 Adapter tests with fixtures under `src/go/fab/internal/agentmodels/testdata/`: recorded codex `debug models` JSON (incl. a `hide` row and an `ultra` effort), malformed JSON, missing `models`, non-zero exit, timeout (stub script that sleeps, on a temp `PATH`, with a short test timeout), binary absent; codex default via `CODEX_HOME`; claude aliases-only / options+labels / `replaceBuiltInOptions` / local-over-base / malformed / `CLAUDE_CONFIG_DIR`; kimi quoted + bare headers, display_name/support_efforts, default_model, `[providers.*]` secrets never surfaced, missing file silent; `models_command` valid / cli+source overwritten / non-zero / malformed / timeout; TOML scanner unit cases <!-- R5, R6, R7, R9 --> <!-- rework: add multi-line array + integer array (non-model table) cases for scanner, kimi, codex default -->
 - [x] T011 Merge tests in `internal/agentmodels`: dedupe precedence `tool > alias > fill` with first-position kept, default OR-ing, label/efforts back-fill, fills always present (incl. a user fill override), unlisted default appended, agy fills-only with no warning, user provider without `models_command` fills-only, `efforts` marshals as `[]` <!-- R4, R8 -->
 - [x] T012 Command tests in `src/go/fab/cmd/fab/agent_models_test.go`: `--json` array shape, table header/default marker, positional filter, unknown provider error, too many args, `--repo`, works with no fab project, warnings on stderr with exit 0; regression that `fab agent review -o yaml`, `fab agent --print apply`, and `fab agent --print -- --resume` are unchanged with the child registered; check `help_dump`/`fab_help` tests still pass with the new child <!-- R1, R2 -->
 
@@ -148,50 +148,54 @@ agy SHALL have no adapter: fills only and no warning. A user-defined provider wi
 
 ### Functional Completeness
 
-- [ ] A-001 R1: `fab agent models [provider] [--json] [--repo]` exists as a child of `fab agent`, covers all `agent.ProviderNames` by default, filters by one positional, and errors naming the available providers on an unknown name
-- [ ] A-002 R2: `--json` prints one JSON array (efforts never null); the default table has the specified header and `*` default marker; warnings go to stderr as `warning: <provider>: <reason>`
-- [ ] A-003 R3: Rows carry exactly `cli, id, label, efforts, default, source` with `source` ∈ {tool, alias, fill}
-- [ ] A-004 R4: Fills from the resolved provider profiles are always present; dedupe/default/back-fill rules hold
-- [ ] A-005 R5: codex adapter keeps only `list` models, takes efforts from `supported_reasoning_levels`, default from `$CODEX_HOME/config.toml`
-- [ ] A-006 R6: claude adapter honours `CLAUDE_CONFIG_DIR`, local-over-base merge, `replaceBuiltInOptions`, option labels, top-level default, fixed efforts
-- [ ] A-007 R7: kimi adapter lists `[models."…"]` tables with display_name/support_efforts and `default_model`
-- [ ] A-008 R8: agy and user providers without `models_command` yield fills only, no warning
-- [ ] A-009 R9: `models_command` loads, merges, replaces the adapter, is settable via `fab config set`, and is documented in `fab config explain providers`
-- [ ] A-010 R10: `_cli-fab.md`, `_cli-agents.md`, `stage-models.md`, `docs/site/skill.md` document the verb
+- [x] A-001 R1: `fab agent models [provider] [--json] [--repo]` exists as a child of `fab agent`, covers all `agent.ProviderNames` by default, filters by one positional, and errors naming the available providers on an unknown name
+- [x] A-002 R2: `--json` prints one JSON array (efforts never null); the default table has the specified header and `*` default marker; warnings go to stderr as `warning: <provider>: <reason>`
+- [x] A-003 R3: Rows carry exactly `cli, id, label, efforts, default, source` with `source` ∈ {tool, alias, fill}
+- [x] A-004 R4: Fills from the resolved provider profiles are always present; dedupe/default/back-fill rules hold
+- [x] A-005 R5: codex adapter keeps only `list` models, takes efforts from `supported_reasoning_levels`, default from `$CODEX_HOME/config.toml`
+- [x] A-006 R6: claude adapter honours `CLAUDE_CONFIG_DIR`, local-over-base merge, `replaceBuiltInOptions`, option labels, top-level default, fixed efforts
+- [x] A-007 R7: kimi adapter lists `[models."…"]` tables with display_name/support_efforts and `default_model`
+- [x] A-008 R8: agy and user providers without `models_command` yield fills only, no warning
+- [x] A-009 R9: `models_command` loads, merges, replaces the adapter, is settable via `fab config set`, and is documented in `fab config explain providers`
+- [x] A-010 R10: `_cli-fab.md`, `_cli-agents.md`, `stage-models.md`, `docs/site/skill.md` document the verb
 
 ### Behavioral Correctness
 
-- [ ] A-011 R1: Every pre-existing `fab agent` form (selector, `--provider`, `-o yaml`, `--print`, `-t`, `--` passthrough) behaves identically with the child registered
+- [x] A-011 R1: Every pre-existing `fab agent` form (selector, `--provider`, `-o yaml`, `--print`, `-t`, `--` passthrough) behaves identically with the child registered
 
 ### Scenario Coverage
 
-- [ ] A-012 R5: A recorded `codex debug models` fixture test exists and pins the parsed fields
-- [ ] A-013 R1: A test runs the verb with no fab project and asserts success
+- [x] A-012 R5: A recorded `codex debug models` fixture test exists and pins the parsed fields
+- [x] A-013 R1: A test runs the verb with no fab project and asserts success
 
 ### Edge Cases & Error Handling
 
-- [ ] A-014 R2: Binary absent, non-zero exit, timeout, and malformed output each produce fills + one warning + exit 0 (codex and `models_command`)
-- [ ] A-015 R6: Malformed claude settings warns and still yields the aliases; missing files are silent
-- [ ] A-016 R7: Missing kimi config is silent; values from non-model tables never appear in rows or warnings
+- [x] A-014 R2: Binary absent, non-zero exit, timeout, and malformed output each produce fills + one warning + exit 0 (codex and `models_command`)
+- [x] A-015 R6: Malformed claude settings warns and still yields the aliases; missing files are silent
+- [x] A-016 R7: Missing kimi config is silent; values from non-model tables never appear in rows or warnings
 
 ### Code Quality
 
-- [ ] A-017 Pattern consistency: New code follows the naming, doc-comment density, and cobra/test-helper patterns of `cmd/fab/agent*.go` and `internal/agent`
-- [ ] A-018 No unnecessary duplication: `loadRepoConfig`, `agent.ProviderNames`, `agent.ResolveProvider` are reused rather than re-implemented
-- [ ] A-019 Readability over cleverness: each adapter is a small focused function; no god functions (>50 lines without reason)
-- [ ] A-020 No magic strings/numbers: timeout, effort set, alias list, and source values are named constants
-- [ ] A-021 CLI ⇒ docs + tests: the new command ships tests and its `_cli-fab.md` reference in this change
-- [ ] A-022 Deployed content cites no fab-kit-only paths: `_cli-fab.md` / `_cli-agents.md` edits name no `docs/` or `src/go/` paths
+- [x] A-017 Pattern consistency: New code follows the naming, doc-comment density, and cobra/test-helper patterns of `cmd/fab/agent*.go` and `internal/agent`
+- [x] A-018 No unnecessary duplication: `loadRepoConfig`, `agent.ProviderNames`, `agent.ResolveProvider` are reused rather than re-implemented
+- [x] A-019 Readability over cleverness: each adapter is a small focused function; no god functions (>50 lines without reason)
+- [x] A-020 No magic strings/numbers: timeout, effort set, alias list, and source values are named constants
+- [x] A-021 CLI ⇒ docs + tests: the new command ships tests and its `_cli-fab.md` reference in this change
+- [x] A-022 Deployed content cites no fab-kit-only paths: `_cli-fab.md` / `_cli-agents.md` edits name no `docs/` or `src/go/` paths
 
 ### Security
 
-- [ ] A-023 R7: The kimi parser never copies credential-bearing values (e.g. `[providers.*] api_key`) into output; `models_command` output is parsed as data only
+- [x] A-023 R7: The kimi parser never copies credential-bearing values (e.g. `[providers.*] api_key`) into output; `models_command` output is parsed as data only
 
 ## Notes
 
 - Check items as you review: `- [x]`
 - All acceptance items must pass before `/fab-continue` (hydrate)
 - If an item is not applicable, mark checked and prefix with **N/A**: `- [x] A-NNN **N/A**: {reason}`
+
+## Deletion Candidates
+
+- None — this change adds new functionality without making existing code redundant.
 
 ## Assumptions
 

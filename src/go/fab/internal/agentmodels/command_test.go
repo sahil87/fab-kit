@@ -28,6 +28,17 @@ func TestModelsCommandValidRowsAndOverrides(t *testing.T) {
 	}
 }
 
+func TestModelsCommandKeepsOnlyFirstDefault(t *testing.T) {
+	cfg := commandTestConfig(`printf '[{"id":"first","default":true},{"id":"second","default":true}]'`)
+	rows, warnings := discoverWith(cfg, "mytool", defaultEnvironment())
+	if len(warnings) != 0 {
+		t.Fatal(warnings)
+	}
+	if rows[0].ID != "first" || !rows[0].Default || rows[1].ID != "second" || rows[1].Default {
+		t.Fatalf("rows = %+v", rows)
+	}
+}
+
 func TestModelsCommandFailures(t *testing.T) {
 	for _, test := range []struct {
 		name    string

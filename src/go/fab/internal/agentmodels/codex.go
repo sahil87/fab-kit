@@ -15,20 +15,21 @@ type codexModel struct {
 	} `json:"supported_reasoning_levels"`
 }
 
+// discoverCodex lists the installed codex CLI's visible models and reads its configured default.
 func discoverCodex(env environment) ([]Row, string, error) {
 	defaultID, defaultErr := codexDefault(env)
 	stdout, err := runBounded(env, "codex", "debug", "models")
 	if err != nil {
-		return nil, defaultID, fmt.Errorf("codex debug models: %w", err)
+		return nil, defaultID, joinDiscoveryErrors(fmt.Errorf("codex debug models: %w", err), defaultErr)
 	}
 	var payload struct {
 		Models *[]codexModel `json:"models"`
 	}
 	if err := json.Unmarshal(stdout, &payload); err != nil {
-		return nil, defaultID, fmt.Errorf("codex debug models: invalid JSON: %w", err)
+		return nil, defaultID, joinDiscoveryErrors(fmt.Errorf("codex debug models: invalid JSON: %w", err), defaultErr)
 	}
 	if payload.Models == nil {
-		return nil, defaultID, fmt.Errorf("codex debug models: missing models")
+		return nil, defaultID, joinDiscoveryErrors(fmt.Errorf("codex debug models: missing models"), defaultErr)
 	}
 	rows := make([]Row, 0, len(*payload.Models))
 	for _, model := range *payload.Models {

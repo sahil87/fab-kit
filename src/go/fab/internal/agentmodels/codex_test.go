@@ -94,6 +94,23 @@ func TestCodexProcessFailures(t *testing.T) {
 	})
 }
 
+func TestCodexDefaultSkipsUnsupportedMultilineValues(t *testing.T) {
+	codexHome := t.TempDir()
+	writeTestFile(t, filepath.Join(codexHome, "config.toml"), `model = "gpt-6.1-sol"
+[mcp_servers.example]
+ports = [1, 2]
+args = [
+  "--flag",
+  "[not-a-header]",
+]
+`)
+	t.Setenv("CODEX_HOME", codexHome)
+	defaultID, err := codexDefault(defaultEnvironment())
+	if err != nil || defaultID != "gpt-6.1-sol" {
+		t.Fatalf("defaultID=%q err=%v", defaultID, err)
+	}
+}
+
 func TestCodexMalformedDefaultWarnsWithoutLosingModels(t *testing.T) {
 	codexHome := t.TempDir()
 	writeTestFile(t, filepath.Join(codexHome, "config.toml"), `model = "unterminated`)
@@ -108,6 +125,25 @@ func TestCodexMalformedDefaultWarnsWithoutLosingModels(t *testing.T) {
 	}
 	if findRow(rows, "gpt-6-astra") == nil {
 		t.Fatal("valid process rows were lost after a config error")
+	}
+}
+
+func TestCodexRunAndDefaultErrorsAreJoined(t *testing.T) {
+	bin := t.TempDir()
+	writeExecutable(t, filepath.Join(bin, "codex"), "#!/bin/sh\nexit 7\n")
+	codexHome := t.TempDir()
+	writeTestFile(t, filepath.Join(codexHome, "config.toml"), `model = "unterminated`)
+	t.Setenv("PATH", bin)
+	t.Setenv("CODEX_HOME", codexHome)
+	rows, warnings := discoverWith(nil, "codex", defaultEnvironment())
+	assertFailureFills(t, rows, warnings)
+	for _, want := range []string{"exit status 7", "parse codex config"} {
+		if !strings.Contains(warnings[0], want) {
+			t.Errorf("warning = %q, want %q", warnings[0], want)
+		}
+	}
+	if strings.Contains(warnings[0], "\n") {
+		t.Errorf("joined warning must stay on one line: %q", warnings[0])
 	}
 }
 

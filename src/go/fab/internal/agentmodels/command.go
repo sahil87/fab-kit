@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// commandAdapter runs a provider's models_command and normalizes its JSON rows.
 func commandAdapter(command string) adapter {
 	return func(env environment) ([]Row, string, error) {
 		stdout, err := runBounded(env, "sh", "-c", command)
@@ -25,10 +26,14 @@ func commandAdapter(command string) adapter {
 				continue
 			}
 			row.Source = SourceTool
-			filtered = append(filtered, row)
-			if row.Default && defaultID == "" {
-				defaultID = row.ID
+			if row.Default {
+				if defaultID == "" {
+					defaultID = row.ID
+				} else {
+					row.Default = false
+				}
 			}
+			filtered = append(filtered, row)
 		}
 		return filtered, defaultID, nil
 	}
