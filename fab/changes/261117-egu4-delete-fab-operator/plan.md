@@ -275,48 +275,53 @@ removes); deleting without cleanup (stale pointers keep resolving).
 
 ### Functional Completeness
 
-- [ ] A-001 R1: No `operator*.go` file exists under `src/go/fab/cmd/fab/`; `main.go` registers no operator command; `fab operator` is an unknown command
-- [ ] A-002 R2: `fab agent operator -o yaml`, `fab pane`, `fab dispatch`, `fab status set-base-branch` behave as before; their tests pass without assertion changes
-- [ ] A-003 R4: `_operator-legacy.md` and `_cli-fab-operator.md` are deleted; `_cli-fab.md` carries `## fab agent`; no `_cli-fab-operator` citation remains in `src/kit`
-- [ ] A-004 R6: `fab-operator.md` probes `rk skill operator`, follows it on success, and on failure reports rk is required and stops — no legacy fallback
-- [ ] A-005 R7: The user-level template and `deployUserOperatorSkill` are gone; `fab sync` writes nothing under `~/` skills
-- [ ] A-006 R8: `fab sync` removes marker-matched user-level copies and leaves unmarked files and symlinks; tests cover all three
-- [ ] A-007 R9: `ProbeUserSkills` and its registration/tests are removed
-- [ ] A-008 R10: `autopilot.merge_mode` appears in no Go source, defaults, configref, configscope, validate path, or project config
-- [ ] A-009 R11: `2.29.0-to-2.30.0.md` exists with the four sections and the `rk settings set operator.merge_mode <value>` step; no migration overlap
-- [ ] A-010 R12: Constitution and code-quality list only `_cli-fab.md` / `_cli-fab-pane.md` and no user-level pointer; amendment comment present
-- [ ] A-024 R14: `src/kit/skills/fab-operator.md` is deleted; no skill catalog, help row, spec, site page or README lists `/fab-operator` as a live skill; no text describes a live user-level `fab-operator` pointer; sync pruning of the deployed copy is verified
-- [ ] A-011 R13: `docs/specs/operator.md` is a stub; specs/site/README describe no live `fab operator` verbs or user-level pointer
+- [x] A-001 R1: No `operator*.go` file exists under `src/go/fab/cmd/fab/`; `main.go` registers no operator command; `fab operator` is an unknown command
+- [x] A-002 R2: `fab agent operator -o yaml`, `fab pane`, `fab dispatch`, `fab status set-base-branch` behave as before; their tests pass without assertion changes
+- [x] A-003 R4: `_operator-legacy.md` and `_cli-fab-operator.md` are deleted; `_cli-fab.md` carries `## fab agent`; no `_cli-fab-operator` citation remains in `src/kit`
+- [x] A-004 **N/A**: R6 superseded by R14 (`fab-operator.md` deleted entirely). Original: R6: `fab-operator.md` probes `rk skill operator`, follows it on success, and on failure reports rk is required and stops — no legacy fallback
+- [x] A-005 R7: The user-level template and `deployUserOperatorSkill` are gone; `fab sync` writes nothing under `~/` skills
+- [x] A-006 R8: `fab sync` removes marker-matched user-level copies and leaves unmarked files and symlinks; tests cover all three
+- [x] A-007 R9: `ProbeUserSkills` and its registration/tests are removed
+- [x] A-008 R10: `autopilot.merge_mode` appears in no Go source, defaults, configref, configscope, validate path, or project config
+- [x] A-009 R11: `2.29.0-to-2.30.0.md` exists with the four sections and the `rk settings set operator.merge_mode <value>` step; no migration overlap
+- [x] A-010 R12: Constitution and code-quality list only `_cli-fab.md` / `_cli-fab-pane.md` and no user-level pointer; amendment comment present
+- [x] A-024 R14: `src/kit/skills/fab-operator.md` is deleted; no skill catalog, help row, spec, site page or README lists `/fab-operator` as a live skill; no text describes a live user-level `fab-operator` pointer; sync pruning of the deployed copy is verified
+- [x] A-011 R13: `docs/specs/operator.md` is a stub; specs/site/README describe no live `fab operator` verbs or user-level pointer
 
 ### Removal Verification
 
-- [ ] A-012 R1: No dead helpers left over from the operator files (nothing unused that only operator code called)
-- [ ] A-013 R10: No residual `Autopilot*` identifiers in `src/go/fab`
+- [x] A-012 R1: No dead helpers left over from the operator files (nothing unused that only operator code called) — NOT MET: `src/go/fab/internal/predicate/` (done_when grammar) is now imported by no non-test file; only the deleted operator code used it (should-fix)
+- [x] A-013 R10: No residual `Autopilot*` identifiers in `src/go/fab`
 
 ### Scenario Coverage
 
-- [ ] A-014 R10: A test loads a config containing an `autopilot:` block without error
-- [ ] A-015 R8: Cleanup tests use a temp `$HOME` and assert removed / kept outcomes
+- [x] A-014 R10: A test loads a config containing an `autopilot:` block without error
+- [x] A-015 R8: Cleanup tests use a temp `$HOME` and assert removed / kept outcomes
 
 ### Edge Cases & Error Handling
 
-- [ ] A-016 R8: A cleanup failure (e.g. permission denied) is a warning and `fab sync` still exits 0
-- [ ] A-017 R3: No code path deletes or writes the fab operator state file
+- [x] A-016 R8: A cleanup failure (e.g. permission denied) is a warning and `fab sync` still exits 0
+- [x] A-017 R3: No code path deletes or writes the fab operator state file
 
 ### Code Quality
 
-- [ ] A-018 Pattern consistency: New/edited Go follows surrounding naming, error-wrapping and test-helper patterns
-- [ ] A-019 No unnecessary duplication: Existing utilities reused where applicable
-- [ ] A-020 Owner-or-pointer: Edited skill files state a rule or point at its owner, never both
-- [ ] A-021 No fab-kit-only paths cited from deployed `src/kit/**` content
-- [ ] A-022 CLI changes ship with reference-partial and test updates (Constitution Additional Constraints)
-- [ ] A-023 Config-data change ships with a `src/kit/migrations/` file (no ad-hoc script)
+- [x] A-018 Pattern consistency: New/edited Go follows surrounding naming, error-wrapping and test-helper patterns
+- [x] A-019 No unnecessary duplication: Existing utilities reused where applicable
+- [x] A-020 Owner-or-pointer: Edited skill files state a rule or point at its owner, never both
+- [x] A-021 No fab-kit-only paths cited from deployed `src/kit/**` content
+- [x] A-022 CLI changes ship with reference-partial and test updates (Constitution Additional Constraints)
+- [x] A-023 Config-data change ships with a `src/kit/migrations/` file (no ad-hoc script)
 
 ## Notes
 
 - Check items as you review: `- [x]`
 - All acceptance items must pass before `/fab-continue` (hydrate)
 - If an item is not applicable, mark checked and prefix with **N/A**: `- [x] A-NNN **N/A**: {reason}`
+
+## Deletion Candidates
+
+- `src/go/fab/internal/predicate/` (predicate.go + predicate_test.go, 323 lines) — the operator's `done_when` grammar; its only importer was the deleted `operator_track*.go`, so the package is now dead
+- `src/go/fab/cmd/fab/pane_map.go:131` `collectPaneRows` — extracted from `runPaneMap` solely so the deleted `tick-start --diff` could share it; now has one caller and could be inlined back (optional)
 
 ## Assumptions
 
