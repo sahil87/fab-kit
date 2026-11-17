@@ -1362,7 +1362,7 @@ agent:
 	if strings.Count(got, ">>> fab reference") != 1 || strings.Count(got, "<<< end fab reference") != 1 {
 		t.Fatalf("adoption must emit exactly one fence\n--- got ---\n%s", got)
 	}
-	for _, advert := range []string{"# dispatch:", "# providers:", "# autopilot:"} {
+	for _, advert := range []string{"# dispatch:", "# providers:"} {
 		if count := strings.Count(got, advert); count != 1 {
 			t.Errorf("adoption emitted %d copies of %q, want 1\n--- got ---\n%s", count, advert, got)
 		}

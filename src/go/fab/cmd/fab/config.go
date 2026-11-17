@@ -946,7 +946,7 @@ func configSetCmd() *cobra.Command {
 			"tier and can never be effective — `fab config unset` is the verb for removing an " +
 			"override. A value outside the key's accepted set or range is refused before " +
 			"anything is written (dispatch.mode, dispatch.column_width, dispatch.min_cols, " +
-			"dispatch.min_rows, autopilot.merge_mode, and the provider keys agent.session, " +
+			"dispatch.min_rows, and the provider keys agent.session, " +
 			"agent.workers, agent.profiles.<role>.provider). When a higher-precedence tier " +
 			"already defines the key, the write succeeds (exit 0) with a warning naming the " +
 			"tier that wins. Use --system for ~/.fab-kit/config.yaml; project-scoped keys " +

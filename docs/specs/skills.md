@@ -21,7 +21,7 @@ As of 1.10.0 the `spec` stage and the separate `spec.md` artifact are removed. R
 
 Every skill MAY declare additional helper files it needs to load via a `helpers:` frontmatter list. The agent reads each declared helper's `.agents/skills/{helper}/SKILL.md` after reading `_preamble` and before executing the skill body — or, when that deployed file does not exist (a skill launched outside any `fab sync`-deployed project, such as the operator from a neutral directory via its user-level pointer skill), the flat kit copy `$(fab kit-path)/skills/{helper}.md`.
 
-**Allowed values** (10): `_generation`, `_review`, `_cli-fab`, `_cli-fab-operator`, `_cli-fab-pane`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`.
+**Allowed values** (9): `_generation`, `_review`, `_cli-fab`, `_cli-fab-pane`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`.
 
 **Default**: omitted (or `[]`) — the skill loads only `_preamble`.
 
@@ -51,8 +51,6 @@ helpers: [_generation, _review, _srad, _pipeline]
 | `fab-continue` | `[_srad]` (+ `_generation`/`_review` stage-conditionally, in-body) |
 | `fab-clarify` | `[_srad]` |
 | `code-reorg`, `code-dedupe` | `[_srad]` (SRAD grades proposal/cluster confidence; report-only — no `_intake`/`_generation`) |
-| `fab-operator` | none — a pointer skill that loads no helpers (omitted) |
-| `_operator-legacy` (the pointer's fallback partial) | `[_cli-fab-operator, _cli-fab-pane, _cli-agents, _cli-external]` (`_cli-agents` carries the generic agent-CLI interaction procedures extracted from the skill in 260805-nvad, plus the four-provider grammar/discovery dictionary; `_cli-fab-operator`/`_cli-fab-pane` are the operator's slices of the CLI reference, split by command family in 260910-si4k) |
 | `fab-incognito` | `[_pipeline, _intake, _srad, _generation, _review]` (the process partials ARE the payload — loaded to be discussed, not to generate; both doc indexes deliberately skipped) |
 | All other skills | omitted (load only `_preamble`) |
 
@@ -61,7 +59,7 @@ Validation is **convention-only** — `fab sync` does not reject skills with unk
 
 ### Partial Flow Skeletons
 
-The behavioral partials carry their condensed flow skeletons here; the pure-reference partials (`_cli-fab`, `_cli-fab-operator`, `_cli-fab-pane`, `_cli-external`, `_cli-agents`) carry no flow.
+The behavioral partials carry their condensed flow skeletons here; the pure-reference partials (`_cli-fab`, `_cli-fab-pane`, `_cli-external`, `_cli-agents`) carry no flow.
 
 `_preamble` — shared context preamble loaded by every skill (path/context/helper conventions, per-stage profile resolution, cross-adapter dispatch, worker continuation, pane readiness gate, confidence scoring):
 
@@ -149,7 +147,7 @@ Planning skill declares helpers: [..., _srad] → reads _srad.md before its body
 
 Every skill that generates or validates artifacts MUST load relevant context before proceeding. This ensures agents produce accurate, grounded output rather than hallucinating requirements or ignoring existing patterns.
 
-**Always loaded** — descriptive, not exhaustive: the layer applies unless the skill's own Context Loading section says otherwise (the skill file wins). Exceptions: `/fab-setup`, `/fab-switch`, `/fab-status`, and `/docs-hydrate-memory` skip it; `/fab-operator` is a pointer that loads nothing (its `_operator-legacy` fallback loads only `config.yaml`, `constitution.md`, and `context.md`). The default layer:
+**Always loaded** — descriptive, not exhaustive: the layer applies unless the skill's own Context Loading section says otherwise (the skill file wins). Exceptions: `/fab-setup`, `/fab-switch`, `/fab-status`, and `/docs-hydrate-memory` skip it. The default layer:
 - `fab/project/config.yaml` — project configuration: identity (name/description), `source_paths`/`test_paths`, true-impact excludes, plan-acceptance extra categories, independent provider capabilities (`interactive_command`, `headless_command`, and `native`) plus per-role fills (`providers:`), the two agent depth knobs (`agent.session`/`agent.workers`) and sparse `agent.profiles` overrides, `dispatch.mode` (the `pane → native → headless` preference ceiling), pane placement/reaping settings, optional `stage_hooks`
 - `fab/project/constitution.md` — project principles and constraints (MUST/SHOULD/MUST NOT rules)
 - `fab/project/context.md` — free-form project context: tech stack, conventions, architecture *(optional — no error if missing)*
@@ -180,7 +178,7 @@ Each skill section below lists its specific context requirements under a **Conte
 
 ## Next Steps Convention
 
-Skills MUST end their output with a `Next:` line suggesting the available follow-up commands, unless the skill's own Output or Key Properties section defines a different ending (e.g., `/fab-discuss`'s and `/fab-incognito`'s ready signals, `/fab-operator`'s status frame, the `/git-*` skills' own completion output) — the skill file wins, mirroring the context-loading contract. This keeps the user oriented in the workflow without needing to memorize the stage graph.
+Skills MUST end their output with a `Next:` line suggesting the available follow-up commands, unless the skill's own Output or Key Properties section defines a different ending (e.g., `/fab-discuss`'s and `/fab-incognito`'s ready signals, the `/git-*` skills' own completion output) — the skill file wins, mirroring the context-loading contract. This keeps the user oriented in the workflow without needing to memorize the stage graph.
 
 **Format**: `Next: /fab-command` or `Next: /fab-commandA or /fab-commandB (description)`
 
@@ -208,8 +206,8 @@ Adding a skill to the kit touches nine integration points. Work through all of t
 
 1. **Frontmatter fields** — `name` (matches the filename) and `description` (the one-liner agents use for model invocation — name the actual behavior, including non-obvious modes like draft PRs or `--none` flags). Internal partials additionally set `user-invocable: false`, `disable-model-invocation: true`, and `metadata.internal: true`.
 2. **Preamble-read line** — the body opens with the standard blockquote: ``> Read the `_preamble` skill first (deployed to `.agents/skills/` via `fab sync`). Then follow its instructions before proceeding.``
-3. **`helpers:` declaration** — list any additional partials the skill needs (`_generation`, `_review`, `_cli-fab`, `_cli-fab-operator`, `_cli-fab-pane`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`) in frontmatter; skills without the list load only `_preamble`. See § Skill Helpers.
-4. **`Next:` line** — the skill's output ends with a state-derived `Next:` line per `_preamble.md` § Next Steps Convention (or documents an explicit opt-out, as `fab-discuss`, `fab-incognito`, and `fab-operator` do).
+3. **`helpers:` declaration** — list any additional partials the skill needs (`_generation`, `_review`, `_cli-fab`, `_cli-fab-pane`, `_cli-external`, `_cli-agents`, `_srad`, `_pipeline`, `_intake`) in frontmatter; skills without the list load only `_preamble`. See § Skill Helpers.
+4. **`Next:` line** — the skill's output ends with a state-derived `Next:` line per `_preamble.md` § Next Steps Convention (or documents an explicit opt-out, as `fab-discuss`, `fab-incognito` do).
 5. **Error Handling + Key Properties tables** — the body closes with the two standard tables (skill-specific errors only; idempotency, write surface, stage effects).
 6. **Flow skeleton in skills.md** — add the skill's Flow skeleton to its `skills.md` section: the Flow diagram, plus the Tools and Sub-agents one-liners where they add information beyond the section's prose. Behavioral partials carry theirs in § Skill Helpers (§ Partial Flow Skeletons); pure-reference partials carry none.
 7. **skills.md row** — add the skill's section to this file (and its `helpers:` row to § Skill Helpers when it declares any).
@@ -1123,41 +1121,6 @@ User invokes /fab-help
 **Tools**: Bash (`fab log command`, `fab fab-help`).
 
 **Sub-agents**: None.
-
----
-
-## `/fab-operator`
-
-> **Hand-over to HexoKit**: `/fab-operator` is a short pointer skill. When `rk skill operator` succeeds (exit 0, first heading `# HexoKit skill: operator`) the agent follows that output and never loads the legacy body; otherwise it reads the internal `_operator-legacy` partial, which carries today's operator body and the context/purpose described below. Deletion of the legacy body is pending F2.
-
-Explicit skill sends and spawn prompts follow `_cli-agents.md` § Skill Prompts, using the receiving agent identity: the prefix is `skill_prefix` from the target repo's `fab agent -o yaml` resolution for fresh spawns, or derived from the live harness for existing panes. Slash-form skill names in this specification identify the skill; the receiving harness's prefix is applied at send time. Answers, prompt-file pointers, and native TUI controls follow their own contracts.
-
-**Purpose**: Multi-agent coordination layer. Runs in a dedicated tmux pane, observes agents across every session on its tmux server (per tick via `fab operator tick-start --diff --quiet`, on demand via `fab pane map --all-sessions`), routes commands and prompt answers via `rk mux send` (plain / `--answer`), auto-answers routine prompts, drives tracked work queues over the state file's `tracked:` list via the `fab operator track add|update|observe|rm|list|clock` verb family, and spawns dependency-aware agents. Each tick is four steps: snapshot (`tick-start`), act on deltas, answer waiting agents, ack (`track rm` / `track observe`). Started via `fab operator` (a singleton tmux tab named `operator`, one per tmux server). run-kit is a hard dependency — a §2 startup gate (`command -v rk` + `rk cron list --json` + `rk tab new --help` ∋ `session_rung`) stops with an install hint when rk is absent or predates `rk cron` or `rk tab new`'s default-session resolution.
-
-**Context** (the `_operator-legacy` fallback; the `/fab-operator` pointer itself loads nothing): A deliberate exception to the always-load layer — loads only `config.yaml`, `constitution.md`, `context.md` (optional), and `operator.md` (optional — the repo's operator addendum; another repo's addendum is read before acting on that repo's items). It runs no `fab preflight` and loads no change artifacts at startup; it reads whatever plan, roadmap, intake, or task document the tracked work needs, as the work needs it (§1 work rule). `_operator-legacy` declares `helpers: [_cli-fab-operator, _cli-fab-pane, _cli-agents, _cli-external]`.
-
-**Key properties**:
-- **Coordinates, never executes** — every task, bug report, or idea the user hands the operator is a work request: a fresh report spawns a freshly created worktree agent (`wt create --non-interactive`), and a report naming a live tracked item is sent to that item's existing agent; pipeline work never runs in the operator's own pane, and reading code to reproduce or diagnose, or editing files, in that pane counts as executing. Direct actions are the closed §1 maintenance allowlist: merge PR, archive, worktree deletion, rebase/cherry-pick for dependency resolution and review-pr recovery, `fab operator track` verbs, and pane sends/answers/nudges.
-- **Pipeline-first routing** — new work always enters through `/fab-new` then a pipeline command; raw inline implementation instructions are never dispatched to agent panes (the single exception: PR Recovery's CI fix request, which amends a shipped change).
-- **PR Recovery** — a shipped PR that cannot merge (detected on armed `github-pr` items, not on a stuck `review-pr` stage) is one condition with a reason (`ci-failed` / `conflicting`), each with one bounded action (one CI fix round to the authoring pane / rebase-and-re-arm once) recorded on the `github-pr` item's `scope.recovery`; the armed PR stays armed during a round, and an exhausted round falls back to halt-dependents-only + disarm + escalate with the agent's diagnosis attached. Unreviewed merges are always named in the tick report (` · unreviewed`) — never silent, never a prompt.
-- **State is re-derived, never remembered** — live state is re-queried before every action; continuity across compaction or `/clear` comes from the server-keyed operator state file (a one-shot `/fab-operator` reload re-loads the procedure; the tick payload itself stays the bare `operator tick`).
-- Ends with its own status frame rather than a `Next:` line.
-
-**Full spec**: [operator.md](operator.md) (the top-level behavioral spec). The agent-CLI mechanics it builds on — spawn composition, pre-send validation, delivery probe, peek, await — live in `_cli-agents.md`; this skill owns *when and whether* to use them (confirmation tiers, retry budgets, repo targeting, tracked-item enrollment, dependency resolution, queue choreography).
-
-
-**Flow**:
-
-```text
-Started via `fab operator`; cadence is run-kit's seeded, guard-free operator-tick cron entry delivering bare `operator tick` firings — muted/unmuted by the tracked-set verbs (`rk cron mute <id>` / `--off`); lease (`--for`) = bounded snooze (payload: never a slash command; live cadence re-read from `rk cron list --json` each tick and rendered on the ready line and compact frame)
-├─ Tick (four steps — snapshot, act on deltas, answer waiting agents, ack): Bash: fab operator tick-start --diff --quiet (snapshot + deltas + items or fleet_summary; re-derive before every action: Bash: fab pane map --all-sessions — never trust cached values)
-├─ Auto-answer routine agent questions (rk mux send --answer); nudge stalled agents; route commands via rk mux send
-└─ Drive tracked work queues (/fab-new → /fab-fff via `fab operator track` items); spawn each task in a fresh worktree
-```
-
-**Tools**: Bash (`fab operator tick-start`, `fab operator track`, `fab pane map`, `rk mux send`, `wt create`); cadence delivered by run-kit's guard-free `rk cron` operator-tick entry, muted/unmuted by the tracked-set verbs; the skill's own rk uses are `rk cron list --json` (clock verification, ready-line and frame cadence) and `rk cron mute --for` (a user-requested bounded quiet window); helpers (declared by `_operator-legacy`) `_cli-fab-operator`, `_cli-fab-pane`, `_cli-agents`, `_cli-external`.
-
-**Sub-agents**: None (spawns agent sessions, not sub-agents).
 
 ---
 

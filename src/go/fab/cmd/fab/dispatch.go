@@ -30,8 +30,8 @@ import (
 // polling for one. `reap` is the hygiene verb: it reclaims a DONE pane worker's
 // tmux pane and is a reported no-op for every other dispatch (distinct from `kill`, the
 // recovery verb, which is valid in any state). The family is parallel to, and
-// independent of, `fab pane` / `fab operator` (which stay the operator's interactive
-// path). See docs/specs/harness-adapters.md for the cross-adapter contract.
+// independent of, `fab pane`'s interactive tmux primitives. See
+// docs/specs/harness-adapters.md for the cross-adapter contract.
 func dispatchCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dispatch",

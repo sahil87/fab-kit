@@ -61,7 +61,6 @@ func TestDottedKeys(t *testing.T) {
 		"agent.workers",
 		"agent.profiles",
 		"providers",
-		"autopilot.merge_mode",
 		"docs_index.roots",
 		"stage_hooks",
 	}

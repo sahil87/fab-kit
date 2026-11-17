@@ -670,16 +670,6 @@ checklist:
 			ShortSegment: providersShortSegment(providers, roleOrder),
 		},
 		{
-			Key:          "autopilot.merge_mode",
-			Default:      config.DefaultAutopilotMergeMode,
-			Kind:         configvalue.KindString,
-			Description:  "Standing merge-topology preference for `fab operator autopilot start`: cherry-pick-ladder, merge-auto, or stacked-prs. Resolution at queue start descends explicit user instruction / --mode flag > this key > the built-in default; an explicit --mode always wins. An invalid value errors at `start` naming the valid set — merging is destructive-tier, so there is no silent fallback. Scope both — settable once machine-wide, where it outranks the project file. Default cherry-pick-ladder.",
-			Scope:        ScopeBoth,
-			Advertise:    true,
-			Segment:      autopilotSegment(),
-			ShortSegment: autopilotShortSegment(),
-		},
-		{
 			Key:          "docs_index.roots",
 			Default:      config.DefaultDocsIndexRoots(),
 			Kind:         configvalue.KindSequence,
@@ -756,8 +746,8 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#\n" +
 		"# Each provider MAY carry two command fields plus native capability (the command\n" +
 		"# fields are NOT merged — interactive and headless are different invocations):\n" +
-		"#   interactive_command — opens an interactive agent SESSION (fab operator /\n" +
-		"#                         fab batch / fab agent). {model}/{effort} placeholders\n" +
+		"#   interactive_command — opens an interactive agent SESSION (fab batch /\n" +
+		"#                         fab agent). {model}/{effort} placeholders\n" +
 		"#                         are substituted from the resolved role profile, or\n" +
 		"#                         from the --model/--effort flags on `fab agent\n" +
 		"#                         --provider <name>` (which bypasses role resolution);\n" +
@@ -1047,26 +1037,6 @@ func dispatchSegment() string {
 		"#   reap_done: " + strconv.FormatBool(config.DefaultDispatchReapDone)
 }
 
-// autopilotSegment renders the `autopilot:` block. It owns its own parent (no
-// other registry row renders an `autopilot:` block, unlike dispatch.column_width
-// riding dispatch.mode's segment). The default interpolates the canonical
-// config.DefaultAutopilotMergeMode var — no literal copy — which internal/agent's
-// init() fills from defaults.yaml's autopilot: block, the single value source;
-// the accepted-value list interpolates config.ValidAutopilotMergeModes, the
-// single Go-side policy list.
-func autopilotSegment() string {
-	return "# autopilot.merge_mode — standing merge-topology preference for\n" +
-		"# `fab operator autopilot start`: " + strings.Join(config.ValidAutopilotMergeModes, ", ") + ". Resolution at\n" +
-		"# queue start descends explicit user instruction / --mode flag > this key >\n" +
-		"# the built-in default; an explicit --mode always wins. An invalid value\n" +
-		"# ERRORS at `start` naming the valid set — merging is destructive-tier, so\n" +
-		"# there is no silent fallback to a different topology than the one configured.\n" +
-		"# Scope `both`, so it is settable once machine-wide in ~/.fab-kit/config.yaml,\n" +
-		"# where it outranks the project file.\n" +
-		"# autopilot:\n" +
-		"#   merge_mode: " + config.DefaultAutopilotMergeMode
-}
-
 // stageHooksSegment renders the stage_hooks block. The valid stage-keys list is
 // interpolated from agent.StageNames() (sorted, deterministic) — no literal copy
 // of the stage set.
@@ -1165,20 +1135,6 @@ func dispatchShortSegment() string {
 		"#   min_cols: " + strconv.Itoa(config.DefaultDispatchMinCols) + "\n" +
 		"#   min_rows: " + strconv.Itoa(config.DefaultDispatchMinRows) + "\n" +
 		"#   reap_done: " + strconv.FormatBool(config.DefaultDispatchReapDone)
-}
-
-// autopilotShortSegment is the file-bound short form of autopilotSegment — the
-// commented `autopilot:` block, diet header. Values interpolate the same
-// canonical config vars.
-func autopilotShortSegment() string {
-	return shortAdvert(ScopeBoth,
-		"autopilot.merge_mode — standing merge-topology preference for `fab operator\n"+
-			"autopilot start` ("+strings.Join(config.ValidAutopilotMergeModes, ", ")+"); an explicit --mode\n"+
-			"flag outranks it.",
-		"autopilot.merge_mode",
-		"autopilot.merge_mode <"+strings.Join(config.ValidAutopilotMergeModes, "|")+">") +
-		"# autopilot:\n" +
-		"#   merge_mode: " + config.DefaultAutopilotMergeMode
 }
 
 // stageHooksShortSegment is the file-bound short form of stageHooksSegment —

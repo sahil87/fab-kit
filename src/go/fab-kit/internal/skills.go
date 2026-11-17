@@ -93,144 +93,73 @@ func deploySkills(repoRoot, kitDir string, claudeAvailable bool) error {
 	return errors.Join(errs...)
 }
 
-// deployUserOperatorSkill writes the machine-level fab-operator pointer skill
-// (~/.agents/skills always; ~/.claude/skills when claude is available) so the
-// operator resolves from a directory with no fab project. Rewrite-if-differs;
-// never prunes or lists sibling skills; no manifest. A kit without the template
-// (a pin predating this feature) is a silent no-op.
-func deployUserOperatorSkill(kitDir string, claudeAvailable bool) error {
-	tmpl, err := os.ReadFile(filepath.Join(kitDir, "templates", "user-skill-fab-operator.md"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			// Sync runs against the project's pinned kit; a newer binary syncing
-			// an older pin must not fail.
-			return nil
-		}
-		return fmt.Errorf("user-level operator skill: cannot read template: %w", err)
-	}
-
+// cleanRetiredUserOperatorSkills removes only the user-level pointer files that
+// fab previously generated. Both tiers are checked on every sync; foreign files,
+// symlinks, and non-empty skill directories are left in place.
+func cleanRetiredUserOperatorSkills() {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("user-level operator skill: cannot resolve home directory: %w", err)
+		fmt.Fprintf(os.Stderr, "WARN: User-level skill (fab-operator): cannot resolve home directory: %v\n", err)
+		return
 	}
-
-	description, err := skillDescription(filepath.Join(kitDir, "skills", "fab-operator.md"))
-	if err != nil {
-		return err
-	}
-	rendered := []byte(strings.Replace(string(tmpl), "{DESCRIPTION}", description, 1))
-
-	tiers := []struct {
-		dir  string
-		fire bool
-	}{
-		{filepath.Join(home, ".agents", "skills", "fab-operator"), true},
-		{filepath.Join(home, ".claude", "skills", "fab-operator"), claudeAvailable},
-	}
-
-	var errs []error
-	written := false
-	for _, tier := range tiers {
-		if !tier.fire {
-			// A closed gate preserves an existing file — never delete.
-			fmt.Println("Skipping ~/.claude tier: claude not found in PATH")
+	for _, tier := range []string{".agents", ".claude"} {
+		dir := filepath.Join(home, tier, "skills", "fab-operator")
+		path := filepath.Join(dir, "SKILL.md")
+		info, err := os.Lstat(path)
+		if os.IsNotExist(err) {
 			continue
 		}
-		if err := os.MkdirAll(tier.dir, 0755); err != nil {
-			errs = append(errs, fmt.Errorf("user-level operator skill: cannot create %s: %w", tier.dir, err))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "WARN: User-level skill (fab-operator): cannot inspect %s: %v\n", path, err)
 			continue
 		}
-		dest := filepath.Join(tier.dir, "SKILL.md")
-		if info, err := os.Lstat(dest); err == nil && info.Mode()&os.ModeSymlink != 0 {
-			// Never follow a symlink into some other file (a sibling skill, a
-			// user's own note): replace the link itself, as syncAgentSkills does.
-			if err := os.Remove(dest); err != nil {
-				errs = append(errs, fmt.Errorf("user-level operator skill: cannot replace symlink %s: %w", dest, err))
-				continue
+		if !info.Mode().IsRegular() {
+			continue
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "WARN: User-level skill (fab-operator): cannot read %s: %v\n", path, err)
+			continue
+		}
+		if !isFabGeneratedUserOperatorSkill(data) {
+			continue
+		}
+		if err := os.Remove(path); err != nil {
+			fmt.Fprintf(os.Stderr, "WARN: User-level skill (fab-operator): cannot remove %s: %v\n", path, err)
+			continue
+		}
+		fmt.Println("User-level skill (fab-operator): removed (retired)")
+
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "WARN: User-level skill (fab-operator): cannot inspect %s: %v\n", dir, err)
+			continue
+		}
+		if len(entries) == 0 {
+			if err := os.Remove(dir); err != nil {
+				fmt.Fprintf(os.Stderr, "WARN: User-level skill (fab-operator): cannot remove %s: %v\n", dir, err)
 			}
-		} else if err == nil {
-			if existing, rerr := os.ReadFile(dest); rerr == nil && bytes.Equal(existing, rendered) {
-				continue
-			}
 		}
-		// The destination is machine-wide and two syncs from different projects
-		// may race on it: write a same-directory temp file and rename it into
-		// place so a reader never sees a truncated or interleaved pointer.
-		if err := writeFileAtomic(dest, rendered, 0644); err != nil {
-			errs = append(errs, fmt.Errorf("user-level operator skill: cannot write %s: %w", dest, err))
-			continue
-		}
-		written = true
 	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-	if written {
-		fmt.Println("User-level skill (fab-operator): written")
-	} else {
-		fmt.Println("User-level skill (fab-operator): up to date")
-	}
-	return nil
 }
 
-// writeFileAtomic writes data to a same-directory temp file and renames it over
-// dest, so concurrent readers (and a second writer racing on a shared,
-// machine-wide path) observe either the old or the new complete file.
-func writeFileAtomic(dest string, data []byte, perm os.FileMode) error {
-	tmp, err := os.CreateTemp(filepath.Dir(dest), "."+filepath.Base(dest)+".*")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-	cleanup := func(err error) error {
-		tmp.Close()
-		os.Remove(tmpName)
-		return err
-	}
-	if _, err := tmp.Write(data); err != nil {
-		return cleanup(err)
-	}
-	if err := tmp.Chmod(perm); err != nil {
-		return cleanup(err)
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
-		return err
-	}
-	if err := os.Rename(tmpName, dest); err != nil {
-		os.Remove(tmpName)
-		return err
-	}
-	return nil
-}
-
-// skillDescription extracts the description: value from a skill file's leading
-// --- frontmatter block (line-prefix scan). The value is kept verbatim —
-// surrounding quotes included — so the rendered user-level skill's
-// description: line matches the kit skill's byte-for-byte and `fab setup
-// check`'s staleness comparison has exactly one form to read.
-func skillDescription(skillPath string) (string, error) {
-	data, err := os.ReadFile(skillPath)
-	if err != nil {
-		return "", fmt.Errorf("user-level operator skill: cannot read %s: %w", skillPath, err)
+func isFabGeneratedUserOperatorSkill(data []byte) bool {
+	if !bytes.Contains(data, []byte("Generated by `fab sync`")) {
+		return false
 	}
 	lines := strings.Split(string(data), "\n")
 	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
-		return "", fmt.Errorf("user-level operator skill: %s has no frontmatter block", skillPath)
+		return false
 	}
 	for _, line := range lines[1:] {
 		if strings.TrimSpace(line) == "---" {
-			break
+			return false
 		}
-		if value, ok := strings.CutPrefix(line, "description:"); ok {
-			if value = strings.TrimSpace(value); value != "" {
-				return value, nil
-			}
-			break
+		if strings.TrimSpace(line) == "name: fab-operator" {
+			return true
 		}
 	}
-	return "", fmt.Errorf("user-level operator skill: %s has no description: frontmatter line", skillPath)
+	return false
 }
 
 // listSkills returns the base names (without .md) of all skill files.

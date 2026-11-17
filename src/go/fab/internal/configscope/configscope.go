@@ -75,10 +75,7 @@ var keyScopes = map[string]Scope{
 	// OPERATOR prefers to launch stage workers on THIS machine, not what the repo's
 	// pipeline means, so it must be settable once machine-wide in
 	// ~/.fab-kit/config.yaml — the same reasoning that puts agent/providers here.
-	"dispatch": ScopeBoth,
-	// autopilot is preference-class (`both`) for the same reason: autopilot.merge_mode
-	// is the operator's standing merge-topology preference, not repo semantics.
-	"autopilot":   ScopeBoth,
+	"dispatch":    ScopeBoth,
 	"stage_hooks": ScopeProject,
 	"docs_index":  ScopeProject,
 }
@@ -111,7 +108,6 @@ var dottedKeys = []string{
 	"agent.workers",
 	"agent.profiles",
 	"providers",
-	"autopilot.merge_mode",
 	"docs_index.roots",
 	"stage_hooks",
 }

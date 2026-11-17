@@ -121,8 +121,8 @@ Two install-specific notes worth calling out:
   runs automatically in every new worktree created by `wt create`.
 - Fab's deployed skill copies under `.agents/skills/` (always), `.claude/skills/` (when `claude` is available), and the other agent targets are ignored via a
   generated per-target `.gitignore`, so **each developer deploys them locally** with `fab sync` — they
-  do not arrive with a `git clone`. That sync also writes the machine-level `fab-operator` pointer
-  skill under `~/.agents/skills/` (always) and `~/.claude/skills/` (when `claude` is available).
+  do not arrive with a `git clone`. That sync also removes stale fab-generated `fab-operator` pointers from the
+  user-level skill directories.
 
 ## Verify your install
 

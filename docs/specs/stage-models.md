@@ -69,7 +69,7 @@ The advertised config surface is exactly two scalars, each naming a provider:
 
 ```yaml
 agent:
-  session: claude    # Tier 1 — what you talk to: fab agent, fab operator, fab batch
+  session: claude    # Tier 1 — what you talk to: fab agent, rk operator, fab batch
   workers: codex     # Tier 2 — what pipeline stages dispatch to
 ```
 
@@ -106,7 +106,7 @@ governs the ship stage *and* the `/fab-proceed` prefix-step dispatches — see �
 | Role | Referent |
 |------|----------|
 | `default` | Spawned worker sessions (`fab batch`), `fab agent` with no role, intake (advisory only — foreground), and the `/fab-proceed` create-intake dispatch. *(`fab agent --provider <name>` deliberately resolves NO role — it is a sibling addressing mode that bypasses this taxonomy entirely; see § Providers.)* |
-| `operator` | The operator coordinator session (`fab operator`). |
+| `operator` | The operator coordinator session (`rk operator`). |
 | `doing` | **Execution that must not err** — apply writes the diff; review-pr fixes already-articulated feedback. |
 | `review` | **The critic** — review reads a diff and discovers what's wrong. Its own role (not folded into `doing`) so the critic's model and effort can be dialed independently of the author's; the separation that matters is the fresh context and adversarial framing, not a different model family. |
 | `hydrate` | **Memory writing** — hydrate merges the change into `docs/memory/` as current truth. Its own role so it can run on a different model/effort than apply. |
@@ -200,7 +200,7 @@ knob.
 The launch **capability grammar** lives in a top-level `providers:` table, not on the roles. Each
 provider is an opaque, user-chosen name mapping to three independent dispatch capabilities plus a per-role fill map:
 
-- **`interactive_command`** — opens an interactive agent **session** (`fab operator` / `fab batch` /
+- **`interactive_command`** — opens an interactive agent **session** (`rk operator` / `fab batch` /
   `fab agent`, and the pane-dispatch adapter's worker). It is **pure launch grammar**: fab appends
   nothing to it, and a pane worker's stage prompt is delivered afterwards by `fab dispatch deliver`
   (see [`harness-adapters.md`](harness-adapters.md) § 3), so a provider's eligibility for pane dispatch
@@ -215,7 +215,7 @@ provider is an opaque, user-chosen name mapping to three independent dispatch ca
   raw template, fill mode, per-field provenance, model alias, and labelled non-native dispatch — all
   print-mode sinks). The direct form is a **lookup**, not a new validation surface: an
   unknown name errors listing the available providers, while resolved command strings still pass
-  through verbatim. See `_cli-fab-operator.md` § fab agent.
+  through verbatim. See `_cli-fab.md` § fab agent.
 - **`headless_command`** — runs ONE headless **stage task** via `fab dispatch`.
 - **`native`** — boolean capability for the in-harness Agent-tool adapter. Provider names are opaque,
   so fab never infers native support from a name or model.
@@ -461,7 +461,7 @@ unmarshalling ignores unknown keys, so existing configs are unaffected (the same
 
 ```yaml
 agent:
-  session: claude          # Tier 1 — fab agent / fab operator / fab batch   (roles: default, operator)
+  session: claude          # Tier 1 — fab agent / rk operator / fab batch   (roles: default, operator)
   workers: claude          # Tier 2 — the pipeline's stage workers            (roles: doing, review, hydrate, fast)
 
   # The sparse per-role escape hatch. Every field optional; a set field beats
@@ -674,7 +674,7 @@ still point a role at Haiku (pass-through doesn't forbid it); fab just doesn't s
 
 ## Skill wiring — orchestrator/dispatch consume `fab agent -o yaml`
 
-This section is the design record; the deployed wiring rules live in `_preamble.md` § Per-Stage Model Resolution and `_cli-fab-operator.md` § fab agent (the deployed owners).
+This section is the design record; the deployed wiring rules live in `_preamble.md` § Per-Stage Model Resolution and `_cli-fab.md` § fab agent (the deployed owners).
 
 The orchestrators (`/fab-ff`, `/fab-fff`, `/fab-proceed`, `/fab-adopt`) and `/fab-continue`'s sub-agent dispatch call
 `fab agent <stage> -o yaml` immediately before dispatching each stage's sub-agent, **surface** the
@@ -759,8 +759,8 @@ inherited session model now resolve a role like every other:
   through the two seams (empty ⇒ omit). This is why `fast` is multi-referent — it governs the ship stage
   *and* these prefix-step dispatches.
 
-`_cli-fab-operator.md` documents the `fab agent` YAML schema; `_cli-fab.md` documents the deprecated `fab resolve-agent` compatibility
-contract (Constitution constraint: CLI changes MUST update the CLI reference partial that owns the command's family — `_cli-fab.md` (core), `_cli-fab-pane.md` (`fab pane`, `fab dispatch`) or `_cli-fab-operator.md` (`fab operator`, `fab agent`)). `architecture.md` documents the `agent:` + `providers:` config blocks
+`_cli-fab.md` documents the `fab agent` YAML schema; `_cli-fab.md` documents the deprecated `fab resolve-agent` compatibility
+contract (Constitution constraint: CLI changes MUST update the CLI reference partial that owns the command's family — `_cli-fab.md` (core, including `fab agent`) and `_cli-fab-pane.md` (`fab pane`, `fab dispatch`)). `architecture.md` documents the `agent:` + `providers:` config blocks
 alongside the existing `stage_hooks` example.
 
 ### Harness-adapter boundary (the only Claude-Code-specific layer)

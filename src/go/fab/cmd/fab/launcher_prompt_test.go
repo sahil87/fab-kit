@@ -17,9 +17,8 @@ import (
 // its final argv retains the prompt's dollar sign and metacharacters.
 func TestSkillPromptLaunchers(t *testing.T) {
 	for _, provider := range []string{"codex", "claude", "agy", "kimi", "custom", "missing"} {
-		for _, launcher := range []string{"new", "switch", "operator"} {
+		for _, launcher := range []string{"new", "switch"} {
 			t.Run(provider+"/"+launcher, func(t *testing.T) {
-				stubNoRK(t)
 				root, change := batchSwitchFixture(t, "claude")
 				content := "Fix $HOME and $(printf EXPANDED) `printf EXPANDED` 'quotes'"
 				if err := os.WriteFile(filepath.Join(root, "fab", "backlog.md"), []byte("- [ ] [ab12] 2026-09-08: "+content+"\n"), 0o644); err != nil {
@@ -50,9 +49,6 @@ func TestSkillPromptLaunchers(t *testing.T) {
 				case "switch":
 					cmd, skill, arguments = batchSwitchCmd(), "fab-switch", change
 					cmd.SetArgs([]string{change})
-				default:
-					cmd = operatorCmd()
-					cmd.SetArgs([]string{})
 				}
 				cmd.SetOut(&bytes.Buffer{})
 				cmd.SetErr(&bytes.Buffer{})

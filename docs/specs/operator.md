@@ -1,30 +1,13 @@
 # Operator
 
-The operator (`/fab-operator`) is a long-running coordination layer that sits in its own tmux pane, observing and directing agents across other panes.
+The operator is owned by HexoKit. Use `rk operator` to launch it, `rk skill
+operator` to read its agent-facing skill, and `rk operator autopilot` for merge
+automation.
 
-| Command | Purpose |
-|---------|---------|
-| `/fab-operator` | Multi-agent coordination — monitoring, auto-answering, tracked work queues, dependency-aware spawning |
+Fab retains only the `operator` agent role through `fab agent operator -o yaml`;
+HexoKit uses that resolution when launching the coordinator. Fab ships no
+`/fab-operator` skill at project or user level.
 
-Under a capable rk the `fab operator` verbs are deprecated and delegate to `rk operator`; `/fab-operator` is a short pointer that follows `rk skill operator`, falling back to the legacy skill (`_operator-legacy`) when rk is absent or older.
-
-## Version History
-
-The current operator (v13) evolved through thirteen iterations:
-
-| Version | Key addition |
-|---------|-------------|
-| v1 | Observe and interact with agents across tmux panes |
-| v2 | Proactive monitoring after every action |
-| v3 | Auto-nudge for agents waiting on user input |
-| v4 | `/loop`-driven monitoring, auto-nudge answer model, playbook catalog |
-| v5 | Use case registry (Linear inbox, PR freshness), branch fallback, autopilot queues |
-| v6 | Clean rewrite — principles-driven inference, persistent operator state on disk (a repo-rooted `.fab-operator.yaml` at the time; the state file is now server-keyed at `$XDG_STATE_HOME/fab/operator/<server-slug>.yaml`), generic watches, framed status output |
-| v7 | Dependency-aware agent spawning (cherry-pick chains), branch map persistence, bounded retries, pre-send validation tiers |
-| v8 | Pipeline-first routing, unified tick status frame, stack-then-review autopilot (with ordered merge), `»<wt>` tab naming, mandatory auto-enroll, `/fab-proceed` integration |
-| v9 | Spawn-in-worktree principle — operator pane reserved for coordination state; all pipeline work runs in freshly spawned agent tabs, never in the operator pane itself |
-| v10 | rk-mandatory skill (one startup gate; 27 fallback passages deleted), CLI reference split by command family (`_cli-fab-operator` / `_cli-fab-pane`), live cadence from `rk cron list --json` in the ready line and compact frame |
-| v11 | Generic tracked items — one `tracked:` list with a probe loop and derived schedule replaces the monitored/watches/autopilot/notes sections, `track` verb family, one-table frame (2026-09-11, change 260911-4a8m) |
-| v12 | fab owns the operator-tick entry end-to-end — the clock reconcile seeds it when the server has none, and `fab operator clock sync` heals and reads it for Init and the per-tick frame (2026-09-12, change 260912-bjrk) |
-| v13 | PR Recovery — a shipped PR that cannot merge (a stuck `review-pr` stage at the time; recovery now detects armed `github-pr` items after 261007-4p4z removed the `no-reviewer` reason) is one condition with a reason (`ci-failed` / `conflicting`), each with one bounded action (one CI fix round / rebase-and-re-arm once) recorded on the item's `scope.recovery`; unreviewed merges are reported, never silent (2026-09-16, change 260916-vb4l) |
-| v14 | Hand-over to HexoKit — fab `operator` verbs deprecate and delegate under rk ≥ v3.22.13 (`rk operator check`/`brief` present), fab stops writing rk's cron file, `/fab-operator` becomes a pointer to `rk skill operator` with the legacy body kept as the `_operator-legacy` fallback; deletion pending F2 (2026-11-13, change 261113-915b) |
+`fab sync` removes stale user-level copies that carry fab's generated-by marker
+while preserving foreign files and symlinks. Fab's former operator state file is
+left on disk for `rk operator adopt` to read.

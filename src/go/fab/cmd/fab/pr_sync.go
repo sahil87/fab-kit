@@ -12,8 +12,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// gh seams (the runner-variable convention used across cmd/fab — operator.go's
-// rkOperatorPath, pane_map.go's rkPanesRunner) so tests stub the two network
+// gh seams (the runner-variable convention used across cmd/fab, such as
+// pane_map.go's rkPanesRunner) so tests stub the two network
 // calls without a live gh. prBodyReader errors when the branch has no open PR
 // (gh pr view exits non-zero); prBodyWriter applies a new body via stdin.
 // The body is decoded from the JSON object — NOT `-q .body`, whose jq

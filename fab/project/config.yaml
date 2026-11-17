@@ -74,14 +74,6 @@ true_impact_exclude:
 #   #   operator: { provider: codex }    # example: coordinate from another CLI
 #   #   review: { provider: codex }      # example: run just the critic elsewhere
 #
-# autopilot.merge_mode — standing merge-topology preference for `fab operator
-# autopilot start` (cherry-pick-ladder, merge-auto, stacked-prs); an explicit --mode
-# flag outranks it. [both]
-# Settable machine-wide: fab config set --system autopilot.merge_mode <cherry-pick-ladder|merge-auto|stacked-prs>
-# Full prose: fab config explain autopilot.merge_mode
-# autopilot:
-#   merge_mode: cherry-pick-ladder
-#
 # stage_hooks — optional per-stage pre/post shell commands honored by
 # `fab status start` / `fab status finish`; a failing pre hook blocks start.
 # Add by hand. Valid stage keys: apply, hydrate, intake, review, review-pr, ship. [project]
