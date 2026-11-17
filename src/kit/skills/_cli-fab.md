@@ -330,6 +330,11 @@ provider=claude
 
 # a versioned ID (here a project pin agent.profiles.doing.model: claude-sonnet-5-5)
 # is emitted verbatim by default and aliased under --alias:
+$ fab resolve-agent apply
+model=claude-sonnet-5-5
+effort=high
+provider=claude
+
 $ fab resolve-agent apply --alias
 model=sonnet
 effort=high
@@ -414,7 +419,7 @@ Common to all forms:
   | `kind` | `role`, `stage`, or `provider`. |
   | `role` | Resolved role; empty for `kind: provider`. |
   | `provider` | Resolved provider name. |
-  | `model` | Full model ID; empty preserves the provider-inherit signal. |
+  | `model` | Resolved model, verbatim — an alias (`opus`/`sonnet`) for the built-in claude fills, or a configured full ID; empty preserves the provider-inherit signal. |
   | `effort` | Resolved effort; empty when inherited or unsupported. |
   | `command` | Selected interactive or headless template after profile substitution and passthrough composition. |
   | `model_alias` | Agent-tool short alias for a Claude model — a versioned ID mapped to its family, or an alias (`opus`/`sonnet`/`haiku`/`fable`, the built-in claude fills) as itself; empty for non-Claude IDs. |

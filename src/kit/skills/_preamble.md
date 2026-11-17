@@ -309,7 +309,7 @@ Immediately before dispatching a pipeline-stage sub-agent, the dispatching skill
 fab agent <stage> -o yaml
 ```
 
-The structured output carries the resolved `provider`, full `model`, `model_alias`, `effort`, composed `command`, per-field `source`, and optional `dispatch:` mapping. `model_alias` is the native Agent-tool alias for recognized Claude model IDs and is empty for non-Claude IDs; `dispatch:` is absent exactly when the native rung resolves and otherwise carries the labelled `rung` plus the composed `command`. The resolver's role/depth/fill precedence and the YAML schema live in `_cli-fab.md` § fab agent. Resolved strings pass through verbatim — fab validates no effort enum and corrects no incompatible pair.
+The structured output carries the resolved `provider`, the resolved `model` (verbatim), `model_alias`, `effort`, composed `command`, per-field `source`, and optional `dispatch:` mapping. `model_alias` is the native Agent-tool alias for recognized Claude model IDs and is empty for non-Claude IDs; `dispatch:` is absent exactly when the native rung resolves and otherwise carries the labelled `rung` plus the composed `command`. The resolver's role/depth/fill precedence and the YAML schema live in `_cli-fab.md` § fab agent. Resolved strings pass through verbatim — fab validates no effort enum and corrects no incompatible pair.
 
 | Profile half | Native Agent-tool seam | Empty value | Constraint |
 |--------------|------------------------|-------------|------------|

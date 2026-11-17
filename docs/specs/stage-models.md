@@ -601,7 +601,7 @@ pipeline skills consume the YAML surface above.
    rather than falling back to the depth knob.
 3. **Emit verbatim — NO validation** (see § No validation). fab does not check the provider, model, or
    effort against any provider's accepted set; it echoes the resolved strings as-is.
-4. Output: structured YAML carrying `provider`, full `model`, `model_alias`, `effort`, composed
+4. Output: structured YAML carrying `provider`, the resolved `model` (verbatim), `model_alias`, `effort`, composed
    `command`, `template`, `fill_mode`, per-field `source`, an optional `dispatch:` mapping, and a
    trailing `skill_prefix` (`$` for `codex`, `/` otherwise — the receiving harness's explicit
    skill-invocation prefix).

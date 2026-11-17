@@ -375,32 +375,39 @@ func TestResolveAgentPrintsDispatchLine(t *testing.T) {
 	}
 }
 
-// TestResolveAgentAliasEmitsShortAlias: with --alias, a doing stage emits the
-// short alias on the model= line while effort=/provider= are unaffected.
-func TestResolveAgentAliasEmitsShortAlias(t *testing.T) {
-	resolveAgentTestRepo(t, "project:\n  name: test\n")
+// pinnedDoingVersionedID pins the doing role to a versioned Claude ID. The
+// built-in fills are already aliases (their model= line is identical with or
+// without --alias), so the alias-vs-default tests pin a versioned ID to keep the
+// two paths distinguishable.
+const pinnedDoingVersionedID = "agent:\n  profiles:\n    doing: { model: claude-sonnet-5-5 }\n"
 
-	out, err := runResolveAgentCmd(t, "apply", "--alias") // apply ∈ doing → opus
+// TestResolveAgentAliasEmitsShortAlias: with --alias, a doing stage pinned to a
+// versioned ID emits the short alias on the model= line while effort=/provider=
+// are unaffected.
+func TestResolveAgentAliasEmitsShortAlias(t *testing.T) {
+	resolveAgentTestRepo(t, pinnedDoingVersionedID)
+
+	out, err := runResolveAgentCmd(t, "apply", "--alias") // apply ∈ doing → claude-sonnet-5-5 → sonnet
 	if err != nil {
 		t.Fatalf("resolve-agent apply --alias: %v", err)
 	}
-	want := "model=" + agent.ModelAlias(wantRoleModel(t, agent.RoleDoing)) + "\neffort=high\nprovider=claude\n"
+	want := "model=sonnet\neffort=high\nprovider=claude\n"
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
 }
 
-// TestResolveAgentNoAliasEmitsFullID: without --alias the default output is the
-// full model ID (regression guard against the alias transform leaking into the
-// default path).
+// TestResolveAgentNoAliasEmitsFullID: without --alias a pinned versioned ID is
+// emitted verbatim (regression guard against the alias transform leaking into
+// the default path).
 func TestResolveAgentNoAliasEmitsFullID(t *testing.T) {
-	resolveAgentTestRepo(t, "project:\n  name: test\n")
+	resolveAgentTestRepo(t, pinnedDoingVersionedID)
 
 	out, err := runResolveAgentCmd(t, "apply")
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	want := wantRoleBytes(t, agent.RoleDoing)
+	want := "model=claude-sonnet-5-5\neffort=high\nprovider=claude\n"
 	if out != want {
 		t.Errorf("output = %q, want %q", out, want)
 	}
@@ -460,20 +467,23 @@ agent:
 }
 
 // TestResolveAgentAliasDispatchUsesFullModelID: under --alias the model= line is
-// aliased while the dispatch= line embeds the FULL model ID (CLI dispatch never
-// aliases) — the load-bearing --alias interaction.
+// aliased while the dispatch= line embeds the resolved versioned ID verbatim (CLI
+// dispatch never aliases) — the load-bearing --alias interaction. The model is
+// pinned to a versioned ID because the built-in fills are already aliases, which
+// would make the two lines indistinguishable.
 func TestResolveAgentAliasDispatchUsesFullModelID(t *testing.T) {
 	resolveAgentTestRepo(t, `providers:
   codex:
     headless_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
 agent:
   profiles:
-`+pinnedRoleLine(t, agent.RoleDoing, "codex"))
+    doing: { provider: codex, model: claude-sonnet-5-5, effort: high }
+`)
 	out, err := runResolveAgentCmd(t, "apply", "--alias")
 	if err != nil {
 		t.Fatalf("resolve-agent apply --alias: %v", err)
 	}
-	want := "model=" + agent.ModelAlias(wantRoleModel(t, agent.RoleDoing)) + "\neffort=high\nprovider=codex\ndispatch=codex exec -m " + wantRoleModel(t, agent.RoleDoing) + " -c model_reasoning_effort=high\n"
+	want := "model=sonnet\neffort=high\nprovider=codex\ndispatch=codex exec -m claude-sonnet-5-5 -c model_reasoning_effort=high\n"
 	if out != want {
 		t.Errorf("output = %q, want aliased model= and full-ID dispatch=, got %q", out, want)
 	}
@@ -1017,16 +1027,15 @@ func TestResolveAgentPaneAliasKeepsFullModelIDInDispatch(t *testing.T) {
 providers:
   claude:
     interactive_command: "claude -n {model} --effort {effort}"
-`)
+`+pinnedDoingVersionedID)
 	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
 
 	out, err := runResolveAgentCmd(t, "apply", "--alias")
 	if err != nil {
 		t.Fatalf("resolve-agent apply --alias: %v", err)
 	}
-	doingModel := wantRoleModel(t, agent.RoleDoing)
-	want := "model=" + agent.ModelAlias(doingModel) + "\neffort=high\nprovider=claude\n" +
-		"dispatch=claude -n " + doingModel + " --effort high\n"
+	want := "model=sonnet\neffort=high\nprovider=claude\n" +
+		"dispatch=claude -n claude-sonnet-5-5 --effort high\n"
 	if out != want {
 		t.Errorf("output = %q, want aliased model= with a full-ID dispatch= %q", out, want)
 	}

@@ -89,42 +89,42 @@ resolved model is emitted verbatim. The spec table MUST still satisfy the drift 
 ### Phase 1: Core Implementation
 
 - [x] T001 Change the six claude fills to `opus`/`sonnet` in `src/go/fab/defaults.yaml`, rewrite the fill-block and top-of-file `providers` comments, and update `TestDefaultRoleProfilesArePinned` in `src/go/fab/internal/agent/agent_test.go` <!-- R1 -->
-- [x] T002 Add an alias-membership helper beside `modelAliasPrefixes` in `src/go/fab/internal/agent/agent.go`, use it in `src/go/fab/cmd/fab/resolution.go`; add `TestModelAlias` pass-through cases, a helper unit test, and a `fab agent review -o yaml` test (plus non-Claude negative) in `src/go/fab/cmd/fab/agent_surface_test.go` <!-- R2 -->
+- [x] T002 Add an alias-membership helper beside `modelAliasPrefixes` in `src/go/fab/internal/agent/agent.go`, use it in `src/go/fab/cmd/fab/resolution.go`; add `TestModelAlias` pass-through cases, a helper unit test, and a `fab agent review -o yaml` test (plus non-Claude negative) in `src/go/fab/cmd/fab/agent_surface_test.go` <!-- R2 --> <!-- rework: resolve-agent help/comments and resolve_agent_test names still claim full-ID default; pin a versioned ID so alias-vs-default tests stay discriminating -->
 - [x] T003 Rewrite the KIT-RELEASE prose in `src/go/fab/internal/configref/configref.go` and the top `defaults.yaml` comment; update the phrase pins in `src/go/fab/cmd/fab/config_test.go` <!-- R3 -->
 
 ### Phase 2: Integration
 
 - [x] T004 Relabel the 261030-lc7k digest and add the newly computed current providers-advert digest in `src/go/fab/internal/configupgrade/configupgrade.go`; run configupgrade tests <!-- R4 -->
-- [x] T005 Update `docs/specs/stage-models.md` (table, effort rationale, full-ID claims), `src/kit/skills/_cli-fab.md` (examples, `--alias` paragraph), and sweep `src/kit/`, `docs/specs/`, `docs/site/` for current-fill IDs; run the full fab Go test suite <!-- R5 -->
+- [x] T005 Update `docs/specs/stage-models.md` (table, effort rationale, full-ID claims), `src/kit/skills/_cli-fab.md` (examples, `--alias` paragraph), and sweep `src/kit/`, `docs/specs/`, `docs/site/` for current-fill IDs; run the full fab Go test suite <!-- R5 --> <!-- rework: _cli-fab.md fab agent -o yaml key table `model` row still says Full model ID -->
 
 ## Acceptance
 
 ### Functional Completeness
 
-- [ ] A-001 R1: `defaults.yaml` ships `opus` for default/review and `sonnet` for the other four roles with unchanged efforts; codex/agy/kimi blocks byte-identical
-- [ ] A-002 R2: `fab agent review -o yaml` yields `model: opus`, `model_alias: opus`, `--model opus` in `command:`; `ModelAlias()` is unchanged
-- [ ] A-003 R3: `fab config explain providers` states the alias claim for claude and concrete IDs for codex/agy
-- [ ] A-004 R4: The legacy-digest set contains the 261030-lc7k digest (relabelled) and the new current digest
-- [ ] A-005 R5: Spec table, `_cli-fab.md` examples, and full-ID prose quote the aliases / "resolved model verbatim"
+- [x] A-001 R1: `defaults.yaml` ships `opus` for default/review and `sonnet` for the other four roles with unchanged efforts; codex/agy/kimi blocks byte-identical
+- [x] A-002 R2: `fab agent review -o yaml` yields `model: opus`, `model_alias: opus`, `--model opus` in `command:`; `ModelAlias()` is unchanged
+- [x] A-003 R3: `fab config explain providers` states the alias claim for claude and concrete IDs for codex/agy
+- [x] A-004 R4: The legacy-digest set contains the 261030-lc7k digest (relabelled) and the new current digest
+- [x] A-005 R5: Spec table, `_cli-fab.md` examples, and full-ID prose quote the aliases / "resolved model verbatim"
 
 ### Behavioral Correctness
 
-- [ ] A-006 R2: A non-Claude model still resolves an empty `model_alias`; a versioned Claude ID still maps to its alias
+- [x] A-006 R2: A non-Claude model still resolves an empty `model_alias`; a versioned Claude ID still maps to its alias
 
 ### Scenario Coverage
 
-- [ ] A-007 R2: Tests cover alias pass-through, the alias-membership helper, and the `fab agent review -o yaml` scenario
-- [ ] A-008 R4: The configupgrade test suite passes with the new digest (the current advert is recognised as generated)
+- [x] A-007 R2: Tests cover alias pass-through, the alias-membership helper, and the `fab agent review -o yaml` scenario
+- [x] A-008 R4: The configupgrade test suite passes with the new digest (the current advert is recognised as generated)
 
 ### Edge Cases & Error Handling
 
-- [ ] A-009 R2: Empty model keeps an empty `model_alias` (inherit signal preserved)
+- [x] A-009 R2: Empty model keeps an empty `model_alias` (inherit signal preserved)
 
 ### Code Quality
 
-- [ ] A-010 Pattern consistency: New code follows naming and structural patterns of surrounding code
-- [ ] A-011 No unnecessary duplication: the alias names derive from `modelAliasPrefixes`; no magic strings restated
-- [ ] A-012: Go changes ship tests; `_cli-fab.md` updated; no deployed file cites fab-kit-only paths
+- [x] A-010 Pattern consistency: New code follows naming and structural patterns of surrounding code
+- [x] A-011 No unnecessary duplication: the alias names derive from `modelAliasPrefixes`; no magic strings restated
+- [x] A-012: Go changes ship tests; `_cli-fab.md` updated; no deployed file cites fab-kit-only paths
 
 ## Notes
 

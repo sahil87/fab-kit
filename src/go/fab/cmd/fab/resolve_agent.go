@@ -46,10 +46,12 @@ import (
 // The optional `--alias` flag is the Claude-Code Agent-tool adapter: when set,
 // the resolved model is mapped to its short alias (opus/sonnet/haiku/fable) on the
 // `model=` line via agent.ModelAlias, since the Agent tool's `model` enum rejects
-// full IDs. Default (absent) is the full ID. The `effort=`/`provider=` lines are
-// unaffected by `--alias`; empty/non-Claude models pass through verbatim. The
-// `dispatch=` line ALWAYS embeds the FULL model ID even under `--alias` — CLI
-// dispatch never aliases (an external CLI's --model flag takes a full ID); the
+// full IDs. Default (absent) is the resolved model verbatim — an alias for the
+// built-in claude fills, a full ID when one is configured. The `effort=`/`provider=`
+// lines are unaffected by `--alias`; empty/non-Claude models pass through verbatim.
+// The `dispatch=` line ALWAYS embeds the resolved model verbatim, even under
+// `--alias` — CLI dispatch never aliases (an external CLI's model flag may take only
+// concrete IDs); the
 // {model}/{effort} placeholders are substituted via internal/spawn.WithProfile
 // (reused, not reimplemented) using the role's own resolved model/effort.
 //
@@ -149,7 +151,7 @@ func resolveAgentCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&alias, "alias", false, "emit the Claude-Code short model alias (opus/sonnet/haiku/fable) on the model= line instead of the full ID (Agent-tool adapter)")
+	cmd.Flags().BoolVar(&alias, "alias", false, "emit the Claude-Code short model alias (opus/sonnet/haiku/fable) on the model= line instead of a versioned ID (Agent-tool adapter)")
 	cmd.Flags().StringVar(&provider, "provider", "", "override the resolved provider (re-derives dispatch= from that provider; unoverridden model/effort refill from its per-role fills, then empty)")
 	cmd.Flags().StringVar(&model, "model", "", "override the resolved model (valid without --provider — a within-role override)")
 	cmd.Flags().StringVar(&effort, "effort", "", "override the resolved effort (valid without --provider — a within-role override)")
