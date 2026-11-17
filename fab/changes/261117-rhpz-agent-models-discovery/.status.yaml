@@ -9,7 +9,7 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
+    ship: done
     review-pr: pending
 plan:
     generated: true
@@ -33,14 +33,15 @@ stage_metrics:
     apply: {started_at: "2026-11-17T19:43:11Z", driver: fab-fff, iterations: 2, completed_at: "2026-11-17T19:47:44Z"}
     review: {started_at: "2026-11-17T19:47:44Z", driver: fab-fff, iterations: 2, completed_at: "2026-11-17T19:51:46Z"}
     hydrate: {started_at: "2026-11-17T19:51:46Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-17T19:54:27Z"}
-    ship: {started_at: "2026-11-17T19:54:27Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-11-17T19:54:27Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-17T19:55:54Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/706
 change_type_source: explicit
 base_branch: main
 true_impact:
-    added: 3092
-    deleted: 133
-    net: 2959
+    added: 3179
+    deleted: 143
+    net: 3036
     excluding:
         added: 2033
         deleted: 76
@@ -49,9 +50,9 @@ true_impact:
         added: 994
         deleted: 29
         net: 965
-    computed_at: "2026-11-17T19:54:28Z"
-    computed_at_stage: hydrate
+    computed_at: "2026-11-17T19:55:54Z"
+    computed_at_stage: ship
 summary: fab agent models — per-tool model discovery verb (row schema, adapters, fail-open warnings, models_command)
 # base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-11-17T19:54:28Z
+last_updated: 2026-11-17T19:55:54Z
