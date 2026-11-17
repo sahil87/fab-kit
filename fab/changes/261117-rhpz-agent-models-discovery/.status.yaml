@@ -8,8 +8,8 @@ progress:
     intake: done
     apply: done
     review: done
-    hydrate: active
-    ship: pending
+    hydrate: done
+    ship: active
     review-pr: pending
 plan:
     generated: true
@@ -32,24 +32,26 @@ stage_metrics:
     intake: {started_at: "2026-11-17T19:15:19Z", driver: fab-new, iterations: 1, completed_at: "2026-11-17T19:19:22Z"}
     apply: {started_at: "2026-11-17T19:43:11Z", driver: fab-fff, iterations: 2, completed_at: "2026-11-17T19:47:44Z"}
     review: {started_at: "2026-11-17T19:47:44Z", driver: fab-fff, iterations: 2, completed_at: "2026-11-17T19:51:46Z"}
-    hydrate: {started_at: "2026-11-17T19:51:46Z", driver: fab-fff, iterations: 1}
+    hydrate: {started_at: "2026-11-17T19:51:46Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-17T19:54:27Z"}
+    ship: {started_at: "2026-11-17T19:54:27Z", driver: fab-fff, iterations: 1}
 prs: []
 change_type_source: explicit
 base_branch: main
 true_impact:
-    added: 2864
+    added: 3092
     deleted: 133
-    net: 2731
+    net: 2959
     excluding:
-        added: 1815
+        added: 2033
         deleted: 76
-        net: 1739
+        net: 1957
     tests:
-        added: 888
+        added: 994
         deleted: 29
-        net: 859
-    computed_at: "2026-11-17T19:47:44Z"
-    computed_at_stage: apply
+        net: 965
+    computed_at: "2026-11-17T19:54:28Z"
+    computed_at_stage: hydrate
+summary: fab agent models — per-tool model discovery verb (row schema, adapters, fail-open warnings, models_command)
 # base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-11-17T19:51:46Z
+last_updated: 2026-11-17T19:54:28Z

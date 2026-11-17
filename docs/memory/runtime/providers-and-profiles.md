@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "Provider mechanics and role policy — session/workers depth knobs, environment and launch overrides, four pane-capable built-ins with independent interactive/native/headless grammar and per-role fills, six roles, precedence, stage mapping, `fab agent` YAML resolution, deprecated `fab resolve-agent` compatibility, dispatch-mode descent, and consumers."
+description: "Provider mechanics and role policy — session/workers depth knobs, environment and launch overrides, four pane-capable built-ins with independent interactive/native/headless grammar and per-role fills, six roles, precedence, stage mapping, `fab agent` YAML resolution, `fab agent models` model discovery, deprecated `fab resolve-agent` compatibility, dispatch-mode descent, and consumers."
 ---
 # Providers & Agent Profiles
 
@@ -21,7 +21,7 @@ Agent config splits **provider mechanics** (how to invoke an agent) from **role 
 
 Tier 1/Tier 2 name depth and nothing else. A pane worker is still Tier 2: the defining property is "owes a result artifact and owns no transitions" ([dispatch.md](/runtime/dispatch.md)) — ship/review-pr workers are the single carve-out, self-managing their own stage's transitions — not "never spoken to".
 
-This file is the model — the depth knobs, the four built-in providers, the six roles and the fixed partition, the fill precedence, the stage→role mapping, the structured `fab agent -o yaml` surface and deprecated `fab resolve-agent` compatibility projection, and who consumes the resolution. The **config-schema authority** is [_shared/configuration.md](/_shared/configuration.md) § `providers` and § `agent`; the **dispatch-seam wiring** is [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution; the pre-implementation design intent is `docs/specs/stage-models.md` (drift-guarded against the Go maps).
+This file is the model — the depth knobs, the four built-in providers, the six roles and the fixed partition, the fill precedence, the stage→role mapping, the structured `fab agent -o yaml` surface, the `fab agent models` discovery verb, the deprecated `fab resolve-agent` compatibility projection, and who consumes the resolution. The **config-schema authority** is [_shared/configuration.md](/_shared/configuration.md) § `providers` and § `agent`; the **dispatch-seam wiring** is [_shared/context-loading.md](/_shared/context-loading.md) § Per-Stage Model Resolution; the pre-implementation design intent is `docs/specs/stage-models.md` (drift-guarded against the Go maps).
 
 ## Requirements
 
@@ -99,12 +99,13 @@ These config variables are unrelated to the fab-kit binary's `FAB_AGENTS` skills
 - **`interactive_command`** — **pure launch grammar**: how to open an interactive agent session, and nothing more. It makes the provider pane-capable when tmux is available. Prompt delivery is fab's, not the command's — no code path appends a prompt argument to it ([dispatch.md](/runtime/dispatch.md) § Prompt delivery), so pane capability does not depend on whether the CLI accepts a positional initial prompt. **Exec contract**: the command MUST exec its binary, so the binary — not a wrapper shell — owns the pane's foreground. The readiness gate's takeover precondition requires exactly that (a shell foreground reports `booting` and is never typed into — [dispatch.md](/runtime/dispatch.md) § `fab dispatch ready`), so a wrapper that keeps a shell in the foreground is unsupported by design and fails **observably**: every probe reports `booting` with the shell prompt in the snippet until the wiring's consecutive-booting allowance is spent and the run escalates — never silently.
 - **`native`** — declares native Agent-tool capability. Provider names are opaque, so fab never infers it.
 - **`headless_command`** — runs one headless stage task via `fab dispatch`; the prompt is supplied on stdin.
+- **`models_command`** — optional shell command that prints the models the tool offers as a JSON array of rows; it replaces the provider's built-in discovery adapter for `fab agent models` and plays no part in resolution or dispatch (§ `fab agent models`). No built-in ships one.
 
 **Launch environment.** fab runs both commands under the user's interactive shell — `${SHELL:-/bin/sh} -i -c '<command>'` — at its dispatch, `fab pane open`, and batch launch seams (`fab agent` execs in the caller's own shell and is not wrapped), so env exported only by interactive-shell startup (provider auth tokens, PATH additions in `~/.zshrc`) is present for the provider. The wrap is a launch mechanism, not provider grammar: it is not part of either command string, and the dispatch record's `spawn_cmd` and `fab agent -o yaml`'s `command` stay unwrapped. Hand-wrapping a command in `$SHELL -i -c` in a repo config is unnecessary (a pre-wrapped command still works — it nests, sourcing the rc twice). The launch assumes POSIX shells; a non-POSIX tmux default-shell (fish, nushell) fails the launch. Full contract: [agent-primitives.md](/runtime/agent-primitives.md) § Fab launches provider commands under the user's interactive shell.
 
 Each provider MAY additionally carry **`profiles`** — a map keyed by role name, each value `{model, effort}`: *"when this provider plays this role, use this model/effort."* It supplies the command's `{model}`/`{effort}` placeholders (§ Fill precedence). A provider's **`profiles.default` doubles as its cross-role fallback** — a role absent from the map resolves the `default` entry, then empty. The map merges per **role** and then per **field** over the built-in table, exactly as the command fields do, and `providers` is `scope: both`, so a fill is settable once per machine.
 
-Capability fields are never merged or substituted for one another. Their presence says **how** a provider can run, never **which** mode is selected. `dispatch.mode` supplies that preference and the shared selector descends pane → native → headless, starting at the configured rung and never ascending.
+The capability fields (`interactive_command`, `native`, `headless_command`) are never merged or substituted for one another. Their presence says **how** a provider can run, never **which** mode is selected. `dispatch.mode` supplies that preference and the shared selector descends pane → native → headless, starting at the configured rung and never ascending.
 
 Every supported agent CLI has an interactive mode, so built-in providers SHALL ship `interactive_command` launch grammar and rely on the generic readiness gate for boot and first-run walls. Headless operation varies by CLI and its `headless_command` grammar MUST be probed independently. A user-defined provider MAY omit `interactive_command`; automatic selection skips the pane rung, and an explicit pane launch reports the existing configuration-key hint.
 
@@ -124,7 +125,7 @@ Two per-provider fill shapes are load-bearing:
 - **agy's fills are model-only** — that CLI's model IDs *embed* the reasoning level as a suffix (`gemini-3.1-pro-high`), so the effort rides the ID and the grammar carries no `{effort}` placeholder for one to land in. The IDs are concrete catalog entries from `agy models`, so they are rows to bump when that catalog moves.
 - **kimi ships NO fills at all**, and empty is the correct built-in there rather than a gap: its `-m` takes a **user-config model alias** (managed installs expose `kimi-code`/`k3`; custom providers differ), so any pinned value would break non-managed installs. The empty `{model}` drops the `-m` pair through `spawn.WithProfile`'s token-drop and kimi falls back to the user's own `default_model`. A user wanting role differentiation pins `providers.kimi.profiles.<role>.model` themselves.
 
-claude's fills are the family **aliases** `opus` (`default`, `review`) and `sonnet` (`operator`, `doing`, `hydrate`, `fast`): `claude --model` and the Agent tool's `model` parameter both take them and resolve the newest model of the family, so they track the installed Claude Code and need no refresh. Non-claude fills (codex, agy) are **concrete IDs** — their model flags take a catalog slug and have no "latest" alias — **refreshed at kit-release cadence** by editing `defaults.yaml`. Every fill is **unvalidated pass-through** values like every other resolved string, and a stale one fails loudly at the provider CLI and is corrected by **one config line** — `providers.<name>.profiles.<role>.model`, settable once per machine because `providers` is `scope: both`. There is no staleness automation: no CI check against provider APIs, no model-catalog fetch (§ Design Decisions → "Built-in Providers Ship Grammar AND Per-Role Fills"; `docs/specs/stage-models.md` § Refreshing the non-claude fills carries the policy and its decision lineage). **Current values are not restated here** — run `fab config explain` (renders live from the embedded defaults) or read the drift-guarded sample in [stage-models.md](../../specs/stage-models.md) § Built-in providers.
+claude's fills are the family **aliases** `opus` (`default`, `review`) and `sonnet` (`operator`, `doing`, `hydrate`, `fast`): `claude --model` and the Agent tool's `model` parameter both take them and resolve the newest model of the family, so they track the installed Claude Code and need no refresh. Non-claude fills (codex, agy) are **concrete IDs** — their model flags take a catalog slug and have no "latest" alias — **refreshed at kit-release cadence** by editing `defaults.yaml`. Every fill is **unvalidated pass-through** values like every other resolved string, and a stale one fails loudly at the provider CLI and is corrected by **one config line** — `providers.<name>.profiles.<role>.model`, settable once per machine because `providers` is `scope: both`. There is no staleness automation: no CI check against provider APIs, and resolution never fetches a model catalog — `fab agent models` lists what a tool offers on demand but feeds nothing back into the fills (§ Design Decisions → "Built-in Providers Ship Grammar AND Per-Role Fills"; `docs/specs/stage-models.md` § Refreshing the non-claude fills carries the policy and its decision lineage). **Current values are not restated here** — run `fab config explain` (renders live from the embedded defaults) or read the drift-guarded sample in [stage-models.md](../../specs/stage-models.md) § Built-in providers.
 
 A project's `providers:` block per-field-merges over the built-ins via `agent.ResolveProvider(name)`, including the profiles map.
 
@@ -383,7 +384,7 @@ Provider-form rules (the **bare** `--provider <name>` form — selector forms ta
 
 Skill-bearing session launchers retain the receiving provider alongside the composed command. Batch new/switch use the shared [skill prompt renderer](/runtime/agent-primitives.md); a Claude executable fallback also sets the rendering provider to Claude. Skill prose takes the prefix from `fab agent … -o yaml`'s `skill_prefix` for fresh spawns and from live process evidence for existing panes.
 
-The procedural knowledge for *using* a composed command — opening it in a tmux window, delivering a prompt, peeking, awaiting — plus the per-provider invocation grammar and model-discovery recipes live in the `_cli-agents` helper: see [agent-primitives.md](/runtime/agent-primitives.md).
+The procedural knowledge for *using* a composed command — opening it in a tmux window, delivering a prompt, peeking, awaiting — plus the per-provider invocation grammar and model-discovery recipes (each led by `fab agent models <provider>`) live in the `_cli-agents` helper: see [agent-primitives.md](/runtime/agent-primitives.md).
 
 #### Scenario: a stage selector and selector+`--provider` re-resolve
 
@@ -405,6 +406,66 @@ The procedural knowledge for *using* a composed command — opening it in a tmux
 - **GIVEN** a config whose `providers:` block defines only `claude`
 - **WHEN** `fab agent --provider bogus --print` runs
 - **THEN** it exits non-zero, naming `bogus` and listing the available provider names, and prints no command
+
+### Requirement: `fab agent models [provider] [--json] [--repo <path>]` — model discovery
+
+`fab agent models` SHALL list the models each agent CLI tool offers, as a read-only query: it writes nothing, caches nothing, and is never invoked from resolution, dispatch, or `fab config` — the external processes it launches (`codex debug models`, a `models_command`) run only when this verb does. It is a cobra child of `fab agent`; `models` is neither a role nor a stage name, so every other `fab agent` form (selector, `--provider`, `-o yaml`, `--print`, `--` passthrough) routes to the parent unchanged.
+
+- **Scope.** No positional covers every name in `agent.ProviderNames(cfg)` (built-ins plus user-defined `providers:` entries), in that sorted order; one positional limits output to that provider; more than one is a usage error. An unknown name is a non-zero lookup failure through the shared `unknownProviderError(cfg, name)` helper, listing the resolvable names. `--repo` reuses `loadRepoConfig`, so the verb also works outside a fab project (environment > system > built-ins).
+- **Output.** `--json` prints one JSON array of rows to stdout — no envelope, `efforts` always an array. Without it, stdout is a column-aligned table with header `CLI MODEL LABEL EFFORTS SOURCE DEFAULT` (efforts comma-joined, `*` marking the tool default); the table is a human view, not a machine contract.
+- **Fail-open.** A discovery failure never changes the exit code (0) and never empties the list: the provider keeps its kit fills and one line goes to **stderr**, `warning: <provider>: <reason>`, in both output modes. Non-zero exits are limited to usage errors, an unknown provider, and a config-load error.
+
+**Row schema** — `{cli, id, label, efforts, default, source}`:
+
+| Field | Meaning |
+|-------|---------|
+| `cli` | the provider name (the config side still spells it `provider`) |
+| `id` | the string fab would substitute into `{model}` |
+| `label` | the tool's display name; falls back to `id` |
+| `efforts` | the model's own list when the tool reports one, else the tool's known set, else `[]` |
+| `default` | `true` only for the tool's own default model |
+| `source` | `tool` (reported by the tool or its `models_command`), `alias` (a built-in Claude family alias), or `fill` (a kit fill) |
+
+**Merge.** Per provider, rows are assembled from (1) the adapter's or `models_command`'s rows in the tool's own order, (2) the kit fills — every distinct non-empty `model` across `agent.ResolveProvider(cfg, name).Profiles`, so user fill overrides count and `agent.profiles` pins do not, sorted, `source: fill` — and (3) the tool-reported default, appended as `{source: tool, default: true}` when no row carries its id. Rows are de-duplicated by `id`: the first occurrence keeps its position, the higher source wins (`tool` > `alias` > `fill`), `default` is OR-ed across duplicates, and an empty label or efforts on the winner is back-filled from the duplicate. Fills are always present, so the list is never smaller than the fill set.
+
+**Per-tool adapters** (package `internal/agentmodels`; each returns rows, a default id, and an error that becomes the warning). Process launches run under a named 3-second timeout (`timed out after 3s`); file-reading adapters need none.
+
+| Provider | Source | Rows | Default |
+|----------|--------|------|---------|
+| `codex` | `codex debug models` from `$PATH` | `models[]` with `visibility == "list"`: `slug` → `id`, `display_name` → `label`, `supported_reasoning_levels[].effort` → `efforts`; every other field ignored | top-level `model` of `$CODEX_HOME/config.toml` (`~/.codex` by default) |
+| `claude` | `settings.json` under `$CLAUDE_CONFIG_DIR` (`~/.claude` by default), with `settings.local.json` from the same directory replacing its top-level `model` and `modelPicker` | the aliases `opus`/`sonnet`/`haiku`/`fable` (`alias`) unless `modelPicker.replaceBuiltInOptions` is `true`, then each `modelPicker.options[]` (`model` → `id`, `label`) as `tool`; every row carries efforts `low, medium, high, xhigh, max` | top-level `model` |
+| `kimi` | `~/.kimi-code/config.toml` (no environment override) | each `[models."<alias>"]` (or bare `[models.<alias>]`) table: alias → `id`, `display_name` → `label`, `support_efforts` → `efforts` | top-level `default_model` |
+| `agy` | none | fills only | — |
+
+The codex surface is a debug command rather than a contract, so the parse is pinned to exactly the fields above and tested against a recorded fixture. Missing config files are not failures (no warning); a binary that is absent, exits non-zero, times out, or prints malformed or `models`-less JSON yields a warning plus fills; a malformed claude settings file warns but still yields the aliases. kimi's config carries credentials under `[providers.*]`, so nothing outside the model tables is ever copied into a row or a warning. agy and a user-defined provider without `models_command` yield fills only, with no warning — absence of an adapter is not a failure.
+
+**`models_command`.** When `providers.<name>.models_command` is set — on a built-in or a user-defined provider — it replaces that provider's adapter. It runs through `sh -c` under the same timeout and prints a JSON array of `{id, label?, efforts?, default?}`; fab sets `cli` to the provider name and `source` to `tool` regardless of what the command prints, drops rows with an empty `id`, and treats a non-zero exit, a timeout, or malformed JSON as a warning plus fills. The key is optional, merges per field in `ResolveProvider` like the command fields, is settable through `fab config set`, is documented by `fab config explain providers`, and is not advertised in the managed fence (no built-in default to show); adding it restructures no user data, so no migration ships.
+
+TOML is read by a small in-package line scanner: top-level `key = "string"` pairs, `[table]` / `[a."b"]` / `[[array]]` header tracking, and within a table `key = "string"` and single-line string arrays. A `key = value` line splits at the first `=` outside quotes, a value outside the consumed keys that the scanner cannot read (a multi-line array, an integer array) is skipped rather than failing the file, and a skipped value still open at end of file is a parse error — a warning plus fills, never a silently short read.
+
+#### Scenario: no fab project, codex missing from `$PATH`
+
+- **GIVEN** a directory with no `fab/` anywhere up the tree and no `codex` binary on `$PATH`
+- **WHEN** `fab agent models codex --json` runs
+- **THEN** stdout is a JSON array holding codex's kit fills, each `source: "fill"`
+- **AND** stderr carries one `warning: codex: …` line and the exit code is 0
+
+#### Scenario: claude rows merge aliases, fills, and the configured default
+
+- **GIVEN** claude settings with no `modelPicker` and top-level `model: claude-fable-5-1[1m]`
+- **WHEN** `fab agent models claude --json` runs
+- **THEN** the rows are `opus`, `sonnet`, `haiku`, `fable` (`alias`, the `opus`/`sonnet` fills merged into them) followed by `claude-fable-5-1[1m]` (`tool`, `default: true`)
+
+#### Scenario: `models_command` replaces the adapter and fab owns `cli` and `source`
+
+- **GIVEN** `providers: { mytool: { interactive_command: mytool, models_command: "printf '[{\"id\":\"m1\",\"cli\":\"x\",\"source\":\"fill\"}]'" } }`
+- **WHEN** `fab agent models mytool --json` runs
+- **THEN** the row is `{"cli":"mytool","id":"m1","label":"m1","efforts":[],"default":false,"source":"tool"}`
+
+#### Scenario: agy yields fills only
+
+- **WHEN** `fab agent models agy --json` runs
+- **THEN** stdout holds agy's fills as `source: "fill"` and stderr is empty
 
 ### Requirement: The machinery is documented, not scaffolded
 
@@ -652,6 +713,18 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 **Why**: Versioned fills forced a kit release, a fence re-render, and a doc sweep for every Claude model launch — the providers advert was re-rolled four times for Claude fill changes alone — and left un-upgraded kits on older models the installed tool already superseded. `claude --model` and the Agent tool's `model` parameter both take the aliases and resolve the newest model of the family, so the defaults track the tool. Without the `IsModelAlias` check, a bare alias would resolve an empty `model_alias` and the native rung would silently inherit the session model.
 **Rejected**: Bumping versioned IDs per release (the churn this removes); aliases for codex/agy (their model flags take a concrete catalog slug and have no "latest" alias); changing `ModelAlias` to return `""` for an unmapped input (it is also the `--alias` line adapter, which must pass non-Claude models through); validating model strings (fab is verbatim pass-through).
 *Introduced by*: 261117-vyrt-claude-fills-opus-sonnet-aliases
+
+### fab Owns Model Discovery and It Fails Open
+**Decision**: One verb, `fab agent models`, asks each installed tool for its models through per-tool adapters (or a user's `models_command`); every failure degrades to the kit fills plus a stderr warning with exit 0, and there is no cache. Callers — hexokit's settings page, the operator, later `fab config explain` — consume this verb and never read tool configs themselves.
+**Why**: The kit's fills lag the tools and never show models the user added (custom `modelPicker` entries, kimi's model tables), so a list built from fills alone sends users to hand-pin stale strings. One implementation behind one verb serves every caller. Discovery reads unstable surfaces (`codex debug models` is a debug command), so it must never block a caller, and a settings page must render even when a tool is missing. A `codex debug models` call measured ~0.16 s, so a cache buys nothing in v1.
+**Rejected**: hexokit reading `~/.codex`, `~/.claude`, `~/.kimi-code` itself (re-implementation drift — the agy inherit-label bug); caching in v1; failing the command when discovery fails (a hard dependency on third-party tool health); folding discovery into resolution (validation, which fab's verbatim pass-through contract refuses).
+*Introduced by*: 261117-rhpz-agent-models-discovery
+
+### Minimal TOML Line Scanner Instead of a TOML Dependency
+**Decision**: Codex's `model` and kimi's model tables are read by a small in-package scanner that tracks `[table]` headers and reads single-line string and string-array values.
+**Why**: Only four keys are needed, and `go.mod` stays at cobra/pflag/yaml.v3. Unreadable values outside the consumed keys are skipped, so an exotic line elsewhere in a large user file does not discard the whole read.
+**Rejected**: A TOML module — more robust to exotic syntax, but a new dependency for four keys; it can be swapped in later behind the same function.
+*Introduced by*: 261117-rhpz-agent-models-discovery
 
 ## Consumers
 
