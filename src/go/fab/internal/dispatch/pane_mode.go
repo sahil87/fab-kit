@@ -46,6 +46,17 @@ const (
 	ReasonExplicit AutoReason = ""
 )
 
+// DescentReason returns the semicolon-joined prerequisites that forced an
+// automatic descent. Preferred and explicit selections return an empty string.
+func (r AutoReason) DescentReason() string {
+	const marker = "(descended: "
+	start := strings.Index(string(r), marker)
+	if start < 0 || !strings.HasSuffix(string(r), ")") {
+		return ""
+	}
+	return string(r)[start+len(marker) : len(r)-1]
+}
+
 // ErrNoMode means no rung at or below the configured preference is possible.
 var ErrNoMode = errors.New("no dispatch mode is available")
 
@@ -59,6 +70,31 @@ const (
 	TmuxAbsent      TmuxAvailability = "no tmux"
 	TmuxUnreachable TmuxAvailability = "tmux unreachable"
 )
+
+// NativeAvailability is the caller-observed native-rung prerequisite. The model
+// check belongs to internal/agent; this value carries its result into the pure
+// selector together with the provider's declared capability.
+type NativeAvailability string
+
+const (
+	NativeAvailable    NativeAvailability = "available"
+	NativeNoCapability NativeAvailability = "no native capability"
+	NativeNoAlias      NativeAvailability = "model has no native alias"
+
+	nativeUnavailable = "native unavailable"
+)
+
+// NativeAvailabilityFor maps provider capability and model suitability to the
+// selector's native-rung input.
+func NativeAvailabilityFor(capability, hasNativeModel bool) NativeAvailability {
+	if !capability {
+		return NativeNoCapability
+	}
+	if !hasNativeModel {
+		return NativeNoAlias
+	}
+	return NativeAvailable
+}
 
 // SelectMode resolves the explicit-signal-first launch ladder. When no explicit
 // signal is present, preference is a ceiling and selection descends only through
@@ -87,9 +123,11 @@ const (
 //
 // tmux is caller-supplied availability: resolve-agent uses $TMUX
 // presence, while dispatch start replaces it with a real reachability result
-// before launching. That keeps environment/probe I/O outside this pure function.
+// before launching. Native availability is likewise caller-computed from provider
+// capability and the resolved model. That keeps environment/probe I/O outside this
+// pure function.
 func SelectMode(paneFlag, headlessFlag, timeoutSet, serverSet bool, preference string,
-	native, interactiveCommand, headlessCommand bool, tmux TmuxAvailability,
+	native NativeAvailability, interactiveCommand, headlessCommand bool, tmux TmuxAvailability,
 ) (Mode, AutoReason, error) {
 	switch {
 	case paneFlag:
@@ -115,10 +153,14 @@ func SelectMode(paneFlag, headlessFlag, timeoutSet, serverSet bool, preference s
 	}
 
 	if preference == string(ModePane) || preference == string(ModeNative) {
-		if native {
+		if native == NativeAvailable {
 			return ModeNative, selectionReason(ModeNative, skipped), nil
 		}
-		skipped = append(skipped, "native unavailable")
+		reason := nativeUnavailable
+		if native == NativeNoAlias {
+			reason += ": " + string(NativeNoAlias)
+		}
+		skipped = append(skipped, reason)
 	}
 
 	if headlessCommand {

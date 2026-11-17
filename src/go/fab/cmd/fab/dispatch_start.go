@@ -128,7 +128,7 @@ func addLaunchFlags(cmd *cobra.Command, role paneRole) *launchFlags {
 // Resolving both here is also what gives `restart` and `open` the split behavior
 // for free — they share this method, so the subcommands cannot drift on either
 // decision.
-func (f *launchFlags) resolveMode(cmd *cobra.Command, cfg *config.Config, prov config.ProviderConfig) (dispatch.Mode, dispatch.AutoReason, paneTarget, error) {
+func (f *launchFlags) resolveMode(cmd *cobra.Command, cfg *config.Config, prov config.ProviderConfig, native dispatch.NativeAvailability) (dispatch.Mode, dispatch.AutoReason, paneTarget, error) {
 	serverSet := cmd.Flags().Changed("server")
 
 	if f.role == paneRejected {
@@ -150,7 +150,7 @@ func (f *launchFlags) resolveMode(cmd *cobra.Command, cfg *config.Config, prov c
 		tmux = dispatch.TmuxAvailable
 	}
 	mode, reason, err := dispatch.SelectMode(f.paneMode, f.headlessMode,
-		cmd.Flags().Changed("timeout"), serverSet, cfg.GetDispatchMode(), prov.Native,
+		cmd.Flags().Changed("timeout"), serverSet, cfg.GetDispatchMode(), native,
 		prov.InteractiveCommand != "", prov.HeadlessCommand != "", tmux)
 	if err != nil {
 		return "", "", paneTarget{}, err
@@ -325,7 +325,8 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 		return err
 	}
 	prov, _ := agent.ResolveProvider(cfg, profile.Provider)
-	mode, reason, target, err := flags.resolveMode(cmd, cfg, prov)
+	native := dispatch.NativeAvailabilityFor(prov.Native, agent.HasNativeModel(profile.Model))
+	mode, reason, target, err := flags.resolveMode(cmd, cfg, prov, native)
 	if err != nil {
 		// Only a genuinely empty ladder gets the capability framing. resolveMode's
 		// other refusals — a retired pane flag, the --pane/--timeout conflict — are
@@ -333,7 +334,7 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 		// providers.X.…" would point the caller at a config key that has nothing to
 		// do with what they typed.
 		if errors.Is(err, dispatch.ErrNoMode) {
-			return noDispatchCapabilityError(profile.Provider, cfg.GetDispatchMode(), err)
+			return noDispatchCapabilityError(profile, native, cfg.GetDispatchMode(), err)
 		}
 		return err
 	}
@@ -367,10 +368,10 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 				tmux = dispatch.TmuxUnreachable
 			}
 			mode, reason, err = dispatch.SelectMode(false, false, false, false,
-				cfg.GetDispatchMode(), prov.Native, prov.InteractiveCommand != "",
+				cfg.GetDispatchMode(), native, prov.InteractiveCommand != "",
 				prov.HeadlessCommand != "", tmux)
 			if err != nil {
-				return noDispatchCapabilityError(profile.Provider, cfg.GetDispatchMode(), err)
+				return noDispatchCapabilityError(profile, native, cfg.GetDispatchMode(), err)
 			}
 			fmt.Fprintf(cmd.ErrOrStderr(), "dispatch selection: %s\n", reason)
 			if mode == dispatch.ModeNative {

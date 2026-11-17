@@ -1,0 +1,6 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-11-17T20:00:29Z"}
+{"args":"Execute step F3 (Native rung descends when the model has no Agent-tool alias) of the plan at fab/plans/sahil/26-11-16-model-pins.md","cmd":"fab-new","event":"command","ts":"2026-11-17T20:00:29Z"}
+{"delta":"+4.8","event":"confidence","score":4.8,"trigger":"calc-score","ts":"2026-11-17T20:02:08Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-11-17T20:03:43Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-11-17T20:03:59Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-11-17T20:17:08Z"}

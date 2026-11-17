@@ -116,29 +116,33 @@ func TestSelectMode(t *testing.T) {
 		paneFlag, headlessFlag bool
 		timeoutSet, serverSet  bool
 		preference             string
-		native, session        bool
-		dispatch               bool
+		native                 NativeAvailability
+		session, dispatch      bool
 		tmux                   TmuxAvailability
 		wantMode               Mode
 		wantReason             AutoReason
 		wantErr                bool
 	}{
-		{"pane preferred and possible", false, false, false, false, "pane", true, true, true, TmuxAvailable, ModePane, "mode: pane (preferred)", false},
-		{"pane to native: no tmux", false, false, false, false, "pane", true, true, true, TmuxAbsent, ModeNative, "mode: native (descended: pane unavailable: no tmux)", false},
-		{"pane to native: unreachable", false, false, false, false, "pane", true, true, true, TmuxUnreachable, ModeNative, "mode: native (descended: pane unavailable: tmux unreachable)", false},
-		{"pane to native: no session", false, false, false, false, "pane", true, false, true, TmuxAvailable, ModeNative, "mode: native (descended: pane unavailable: no interactive_command)", false},
-		{"pane to headless across two rungs", false, false, false, false, "pane", false, true, true, TmuxAbsent, ModeHeadless, "mode: headless (descended: pane unavailable: no tmux; native unavailable)", false},
-		{"native preferred and possible", false, false, false, false, "native", true, true, true, TmuxAvailable, ModeNative, "mode: native (preferred)", false},
-		{"native to headless", false, false, false, false, "native", false, true, true, TmuxAvailable, ModeHeadless, "mode: headless (descended: native unavailable)", false},
-		{"headless preferred", false, false, false, false, "headless", true, true, true, TmuxAvailable, ModeHeadless, "mode: headless (preferred)", false},
-		{"no rung from pane", false, false, false, false, "pane", false, false, false, TmuxAbsent, "", "", true},
-		{"no rung from native", false, false, false, false, "native", false, true, false, TmuxAvailable, "", "", true},
-		{"headless never ascends", false, false, false, false, "headless", true, true, false, TmuxAvailable, "", "", true},
+		{"pane preferred and possible", false, false, false, false, "pane", NativeAvailable, true, true, TmuxAvailable, ModePane, "mode: pane (preferred)", false},
+		{"pane to native: no tmux", false, false, false, false, "pane", NativeAvailable, true, true, TmuxAbsent, ModeNative, "mode: native (descended: pane unavailable: no tmux)", false},
+		{"pane to native: unreachable", false, false, false, false, "pane", NativeAvailable, true, true, TmuxUnreachable, ModeNative, "mode: native (descended: pane unavailable: tmux unreachable)", false},
+		{"pane to native: no session", false, false, false, false, "pane", NativeAvailable, false, true, TmuxAvailable, ModeNative, "mode: native (descended: pane unavailable: no interactive_command)", false},
+		{"pane to headless across two rungs", false, false, false, false, "pane", NativeNoCapability, true, true, TmuxAbsent, ModeHeadless, "mode: headless (descended: pane unavailable: no tmux; native unavailable)", false},
+		{"pane to headless across two rungs without a native alias", false, false, false, false, "pane", NativeNoAlias, true, true, TmuxAbsent, ModeHeadless, "mode: headless (descended: pane unavailable: no tmux; native unavailable: model has no native alias)", false},
+		{"native preferred and possible", false, false, false, false, "native", NativeAvailable, true, true, TmuxAvailable, ModeNative, "mode: native (preferred)", false},
+		{"native to headless", false, false, false, false, "native", NativeNoCapability, true, true, TmuxAvailable, ModeHeadless, "mode: headless (descended: native unavailable)", false},
+		{"native to headless without a native alias", false, false, false, false, "native", NativeNoAlias, true, true, TmuxAvailable, ModeHeadless, "mode: headless (descended: native unavailable: model has no native alias)", false},
+		{"pane wins before native alias check", false, false, false, false, "pane", NativeNoAlias, true, true, TmuxAvailable, ModePane, "mode: pane (preferred)", false},
+		{"headless preferred", false, false, false, false, "headless", NativeAvailable, true, true, TmuxAvailable, ModeHeadless, "mode: headless (preferred)", false},
+		{"no rung from pane", false, false, false, false, "pane", NativeNoCapability, false, false, TmuxAbsent, "", "", true},
+		{"no rung from native", false, false, false, false, "native", NativeNoCapability, true, false, TmuxAvailable, "", "", true},
+		{"no rung without a native alias", false, false, false, false, "native", NativeNoAlias, true, false, TmuxAvailable, "", "", true},
+		{"headless never ascends", false, false, false, false, "headless", NativeAvailable, true, false, TmuxAvailable, "", "", true},
 
-		{"explicit pane ignores capabilities", true, false, false, false, "headless", false, false, false, TmuxAbsent, ModePane, ReasonExplicit, false},
-		{"explicit headless beats pane preference", false, true, false, false, "pane", true, true, true, TmuxAvailable, ModeHeadless, ReasonExplicit, false},
-		{"timeout beats server", false, false, true, true, "pane", true, true, true, TmuxAvailable, ModeHeadless, ReasonExplicit, false},
-		{"server implies pane", false, false, false, true, "headless", false, false, false, TmuxAbsent, ModePane, ReasonExplicit, false},
+		{"explicit pane ignores capabilities", true, false, false, false, "headless", NativeNoCapability, false, false, TmuxAbsent, ModePane, ReasonExplicit, false},
+		{"explicit headless beats pane preference", false, true, false, false, "pane", NativeAvailable, true, true, TmuxAvailable, ModeHeadless, ReasonExplicit, false},
+		{"timeout beats server", false, false, true, true, "pane", NativeAvailable, true, true, TmuxAvailable, ModeHeadless, ReasonExplicit, false},
+		{"server implies pane", false, false, false, true, "headless", NativeNoCapability, false, false, TmuxAbsent, ModePane, ReasonExplicit, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -199,7 +203,7 @@ func TestSelectModeAutomaticMatrix(t *testing.T) {
 					}
 
 					got, reason, err := SelectMode(false, false, false, false,
-						string(preference), native, session, headless, tmux)
+						string(preference), NativeAvailabilityFor(native, true), session, headless, tmux)
 					if want == "" {
 						if !errors.Is(err, ErrNoMode) {
 							t.Fatalf("SelectMode = (%q, %q, %v), want ErrNoMode", got, reason, err)
@@ -226,6 +230,34 @@ func TestSelectModeAutomaticMatrix(t *testing.T) {
 					}
 				})
 			}
+		}
+	}
+}
+
+func TestNativeAvailabilityFor(t *testing.T) {
+	if got := NativeAvailabilityFor(false, false); got != NativeNoCapability {
+		t.Errorf("missing capability = %q, want %q", got, NativeNoCapability)
+	}
+	if got := NativeAvailabilityFor(true, false); got != NativeNoAlias {
+		t.Errorf("alias-less model = %q, want %q", got, NativeNoAlias)
+	}
+	if got := NativeAvailabilityFor(true, true); got != NativeAvailable {
+		t.Errorf("native-capable model = %q, want %q", got, NativeAvailable)
+	}
+}
+
+func TestAutoReasonDescentReason(t *testing.T) {
+	for _, tc := range []struct {
+		reason AutoReason
+		want   string
+	}{
+		{ReasonExplicit, ""},
+		{preferredReason(ModeNative), ""},
+		{"mode: headless (descended: native unavailable: model has no native alias)", "native unavailable: model has no native alias"},
+		{"mode: headless (descended: pane unavailable: no tmux; native unavailable)", "pane unavailable: no tmux; native unavailable"},
+	} {
+		if got := tc.reason.DescentReason(); got != tc.want {
+			t.Errorf("DescentReason(%q) = %q, want %q", tc.reason, got, tc.want)
 		}
 	}
 }

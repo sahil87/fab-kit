@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 )
 
@@ -301,6 +302,17 @@ func TestProbeDispatchMode(t *testing.T) {
 		findings := ProbeDispatchMode(&config.Config{}, "")
 		if len(findings) != 1 || findings[0].Severity != OK {
 			t.Errorf("default native mode with claude capabilities should be OK, got %+v", findings)
+		}
+	})
+
+	t.Run("alias-less doing model warns with the native descent reason", func(t *testing.T) {
+		cfg := &config.Config{Agent: config.AgentConfig{Profiles: map[string]config.RoleProfile{
+			agent.RoleDoing: {Model: "glm-latest[1m]"},
+		}}}
+		findings := ProbeDispatchMode(cfg, "")
+		want := `dispatch.mode "native" would descend at dispatch time: mode: headless (descended: native unavailable: model has no native alias)`
+		if len(findings) != 1 || findings[0].Severity != Warn || findings[0].Detail != want {
+			t.Errorf("alias-less native descent = %+v, want one Warn with detail %q", findings, want)
 		}
 	})
 

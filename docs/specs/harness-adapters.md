@@ -327,13 +327,13 @@ Mechanics, all fixed by this spec:
   pane verb itself. The ladder is therefore `restart`'s, and `start`'s means of detecting a landing it
   must hand off.) With no signal,
   start at `dispatch.mode` (default `native`) and descend only through `pane → native → headless`:
-  pane needs tmux + `interactive_command`, native needs `native: true`, headless needs `headless_command`.
+  pane needs tmux + `interactive_command`; native needs `native: true` and an empty or Agent-tool-aliasable resolved model; headless needs `headless_command`.
   Automatic selection never ascends. A native result is not launchable by `fab dispatch`; it errors
   before state writes with `fab agent <stage> -o yaml` re-resolution guidance. Automatic success appends exactly
   `mode: <rung> (preferred)` or `mode: <rung> (descended: <reason>[; <reason>])`; pane reasons are
   `pane unavailable: no tmux`, `pane unavailable: tmux unreachable`, or
   `pane unavailable: no interactive_command`, followed in ladder order by
-  `native unavailable`. Explicit selection carries no suffix.
+  `native unavailable` or `native unavailable: model has no native alias`. Explicit selection carries no suffix.
 
   The complete selector reason set is:
 
@@ -344,9 +344,13 @@ Mechanics, all fixed by this spec:
   - `mode: native (descended: pane unavailable: tmux unreachable)`
   - `mode: native (descended: pane unavailable: no interactive_command)`
   - `mode: headless (descended: native unavailable)`
+  - `mode: headless (descended: native unavailable: model has no native alias)`
   - `mode: headless (descended: pane unavailable: no tmux; native unavailable)`
+  - `mode: headless (descended: pane unavailable: no tmux; native unavailable: model has no native alias)`
   - `mode: headless (descended: pane unavailable: tmux unreachable; native unavailable)`
+  - `mode: headless (descended: pane unavailable: tmux unreachable; native unavailable: model has no native alias)`
   - `mode: headless (descended: pane unavailable: no interactive_command; native unavailable)`
+  - `mode: headless (descended: pane unavailable: no interactive_command; native unavailable: model has no native alias)`
 - **No timeout**: `--timeout` is enforced by the headless `sh -c` wrapper (`timeout -s HUP`), which pane
   mode never constructs, so no pane entry accepts one — `open` does not register the flag at all, and on
   `restart` the pair remains a usage error rather than a silently unenforced bound.

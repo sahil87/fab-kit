@@ -141,7 +141,7 @@ The refusal fires **after** the descent has had its chance, which is load-bearin
 | 4 | `--server <name>` | pane | explicit *(refused on `start`; valid on `restart`; on `open` it names the socket without selecting anything)* |
 | 5 | *(none of the above)* | first possible rung in `pane → native → headless`, beginning at `dispatch.mode` | **automatic** |
 
-- Pane is possible when tmux is available and the provider has `interactive_command`; native when `native: true`; headless when `headless_command` is present. A missing prerequisite skips that rung, and automatic selection never ascends. At the resolver seam `$TMUX` presence represents tmux availability; the pane path validates with a real reachability probe before launch, and under `restart`'s automatic selection a failed probe re-runs the same descent with `tmux unreachable`. An empty `$TMUX` reads as unset. **`$TMUX_PANE` is separate**: it chooses pane shape only after pane mode resolves.
+- Pane is possible when tmux is available and the provider has `interactive_command`; native when `native: true` and the resolved model is empty or maps to an Agent-tool alias; headless when `headless_command` is present. A missing prerequisite skips that rung, and automatic selection never ascends. At the resolver seam `$TMUX` presence represents tmux availability; the pane path validates with a real reachability probe before launch, and under `restart`'s automatic selection a failed probe re-runs the same descent with `tmux unreachable`. An empty `$TMUX` reads as unset. **`$TMUX_PANE` is separate**: it chooses pane shape only after pane mode resolves.
 - An automatic native result is not launchable by this command family: `start`/`restart` error before state writes and tell the caller to re-run `fab agent <stage> -o yaml`, whose absent `dispatch:` key selects the native Agent-tool adapter.
 - **`--pane` + `--headless` is a usage error** on `restart` (exit 2, cobra flag group — fired before any work, so nothing is launched and nothing persisted). `--headless` + `--timeout` **composes** (both select headless).
 
@@ -158,8 +158,8 @@ The shell is launched with `setsid` semantics (Go's `SysProcAttr{Setsid:true}`, 
 
   - Direct: `mode: pane (preferred)`, `mode: native (preferred)`, `mode: headless (preferred)`.
   - One-rung pane descent: `mode: native (descended: pane unavailable: no tmux)`, `mode: native (descended: pane unavailable: tmux unreachable)`, `mode: native (descended: pane unavailable: no interactive_command)`.
-  - Native descent: `mode: headless (descended: native unavailable)`.
-  - Two-rung descent: `mode: headless (descended: pane unavailable: no tmux; native unavailable)`, `mode: headless (descended: pane unavailable: tmux unreachable; native unavailable)`, `mode: headless (descended: pane unavailable: no interactive_command; native unavailable)`.
+  - Native descent: `mode: headless (descended: native unavailable)` or `mode: headless (descended: native unavailable: model has no native alias)`.
+  - Two-rung descent: `mode: headless (descended: pane unavailable: no tmux; native unavailable)`, `mode: headless (descended: pane unavailable: tmux unreachable; native unavailable)`, `mode: headless (descended: pane unavailable: no interactive_command; native unavailable)`; when the model has no native alias, the final reason is `native unavailable: model has no native alias` instead.
 
 #### Interactive-shell launch
 

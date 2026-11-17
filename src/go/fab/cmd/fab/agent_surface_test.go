@@ -422,6 +422,7 @@ source:
 dispatch:
     rung: headless
     command: oracle exec -m gpt-5 -e xhigh
+    reason: native unavailable
 skill_prefix: /
 `,
 		},
@@ -515,6 +516,10 @@ source:
     provider: flag
     model: flag
     effort: flag
+dispatch:
+    rung: headless
+    command: codex exec --dangerously-bypass-approvals-and-sandbox -m gpt-x -c model_reasoning_effort=high
+    reason: 'native unavailable: model has no native alias'
 skill_prefix: $
 `,
 		},
@@ -533,6 +538,89 @@ skill_prefix: $
 			}
 		})
 	}
+}
+
+func TestAgentOutputYAMLDispatchReasonAndNativeModelRule(t *testing.T) {
+	const aliaslessConfig = `dispatch:
+  mode: native
+agent:
+  profiles:
+    doing: { model: "glm-latest[1m]" }
+`
+
+	t.Run("alias-less claude model descends with the model and reason", func(t *testing.T) {
+		agentTestRepo(t, aliaslessConfig)
+		got, err := runAgentYAML(t, "yaml", "apply")
+		if err != nil {
+			t.Fatalf("agent -o yaml: %v", err)
+		}
+		for _, want := range []string{
+			"model: glm-latest[1m]\n",
+			"model_alias: \"\"\n",
+			"    rung: headless\n",
+			"    command: claude -p --permission-mode bypassPermissions --model glm-latest[1m] --effort high\n",
+			"    reason: 'native unavailable: model has no native alias'\n",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("stdout = %q, want it to contain %q", got, want)
+			}
+		}
+	})
+
+	for _, tc := range []struct {
+		name  string
+		model string
+		alias string
+	}{
+		{"empty model inherits", "", ""},
+		{"bare alias stays native", "opus", "opus"},
+		{"versioned claude model stays native", "claude-opus-5-5", "opus"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			agentTestRepo(t, aliaslessConfig)
+			got, err := runAgentYAML(t, "yaml", "apply", "--model="+tc.model)
+			if err != nil {
+				t.Fatalf("agent -o yaml --model=%s: %v", tc.model, err)
+			}
+			if strings.Contains(got, "dispatch:\n") {
+				t.Errorf("stdout = %q, native resolution must omit dispatch", got)
+			}
+			aliasYAML := tc.alias
+			if aliasYAML == "" {
+				aliasYAML = `""`
+			}
+			if !strings.Contains(got, "model_alias: "+aliasYAML+"\n") {
+				t.Errorf("stdout = %q, want model_alias %q", got, tc.alias)
+			}
+		})
+	}
+
+	t.Run("non-native provider reports the capability reason", func(t *testing.T) {
+		agentTestRepo(t, "dispatch:\n  mode: native\nagent:\n  workers: codex\n")
+		got, err := runAgentYAML(t, "yaml", "apply")
+		if err != nil {
+			t.Fatalf("agent -o yaml: %v", err)
+		}
+		if !strings.Contains(got, "    reason: native unavailable\n") || strings.Contains(got, "model has no native alias") {
+			t.Errorf("stdout = %q, want only the native-capability reason", got)
+		}
+	})
+
+	t.Run("headless preference has no descent reason", func(t *testing.T) {
+		agentTestRepo(t, `dispatch:
+  mode: headless
+agent:
+  profiles:
+    doing: { model: "glm-latest[1m]" }
+`)
+		got, err := runAgentYAML(t, "yaml", "apply")
+		if err != nil {
+			t.Fatalf("agent -o yaml: %v", err)
+		}
+		if !strings.Contains(got, "dispatch:\n") || strings.Contains(got, "    reason:") {
+			t.Errorf("stdout = %q, preferred headless must carry dispatch without reason", got)
+		}
+	})
 }
 
 func TestAgentOutputYAMLNoCapabilityMatchesResolveAgent(t *testing.T) {

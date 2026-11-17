@@ -205,7 +205,8 @@ func maskedCapabilities(override, embedded config.ProviderConfig) []string {
 // capabilities, reusing internal/dispatch.SelectMode itself so the descent
 // reasons are the EXACT strings a real dispatch would produce ("pane
 // unavailable: no tmux", "pane unavailable: no interactive_command", "native
-// unavailable"). A working descent is Warn (the config will silently not do
+// unavailable", "native unavailable: model has no native alias"). A working
+// descent is Warn (the config will silently not do
 // what was asked); no reachable rung at all is Fail. The workers-depth
 // (agent.workers) provider is the probe subject because stage dispatch is
 // where the ladder runs.
@@ -231,8 +232,9 @@ func ProbeDispatchMode(cfg *config.Config, tmuxEnv string) []Finding {
 	if tmuxEnv != "" {
 		tmux = dispatch.TmuxAvailable
 	}
+	native := dispatch.NativeAvailabilityFor(prov.Native, agent.HasNativeModel(profile.Model))
 	mode, reason, err := dispatch.SelectMode(false, false, false, false, preference,
-		prov.Native, prov.InteractiveCommand != "", prov.HeadlessCommand != "", tmux)
+		native, prov.InteractiveCommand != "", prov.HeadlessCommand != "", tmux)
 	switch {
 	case err != nil:
 		return []Finding{{
