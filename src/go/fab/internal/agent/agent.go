@@ -416,6 +416,20 @@ func ModelAlias(model string) string {
 	return model
 }
 
+// IsModelAlias reports whether model already IS one of the Agent tool's `model`
+// aliases (opus/sonnet/haiku/fable) — the form the built-in Claude fills ship in.
+// ModelAlias passes such a value through verbatim, so callers that need "does this
+// model have a native alias" check ModelAlias's result with IsModelAlias rather
+// than comparing it to the input.
+func IsModelAlias(model string) bool {
+	for _, m := range modelAliasPrefixes {
+		if model == m.alias {
+			return true
+		}
+	}
+	return false
+}
+
 // Overrides is an invocation-time {provider, model, effort} override set — the
 // top rung of the fill precedence, supplied by flags rather than config
 // (`fab resolve-agent <stage|role> [--provider] [--model] [--effort]`). Each field

@@ -367,7 +367,7 @@ Branch once, at the single surfaced `fab agent <stage> -o yaml` result:
 | `dispatch:` key | Branch | Profile handling |
 |-----------------|--------|------------------|
 | Absent | Native Agent-tool dispatch; the resolver selected the native rung | Use the model/effort seams above |
-| Present | CLI adapter (`fab dispatch`); stages may mix adapters | The mapping carries the selected pane/headless `command` with full model ID and substituted effort, so do not apply the native seams, execute the value, or resolve again |
+| Present | CLI adapter (`fab dispatch`); stages may mix adapters | The mapping carries the selected pane/headless `command` with the resolved model verbatim and substituted effort, so do not apply the native seams, execute the value, or resolve again |
 
 `dispatch.mode` is a preference ceiling over `pane → native → headless`. The resolver starts at that rung and descends only, using provider capabilities (`interactive_command`, `native`, `headless_command`) plus `$TMUX`; command presence describes how a rung runs and never selects policy by itself. The result still has only the two branches above: the `dispatch:` key is absent iff native resolved and present with the already-substituted pane/headless command otherwise. Dispatch sites branch only on key presence and never execute `dispatch.command`; `_cli-fab.md` § fab agent owns the ladder and no-rung errors.
 

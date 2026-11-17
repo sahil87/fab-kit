@@ -299,6 +299,40 @@ func TestAgentOutputYAMLRoleSelector(t *testing.T) {
 	}
 }
 
+// TestAgentOutputYAMLBuiltinClaudeFillIsAlias: the built-in claude fills are the
+// family aliases, so the review role resolves `opus` on every surface — the model,
+// the native Agent-tool alias, and the composed claude command.
+func TestAgentOutputYAMLBuiltinClaudeFillIsAlias(t *testing.T) {
+	agentTestRepo(t, "project:\n  name: test\n")
+	out, err := runAgentYAML(t, "yaml", "review")
+	if err != nil {
+		t.Fatalf("agent review -o yaml: %v", err)
+	}
+	var doc agent.Resolution
+	if err := yaml.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("parse -o yaml: %v\n%s", err, out)
+	}
+	if doc.Model != "opus" || doc.ModelAlias != "opus" {
+		t.Errorf("model/model_alias = %q/%q, want opus/opus:\n%s", doc.Model, doc.ModelAlias, out)
+	}
+	if !strings.Contains(doc.Command, "--model opus") {
+		t.Errorf("command should carry --model opus, got %q", doc.Command)
+	}
+}
+
+// TestAgentOutputYAMLNonClaudeModelHasNoAlias: a non-Claude model keeps an empty
+// model_alias even though bare aliases now resolve to themselves.
+func TestAgentOutputYAMLNonClaudeModelHasNoAlias(t *testing.T) {
+	agentTestRepo(t, "project:\n  name: test\n")
+	out, err := runAgentYAML(t, "yaml", "review", "--model", "gpt-5")
+	if err != nil {
+		t.Fatalf("agent review --model gpt-5 -o yaml: %v", err)
+	}
+	if !strings.Contains(out, "model: gpt-5\n") || !strings.Contains(out, `model_alias: ""`) {
+		t.Errorf("non-Claude model must resolve an empty model_alias, got:\n%s", out)
+	}
+}
+
 func TestAgentOutputYAMLBareProviderForm(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 	out, err := runAgentYAML(t, "yaml", "--provider", "kimi")

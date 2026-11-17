@@ -180,10 +180,14 @@ var knownGeneratedSystemParagraphDigests = map[string]struct{}{
 	// default/doing/review/hydrate on claude-opus-5-5, operator/fast on
 	// claude-sonnet-5-5 (260929-9dwn).
 	"ab93e3cc8204e7179344b8497fbfa089a83c3943ce4c72b0821b5cadfc084d59": {},
-	// Current providers advert: the claude doing/hydrate fills moved to
+	// Providers advert with the claude doing/hydrate fills moved to
 	// claude-sonnet-5-5 (effort high), leaving default/review on
 	// claude-opus-5-5 (261030-lc7k).
 	"2f55e041d31fb0a03cd59b73feeef8759f78662c1276b2d5e83f4082c8ed1ec5": {},
+	// Current providers advert: the claude fills on the family aliases — opus for
+	// default/review, sonnet for doing/hydrate/operator/fast — with the prose
+	// naming codex's and agy's as the concrete-ID fills (261117-vyrt).
+	"39ee61eb68d3f3b4cc5b6c9124499f9557cec4b8145b5fbf18d266c43162bc5b": {},
 }
 
 // fenceHeaderComment returns the explanatory preamble emitted at the top of a
