@@ -8,8 +8,8 @@ progress:
     intake: done
     apply: done
     review: done
-    hydrate: active
-    ship: pending
+    hydrate: done
+    ship: active
     review-pr: pending
 plan:
     generated: true
@@ -32,23 +32,25 @@ stage_metrics:
     intake: {started_at: "2026-11-17T20:00:29Z", driver: fab-new, iterations: 1, completed_at: "2026-11-17T20:03:59Z"}
     apply: {started_at: "2026-11-17T20:03:59Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-17T20:17:08Z"}
     review: {started_at: "2026-11-17T20:17:08Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-17T20:23:45Z"}
-    hydrate: {started_at: "2026-11-17T20:23:45Z", driver: fab-fff, iterations: 1}
+    hydrate: {started_at: "2026-11-17T20:23:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-17T20:25:54Z"}
+    ship: {started_at: "2026-11-17T20:25:54Z", driver: fab-fff, iterations: 1}
 prs: []
 base_branch: main
 true_impact:
-    added: 3180
-    deleted: 143
-    net: 3037
+    added: 4141
+    deleted: 220
+    net: 3921
     excluding:
-        added: 2033
-        deleted: 76
-        net: 1957
+        added: 2388
+        deleted: 146
+        net: 2242
     tests:
-        added: 994
-        deleted: 29
-        net: 965
-    computed_at: "2026-11-17T20:17:08Z"
-    computed_at_stage: apply
+        added: 1249
+        deleted: 66
+        net: 1183
+    computed_at: "2026-11-17T20:25:54Z"
+    computed_at_stage: hydrate
+summary: Native dispatch rung now requires an empty or Agent-tool-aliased model; alias-less models descend to headless, with dispatch.reason in fab agent -o yaml
 # base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-11-17T20:23:45Z
+last_updated: 2026-11-17T20:25:54Z

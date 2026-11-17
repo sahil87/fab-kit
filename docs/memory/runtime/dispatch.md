@@ -18,7 +18,7 @@ description: "`fab dispatch {start,open,ready,deliver,restart,status,wait,logs,k
 
 Headless mode is tmux-independent; pane mode restores watch-and-steer through the interactive CLI surface. **The two modes have separate entries**, because they hand a worker its prompt in fundamentally different ways: `start` launches a headless worker in one step with the prompt on its stdin, while a pane worker is spawned by `open` and handed its prompt afterwards by `deliver`, with the agent-driven readiness gate (`ready`) in between — a freshly spawned agent TUI may still be booting or parked behind a first-run wall, and answering one is judgment a binary cannot run. `deliver --prompt-file` is also the **pane-arm resume**.
 
-`start`, `open`, and `restart` launch these two non-native adapters, but automatic selection evaluates the full catalog: it starts at `dispatch.mode` and descends pane → native → headless. If native is the first possible rung, the command errors before writing prompt or dispatch state and directs the caller back to native dispatch; if `start`'s selection lands on **pane**, it errors the same way and names `open`. `open` runs no ladder at all — pane is explicit there. `restart` relaunches a non-running attempt from the persisted prompt and re-runs the ladder against current capabilities and environment. `status` and `wait` remain one-shot and blocking views of the same derived state.
+`start`, `open`, and `restart` launch these two non-native adapters, but automatic selection evaluates the full catalog: it starts at `dispatch.mode` and descends pane → native → headless. If native is the first possible rung, the command errors before writing prompt or dispatch state and directs the caller back to native dispatch (native is a possible rung only when the provider declares `native: true` and the stage's resolved model is empty or has a native Agent-tool alias — a model with no alias skips it, so such a stage descends to headless instead); if `start`'s selection lands on **pane**, it errors the same way and names `open`. `open` runs no ladder at all — pane is explicit there. `restart` relaunches a non-running attempt from the persisted prompt and re-runs the ladder against current capabilities and environment. `status` and `wait` remain one-shot and blocking views of the same derived state.
 
 Dispatch is the runtime for cross-harness stage dispatch. It re-resolves the stage, provider, profile, preference, and current tmux reachability; the earlier YAML `dispatch:` mapping is visibility for the skill, not an executable handoff. Provider fields remain pure capabilities, while `dispatch.mode` owns preference. Headless dispatch stays independent of the tmux-bound `fab pane` family; pane dispatch borrows tmux as a launch surface without joining an operator's tracked set.
 
@@ -96,7 +96,7 @@ Output names the launched identity. Automatic success also reports `mode: <rung>
 
 The launch verbs SHALL honor explicit signals first: `--pane` selects pane; `--headless` or `--timeout` selects headless; `--server` selects pane. Explicit selections are hard requirements and continue to key on whether a flag was supplied. With no explicit signal, they use `dispatch.mode`, provider capabilities, and tmux availability. Selection starts at the configured rung, never ascends, and returns the first possible rung in pane → native → headless order. The pane-selecting signals are live only on `restart`; on `start` they raise the `open` guidance, and `open` needs none of them because pane is its premise.
 
-`dispatch.SelectMode` is pure: it receives explicit signals, preferred mode, provider capabilities, and a tmux-availability value, and performs no environment read or tmux probe. `fab agent <stage> -o yaml` supplies environment-derived availability; start/restart supply a real reachability result before any state write.
+`dispatch.SelectMode` is pure: it receives explicit signals, preferred mode, provider capabilities, a native-availability value (capability combined with whether the resolved model has a native alias, computed by the caller), and a tmux-availability value, and performs no environment read or tmux probe. `fab agent <stage> -o yaml` supplies environment-derived availability; start/restart supply a real reachability result before any state write.
 
 `$TMUX` remains a cheap availability input for the pure resolver, not a reachability guarantee. The launch verbs use `ServerReachable` and re-run the ladder with tmux marked unreachable when the probe fails. An explicitly requested pane — `restart --pane`, or `open`, whose pane mode is forced — still probes and hard-errors instead of descending.
 
@@ -108,6 +108,13 @@ The launch verbs SHALL honor explicit signals first: `--pane` selects pane; `--h
 - **WHEN** `fab dispatch start <change> <stage>` runs
 - **THEN** selection descends to native and the command exits before writes with native-dispatch guidance
 - **AND** if native is unavailable but `headless_command` exists, it descends again and launches headless
+
+#### Scenario: a model with no native alias skips native
+
+- **GIVEN** no mode flag, `dispatch.mode: native`, built-in claude, and a stage whose resolved model is `glm-latest[1m]`
+- **WHEN** `fab dispatch start <change> <stage>` runs (`restart` and the pane-validation re-descent apply the same rule)
+- **THEN** native is skipped with `native unavailable: model has no native alias`, the command launches headless, and stderr prints `dispatch selection: mode: headless (descended: native unavailable: model has no native alias)`
+- **AND** if the provider has no `headless_command`, the shared no-capability error names the model and its missing alias rather than suggesting `providers.<p>.native`
 
 #### Scenario: an explicit signal always beats auto
 
@@ -333,7 +340,7 @@ Pane requires a reachable tmux server and `interactive_command`. `open` — and 
 
 The first possible lower rung wins. A native-capable provider therefore redirects to native before any write; a non-native provider with `headless_command` launches headless. If neither lower rung is available, the launch verbs return the shared no-reachable-capability error. Command composition occurs only after final selection, so each rung reads only its own capability field.
 
-Reachability is established by `tmux [-L <server>] list-sessions` via `ServerReachable`, not inferred solely from `$TMUX`. Headless and native selections perform no tmux launch work.
+Reachability is established by `tmux [-L <server>] list-sessions` via `ServerReachable`, not inferred solely from `$TMUX`. Headless and native selections perform no tmux launch work. Native is skipped for two causes: `native unavailable` (the provider lacks `native: true`) and `native unavailable: model has no native alias`.
 
 #### Scenario: unreachable tmux leaves no trace under `open`
 
