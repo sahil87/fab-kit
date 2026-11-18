@@ -40,7 +40,8 @@
 //
 // Resolution applies NO validation — it echoes the resolved {provider, model,
 // effort} verbatim, whatever they are (provider neutrality, Constitution
-// Principle I). Compatibility is the runtime/harness's concern, not fab's.
+// Principle I), except that the reserved ToolDefaultModel collapses to an empty
+// model. Compatibility is the runtime/harness's concern, not fab's.
 //
 // The role profiles and the stage→role map are mirrored in
 // docs/specs/stage-models.md and guarded against drift by TestDocTablesMatchAgentMaps
@@ -492,7 +493,8 @@ func ResolveRole(cfg *config.Config, role string) (Profile, error) {
 // line, so an explicitly-empty `--provider=` resolves an empty provider (a LOOKUP
 // failure for the caller to report) rather than falling through to the knob.
 //
-// NO validation: the resolved fields are returned verbatim. An unknown role is the
+// NO validation: the resolved fields are returned verbatim (ToolDefaultModel
+// excepted — it collapses to an empty model). An unknown role is the
 // only role-resolution error; an unknown PROVIDER name is a lookup concern for the
 // caller (which lists ProviderNames and exits non-zero), not an error here.
 func ResolveRoleWith(cfg *config.Config, role string, o Overrides) (Profile, error) {

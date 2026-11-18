@@ -3,6 +3,7 @@ package configref
 import (
 	"testing"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 )
 
@@ -253,4 +254,31 @@ func TestDerivedRoleSources(t *testing.T) {
 			t.Errorf("provider leaf derives from the knob, not the override, got %q", got)
 		}
 	})
+}
+
+// TestDefaultsMapFor_ToolDefaultFillKeepsToken: a provider fill holding the
+// reserved tool-default value resolves to an empty model, but the derived
+// default tier still shows the token and names the key that holds it — an empty
+// derived model would read as "no tier defines this key".
+func TestDefaultsMapFor_ToolDefaultFillKeepsToken(t *testing.T) {
+	cfg := &config.Config{
+		Agent: config.AgentConfig{Profiles: map[string]config.RoleProfile{"review": {Provider: "codex"}}},
+		Providers: map[string]config.ProviderConfig{"codex": {Profiles: map[string]config.ProviderProfile{
+			"review": {Model: agent.ToolDefaultModel},
+		}}},
+	}
+	defaults, err := DefaultsMapFor(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := roleField(t, defaults, "review", "model"); got != agent.ToolDefaultModel {
+		t.Errorf("derived review model = %q, want %q", got, agent.ToolDefaultModel)
+	}
+	sources, err := DerivedRoleSources(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := sources["review"].Model; got != "providers.codex.profiles.review.model" {
+		t.Errorf("review model source = %q, want providers.codex.profiles.review.model", got)
+	}
 }

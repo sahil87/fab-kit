@@ -136,43 +136,49 @@ Because the collapse precedes `HasNativeModel` / `dispatch.NativeAvailabilityFor
 
 ### Functional Completeness
 
-- [ ] A-001 R1: `agent.ToolDefaultModel == "tool-default"` and `agent.EffectiveModel` maps only that exact string to `""`, covered by a table test
-- [ ] A-002 R2: The token at each config tier and via `--model` resolves `Model == ""` with `source.Model` naming that tier, and beats a lower-tier fill
-- [ ] A-003 R3: Provider-only `--model tool-default` resolves `model: ""` with `source.model: flag`
-- [ ] A-004 R4: Claude `tool-default` under `dispatch.mode: native` yields no `dispatch:` key and `model_alias: ""`; `HasNativeModel` doc comment names `ToolDefaultModel` in present tense
-- [ ] A-005 R5: The alias-less no-capability error mentions `tool-default`
-- [ ] A-006 R6: `fab config set … model tool-default` exits 0 and the resolved profile shows `model: ""` with the key as source; the `.model` empty refusal names `tool-default`
-- [ ] A-007 R7: Every tool's `fab agent models` output starts with the `reserved` row (correct label, efforts, `default: false`)
+- [x] A-001 R1: `agent.ToolDefaultModel == "tool-default"` and `agent.EffectiveModel` maps only that exact string to `""`, covered by a table test
+- [x] A-002 R2: The token at each config tier and via `--model` resolves `Model == ""` with `source.Model` naming that tier, and beats a lower-tier fill
+- [x] A-003 R3: Provider-only `--model tool-default` resolves `model: ""` with `source.model: flag`
+- [x] A-004 R4: Claude `tool-default` under `dispatch.mode: native` yields no `dispatch:` key and `model_alias: ""`; `HasNativeModel` doc comment names `ToolDefaultModel` in present tense
+- [x] A-005 R5: The alias-less no-capability error mentions `tool-default`
+- [x] A-006 R6: `fab config set … model tool-default` exits 0 and the resolved profile shows `model: ""` with the key as source; the `.model` empty refusal names `tool-default`
+- [x] A-007 R7: Every tool's `fab agent models` output starts with the `reserved` row (correct label, efforts, `default: false`)
 
 ### Behavioral Correctness
 
-- [ ] A-008 R2: Composed commands (`command`, `dispatch.command`, `fab dispatch start`'s `spawn.WithProfile`) drop the model token pair exactly as for an empty model — the literal `tool-default` never appears in a composed command
-- [ ] A-009 R6: Empty-value refusal on non-model keys is byte-identical to before
+- [x] A-008 R2: Composed commands (`command`, `dispatch.command`, `fab dispatch start`'s `spawn.WithProfile`) drop the model token pair exactly as for an empty model — the literal `tool-default` never appears in a composed command
+- [x] A-009 R6: Empty-value refusal on non-model keys is byte-identical to before
 
 ### Scenario Coverage
 
-- [ ] A-010 R4: Tests cover native-kept (claude, native) and headless-dropped (`--model` absent from dispatch command)
-- [ ] A-011 R7: Tests cover labelled default, plain label on failed discovery, claude effort fallback, adapter-less `[]`, table first row, and a tool-reported `tool-default` being dropped
+- [x] A-010 R4: Tests cover native-kept (claude, native) and headless-dropped (`--model` absent from dispatch command)
+- [x] A-011 R7: Tests cover labelled default, plain label on failed discovery, claude effort fallback, adapter-less `[]`, table first row, and a tool-reported `tool-default` being dropped
 
 ### Edge Cases & Error Handling
 
-- [ ] A-012 R1: Case variants / whitespace-padded variants pass through verbatim (not collapsed)
-- [ ] A-013 R7: Discovery failure still yields the reserved row first plus fills, with the warning on stderr
+- [x] A-012 R1: Case variants / whitespace-padded variants pass through verbatim (not collapsed)
+- [x] A-013 R7: Discovery failure still yields the reserved row first plus fills, with the warning on stderr
 
 ### Code Quality
 
-- [ ] A-014 Pattern consistency: New code follows naming and structural patterns of surrounding code
-- [ ] A-015 No unnecessary duplication: The collapse lives in one helper reused by both resolution paths; no re-implemented precedence
-- [ ] A-016 Readability over cleverness: helper and row construction are small, named, and commented in the surrounding style
-- [ ] A-017 No magic strings: the token and `reserved` source are named constants, referenced everywhere (tests may use the literal to pin the contract)
-- [ ] A-018 CLI reference + tests: `_cli-fab.md` documents every changed CLI behavior and each Go change ships tests (constitution)
-- [ ] A-019 No fab-kit-only paths cited from deployed `src/kit/` content; sibling sweep done (specs aggregates, glossary, F3's "future token" wording)
+- [x] A-014 Pattern consistency: New code follows naming and structural patterns of surrounding code
+- [x] A-015 No unnecessary duplication: The collapse lives in one helper reused by both resolution paths; no re-implemented precedence
+- [x] A-016 Readability over cleverness: helper and row construction are small, named, and commented in the surrounding style
+- [x] A-017 No magic strings: the token and `reserved` source are named constants, referenced everywhere (tests may use the literal to pin the contract)
+- [x] A-018 CLI reference + tests: `_cli-fab.md` documents every changed CLI behavior and each Go change ships tests (constitution)
+- [x] A-019 No fab-kit-only paths cited from deployed `src/kit/` content; sibling sweep done (specs aggregates, glossary, F3's "future token" wording)
 
 ## Notes
+
+- Review (pass) should-fix items addressed by the orchestrator before the review-pass boundary: `configref.resolveDerivedRole` now shows `tool-default` (not empty) as the derived default when a fill holds the token, with a test (`TestDefaultsMapFor_ToolDefaultFillKeepsToken`); `agent.go` package/`ResolveRoleWith` doc comments name the collapse as the one exception to verbatim output; `toolDefaultRow` gained a doc comment.
 
 - Check items as you review: `- [x]`
 - All acceptance items must pass before `/fab-continue` (hydrate)
 - If an item is not applicable, mark checked and prefix with **N/A**: `- [x] A-NNN **N/A**: {reason}`
+
+## Deletion Candidates
+
+- None — this change adds new functionality without making existing code redundant (the empty-model token-drop in `spawn.WithProfile` and the native inherit path in `agent.HasNativeModel` are reused as-is, not superseded).
 
 ## Assumptions
 

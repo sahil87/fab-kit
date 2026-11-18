@@ -117,6 +117,9 @@ func discoverWith(cfg *config.Config, name string, env environment) ([]Row, []st
 	return append([]Row{toolDefaultRow(name, normalized)}, normalized...), warnings
 }
 
+// toolDefaultRow builds the reserved tool-default row: labelled with the tool's
+// reported default model when one exists, carrying that model's efforts, else
+// claude's known effort set, else none.
 func toolDefaultRow(name string, rows []Row) Row {
 	row := Row{
 		CLI:     name,
