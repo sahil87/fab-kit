@@ -36,7 +36,7 @@ func composeAgentResolution(cfg *config.Config, request resolutionRequest) (agen
 	if request.ProviderOnly {
 		profile = agent.Profile{
 			Provider: request.Overrides.Provider,
-			Model:    request.Overrides.Model,
+			Model:    agent.EffectiveModel(request.Overrides.Model),
 			Effort:   request.Overrides.Effort,
 		}
 		source.Provider = "flag"

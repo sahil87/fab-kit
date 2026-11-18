@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configref"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configupgrade"
@@ -944,7 +945,8 @@ func configSetCmd() *cobra.Command {
 			"comment-preserving config engine. Collection-valued keys and values require a manual " +
 			"config-file edit. An EMPTY value is refused: an empty leaf falls through to the next " +
 			"tier and can never be effective — `fab config unset` is the verb for removing an " +
-			"override. A value outside the key's accepted set or range is refused before " +
+			"override. On `.model` keys, `fab config set <key> " + agent.ToolDefaultModel + "` requests " +
+			"the tool's own default model. A value outside the key's accepted set or range is refused before " +
 			"anything is written (dispatch.mode, dispatch.column_width, dispatch.min_cols, " +
 			"dispatch.min_rows, and the provider keys agent.session, " +
 			"agent.workers, agent.profiles.<role>.provider). When a higher-precedence tier " +
@@ -958,9 +960,13 @@ func configSetCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key, rawValue := args[0], args[1]
 			if isEmptySetValue(rawValue) {
-				return fmt.Errorf("refusing to set %q to an empty value: an empty leaf (null, \"\", [], {}) "+
+				message := fmt.Sprintf("refusing to set %q to an empty value: an empty leaf (null, \"\", [], {}) "+
 					"falls through to the next config tier and can never be effective — "+
 					"run `fab config unset %s` to remove the override instead", key, key)
+				if strings.HasSuffix(key, ".model") {
+					message += fmt.Sprintf(", or `fab config set %s %s` to use the tool's own default model", key, agent.ToolDefaultModel)
+				}
+				return errors.New(message)
 			}
 			// ONE read-model load per invocation, shared by the value gate and the
 			// shadow notice. Taken before the write: the notice only asks about tiers

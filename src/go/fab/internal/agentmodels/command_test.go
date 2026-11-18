@@ -23,7 +23,7 @@ func TestModelsCommandValidRowsAndOverrides(t *testing.T) {
 	if row == nil || row.CLI != "mytool" || row.Source != SourceTool || row.Label != "m1" {
 		t.Fatalf("command row = %+v", row)
 	}
-	if len(rows) != 2 || findRow(rows, "fill-model") == nil {
+	if len(rows) != 3 || findRow(rows, "fill-model") == nil {
 		t.Fatalf("rows = %+v", rows)
 	}
 }
@@ -34,8 +34,24 @@ func TestModelsCommandKeepsOnlyFirstDefault(t *testing.T) {
 	if len(warnings) != 0 {
 		t.Fatal(warnings)
 	}
-	if rows[0].ID != "first" || !rows[0].Default || rows[1].ID != "second" || rows[1].Default {
+	if rows[1].ID != "first" || !rows[1].Default || rows[2].ID != "second" || rows[2].Default {
 		t.Fatalf("rows = %+v", rows)
+	}
+}
+
+func TestModelsCommandDropsToolReportedReservedID(t *testing.T) {
+	cfg := commandTestConfig(`printf '[{"id":"tool-default","label":"impostor"},{"id":"m1","default":true}]'`)
+	rows, warnings := discoverWith(cfg, "mytool", defaultEnvironment())
+	if len(warnings) != 0 {
+		t.Fatal(warnings)
+	}
+	if rows[0].Source != SourceReserved || rows[0].Label != "tool default (m1)" {
+		t.Fatalf("reserved row = %+v", rows[0])
+	}
+	for _, row := range rows[1:] {
+		if row.ID == "tool-default" {
+			t.Fatalf("tool-reported reserved ID survived: %+v", rows)
+		}
 	}
 }
 

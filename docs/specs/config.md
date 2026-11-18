@@ -536,9 +536,13 @@ environment walk cannot drift from the reference schema.
   `internal/configupgrade`, never whole-document YAML marshal. Keys are registry-validated, including
   documented deep scalar leaves. `set` accepts only a single-line, comment-free YAML `string`, `bool`,
   `int`, or `float`; structural map keys, collection-valued leaves, collection/null values, multiline
-  input, and YAML comments are refused with manual-edit guidance. An **empty value
-  is refused** too, pointing at `fab config unset`: under empty-skip an empty leaf falls through and can
-  never be effective, so writing one is a pure footgun rather than a way to clear a key. Emptiness is
+  input, and YAML comments are refused with manual-edit guidance. Model keys accept the reserved
+  `tool-default` value as a real override that wins over lower tiers and resolves to the tool's own
+  default model. An **empty value is refused** too, pointing at `fab config unset`: under empty-skip an
+  empty leaf falls through and can never be effective, so writing one is a pure footgun rather than a
+  way to clear a key. For a key ending in `.model`, the refusal also points at
+  `fab config set <key> tool-default` as the way to request the tool's own default; non-model keys keep
+  the unset-only message. Emptiness is
   tested on the **parsed** value (`config.IsEmptyValue`), so the quoted-empty spellings (`''`, `""`) and
   an explicit `null` are refused alongside a blank or whitespace-only argument. Fence-only deep
   keys materialize every ancestor from the registry renderer before insertion.

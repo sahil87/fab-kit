@@ -389,6 +389,19 @@ func StageNames() []string {
 	return names
 }
 
+// ToolDefaultModel requests the tool's own default model. It participates in
+// model precedence as a non-empty value, then resolves to an empty model.
+const ToolDefaultModel = "tool-default"
+
+// EffectiveModel collapses the reserved tool-default value after precedence.
+// Every other model string passes through verbatim.
+func EffectiveModel(model string) string {
+	if model == ToolDefaultModel {
+		return ""
+	}
+	return model
+}
+
 // modelAliasPrefixes maps a Claude full-ID family prefix to the Claude-Code
 // short alias the Agent tool's `model` enum accepts (opus/sonnet/haiku/fable).
 // Prefix-matched so dated/versioned variants (claude-haiku-4-5-20251001) resolve
@@ -432,8 +445,8 @@ func IsModelAlias(model string) bool {
 
 // HasNativeModel reports whether the native Agent-tool rung can carry model:
 // either it is empty (inherit the session model) or ModelAlias maps it to a
-// supported alias. A future "use the tool's default" token resolves to empty
-// before this predicate runs, so it retains the same inherit behavior.
+// supported alias. ToolDefaultModel resolves to empty before this predicate
+// runs, so it retains the same inherit behavior.
 func HasNativeModel(model string) bool {
 	return model == "" || IsModelAlias(ModelAlias(model))
 }
@@ -534,6 +547,7 @@ func ResolveRoleWithSource(cfg *config.Config, role string, o Overrides) (Profil
 		p.Effort = o.Effort
 		source.Effort = "flag"
 	}
+	p.Model = EffectiveModel(p.Model)
 	return p, source, nil
 }
 

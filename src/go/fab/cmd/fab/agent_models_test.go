@@ -49,14 +49,20 @@ func TestAgentModelsJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &rows); err != nil {
 		t.Fatalf("stdout is not a JSON array: %v\n%s", err, stdout)
 	}
-	if len(rows) != 2 {
+	if len(rows) != 3 {
 		t.Fatalf("rows = %+v", rows)
 	}
-	if rows[0].CLI != "mytool" || rows[0].ID != "m1" || rows[0].Label != "Model One" || !rows[0].Default || rows[0].Source != agentmodels.SourceTool {
-		t.Errorf("tool row = %+v", rows[0])
+	if rows[0].CLI != "mytool" || rows[0].ID != agent.ToolDefaultModel || rows[0].Label != "tool default (m1)" || rows[0].Default || rows[0].Source != agentmodels.SourceReserved {
+		t.Errorf("reserved row = %+v", rows[0])
 	}
-	if rows[1].Source != agentmodels.SourceFill || rows[1].Efforts == nil {
-		t.Errorf("fill row = %+v", rows[1])
+	if len(rows[0].Efforts) != 1 || rows[0].Efforts[0] != "high" {
+		t.Errorf("reserved row efforts = %v, want [high]", rows[0].Efforts)
+	}
+	if rows[1].CLI != "mytool" || rows[1].ID != "m1" || rows[1].Label != "Model One" || !rows[1].Default || rows[1].Source != agentmodels.SourceTool {
+		t.Errorf("tool row = %+v", rows[1])
+	}
+	if rows[2].Source != agentmodels.SourceFill || rows[2].Efforts == nil {
+		t.Errorf("fill row = %+v", rows[2])
 	}
 	var raw []map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(stdout), &raw); err != nil {
@@ -78,8 +84,11 @@ func TestAgentModelsTable(t *testing.T) {
 	if got := strings.Join(strings.Fields(lines[0]), " "); got != "CLI MODEL LABEL EFFORTS SOURCE DEFAULT" {
 		t.Errorf("header = %q", got)
 	}
-	if !strings.Contains(lines[1], "Model One") || !strings.HasSuffix(strings.TrimSpace(lines[1]), "*") {
-		t.Errorf("default row = %q", lines[1])
+	if !strings.Contains(lines[1], agent.ToolDefaultModel) || !strings.Contains(lines[1], "tool default (m1)") || !strings.Contains(lines[1], agentmodels.SourceReserved) {
+		t.Errorf("first data row = %q, want the reserved tool-default row", lines[1])
+	}
+	if !strings.Contains(lines[2], "Model One") || !strings.HasSuffix(strings.TrimSpace(lines[2]), "*") {
+		t.Errorf("default row = %q", lines[2])
 	}
 }
 
@@ -139,7 +148,10 @@ func TestAgentModelsNoProjectAndWarnings(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &rows); err != nil || len(rows) == 0 {
 		t.Fatalf("rows=%+v err=%v", rows, err)
 	}
-	for _, row := range rows {
+	if rows[0].ID != agent.ToolDefaultModel || rows[0].Label != "tool default" || rows[0].Source != agentmodels.SourceReserved {
+		t.Errorf("reserved row = %+v", rows[0])
+	}
+	for _, row := range rows[1:] {
 		if row.CLI != "codex" || row.Source != agentmodels.SourceFill {
 			t.Errorf("row = %+v", row)
 		}

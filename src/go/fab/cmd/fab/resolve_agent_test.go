@@ -235,6 +235,27 @@ agent:
 	}
 }
 
+func TestResolveAgentToolDefaultPrintsEmptyModel(t *testing.T) {
+	resolveAgentTestRepo(t, `dispatch:
+  mode: native
+agent:
+  profiles:
+    doing: { model: tool-default }
+`)
+	for _, args := range [][]string{{"apply"}, {"apply", "--alias"}} {
+		got, err := runResolveAgentCmd(t, args...)
+		if err != nil {
+			t.Fatalf("resolve-agent %v: %v", args, err)
+		}
+		if !strings.Contains(got, "model=\n") {
+			t.Errorf("resolve-agent %v stdout = %q, want an empty model line", args, got)
+		}
+		if strings.Contains(got, "dispatch=") || strings.Contains(got, agent.ToolDefaultModel) {
+			t.Errorf("resolve-agent %v stdout = %q, want native inherit with no token leak", args, got)
+		}
+	}
+}
+
 // TestResolveAgentDefaultOutputExactBytes: on a config with no agent.profiles, the
 // default output includes model=/effort=/provider= (the frozen compatibility
 // contract; consuming skills use `fab agent -o yaml`). intake ∈ `default` role;
@@ -1147,7 +1168,7 @@ agent:
 	if err == nil {
 		t.Fatal("native-only provider with an alias-less model must fail")
 	}
-	for _, want := range []string{"glm-latest[1m]", "no native Agent-tool alias", "providers.p.headless_command"} {
+	for _, want := range []string{"glm-latest[1m]", "no native Agent-tool alias", "providers.p.headless_command", agent.ToolDefaultModel} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error = %q, want it to contain %q", err, want)
 		}

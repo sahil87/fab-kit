@@ -309,11 +309,11 @@ Immediately before dispatching a pipeline-stage sub-agent, the dispatching skill
 fab agent <stage> -o yaml
 ```
 
-The structured output carries the resolved `provider`, the resolved `model` (verbatim), `model_alias`, `effort`, composed `command`, per-field `source`, and optional `dispatch:` mapping. `model_alias` is the native Agent-tool alias for recognized Claude model IDs and is empty for non-Claude IDs; `dispatch:` is absent exactly when the native rung resolves and otherwise carries the labelled `rung` plus the composed `command`, with `reason` listing the causes when selection descended. The resolver's role/depth/fill precedence and the YAML schema live in `_cli-fab.md` § fab agent. Resolved strings pass through verbatim — fab validates no effort enum and corrects no incompatible pair.
+The structured output carries the resolved `provider`, the resolved `model`, `model_alias`, `effort`, composed `command`, per-field `source`, and optional `dispatch:` mapping. `model_alias` is the native Agent-tool alias for recognized Claude model IDs and is empty for non-Claude IDs; `dispatch:` is absent exactly when the native rung resolves and otherwise carries the labelled `rung` plus the composed `command`, with `reason` listing the causes when selection descended. The resolver's role/depth/fill precedence and the YAML schema live in `_cli-fab.md` § fab agent. Resolved strings pass through verbatim — fab validates no effort enum and corrects no incompatible pair.
 
 | Profile half | Native Agent-tool seam | Empty value | Constraint |
 |--------------|------------------------|-------------|------------|
-| Model | Agent tool `model` parameter, using the YAML `model_alias` | Omit the parameter for an empty resolved model; inherit the orchestrator/session model. A non-empty model with no alias never resolves native: the resolver descends and `dispatch.reason` says why | The parameter accepts the Claude aliases `opus`/`sonnet`/`haiku`/`fable` |
+| Model | Agent tool `model` parameter, using the YAML `model_alias` | Omit the parameter for an empty resolved model; inherit the orchestrator/session model. The reserved `tool-default` value also resolves empty after precedence. A non-empty model with no alias never resolves native: the resolver descends and `dispatch.reason` says why | The parameter accepts the Claude aliases `opus`/`sonnet`/`haiku`/`fable` |
 | Effort | Imperative prompt instruction, e.g. ``Operate at `high` reasoning effort for this task.`` | Omit the instruction | Advisory on the native arm because session effort dominates (GitHub #64033/#39220); binding only when `--effort` rides a composed CLI command |
 
 User-directed overrides are per invocation and ride the same single `fab agent <stage> -o yaml` call:

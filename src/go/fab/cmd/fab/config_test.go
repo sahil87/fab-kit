@@ -1989,3 +1989,71 @@ func TestConfigUpgradeCheckMissingFileExitsNonZeroCreatesNothing(t *testing.T) {
 		t.Errorf("--check must not create config.yaml, stat: %v", statErr)
 	}
 }
+
+func TestConfigSetToolDefaultModel(t *testing.T) {
+	cases := []struct {
+		name        string
+		projectYAML string
+		args        []string
+		wantSource  string
+	}{
+		{
+			name:       "agent profile in system config",
+			args:       []string{"set", "agent.profiles.review.model", agent.ToolDefaultModel, "--system"},
+			wantSource: "agent.profiles.review",
+		},
+		{
+			name: "provider role fill in project config",
+			projectYAML: `agent:
+  profiles:
+    review: { provider: codex }
+`,
+			args:       []string{"set", "providers.codex.profiles.review.model", agent.ToolDefaultModel},
+			wantSource: "providers.codex.profiles.review",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setupConfigRepo(t, tc.projectYAML)
+			if _, _, err := runConfigSplit(t, tc.args...); err != nil {
+				t.Fatalf("config %v: %v", tc.args, err)
+			}
+			cfg, err := loadRepoConfig("")
+			if err != nil {
+				t.Fatalf("load config: %v", err)
+			}
+			profile, source, err := agent.ResolveRoleWithSource(cfg, agent.RoleReview, agent.Overrides{})
+			if err != nil {
+				t.Fatalf("resolve review: %v", err)
+			}
+			if profile.Model != "" || source.Model != tc.wantSource {
+				t.Errorf("model/source.model = %q/%q, want empty/%q", profile.Model, source.Model, tc.wantSource)
+			}
+		})
+	}
+}
+
+func TestConfigSetEmptyValueModelHint(t *testing.T) {
+	setupConfigRepo(t, "")
+	_, _, err := runConfigSplit(t, "set", "agent.profiles.review.model", "")
+	if err == nil {
+		t.Fatal("empty model value must be refused")
+	}
+	for _, want := range []string{"fab config unset agent.profiles.review.model", "fab config set agent.profiles.review.model " + agent.ToolDefaultModel} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("model refusal = %q, want it to contain %q", err, want)
+		}
+	}
+
+	_, _, err = runConfigSplit(t, "set", "dispatch.mode", "")
+	want := `refusing to set "dispatch.mode" to an empty value: an empty leaf (null, "", [], {}) falls through to the next config tier and can never be effective — run ` + "`fab config unset dispatch.mode`" + ` to remove the override instead`
+	if err == nil || err.Error() != want {
+		t.Errorf("non-model refusal = %q, want byte-identical legacy message %q", err, want)
+	}
+	if strings.Contains(err.Error(), agent.ToolDefaultModel) {
+		t.Errorf("non-model refusal must not mention %q: %v", agent.ToolDefaultModel, err)
+	}
+	if !strings.Contains(configSetCmd().Long, agent.ToolDefaultModel) {
+		t.Errorf("config set Long help must mention %q", agent.ToolDefaultModel)
+	}
+}

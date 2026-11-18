@@ -126,7 +126,8 @@ versioned with the kit. The Claude models are the family **aliases** `opus` and 
 versioned IDs: `claude --model` and the Agent tool's `model` parameter both take them and resolve the
 newest model of the family, so the defaults track the installed Claude Code and a new Claude model
 needs no kit release. A project that wants a specific model pins it with a full ID
-(`providers.claude.profiles.<role>.model: claude-opus-5-5`).
+(`providers.claude.profiles.<role>.model: claude-opus-5-5`); one that wants the installed tool's own
+default without pinning an ID uses the reserved model value `tool-default`.
 
 | Role | Provider | Model | Effort |
 |------|----------|-------|--------|
@@ -424,15 +425,19 @@ would need a provider registry, which the no-validation/provider-neutrality cont
 
 `fab agent models [provider] [--json] [--repo <path>]` asks each tool what it offers and always merges
 in the resolved provider's profile fills. Rows carry `{cli, id, label, efforts, default, source}`;
-`source` distinguishes discovered `tool` rows, built-in `alias` rows, and `fill` rows. Tool rows retain
-tool order, fills are sorted and deduplicated by ID with precedence `tool > alias > fill`, and an
-unlisted tool default is appended.
+`source` distinguishes discovered `tool` rows, built-in `alias` rows, `fill` rows, and the `reserved`
+row. Every provider starts with `{id: "tool-default", source: "reserved", default: false}`: its label
+is `tool default (<default-id>)` when a default is known and plain `tool default` otherwise, and its
+efforts come from the default row when non-empty, else Claude's known set for Claude, else `[]`. The
+real default keeps `default: true`; a tool-reported row with the reserved ID is dropped. Subsequent
+tool rows retain tool order, fills are sorted and deduplicated by ID with precedence
+`tool > alias > fill`, and an unlisted tool default is appended.
 
 Codex discovery runs the bounded debug command `codex debug models` and reads `$CODEX_HOME/config.toml`;
 Claude reads its settings and local override under `$CLAUDE_CONFIG_DIR`; Kimi reads model tables from
 `~/.kimi-code/config.toml`; agy returns fills only. Optional `providers.<name>.models_command` replaces
 the built-in adapter with a command that prints the same row array. Discovery is read-only, uncached,
-and fails open to fills with stderr warnings rather than blocking a caller.
+and fails open to the reserved row plus fills with stderr warnings rather than blocking a caller.
 
 ### Fill precedence
 
@@ -452,7 +457,11 @@ model / effort  invocation flag
 `<p>` is the **resolved** provider, so a provider swap re-derives model and effort from the new
 provider's own fills. `empty` keeps its existing meaning: an empty YAML `model` value is the "inherit the
 session model" signal, and on a command the placeholder's token (plus a preceding `-`-flag) is dropped
-by `spawn.WithProfile`, so the CLI's own default applies.
+by `spawn.WithProfile`, so the CLI's own default applies. The reserved model value `tool-default` is an
+ordinary non-empty value through this chain, so it wins over lower tiers; after the winning rung (an
+invocation flag included) is known, it collapses to empty. YAML therefore reports `model: ""` and
+`model_alias: ""` while `source.model` retains the key that held the token. Native inherits the session
+model, and CLI composition drops the model flag pair exactly as for any other empty resolved model.
 
 **There is exactly ONE cross-role fallback chain, and it lives on the provider side.** `agent.profiles`
 is sparse: an unset field is simply not an override, and `agent.profiles.default` is the `default`
@@ -613,9 +622,11 @@ pipeline skills consume the YAML surface above.
    `--provider=` resolves an empty provider (a **lookup** failure: non-zero exit naming the resolvable
    set — built-in table ∪ the project's `providers:` keys, sorted — mirroring `fab agent`'s error)
    rather than falling back to the depth knob.
-3. **Emit verbatim — NO validation** (see § No validation). fab does not check the provider, model, or
-   effort against any provider's accepted set; it echoes the resolved strings as-is.
-4. Output: structured YAML carrying `provider`, the resolved `model` (verbatim), `model_alias`, `effort`, composed
+3. **Emit without validation** (see § No validation). fab does not check the provider, model, or
+   effort against any provider's accepted set; it echoes the resolved strings as-is except for the
+   exact `tool-default` collapse defined in § Fill precedence. Provenance is not cleared with it:
+   `source.model` still names the rung that supplied the token.
+4. Output: structured YAML carrying `provider`, the resolved `model`, `model_alias`, `effort`, composed
    `command`, `template`, `fill_mode`, per-field `source`, an optional `dispatch:` mapping, and a
    trailing `skill_prefix` (`$` for `codex`, `/` otherwise — the receiving harness's explicit
    skill-invocation prefix).
@@ -640,7 +651,7 @@ pipeline skills consume the YAML surface above.
 `pane → native → headless`, selecting the first possible adapter:
 
 - **Pane** requires tmux (`$TMUX` at the resolver seam; a real probe at `fab dispatch open`) and `interactive_command`.
-- **Native** requires `native: true` and a resolved model that is empty (session-model inherit) or maps to an Agent-tool alias. A non-empty alias-less model descends with `native unavailable: model has no native alias`; a future "use the tool's default" token resolves to empty before this check.
+- **Native** requires `native: true` and a resolved model that is empty (session-model inherit) or maps to an Agent-tool alias. A non-empty alias-less model descends with `native unavailable: model has no native alias`; the reserved `tool-default` value resolves to empty before this check, so it keeps native and inherits the session model.
 - **Headless** requires `headless_command`.
 - Missing prerequisites skip rungs; no selection ever ascends. Thus `pane` is the watchable preference,
   `native` is quiet/in-context, and `headless` is detached-only.
@@ -659,9 +670,11 @@ pipeline skills consume the YAML surface above.
 ## No validation — verbatim pass-through (provider-neutral)
 
 The shared resolution engine does **NOT** validate the model or effort against any provider's accepted set. It
-maps stage→role→`{model, effort}` and **echoes both strings verbatim**, whatever they are — `xhigh`
-for an Opus model, `high` for Sonnet, `reasoning_effort`-style values for a non-Claude model a project
-might configure, or an empty effort. fab has no provider-specific knowledge in the resolution path.
+maps stage→role→`{model, effort}` and **echoes both strings verbatim**, whatever they are, with the sole
+reserved-value exception: exact `tool-default` collapses to an empty model after precedence. Examples of
+verbatim values include `xhigh` for an Opus model, `high` for Sonnet, `reasoning_effort`-style values for
+a non-Claude model a project might configure, or an empty effort. fab has no provider-specific knowledge
+in the resolution path.
 
 **Rationale (Constitution Principle I — provider neutrality):** validating against Claude's effort
 enum (`low/medium/high/xhigh/max`, Opus-only `xhigh`, Haiku-rejects-all) would hard-code Claude into
