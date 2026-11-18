@@ -9,7 +9,7 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
+    ship: done
     review-pr: pending
 plan:
     generated: true
@@ -33,13 +33,14 @@ stage_metrics:
     apply: {started_at: "2026-11-18T12:45:33Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-18T13:03:31Z"}
     review: {started_at: "2026-11-18T13:03:31Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-18T13:10:51Z"}
     hydrate: {started_at: "2026-11-18T13:10:51Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-18T13:17:04Z"}
-    ship: {started_at: "2026-11-18T13:17:04Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-11-18T13:17:04Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-18T13:20:36Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/708
 base_branch: main
 true_impact:
-    added: 5185
-    deleted: 252
-    net: 4933
+    added: 5217
+    deleted: 262
+    net: 4955
     excluding:
         added: 2843
         deleted: 158
@@ -48,10 +49,10 @@ true_impact:
         added: 1628
         deleted: 66
         net: 1562
-    computed_at: "2026-11-18T13:17:04Z"
-    computed_at_stage: hydrate
+    computed_at: "2026-11-18T13:20:36Z"
+    computed_at_stage: ship
 change_type_source: explicit
 summary: 'Documented the reserved tool-default model value: collapses to empty after precedence (source.model keeps the holding key), exempt from native-rung descent, first reserved row in fab agent models, accepted by fab config set with a .model empty-refusal hint'
 # base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-11-18T13:17:04Z
+last_updated: 2026-11-18T13:20:36Z
