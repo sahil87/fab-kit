@@ -9,7 +9,7 @@ progress:
     apply: done
     review: done
     hydrate: done
-    ship: active
+    ship: done
     review-pr: pending
 plan:
     generated: true
@@ -33,14 +33,15 @@ stage_metrics:
     apply: {started_at: "2026-11-20T07:34:40Z", driver: fab-fff, iterations: 3, completed_at: "2026-11-20T07:36:39Z"}
     review: {started_at: "2026-11-20T07:36:39Z", driver: fab-fff, iterations: 3, completed_at: "2026-11-20T07:40:14Z"}
     hydrate: {started_at: "2026-11-20T07:40:14Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-20T07:47:39Z"}
-    ship: {started_at: "2026-11-20T07:47:39Z", driver: fab-fff, iterations: 1}
-prs: []
+    ship: {started_at: "2026-11-20T07:47:39Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-20T07:48:58Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/710
 change_type_source: explicit
 base_branch: main
 true_impact:
-    added: 5226
-    deleted: 2611
-    net: 2615
+    added: 5727
+    deleted: 3054
+    net: 2673
     excluding:
         added: 4219
         deleted: 2344
@@ -49,9 +50,9 @@ true_impact:
         added: 2402
         deleted: 1324
         net: 1078
-    computed_at: "2026-11-20T07:47:39Z"
-    computed_at_stage: hydrate
+    computed_at: "2026-11-20T07:48:59Z"
+    computed_at_stage: ship
 summary: 'Rename provider → CLI in memory: clis-and-profiles (renamed), clis:/FAB_CLIS/--cli/cli: vocabulary, one-minor deprecation window and compatibility seams, 2.30.1-to-2.31.0 migration'
 # base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-11-20T07:47:39Z
+last_updated: 2026-11-20T07:48:59Z
