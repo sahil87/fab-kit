@@ -787,11 +787,14 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# kimi — so `agent.workers: codex` needs no providers: block at all. claude, codex\n" +
 		"# and agy carry per-role fills, and every role still resolves a model suited to it.\n" +
 		"# claude's and codex's maps are dense (every role pins its own model); agy's is\n" +
-		"# SPARSE: a role absent from it takes agy's `default` entry. Those fills are\n" +
-		"# refreshed at KIT-RELEASE cadence and pass through\n" +
-		"# unvalidated — override one with providers.<name>.profiles.<role>.model to pin a\n" +
-		"# newer model. kimi deliberately ships NO fills (see its note below), so it\n" +
-		"# resolves an empty model and the -m flag drops out.\n" +
+		"# SPARSE: a role absent from it takes agy's `default` entry. claude's fills are\n" +
+		"# the family ALIASES (opus / sonnet), which claude resolves to the newest model\n" +
+		"# of the family, so they track the installed tool with no kit release. Only\n" +
+		"# codex's and agy's fills are concrete IDs, refreshed at KIT-RELEASE cadence.\n" +
+		"# Every fill passes through unvalidated — override one with\n" +
+		"# providers.<name>.profiles.<role>.model to pin a specific model.\n" +
+		"# kimi deliberately ships NO fills (see its note below), so it resolves an\n" +
+		"# empty model and the -m flag drops out.\n" +
 		"# EVERY provider's fill map is printed below, claude's included — the rendered\n" +
 		"# reference is the user-facing half of this block, and a reader must not have to\n" +
 		"# reach for --json to see what the default provider actually resolves. The same\n" +

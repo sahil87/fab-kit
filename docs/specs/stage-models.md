@@ -122,16 +122,20 @@ fab-kit ships a default `{provider, model, effort}` per role. The provider comes
 depth knobs (both `claude`); the model and effort come from **`providers.claude.profiles.<role>`**.
 Both live in **`src/go/fab/defaults.yaml`** — a data file **embedded into the binary**
 (`go:embed`, never read from the kit cache at runtime) and shaped as a config-file fragment, so it is
-versioned with the kit and is the single file to edit when a new model ships.
+versioned with the kit. The Claude models are the family **aliases** `opus` and `sonnet`, not
+versioned IDs: `claude --model` and the Agent tool's `model` parameter both take them and resolve the
+newest model of the family, so the defaults track the installed Claude Code and a new Claude model
+needs no kit release. A project that wants a specific model pins it with a full ID
+(`providers.claude.profiles.<role>.model: claude-opus-5-5`).
 
 | Role | Provider | Model | Effort |
 |------|----------|-------|--------|
-| `default` | `claude` | `claude-opus-5-5` | `high` |
-| `operator` | `claude` | `claude-sonnet-5-5` | `medium` |
-| `doing` | `claude` | `claude-sonnet-5-5` | `high` |
-| `review` | `claude` | `claude-opus-5-5` | `high` |
-| `hydrate` | `claude` | `claude-sonnet-5-5` | `high` |
-| `fast` | `claude` | `claude-sonnet-5-5` | `medium` |
+| `default` | `claude` | `opus` | `high` |
+| `operator` | `claude` | `sonnet` | `medium` |
+| `doing` | `claude` | `sonnet` | `high` |
+| `review` | `claude` | `opus` | `high` |
+| `hydrate` | `claude` | `sonnet` | `high` |
+| `fast` | `claude` | `sonnet` | `medium` |
 
 This is the verified mirror of what `defaults.yaml` composes. A drift-guard test fails if the two
 disagree (see § Drift guard).
@@ -153,10 +157,11 @@ Sonnet/`medium` (highest-volume coordinator, pattern-matching work, escalation d
 cheaper model safe). `fast` sits at the mechanical floor on Sonnet/`medium` — effort at `medium` (not
 `low`) buys margin for faithful PR-description comprehension. The explicit effort is
 load-bearing in both directions, not decorative, because fab passes `--effort` on every CLI arm and never
-relies on a model's own default: Opus 5.5 defaults to `medium`, so the explicit `high` is what keeps the
-Opus roles at `high`; Sonnet 5.5 defaults to `high`, so the explicit `medium` is what keeps `operator` and
-`fast` at `medium`. `doing`/`hydrate`'s `high` equals Sonnet 5.5's default today and stays explicit anyway —
-the next Sonnet may default differently. Cost-conscious projects opt
+relies on a model's own default, and an alias can move to a model whose default differs. Today Opus 5.5
+(what `opus` resolves to) defaults to `medium`, so the explicit `high` is what keeps the Opus roles at
+`high`; Sonnet 5.5 defaults to `high`, so the explicit `medium` is what keeps `operator` and `fast` at
+`medium`. `doing`/`hydrate`'s `high` equals Sonnet 5.5's default today and stays explicit anyway — the
+next Sonnet may default differently. Cost-conscious projects opt
 any role down themselves (see § Config schema).
 
 ---
@@ -377,7 +382,10 @@ Consequences:
 
 ### Refreshing the non-claude fills
 
-Built-in non-claude fills are **refreshed at kit-release cadence**, by editing `defaults.yaml`. There
+Built-in non-claude fills are **refreshed at kit-release cadence**, by editing `defaults.yaml`. The
+claude fills need no refresh: they are the family aliases `opus`/`sonnet`, which the installed
+`claude` resolves to the newest model of the family. codex and agy have no such alias — their model
+flags take a concrete catalog slug — so their fills are concrete IDs. There
 is no staleness automation: fab runs no CI check against provider APIs and no model-catalog fetch —
 resolution passes every string through **verbatim** (the no-validation contract; compatibility is the
 harness's concern).
@@ -593,7 +601,7 @@ pipeline skills consume the YAML surface above.
    rather than falling back to the depth knob.
 3. **Emit verbatim — NO validation** (see § No validation). fab does not check the provider, model, or
    effort against any provider's accepted set; it echoes the resolved strings as-is.
-4. Output: structured YAML carrying `provider`, full `model`, `model_alias`, `effort`, composed
+4. Output: structured YAML carrying `provider`, the resolved `model` (verbatim), `model_alias`, `effort`, composed
    `command`, `template`, `fill_mode`, per-field `source`, an optional `dispatch:` mapping, and a
    trailing `skill_prefix` (`$` for `codex`, `/` otherwise — the receiving harness's explicit
    skill-invocation prefix).
@@ -603,8 +611,8 @@ pipeline skills consume the YAML surface above.
    skill-side branch, and skills never execute `dispatch.command`. The command's
    `{model}`/`{effort}` placeholders are substituted via
    `internal/spawn`'s template resolution (reused, not reimplemented), using the role's own resolved
-   model/effort — and the dispatch command's `{model}` is **always the full model ID** (see
-   § Harness-adapter boundary).
+   model/effort — and the dispatch command's `{model}` is **always the resolved model verbatim**,
+   never translated to an alias (see § Harness-adapter boundary).
 5. **Deterministic** for the same config. Non-zero exit only on a
    real error: an unreadable/malformed config, an unknown stage/role name, a supplied `--provider`
    that resolves to no provider, or a configured provider with no reachable dispatch capability.
@@ -626,7 +634,7 @@ pipeline skills consume the YAML surface above.
 - **Skill branch:** `dispatch:` absent iff native, present for pane/headless; branch on key presence and
   never execute the value. `fab dispatch start` re-resolves internally from current config/environment.
 - **Aliasing is arm-specific:** YAML `model_alias` supplies the native seam; `dispatch.command` always
-  embeds the full model ID.
+  embeds the resolved model verbatim.
 - If start-time re-resolution lands on native (for example tmux died after pane resolution),
   `fab dispatch` errors before writing state and tells the caller to re-run `fab agent <stage> -o yaml`.
 
@@ -775,11 +783,12 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
 - *Harness-specific layer (the adapter):* injecting the resolved model+effort into the actual
   sub-agent dispatch is harness behavior, and the two halves use **two different seams** in Claude
   Code. **The model rides the Agent tool's `model` parameter** — a hard enum that takes a short alias
-  (`opus`/`sonnet`/`haiku`/`fable`), not the full versioned id in `model` — so the model
+  (`opus`/`sonnet`/`haiku`/`fable`), not a full versioned id — so the model
   half reads **`model_alias` from `fab agent <stage> -o yaml`**, the deterministic Agent-tool adapter:
-  the structured surface maps the resolved full ID to its short alias (prefix-matched,
-  so dated variants like `claude-haiku-4-5-20251001` resolve to `haiku`; an empty Claude profile
-  remains the empty inherit signal; for a non-Claude ID, `model` retains the full ID while
+  the structured surface maps a resolved versioned Claude ID to its short alias (prefix-matched,
+  so dated variants like `claude-haiku-4-5-20251001` resolve to `haiku`), carries a model that already
+  is an alias — the built-in Claude fills `opus`/`sonnet` — through as itself, and keeps an empty
+  Claude profile as the empty inherit signal; for a non-Claude ID, `model` retains the ID while
   `model_alias` is empty, so there is no native Agent-tool seam). This replaces the earlier prompt-side hand-mapping
   instruction (where the orchestrator was told to translate the id by hand on every dispatch — brittle
   and easy to fumble) with a Go-side translation that cannot be skipped. **The effort rides an
@@ -790,14 +799,14 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   Subagent Dispatch) is already Claude-Code-shaped. Per-stage selection is exactly as portable as fab's
   existing dispatch: no more, no less. *(The operator launcher path is the deliberate exception — it
   does not consume `fab agent -o yaml` or `model_alias`: it resolves the **operator**-role profile
-  in-process, and `spawn.WithProfile` composes the command with the full model ID. A `claude` CLI
-  invocation accepts full IDs, so no alias mapping is involved. `WithProfile` is grammar-forgiving: it
+  in-process, and `spawn.WithProfile` composes the command with the resolved model verbatim. A `claude`
+  CLI invocation accepts full IDs and aliases alike, so no alias mapping is involved. `WithProfile` is grammar-forgiving: it
   **substitutes** the resolved values into a `{model}`/`{effort}` **template** `interactive_command` —
   including the built-in claude default, which is templated, and a codex command — all-or-nothing (any
   placeholder disables the append entirely); an empty value drops the placeholder's token and a
   preceding `-`-flag — and,
   for a command carrying **no placeholder** (a plain-form config carried forward from before the
-  templated default), it instead **appends** `--model <full-id> --effort <level>` at the END (last-wins;
+  templated default), it instead **appends** `--model <model> --effort <level>` at the END (last-wins;
   each flag omitted independently when its value is empty, per the `empty ⇒ omit` convention). Placing
   the default's placeholders last makes substitution byte-identical to the former append — so a
   non-Claude worker CLI is configurable without the launcher emitting Claude-only flags; 260702-6tmi,
@@ -807,9 +816,11 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   Pane/headless resolution emits `dispatch.rung` plus `dispatch.command` with `{model}`/`{effort}` substituted via
   `internal/spawn`; native resolution omits the mapping. This adapter is
   the **inverse aliasing rule** from the Agent-tool `model` param: `dispatch.command` **ALWAYS
-  embeds the FULL model ID, never an alias**, because an external CLI's `--model` flag takes a full ID
-  — CLI dispatch never aliases. Thus `model_alias` carries the native half while
-  `dispatch.command` carries the full ID for the CLI half. The field is **independent of** a provider's
+  embeds the resolved model verbatim and never translates a versioned ID to an alias**, because an
+  external CLI's model flag may take only concrete IDs — CLI dispatch never aliases. (For the built-in
+  Claude fills the resolved value already is the alias, which `claude --model` accepts.) Thus
+  `model_alias` carries the native half while `dispatch.command` carries the resolved model for the
+  CLI half. The field is **independent of** a provider's
   `interactive_command` (which opens whole sessions); each ladder rung requires its own capability and
   command fields never substitute for one another. *`fab agent -o yaml` emits the mapping; the
   dispatch that RUNS the selected adapter (`fab dispatch`) and the skill dispatch-seam wiring that consumes it both

@@ -805,11 +805,13 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 	}
 
 	// The built-ins are named as built-in, and the refresh policy that
-	// replaced the grammar-only rule (260806-ywkx) is stated: the non-claude fills
-	// ARE shipped, refreshed at kit-release cadence, and overridable in one line.
+	// replaced the grammar-only rule (260806-ywkx) is stated: claude's fills are
+	// family aliases that track the tool, codex's and agy's are concrete IDs
+	// refreshed at kit-release cadence, and any fill is overridable in one line.
 	for _, phrase := range []string{
 		"FOUR built-in providers",
-		"KIT-RELEASE cadence",
+		"the family ALIASES (opus / sonnet)",
+		"fills are concrete IDs, refreshed at KIT-RELEASE cadence",
 		"providers.<name>.profiles.<role>.model",
 		// Every provider renders its `profiles:` map, claude's included — the prose
 		// must say so, since the whole point is that a reader never has to reach for
@@ -820,7 +822,7 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 		"kimi deliberately ships NO fills",
 	} {
 		if !strings.Contains(out, phrase) {
-			t.Errorf("providers block must state %q (the non-claude fills ship, and are refreshed at kit cadence)", phrase)
+			t.Errorf("providers block must state %q (claude's fills are aliases; codex's and agy's are concrete IDs refreshed at kit cadence)", phrase)
 		}
 	}
 	// The superseded j3cm framing must not survive either — it renders into

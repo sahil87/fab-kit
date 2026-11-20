@@ -62,12 +62,12 @@ func TestResolveDefaults(t *testing.T) {
 // TestConfigReferenceDocumentsProviderFill in cmd/fab.
 func TestDefaultRoleProfilesArePinned(t *testing.T) {
 	pinned := map[string]Profile{
-		RoleDefault:  {Provider: "claude", Model: "claude-opus-5-5", Effort: "high"},
-		RoleOperator: {Provider: "claude", Model: "claude-sonnet-5-5", Effort: "medium"},
-		RoleDoing:    {Provider: "claude", Model: "claude-sonnet-5-5", Effort: "high"},
-		RoleReview:   {Provider: "claude", Model: "claude-opus-5-5", Effort: "high"},
-		RoleHydrate:  {Provider: "claude", Model: "claude-sonnet-5-5", Effort: "high"},
-		RoleFast:     {Provider: "claude", Model: "claude-sonnet-5-5", Effort: "medium"},
+		RoleDefault:  {Provider: "claude", Model: "opus", Effort: "high"},
+		RoleOperator: {Provider: "claude", Model: "sonnet", Effort: "medium"},
+		RoleDoing:    {Provider: "claude", Model: "sonnet", Effort: "high"},
+		RoleReview:   {Provider: "claude", Model: "opus", Effort: "high"},
+		RoleHydrate:  {Provider: "claude", Model: "sonnet", Effort: "high"},
+		RoleFast:     {Provider: "claude", Model: "sonnet", Effort: "medium"},
 	}
 	if len(pinned) != len(RoleNames()) {
 		t.Fatalf("pinned table covers %d roles, but %d roles exist — add the new role here", len(pinned), len(RoleNames()))
@@ -1298,6 +1298,10 @@ func TestModelAlias(t *testing.T) {
 		"claude-haiku-4-5":           "haiku",
 		"claude-fable-5":             "fable",
 		"claude-haiku-4-5-20251001":  "haiku", // dated variant resolves by prefix
+		"opus":                       "opus",  // a bare alias (the built-in fills) passes through
+		"sonnet":                     "sonnet",
+		"haiku":                      "haiku",
+		"fable":                      "fable",
 		"":                           "",      // empty in, empty out (inherit signal)
 		"gpt-5":                      "gpt-5", // non-Claude passes through verbatim
 		"some-unrecognized-model-id": "some-unrecognized-model-id",
@@ -1312,6 +1316,27 @@ func TestModelAlias(t *testing.T) {
 				t.Errorf("ModelAlias(%q) = %q, want %q", in, got, want)
 			}
 		})
+	}
+}
+
+// TestIsModelAlias: exactly the four Agent-tool aliases are aliases; versioned
+// IDs, bare family IDs, non-Claude IDs and empty are not.
+func TestIsModelAlias(t *testing.T) {
+	cases := map[string]bool{
+		"opus":            true,
+		"sonnet":          true,
+		"haiku":           true,
+		"fable":           true,
+		"claude-opus-5-5": false, // versioned ID — ModelAlias maps it first
+		"claude-sonnet":   false, // bare family ID is not an alias
+		"gpt-5":           false,
+		"glm-latest[1m]":  false,
+		"":                false,
+	}
+	for in, want := range cases {
+		if got := IsModelAlias(in); got != want {
+			t.Errorf("IsModelAlias(%q) = %v, want %v", in, got, want)
+		}
 	}
 }
 

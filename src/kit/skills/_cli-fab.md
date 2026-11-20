@@ -320,9 +320,16 @@ dispatch=<command>
 - `dispatch=` is derived from the resolved `dispatch.mode`, the provider's three independent capabilities, and `$TMUX`. Selection starts at the configured preference and descends only through `pane → native → headless`: pane requires `$TMUX` plus `interactive_command`, native requires `native: true`, and headless requires `headless_command`. The line is **absent iff native resolves**; pane emits the profile-substituted `interactive_command`, and headless emits the profile-substituted `headless_command`. Legacy line-protocol consumers branch on line presence and never execute its value; pipeline skills use the equivalent `dispatch:` key-presence rule from `_cli-fab.md` § fab agent instead. A provider with no reachable rung is a non-zero actionable error naming the provider and capability keys; an explicit unknown `--provider` retains the earlier lookup error.
 - **`dispatch.mode` (preference ceiling)** — a `pane | native | headless` config field, **default `native`**, **scope `both`** (settable once machine-wide in `~/.fab-kit/config.yaml`, where it outranks the project file). `pane` means “prefer watchable”: inside tmux a provider with `interactive_command` resolves pane; outside tmux it descends to native when `native: true`, otherwise headless when `headless_command` exists. `native` never ascends to pane and descends to headless only when the provider lacks native capability. `headless` never ascends. Capability-field presence says **how** a rung runs, never **which** rung to prefer; adding `headless_command` alone cannot move a native-capable provider off native. No command field substitutes for another.
 
-**`--alias` (Claude-Code Agent-tool adapter)**: when set, the `model=` line emits the Claude-Code **short alias** (`opus` / `sonnet` / `haiku` / `fable`) instead of the full versioned ID. This remains the adapter for legacy line-protocol callers; `fab agent -o yaml` exposes the same value natively as `model_alias`. The mapping is prefix-based (`claude-opus-` → `opus`, etc.), so dated variants like `claude-haiku-4-5-20251001` resolve to `haiku`. The **default (flag absent) is** the full ID (the `claude` CLI `--model` flag and interactive session launches consume full IDs). The **`effort=`/`provider=` lines are unaffected** by `--alias`. **Empty / non-Claude models pass through verbatim** (an empty `model=` line stays empty — the inherit signal; an unrecognized/non-Claude ID like `gpt-5` is emitted unchanged) — `--alias` is a best-effort adapter, not a Claude-only validator. The **`dispatch=` line ALWAYS embeds the FULL model ID even under `--alias`** — CLI dispatch never aliases (an external CLI's `--model` flag takes a full ID); aliasing is the Agent-tool-only adaptation. So under `--alias` the `model=` line is aliased while the `dispatch=` command still carries the full resolved ID.
+**`--alias` (Claude-Code Agent-tool adapter)**: when set, the `model=` line emits the Claude-Code **short alias** (`opus` / `sonnet` / `haiku` / `fable`) instead of a full versioned ID. This remains the adapter for legacy line-protocol callers; `fab agent -o yaml` exposes the same value natively as `model_alias`. The mapping is prefix-based (`claude-opus-` → `opus`, etc.), so dated variants like `claude-haiku-4-5-20251001` resolve to `haiku`; a model that already is an alias passes through as itself — the built-in claude fills are the aliases `opus`/`sonnet`, so their `model=` line is the same with or without `--alias`. The **default (flag absent) is** the resolved model verbatim (the `claude` CLI `--model` flag and interactive session launches accept full IDs and aliases alike). The **`effort=`/`provider=` lines are unaffected** by `--alias`. **Empty / non-Claude models pass through verbatim** (an empty `model=` line stays empty — the inherit signal; an unrecognized/non-Claude ID like `gpt-5` is emitted unchanged) — `--alias` is a best-effort adapter, not a Claude-only validator. The **`dispatch=` line ALWAYS embeds the resolved model verbatim, even under `--alias`** — CLI dispatch never aliases (an external CLI's model flag may take only concrete IDs); aliasing is the Agent-tool-only adaptation. So under `--alias` a versioned ID's `model=` line is aliased while the `dispatch=` command still carries the resolved ID.
 
 ```
+$ fab resolve-agent apply
+model=sonnet
+effort=high
+provider=claude
+
+# a versioned ID (here a project pin agent.profiles.doing.model: claude-sonnet-5-5)
+# is emitted verbatim by default and aliased under --alias:
 $ fab resolve-agent apply
 model=claude-sonnet-5-5
 effort=high
@@ -372,7 +379,7 @@ dispatch=codex exec --dangerously-bypass-approvals-and-sandbox -m <codex-model-i
 # a bare within-role override (equally legal on `fab agent` — final
 # post-refill layer there too):
 $ fab resolve-agent apply --effort medium
-model=claude-sonnet-5-5
+model=sonnet
 effort=medium
 provider=claude
 ```
@@ -412,10 +419,10 @@ Common to all forms:
   | `kind` | `role`, `stage`, or `provider`. |
   | `role` | Resolved role; empty for `kind: provider`. |
   | `provider` | Resolved provider name. |
-  | `model` | Full model ID; empty preserves the provider-inherit signal. |
+  | `model` | Resolved model, verbatim — an alias (`opus`/`sonnet`) for the built-in claude fills, or a configured full ID; empty preserves the provider-inherit signal. |
   | `effort` | Resolved effort; empty when inherited or unsupported. |
   | `command` | Selected interactive or headless template after profile substitution and passthrough composition. |
-  | `model_alias` | Agent-tool short alias for a Claude model; empty for non-Claude IDs. |
+  | `model_alias` | Agent-tool short alias for a Claude model — a versioned ID mapped to its family, or an alias (`opus`/`sonnet`/`haiku`/`fable`, the built-in claude fills) as itself; empty for non-Claude IDs. |
   | `template` | Raw selected provider command slot with placeholders intact. |
   | `fill_mode` | `template` when placeholders are substituted, otherwise `append`. |
   | `source` | Nested `provider`, `model`, and `effort` provenance using the actual precedence-rung names; an empty value denotes inherit/no supplying rung. |

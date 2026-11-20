@@ -55,7 +55,7 @@ type Resolution struct {
 // Lines projects a resolution onto fab resolve-agent's byte-stable line
 // protocol. Alias changes only model=: recognized Claude IDs use ModelAlias;
 // non-Claude and empty models retain Model verbatim. Dispatch always carries the
-// already-composed full-ID command.
+// already-composed command with the resolved model verbatim.
 func (r Resolution) Lines(alias bool) string {
 	model := r.Model
 	if alias && r.ModelAlias != "" {

@@ -88,7 +88,9 @@ func composeAgentResolution(cfg *config.Config, request resolutionRequest) (agen
 		Source:      source,
 		SkillPrefix: agent.SkillPrefix(profile.Provider),
 	}
-	if alias := agent.ModelAlias(profile.Model); alias != profile.Model {
+	// A versioned Claude ID maps to its alias, and a bare alias (the built-in
+	// fills) passes through as itself; anything else has no native alias.
+	if alias := agent.ModelAlias(profile.Model); agent.IsModelAlias(alias) {
 		resolution.ModelAlias = alias
 	}
 
