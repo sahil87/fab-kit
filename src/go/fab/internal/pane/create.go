@@ -16,7 +16,7 @@ import (
 // direction, and how wide the column is carved (SplitTarget, SelectPaneShape)
 // — stays in internal/dispatch: it reads dispatch records and config, which is
 // pipeline policy. What lives here is everything addressed by a pane id alone,
-// so the provider-generic `fab pane` primitives and the dispatch bindings share
+// so the CLI-generic `fab pane` primitives and the dispatch bindings share
 // exactly one copy of the tmux mechanics.
 //
 // It lives in the platform-INDEPENDENT core rather than a build-tagged split
@@ -97,7 +97,7 @@ func ServerReachable(server string) error {
 // left-hand side including any shell expansions it carries (e.g.
 // `$(basename "$(pwd)")` in the built-in claude interactive_command), which expand
 // at invocation inside the new window — the `_cli-agents.md` § Spawn
-// Composition contract. Every caller passes the provider command already
+// Composition contract. Every caller passes the CLI command already
 // wrapped by spawn.WithInteractiveShell (`${SHELL:-/bin/sh} -i -c '<cmd>'`), so
 // the expansions run in the user's interactive shell after its rc loads; the
 // same holds for OpenManualWindow, OpenSplitPane, and OpenPlainPane.
@@ -264,7 +264,7 @@ func runPaneCreator(server, verb, label string, args ...string) (string, error) 
 }
 
 // OpenPlainPane spawns cmd in a plain tmux pane with cwd dir and returns the
-// new pane's ID — the provider-generic primitive under `fab pane open`, with
+// new pane's ID — the CLI-generic primitive under `fab pane open`, with
 // NO size, NO title, and NO placement logic (the worker-column carving is
 // dispatch policy and stays behind OpenSplitPane).
 //
@@ -412,9 +412,9 @@ func KillPane(paneID, server string) error {
 //
 // The pointer is DELIVERED POST-SPAWN, not embedded in the launch command. A
 // spawn-time positional argument is fire-and-forget and unverifiable — a
-// provider CLI that silently drops it leaves a worker sitting at an empty prompt
+// CLI tool that silently drops it leaves a worker sitting at an empty prompt
 // while the dispatch reads `running` — and requiring one made pane capability
-// hostage to whether a provider's CLI happens to accept a positional prompt.
+// hostage to whether a CLI's CLI happens to accept a positional prompt.
 // Typing it through the gate's send-keys choreography makes delivery a VERIFIED
 // step (echo-checked, submit-confirmed, retried once) and leaves
 // interactive_command as pure launch grammar. See docs/specs/harness-adapters.md

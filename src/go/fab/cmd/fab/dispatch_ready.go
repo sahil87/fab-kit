@@ -15,7 +15,7 @@ func dispatchReadyCmd() *cobra.Command {
 		Long: "Answer one question about a pane opened by `fab dispatch open`: can it accept\n" +
 			"typed input right now?\n\n" +
 			"Before any keystroke the probe checks who owns the pane: while the foreground\n" +
-			"command is still a shell (the provider binary has not taken the tty yet), it\n" +
+			"command is still a shell (the CLI binary has not taken the tty yet), it\n" +
 			"reports `booting` and types NOTHING — a shell in cooked mode echoes typed\n" +
 			"characters by itself, so the sentinel would echo for a reason that has nothing\n" +
 			"to do with an agent being ready. This takeover precondition runs ahead of BOTH\n" +

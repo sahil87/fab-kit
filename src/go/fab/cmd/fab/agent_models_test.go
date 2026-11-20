@@ -12,7 +12,7 @@ import (
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agentmodels"
 )
 
-const modelsCommandFixture = `providers:
+const modelsCommandFixture = `clis:
   mytool:
     models_command: 'printf ''[{"id":"m1","label":"Model One","efforts":["high"],"default":true,"cli":"wrong","source":"fill"}]'''
     profiles:
@@ -92,12 +92,12 @@ func TestAgentModelsTable(t *testing.T) {
 	}
 }
 
-func TestAgentModelsUnknownProviderAndArity(t *testing.T) {
+func TestAgentModelsUnknownCLIAndArity(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 	isolateModelsHome(t)
 	_, _, err := runAgentModels(t, "nope")
 	if err == nil {
-		t.Fatal("unknown provider succeeded")
+		t.Fatal("unknown CLI succeeded")
 	}
 	for _, want := range []string{"nope", "agy, claude, codex, kimi"} {
 		if !strings.Contains(err.Error(), want) {
@@ -105,7 +105,7 @@ func TestAgentModelsUnknownProviderAndArity(t *testing.T) {
 		}
 	}
 	if _, _, err := runAgentModels(t, "claude", "codex"); err == nil {
-		t.Fatal("two providers succeeded")
+		t.Fatal("two CLIs succeeded")
 	}
 }
 
@@ -172,9 +172,9 @@ func TestAgentModelsNoProjectAndWarnings(t *testing.T) {
 	for _, row := range rows {
 		seen[row.CLI] = true
 	}
-	for _, name := range agent.ProviderNames(nil) {
+	for _, name := range agent.CLINames(nil) {
 		if !seen[name] {
-			t.Errorf("provider %s missing from project-free rows", name)
+			t.Errorf("CLI %s missing from project-free rows", name)
 		}
 	}
 }

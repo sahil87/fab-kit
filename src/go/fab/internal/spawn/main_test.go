@@ -10,7 +10,7 @@ import (
 )
 
 // TestMain isolates every external config layer for the whole internal/spawn test
-// package. spawn.Command resolves providers/agent through config.LoadPath, whose
+// package. spawn.Command resolves CLIs/agent through config.LoadPath, whose
 // cascade merges registry-derived environment overrides and
 // ~/.fab-kit/config.yaml into every read. Tests that need either layer opt back in
 // explicitly.
@@ -24,6 +24,7 @@ func TestMain(m *testing.M) {
 	for _, key := range configscope.DottedKeys() {
 		os.Unsetenv("FAB_" + strings.ToUpper(strings.ReplaceAll(key, ".", "_")))
 	}
+	os.Unsetenv("FAB_PROVIDERS") // deprecated alias of FAB_CLIS
 	code := m.Run()
 	os.RemoveAll(home)
 	os.Exit(code)

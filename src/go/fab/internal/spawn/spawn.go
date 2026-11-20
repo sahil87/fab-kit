@@ -9,11 +9,11 @@ import (
 )
 
 // DefaultSpawnCommand is the fallback interactive command Command returns when
-// the default role's provider resolves no interactive_command (or config.yaml
-// cannot be read/parsed) — the fallback keys on the RESOLVED provider, which the
+// the default role's CLI resolves no interactive_command (or config.yaml
+// cannot be read/parsed) — the fallback keys on the RESOLVED CLI, which the
 // agent.session knob selects, not on the claude entry specifically. Its value is
-// the built-in claude provider's interactive command, re-exported from
-// internal/agent (the provider table's owner) so raw-consumer sites keep a
+// the built-in claude CLI's interactive command, re-exported from
+// internal/agent (the CLI table's owner) so raw-consumer sites keep a
 // single spelling. Like the
 // underlying value it is a {model}/{effort} TEMPLATE — callers resolve it
 // through WithProfile (template mode), which yields the same byte-identical
@@ -23,11 +23,11 @@ import (
 // the module-root embedded defaults.yaml (parsed by internal/agent) rather than written as a Go literal.
 var DefaultSpawnCommand = agent.DefaultInteractiveCommand
 
-// Command reads the default provider's interactive command from the given
+// Command reads the default CLI's interactive command from the given
 // config.yaml path via the shared internal/config loader (the single config.yaml
 // parser).
-// Returns providers.<default-role.provider>.interactive_command resolved over
-// fab-kit's built-in provider table, or DefaultSpawnCommand if it resolves empty
+// Returns clis.<default-role.cli>.interactive_command resolved over
+// fab-kit's built-in CLI table, or DefaultSpawnCommand if it resolves empty
 // or the file cannot be read/parsed. The path-based signature is kept because
 // `fab agent --repo <path>` builds the path from an arbitrary repo root.
 func Command(configPath string) string {
@@ -36,14 +36,14 @@ func Command(configPath string) string {
 		return DefaultSpawnCommand
 	}
 
-	// The interactive command lives on the default role's provider (which the
-	// agent.session knob selects). Resolve the role to find which provider, then
-	// that provider's interactive command.
+	// The interactive command lives on the default role's CLI (which the
+	// agent.session knob selects). Resolve the role to find which CLI, then
+	// that CLI's interactive command.
 	profile, err := agent.ResolveRole(cfg, agent.RoleDefault)
 	if err != nil {
 		return DefaultSpawnCommand
 	}
-	if prov, ok := agent.ResolveProvider(cfg, profile.Provider); ok {
+	if prov, ok := agent.ResolveCLI(cfg, profile.CLI); ok {
 		if prov.InteractiveCommand != "" {
 			return prov.InteractiveCommand
 		}
@@ -51,15 +51,15 @@ func Command(configPath string) string {
 	return DefaultSpawnCommand
 }
 
-// WithInteractiveShell wraps a resolved provider command so it runs under the
+// WithInteractiveShell wraps a resolved CLI command so it runs under the
 // user's interactive shell: `${SHELL:-/bin/sh} -i -c '<cmd>'`.
 //
 // Why: tmux runs a new-window/split-window shell-command through its
 // default-shell `-c`, and headless dispatch runs the worker through a plain
 // `sh -c` — both NON-interactive, so neither sources the user's interactive rc
-// files (~/.zshrc, ~/.bashrc). Env exported only there (provider auth tokens
+// files (~/.zshrc, ~/.bashrc). Env exported only there (CLI auth tokens
 // such as CLAUDE_CODE_OAUTH_TOKEN, PATH additions) would be missing and the
-// provider would boot unauthenticated or not be found. Running the command
+// CLI would boot unauthenticated or not be found. Running the command
 // through `$SHELL -i -c` loads the rc first.
 //
 // `${SHELL:-/bin/sh}` is expanded by the OUTER shell (tmux's default-shell, or
@@ -72,11 +72,11 @@ func Command(configPath string) string {
 //
 // The interactive shell either execs a sole simple `-c` command (bash, zsh) or
 // forks it into its own foreground process group and waits (dash) — either way
-// the provider becomes the pane's foreground process (`#{pane_current_command}`
-// reads the provider once started; while rc files load it reads the shell,
+// the CLI becomes the pane's foreground process (`#{pane_current_command}`
+// reads the CLI once started; while rc files load it reads the shell,
 // which the readiness gate treats as booting — or briefly any external command
 // the rc runs) and the pane still dies with the
-// provider. The wrap adds NO `exec "$SHELL"` tail — dispatch pane workers rely
+// CLI. The wrap adds NO `exec "$SHELL"` tail — dispatch pane workers rely
 // on pane death as their terminal event.
 //
 // Composition order for interactive spawns: the shell fallback goes INSIDE the
@@ -90,7 +90,7 @@ func Command(configPath string) string {
 //
 // There is no idempotence detection: an already-wrapped command (a repo that
 // hand-wraps its interactive_command the same way) simply nests — the outer
-// interactive shell runs the inner one, which runs the provider. That works;
+// interactive shell runs the inner one, which runs the CLI. That works;
 // it only sources the rc files twice, and the per-repo wrap is unnecessary.
 //
 // Limitation: the wrap assumes POSIX shells. On the tmux paths the outer
@@ -132,7 +132,7 @@ const (
 //     append below entirely, so a value whose placeholder is absent from the
 //     template is simply not injected (this prevents e.g. a Claude --effort
 //     flag being appended to a codex command that only templated {model}).
-//     Provider grammar therefore lives in the user's config, consistent with
+//     CLI grammar therefore lives in the user's config, consistent with
 //     the resolver's verbatim/no-validation philosophy.
 //   - Append mode (no placeholder): today's behavior, byte-for-byte. Append
 //     --model/--effort to the END of spawnCmd (last-wins), omitting each flag

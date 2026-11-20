@@ -2,7 +2,7 @@ package configscope
 
 import "testing"
 
-// TestScopeFor pins the decision-6 taxonomy (config-upgrade.md): agent/providers
+// TestScopeFor pins the decision-6 taxonomy (config-upgrade.md): agent/clis
 // are preference-class (`both`); every other top-level key is semantics-class
 // (`project`); an unknown key reports (_, false). The cascade loader keys on this
 // table to prune project-scoped fields out of the system layer, so the taxonomy
@@ -15,7 +15,7 @@ func TestScopeFor(t *testing.T) {
 		"true_impact_exclude": ScopeProject,
 		"checklist":           ScopeProject,
 		"consolidate":         ScopeProject,
-		"providers":           ScopeBoth,
+		"clis":                ScopeBoth,
 		"agent":               ScopeBoth,
 		"dispatch":            ScopeBoth,
 		"stage_hooks":         ScopeProject,
@@ -60,7 +60,7 @@ func TestDottedKeys(t *testing.T) {
 		"agent.session",
 		"agent.workers",
 		"agent.profiles",
-		"providers",
+		"clis",
 		"docs_index.roots",
 		"stage_hooks",
 	}

@@ -1,6 +1,7 @@
 package setupcheck
 
 import (
+	"os"
 	"os/exec"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
@@ -76,8 +77,8 @@ func Run(in Input) *Report {
 		}
 	}
 
-	probes, findings := ProbeProviders(cfg, lookPath)
-	report.Providers = probes
+	probes, findings := ProbeCLIs(cfg, lookPath)
+	report.CLIs = probes
 	report.Findings = append(report.Findings, findings...)
 
 	report.Findings = append(report.Findings, ProbeEnvironment(lookPath, in.TmuxEnv)...)
@@ -92,6 +93,9 @@ func Run(in Input) *Report {
 
 	report.Findings = append(report.Findings, ProbeDispatchMode(cfg, in.TmuxEnv)...)
 	report.Findings = append(report.Findings, ProbeOverrideMasking(systemLayer, projectLayer)...)
+
+	projectUses, systemUses, systemPath := config.RawDeprecatedUses(in.ProjectConfigPath)
+	report.Findings = append(report.Findings, ProbeDeprecatedSpellings(in.ProjectConfigPath, projectUses, systemUses, systemPath, os.LookupEnv)...)
 
 	return report
 }

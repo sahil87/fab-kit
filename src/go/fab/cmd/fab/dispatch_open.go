@@ -26,7 +26,7 @@ import (
 //
 // Pane mode here is EXPLICIT, never a ladder result: `open` opens a pane or it
 // errors. A missing prerequisite (unreachable tmux, no interactive_command on the
-// resolved provider) is a hard error with nothing launched and nothing persisted,
+// resolved CLI) is a hard error with nothing launched and nothing persisted,
 // rather than a silent descent to headless — which is the opposite of what this
 // verb's caller asked for.
 func dispatchOpenCmd() *cobra.Command {
@@ -44,9 +44,9 @@ func dispatchOpenCmd() *cobra.Command {
 			"orchestrator's judgment, not the binary's. Nothing is appended to the composed\n" +
 			"interactive_command (it runs under the user's interactive shell,\n" +
 			"${SHELL:-/bin/sh} -i -c '...', so rc-exported env such as auth tokens is\n" +
-			"present), so prompt delivery no longer depends on whether a provider's CLI\n" +
+			"present), so prompt delivery no longer depends on whether a CLI's CLI\n" +
 			"accepts a positional prompt.\n\n" +
-			"Pane mode is explicit here: unreachable tmux or a provider with no\n" +
+			"Pane mode is explicit here: unreachable tmux or a CLI with no\n" +
 			"interactive_command is a hard error, not a descent to headless.",
 		Example: `  # Open the worker, gate it, then deliver its prompt
   fab dispatch open b91h apply < prompt.md

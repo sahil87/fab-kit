@@ -306,8 +306,8 @@ through migration; only newly generated plans use `A-NNN`.
 
 ### Auth: OAuth2 Support
 
-#### R1: OAuth2 Provider Support
-The system SHALL support authentication via external OAuth2 providers (Google OpenID Connect, GitHub OAuth2).
+#### R1: OAuth2 CLI Support
+The system SHALL support authentication via external OAuth2 clis (Google OpenID Connect, GitHub OAuth2).
 
 - **GIVEN** a user on the login page
 - **WHEN** they click "Sign in with Google"
@@ -317,14 +317,14 @@ The system SHALL support authentication via external OAuth2 providers (Google Op
 
 ### Phase 1: Setup
 - [ ] T001 [P] Add OAuth client config to `src/config/auth.ts` <!-- R1 -->
-- [ ] T002 [P] Install OAuth provider SDK dependency <!-- R1 -->
+- [ ] T002 [P] Install OAuth cli SDK dependency <!-- R1 -->
 
 ### Phase 2: Core Implementation
 - [ ] T003 Implement `OAuthClient` in `src/auth/oauth.ts` <!-- R1 -->
 - [ ] T004 Wire OAuth callback handler in `src/api/auth/callback.ts` <!-- R1 -->
 
 ### Phase 3: Integration & Edge Cases
-- [ ] T005 Handle OAuth provider timeout with clear error in `src/auth/oauth.ts` <!-- R1 -->
+- [ ] T005 Handle OAuth cli timeout with clear error in `src/auth/oauth.ts` <!-- R1 -->
 
 ## Execution Order
 
@@ -334,15 +334,15 @@ The system SHALL support authentication via external OAuth2 providers (Google Op
 
 ### Functional Completeness
 - [ ] A-001 R1: Google and GitHub sign-in flows implemented
-- [ ] A-002 R1: Provider configuration stored in environment
+- [ ] A-002 R1: CLI configuration stored in environment
 
 ### Scenario Coverage
-- [ ] A-003 R1: Redirect to provider consent screen works end-to-end
+- [ ] A-003 R1: Redirect to cli consent screen works end-to-end
 - [ ] A-004 R1: Callback handles approval and creates session
 - [ ] A-005 R1: Callback handles denial gracefully
 
 ### Edge Cases & Error Handling
-- [ ] A-006 R1: Provider unavailable — timeout with clear error message
+- [ ] A-006 R1: CLI unavailable — timeout with clear error message
 
 ### Security
 - [ ] A-007 R1: OAuth tokens stored securely (not in localStorage)

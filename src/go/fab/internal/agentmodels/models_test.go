@@ -42,8 +42,8 @@ func TestMergeRowsAppendsUnlistedDefault(t *testing.T) {
 }
 
 func TestDiscoverFillsAlwaysPresentAndSorted(t *testing.T) {
-	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
-		"custom": {Profiles: map[string]config.ProviderProfile{
+	cfg := &config.Config{CLIs: map[string]config.CLIConfig{
+		"custom": {Profiles: map[string]config.CLIProfile{
 			"default": {Model: "z-fill"},
 			"doing":   {Model: "a-fill"},
 			"review":  {Model: "z-fill"},
@@ -63,13 +63,13 @@ func TestDiscoverFillsAlwaysPresentAndSorted(t *testing.T) {
 	}
 }
 
-func TestDiscoverAgyAndUserProviderWithoutAdapter(t *testing.T) {
+func TestDiscoverAgyAndUserCLIWithoutAdapter(t *testing.T) {
 	rows, warnings := discoverWith(nil, "agy", defaultEnvironment())
 	if len(warnings) != 0 || len(rows) == 0 {
 		t.Fatalf("agy rows=%d warnings=%v", len(rows), warnings)
 	}
-	provider, _ := agent.ResolveProvider(nil, "agy")
-	for id := range map[string]struct{}{provider.Profiles["default"].Model: {}, provider.Profiles["fast"].Model: {}} {
+	cli, _ := agent.ResolveCLI(nil, "agy")
+	for id := range map[string]struct{}{cli.Profiles["default"].Model: {}, cli.Profiles["fast"].Model: {}} {
 		if findRow(rows, id) == nil {
 			t.Errorf("agy fill %q missing", id)
 		}
@@ -83,8 +83,8 @@ func TestDiscoverAgyAndUserProviderWithoutAdapter(t *testing.T) {
 		}
 	}
 
-	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
-		"custom": {Profiles: map[string]config.ProviderProfile{"default": {Model: "custom-model"}}},
+	cfg := &config.Config{CLIs: map[string]config.CLIConfig{
+		"custom": {Profiles: map[string]config.CLIProfile{"default": {Model: "custom-model"}}},
 	}}
 	rows, warnings = discoverWith(cfg, "custom", defaultEnvironment())
 	if len(warnings) != 0 || len(rows) != 2 || rows[1].Source != SourceFill {
@@ -123,8 +123,8 @@ func TestDiscoverClaudeToolDefaultRowUsesKnownEfforts(t *testing.T) {
 }
 
 func TestRowEffortsMarshalAsArray(t *testing.T) {
-	rows, _ := discoverWith(&config.Config{Providers: map[string]config.ProviderConfig{
-		"custom": {Profiles: map[string]config.ProviderProfile{"default": {Model: "model"}}},
+	rows, _ := discoverWith(&config.Config{CLIs: map[string]config.CLIConfig{
+		"custom": {Profiles: map[string]config.CLIProfile{"default": {Model: "model"}}},
 	}}, "custom", defaultEnvironment())
 	data, err := json.Marshal(rows)
 	if err != nil {

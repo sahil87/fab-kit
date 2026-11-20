@@ -3,19 +3,19 @@
 > **Status:** Design intent (pre-implementation, now implemented — 260613-l3ja, reshaped in
 > 260806-j9nh). This spec captures the design for letting a project run different pipeline stages
 > on different models. The canonical data is `src/go/fab/defaults.yaml` (the embedded
-> depth knobs and provider table, including claude's per-role fills) plus the `stageRoles` and
+> depth knobs and CLI table, including claude's per-role fills) plus the `stageRoles` and
 > `roleDepth` maps in `src/go/fab/internal/agent/agent.go`; the two tables in this doc are verified
 > mirrors of them (drift-guarded — see § Drift guard).
 
 Fab runs a six-stage pipeline (`intake → apply → review → hydrate → ship → review-pr`). Without this
 feature every stage runs on whatever model the session was launched with — the orchestrator's
 foreground model, or the model a dispatched sub-agent inherits. This feature lets a **project**
-assign a provider and model to each stage, so judgment-heavy stages (review) run at a high-end model
+assign a CLI and model to each stage, so judgment-heavy stages (review) run at a high-end model
 + effort while the mechanical stage (ship) runs cheaper.
 
-The control surface is deliberately small, and it is **two knobs**: pick a provider for the agents
-you talk to, and a provider for the agents the pipeline dispatches. Everything beneath that — which
-stages cluster into which role, which model each role gets on each provider — is fab-owned default
+The control surface is deliberately small, and it is **two knobs**: pick a CLI for the agents
+you talk to, and a CLI for the agents the pipeline dispatches. Everything beneath that — which
+stages cluster into which role, which model each role gets on each CLI — is fab-owned default
 or a sparse escape hatch.
 
 ---
@@ -27,8 +27,8 @@ Four words, each with exactly one meaning:
 | Term | Meaning |
 |------|---------|
 | **role** | One of six fixed slot names — `default`, `operator`, `doing`, `review`, `hydrate`, `fast`. A role is *what an agent is for*. |
-| **profile** | A concrete `{provider, model, effort}` value. What a role resolves *to*. |
-| **provider** | A named set of independent launch capabilities (`interactive_command`, `headless_command`, and `native`) plus its per-role fills. Capability presence says how a rung runs; `dispatch.mode` chooses the preference ceiling and descends `pane → native → headless`. |
+| **profile** | A concrete `{cli, model, effort}` value. What a role resolves *to*. |
+| **CLI** | A named set of independent launch capabilities (`interactive_command`, `headless_command`, and `native`) plus its per-role fills. Capability presence says how a rung runs; `dispatch.mode` chooses the preference ceiling and descends `pane → native → headless`. |
 | **Tier 1 / Tier 2** | Agent **depth**: Tier 1 is the agents a user talks to (a `fab agent` session, the operator, a `fab batch` worker); Tier 2 is the agents pipeline stages dispatch to. |
 
 "Tier" means depth and *only* depth. A watchable pane worker is still Tier 2 — the defining property
@@ -65,7 +65,7 @@ cover.
 
 ## The two knobs — `agent.session` and `agent.workers`
 
-The advertised config surface is exactly two scalars, each naming a provider:
+The advertised config surface is exactly two scalars, each naming a CLI:
 
 ```yaml
 agent:
@@ -82,7 +82,7 @@ and fab-owned:
 | Tier 2 (workers) | `agent.workers` | `doing`, `review`, `hydrate`, `fast` |
 
 **The split is mechanically real, not cosmetic.** `agent.session` applies at **launch time** — fab
-cannot switch a running session's provider — while `agent.workers` applies at **every stage dispatch**
+cannot switch a running session's CLI — while `agent.workers` applies at **every stage dispatch**
 (`fab agent <stage> -o yaml`). `intake` rides `default` and is therefore a session role for exactly that
 reason: it runs foreground in the user's own session.
 
@@ -93,10 +93,10 @@ per machine in `~/.fab-kit/config.yaml`.
 
 ## Roles are the referent taxonomy; profiles are what they resolve to
 
-A profile is a **named triple of `{provider, model, effort}`** — not a bare model. The invocation
-**command** does NOT live on the role: it lives on the **provider** (see [§ Providers](#providers)),
+A profile is a **named triple of `{cli, model, effort}`** — not a bare model. The invocation
+**command** does NOT live on the role: it lives on the **CLI** (see [§ CLIs](#CLIs)),
 so a role is pure budget/referent policy. Effort is a first-class spend dial, and what a user means by
-a role is the provider, the model, *and* how hard it thinks.
+a role is the CLI, the model, *and* how hard it thinks.
 
 Six **roles** form the vocabulary — concrete referents ("the operator", "the reviewer"), not
 cognitive modes. A role is **stage-named only where it maps 1:1 to a single referent** (`review`,
@@ -105,7 +105,7 @@ governs the ship stage *and* the `/fab-proceed` prefix-step dispatches — see �
 
 | Role | Referent |
 |------|----------|
-| `default` | Spawned worker sessions (`fab batch`), `fab agent` with no role, intake (advisory only — foreground), and the `/fab-proceed` create-intake dispatch. *(`fab agent --provider <name>` deliberately resolves NO role — it is a sibling addressing mode that bypasses this taxonomy entirely; see § Providers.)* |
+| `default` | Spawned worker sessions (`fab batch`), `fab agent` with no role, intake (advisory only — foreground), and the `/fab-proceed` create-intake dispatch. *(`fab agent --cli <name>` deliberately resolves NO role — it is a sibling addressing mode that bypasses this taxonomy entirely; see § CLIs.)* |
 | `operator` | The operator coordinator session (`rk operator`). |
 | `doing` | **Execution that must not err** — apply writes the diff; review-pr fixes already-articulated feedback. |
 | `review` | **The critic** — review reads a diff and discovers what's wrong. Its own role (not folded into `doing`) so the critic's model and effort can be dialed independently of the author's; the separation that matters is the fresh context and adversarial framing, not a different model family. |
@@ -118,18 +118,18 @@ runs wherever the interactive session runs.
 
 ### Default role profiles
 
-fab-kit ships a default `{provider, model, effort}` per role. The provider comes from the built-in
-depth knobs (both `claude`); the model and effort come from **`providers.claude.profiles.<role>`**.
+fab-kit ships a default `{cli, model, effort}` per role. The CLI comes from the built-in
+depth knobs (both `claude`); the model and effort come from **`clis.claude.profiles.<role>`**.
 Both live in **`src/go/fab/defaults.yaml`** — a data file **embedded into the binary**
 (`go:embed`, never read from the kit cache at runtime) and shaped as a config-file fragment, so it is
 versioned with the kit. The Claude models are the family **aliases** `opus` and `sonnet`, not
 versioned IDs: `claude --model` and the Agent tool's `model` parameter both take them and resolve the
 newest model of the family, so the defaults track the installed Claude Code and a new Claude model
 needs no kit release. A project that wants a specific model pins it with a full ID
-(`providers.claude.profiles.<role>.model: claude-opus-5-5`); one that wants the installed tool's own
+(`clis.claude.profiles.<role>.model: claude-opus-5-5`); one that wants the installed tool's own
 default without pinning an ID uses the reserved model value `tool-default`.
 
-| Role | Provider | Model | Effort |
+| Role | CLI | Model | Effort |
 |------|----------|-------|--------|
 | `default` | `claude` | `opus` | `high` |
 | `operator` | `claude` | `sonnet` | `medium` |
@@ -201,32 +201,32 @@ knob.
 
 ---
 
-## Providers
+## CLIs
 
-The launch **capability grammar** lives in a top-level `providers:` table, not on the roles. Each
-provider is an opaque, user-chosen name mapping to three independent dispatch capabilities plus a per-role fill map:
+The launch **capability grammar** lives in a top-level `clis:` table, not on the roles. Each
+CLI is an opaque, user-chosen name mapping to three independent dispatch capabilities plus a per-role fill map:
 
 - **`interactive_command`** — opens an interactive agent **session** (`rk operator` / `fab batch` /
   `fab agent`, and the pane-dispatch adapter's worker). It is **pure launch grammar**: fab appends
   nothing to it, and a pane worker's stage prompt is delivered afterwards by `fab dispatch deliver`
-  (see [`harness-adapters.md`](harness-adapters.md) § 3), so a provider's eligibility for pane dispatch
-  does not depend on whether its CLI accepts a positional initial prompt. It is reachable **two ways**: through a role (the role names a provider, and its
+  (see [`harness-adapters.md`](harness-adapters.md) § 3), so a CLI's eligibility for pane dispatch
+  does not depend on whether its CLI accepts a positional initial prompt. It is reachable **two ways**: through a role (the role names a CLI, and its
   `{model, effort}` are substituted) or **directly**, via
-  `fab agent --provider <name> [--model <id>] [--effort <level>]`, which bypasses role resolution
-  entirely — a provider-addressed spawn for the "give me a codex session right here" case, where no
-  role need name the provider first. The launcher's positional also accepts a **stage** name (mapped
+  `fab agent --cli <name> [--model <id>] [--effort <level>]`, which bypasses role resolution
+  entirely — a CLI-addressed spawn for the "give me a codex session right here" case, where no
+  role need name the CLI first. The launcher's positional also accepts a **stage** name (mapped
   through the fixed `stageRoles` table to its role, exactly as `fab agent <stage> -o yaml` resolves), and combines
-  with `--provider` to re-resolve that role's fills from the named provider (`-t` prints the raw template,
+  with `--cli` to re-resolve that role's fills from the named CLI (`-t` prints the raw template,
   `--headless` picks `headless_command`, and `-o yaml` carries the full structured resolution, including
   raw template, fill mode, per-field provenance, model alias, and labelled non-native dispatch — all
   print-mode sinks). The direct form is a **lookup**, not a new validation surface: an
-  unknown name errors listing the available providers, while resolved command strings still pass
+  unknown name errors listing the available CLIs, while resolved command strings still pass
   through verbatim. See `_cli-fab.md` § fab agent.
 - **`headless_command`** — runs ONE headless **stage task** via `fab dispatch`.
-- **`native`** — boolean capability for the in-harness Agent-tool adapter. Provider names are opaque,
+- **`native`** — boolean capability for the in-harness Agent-tool adapter. CLI names are opaque,
   so fab never infers native support from a name or model.
-- **`profiles.<role>`** — the provider's **per-role fill**: `{model, effort}` for "when this provider
-  plays this role". Keyed by role name; the `default` entry doubles as the provider's **cross-role
+- **`profiles.<role>`** — the CLI's **per-role fill**: `{model, effort}` for "when this CLI
+  plays this role". Keyed by role name; the `default` entry doubles as the CLI's **cross-role
   fallback**. Scope `both`, so a machine-wide fill is settable once in `~/.fab-kit/config.yaml`, where
   it outranks the project file.
 
@@ -235,30 +235,30 @@ invocations of the same binary (claude interactive `-n` vs headless `-p`; codex 
 and native is not a command at all. Presence describes **how** a rung runs; it never chooses policy.
 `dispatch.mode` owns preference, and no command field substitutes for another.
 
-**Per-role fills, not one fill per provider.** A single `{model, effort}` per provider would resolve
-the *same* model for every role, so swapping `agent.workers` to another provider would flatten the
-whole role taxonomy. Keyed by role, the swap keeps the differentiation: `apply` gets that provider's
+**Per-role fills, not one fill per CLI.** A single `{model, effort}` per CLI would resolve
+the *same* model for every role, so swapping `agent.workers` to another CLI would flatten the
+whole role taxonomy. Keyed by role, the swap keeps the differentiation: `apply` gets that CLI's
 strongest model, `ship` its cheapest.
 
-### Built-in providers
+### Built-in CLIs
 
-fab-kit ships **four built-in providers** — `claude` (the default), `codex`, `agy` and `kimi` — in the
-`providers:` block of the module-root embedded `defaults.yaml`.
+fab-kit ships **four built-in CLIs** — `claude` (the default), `codex`, `agy` and `kimi` — in the
+`clis:` block of the module-root embedded `defaults.yaml`.
 
-The sample below is **shape-only**: it shows the command grammars and the per-provider fill SHAPE
+The sample below is **shape-only**: it shows the command grammars and the per-CLI fill SHAPE
 (which roles each map carries, and whether its rows are model+effort or model-only), with the model
 IDs elided. This spec states shipped model IDs in exactly one place — the four-column table
 in § Default role profiles, which covers `claude` and is drift-guarded. For the live values of every
-provider, read `src/go/fab/defaults.yaml` (canonical), or render them:
+CLI, read `src/go/fab/defaults.yaml` (canonical), or render them:
 
-- `fab config explain providers --json` — projects every provider's fill map, resolved.
+- `fab config explain CLIs --json` — projects every CLI's fill map, resolved.
 - `fab agent <stage|role> -o yaml` — the structured resolution a stage (or a role named directly) actually gets.
 
-(`fab config explain providers` prints every provider's fill map in its human-readable form too,
+(`fab config explain CLIs` prints every CLI's fill map in its human-readable form too,
 claude's included.)
 
 ```yaml
-providers:
+clis:
   claude:
     native: true
     interactive_command: 'claude --permission-mode bypassPermissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
@@ -296,13 +296,13 @@ providers:
 model and effort, so no shipped row leans on the cross-role fallback. agy's map is SPARSE: a role
 absent from it resolves agy's `default` entry, so agy's non-`fast` roles land on agy's `default`
 model without a row of their own. The per-FIELD merge rule still exists (a user override carrying
-`effort` only takes its model from the provider's `default`), but no shipped codex row relies on it.
+`effort` only takes its model from the CLI's `default`), but no shipped codex row relies on it.
 
-**Why these codex fills** (role-relative; `fab config explain providers` prints the live IDs). `default`
+**Why these codex fills** (role-relative; `fab config explain CLIs` prints the live IDs). `default`
 and `doing` take the catalog's top model at `high` — `default` is the judgment-heavy session role, `doing`
 the execution that must not err. `review` deliberately runs a **different** model from `doing`, at `xhigh`
 (the highest effort fab ships on any codex role): a critic on the author's own model shares the author's blind spots, and
-the 2026-08-10 four-provider comparison (`docs/findings/`) recorded reviewer strictness tracking the
+the 2026-08-10 four-CLI comparison (`docs/findings/`) recorded reviewer strictness tracking the
 worker model on every arm. `hydrate` takes that second model at `high` — sweep-heavy memory prose where
 it performed well. `operator` and `fast` take the cheap model. The map is dense so a `default` bump
 never silently repoints another role, which is exactly what the earlier effort-only `doing`/`review`
@@ -316,7 +316,7 @@ limitation: per-model codex pricing was not available when the table was set, so
 `agy --dangerously-skip-permissions --model {model}`. A fresh agy workspace can park at an interactive
 trust prompt even under the bypass flag. That wall is an ordinary readiness-gate judgment round, and
 the answer is remembered for the exact workspace path. An operator may pre-seed that exact path in
-`trustedWorkspaces` in `~/.gemini/antigravity-cli/settings.json`; fab does not write the provider's
+`trustedWorkspaces` in `~/.gemini/antigravity-cli/settings.json`; fab does not write the CLI's
 trust store. Backlog `[agik]` retains the live open → ready → deliver verification after quota reset,
 while the command grammar and readiness-gate contract are fixture-pinned.
 
@@ -333,20 +333,20 @@ codex `--dangerously-bypass-approvals-and-sandbox` on both its forms, and agy
 form only: `kimi -p` is already non-interactive and auto-approves tool calls, and *errors* when
 combined with `--yolo`/`--auto` (`Cannot combine --prompt with --yolo`). Pipeline workers are
 unattended and have no channel for answering approval prompts. Users who require approval-gated
-workers override the corresponding `providers.<name>.interactive_command` or `.headless_command`.
+workers override the corresponding `clis.<name>.interactive_command` or `.headless_command`.
 
-Three per-provider shapes are load-bearing:
+Three per-CLI shapes are load-bearing:
 
 - **agy's fills carry no `effort`** — its model IDs *embed* the reasoning level as an ID suffix
   (`gemini-3.1-pro-high`, `gemini-3.6-flash-low`), which is the same reason its command grammars carry
   no `{effort}` placeholder: a separate `--effort` flag would fight the suffix. An agy-resolved role
   emits no `effort=` line.
 - **kimi ships NO fills, deliberately.** Its `-m` takes a **user-config model alias** (managed installs
-  expose `kimi-code`/`k3`; custom-provider installs differ), not a vendor catalog ID — so any value
+  expose `kimi-code`/`k3`; custom-CLI installs differ), not a vendor catalog ID — so any value
   fab-kit pinned would be wrong for some installs. The empty `{model}` triggers the token-drop
   (§ Fill precedence), removing `-m` and its placeholder as a pair, and kimi runs on the user's own
   configured `default_model`. A user who wants role differentiation pins
-  `providers.kimi.profiles.<role>.model` themselves. This is the one built-in for which an EMPTY
+  `clis.kimi.profiles.<role>.model` themselves. This is the one built-in for which an EMPTY
   resolution is correct rather than a gap.
 - **agy's and kimi's `headless_command`s nest a shell.** Both CLIs take the prompt as the ARGUMENT to
   `-p` and ignore stdin, while `fab dispatch` delivers the prompt on stdin. POSIX expands `$(cat)`
@@ -357,15 +357,15 @@ Three per-provider shapes are load-bearing:
 
 Consequences:
 
-- **Naming any built-in resolves with zero `providers:` config** — `agent.workers: codex`, an
-  `agent.profiles.<role>.provider`, or `fab agent --provider codex` / the deprecated `fab resolve-agent <stage>
-  --provider codex` all work on a fresh project. A `providers:` block is for *overriding* a grammar or
-  a fill, not for registering these providers.
-- **Role differentiation survives a provider swap.** `agent.workers: codex` runs apply on codex's top
+- **Naming any built-in resolves with zero `clis:` config** — `agent.workers: codex`, an
+  `agent.profiles.<role>.cli`, or `fab agent --cli codex` / the deprecated `fab resolve-agent <stage>
+  --cli codex` all work on a fresh project. A `clis:` block is for *overriding* a grammar or
+  a fill, not for registering these CLIs.
+- **Role differentiation survives a CLI swap.** `agent.workers: codex` runs apply on codex's top
   catalog model, review on a *different* model at `xhigh`, and ship on
   the cheaper `fast` model at `low` — which is the whole point of keying fills by role. Shipping no
   fills resolved an *empty* model identically for all four, silently flattening the taxonomy.
-- **A built-in provider is inert until named.** Adding the rows changes no default behavior (both
+- **A built-in CLI is inert until named.** Adding the rows changes no default behavior (both
   depth knobs ship `claude`), which is why presence=intent — the rule that keeps behavior-changing
   config commented — does not force the table out of Go.
 - **Claude carries all three capabilities; codex, agy, and kimi carry both command fields and are
@@ -373,13 +373,13 @@ Consequences:
   resolves native while the non-claude built-ins descend to headless. Adding a command never
   changes policy by itself.
 - The reference renders all four blocks **live and uniformly** — in a fence or
-  `init --system` scaffold every provider line carries exactly one leading `#` prefix (no
+  `init --system` scaffold every CLI line carries exactly one leading `#` prefix (no
   doubled `# #` marker; an inline `# ...` note stays content), and
   presence=intent is untouched (a built-in stays inert until named). Their command strings render as YAML
   single-quoted scalars with interior quotes doubled, so uncommenting a nested-shell
   `headless_command` yields valid YAML. Hoisting a whole block PINS its fills
   against kit-release refreshes — the segment prose warns to override a single
-  field (`providers.<name>.profiles.<role>.model`) instead.
+  field (`clis.<name>.profiles.<role>.model`) instead.
 
 ### Refreshing the non-claude fills
 
@@ -387,46 +387,46 @@ Built-in non-claude fills are **refreshed at kit-release cadence**, by editing `
 claude fills need no refresh: they are the family aliases `opus`/`sonnet`, which the installed
 `claude` resolves to the newest model of the family. codex and agy have no such alias — their model
 flags take a concrete catalog slug — so their fills are concrete IDs. There
-is no staleness automation: fab runs no CI check against provider APIs and no model-catalog fetch —
+is no staleness automation: fab runs no CI check against CLI APIs and no model-catalog fetch —
 resolution passes every string through **verbatim** (the no-validation contract; compatibility is the
 harness's concern).
 
 That is safe because of the failure shape on each side:
 
-- **A stale ID fails loudly and cheaply.** The provider CLI rejects it immediately, and the fix is one
-  config line: `providers.<name>.profiles.<role>.model`. Because `providers` is scope `both`, that
+- **A stale ID fails loudly and cheaply.** The CLI CLI rejects it immediately, and the fix is one
+  config line: `clis.<name>.profiles.<role>.model`. Because `clis` is scope `both`, that
   line is settable once machine-wide in `~/.fab-kit/config.yaml`, where it outranks the project file.
 - **Shipping nothing failed silently.** An empty model resolved the CLI's own default identically for
   every role, with no error at all — worse than a loud stale ID, because it defeats role
   differentiation exactly where a user first exercises the knob.
 - **A bump is a data diff.** The fills are rows in an embedded YAML file, reviewable at a glance, and
-  pinned by `TestNonClaudeProviderFillsArePinned` so the edit is always test-acknowledged.
+  pinned by `TestNonClaudeCLIFillsArePinned` so the edit is always test-acknowledged.
 
 Verify a fill against the **installed** binary rather than from memory — `_cli-agents.md` § discovery
 recipes records what to run per CLI. The fills are never seeded into a user's `config.yaml`: they live
 in the binary, so an upgrade refreshes them and no project pins rot in place.
 
-> **Decision lineage — `260731-ho9y` → `260805-j3cm` → `260806-ywkx` → `260908-wcib`.** ho9y shipped the non-claude providers as
-> *uncomment-to-opt-in template text* and recorded "no new built-in providers are added in Go". j3cm
+> **Decision lineage — `260731-ho9y` → `260805-j3cm` → `260806-ywkx` → `260908-wcib`.** ho9y shipped the non-claude CLIs as
+> *uncomment-to-opt-in template text* and recorded "no new built-in CLIs are added in Go". j3cm
 > reversed that narrowly, for **grammar strings only**, explicitly keeping model IDs out ("non-claude
 > model IDs rot at CLI cadence, so they belong in config, not in a release"). ywkx completes the
 > reversal: fills ship too. What survives from ho9y is its actual rule — presence implies intent, so
 > anything whose presence changes behavior ships commented — and it is *preserved*, because a built-in
-> provider is inert until a knob, role override, or flag names it. What is retired is the rot argument,
+> CLI is inert until a knob, role override, or flag names it. What is retired is the rot argument,
 > on the four grounds above plus release cadence: fab-kit ships every few days, so users see refreshed
 > suggestions at kit cadence rather than CLI cadence. wcib is the first catalog refresh under the ywkx
 > policy: the codex fills followed the installed CLI's catalog (verified from its cached model list) and
 > the map went dense so a `default` bump can never again repoint another role silently.
 
-**Provider names are opaque — fab NEVER infers a provider from a model string** (`claude-*` → claude
-would need a provider registry, which the no-validation/provider-neutrality contract refuses).
+**CLI names are opaque — fab NEVER infers a CLI from a model string** (`claude-*` → claude
+would need a CLI registry, which the no-validation/CLI-neutrality contract refuses).
 
 ### Model discovery — `fab agent models`
 
-`fab agent models [provider] [--json] [--repo <path>]` asks each tool what it offers and always merges
-in the resolved provider's profile fills. Rows carry `{cli, id, label, efforts, default, source}`;
+`fab agent models [cli] [--json] [--repo <path>]` asks each tool what it offers and always merges
+in the resolved CLI's profile fills. Rows carry `{cli, id, label, efforts, default, source}`;
 `source` distinguishes discovered `tool` rows, built-in `alias` rows, `fill` rows, and the `reserved`
-row. Every provider starts with `{id: "tool-default", source: "reserved", default: false}`: its label
+row. Every CLI starts with `{id: "tool-default", source: "reserved", default: false}`: its label
 is `tool default (<default-id>)` when a default is known and plain `tool default` otherwise, and its
 efforts come from the default row when non-empty, else Claude's known set for Claude, else `[]`. The
 real default keeps `default: true`; a tool-reported row with the reserved ID is dropped. Subsequent
@@ -435,27 +435,27 @@ tool rows retain tool order, fills are sorted and deduplicated by ID with preced
 
 Codex discovery runs the bounded debug command `codex debug models` and reads `$CODEX_HOME/config.toml`;
 Claude reads its settings and local override under `$CLAUDE_CONFIG_DIR`; Kimi reads model tables from
-`~/.kimi-code/config.toml`; agy returns fills only. Optional `providers.<name>.models_command` replaces
+`~/.kimi-code/config.toml`; agy returns fills only. Optional `clis.<name>.models_command` replaces
 the built-in adapter with a command that prints the same row array. Discovery is read-only, uncached,
 and fails open to the reserved row plus fills with stderr warnings rather than blocking a caller.
 
 ### Fill precedence
 
 ```
-provider:       invocation --provider
-                >  agent.profiles.<role>.provider
+cli:       invocation --cli
+                >  agent.profiles.<role>.cli
                 >  the role's depth knob (agent.session | agent.workers)
                 >  the built-in claude
 
 model / effort  invocation flag
 (per field):    >  agent.profiles.<role>.<field>
-                >  providers.<p>.profiles.<role>.<field>
-                >  providers.<p>.profiles.default.<field>
+                >  clis.<p>.profiles.<role>.<field>
+                >  clis.<p>.profiles.default.<field>
                 >  empty
 ```
 
-`<p>` is the **resolved** provider, so a provider swap re-derives model and effort from the new
-provider's own fills. `empty` keeps its existing meaning: an empty YAML `model` value is the "inherit the
+`<p>` is the **resolved** CLI, so a CLI swap re-derives model and effort from the new
+CLI's own fills. `empty` keeps its existing meaning: an empty YAML `model` value is the "inherit the
 session model" signal, and on a command the placeholder's token (plus a preceding `-`-flag) is dropped
 by `spawn.WithProfile`, so the CLI's own default applies. The reserved model value `tool-default` is an
 ordinary non-empty value through this chain, so it wins over lower tiers; after the winning rung (an
@@ -463,19 +463,19 @@ invocation flag included) is known, it collapses to empty. YAML therefore report
 `model_alias: ""` while `source.model` retains the key that held the token. Native inherits the session
 model, and CLI composition drops the model flag pair exactly as for any other empty resolved model.
 
-**There is exactly ONE cross-role fallback chain, and it lives on the provider side.** `agent.profiles`
+**There is exactly ONE cross-role fallback chain, and it lives on the CLI side.** `agent.profiles`
 is sparse: an unset field is simply not an override, and `agent.profiles.default` is the `default`
 **role's** own override — never a fallback source for the other five. Cross-role fallback is
-`providers.<p>.profiles.default`.
+`clis.<p>.profiles.default`.
 
-**Why one chain.** Two competing chains are what made a cross-provider *cutoff rule* necessary in the
-first place: with agent-side inheritance, `{provider: codex}` on a role would inherit a **claude**
+**Why one chain.** Two competing chains are what made a cross-CLI *cutoff rule* necessary in the
+first place: with agent-side inheritance, `{cli: codex}` on a role would inherit a **claude**
 model through the same per-field merge, and fab had to detect and cut that. With model/effort always
-sourced from the resolved provider's own fills, **no value can be foreign to the provider that will run
+sourced from the resolved CLI's own fills, **no value can be foreign to the CLI that will run
 it**, so the cutoff rule, its per-field ownership tracking, and its cross-scope limitation are all
 gone.
 
-The one value that *does* survive a provider swap is an explicit `agent.profiles.<role>.model` — a pin
+The one value that *does* survive a CLI swap is an explicit `agent.profiles.<role>.model` — a pin
 the user wrote by hand. That is not inheritance; it is the user's own escape hatch, and removing it on
 a swap would make the field unusable.
 
@@ -484,7 +484,7 @@ a swap would make the field unusable.
 > a documented limitation pinned by `TestResolveCrossScopeCascadeLimitation`. Both the rule and the
 > pin are deleted: with no ownership computation there is no scope-boundary gap to document.
 
-## Config schema — the two knobs, `agent.profiles`, and `providers:`
+## Config schema — the two knobs, `agent.profiles`, and `clis:`
 
 All three are optional in `fab/project/config.yaml`. The Go `Config` struct widens freely — yaml
 unmarshalling ignores unknown keys, so existing configs are unaffected (the same property that made
@@ -496,23 +496,23 @@ agent:
   workers: claude          # Tier 2 — the pipeline's stage workers            (roles: doing, review, hydrate, fast)
 
   # The sparse per-role escape hatch. Every field optional; a set field beats
-  # the knob (provider) or the provider's own fill (model/effort). NO cross-role
+  # the knob (cli) or the cli's own fill (model/effort). NO cross-role
   # inheritance — `default` here is the default ROLE, not a fallback.
   profiles:
-    review: { provider: codex }                       # e.g. run just the critic elsewhere
+    review: { cli: codex }                       # e.g. run just the critic elsewhere
     fast:   { model: claude-haiku-4-5, effort: low }  # e.g. run ship cheaper
 
-providers:
+clis:
   claude:
     native: true
     interactive_command: 'claude --permission-mode bypassPermissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
     headless_command: 'claude -p --permission-mode bypassPermissions --model {model} --effort {effort}'
-  # codex, agy and kimi are BUILT-IN providers carrying grammar (and, for the
+  # codex, agy and kimi are BUILT-IN clis carrying grammar (and, for the
   # first two, fills) — `fab config explain` shows their blocks LIVE like
   # claude's, and a copy hoisted into your config PINS the shown values against
   # kit-release refreshes. Uncomment only to OVERRIDE a grammar or pin a newer
-  # model; prefer a single-field override (providers.<name>.profiles.<role>.model).
-  # (Shape only below; § Built-in providers above carries the live values,
+  # model; prefer a single-field override (clis.<name>.profiles.<role>.model).
+  # (Shape only below; § Built-in clis above carries the live values,
   # and `fab config explain` prints what your binary actually ships.)
   # codex:
   #   interactive_command: 'codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}'
@@ -535,14 +535,14 @@ dispatch:
 ```
 
 - Keys under `agent.profiles:` are the six role names: `default`, `operator`, `doing`, `review`,
-  `hydrate`, `fast`. Keys under `providers.<name>.profiles:` are the same six.
-- Each `agent.profiles` value is a `{provider, model, effort}` object (the command lives on the
-  provider). Any field MAY be set; an unset field is not an override and resolution continues down the
+  `hydrate`, `fast`. Keys under `clis.<name>.profiles:` are the same six.
+- Each `agent.profiles` value is a `{cli, model, effort}` object (the command lives on the
+  CLI). Any field MAY be set; an unset field is not an override and resolution continues down the
   fill precedence.
-- A role omitted entirely (or an absent `profiles:` block) uses the knob's provider and that
-  provider's own fills.
+- A role omitted entirely (or an absent `profiles:` block) uses the knob's CLI and that
+  CLI's own fills.
 - An **empty model** signals "inherit the session/orchestrator model" once resolution bottoms out.
-- The `{model}`/`{effort}` placeholders in a provider command are substituted at resolve time via the
+- The `{model}`/`{effort}` placeholders in a CLI command are substituted at resolve time via the
   same `internal/spawn` template machinery. *This spec covers the config schema and the optional YAML
   `dispatch:` mapping; the dispatch that RUNS a `headless_command` (`fab dispatch`) and the skill
   dispatch-seam wiring share the cross-adapter contract fixed by
@@ -553,14 +553,64 @@ dispatch:
 The **managed fence** in every project's `config.yaml` scaffolds only the advertised fields, and on the
 agent side that is exactly the two knobs (plus `dispatch.mode` / `dispatch.column_width` /
 `dispatch.min_cols` / `dispatch.min_rows` / `dispatch.reap_done`).
-`agent.profiles` and the whole `providers:` table are `advertise: false`: still documented in
+`agent.profiles` and the whole `clis:` table are `advertise: false`: still documented in
 `fab config explain` (YAML + `--json`) and in [`config.md`](config.md), but no longer ~90 commented
-lines in every repo. Users pick a provider per depth; the machinery is there when they need it.
+lines in every repo. Users pick a CLI per depth; the machinery is there when they need it.
+
+### Migrating from `provider` (the 2.31.0 CLI rename)
+
+The entries of the `clis:` table were called *providers* before 2.31.0. The tools themselves use
+"provider" for the **model vendor** (kimi's `[providers.<vendor>]`, Claude Code routing to a model
+gateway), so fab's word collided with theirs in every config file and conversation — and once
+`fab agent models` started reading the tools' own configs, in fab's own code too. The word is now
+**CLI** (label "CLI", prose "CLI tool"; see [glossary](glossary.md) § CLI tool). The rename is pure:
+resolution results, precedence, dispatch rungs and every behaviour are identical, and a model vendor
+named in a tool's own config keeps its name.
+
+| Old | New |
+|-----|-----|
+| config `providers:` | `clis:` |
+| `agent.profiles.<role>.provider` | `agent.profiles.<role>.cli` |
+| `FAB_PROVIDERS` | `FAB_CLIS` |
+| `--provider <name>` (`fab agent`, `fab resolve-agent`, `fab pane open`) | `--cli <name>` |
+| `fab agent -o yaml` `provider:` / `source.provider:`; `fab pane open --json` `"provider"` | `cli:` / `source.cli:` / `"cli"` |
+| `-o yaml` `kind: provider` | `kind: cli` (a scalar value cannot be dual-emitted) |
+
+**Deprecation window: one minor release** after the release that ships the rename; the old spellings
+are removed no earlier than the minor after that, in a separate change. During the window:
+
+- **Reads are silent and per-field.** One normalizer in `internal/config` folds `providers` into `clis`
+  and `.provider` into `.cli` on every raw layer map (project file, system file, environment overlay)
+  before the cascade merge, the new spelling winning per leaf and an empty new leaf falling back to
+  the old one; an explicit `native: false` still disables a built-in `true`. Because it runs per
+  layer, a half-migrated machine (system file on `providers:`, project on `clis:`) resolves exactly as
+  two same-spelling layers would, and every consumer — resolver, `show`, `explain`, setup checks,
+  `fab agent models` — sees only the new shape. `FAB_PROVIDERS` is read as an alias of `FAB_CLIS`
+  (`FAB_CLIS` wins per field; `EnvOrigins` names the variable actually used).
+- **Writes accept the old key.** `fab config set` maps `providers.…` → `clis.…` and `….provider` →
+  `….cli` *before* the value gate, writes the new key (removing a same-path old twin — for the role leaf also a live legacy `agent.tiers.<role>.provider` — so a file
+  holds one spelling), and warns on stderr `<old> is deprecated, wrote <new>`; `fab config unset`
+  with either spelling removes **both** at that path, the legacy tiers twin included (leaving the old one live would silently keep the
+  override in effect). One key-mapping helper (`config.CanonicalKey`) serves set, unset, `explain` and keyed `show`.
+  `explain providers` answers with the `clis` explanation plus `providers is the deprecated spelling of
+  clis`, and keyed `show <old key>` (also `--origin`/`--json`) prints the canonical key's stdout with a
+  stderr-only `fab: note:` naming the new spelling. Released HexoKit still writes the old keys, which is why `set`/`unset` accept them (2.19.0's
+  `session_command` rename did not need to).
+- **`fab agent --provider`** stays registered but hidden: it behaves as `--cli`, prints
+  `--provider is deprecated, use --cli` on stderr, and giving both with different values is a usage
+  error. `-o yaml` carries `cli:` in the slot `provider:` occupied followed by a duplicate `provider:`
+  (same for `source`). `fab resolve-agent`'s frozen `provider=<name>` line is unchanged.
+- **Diagnostics warn.** `fab setup check` reports each live old spelling in either config file (and
+  `FAB_PROVIDERS`) as a warning naming the new key; there is no per-read warning because skills parse
+  `fab agent` output. `fab config upgrade` carries a live `providers:` key to `clis:`; the
+  `2.30.1-to-2.31.0` migration rewrites both config files (including the nested `.provider` leaf).
+
+Old spellings stay in historical text (earlier migrations, memory logs, archived changes, plans).
 
 ### Migrating from `agent.tiers`
 
-`agent.tiers` was renamed `agent.profiles`, and the flat `providers.<name>.model`/`.effort` fill folded
-into `providers.<name>.profiles.default`. Both old spellings are **still read** — per role for
+`agent.tiers` was renamed `agent.profiles`, and the flat `clis.<name>.model`/`.effort` fill folded
+into `clis.<name>.profiles.default`. Both old spellings are **still read** — per role for
 `agent.tiers`, and as an alias for `profiles.default` for the flat fill — so a config keeps resolving
 before it is rewritten. The `2.16.19-to-2.17.0` migration performs the on-disk rewrite in both the
 project config and `~/.fab-kit/config.yaml`.
@@ -568,7 +618,7 @@ project config and `~/.fab-kit/config.yaml`.
 One semantic that the rename does **not** preserve, and the migration cannot: the old `agent.tiers`
 re-based every unset field from its `default` tier. A project that relied on `agent.tiers.default.model`
 to set every tier's model must now either set `agent.session`/`agent.workers` (if the intent was a
-provider choice) or write the model on `providers.<name>.profiles.default` (if the intent was a model
+CLI choice) or write the model on `clis.<name>.profiles.default` (if the intent was a model
 choice).
 
 One pre-migration wrinkle: the legacy alias resolves **after** the scope cascade, so while a config is
@@ -587,7 +637,7 @@ skill files if reasoned about in markdown. The YAML print sink returns the concr
 stage (or role); skills consume its keys and reason about nothing.
 
 ```
-fab agent <stage|role> -o yaml [--provider <name>] [--model <id>] [--effort <level>]
+fab agent <stage|role> -o yaml [--cli <name>] [--model <id>] [--effort <level>]
 ```
 
 The deprecated `fab resolve-agent <stage|role>` command remains a working, byte-stable line projection
@@ -604,29 +654,29 @@ pipeline skills consume the YAML surface above.
    results. (A drift-guard test in `internal/agent` asserts every collision is a fixed point.) `ship`
    is a stage but NOT a role — it maps to the `fast` role — so `fab agent ship -o yaml` resolves the stage
    while `fab agent fast -o yaml` resolves the role, both to the same profile.
-2. Resolve the role → `{provider, model, effort}` through the fill precedence above: the provider from
-   an `agent.profiles.<role>.provider` override, else the role's depth knob, else the built-in claude;
-   then model and effort per field from an `agent.profiles.<role>` field, else that provider's
+2. Resolve the role → `{cli, model, effort}` through the fill precedence above: the CLI from
+   an `agent.profiles.<role>.cli` override, else the role's depth knob, else the built-in claude;
+   then model and effort per field from an `agent.profiles.<role>` field, else that CLI's
    `profiles.<role>` fill, else its `profiles.default` fill, else empty.
-2a. **Apply invocation-time overrides** (`--provider`/`--model`/`--effort`) — the top rung, riding the
-   same single resolution call. `--provider` swaps the provider and **re-derives the optional `dispatch:`
-   mapping from `dispatch.mode` plus the NAMED provider's capabilities** — so the selected rung and key presence can differ from the
+2a. **Apply invocation-time overrides** (`--cli`/`--model`/`--effort`) — the top rung, riding the
+   same single resolution call. `--cli` swaps the CLI and **re-derives the optional `dispatch:`
+   mapping from `dispatch.mode` plus the NAMED CLI's capabilities** — so the selected rung and key presence can differ from the
    stage's unoverridden one, but that is a **query result, not an adapter move**: `fab dispatch`
    re-resolves from config and accepts no overrides, so only a config override actually relocates a
    stage between the native and CLI adapters (§ Skill wiring → User-directed overrides). A swap
-   re-derives an unoverridden model/effort from the new provider's own per-role fills (an explicit
-   `agent.profiles.<role>` pin still wins). `--model`/`--effort` are valid **without** `--provider` (a
+   re-derives an unoverridden model/effort from the new CLI's own per-role fills (an explicit
+   `agent.profiles.<role>` pin still wins). `--model`/`--effort` are valid **without** `--cli` (a
    within-role override) — `fab agent` accepts the same bare overrides as a final post-refill layer on
    every addressing form, so the two commands agree on override legality. All three key on whether the
    flag was *supplied* (cobra's `Flag.Changed`), not on value emptiness — so an explicitly-empty
-   `--provider=` resolves an empty provider (a **lookup** failure: non-zero exit naming the resolvable
-   set — built-in table ∪ the project's `providers:` keys, sorted — mirroring `fab agent`'s error)
+   `--cli=` resolves an empty CLI (a **lookup** failure: non-zero exit naming the resolvable
+   set — built-in table ∪ the project's `clis:` keys, sorted — mirroring `fab agent`'s error)
    rather than falling back to the depth knob.
-3. **Emit without validation** (see § No validation). fab does not check the provider, model, or
-   effort against any provider's accepted set; it echoes the resolved strings as-is except for the
+3. **Emit without validation** (see § No validation). fab does not check the CLI, model, or
+   effort against any CLI's accepted set; it echoes the resolved strings as-is except for the
    exact `tool-default` collapse defined in § Fill precedence. Provenance is not cleared with it:
    `source.model` still names the rung that supplied the token.
-4. Output: structured YAML carrying `provider`, the resolved `model`, `model_alias`, `effort`, composed
+4. Output: structured YAML carrying `cli`, the resolved `model`, `model_alias`, `effort`, composed
    `command`, `template`, `fill_mode`, per-field `source`, an optional `dispatch:` mapping, and a
    trailing `skill_prefix` (`$` for `codex`, `/` otherwise — the receiving harness's explicit
    skill-invocation prefix).
@@ -640,8 +690,8 @@ pipeline skills consume the YAML surface above.
    model/effort — and the dispatch command's `{model}` is **always the resolved model verbatim**,
    never translated to an alias (see § Harness-adapter boundary).
 5. **Deterministic** for the same config. Non-zero exit only on a
-   real error: an unreadable/malformed config, an unknown stage/role name, a supplied `--provider`
-   that resolves to no provider, or a configured provider with no reachable dispatch capability.
+   real error: an unreadable/malformed config, an unknown stage/role name, a supplied `--cli`
+   that resolves to no CLI, or a configured CLI with no reachable dispatch capability.
    A stage that resolves to a default is success, not an error.
 
 ### Dispatch preference — `dispatch.mode`
@@ -667,20 +717,20 @@ pipeline skills consume the YAML surface above.
 
 ---
 
-## No validation — verbatim pass-through (provider-neutral)
+## No validation — verbatim pass-through (CLI-neutral)
 
-The shared resolution engine does **NOT** validate the model or effort against any provider's accepted set. It
+The shared resolution engine does **NOT** validate the model or effort against any CLI's accepted set. It
 maps stage→role→`{model, effort}` and **echoes both strings verbatim**, whatever they are, with the sole
 reserved-value exception: exact `tool-default` collapses to an empty model after precedence. Examples of
 verbatim values include `xhigh` for an Opus model, `high` for Sonnet, `reasoning_effort`-style values for
-a non-Claude model a project might configure, or an empty effort. fab has no provider-specific knowledge
+a non-Claude model a project might configure, or an empty effort. fab has no CLI-specific knowledge
 in the resolution path.
 
-**Rationale (Constitution Principle I — provider neutrality):** validating against Claude's effort
+**Rationale (Constitution Principle I — CLI neutrality):** validating against Claude's effort
 enum (`low/medium/high/xhigh/max`, Opus-only `xhigh`, Haiku-rejects-all) would hard-code Claude into
 the resolver and bolt the door on other agents. Keeping it open — verbatim pass-through — is what lets
-a project switch the underlying agent by pointing a knob at another provider and giving it per-role
-fills in that provider's model IDs and effort vocabulary, with nothing in fab rejecting it. The
+a project switch the underlying agent by pointing a knob at another CLI and giving it per-role
+fills in that CLI's model IDs and effort vocabulary, with nothing in fab rejecting it. The
 **safety net moves from fab to the runtime/harness**: a misconfigured pair (e.g. Claude
 `{model: claude-sonnet-4-6, effort: xhigh}`, which Sonnet rejects with a 400) is *not* corrected by fab
 — it surfaces as a dispatch-time error. This is the accepted tradeoff for portability. fab does **not**
@@ -715,7 +765,7 @@ This section is the design record; the deployed wiring rules live in `_preamble.
 
 The orchestrators (`/fab-ff`, `/fab-fff`, `/fab-proceed`, `/fab-adopt`) and `/fab-continue`'s sub-agent dispatch call
 `fab agent <stage> -o yaml` immediately before dispatching each stage's sub-agent, **surface** the
-resolved YAML — at minimum `provider`, `model`, `model_alias`, `effort`, and `dispatch:` presence — so a skipped or mis-resolved role or CLI
+resolved YAML — at minimum `cli`, `model`, `model_alias`, `effort`, and `dispatch:` presence — so a skipped or mis-resolved role or CLI
 dispatch is visible in output rather than silent, the available stand-in for an enforcement guard
 since dispatch is harness-internal), and apply the resolved **model AND effort** through their two
 seams:
@@ -733,7 +783,7 @@ seams:
   session's effort no matter what its prompt asks for. This is a known Claude Code limitation (GitHub
   issues #64033 and #39220), not a fab bug, and fab has no other seam to reach.
 - On the **CLI arms** — `fab dispatch` headless and pane, and the operator launcher — effort rides
-  `--effort` (or the provider's own equivalent) inside a *composed command line*, which the harness
+  `--effort` (or the CLI's own equivalent) inside a *composed command line*, which the harness
   reads as configuration rather than as a request. Effort differentiation is trustworthy there.
 
 Practical consequence: treat a per-role `effort` as **advisory on the native arm and binding on the CLI
@@ -744,7 +794,7 @@ control (§ Foreground limitation's scope note).
 
 ### User-directed overrides
 
-When the user directs a provider/model for specific stages ("run review on codex"), the dispatch site
+When the user directs a CLI/model for specific stages ("run review on codex"), the dispatch site
 adds the override flags to its **existing single** `fab agent <stage> -o yaml` call
 (§ Resolution step 2a). Nothing else about the seam changes — one resolve call per stage, the same two
 seams, the same branch on `dispatch:` key presence, the same compliance-visibility obligation. There is
@@ -753,19 +803,19 @@ the next N stages" means the same flags on those N resolve calls. The load-beari
 invocation-time override binds the native Agent-tool arm only.** `fab dispatch start` takes no override
 flags — it re-resolves the stage from config itself (`agent.Resolve`) — so an overridden profile never
 reaches either `fab dispatch` mode, and a `dispatch:` mapping that appears *only* because of a
-`--provider` swap is **not actionable**. The two remedies are **not interchangeable**. Dispatching the
+`--cli` swap is **not actionable**. The two remedies are **not interchangeable**. Dispatching the
 stage natively with the overridden model/effort is executable only for a **within-claude**
 `--model`/`--effort` override: the native adapter's model seam is the Agent tool's `model` param, a hard
 **Claude-alias enum** (`opus`/`sonnet`/`haiku`/`fable` — § Harness-adapter boundary), so a non-Claude
-model has no native seam to ride. For a **cross-provider `--provider` override** the **config override**
-(`agent.workers`, or `agent.profiles.<role>.provider`) that `dispatch start`'s own re-resolution will
+model has no native seam to ride. For a **cross-CLI `--cli` override** the **config override**
+(`agent.workers`, or `agent.profiles.<role>.cli`) that `dispatch start`'s own re-resolution will
 see is therefore the **sole executable path** — the invocation flag can only report the mismatch. Sites
 still re-read the resolved `dispatch:` key after an override rather than assuming the stage's unoverridden
 adapter — the branch rule is unchanged — but they read it to *notice* the mismatch, not to act on it.
 See [`harness-adapters.md`](harness-adapters.md) § Relationship to `stage-models.md`.
 
 The **`review` stage resolves once** (on its own `review` role) and applies the resolved
-`{provider, model, effort}` to its **single** review sub-agent — exactly like every other stage
+`{cli, model, effort}` to its **single** review sub-agent — exactly like every other stage
 (260704-pag2 collapsed review to one sub-agent; there is no longer a second reviewer or a merge to
 resolve, so review carries no special resolution rule).
 
@@ -797,17 +847,17 @@ inherited session model now resolve a role like every other:
   *and* these prefix-step dispatches.
 
 `_cli-fab.md` documents the `fab agent` YAML schema; `_cli-fab.md` documents the deprecated `fab resolve-agent` compatibility
-contract (Constitution constraint: CLI changes MUST update the CLI reference partial that owns the command's family — `_cli-fab.md` (core, including `fab agent`) and `_cli-fab-pane.md` (`fab pane`, `fab dispatch`)). `architecture.md` documents the `agent:` + `providers:` config blocks
+contract (Constitution constraint: CLI changes MUST update the CLI reference partial that owns the command's family — `_cli-fab.md` (core, including `fab agent`) and `_cli-fab-pane.md` (`fab pane`, `fab dispatch`)). `architecture.md` documents the `agent:` + `clis:` config blocks
 alongside the existing `stage_hooks` example.
 
 ### Harness-adapter boundary (the only Claude-Code-specific layer)
 
-Per-stage selection is **provider-neutral by construction**, not Claude-locked:
+Per-stage selection is **CLI-neutral by construction**, not Claude-locked:
 
-- *Portable layers (no provider knowledge):* the `agent:` + `providers:` config schema, and the
-  entire shared resolution path projected by `fab agent <stage|role> -o yaml` (stage→role→`{provider, model, effort}`). The engine
+- *Portable layers (no CLI knowledge):* the `agent:` + `clis:` config schema, and the
+  entire shared resolution path projected by `fab agent <stage|role> -o yaml` (stage→role→`{cli, model, effort}`). The engine
   does no validation and echoes strings verbatim, so a project can switch agents by pointing a depth
-  knob at another provider and giving it per-role fills in that provider's model IDs and effort
+  knob at another CLI and giving it per-role fills in that CLI's model IDs and effort
   vocabulary (`gpt-5 / reasoning_effort:high`, `<vendor-model> / <its-knob>`) and nothing in fab rejects it.
 - *Harness-specific layer (the adapter):* injecting the resolved model+effort into the actual
   sub-agent dispatch is harness behavior, and the two halves use **two different seams** in Claude
@@ -850,7 +900,7 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   external CLI's model flag may take only concrete IDs — CLI dispatch never aliases. (For the built-in
   Claude fills the resolved value already is the alias, which `claude --model` accepts.) Thus
   `model_alias` carries the native half while `dispatch.command` carries the resolved model for the
-  CLI half. The field is **independent of** a provider's
+  CLI half. The field is **independent of** a CLI's
   `interactive_command` (which opens whole sessions); each ladder rung requires its own capability and
   command fields never substitute for one another. *`fab agent -o yaml` emits the mapping; the
   dispatch that RUNS the selected adapter (`fab dispatch`) and the skill dispatch-seam wiring that consumes it both
@@ -866,21 +916,21 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   Obligations (3d).
   **Mode resolution is shared**: `fab agent -o yaml` and the `fab dispatch` launch verbs consume the same
   pure selector. Explicit flags precede automatic `dispatch.mode` descent; pane composes the resolved
-  provider's `interactive_command`, native uses the Agent-tool capability, and headless composes
+  CLI's `interactive_command`, native uses the Agent-tool capability, and headless composes
   `headless_command`. A missing capability skips its automatic rung, never substitutes a field, and
   never ascends. The pane path performs a real tmux probe; under `restart`'s automatic selection a
   failed probe re-descends on `tmux unreachable`, while `open` — where pane is explicit — hard-errors.
   Landing on native yields re-resolution guidance before state writes, and `start` hands a pane landing
   to `open` the same way.
-- *Claude-flavored data (overridable):* the `claude` provider's shipped fills use Claude model
+- *Claude-flavored data (overridable):* the `claude` CLI's shipped fills use Claude model
   IDs/effort — the fills that apply while both depth knobs sit on their `claude` default; `codex` and
-  `agy` ship their own model IDs (§ Built-in providers). Every provider's fills are
-  fab-kit's defaults for that provider, fully replaceable via the depth knobs plus
-  `providers.<name>.profiles`.
+  `agy` ship their own model IDs (§ Built-in CLIs). Every CLI's fills are
+  fab-kit's defaults for that CLI, fully replaceable via the depth knobs plus
+  `clis.<name>.profiles`.
 - *v1 scope is architecture-neutral + documented — NOT shipped/tested against a non-Claude harness.* No
-  provider-detection, no non-Claude integration test. The acceptance proof is
+  CLI-detection, no non-Claude integration test. The acceptance proof is
   "a non-Claude project can point a knob elsewhere and nothing in fab rejects it",
-  not "we ran it on a non-Claude harness." Shipped+tested multi-provider support is explicitly out of
+  not "we ran it on a non-Claude harness." Shipped+tested multi-CLI support is explicitly out of
   scope.
 
 ---
@@ -916,7 +966,7 @@ shape is the rationale in that section: the frontier model for code review and d
 work; Sonnet for the high-volume author and memory writer (`doing`, `hydrate`), at the mechanical
 floor, and for the highest-volume coordinator.
 
-fab bumps the values in **one place** (the `providers.claude.profiles` block of `defaults.yaml`) each
+fab bumps the values in **one place** (the `clis.claude.profiles` block of `defaults.yaml`) each
 release, and every non-overriding project upgrades for free. The per-role fill table is fab's curated
 judgment per release, not a fixed effort-per-role-rank rule — a new top model does not mechanically
 promote every role, and two roles resolving to the same profile in a given release is a legitimate
@@ -937,11 +987,11 @@ old `doing` value adds an `agent.profiles.hydrate:` override with that value.
 ### Upgrade note — the dense codex map (no migration)
 
 Before 260908-wcib, codex's shipped `doing`/`review` rows carried effort only and `hydrate` had no row,
-so the deprecated flat `providers.codex.model` (an alias for `profiles.default` — § Fill precedence)
+so the deprecated flat `clis.codex.model` (an alias for `profiles.default` — § Fill precedence)
 reached those three roles through the per-field merge. After it, every codex row pins a model, so a
 flat `model` reaches only the `default` role. A project that relied on the flat spelling to steer
 `doing`/`review`/`hydrate` should write the modern per-role spelling
-`providers.codex.profiles.<role>.model`. **No config key changed and nothing on disk restructures**, so
+`clis.codex.profiles.<role>.model`. **No config key changed and nothing on disk restructures**, so
 this is an upgrade note, not a migration — the same precedent as the hydrate split above.
 
 ---
@@ -977,15 +1027,15 @@ skill MAY note "this stage is configured for X; you're on Y" but MUST NOT attemp
 
 The two tables above (§ Default role profiles and § The fixed stage → role mapping) are verified
 mirrors of `src/go/fab/defaults.yaml` (§ Default role profiles, via the knobs and
-`providers.claude.profiles` it composes) and the `stageRoles` map in
+`clis.claude.profiles` it composes) and the `stageRoles` map in
 `src/go/fab/internal/agent/agent.go` (§ The fixed stage → role mapping). The code side is canonical. A
 test in that package (`TestDocTablesMatchAgentMaps`) parses both tables from this doc and fails if
 either disagrees with the code — same pattern as `TestDocTablesMatchScoringMaps` for
-`docs/specs/change-types.md`. The inline-YAML `providers.<name>.profiles` samples in § Built-in
-providers are **shape-only** (IDs elided) and deliberately unguarded — they show which roles each map
-carries, not what the rows resolve to; the rendered `fab config explain providers` output derives its
-fill lines from `ResolveProvider` and is guarded by `TestConfigReferenceDocumentsProviderFill` in
-`cmd/fab`. The non-claude fill values themselves are pinned by `TestNonClaudeProviderFillsArePinned`.
+`docs/specs/change-types.md`. The inline-YAML `clis.<name>.profiles` samples in § Built-in
+CLIs are **shape-only** (IDs elided) and deliberately unguarded — they show which roles each map
+carries, not what the rows resolve to; the rendered `fab config explain CLIs` output derives its
+fill lines from `ResolveCLI` and is guarded by `TestConfigReferenceDocumentsCLIFill` in
+`cmd/fab`. The non-claude fill values themselves are pinned by `TestNonClaudeCLIFillsArePinned`.
 
 The embedded data file has its own guard: a YAML typo is no longer a compile error, so
 `TestDefaultsFileIsWellFormed` (and its siblings in `defaults_test.go`) parse `defaults.yaml`
@@ -1001,15 +1051,15 @@ package's tables and exported command values are wired to the file's keys.
 - **User (`~/.fab-kit`) config layer** — was dropped here; subsequently shipped as the system rung
   (`260708-lpb5`) of the current four-tier cascade (environment > system
   `~/.fab-kit/config.yaml` > project > defaults). `agent` and
-  `providers` are both scope `both`, so the depth knobs, a per-role provider fill, and a role override
+  `clis` are both scope `both`, so the depth knobs, a per-role CLI fill, and a role override
   are all settable once per machine.
 - **Non-claude default fills** — *no longer deferred*: shipped by `260806-ywkx`. See § Built-in
-  providers and § Refreshing the non-claude fills.
+  CLIs and § Refreshing the non-claude fills.
 - **Role-granular reviewer keys** — obsolete: review is now a single sub-agent (260704-pag2), so there are no per-role reviewer/merge profiles to key on; the stage/role is the unit.
 - **Per-invocation `--model-<stage>` flags** on the orchestrators — still deferred as an
   *orchestrator* surface. The equivalent capability exists one level down, on the resolution
-  surface itself: `fab agent <stage> -o yaml [--provider] [--model] [--effort]` (`260805-j3cm`), which
+  surface itself: `fab agent <stage> -o yaml [--cli] [--model] [--effort]` (`260805-j3cm`), which
   every dispatch site already calls exactly once per stage — so a per-stage override needs no new
   orchestrator flag surface and no new dispatch machinery.
 - **Cost/latency telemetry** per role — out of scope; this is selection only.
-- **Shipped/tested multi-provider support** — out of scope; v1 proves architecture-neutrality only.
+- **Shipped/tested multi-CLI support** — out of scope; v1 proves architecture-neutrality only.

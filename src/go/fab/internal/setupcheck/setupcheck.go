@@ -1,6 +1,6 @@
 // Package setupcheck is the reusable probe layer behind `fab setup check` — a
 // read-only environment doctor for fab's own setup state (config viability,
-// provider roster, dispatch-mode viability, version/bottle skew). It answers
+// CLI roster, dispatch-mode viability, version/bottle skew). It answers
 // the questions fab-kit's `fab doctor` deliberately does not: `doctor` covers
 // system prerequisites ("is this machine good enough to use fab-kit"), while
 // this package diagnoses the setup state of an installed fab ("is the effective
@@ -38,7 +38,7 @@ type Severity int
 const (
 	// OK is a passing check — rendered as a ✓ row, never counted against the run.
 	OK Severity = iota
-	// Info is an informational note (rk absent, unconfigured provider missing,
+	// Info is an informational note (rk absent, unconfigured CLI missing,
 	// kit cache unresolvable) — advisory only.
 	Info
 	// Warn is a real but non-breaking condition (unviable-but-descending
@@ -68,42 +68,42 @@ func (s Severity) String() string {
 // Finding is one structured probe result: which probe area, how severe, what
 // it concerns, and a human-readable explanation.
 type Finding struct {
-	Check    string // probe area: "providers", "environment", "versions", "dispatch", "config"
+	Check    string // probe area: "clis", "environment", "versions", "dispatch", "config"
 	Severity Severity
-	Subject  string // provider name, tool, or config key the finding is about
+	Subject  string // CLI name, tool, or config key the finding is about
 	Detail   string
 }
 
-// ProviderProbe is one row of the provider roster: the provider's declared
+// CLIProbe is one row of the CLI roster: the CLI's declared
 // capabilities (presence grammar — "here is how", never "select this mode"),
 // the executables its commands resolve to, and whether PATH has them.
-type ProviderProbe struct {
+type CLIProbe struct {
 	Name        string
 	Interactive bool // interactive_command declared (pane-capable grammar)
 	Headless    bool // headless_command declared
 	Native      bool // native capability declared
 	// Executables are the distinct leading executable tokens resolved from the
-	// provider's commands (nested `sh -c '...'` forms unwrap to the PROVIDER's
+	// CLI's commands (nested `sh -c '...'` forms unwrap to the CLI's
 	// executable — agy/kimi, never sh). Missing is the subset not on PATH.
 	Executables []string
 	Missing     []string
-	// Configured reports whether any role resolves to this provider (a depth
-	// knob or an agent.profiles.<role>.provider names it) — the line between a
+	// Configured reports whether any role resolves to this CLI (a depth
+	// knob or an agent.profiles.<role>.cli names it) — the line between a
 	// Fail (configured but unrunnable) and an Info (inert built-in) finding.
 	Configured bool
 }
 
-// Found reports whether every executable the provider's commands need is on
-// PATH. A provider with no commands at all (a native-only user provider) has
+// Found reports whether every executable the CLI's commands need is on
+// PATH. A CLI with no commands at all (a native-only user CLI) has
 // nothing to look up and reads as found.
-func (p ProviderProbe) Found() bool { return len(p.Missing) == 0 }
+func (p CLIProbe) Found() bool { return len(p.Missing) == 0 }
 
 // Report is the aggregated doctor output the command renders. Producers are
 // the Probe* functions and Run; consumers are the doctor's renderer and the
 // wizard's option filtering.
 type Report struct {
-	Providers []ProviderProbe
-	Findings  []Finding
+	CLIs     []CLIProbe
+	Findings []Finding
 }
 
 // Failures counts the failure-severity findings — the exit-1 driver.
@@ -128,10 +128,10 @@ func (r *Report) countSeverity(s Severity) int {
 // LookPathFunc is the injectable PATH-resolution seam (production: exec.LookPath).
 type LookPathFunc func(string) (string, error)
 
-// LeadingExecutable resolves the executable a provider command actually runs.
+// LeadingExecutable resolves the executable a CLI command actually runs.
 // The plain form's first word is the answer (`claude --model ...` → `claude`);
 // a nested-shell wrapper (`sh -c 'agy -p "$(cat)"'`) recurses into the -c
-// argument so the PROVIDER's executable (`agy`) is resolved, never `sh` — the
+// argument so the CLI's executable (`agy`) is resolved, never `sh` — the
 // wrapper is fab's own stdin idiom, not the binary the user must install.
 // Returns "" for an empty command (capability not declared).
 func LeadingExecutable(command string) string {
@@ -162,21 +162,21 @@ func LeadingExecutable(command string) string {
 	}
 }
 
-// ProbeProviders builds the provider roster for the effective config: every
-// resolvable provider (built-ins ∪ project/system providers) with its declared
-// capabilities and binary presence, plus a finding per provider whose
+// ProbeCLIs builds the CLI roster for the effective config: every
+// resolvable CLI (built-ins ∪ project/system CLIs) with its declared
+// capabilities and binary presence, plus a finding per CLI whose
 // executables are missing — Fail when a role resolves to it (dispatch would
 // break mid-pipeline), Info when it is an inert built-in nobody named. A
-// configured-and-present provider earns an OK finding, so the report shows the
+// configured-and-present CLI earns an OK finding, so the report shows the
 // positive check alongside the roster table.
-func ProbeProviders(cfg *config.Config, lookPath LookPathFunc) ([]ProviderProbe, []Finding) {
-	configured := configuredProviderRoles(cfg)
+func ProbeCLIs(cfg *config.Config, lookPath LookPathFunc) ([]CLIProbe, []Finding) {
+	configured := configuredCLIRoles(cfg)
 
-	var probes []ProviderProbe
+	var probes []CLIProbe
 	var findings []Finding
-	for _, name := range agent.ProviderNames(cfg) {
-		prov, _ := agent.ResolveProvider(cfg, name)
-		p := ProviderProbe{
+	for _, name := range agent.CLINames(cfg) {
+		prov, _ := agent.ResolveCLI(cfg, name)
+		p := CLIProbe{
 			Name:        name,
 			Interactive: prov.InteractiveCommand != "",
 			Headless:    prov.HeadlessCommand != "",
@@ -200,32 +200,32 @@ func ProbeProviders(cfg *config.Config, lookPath LookPathFunc) ([]ProviderProbe,
 		switch {
 		case len(p.Missing) > 0 && p.Configured:
 			findings = append(findings, Finding{
-				Check:    "providers",
+				Check:    "clis",
 				Severity: Fail,
 				Subject:  name,
-				Detail: fmt.Sprintf("provider %q (named by %s) is not runnable: executable %s not found on PATH",
+				Detail: fmt.Sprintf("CLI %q (named by %s) is not runnable: executable %s not found on PATH",
 					name, configured[name], strings.Join(p.Missing, ", ")),
 			})
 		case len(p.Missing) > 0:
 			findings = append(findings, Finding{
-				Check:    "providers",
+				Check:    "clis",
 				Severity: Info,
 				Subject:  name,
-				Detail: fmt.Sprintf("provider %q executable %s not found on PATH (not configured — inert until a knob or profile names it)",
+				Detail: fmt.Sprintf("CLI %q executable %s not found on PATH (not configured — inert until a knob or profile names it)",
 					name, strings.Join(p.Missing, ", ")),
 			})
 		case p.Configured:
-			detail := fmt.Sprintf("provider %q (named by %s): %s on PATH",
+			detail := fmt.Sprintf("CLI %q (named by %s): %s on PATH",
 				name, configured[name], strings.Join(p.Executables, ", "))
 			if len(p.Executables) == 0 {
-				// Native-only provider: no commands declared, so there is
+				// Native-only cli: no commands declared, so there is
 				// nothing to resolve on PATH — say so instead of rendering an
 				// empty executable list.
-				detail = fmt.Sprintf("provider %q (named by %s): no commands declared — nothing to check on PATH",
+				detail = fmt.Sprintf("CLI %q (named by %s): no commands declared — nothing to check on PATH",
 					name, configured[name])
 			}
 			findings = append(findings, Finding{
-				Check:    "providers",
+				Check:    "clis",
 				Severity: OK,
 				Subject:  name,
 				Detail:   detail,
@@ -235,19 +235,19 @@ func ProbeProviders(cfg *config.Config, lookPath LookPathFunc) ([]ProviderProbe,
 	return probes, findings
 }
 
-// configuredProviderRoles maps each provider a role actually resolves to → the
+// configuredCLIRoles maps each CLI a role actually resolves to → the
 // list of role names resolving to it (rendered as "agent role(s): doing,
 // review" in findings). This is the RESOLVED view — depth knobs and
-// agent.profiles overrides included — so a provider named only via
-// agent.profiles.review.provider is still "configured".
-func configuredProviderRoles(cfg *config.Config) map[string]string {
+// agent.profiles overrides included — so a CLI named only via
+// agent.profiles.review.cli is still "configured".
+func configuredCLIRoles(cfg *config.Config) map[string]string {
 	roles := make(map[string][]string)
 	for _, role := range agent.RoleNames() {
 		profile, err := agent.ResolveRole(cfg, role)
-		if err != nil || profile.Provider == "" {
+		if err != nil || profile.CLI == "" {
 			continue
 		}
-		roles[profile.Provider] = append(roles[profile.Provider], role)
+		roles[profile.CLI] = append(roles[profile.CLI], role)
 	}
 	out := make(map[string]string, len(roles))
 	for name, rs := range roles {

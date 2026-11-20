@@ -59,12 +59,12 @@ exit 0`)
 }
 
 func TestPaneOpenCmd(t *testing.T) {
-	t.Run("requires --provider", func(t *testing.T) {
+	t.Run("requires --cli", func(t *testing.T) {
 		cmd := paneOpenCmd()
 		cmd.SilenceUsage = true
 		cmd.SilenceErrors = true
 		if err := cmd.Execute(); err == nil {
-			t.Fatal("expected a usage error without --provider, got nil")
+			t.Fatal("expected a usage error without --cli, got nil")
 		}
 	})
 
@@ -102,35 +102,35 @@ func TestPaneOpenCmd(t *testing.T) {
 }
 
 // TestPaneOpen_ResolutionErrors pins the two exit-1 resolution failures: an
-// unknown provider is the shared lookup failure naming the available providers,
-// and a provider with no interactive_command is a hard error naming the
-// provider. Both are RunE errors raised BEFORE any tmux call, so neither needs
-// a server. The unknown-provider case runs outside a fab repo; the
-// missing-interactive case creates a project-defined headless-only provider.
+// unknown CLI is the shared lookup failure naming the available CLIs,
+// and a CLI with no interactive_command is a hard error naming the
+// CLI. Both are RunE errors raised BEFORE any tmux call, so neither needs
+// a server. The unknown-cli case runs outside a fab repo; the
+// missing-interactive case creates a project-defined headless-only CLI.
 func TestPaneOpen_ResolutionErrors(t *testing.T) {
-	t.Run("unknown provider names the available providers", func(t *testing.T) {
+	t.Run("unknown CLI names the available CLIs", func(t *testing.T) {
 		chdirTestEnv(t, t.TempDir(), nil)
-		_, _, err := runPaneCmd(t, "open", "--provider", "nosuch")
+		_, _, err := runPaneCmd(t, "open", "--cli", "nosuch")
 		if err == nil {
-			t.Fatal("an unknown provider must fail")
+			t.Fatal("an unknown CLI must fail")
 		}
-		if !strings.Contains(err.Error(), `unknown provider "nosuch"`) || !strings.Contains(err.Error(), "available:") {
-			t.Errorf("error = %q, want the shared unknown-provider lookup failure", err)
+		if !strings.Contains(err.Error(), `unknown CLI "nosuch"`) || !strings.Contains(err.Error(), "available:") {
+			t.Errorf("error = %q, want the shared unknown-cli lookup failure", err)
 		}
 	})
 
-	t.Run("provider without interactive_command is a hard error", func(t *testing.T) {
+	t.Run("CLI without interactive_command is a hard error", func(t *testing.T) {
 		agentTestRepo(t, `project:
   name: test
-providers:
+clis:
   myagent:
     headless_command: "myagent run"
 `)
-		_, _, err := runPaneCmd(t, "open", "--provider", "myagent")
+		_, _, err := runPaneCmd(t, "open", "--cli", "myagent")
 		if err == nil {
-			t.Fatal("a provider without interactive_command must fail")
+			t.Fatal("a CLI without interactive_command must fail")
 		}
-		want := `provider "myagent" has no interactive_command; configure providers.myagent.interactive_command`
+		want := `CLI "myagent" has no interactive_command; configure clis.myagent.interactive_command`
 		if err.Error() != want {
 			t.Errorf("error = %q, want exactly %q", err, want)
 		}
@@ -141,11 +141,11 @@ func TestPaneOpen_BuiltInAgyIsPaneCapable(t *testing.T) {
 	argLog := paneOpenStubTmux(t)
 	chdirTestEnv(t, t.TempDir(), map[string]string{"TMUX": "", "TMUX_PANE": ""})
 
-	out, _, err := runPaneCmd(t, "open", "--provider", "agy")
+	out, _, err := runPaneCmd(t, "open", "--cli", "agy")
 	if err != nil {
-		t.Fatalf("pane open --provider agy: %v", err)
+		t.Fatalf("pane open --cli agy: %v", err)
 	}
-	if out != "opened pane %42 (provider agy)\n" {
+	if out != "opened pane %42 (CLI agy)\n" {
 		t.Errorf("output = %q, want built-in agy pane-open success", out)
 	}
 	data, err := os.ReadFile(argLog)
@@ -176,11 +176,11 @@ func TestPaneOpen_SpawnShapes(t *testing.T) {
 		dir := t.TempDir()
 		chdirTestEnv(t, dir, map[string]string{"TMUX_PANE": ""})
 
-		stdout, _, err := runPaneCmd(t, "open", "--provider", "kimi")
+		stdout, _, err := runPaneCmd(t, "open", "--cli", "kimi")
 		if err != nil {
 			t.Fatalf("open: %v", err)
 		}
-		if stdout != "opened pane %42 (provider kimi)\n" {
+		if stdout != "opened pane %42 (CLI kimi)\n" {
 			t.Errorf("stdout = %q, want the pane id line", stdout)
 		}
 		calls := readLog(t, argLog)
@@ -209,11 +209,11 @@ func TestPaneOpen_SpawnShapes(t *testing.T) {
 		dir := t.TempDir()
 		chdirTestEnv(t, dir, map[string]string{"TMUX_PANE": "%7"})
 
-		stdout, _, err := runPaneCmd(t, "open", "--provider", "kimi")
+		stdout, _, err := runPaneCmd(t, "open", "--cli", "kimi")
 		if err != nil {
 			t.Fatalf("open: %v", err)
 		}
-		if stdout != "opened pane %43 (provider kimi)\n" {
+		if stdout != "opened pane %43 (CLI kimi)\n" {
 			t.Errorf("stdout = %q, want the pane id line", stdout)
 		}
 		calls := readLog(t, argLog)
@@ -230,11 +230,11 @@ func TestPaneOpen_SpawnShapes(t *testing.T) {
 		argLog := paneOpenStubTmux(t)
 		chdirTestEnv(t, t.TempDir(), map[string]string{"TMUX_PANE": "%7"})
 
-		stdout, _, err := runPaneCmd(t, "open", "--provider", "kimi", "--server", "work")
+		stdout, _, err := runPaneCmd(t, "open", "--cli", "kimi", "--server", "work")
 		if err != nil {
 			t.Fatalf("open: %v", err)
 		}
-		want := "opened pane %42 (provider kimi)\nserver: work\n"
+		want := "opened pane %42 (CLI kimi)\nserver: work\n"
 		if stdout != want {
 			t.Errorf("stdout = %q, want %q", stdout, want)
 		}
@@ -246,7 +246,7 @@ func TestPaneOpen_SpawnShapes(t *testing.T) {
 	})
 }
 
-// TestPaneOpen_JSON pins the --json success shape — {"pane","provider","server"}
+// TestPaneOpen_JSON pins the --json success shape — {"pane","cli","server"}
 // with server null on the default socket and the label under --server — against
 // the stub tmux (the spawn path's in-process harness).
 func TestPaneOpen_JSON(t *testing.T) {
@@ -254,7 +254,7 @@ func TestPaneOpen_JSON(t *testing.T) {
 		paneOpenStubTmux(t)
 		chdirTestEnv(t, t.TempDir(), map[string]string{"TMUX": "", "TMUX_PANE": ""})
 
-		stdout, _, err := runPaneCmd(t, "open", "--provider", "kimi", "--json")
+		stdout, _, err := runPaneCmd(t, "open", "--cli", "kimi", "--json")
 		if err != nil {
 			t.Fatalf("open --json: %v", err)
 		}
@@ -262,7 +262,7 @@ func TestPaneOpen_JSON(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
 			t.Fatalf("unmarshal: %v\n%s", err, stdout)
 		}
-		if got["pane"] != "%42" || got["provider"] != "kimi" {
+		if got["pane"] != "%42" || got["cli"] != "kimi" {
 			t.Errorf("json = %v", got)
 		}
 		if s, ok := got["server"]; !ok || s != nil {
@@ -274,7 +274,7 @@ func TestPaneOpen_JSON(t *testing.T) {
 		paneOpenStubTmux(t)
 		chdirTestEnv(t, t.TempDir(), map[string]string{"TMUX": "", "TMUX_PANE": ""})
 
-		stdout, _, err := runPaneCmd(t, "open", "--provider", "kimi", "--server", "work", "--json")
+		stdout, _, err := runPaneCmd(t, "open", "--cli", "kimi", "--server", "work", "--json")
 		if err != nil {
 			t.Fatalf("open --json: %v", err)
 		}

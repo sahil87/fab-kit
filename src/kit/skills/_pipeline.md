@@ -93,7 +93,7 @@ All `.status.yaml` mutations in this bracket use the `fab status` event commands
 
 For every apply, review, and hydrate dispatch below:
 
-1. Run `fab agent <stage> -o yaml` immediately before dispatch and surface the resolved YAML — at minimum `provider`, `model`, `model_alias`, `effort`, and `dispatch:` presence. Branch only on `dispatch:` key presence: absence means the shared `dispatch.mode` capability ladder resolved native; presence carries the selected pane/headless `command` but is never executed by the skill.
+1. Run `fab agent <stage> -o yaml` immediately before dispatch and surface the resolved YAML — at minimum `cli`, `model`, `model_alias`, `effort`, and `dispatch:` presence. Branch only on `dispatch:` key presence: absence means the shared `dispatch.mode` capability ladder resolved native; presence carries the selected pane/headless `command` but is never executed by the skill.
 2. Run the Dispatch Contract for `<stage>` per `_preamble.md` § CLI-Adapter Dispatch, including its native/CLI branch, recovery budget, pane-mode rules, result handling, reap, and no-state-cleanup rule.
 3. In the worker prompt, name the `/fab-continue` Behavior section and carry `_preamble.md` § Dispatch-Prompt Obligations (standard context, result obligation, block-contract carve-out, and terminal refresh).
 4. Read the returned result; the bracket remains the pure sequencer and owns every `finish`/`fail`/`reset` transition.

@@ -19,25 +19,25 @@
 // (Changes 2-3). See docs/specs/config.md.
 //
 // GENERATED, NOT HAND-WRITTEN. Every default value that has a canonical Go
-// symbol is sourced from that symbol, never copied — the built-in providers via
-// agent.ResolveProvider over agent.ProviderNames (so the provider SET is derived
+// symbol is sourced from that symbol, never copied — the built-in CLIs via
+// agent.ResolveCLI over agent.CLINames (so the CLI SET is derived
 // too, not a hand-maintained name list), the per-role default profiles via
 // agent.DefaultProfile over agent.RoleNames, the pipeline stage names via
 // agent.StageNames, and the dispatch defaults (mode, column width, min_cols,
 // min_rows, reap_done) via the config.DefaultDispatch* vars — which carry no
 // literal: internal/agent's init() fills them from defaults.yaml's dispatch:
-// block, the single value source (260809-wll4). The dynamic segments (providers, agent, stage_hooks)
+// block, the single value source (260809-wll4). The dynamic segments (CLIs, agent, stage_hooks)
 // interpolate those same symbols when the row is built, so the reference text
-// carries no literal copy of any value. The providers SEGMENT still names the
+// carries no literal copy of any value. The CLIs SEGMENT still names the
 // four built-ins one by one (via agent.DefaultInteractiveCommand and the
-// agent.DefaultCodex*/DefaultAgy*/DefaultKimi* vars) because its per-provider
+// agent.DefaultCodex*/DefaultAgy*/DefaultKimi* vars) because its per-CLI
 // commentary is bespoke prose, not a derivable projection — only the values are
 // interpolated.
 //
 // ADVERTISED SURFACE vs. FULL REFERENCE. `advertise` decides only what the managed
 // fence scaffolds into every project's config.yaml. As of 260806-j9nh the advertised
 // agent surface is exactly the two depth knobs (agent.session, agent.workers); the
-// machinery beneath them — agent.profiles and the whole providers table — is
+// machinery beneath them — agent.profiles and the whole CLIs table — is
 // demoted to advertise:false, so it no longer costs ~90 commented lines in every
 // repo. It keeps its registry rows, its --json defaults, and its rendered segments,
 // because `fab config explain` is the canonical full schema surface and
@@ -66,11 +66,11 @@
 // uniform "no built-in default — the cascade falls back to absent" signal the
 // downstream resolver (Change 2) consumes; distinguishing []string{} from nil
 // would leak an implementation detail with no cascade meaning. A non-nil Default
-// therefore always denotes a real built-in value (the four built-in providers'
+// therefore always denotes a real built-in value (the four built-in CLIs'
 // command grammars AND their per-role fills, the resolved per-role profiles, the
-// two depth knobs' built-in provider, and all five dispatch defaults — the
+// two depth knobs' built-in CLI, and all five dispatch defaults — the
 // config.DefaultDispatch* vars, filled from defaults.yaml per above).
-// The convention still governs WITHIN a provider: agy's fill map is SPARSE, so a
+// The convention still governs WITHIN a cli: agy's fill map is SPARSE, so a
 // role fab-kit ships no fill for is simply absent rather than emitted as an empty
 // object (codex's map is dense, so every role projects) — and kimi, which ships no
 // fills at all, projects no fill map
@@ -151,7 +151,7 @@ func scopeFor(key string) Scope {
 // Field is one row of the per-field metadata table — the single source the two
 // renderings (commented YAML, JSON) are both generated from. It models the
 // override UNIT (a meaningful override surface), which is coarser than a leaf
-// key: map-valued fields (providers, agent.profiles, stage_hooks) are single rows
+// key: map-valued fields (CLIs, agent.profiles, stage_hooks) are single rows
 // with structured defaults, matching the downstream per-field deep-merge (maps
 // merge per-key, lists replace, scalars replace).
 type Field struct {
@@ -182,10 +182,11 @@ type Field struct {
 	// consumer in this change — data + JSON exposure only.
 	Advertise bool
 	// RenamedFrom is the previous key path for mechanical rename carry-forward.
-	// One row carries it today — `agent.profiles`, recording the 260806-j9nh rename
-	// from `agent.tiers`; every other row is "". The carry is a top-level-key
-	// operation, so a same-top-level rename like that one still ships a hand-written
-	// migration; the field spares FUTURE top-level renames that cost. Omitted from
+	// Two rows carry it today — `agent.profiles`, recording the 260806-j9nh rename
+	// from `agent.tiers`, and `clis`, recording the 261120-f2ly rename from
+	// `providers`; every other row is "". The carry is a top-level-key operation, so
+	// `clis` is carried mechanically by `fab config upgrade` while a same-top-level
+	// rename like `agent.tiers` still ships a hand-written migration. Omitted from
 	// the JSON dump when empty.
 	RenamedFrom string
 	// InitSeed marks an A-class IDENTITY field written LIVE at `fab config init
@@ -200,7 +201,7 @@ type Field struct {
 	// the reference — the field's own lines (leading comment prose + the live or
 	// commented key), WITHOUT a trailing newline or the inter-field blank line.
 	// Render() concatenates the segments in table order (blank line between). For
-	// the symbol-backed fields (providers, the agent: block, stage_hooks) the segment
+	// the symbol-backed fields (CLIs, the agent: block, stage_hooks) the segment
 	// is built by interpolating the same Go symbols Default reads, so the
 	// rendered text carries no literal copy of any value. Not exposed in the JSON
 	// dump (it is the human-readable rendering of the same metadata).
@@ -241,65 +242,65 @@ type jsonField struct {
 // what lands in the agent.profiles row's Default (and the JSON dump). Sourced from
 // agent.DefaultProfile; never a literal copy.
 type roleProfileDefault struct {
-	Provider string `json:"provider"`
-	Model    string `json:"model"`
-	Effort   string `json:"effort"`
+	CLI    string `json:"cli"`
+	Model  string `json:"model"`
+	Effort string `json:"effort"`
 }
 
-// providerProfileDefault is one built-in per-role fill on a provider — the
-// `providers.<name>.profiles.<role>` value. Both fields are `omitempty` so a fill
+// cliProfileDefault is one built-in per-role fill on a CLI — the
+// `clis.<name>.profiles.<role>` value. Both fields are `omitempty` so a fill
 // that carries only a model does not assert an empty effort.
-type providerProfileDefault struct {
+type cliProfileDefault struct {
 	Model  string `json:"model,omitempty"`
 	Effort string `json:"effort,omitempty"`
 }
 
-// providerDefault is the structured canonical default for ONE built-in provider.
+// cliDefault is the structured canonical default for ONE built-in CLI.
 // Every field is `omitempty` because a built-in may legitimately carry only some.
-// Native is capability data rather than a provider-name inference. That
+// Native is capability data rather than a CLI-name inference. That
 // matches the registry's empty-default convention: a non-nil Default always denotes
 // a real built-in value, so an absent key means "fab-kit ships none", not "empty" —
 // which is also why a sparse fill map (agy) omits the roles it does not fill
 // rather than emitting empty objects for them.
 //
-// The DEPRECATED flat fill (providers.<name>.model/.effort) is deliberately not
+// The DEPRECATED flat fill (clis.<name>.model/.effort) is deliberately not
 // projected: no built-in carries it, and it exists only as a read-time alias for
 // profiles.default until the 2.16.19-to-2.17.0 migration rewrites a user's config.
-type providerDefault struct {
-	InteractiveCommand string                            `json:"interactive_command,omitempty"`
-	HeadlessCommand    string                            `json:"headless_command,omitempty"`
-	ModelsCommand      string                            `json:"models_command,omitempty"`
-	Native             bool                              `json:"native,omitempty"`
-	Profiles           map[string]providerProfileDefault `json:"profiles,omitempty"`
+type cliDefault struct {
+	InteractiveCommand string                       `json:"interactive_command,omitempty"`
+	HeadlessCommand    string                       `json:"headless_command,omitempty"`
+	ModelsCommand      string                       `json:"models_command,omitempty"`
+	Native             bool                         `json:"native,omitempty"`
+	Profiles           map[string]cliProfileDefault `json:"profiles,omitempty"`
 }
 
-// providerDefaults is the structured canonical default for the providers row:
-// every built-in provider fab-kit ships, DERIVED from the agent package's own
+// cliDefaults is the structured canonical default for the CLIs row:
+// every built-in CLI fab-kit ships, DERIVED from the agent package's own
 // table rather than from a hand-maintained name list. Walking
-// agent.ProviderNames(nil) and resolving each through agent.ResolveProvider(nil,
+// agent.CLINames(nil) and resolving each through agent.ResolveCLI(nil,
 // …) — both nil-safe, and a nil *config.Config resolves exactly the built-in set
 // with no project overrides — means the JSON dump advertises precisely the set
-// `agent.ResolveProvider` resolves with no config, and adding or renaming a
+// `agent.ResolveCLI` resolves with no config, and adding or renaming a
 // built-in in defaults.yaml needs no edit here.
 //
-// Like roleRows, it fails loud on table drift — a name ProviderNames reports must
+// Like roleRows, it fails loud on table drift — a name CLINames reports must
 // resolve.
-func providerDefaults() (map[string]providerDefault, error) {
-	names := agent.ProviderNames(nil)
-	defaults := make(map[string]providerDefault, len(names))
+func cliDefaults() (map[string]cliDefault, error) {
+	names := agent.CLINames(nil)
+	defaults := make(map[string]cliDefault, len(names))
 	for _, name := range names {
-		p, ok := agent.ResolveProvider(nil, name)
+		p, ok := agent.ResolveCLI(nil, name)
 		if !ok {
-			return nil, fmt.Errorf("configref: provider %q from agent.ProviderNames does not resolve via agent.ResolveProvider", name)
+			return nil, fmt.Errorf("configref: CLI %q from agent.CLINames does not resolve via agent.ResolveCLI", name)
 		}
-		var profiles map[string]providerProfileDefault
+		var profiles map[string]cliProfileDefault
 		if len(p.Profiles) > 0 {
-			profiles = make(map[string]providerProfileDefault, len(p.Profiles))
+			profiles = make(map[string]cliProfileDefault, len(p.Profiles))
 			for role, fill := range p.Profiles {
-				profiles[role] = providerProfileDefault{Model: fill.Model, Effort: fill.Effort}
+				profiles[role] = cliProfileDefault{Model: fill.Model, Effort: fill.Effort}
 			}
 		}
-		defaults[name] = providerDefault{
+		defaults[name] = cliDefault{
 			InteractiveCommand: p.InteractiveCommand,
 			HeadlessCommand:    p.HeadlessCommand,
 			ModelsCommand:      p.ModelsCommand,
@@ -310,7 +311,7 @@ func providerDefaults() (map[string]providerDefault, error) {
 	return defaults, nil
 }
 
-// roleRow is one resolved role: its name and its default {provider, model, effort}
+// roleRow is one resolved role: its name and its default {cli, model, effort}
 // profile (from agent.DefaultProfile). It is the single per-role view both the
 // agent.profiles Default (as roleProfileDefault) and the rendered `agent:` Segment
 // are built from — one walk of agent.RoleNames(), no duplicated loop.
@@ -334,7 +335,7 @@ func roleRows() ([]roleRow, error) {
 		}
 		rows = append(rows, roleRow{
 			Name:    name,
-			Profile: roleProfileDefault{Provider: p.Provider, Model: p.Model, Effort: p.Effort},
+			Profile: roleProfileDefault{CLI: p.CLI, Model: p.Model, Effort: p.Effort},
 		})
 	}
 	return rows, nil
@@ -372,7 +373,7 @@ func Fields() ([]Field, error) {
 		return nil, err
 	}
 
-	providers, err := providerDefaults()
+	clis, err := cliDefaults()
 	if err != nil {
 		return nil, err
 	}
@@ -547,7 +548,7 @@ checklist:
 			Key:          "dispatch.mode",
 			Default:      config.DefaultDispatchMode,
 			Kind:         configvalue.KindString,
-			Description:  "Preferred stage-dispatch mode: pane, native, or headless. Resolution starts at the preference and descends pane → native → headless without ascending, choosing the first mode supported by the provider, resolved model, and environment. Native requires native: true and an empty or Agent-tool-aliasable model. Scope both — settable once machine-wide, where it outranks the project file. Default native.",
+			Description:  "Preferred stage-dispatch mode: pane, native, or headless. Resolution starts at the preference and descends pane → native → headless without ascending, choosing the first mode supported by the CLI, resolved model, and environment. Native requires native: true and an empty or Agent-tool-aliasable model. Scope both — settable once machine-wide, where it outranks the project file. Default native.",
 			Scope:        ScopeBoth,
 			Advertise:    true,
 			Segment:      dispatchSegment(),
@@ -613,9 +614,9 @@ checklist:
 		},
 		{
 			Key:          "agent.session",
-			Default:      agent.DefaultProviderName,
+			Default:      agent.DefaultCLIName,
 			Kind:         configvalue.KindString,
-			Description:  "Provider for the Tier-1 (session) roles — the agents you talk to: fab agent, fab operator, fab batch worker sessions (roles default and operator). Names an entry in the providers table; applies at launch time. Scope both — settable once machine-wide, where it outranks the project file. Default claude.",
+			Description:  "CLI for the Tier-1 (session) roles — the agents you talk to: fab agent, fab operator, fab batch worker sessions (roles default and operator). Names an entry in the CLIs table; applies at launch time. Scope both — settable once machine-wide, where it outranks the project file. Default claude.",
 			Scope:        ScopeBoth,
 			Advertise:    true,
 			Segment:      agentSegment(roles),
@@ -623,9 +624,9 @@ checklist:
 		},
 		{
 			Key:         "agent.workers",
-			Default:     agent.DefaultProviderName,
+			Default:     agent.DefaultCLIName,
 			Kind:        configvalue.KindString,
-			Description: "Provider for the Tier-2 (worker) roles — the agents pipeline stages dispatch to: apply, review, hydrate, ship, review-pr (roles doing, review, hydrate, fast). Names an entry in the providers table; applies at every stage dispatch. Scope both — settable once machine-wide, where it outranks the project file. Default claude.",
+			Description: "CLI for the Tier-2 (worker) roles — the agents pipeline stages dispatch to: apply, review, hydrate, ship, review-pr (roles doing, review, hydrate, fast). Names an entry in the CLIs table; applies at every stage dispatch. Scope both — settable once machine-wide, where it outranks the project file. Default claude.",
 			Scope:       ScopeBoth,
 			Advertise:   true,
 			// Rendered inline in the agent.session Segment (agent is one YAML block,
@@ -637,7 +638,7 @@ checklist:
 			Key:         "agent.profiles",
 			Default:     roleProfileDefaults(roles),
 			Kind:        configvalue.KindMapping,
-			Description: "Sparse per-role override beneath the two depth knobs. Keyed by role (default/operator/doing/review/hydrate/fast), each value a {provider, model, effort} with every field optional: a set provider beats the role's depth knob, a set model/effort beats the provider's own fill. The reserved model value `tool-default` is a real value that wins over lower tiers and resolves to an empty model: CLI rungs use the tool's own default, while native inherits the session model. There is no cross-role inheritance — agent.profiles.default is the default role's override, not a fallback for the others. The stage→role mapping and the role→depth partition are fixed and fab-owned.",
+			Description: "Sparse per-role override beneath the two depth knobs. Keyed by role (default/operator/doing/review/hydrate/fast), each value a {cli, model, effort} with every field optional: a set CLI beats the role's depth knob, a set model/effort beats the CLI's own fill. The reserved model value `tool-default` is a real value that wins over lower tiers and resolves to an empty model: CLI rungs use the tool's own default, while native inherits the session model. There is no cross-role inheritance — agent.profiles.default is the default role's override, not a fallback for the others. The stage→role mapping and the role→depth partition are fixed and fab-owned.",
 			Scope:       ScopeBoth,
 			// Demoted from the managed fence (260806-j9nh): the advertised agent
 			// surface is the two knobs, and scaffolding the six role profiles into
@@ -650,26 +651,27 @@ checklist:
 			// Rendered inline in the agent.session Segment (one `agent:` block).
 		},
 		{
-			Key:         "providers",
-			Default:     providers,
+			Key:         "clis",
+			Default:     clis,
 			Kind:        configvalue.KindMapping,
-			Description: "Named agent capability grammars: four built-in providers with per-role fills on the kit-release cadence. Each provider MAY carry interactive_command (pane/session), headless_command (headless stage task), optional models_command (JSON model rows for fab agent models, replacing its built-in adapter), and native (native Agent-tool capability); presence describes how and never selects dispatch mode. Command fields are never merged or substituted for one another. profiles supplies {model}/{effort} placeholders with precedence invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty. The reserved model value `tool-default` is a real value that wins over lower tiers and resolves to an empty model: CLI rungs use the tool's own default, while native inherits the session model. Fill roster: claude and codex ship all six role fills (dense maps), agy a sparse map whose `default` entry is the cross-role fallback, and kimi NO fills at all (its -m takes a user-config model alias, so the empty model drops the flag and the CLI's own default_model applies). Provider names are opaque, user-chosen strings.",
+			Description: "Named agent capability grammars: four built-in CLIs with per-role fills on the kit-release cadence. Each CLI MAY carry interactive_command (pane/session), headless_command (headless stage task), optional models_command (JSON model rows for fab agent models, replacing its built-in adapter), and native (native Agent-tool capability); presence describes how and never selects dispatch mode. Command fields are never merged or substituted for one another. profiles supplies {model}/{effort} placeholders with precedence invocation flag > agent.profiles.<role> field > clis.<p>.profiles.<role> > clis.<p>.profiles.default > empty. The reserved model value `tool-default` is a real value that wins over lower tiers and resolves to an empty model: CLI rungs use the tool's own default, while native inherits the session model. Fill roster: claude and codex ship all six role fills (dense maps), agy a sparse map whose `default` entry is the cross-role fallback, and kimi NO fills at all (its -m takes a user-config model alias, so the empty model drops the flag and the CLI's own default_model applies). CLI names are opaque, user-chosen strings. Formerly `providers:` — that spelling (and `agent.profiles.<role>.provider`, `FAB_PROVIDERS`) is still read for one minor release; the older command-field spellings session_command and dispatch_command remain read-time aliases of interactive_command and headless_command.",
 			Scope:       ScopeBoth,
 			// Demoted from the managed fence (260806-j9nh) for the same reason as
-			// agent.profiles: naming a built-in in a knob needs no providers: block at
+			// agent.profiles: naming a built-in in a knob needs no clis: block at
 			// all, so ~60 commented lines of grammar per repo bought nothing. Still
 			// rendered here and in `fab config init --system`.
 			Advertise: false,
-			// The command fields were renamed INSIDE this nested table in 2.19.0
-			// (session_command → interactive_command, dispatch_command →
-			// headless_command). The top-level renamed_from mechanical carry
-			// cannot fire on nested keys, so this metadata is informational for
-			// --json consumers; the on-disk rewrite is the 2.18.1-to-2.19.0
-			// migration's job, and the read-time alias keeps old spellings
-			// resolving meanwhile.
-			RenamedFrom:  "providers.<name>.session_command, providers.<name>.dispatch_command",
-			Segment:      providersSegment(providers, roleOrder),
-			ShortSegment: providersShortSegment(providers, roleOrder),
+			// `providers` is the pre-2.31 name of this table (261120-f2ly rename). It is
+			// a genuine top-level → top-level rename, so `fab config upgrade`'s
+			// mechanical carry rewrites a live `providers:` key to `clis:` (value
+			// block verbatim). The older NESTED renames inside the table (2.19.0:
+			// session_command → interactive_command, dispatch_command →
+			// headless_command) cannot ride this one-string field; they are recorded
+			// in the row's description and handled by the 2.18.1-to-2.19.0 migration
+			// plus the read-time alias.
+			RenamedFrom:  "providers",
+			Segment:      clisSegment(clis, roleOrder),
+			ShortSegment: clisShortSegment(clis, roleOrder),
 		},
 		{
 			Key:          "docs_index.roots",
@@ -712,47 +714,47 @@ const referenceHeader = `# Full reference of all available options: fab config e
 #
 # This is the FULL reference. Your project's own config.yaml carries a slimmer
 # managed fence: only the advertised fields are scaffolded there, so the agent
-# machinery below (agent.profiles, providers) is documented here rather than
+# machinery below (agent.profiles, CLIs) is documented here rather than
 # copied into every repo. See docs/specs/config.md.`
 
-// providersSegment renders the providers block. Every command string is
+// clisSegment renders the CLIs block. Every command string is
 // interpolated from its canonical agent var (no literal copy):
 // agent.DefaultInteractiveCommand / agent.DefaultHeadlessCommand for claude, and the
 // agent.DefaultCodex*/DefaultAgy*/DefaultKimi* vars for the other three built-ins
 // (all three carry both commands).
 // The per-role FILLS are interpolated the same way, from the already-derived
-// providerDefaults() view — so the shipped values appear here without a literal copy,
+// cliDefaults() view — so the shipped values appear here without a literal copy,
 // and a bump in defaults.yaml reaches the rendered reference by itself. kimi ships no
 // fills, so profilesLines renders no `profiles:` key for it at all.
 //
 // Fill lines are emitted in roleOrder (agent.RoleNames(), sorted) so the output stays
 // BYTE-STABLE: the profiles map is looked up by key, never range-iterated.
 //
-// Presentation: all four providers are BUILT-IN, so all four blocks render
+// Presentation: all four CLIs are BUILT-IN, so all four blocks render
 // uniformly LIVE — claude's baseline and the codex/agy/kimi blocks at the same
 // indentation. In a rendered fence or `init --system` scaffold,
 // configupgrade.CommentOutSegment prefixes every line alike (its column-0
-// rule), so each provider line carries exactly one LEADING `#` prefix — no
+// rule), so each CLI line carries exactly one LEADING `#` prefix — no
 // doubled `# #` marker (an inline `# ...` note on a command line stays
 // content, not a second marker) — and the "strip the leading '# ' from every
 // line of a block" instruction below restores this text byte-exactly. The commented form registers no project override
-// (presence=intent holds for BEHAVIOR: a built-in provider is inert until a
+// (presence=intent holds for BEHAVIOR: a built-in CLI is inert until a
 // knob, a role override, or a flag names it) — but a hoisted copy PINS the
 // fills it carries against kit-release refreshes, which is what the prose's
 // NOTE warns about.
-func providersSegment(providers map[string]providerDefault, roleOrder []string) string {
-	return "# providers — named independent interactive, headless, and native launch capabilities plus their per-role fills. This\n" +
+func clisSegment(clis map[string]cliDefault, roleOrder []string) string {
+	return "# CLIs — named independent interactive, headless, and native launch capabilities plus their per-role fills. This\n" +
 		"# block is MACHINERY: naming a built-in on a depth knob (agent.session /\n" +
-		"# agent.workers, above) needs no `providers:` entry at all, so it is documented\n" +
+		"# agent.workers, above) needs no `clis:` entry at all, so it is documented\n" +
 		"# here rather than scaffolded into your config. Full schema: docs/specs/config.md.\n" +
 		"#\n" +
-		"# Each provider MAY carry two launch command fields, optional model discovery,\n" +
+		"# Each CLI MAY carry two launch command fields, optional model discovery,\n" +
 		"# plus native capability (the launch fields are NOT merged):\n" +
 		"#   interactive_command — opens an interactive agent SESSION (fab batch /\n" +
 		"#                         fab agent). {model}/{effort} placeholders\n" +
 		"#                         are substituted from the resolved role profile, or\n" +
 		"#                         from the --model/--effort flags on `fab agent\n" +
-		"#                         --provider <name>` (which bypasses role resolution);\n" +
+		"#                         --cli <name>` (which bypasses role resolution);\n" +
 		"#                         the built-in commands below are all templated this\n" +
 		"#                         way. A command carrying NO placeholder instead gets\n" +
 		"#                         --model/--effort appended.\n" +
@@ -762,8 +764,8 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#                         STDIN.\n" +
 		"#   models_command      — optional discovery override for fab agent models. Runs\n" +
 		"#                         through sh -c and prints a JSON array of model rows;\n" +
-		"#                         replaces the provider's built-in discovery adapter.\n" +
-		"#   native              — declares native Agent-tool capability. Provider names\n" +
+		"#                         replaces the CLI's built-in discovery adapter.\n" +
+		"#   native              — declares native Agent-tool capability. CLI names\n" +
 		"#                         are opaque, so fab never infers this capability from a\n" +
 		"#                         name.\n" +
 		"# Presence is capability data (how), never mode policy (whether). dispatch.mode\n" +
@@ -772,10 +774,14 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# two command fields — still read as PER-FIELD aliases, so a half-migrated\n" +
 		"# config resolves; the 2.18.1-to-2.19.0 migration rewrites them on disk, and\n" +
 		"# `fab config set/unset` accepts the new spellings only.)\n" +
-		"# Each provider also carries a per-role fill map that supplies those placeholders:\n" +
-		"#   profiles.<role>     — {model, effort} for when THIS provider plays THAT\n" +
+		"# (`providers:` is the pre-2.31.0 spelling of this whole table — still read\n" +
+		"# for one minor release, like `agent.profiles.<role>.provider` for `.cli` and\n" +
+		"# $FAB_PROVIDERS for $FAB_CLIS; `fab config upgrade` carries a live `providers:`\n" +
+		"# key to `clis:`, and `fab config set/unset` maps the old keys with a warning.)\n" +
+		"# Each CLI also carries a per-role fill map that supplies those placeholders:\n" +
+		"#   profiles.<role>     — {model, effort} for when THIS CLI plays THAT\n" +
 		"#                         role. Keyed by the six role names; `default` doubles\n" +
-		"#                         as this provider's cross-role fallback. Precedence:\n" +
+		"#                         as this CLI's cross-role fallback. Precedence:\n" +
 		"#                         invocation flag > agent.profiles.<role> field >\n" +
 		"#                         profiles.<role> > profiles.default > empty (empty\n" +
 		"#                         drops the placeholder's token, so the CLI's own\n" +
@@ -785,14 +791,14 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#                         session model. Scope `both`, so a machine-wide fill\n" +
 		"#                         is settable once in ~/.fab-kit/config.yaml, where it\n" +
 		"#                         outranks the project file. (The pre-2.17.0 flat\n" +
-		"#                         providers.<name>.model / .effort is still read as an\n" +
+		"#                         clis.<name>.model / .effort is still read as an\n" +
 		"#                         alias for profiles.default; the 2.16.19-to-2.17.0\n" +
 		"#                         migration rewrites it.)\n" +
-		"# Provider names are opaque, user-chosen strings — fab NEVER infers a provider\n" +
+		"# CLI names are opaque, user-chosen strings — fab NEVER infers a CLI\n" +
 		"# from a model string, and values pass through verbatim with no validation.\n" +
 		"#\n" +
-		"# fab-kit ships FOUR built-in providers — claude (the default), codex, agy and\n" +
-		"# kimi — so `agent.workers: codex` needs no providers: block at all. claude, codex\n" +
+		"# fab-kit ships FOUR built-in CLIs — claude (the default), codex, agy and\n" +
+		"# kimi — so `agent.workers: codex` needs no clis: block at all. claude, codex\n" +
 		"# and agy carry per-role fills, and every role still resolves a model suited to it.\n" +
 		"# claude's and codex's maps are dense (every role pins its own model); agy's is\n" +
 		"# SPARSE: a role absent from it takes agy's `default` entry. claude's fills are\n" +
@@ -800,13 +806,13 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# of the family, so they track the installed tool with no kit release. Only\n" +
 		"# codex's and agy's fills are concrete IDs, refreshed at KIT-RELEASE cadence.\n" +
 		"# Every fill passes through unvalidated — override one with\n" +
-		"# providers.<name>.profiles.<role>.model to pin a specific model.\n" +
+		"# clis.<name>.profiles.<role>.model to pin a specific model.\n" +
 		"# kimi deliberately ships NO fills (see its note below), so it resolves an\n" +
 		"# empty model and the -m flag drops out.\n" +
-		"# EVERY provider's fill map is printed below, claude's included — the rendered\n" +
+		"# EVERY CLI's fill map is printed below, claude's included — the rendered\n" +
 		"# reference is the user-facing half of this block, and a reader must not have to\n" +
-		"# reach for --json to see what the default provider actually resolves. The same\n" +
-		"# values are also projected by `fab config explain providers --json` and resolved\n" +
+		"# reach for --json to see what the default CLI actually resolves. The same\n" +
+		"# values are also projected by `fab config explain clis --json` and resolved\n" +
 		"# per stage or role by `fab agent <stage|role> -o yaml`.\n" +
 		"# All four blocks below render LIVE and uniformly — claude's baseline and the\n" +
 		"# codex, agy and kimi blocks at the same indentation, one `#` deep in your\n" +
@@ -821,10 +827,10 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"# CLI has an interactive mode, so pane launch grammar is the built-in expectation;\n" +
 		"# the generic readiness gate owns first-run walls and input-echo validation. What\n" +
 		"# varies by CLI and needs probing is HEADLESS prompt grammar. A user-defined\n" +
-		"# provider may still omit interactive_command to opt out of pane dispatch; automatic\n" +
+		"# CLI may still omit interactive_command to opt out of pane dispatch; automatic\n" +
 		"# resolution then skips that rung and a forced pane launch errors actionably.\n" +
 		"#\n" +
-		"# Per-provider notes (kept out of the blocks below so a block hoisted into your\n" +
+		"# Per-CLI notes (kept out of the blocks below so a block hoisted into your\n" +
 		"# config stays valid YAML — strip the leading '# ' from every line of the\n" +
 		"# block in its fence/scaffold form):\n" +
 		"#   claude.headless_command — claude -p reads the prompt from stdin.\n" +
@@ -844,7 +850,7 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#   kimi — the kimi-code CLI, and the one built-in shipping NO fills: its -m takes\n" +
 		"#     a USER-CONFIG model alias rather than a catalog ID, so a pinned value would\n" +
 		"#     break non-managed installs. The empty model drops `-m` and kimi falls back to\n" +
-		"#     your own default_model; pin one with providers.kimi.profiles.<role>.model if\n" +
+		"#     your own default_model; pin one with clis.kimi.profiles.<role>.model if\n" +
 		"#     you want per-role differentiation. Same nested-shell stdin idiom as agy, and\n" +
 		"#     no approval flag on dispatch: `kimi -p` already auto-approves tools and\n" +
 		"#     REJECTS --yolo/--auto — which is why the full-auto flag rides its\n" +
@@ -854,14 +860,14 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#     box verifies now that delivery ignores box-drawing runes when checking the\n" +
 		"#     echo. So kimi is pane-capable.\n" +
 		"# The bypass flags are deliberate: unattended stage workers cannot answer approval\n" +
-		"# prompts. Override the corresponding provider command to restore an\n" +
+		"# prompts. Override the corresponding CLI command to restore an\n" +
 		"# approval-gated posture.\n" +
 		"#\n" +
-		"# NOTE: uncommenting a whole provider block makes its fills a live override\n" +
+		"# NOTE: uncommenting a whole CLI block makes its fills a live override\n" +
 		"# that PINS the shown values — kit releases refresh the built-in fills, but a\n" +
 		"# pinned copy shadows every refresh. Prefer overriding a single field\n" +
-		"# (providers.<name>.profiles.<role>.model) instead of hoisting a block.\n" +
-		providersYAML(providers, roleOrder)
+		"# (clis.<name>.profiles.<role>.model) instead of hoisting a block.\n" +
+		clisYAML(clis, roleOrder)
 }
 
 // YAMLSingleQuoted wraps a command string as a YAML single-quoted scalar, doubling
@@ -880,16 +886,16 @@ func YAMLSingleQuoted(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
-// profilesLines renders a provider's per-role fill map as YAML lines under a
+// profilesLines renders a CLI's per-role fill map as YAML lines under a
 // `profiles:` key, one role per line in roleOrder (so the output is
 // byte-stable — the map is looked up by key, never ranged over). A role absent from
 // the map is skipped, which is what keeps a SPARSE built-in rendering sparse. The
 // effort half is omitted for a fill that carries none (agy), so the rendered YAML
-// never asserts an effort the provider has no flag for.
+// never asserts an effort the CLI has no flag for.
 //
-// Returns "" for a provider with no fills, so a grammar-only built-in (kimi) renders
+// Returns "" for a CLI with no fills, so a grammar-only built-in (kimi) renders
 // no `profiles:` key at all rather than an empty one.
-func profilesLines(profiles map[string]providerProfileDefault, roleOrder []string) string {
+func profilesLines(profiles map[string]cliProfileDefault, roleOrder []string) string {
 	if len(profiles) == 0 {
 		return ""
 	}
@@ -934,7 +940,7 @@ func agentSegment(roles []roleRow) string {
 	var b strings.Builder
 	b.WriteString("# agent.session / agent.workers — the two knobs, one per agent DEPTH. `session`\n")
 	b.WriteString("# is what YOU talk to (fab agent, fab operator, fab batch); `workers` is what\n")
-	b.WriteString("# pipeline STAGES dispatch to. Each names an entry in the `providers:` table,\n")
+	b.WriteString("# pipeline STAGES dispatch to. Each names an entry in the `clis:` table,\n")
 	b.WriteString("# which `fab config explain` prints in full (it is machinery, so the managed\n")
 	b.WriteString("# fence omits it) — fab-kit ships claude, codex, agy and kimi, so `workers: codex`\n")
 	b.WriteString("# needs no other config. Both default to claude. Scope `both`, so the choice is\n")
@@ -958,16 +964,17 @@ func agentSegment(roles []roleRow) string {
 	fmt.Fprintf(&b, "#   workers roles: %s\n", strings.Join(workers, ", "))
 	b.WriteString("#\n")
 	b.WriteString("# agent.profiles.<role> is the sparse per-role escape hatch beneath the knobs —\n")
-	b.WriteString("# {provider, model, effort}, every field optional, no cross-role inheritance.\n")
+	b.WriteString("# {cli, model, effort}, every field optional, no cross-role inheritance.\n")
 	b.WriteString("# Reach for it only to dial ONE role; see `fab config explain --json` and\n")
 	b.WriteString("# docs/specs/config.md. (`agent.tiers` is its pre-2.17.0 spelling — still read,\n")
-	b.WriteString("# rewritten by the 2.16.19-to-2.17.0 migration.)\n")
+	b.WriteString("# rewritten by the 2.16.19-to-2.17.0 migration; `.provider` is the pre-2.31.0\n")
+	b.WriteString("# spelling of `.cli`, still read for one minor release.)\n")
 	b.WriteString("agent:\n")
-	b.WriteString("  session: " + agent.DefaultProviderName + "                    # Tier 1 — the agents you talk to\n")
-	b.WriteString("  workers: " + agent.DefaultProviderName + "                    # Tier 2 — the agents stages dispatch to\n")
+	b.WriteString("  session: " + agent.DefaultCLIName + "                    # Tier 1 — the agents you talk to\n")
+	b.WriteString("  workers: " + agent.DefaultCLIName + "                    # Tier 2 — the agents stages dispatch to\n")
 	b.WriteString("  # profiles:\n")
-	b.WriteString("  #   operator: { provider: codex }    # example: coordinate from another CLI\n")
-	b.WriteString("  #   review: { provider: codex }      # example: run just the critic elsewhere\n")
+	b.WriteString("  #   operator: { cli: codex }    # example: coordinate from another CLI\n")
+	b.WriteString("  #   review: { cli: codex }      # example: run just the critic elsewhere\n")
 	// Trim the trailing newline: Render() re-inserts the inter-field separator.
 	return strings.TrimRight(b.String(), "\n")
 }
@@ -990,7 +997,7 @@ func agentSegment(roles []roleRow) string {
 func dispatchSegment() string {
 	return "# dispatch.mode — preferred stage-worker adapter: pane, native, or headless.\n" +
 		"# Resolution starts at the preference and DESCENDS pane → native → headless,\n" +
-		"# never ascending, until provider capability + resolved model + environment allow a rung:\n" +
+		"# never ascending, until CLI capability + resolved model + environment allow a rung:\n" +
 		"# pane needs tmux + interactive_command; native needs native: true plus an empty\n" +
 		"# or Agent-tool-aliasable resolved model; headless needs headless_command. A\n" +
 		"# non-empty model without an alias descends (empty keeps session-model inherit).\n" +
@@ -1112,18 +1119,18 @@ func shortAdvert(scope Scope, desc, explainKey string, setKeys ...string) string
 // header. Values interpolate the same canonical symbols.
 func agentShortSegment() string {
 	return shortAdvert(ScopeBoth,
-		"agent.session / agent.workers — providers for the two agent DEPTHS: session is\n"+
+		"agent.session / agent.workers — CLIs for the two agent DEPTHS: session is\n"+
 			"what you talk to (fab agent/operator/batch), workers is what stages dispatch\n"+
 			"to. agent.profiles.<role> is the sparse per-role escape hatch beneath the\n"+
-			"knobs. Default "+agent.DefaultProviderName+".",
+			"knobs. Default "+agent.DefaultCLIName+".",
 		"agent.session",
-		"agent.session <provider>", "agent.workers <provider>") +
+		"agent.session <cli>", "agent.workers <cli>") +
 		"agent:\n" +
-		"  session: " + agent.DefaultProviderName + "\n" +
-		"  workers: " + agent.DefaultProviderName + "\n" +
+		"  session: " + agent.DefaultCLIName + "\n" +
+		"  workers: " + agent.DefaultCLIName + "\n" +
 		"  # profiles:\n" +
-		"  #   operator: { provider: codex }    # example: coordinate from another CLI\n" +
-		"  #   review: { provider: codex }      # example: run just the critic elsewhere"
+		"  #   operator: { cli: codex }    # example: coordinate from another CLI\n" +
+		"  #   review: { cli: codex }      # example: run just the critic elsewhere"
 }
 
 // dispatchShortSegment is the file-bound short form of dispatchSegment — same
@@ -1165,47 +1172,47 @@ func stageHooksShortSegment() string {
 		"#     post: make test"
 }
 
-// providersShortSegment is the file-bound short form of providersSegment — the
-// SAME YAML payload (providersYAML, shared with the long form so the rendered
+// clisShortSegment is the file-bound short form of clisSegment — the
+// SAME YAML payload (clisYAML, shared with the long form so the rendered
 // grammar cannot drift between them) under a diet header. Consumed by
-// `fab config init --system`; the managed fence never scaffolds providers
+// `fab config init --system`; the managed fence never scaffolds CLIs
 // (advertise:false).
-func providersShortSegment(providers map[string]providerDefault, roleOrder []string) string {
+func clisShortSegment(clis map[string]cliDefault, roleOrder []string) string {
 	return shortAdvert(ScopeBoth,
-		"providers — named agent capability grammars (interactive/headless/native\n"+
+		"CLIs — named agent capability grammars (interactive/headless/native\n"+
 			"commands) plus per-role {model, effort} fills. fab-kit ships claude (the\n"+
 			"default), codex, agy and kimi; naming a built-in on a depth knob needs no\n"+
 			"entry here.",
-		"providers",
-		"providers.<name>.<field> <value>") +
-		providersYAML(providers, roleOrder)
+		"clis",
+		"clis.<name>.<field> <value>") +
+		clisYAML(clis, roleOrder)
 }
 
-// providersYAML is the YAML payload of the providers block — all four built-in
-// provider blocks rendered LIVE at one indentation family, each with its fill map
+// clisYAML is the YAML payload of the CLIs block — all four built-in
+// CLI blocks rendered LIVE at one indentation family, each with its fill map
 // (260829: claude's six were previously omitted here, the last asymmetry left over
 // from the pre-ywkx regime where the non-claude blocks rendered commented; the
-// rendered reference is the user-facing half, so every provider now shows one) —
+// rendered reference is the user-facing half, so every CLI now shows one) —
 // shared by
-// providersSegment (long form, essay header) and providersShortSegment
+// clisSegment (long form, essay header) and clisShortSegment
 // (file-bound form, diet header) so the rendered grammar has exactly one
 // source. Values interpolate the canonical agent vars; fill lines follow
 // roleOrder for byte-stability.
-func providersYAML(providers map[string]providerDefault, roleOrder []string) string {
-	return "providers:\n" +
+func clisYAML(clis map[string]cliDefault, roleOrder []string) string {
+	return "clis:\n" +
 		"  claude:\n" +
-		"    native: " + strconv.FormatBool(providers[agent.DefaultProviderName].Native) + "\n" +
+		"    native: " + strconv.FormatBool(clis[agent.DefaultCLIName].Native) + "\n" +
 		"    interactive_command: " + YAMLSingleQuoted(agent.DefaultInteractiveCommand) + "\n" +
 		"    headless_command: " + YAMLSingleQuoted(agent.DefaultHeadlessCommand) + "\n" +
-		profilesLines(providers[agent.DefaultProviderName].Profiles, roleOrder) +
+		profilesLines(clis[agent.DefaultCLIName].Profiles, roleOrder) +
 		"  codex:\n" +
 		"    interactive_command: " + YAMLSingleQuoted(agent.DefaultCodexInteractiveCommand) + "\n" +
 		"    headless_command: " + YAMLSingleQuoted(agent.DefaultCodexHeadlessCommand) + "\n" +
-		profilesLines(providers["codex"].Profiles, roleOrder) +
+		profilesLines(clis["codex"].Profiles, roleOrder) +
 		"  agy:\n" +
 		"    interactive_command: " + YAMLSingleQuoted(agent.DefaultAgyInteractiveCommand) + "   # trust wall handled by the readiness gate; no {effort} flag\n" +
 		"    headless_command: " + YAMLSingleQuoted(agent.DefaultAgyHeadlessCommand) + "   # no {effort} flag; nested shell so $(cat) reads the piped prompt\n" +
-		profilesLines(providers["agy"].Profiles, roleOrder) +
+		profilesLines(clis["agy"].Profiles, roleOrder) +
 		// kimi ships no fills, so profilesLines renders nothing for it — the trim
 		// therefore has to span the whole kimi block, not just its (empty) fill
 		// lines, or the segment would end with a stray newline.
@@ -1213,7 +1220,7 @@ func providersYAML(providers map[string]providerDefault, roleOrder []string) str
 			"  kimi:\n"+
 				"    interactive_command: "+YAMLSingleQuoted(agent.DefaultKimiInteractiveCommand)+"   # --auto is the full-auto flag its headless form rejects\n"+
 				"    headless_command: "+YAMLSingleQuoted(agent.DefaultKimiHeadlessCommand)+"   # no fills shipped, so the empty {model} drops -m\n"+
-				profilesLines(providers["kimi"].Profiles, roleOrder), "\n")
+				profilesLines(clis["kimi"].Profiles, roleOrder), "\n")
 }
 
 // non-empty Description and a valid Scope. A violation is a construction bug
@@ -1284,10 +1291,10 @@ func ResolveKey(key string) (KeyMatch, bool, error) {
 		return KeyMatch{}, false, err
 	}
 	parts := strings.Split(key, ".")
-	if len(parts) >= 2 && parts[0] == "providers" {
-		if reason := invalidProviderName(parts[1]); reason != "" {
+	if len(parts) >= 2 && parts[0] == "clis" {
+		if reason := invalidCLIName(parts[1]); reason != "" {
 			return KeyMatch{}, false, fmt.Errorf(
-				"config key %q uses provider name %q, which cannot be represented by the dotted config-key grammar: %s",
+				"config key %q uses CLI name %q, which cannot be represented by the dotted config-key grammar: %s",
 				key, parts[1], reason,
 			)
 		}
@@ -1316,25 +1323,25 @@ func ResolveKey(key string) (KeyMatch, bool, error) {
 		return dynamicMatch(fields, "agent.profiles", configvalue.KindMapping)
 
 	case len(parts) == 4 && parts[0] == "agent" && parts[1] == "profiles" &&
-		contains(agent.RoleNames(), parts[2]) && contains([]string{"provider", "model", "effort"}, parts[3]):
+		contains(agent.RoleNames(), parts[2]) && contains([]string{"cli", "model", "effort"}, parts[3]):
 		return dynamicMatch(fields, "agent.profiles", configvalue.KindString)
 
-	case len(parts) == 2 && parts[0] == "providers":
-		return dynamicMatch(fields, "providers", configvalue.KindMapping)
+	case len(parts) == 2 && parts[0] == "clis":
+		return dynamicMatch(fields, "clis", configvalue.KindMapping)
 
-	case len(parts) == 3 && parts[0] == "providers" &&
+	case len(parts) == 3 && parts[0] == "clis" &&
 		contains([]string{"interactive_command", "headless_command", "models_command"}, parts[2]):
-		return dynamicMatch(fields, "providers", configvalue.KindString)
+		return dynamicMatch(fields, "clis", configvalue.KindString)
 
-	case len(parts) == 3 && parts[0] == "providers" && parts[2] == "profiles":
-		return dynamicMatch(fields, "providers", configvalue.KindMapping)
+	case len(parts) == 3 && parts[0] == "clis" && parts[2] == "profiles":
+		return dynamicMatch(fields, "clis", configvalue.KindMapping)
 
-	case len(parts) == 4 && parts[0] == "providers" && parts[2] == "profiles" && contains(agent.RoleNames(), parts[3]):
-		return dynamicMatch(fields, "providers", configvalue.KindMapping)
+	case len(parts) == 4 && parts[0] == "clis" && parts[2] == "profiles" && contains(agent.RoleNames(), parts[3]):
+		return dynamicMatch(fields, "clis", configvalue.KindMapping)
 
-	case len(parts) == 5 && parts[0] == "providers" && parts[2] == "profiles" &&
+	case len(parts) == 5 && parts[0] == "clis" && parts[2] == "profiles" &&
 		contains(agent.RoleNames(), parts[3]) && contains([]string{"model", "effort"}, parts[4]):
-		return dynamicMatch(fields, "providers", configvalue.KindString)
+		return dynamicMatch(fields, "clis", configvalue.KindString)
 
 	case len(parts) == 2 && parts[0] == "stage_hooks" && contains(agent.StageNames(), parts[1]):
 		return dynamicMatch(fields, "stage_hooks", configvalue.KindMapping)
@@ -1381,11 +1388,11 @@ func validDottedKey(key string) bool {
 		if part == "" {
 			return false
 		}
-		// Provider names are user-defined map keys, not schema identifiers. Keep
-		// the surrounding providers/profiles/role/leaf axes strict while accepting
+		// CLI names are user-defined map keys, not schema identifiers. Keep
+		// the surrounding CLIs/profiles/role/leaf axes strict while accepting
 		// any canonical unquoted segment on this one dynamic axis.
-		if len(parts) >= 2 && parts[0] == "providers" && index == 1 {
-			if !validProviderName(part) {
+		if len(parts) >= 2 && parts[0] == "clis" && index == 1 {
+			if !validCLIName(part) {
 				return false
 			}
 			continue
@@ -1402,14 +1409,14 @@ func validDottedKey(key string) bool {
 	return true
 }
 
-func validProviderName(name string) bool {
-	return invalidProviderName(name) == ""
+func validCLIName(name string) bool {
+	return invalidCLIName(name) == ""
 }
 
-// invalidProviderName keeps the dotted CLI grammar unambiguous. Provider names
+// invalidCLIName keeps the dotted CLI grammar unambiguous. CLI names
 // remain opaque (digits, bool-like words, a leading hyphen, and Unicode are all
 // accepted); the mutation writer quotes their on-disk YAML key when needed.
-func invalidProviderName(name string) string {
+func invalidCLIName(name string) string {
 	if name == "" {
 		return "the name is empty"
 	}

@@ -34,6 +34,7 @@ func setupConfigRepo(t *testing.T, projectYAML string) (repo, home string) {
 	for _, key := range configscope.DottedKeys() {
 		env["FAB_"+strings.ToUpper(strings.ReplaceAll(key, ".", "_"))] = ""
 	}
+	env["FAB_PROVIDERS"] = "" // deprecated alias of FAB_CLIS
 	chdirTestEnv(t, repo, env)
 	return repo, home
 }
@@ -65,12 +66,12 @@ func runConfig(t *testing.T, args ...string) (string, error) {
 // and exits 0.
 func TestConfigShow_PrintsEffectiveConfig(t *testing.T) {
 	_, home := setupConfigRepo(t, `
-providers:
+clis:
   claude:
     interactive_command: project-session
 `)
 	writeSystemConfig(t, home, `
-providers:
+clis:
   codex:
     headless_command: codex exec
 `)
@@ -78,7 +79,7 @@ providers:
 	if err != nil {
 		t.Fatalf("config show: %v", err)
 	}
-	// project value present, system-only provider merged in.
+	// project value present, system-only CLI merged in.
 	if !strings.Contains(out, "project-session") {
 		t.Errorf("show output missing project value:\n%s", out)
 	}
@@ -130,14 +131,14 @@ func TestConfigShow_ComposesDerivedDefaultsAgainstLiveKnobs(t *testing.T) {
 	if !ok {
 		t.Fatalf("config show output missing the derived doing profile:\n%s", out)
 	}
-	if got := doing["provider"]; got != "codex" {
-		t.Fatalf("agent.profiles.doing.provider = %#v, want knob-composed default %q\n%s", got, "codex", out)
+	if got := doing["cli"]; got != "codex" {
+		t.Fatalf("agent.profiles.doing.cli = %#v, want knob-composed default %q\n%s", got, "codex", out)
 	}
 }
 
 // TestConfigShow_RejectsTooManyArgs: show accepts one key but rejects two.
 func TestConfigShow_RejectsExtraArgs(t *testing.T) {
-	setupConfigRepo(t, "providers:\n  claude:\n    interactive_command: x\n")
+	setupConfigRepo(t, "clis:\n  claude:\n    interactive_command: x\n")
 	if _, err := runConfig(t, "show", "agent.workers", "extra"); err == nil {
 		t.Error("`config show` should reject more than one key")
 	}
@@ -168,7 +169,7 @@ func TestConfigShow_KeyedValueOriginAndUnknown(t *testing.T) {
 	if out != want {
 		t.Fatalf("keyed origin output = %q,\nwant %q", out, want)
 	}
-	for _, key := range []string{"agent.workerz", "providers.#local.interactive_command"} {
+	for _, key := range []string{"agent.workerz", "clis.#local.interactive_command"} {
 		if _, err := runConfig(t, "show", key); err == nil || !strings.Contains(err.Error(), key) {
 			t.Fatalf("unknown/structurally invalid keyed show %q should name the key, got %v", key, err)
 		}
@@ -334,11 +335,11 @@ func TestConfigUnset_LiteralDottedKeyDoesNotMatchNestedPath(t *testing.T) {
 	}
 }
 
-func TestConfigSet_OpaqueProviderNamesAreEffective(t *testing.T) {
+func TestConfigSet_OpaqueCLINamesAreEffective(t *testing.T) {
 	for _, name := range []string{"123", "true", "on", "-local", "测试"} {
 		t.Run(name, func(t *testing.T) {
 			setupConfigRepo(t, "")
-			key := "providers." + name + ".interactive_command"
+			key := "clis." + name + ".interactive_command"
 			if _, err := runConfig(t, "set", key, "tool"); err != nil {
 				t.Fatalf("config set %q: %v", key, err)
 			}
@@ -360,7 +361,7 @@ func TestConfigSetUnset_ValidationAndSystemScope(t *testing.T) {
 		want string
 	}{
 		{[]string{"set", "agent.workerz", "codex"}, "agent.workerz"},
-		{[]string{"set", "providers.#local.interactive_command", "tool"}, "dotted config-key grammar"},
+		{[]string{"set", "clis.#local.interactive_command", "tool"}, "dotted config-key grammar"},
 		{[]string{"set", "agent.workers", "{bad: kind}"}, "single-line YAML scalar"},
 		{[]string{"set", "agent.workers", "codex # note"}, "must not contain a YAML comment"},
 		{[]string{"set", "source_paths", "[src/]"}, "scalar leaf"},
@@ -537,8 +538,8 @@ func TestConfigSet_ShadowWarning(t *testing.T) {
 }
 
 // TestConfigShowOrigin_DrillDownIsKnobAware: the composed agent.profiles rows are
-// derived from the depth knob and the provider's fills, so they must report the
-// provider the knob actually selects — not the nil-config `claude` the registry
+// derived from the depth knob and the CLI's fills, so they must report the
+// CLI the knob actually selects — not the nil-config `claude` the registry
 // default carries.
 func TestConfigShowOrigin_DrillDownIsKnobAware(t *testing.T) {
 	setupConfigRepo(t, "agent:\n    workers: codex\n")
@@ -548,8 +549,8 @@ func TestConfigShowOrigin_DrillDownIsKnobAware(t *testing.T) {
 		t.Fatalf("config show --origin: %v", err)
 	}
 	for _, want := range []string{
-		"agent.profiles.doing.provider = codex",     // Tier-2 role: governed by agent.workers
-		"agent.profiles.operator.provider = claude", // Tier-1 role: agent.session is unset
+		"agent.profiles.doing.cli = codex",     // Tier-2 role: governed by agent.workers
+		"agent.profiles.operator.cli = claude", // Tier-1 role: agent.session is unset
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing knob-aware drill-down row %q:\n%s", want, out)
@@ -557,17 +558,17 @@ func TestConfigShowOrigin_DrillDownIsKnobAware(t *testing.T) {
 	}
 }
 
-// TestConfigShow_RoleProviderOverrideComposesThatProvidersFills: the chimera
-// regression, end to end. A per-role provider override (system config
-// `agent.profiles.operator.provider: codex`) used to compose with claude's
+// TestConfigShow_RoleCLIOverrideComposesThatCLIsFills: the chimera
+// regression, end to end. A per-role CLI override (system config
+// `agent.profiles.operator.cli: codex`) used to compose with claude's
 // operator fill on the model/effort leaves — a row no resolution path produces
 // and one that disagrees with `fab agent operator -o yaml`. The derived fills
-// must come from the overridden provider, while keyed --origin keeps the
-// provider leaf's provenance split: the override (effective) over the
+// must come from the overridden CLI, while keyed --origin keeps the
+// CLI leaf's provenance split: the override (effective) over the
 // knob-derived built-in (shadowed).
-func TestConfigShow_RoleProviderOverrideComposesThatProvidersFills(t *testing.T) {
+func TestConfigShow_RoleCLIOverrideComposesThatCLIsFills(t *testing.T) {
 	_, home := setupConfigRepo(t, "")
-	writeSystemConfig(t, home, "agent:\n    profiles:\n        operator:\n            provider: codex\n")
+	writeSystemConfig(t, home, "agent:\n    profiles:\n        operator:\n            cli: codex\n")
 
 	// Derive codex's operator fill rather than restating model strings (a model
 	// bump must not have to touch this test).
@@ -602,26 +603,26 @@ func TestConfigShow_RoleProviderOverrideComposesThatProvidersFills(t *testing.T)
 	if !ok {
 		t.Fatalf("config show output missing the composed operator profile:\n%s", out)
 	}
-	if got := operator["provider"]; got != "codex" {
-		t.Errorf("agent.profiles.operator.provider = %#v, want the override codex\n%s", got, out)
+	if got := operator["cli"]; got != "codex" {
+		t.Errorf("agent.profiles.operator.cli = %#v, want the override codex\n%s", got, out)
 	}
 	if got := operator["model"]; got != wantModel {
-		t.Errorf("agent.profiles.operator.model = %#v, want the overridden provider's fill %q (the chimera regression)\n%s", got, wantModel, out)
+		t.Errorf("agent.profiles.operator.model = %#v, want the overridden CLI's fill %q (the chimera regression)\n%s", got, wantModel, out)
 	}
 	if got := operator["effort"]; got != wantEffort {
-		t.Errorf("agent.profiles.operator.effort = %#v, want the overridden provider's fill %q\n%s", got, wantEffort, out)
+		t.Errorf("agent.profiles.operator.effort = %#v, want the overridden CLI's fill %q\n%s", got, wantEffort, out)
 	}
 
-	providerStack, err := runConfig(t, "show", "agent.profiles.operator.provider", "--origin")
+	cliStack, err := runConfig(t, "show", "agent.profiles.operator.cli", "--origin")
 	if err != nil {
-		t.Fatalf("keyed show --origin (provider): %v", err)
+		t.Fatalf("keyed show --origin (CLI): %v", err)
 	}
 	for _, want := range []string{
-		"agent.profiles.operator.provider = codex",  // the system override wins…
-		"agent.profiles.operator.provider = claude", // …shadowing the knob-derived built-in
+		"agent.profiles.operator.cli = codex",  // the system override wins…
+		"agent.profiles.operator.cli = claude", // …shadowing the knob-derived built-in
 	} {
-		if !strings.Contains(providerStack, want) {
-			t.Errorf("provider stack missing %q:\n%s", want, providerStack)
+		if !strings.Contains(cliStack, want) {
+			t.Errorf("CLI stack missing %q:\n%s", want, cliStack)
 		}
 	}
 
@@ -642,16 +643,16 @@ func TestConfigShow_RoleProviderOverrideComposesThatProvidersFills(t *testing.T)
 // below it, and the listing reported a key no tier defines while the merge was
 // resolving the project's value.
 func TestConfigShowOrigin_AllEmptyMapDoesNotClaimTheNode(t *testing.T) {
-	repo, home := setupConfigRepo(t, "providers: replaced-wholesale\n")
-	writeSystemConfig(t, home, "providers:\n    claude:\n        interactive_command: null\n")
+	repo, home := setupConfigRepo(t, "clis: replaced-wholesale\n")
+	writeSystemConfig(t, home, "clis:\n    claude:\n        interactive_command: null\n")
 
-	out, err := runConfig(t, "show", "providers", "--origin")
+	out, err := runConfig(t, "show", "clis", "--origin")
 	if err != nil {
 		t.Fatalf("keyed show --origin: %v", err)
 	}
 	projectPath := filepath.Join(repo, "fab", "project", "config.yaml")
 	first := strings.SplitN(out, "\n", 2)[0]
-	if !strings.HasPrefix(first, "providers = replaced-wholesale ") ||
+	if !strings.HasPrefix(first, "clis = replaced-wholesale ") ||
 		!strings.HasSuffix(first, "# project "+projectPath+"  (effective)") {
 		t.Errorf("first line = %q, want the project scalar as the effective tier", first)
 	}
@@ -761,7 +762,7 @@ func TestConfigSetUnset_ExactArgs(t *testing.T) {
 // system-only field, and `default` for an unset field with a built-in default.
 func TestConfigShowOrigin_Provenance(t *testing.T) {
 	repo, home := setupConfigRepo(t, `
-providers:
+clis:
   claude:
     interactive_command: project-session
 `)
@@ -795,13 +796,13 @@ agent:
 	}
 
 	// A project-set field shows the project path.
-	assertOriginLine("providers.claude.interactive_command = project-session", projectPath)
+	assertOriginLine("clis.claude.interactive_command = project-session", projectPath)
 	// A system-only field shows the system path (per-key map drill-down).
 	assertOriginLine("agent.profiles.newbie.model = sys-model", systemPath)
 	// An unset field with a built-in default shows `default`. The doing role's
-	// model is such a field, and since 260806-j9nh it lives on the PROVIDER
-	// (providers.claude.profiles.doing) rather than the agent side.
-	assertOriginLine("providers.claude.profiles.doing.model =", "default")
+	// model is such a field, and since 260806-j9nh it lives on the CLI
+	// (clis.claude.profiles.doing) rather than the agent side.
+	assertOriginLine("clis.claude.profiles.doing.model =", "default")
 	// The depth knobs are built-in defaults too. BOTH must appear: `agent` carries
 	// three default-bearing registry rows (session, workers, profiles), so this
 	// pins that the default subtree MERGES every matching row rather than stopping
@@ -814,7 +815,7 @@ agent:
 // does not land, so the field the user MEANT to set shows origin `default` — the
 // git-config-show-origin value the intake calls out. The misspelled key is
 // simply an unknown key (ignored), so the doing role's model stays at its
-// built-in default (which since 260806-j9nh lives on the claude provider).
+// built-in default (which since 260806-j9nh lives on the claude CLI).
 func TestConfigShowOrigin_TypoSurfacesAsDefault(t *testing.T) {
 	_, home := setupConfigRepo(t, `
 agent:
@@ -830,7 +831,7 @@ agent:
 	// The intended field is untouched — it shows the built-in default, alerting
 	// the user their override did not take.
 	for _, line := range strings.Split(out, "\n") {
-		if strings.Contains(line, "providers.claude.profiles.doing.model =") {
+		if strings.Contains(line, "clis.claude.profiles.doing.model =") {
 			if !strings.Contains(line, "# default") {
 				t.Errorf("typo'd override should leave the doing role's model at default, got: %q", line)
 			}
@@ -844,33 +845,33 @@ agent:
 // TestConfigShowOrigin_HigherLayerScalarReplacesSubtree: when a higher-precedence
 // layer replaces a map with a scalar, --origin must honor config.MergeLayers precedence and
 // render the node as a single leaf at that layer's origin — NOT recurse into the
-// lower layers' map keys. Here the project sets `providers: oops` (a scalar) while
-// the built-in default provides a `providers` MAP; the effective value is the
-// project scalar, so --origin must show `providers = oops # <project>` and emit no
-// `providers.claude.*` leaves attributed to default. Regression for the flattenOrigin
+// lower layers' map keys. Here the project sets `clis: oops` (a scalar) while
+// the built-in default provides a `clis` MAP; the effective value is the
+// project scalar, so --origin must show `clis = oops # <project>` and emit no
+// `clis.claude.*` leaves attributed to default. Regression for the flattenOrigin
 // map-vs-scalar precedence bug.
 func TestConfigShowOrigin_HigherLayerScalarReplacesSubtree(t *testing.T) {
-	repo, _ := setupConfigRepo(t, "providers: oops\n")
+	repo, _ := setupConfigRepo(t, "clis: oops\n")
 	out, err := runConfig(t, "show", "--origin")
 	if err != nil {
 		t.Fatalf("config show --origin: %v", err)
 	}
 	projectPath := filepath.Join(repo, "fab", "project", "config.yaml")
 
-	sawProvidersLeaf := false
+	sawClisLeaf := false
 	for _, line := range strings.Split(out, "\n") {
-		if strings.Contains(line, "providers.") {
+		if strings.Contains(line, "clis.") {
 			t.Errorf("scalar project override must not recurse into default map keys, got: %q\nfull:\n%s", line, out)
 		}
-		if strings.Contains(line, "providers = oops") {
-			sawProvidersLeaf = true
+		if strings.Contains(line, "clis = oops") {
+			sawClisLeaf = true
 			if !strings.Contains(line, "# "+projectPath) {
-				t.Errorf("providers leaf should show the project origin, got: %q", line)
+				t.Errorf("clis leaf should show the project origin, got: %q", line)
 			}
 		}
 	}
-	if !sawProvidersLeaf {
-		t.Errorf("expected a single `providers = oops` leaf at the project origin:\n%s", out)
+	if !sawClisLeaf {
+		t.Errorf("expected a single `clis = oops` leaf at the project origin:\n%s", out)
 	}
 }
 
@@ -916,14 +917,14 @@ agent:
 
 func TestConfigShowOrigin_EnvironmentMapUsesRowVariable(t *testing.T) {
 	setupConfigRepo(t, "agent:\n  profiles:\n    review: {model: project-model}\n")
-	t.Setenv("FAB_AGENT_PROFILES", "{review: {provider: codex, effort: high}}")
+	t.Setenv("FAB_AGENT_PROFILES", "{review: {cli: codex, effort: high}}")
 
 	out, err := runConfig(t, "show", "--origin")
 	if err != nil {
 		t.Fatalf("config show --origin: %v", err)
 	}
 	for _, leaf := range []string{
-		"agent.profiles.review.provider = codex",
+		"agent.profiles.review.cli = codex",
 		"agent.profiles.review.effort = high",
 	} {
 		found := false
@@ -1024,9 +1025,9 @@ func TestConfigShowKey_EmptyValuesFallThrough(t *testing.T) {
 
 	t.Run("empty environment mapping", func(t *testing.T) {
 		setupConfigRepo(t, "")
-		t.Setenv("FAB_PROVIDERS", "{custom: {}}")
+		t.Setenv("FAB_CLIS", "{custom: {}}")
 
-		plain, err := runConfig(t, "show", "providers.custom")
+		plain, err := runConfig(t, "show", "clis.custom")
 		if err != nil {
 			t.Fatalf("config show empty mapping: %v", err)
 		}
@@ -1040,9 +1041,9 @@ func TestConfigShowKey_EmptyValuesFallThrough(t *testing.T) {
 // map ancestor with a scalar nulls the descendant, and the keyed listing reports
 // the REPLACING tier — the provenance a user needs to understand the null.
 func TestConfigShowKey_UsesNearestReplacedAncestorOrigin(t *testing.T) {
-	repo, _ := setupConfigRepo(t, "providers: oops\n")
+	repo, _ := setupConfigRepo(t, "clis: oops\n")
 
-	plain, err := runConfig(t, "show", "providers.claude.interactive_command")
+	plain, err := runConfig(t, "show", "clis.claude.interactive_command")
 	if err != nil {
 		t.Fatalf("config show descendant: %v", err)
 	}
@@ -1050,11 +1051,11 @@ func TestConfigShowKey_UsesNearestReplacedAncestorOrigin(t *testing.T) {
 		t.Fatalf("ancestor replacement did not null the descendant: %q", plain)
 	}
 
-	origin, err := runConfig(t, "show", "providers.claude.interactive_command", "--origin")
+	origin, err := runConfig(t, "show", "clis.claude.interactive_command", "--origin")
 	if err != nil {
 		t.Fatalf("config show descendant --origin: %v", err)
 	}
-	want := "providers.claude.interactive_command = null  # project " + filepath.Join(repo, "fab", "project", "config.yaml") + "  (effective)\n"
+	want := "clis.claude.interactive_command = null  # project " + filepath.Join(repo, "fab", "project", "config.yaml") + "  (effective)\n"
 	if origin != want {
 		t.Fatalf("descendant lost the nearest replaced ancestor's provenance: got %q, want %q", origin, want)
 	}
@@ -1064,7 +1065,7 @@ func TestConfigShowKey_UsesNearestReplacedAncestorOrigin(t *testing.T) {
 // --system` writes the ~/.fab-kit/config.yaml scaffold (only system/both fields,
 // all commented → parses as inert), and a second run refuses to overwrite.
 func TestConfigInitSystem_WritesScaffoldAndRefusesOverwrite(t *testing.T) {
-	_, home := setupConfigRepo(t, "providers:\n  claude:\n    interactive_command: x\n")
+	_, home := setupConfigRepo(t, "clis:\n  claude:\n    interactive_command: x\n")
 
 	out, err := runConfig(t, "init", "--system")
 	if err != nil {
@@ -1080,9 +1081,9 @@ func TestConfigInitSystem_WritesScaffoldAndRefusesOverwrite(t *testing.T) {
 	}
 	scaffold := string(data)
 
-	// The scaffold documents ONLY the system/both fields (agent.profiles, providers)
+	// The scaffold documents ONLY the system/both fields (agent.profiles, CLIs)
 	// and none of the project-scoped fields.
-	for _, want := range []string{"providers", "agent.profiles"} {
+	for _, want := range []string{"clis", "agent.profiles"} {
 		if !strings.Contains(scaffold, want) {
 			t.Errorf("scaffold must document the system-overridable field %q", want)
 		}
@@ -1094,7 +1095,7 @@ func TestConfigInitSystem_WritesScaffoldAndRefusesOverwrite(t *testing.T) {
 	}
 
 	// The scaffold is fully commented → parses as an inert (empty) config: no live
-	// providers, no live role profiles.
+	// CLIs, no live role profiles.
 	tmp := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		t.Fatal(err)
@@ -1103,8 +1104,8 @@ func TestConfigInitSystem_WritesScaffoldAndRefusesOverwrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scaffold must parse cleanly (all-commented YAML): %v", err)
 	}
-	if _, ok := cfg.GetProvider("claude"); ok {
-		t.Error("scaffold must be fully commented — no live providers should parse")
+	if _, ok := cfg.GetCLI("claude"); ok {
+		t.Error("scaffold must be fully commented — no live CLIs should parse")
 	}
 	if _, ok := cfg.GetAgentProfile("doing"); ok {
 		t.Error("scaffold must be fully commented — no live agent.profiles should parse")

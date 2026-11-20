@@ -1,0 +1,58 @@
+id: f2ly
+name: 261120-f2ly-rename-provider-to-cli
+created: 2026-11-20T06:46:20Z
+created_by: sahil-noon
+change_type: refactor
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 21
+    acceptance_count: 31
+    acceptance_completed: 31
+confidence:
+    certain: 10
+    confident: 9
+    tentative: 0
+    unresolved: 0
+    score: 3.8
+    fuzzy: true
+    dimensions:
+        signal: 76.8
+        reversibility: 78.2
+        competence: 82.4
+        disambiguation: 78.2
+stage_metrics:
+    intake: {started_at: "2026-11-20T06:46:20Z", driver: fab-new, iterations: 1, completed_at: "2026-11-20T06:51:14Z"}
+    apply: {started_at: "2026-11-20T07:34:40Z", driver: fab-fff, iterations: 3, completed_at: "2026-11-20T07:36:39Z"}
+    review: {started_at: "2026-11-20T07:36:39Z", driver: fab-fff, iterations: 3, completed_at: "2026-11-20T07:40:14Z"}
+    hydrate: {started_at: "2026-11-20T07:40:14Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-20T07:47:39Z"}
+    ship: {started_at: "2026-11-20T07:47:39Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-20T07:48:58Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/710
+change_type_source: explicit
+base_branch: main
+true_impact:
+    added: 5727
+    deleted: 3054
+    net: 2673
+    excluding:
+        added: 4219
+        deleted: 2344
+        net: 1875
+    tests:
+        added: 2402
+        deleted: 1324
+        net: 1078
+    computed_at: "2026-11-20T07:48:59Z"
+    computed_at_stage: ship
+summary: 'Rename provider → CLI in memory: clis-and-profiles (renamed), clis:/FAB_CLIS/--cli/cli: vocabulary, one-minor deprecation window and compatibility seams, 2.30.1-to-2.31.0 migration'
+# base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-11-20T07:48:59Z

@@ -8,17 +8,17 @@ import (
 )
 
 // defaultRoleSpawnCommand composes the worker session command for `fab batch
-// new`/`switch`: the default role's provider interactive_command (falling back
+// new`/`switch`: the default role's CLI interactive_command (falling back
 // to spawn.DefaultSpawnCommand when absent)
 // with the default role's {model}/{effort} SUBSTITUTED via internal/spawn. Workers
 // spawn WITH a profile (the former placeholder-stripping print path is gone).
 // Substitution resolves every placeholder, so no literal {model}/{effort} braces
 // reach tmux.
 //
-// `default` is a Tier-1 (session) role, so which provider it lands on is the
+// `default` is a Tier-1 (session) role, so which CLI it lands on is the
 // agent.session knob's call — a batch worker is an agent the user talks to.
-// The returned provider identifies the command actually launched, including fallback.
-func defaultRoleSpawnCommand(configPath string) (command, provider string) {
+// The returned CLI identifies the command actually launched, including fallback.
+func defaultRoleSpawnCommand(configPath string) (command, cli string) {
 	cfg, err := config.LoadPath(configPath)
 	if err != nil {
 		cfg = nil // nil-safe accessors below deliver the built-in fallbacks
@@ -31,12 +31,12 @@ func defaultRoleSpawnCommand(configPath string) (command, provider string) {
 		profile, _ = agent.DefaultProfile(agent.RoleDefault)
 	}
 
-	provider = profile.Provider
+	cli = profile.CLI
 	if command == "" {
 		command = spawn.WithProfile(spawn.DefaultSpawnCommand, profile.Model, profile.Effort)
-		provider = "claude"
+		cli = "claude"
 	}
-	return command, provider
+	return command, cli
 }
 
 func batchCmd() *cobra.Command {

@@ -15,8 +15,8 @@ import (
 // (260806-2j2i), so a typo in them is no longer a compile error. This file is the
 // replacement safety net: it re-parses the embedded bytes INDEPENDENTLY of the
 // package's own initialization and asserts both the file's shape (every knob,
-// provider, per-role fill, and the dispatch block present and populated, nothing
-// outside the surface it is meant to define) and the wiring (defaultProviders,
+// CLI, per-role fill, and the dispatch block present and populated, nothing
+// outside the surface it is meant to define) and the wiring (defaultCLIs,
 // the exported command vars, and the config.DefaultDispatch* push read the keys
 // they claim to).
 //
@@ -39,8 +39,8 @@ func parseDefaultsFile(t *testing.T) config.Config {
 
 // TestDefaultsFileIsWellFormed: the embedded file parses, both depth knobs are set,
 // and claude's per-role fill map covers exactly the six known roles with every
-// field populated. (260806-j9nh: the role models live on the PROVIDER now, so the
-// file defines no agent.profiles block at all — the knobs plus the provider fills
+// field populated. (260806-j9nh: the role models live on the CLI now, so the
+// file defines no agent.profiles block at all — the knobs plus the CLI fills
 // are the whole built-in surface.)
 func TestDefaultsFileIsWellFormed(t *testing.T) {
 	cfg := parseDefaultsFile(t)
@@ -49,12 +49,12 @@ func TestDefaultsFileIsWellFormed(t *testing.T) {
 		t.Errorf("defaults.yaml must set both depth knobs, got session=%q workers=%q", cfg.Agent.Session, cfg.Agent.Workers)
 	}
 	if len(cfg.Agent.Profiles) != 0 || len(cfg.Agent.Tiers) != 0 {
-		t.Errorf("defaults.yaml must define no agent.profiles/agent.tiers block — the built-in role models live on providers.<name>.profiles; got %v / %v", cfg.Agent.Profiles, cfg.Agent.Tiers)
+		t.Errorf("defaults.yaml must define no agent.profiles/agent.tiers block — the built-in role models live on clis.<name>.profiles; got %v / %v", cfg.Agent.Profiles, cfg.Agent.Tiers)
 	}
 
 	wantRoles := []string{RoleDefault, RoleOperator, RoleDoing, RoleReview, RoleHydrate, RoleFast}
-	claude := cfg.Providers[cfg.Agent.Session]
-	assertSameKeys(t, "providers."+cfg.Agent.Session+".profiles", roleKeys(claude.Profiles), wantRoles)
+	claude := cfg.CLIs[cfg.Agent.Session]
+	assertSameKeys(t, "clis."+cfg.Agent.Session+".profiles", roleKeys(claude.Profiles), wantRoles)
 
 	for _, role := range wantRoles {
 		fill, ok := claude.Profiles[role]
@@ -62,15 +62,15 @@ func TestDefaultsFileIsWellFormed(t *testing.T) {
 			continue // already reported by assertSameKeys
 		}
 		if fill.Model == "" {
-			t.Errorf("defaults.yaml providers.claude.profiles.%s has no model — an empty model is the inherit-the-session-model signal, never a built-in default", role)
+			t.Errorf("defaults.yaml clis.claude.profiles.%s has no model — an empty model is the inherit-the-session-model signal, never a built-in default", role)
 		}
 		if fill.Effort == "" {
-			t.Errorf("defaults.yaml providers.claude.profiles.%s has no effort", role)
+			t.Errorf("defaults.yaml clis.claude.profiles.%s has no effort", role)
 		}
 	}
 }
 
-// TestDefaultsFileProviders: the providers block covers exactly the four
+// TestDefaultsFileCLIs: the CLIs block covers exactly the four
 // built-ins, with the command fields each one is defined by. claude, codex and agy
 // carry per-role fills (260806-ywkx — a knob pointed at one must resolve a real
 // model per role, not an empty one), every fill key names a known role, and no
@@ -80,29 +80,29 @@ func TestDefaultsFileIsWellFormed(t *testing.T) {
 // than merely exempted: its -m takes a USER-CONFIG model alias, not a catalog ID,
 // so shipping any fill would break non-managed installs. Empty is the correct
 // built-in there, and the empty-{model} token-drop is what makes it work.
-func TestDefaultsFileProviders(t *testing.T) {
+func TestDefaultsFileCLIs(t *testing.T) {
 	cfg := parseDefaultsFile(t)
 
-	wantProviders := []string{DefaultProviderName, providerCodex, providerAgy, providerKimi}
-	assertSameKeys(t, "providers", providerKeys(cfg.Providers), wantProviders)
+	wantCLIs := []string{DefaultCLIName, cliCodex, cliAgy, cliKimi}
+	assertSameKeys(t, "clis", cliKeys(cfg.CLIs), wantCLIs)
 
-	for _, name := range wantProviders {
-		prov, ok := cfg.Providers[name]
+	for _, name := range wantCLIs {
+		prov, ok := cfg.CLIs[name]
 		if !ok {
 			continue // already reported by assertSameKeys
 		}
 		if prov.Model != "" || prov.Effort != "" {
-			t.Errorf("defaults.yaml providers.%s uses the DEPRECATED flat fill (%q/%q) — built-in fills belong under profiles.<role>", name, prov.Model, prov.Effort)
+			t.Errorf("defaults.yaml clis.%s uses the DEPRECATED flat fill (%q/%q) — built-in fills belong under profiles.<role>", name, prov.Model, prov.Effort)
 		}
-		// A provider's `default` entry is its cross-role fallback, so a sparse map
+		// A CLI's `default` entry is its cross-role fallback, so a sparse map
 		// is only well-defined when that entry exists and names a model. kimi ships
 		// no map at all, which is asserted separately below.
-		if name != providerKimi && prov.Profiles[RoleDefault].Model == "" {
-			t.Errorf("defaults.yaml providers.%s has no profiles.default.model — a filled built-in must resolve a model for every role, and `default` is the cross-role fallback", name)
+		if name != cliKimi && prov.Profiles[RoleDefault].Model == "" {
+			t.Errorf("defaults.yaml clis.%s has no profiles.default.model — a filled built-in must resolve a model for every role, and `default` is the cross-role fallback", name)
 		}
 		for role := range prov.Profiles {
 			if !IsRoleName(role) {
-				t.Errorf("defaults.yaml providers.%s.profiles.%s is not a known role (valid: %s)", name, role, strings.Join(RoleNames(), ", "))
+				t.Errorf("defaults.yaml clis.%s.profiles.%s is not a known role (valid: %s)", name, role, strings.Join(RoleNames(), ", "))
 			}
 		}
 	}
@@ -112,72 +112,72 @@ func TestDefaultsFileProviders(t *testing.T) {
 	// per-field merge. An effort-only codex row is the shape this rejects. agy is
 	// exempt (its model-only sparse map is its documented shape) and kimi is
 	// asserted empty below.
-	codex := cfg.Providers[providerCodex]
-	assertSameKeys(t, "providers."+providerCodex+".profiles", roleKeys(codex.Profiles), RoleNames())
+	codex := cfg.CLIs[cliCodex]
+	assertSameKeys(t, "clis."+cliCodex+".profiles", roleKeys(codex.Profiles), RoleNames())
 	for _, role := range RoleNames() {
 		fill, ok := codex.Profiles[role]
 		if !ok {
 			continue // already reported by assertSameKeys
 		}
 		if fill.Model == "" {
-			t.Errorf("defaults.yaml providers.codex.profiles.%s has no model — codex fills are dense by policy: every role pins its own catalog slug", role)
+			t.Errorf("defaults.yaml clis.codex.profiles.%s has no model — codex fills are dense by policy: every role pins its own catalog slug", role)
 		}
 		if fill.Effort == "" {
-			t.Errorf("defaults.yaml providers.codex.profiles.%s has no effort", role)
+			t.Errorf("defaults.yaml clis.codex.profiles.%s has no effort", role)
 		}
 		if fill.Effort == "ultra" {
-			t.Errorf("defaults.yaml providers.codex.profiles.%s ships effort=ultra — automatic task delegation breaks the single-worker dispatch contract", role)
+			t.Errorf("defaults.yaml clis.codex.profiles.%s ships effort=ultra — automatic task delegation breaks the single-worker dispatch contract", role)
 		}
 	}
 
 	// kimi ships NO fills — the deliberate no-fills built-in. Asserting the absence
 	// (rather than skipping kimi) is what keeps a well-meaning pinned `k3` row from
-	// landing unreviewed and breaking every custom-provider install.
-	if got := cfg.Providers[providerKimi].Profiles; len(got) != 0 {
-		t.Errorf("defaults.yaml providers.kimi.profiles = %v, want none — kimi's -m takes a USER-CONFIG model alias, so any pinned fill breaks non-managed installs", got)
+	// landing unreviewed and breaking every custom-cli install.
+	if got := cfg.CLIs[cliKimi].Profiles; len(got) != 0 {
+		t.Errorf("defaults.yaml clis.kimi.profiles = %v, want none — kimi's -m takes a USER-CONFIG model alias, so any pinned fill breaks non-managed installs", got)
 	}
 
 	// agy's fills carry NO effort: its model IDs EMBED the reasoning level
 	// (gemini-3.1-pro-high), which is the same reason its command grammars carry no
 	// {effort} placeholder — a separate effort flag would fight the suffix.
-	for role, fill := range cfg.Providers[providerAgy].Profiles {
+	for role, fill := range cfg.CLIs[cliAgy].Profiles {
 		if fill.Effort != "" {
-			t.Errorf("defaults.yaml providers.agy.profiles.%s sets effort=%q — agy's model IDs embed the reasoning level instead", role, fill.Effort)
+			t.Errorf("defaults.yaml clis.agy.profiles.%s sets effort=%q — agy's model IDs embed the reasoning level instead", role, fill.Effort)
 		}
 	}
 
 	// Capabilities are explicit data: claude supports native plus both command
 	// forms; codex/agy/kimi support command forms but not native dispatch.
-	claude := cfg.Providers[DefaultProviderName]
+	claude := cfg.CLIs[DefaultCLIName]
 	if !claude.Native {
-		t.Errorf("defaults.yaml providers.%s.native = false, want true", DefaultProviderName)
+		t.Errorf("defaults.yaml clis.%s.native = false, want true", DefaultCLIName)
 	}
 	if claude.HeadlessCommand == "" {
-		t.Errorf("defaults.yaml providers.%s has no headless_command", DefaultProviderName)
+		t.Errorf("defaults.yaml clis.%s has no headless_command", DefaultCLIName)
 	}
-	for _, name := range []string{providerCodex, providerAgy, providerKimi} {
-		if cfg.Providers[name].HeadlessCommand == "" {
-			t.Errorf("defaults.yaml providers.%s has no headless_command", name)
+	for _, name := range []string{cliCodex, cliAgy, cliKimi} {
+		if cfg.CLIs[name].HeadlessCommand == "" {
+			t.Errorf("defaults.yaml clis.%s has no headless_command", name)
 		}
-		if cfg.Providers[name].Native {
-			t.Errorf("defaults.yaml providers.%s.native = true, want false", name)
+		if cfg.CLIs[name].Native {
+			t.Errorf("defaults.yaml clis.%s.native = true, want false", name)
 		}
 	}
 
 	// Every built-in ships pane launch grammar. First-run walls are handled by the
 	// generic readiness gate; missing interactive_command remains valid only for a
-	// user-defined provider that intentionally wants automatic pane descent.
-	for _, name := range wantProviders {
-		if cfg.Providers[name].InteractiveCommand == "" {
-			t.Errorf("defaults.yaml providers.%s has no interactive_command", name)
+	// user-defined CLI that intentionally wants automatic pane descent.
+	for _, name := range wantCLIs {
+		if cfg.CLIs[name].InteractiveCommand == "" {
+			t.Errorf("defaults.yaml clis.%s has no interactive_command", name)
 		}
 	}
 
 	// agy's is pinned by VALUE, like kimi's: both commands were admitted to the pane
 	// rung with deliberate full-auto grammar, so an edit must not reach every pane
 	// worker as an unreviewed invocation.
-	if got, want := cfg.Providers[providerAgy].InteractiveCommand, "agy --dangerously-skip-permissions --model {model}"; got != want {
-		t.Errorf("defaults.yaml providers.agy.interactive_command = %q, want %q (the shipped pane invocation)", got, want)
+	if got, want := cfg.CLIs[cliAgy].InteractiveCommand, "agy --dangerously-skip-permissions --model {model}"; got != want {
+		t.Errorf("defaults.yaml clis.agy.interactive_command = %q, want %q (the shipped pane invocation)", got, want)
 	}
 
 	// kimi's is pinned by VALUE, not merely by presence: it was probed live
@@ -185,17 +185,17 @@ func TestDefaultsFileProviders(t *testing.T) {
 	// headless form rejects, plus the droppable model pair. A well-meaning edit to
 	// `--yolo`, or to a form carrying a pinned model, would ship an unprobed
 	// invocation to every pane worker.
-	if got, want := cfg.Providers[providerKimi].InteractiveCommand, "kimi --auto -m {model}"; got != want {
-		t.Errorf("defaults.yaml providers.kimi.interactive_command = %q, want %q (the probed invocation)", got, want)
+	if got, want := cfg.CLIs[cliKimi].InteractiveCommand, "kimi --auto -m {model}"; got != want {
+		t.Errorf("defaults.yaml clis.kimi.interactive_command = %q, want %q (the probed invocation)", got, want)
 	}
 
 	// agy's and kimi's no-{effort} / nested-shell grammar is asserted once, over
-	// these same embedded bytes, by TestResolveProvider_NonClaudeBuiltIns.
+	// these same embedded bytes, by TestResolveCLI_NonClaudeBuiltIns.
 }
 
 // TestDefaultsFileDefinesOnlyItsSurface: defaults.yaml is layer 0 of the config
 // cascade in shape, but it defines only the three blocks internal/agent owns —
-// `agent` (the two depth knobs), `providers`, and `dispatch` (the stage-dispatch
+// `agent` (the two depth knobs), `clis`, and `dispatch` (the stage-dispatch
 // defaults, 260809-wll4). Within `agent:` only the two depth knobs belong: the
 // role→depth partition and the stage→role mapping are fab-owned POLICY and stay
 // in Go. yaml.v3 ignores unknown keys, so a key written at the wrong nesting
@@ -210,7 +210,7 @@ func TestDefaultsFileDefinesOnlyItsSurface(t *testing.T) {
 	for key := range raw {
 		top = append(top, key)
 	}
-	assertSameKeys(t, "defaults.yaml top-level", top, []string{"providers", "agent", "dispatch"})
+	assertSameKeys(t, "defaults.yaml top-level", top, []string{"clis", "agent", "dispatch"})
 
 	var agentBlock map[string]yaml.Node
 	node, ok := raw["agent"]
@@ -229,36 +229,36 @@ func TestDefaultsFileDefinesOnlyItsSurface(t *testing.T) {
 
 // TestPackageTablesMatchDefaultsFile: the package's tables and exported command
 // vars are wired to the file's keys. Without this, a lookup pointed at the wrong
-// provider name would resolve to the zero value and every other test — all of
+// CLI name would resolve to the zero value and every other test — all of
 // which derive their expectations from these same tables — would stay green.
 func TestPackageTablesMatchDefaultsFile(t *testing.T) {
 	cfg := parseDefaultsFile(t)
 
-	// Each role's built-in profile is the knob's provider plus that provider's own
+	// Each role's built-in profile is the knob's CLI plus that CLI's own
 	// per-role fill — the file's two blocks composed exactly as ResolveRole does.
 	for _, role := range RoleNames() {
-		wantProvider := cfg.Agent.Workers
+		wantCLI := cfg.Agent.Workers
 		if roleDepth[role] == depthSession {
-			wantProvider = cfg.Agent.Session
+			wantCLI = cfg.Agent.Session
 		}
-		fill := cfg.Providers[wantProvider].Profiles[role]
-		want := Profile{Provider: wantProvider, Model: fill.Model, Effort: fill.Effort}
+		fill := cfg.CLIs[wantCLI].Profiles[role]
+		want := Profile{CLI: wantCLI, Model: fill.Model, Effort: fill.Effort}
 		if got, ok := DefaultProfile(role); !ok || got != want {
 			t.Errorf("DefaultProfile(%q) = %+v (ok=%v), defaults.yaml composes %+v", role, got, ok, want)
 		}
 	}
 
-	for name, want := range cfg.Providers {
-		got, ok := ResolveProvider(nil, name)
+	for name, want := range cfg.CLIs {
+		got, ok := ResolveCLI(nil, name)
 		if !ok {
-			t.Errorf("ResolveProvider(nil, %q) reports unknown, but defaults.yaml defines it", name)
+			t.Errorf("ResolveCLI(nil, %q) reports unknown, but defaults.yaml defines it", name)
 			continue
 		}
 		// The resolved Profiles map is a defensive copy, so compare by value.
 		if got.InteractiveCommand != want.InteractiveCommand || got.HeadlessCommand != want.HeadlessCommand || got.Native != want.Native ||
 			got.Model != want.Model || got.Effort != want.Effort ||
 			!reflect.DeepEqual(got.Profiles, want.Profiles) {
-			t.Errorf("ResolveProvider(nil, %q) = %+v, defaults.yaml says %+v", name, got, want)
+			t.Errorf("ResolveCLI(nil, %q) = %+v, defaults.yaml says %+v", name, got, want)
 		}
 	}
 
@@ -267,14 +267,14 @@ func TestPackageTablesMatchDefaultsFile(t *testing.T) {
 		got  string
 		want string
 	}{
-		{"DefaultInteractiveCommand", DefaultInteractiveCommand, cfg.Providers[DefaultProviderName].InteractiveCommand},
-		{"DefaultHeadlessCommand", DefaultHeadlessCommand, cfg.Providers[DefaultProviderName].HeadlessCommand},
-		{"DefaultCodexInteractiveCommand", DefaultCodexInteractiveCommand, cfg.Providers[providerCodex].InteractiveCommand},
-		{"DefaultCodexHeadlessCommand", DefaultCodexHeadlessCommand, cfg.Providers[providerCodex].HeadlessCommand},
-		{"DefaultAgyInteractiveCommand", DefaultAgyInteractiveCommand, cfg.Providers[providerAgy].InteractiveCommand},
-		{"DefaultAgyHeadlessCommand", DefaultAgyHeadlessCommand, cfg.Providers[providerAgy].HeadlessCommand},
-		{"DefaultKimiInteractiveCommand", DefaultKimiInteractiveCommand, cfg.Providers[providerKimi].InteractiveCommand},
-		{"DefaultKimiHeadlessCommand", DefaultKimiHeadlessCommand, cfg.Providers[providerKimi].HeadlessCommand},
+		{"DefaultInteractiveCommand", DefaultInteractiveCommand, cfg.CLIs[DefaultCLIName].InteractiveCommand},
+		{"DefaultHeadlessCommand", DefaultHeadlessCommand, cfg.CLIs[DefaultCLIName].HeadlessCommand},
+		{"DefaultCodexInteractiveCommand", DefaultCodexInteractiveCommand, cfg.CLIs[cliCodex].InteractiveCommand},
+		{"DefaultCodexHeadlessCommand", DefaultCodexHeadlessCommand, cfg.CLIs[cliCodex].HeadlessCommand},
+		{"DefaultAgyInteractiveCommand", DefaultAgyInteractiveCommand, cfg.CLIs[cliAgy].InteractiveCommand},
+		{"DefaultAgyHeadlessCommand", DefaultAgyHeadlessCommand, cfg.CLIs[cliAgy].HeadlessCommand},
+		{"DefaultKimiInteractiveCommand", DefaultKimiInteractiveCommand, cfg.CLIs[cliKimi].InteractiveCommand},
+		{"DefaultKimiHeadlessCommand", DefaultKimiHeadlessCommand, cfg.CLIs[cliKimi].HeadlessCommand},
 	}
 	for _, c := range commands {
 		if c.got != c.want {
@@ -341,7 +341,7 @@ func TestConfigDispatchDefaultsMatchDefaultsFile(t *testing.T) {
 	}
 }
 
-func roleKeys(profiles map[string]config.ProviderProfile) []string {
+func roleKeys(profiles map[string]config.CLIProfile) []string {
 	keys := make([]string, 0, len(profiles))
 	for name := range profiles {
 		keys = append(keys, name)
@@ -349,9 +349,9 @@ func roleKeys(profiles map[string]config.ProviderProfile) []string {
 	return keys
 }
 
-func providerKeys(providers map[string]config.ProviderConfig) []string {
-	keys := make([]string, 0, len(providers))
-	for name := range providers {
+func cliKeys(clis map[string]config.CLIConfig) []string {
+	keys := make([]string, 0, len(clis))
+	for name := range clis {
 		keys = append(keys, name)
 	}
 	return keys

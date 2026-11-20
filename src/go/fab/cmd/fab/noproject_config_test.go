@@ -37,6 +37,7 @@ func noProjectDir(t *testing.T) string {
 	for _, key := range configscope.DottedKeys() {
 		env["FAB_"+strings.ToUpper(strings.ReplaceAll(key, ".", "_"))] = ""
 	}
+	env["FAB_PROVIDERS"] = "" // deprecated alias of FAB_CLIS
 	chdirTestEnv(t, dir, env)
 	return home
 }

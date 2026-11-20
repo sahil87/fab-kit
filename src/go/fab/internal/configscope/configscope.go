@@ -51,7 +51,7 @@ func Valid(s Scope) bool {
 // the granularity a system-file override unit lands at — so the table is keyed by
 // top-level key, not by the finer dotted registry key (e.g. `project.name`
 // collapses to the top-level `project`). This is the decision-6 taxonomy
-// (config-upgrade.md): agent/providers are preference-class (`both`); everything
+// (config-upgrade.md): agent/clis are preference-class (`both`); everything
 // else is semantics-class (`project`). System-only (`system`) has no member today.
 //
 // It is the SINGLE source for the taxonomy: configref derives each Field.Scope
@@ -69,12 +69,12 @@ var keyScopes = map[string]Scope{
 	"true_impact_exclude": ScopeProject,
 	"checklist":           ScopeProject,
 	"consolidate":         ScopeProject,
-	"providers":           ScopeBoth,
+	"clis":                ScopeBoth,
 	"agent":               ScopeBoth,
 	// dispatch is preference-class (`both`): dispatch.mode expresses how the
 	// OPERATOR prefers to launch stage workers on THIS machine, not what the repo's
 	// pipeline means, so it must be settable once machine-wide in
-	// ~/.fab-kit/config.yaml — the same reasoning that puts agent/providers here.
+	// ~/.fab-kit/config.yaml — the same reasoning that puts agent/clis here.
 	"dispatch":    ScopeBoth,
 	"stage_hooks": ScopeProject,
 	"docs_index":  ScopeProject,
@@ -107,7 +107,7 @@ var dottedKeys = []string{
 	"agent.session",
 	"agent.workers",
 	"agent.profiles",
-	"providers",
+	"clis",
 	"docs_index.roots",
 	"stage_hooks",
 }

@@ -17,20 +17,20 @@
 # that restates these values is drift-guarded and will name itself in the
 # failure output — you do not have to go find them:
 #
-#   TestDefaultsFileIsWellFormed          this file parses + covers every role/provider (defaults_test.go)
+#   TestDefaultsFileIsWellFormed          this file parses + covers every role/CLI (defaults_test.go)
 #   TestDefaultRoleProfilesArePinned      the deliberate-change pin, claude (agent_test.go)
-#   TestNonClaudeProviderFillsArePinned   the same pin for codex/agy/kimi (agent_test.go)
+#   TestNonClaudeCLIFillsArePinned   the same pin for codex/agy/kimi (agent_test.go)
 #   TestDocTablesMatchAgentMaps           docs/specs/stage-models.md § default-role TABLE
 #
 # That table is the ONE doc mirror left, and the only place outside this file that
 # spells a shipped model ID. Everything else derives: the docs that used to restate
-# the fills (stage-models.md's providers sample, _cli-fab.md's resolve-agent
+# the fills (stage-models.md's clis sample, _cli-fab.md's resolve-agent
 # enumeration) now show SHAPE only and point at `fab resolve-agent` /
-# `fab config explain providers --json`, and every test builds its expectation from
+# `fab config explain clis --json`, and every test builds its expectation from
 # DefaultProfile() via the cmd/fab `roleFill` helper. So a model bump is this file
 # plus that table — nothing else.
 
-# agent.session / agent.workers — the two advertised knobs, selecting a provider
+# agent.session / agent.workers — the two advertised knobs, selecting a CLI
 # by agent DEPTH. session = the Tier-1 roles a user talks to (default, operator);
 # workers = the Tier-2 roles pipeline stages dispatch to (doing, review, hydrate,
 # fast). Both ship as claude, so a fresh install writes nothing.
@@ -58,7 +58,7 @@ dispatch:
   min_rows: 20
   reap_done: true
 
-# providers — the built-in launch capability grammars plus each provider's per-role
+# clis — the built-in launch capability grammars plus each CLI's per-role
 # fills. claude, codex and agy ship fills, so `agent.workers: codex` is one line
 # and every role still gets a model suited to it. claude's fills are the family
 # ALIASES (opus / sonnet): `claude --model` resolves each to the newest model of that
@@ -66,14 +66,14 @@ dispatch:
 # and agy's fills are concrete IDs, refreshed at KIT-RELEASE cadence (see
 # docs/specs/stage-models.md § Refreshing the non-claude fills). Every fill is an
 # unvalidated pass-through value, and a stale one is corrected by a single config
-# line (providers.<name>.profiles.<role>.model) — a louder, cheaper failure than the
+# line (clis.<name>.profiles.<role>.model) — a louder, cheaper failure than the
 # empty-model resolution that shipping nothing produced.
 #
 # kimi is the deliberate exception: it ships NO fills at all, because its -m takes a
 # USER-CONFIG model alias rather than a catalog ID (see its block below). Empty is
 # the correct built-in there, not a gap.
 #
-# Provider fields are pure capability grammar: presence says "here is how", never
+# CLI fields are pure capability grammar: presence says "here is how", never
 # "select this mode". dispatch.mode owns the preference; automatic resolution
 # descends pane → native → headless against these capabilities.
 #
@@ -87,19 +87,19 @@ dispatch:
 # user's interactive shell —
 # ${SHELL:-/bin/sh} -i -c '<command>' — because tmux and the headless wrapper
 # otherwise run them non-interactively, without the rc files where users export
-# provider auth tokens and PATH. Do not hand-wrap a command in `$SHELL -i -c` in
+# CLI auth tokens and PATH. Do not hand-wrap a command in `$SHELL -i -c` in
 # your config: it is unnecessary (a pre-wrapped command still works; it nests).
 #
 # Every supported agent CLI has an interactive mode, so pane launch grammar is the
-# built-in expectation. The generic readiness gate owns provider first-run walls and
+# built-in expectation. The generic readiness gate owns CLI first-run walls and
 # input-echo validation; HEADLESS prompt grammar is the capability that varies and
-# needs a provider-specific probe. A user-defined provider may still omit
+# needs a CLI-specific probe. A user-defined CLI may still omit
 # interactive_command, in which case automatic resolution skips the pane rung.
 #
 # agy's first-run trust prompt is an ordinary readiness-gate judgment round, like
 # kimi's: one answer clears the wall for that exact workspace. Users may additionally
 # seed the exact-match trustedWorkspaces entry in
-# ~/.gemini/antigravity-cli/settings.json; fab ships no provider-specific seeding.
+# ~/.gemini/antigravity-cli/settings.json; fab ships no CLI-specific seeding.
 #
 # kimi's probe is DONE (2026-08-10, kimi 0.34.0): its first-run "Trust this folder?"
 # wall is an ordinary readiness-gate judgment round (one Enter, remembered per
@@ -107,18 +107,18 @@ dispatch:
 # runes as well as whitespace — kimi's input box draws vertical side rules, which a
 # wrap interleaves between the halves. So kimi ships an interactive_command below and
 # is pane-capable.
-providers:
+clis:
   claude:
     native: true
     interactive_command: 'claude --permission-mode bypassPermissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}'
     headless_command: 'claude -p --permission-mode bypassPermissions --model {model} --effort {effort}'
-    # The six role fills. `default` doubles as this provider's cross-role
+    # The six role fills. `default` doubles as this CLI's cross-role
     # fallback: a role absent here resolves the `default` entry, then empty.
     # The models are the family ALIASES `opus` / `sonnet`, not versioned IDs:
     # `claude --model` and the Agent tool's `model` parameter both take them and
     # resolve the newest model of the family, so these rows track the installed
     # Claude Code with no kit release. Pin a specific model by overriding
-    # providers.claude.profiles.<role>.model with a full ID (claude-opus-5-5).
+    # clis.claude.profiles.<role>.model with a full ID (claude-opus-5-5).
     # Every effort is explicit because fab never relies on a model's own default
     # (both command templates above pass --effort), and an alias can move to a
     # model whose default differs. Today Opus 5.5 defaults to `medium`, so dropping

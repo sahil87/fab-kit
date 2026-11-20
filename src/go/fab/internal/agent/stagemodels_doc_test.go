@@ -26,16 +26,16 @@ const (
 func TestDocTablesMatchAgentMaps(t *testing.T) {
 	docPath := findDocFile(t, stageModelsDocPath)
 
-	// Direction 1 — the default role table: { role → (provider, model, effort) }.
+	// Direction 1 — the default role table: { role → (CLI, model, effort) }.
 	roleTable := parseRoleProfileTable(t, docPath, defaultRoleHeading)
 	assertCoversSet(t, "Default role profiles", keys(roleTable), RoleNames())
 	for _, role := range RoleNames() {
 		t.Run("role/"+role, func(t *testing.T) {
 			want, _ := DefaultProfile(role)
 			got := roleTable[role]
-			if got.Provider != want.Provider || got.Model != want.Model || got.Effort != want.Effort {
+			if got.CLI != want.CLI || got.Model != want.Model || got.Effort != want.Effort {
 				t.Errorf("stage-models.md default[%s] = {%s, %s, %s}, code resolves {%s, %s, %s} (doc drifted)",
-					role, got.Provider, got.Model, got.Effort, want.Provider, want.Model, want.Effort)
+					role, got.CLI, got.Model, got.Effort, want.CLI, want.Model, want.Effort)
 			}
 		})
 	}
@@ -104,7 +104,7 @@ func parse2ColTable(t *testing.T, docPath, heading string) map[string]string {
 }
 
 // parseRoleProfileTable extracts the first pipe-delimited 4-column table
-// (Role | Provider | Model | Effort) under the given heading: { role → Profile }.
+// (Role | CLI | Model | Effort) under the given heading: { role → Profile }.
 func parseRoleProfileTable(t *testing.T, docPath, heading string) map[string]Profile {
 	t.Helper()
 	rows := tableRowsUnder(t, docPath, heading)
@@ -118,9 +118,9 @@ func parseRoleProfileTable(t *testing.T, docPath, heading string) map[string]Pro
 			continue
 		}
 		result[role] = Profile{
-			Provider: cleanCell(cols[1]),
-			Model:    cleanCell(cols[2]),
-			Effort:   cleanCell(cols[3]),
+			CLI:    cleanCell(cols[1]),
+			Model:  cleanCell(cols[2]),
+			Effort: cleanCell(cols[3]),
 		}
 	}
 	if len(result) == 0 {

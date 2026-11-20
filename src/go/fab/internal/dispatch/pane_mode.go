@@ -16,7 +16,7 @@ import (
 // The MECHANICS half — server reachability, the pane creators (OpenWindow,
 // OpenSplitPane, SplitPlacement rendering), pane liveness, pane kill, the
 // readiness gate, and verified delivery — lives in internal/pane, the shared
-// pane layer the provider-generic `fab pane` primitives and the dispatch
+// pane layer the CLI-generic `fab pane` primitives and the dispatch
 // bindings both build on. This file's SplitTarget/splitPlacement therefore
 // PRODUCE pane.SplitPlacement values (constructed with pane.SplitRight /
 // pane.SplitBelow); only pane's splitArgs ever renders one into tmux argv.
@@ -73,7 +73,7 @@ const (
 
 // NativeAvailability is the caller-observed native-rung prerequisite. The model
 // check belongs to internal/agent; this value carries its result into the pure
-// selector together with the provider's declared capability.
+// selector together with the CLI's declared capability.
 type NativeAvailability string
 
 const (
@@ -84,7 +84,7 @@ const (
 	nativeUnavailable = "native unavailable"
 )
 
-// NativeAvailabilityFor maps provider capability and model suitability to the
+// NativeAvailabilityFor maps CLI capability and model suitability to the
 // selector's native-rung input.
 func NativeAvailabilityFor(capability, hasNativeModel bool) NativeAvailability {
 	if !capability {
@@ -123,7 +123,7 @@ func NativeAvailabilityFor(capability, hasNativeModel bool) NativeAvailability {
 //
 // tmux is caller-supplied availability: resolve-agent uses $TMUX
 // presence, while dispatch start replaces it with a real reachability result
-// before launching. Native availability is likewise caller-computed from provider
+// before launching. Native availability is likewise caller-computed from CLI
 // capability and the resolved model. That keeps environment/probe I/O outside this
 // pure function.
 func SelectMode(paneFlag, headlessFlag, timeoutSet, serverSet bool, preference string,

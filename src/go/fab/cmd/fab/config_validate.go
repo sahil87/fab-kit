@@ -16,7 +16,7 @@ import (
 // instead of it — a value that does not parse as the key's kind (`column_width abc`)
 // passes through here so the writer's own, better kind error is the one reported.
 //
-// Validation is write-time only. The read path stays fail-open and provider-neutral
+// Validation is write-time only. The read path stays fail-open and CLI-neutral
 // (a hand-edited bad value degrades with a warning; a malformed personal preference
 // must not brick every repo), and `unset` — the repair path — never inspects a value.
 func validateSetValue(key, rawValue string, layers *config.Layers) error {
@@ -31,12 +31,12 @@ func validateSetValue(key, rawValue string, layers *config.Layers) error {
 		return validateIntRange(key, value, config.MinDispatchColumnWidth, config.MaxDispatchColumnWidth)
 	case key == "dispatch.min_cols", key == "dispatch.min_rows":
 		return validateIntRange(key, value, config.MinDispatchFloor, 0)
-	case isProviderKey(key):
+	case isCLIKey(key):
 		name, ok := value.(string)
 		if !ok {
 			return nil // kind mismatch: left to the writer
 		}
-		return validateProviderName(key, name, layers)
+		return validateCLIName(key, name, layers)
 	}
 	return nil
 }
@@ -71,35 +71,35 @@ func validateIntRange(key string, value any, lo, hi int) error {
 	return fmt.Errorf("invalid value %v for %s — must be an integer from %d to %d", value, key, lo, hi)
 }
 
-// isProviderKey reports whether key names a provider: the two depth knobs and any
-// role's provider override.
-func isProviderKey(key string) bool {
+// isCLIKey reports whether key names a CLI: the two depth knobs and any
+// role's CLI override.
+func isCLIKey(key string) bool {
 	if key == "agent.session" || key == "agent.workers" {
 		return true
 	}
 	parts := strings.Split(key, ".")
-	return len(parts) == 4 && parts[0] == "agent" && parts[1] == "profiles" && parts[3] == "provider"
+	return len(parts) == 4 && parts[0] == "agent" && parts[1] == "profiles" && parts[3] == "cli"
 }
 
-// validateProviderName refuses a name that is not in the effective providers table:
-// fab's built-in providers plus the `providers:` keys of the config visible from the
+// validateCLIName refuses a name that is not in the effective CLIs table:
+// fab's built-in CLIs plus the `clis:` keys of the config visible from the
 // cwd (project ⊕ system ⊕ env inside a project, system ⊕ env outside one).
-func validateProviderName(key, name string, layers *config.Layers) error {
-	available := agent.ProviderNames(effectiveProvidersConfig(layers))
+func validateCLIName(key, name string, layers *config.Layers) error {
+	available := agent.CLINames(effectiveCLIsConfig(layers))
 	if slices.Contains(available, name) {
 		return nil
 	}
-	return fmt.Errorf("invalid value %q for %s — not a provider in the effective providers table (available: %s)",
+	return fmt.Errorf("invalid value %q for %s — not a CLI in the effective CLIs table (available: %s)",
 		name, key, strings.Join(available, ", "))
 }
 
-// effectiveProvidersConfig is the read model's effective config for the provider
+// effectiveCLIsConfig is the read model's effective config for the CLI
 // table, from the layers the caller loaded. When they are absent or will not decode
 // (a malformed project file) it falls back to config.LoadNoProject's fail-open
 // cascade — which drops a schema-incompatible system file but keeps the env
-// providers — rather than failing the write for that reason alone; the built-in
-// providers are always acceptable.
-func effectiveProvidersConfig(layers *config.Layers) *config.Config {
+// CLIs — rather than failing the write for that reason alone; the built-in
+// CLIs are always acceptable.
+func effectiveCLIsConfig(layers *config.Layers) *config.Config {
 	if layers != nil {
 		if cfg, err := config.FromMap(layers.Effective); err == nil {
 			return cfg

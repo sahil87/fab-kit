@@ -91,12 +91,12 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag, quietF
 		changes = args
 	}
 
-	// Compose the worker spawn command from the default role's provider
+	// Compose the worker spawn command from the default role's CLI
 	// interactive_command with the default role's {model}/{effort} profile SUBSTITUTED
 	// (workers finally spawn WITH a profile). Substitution resolves all
 	// placeholders so no literal braces reach the tmux new-window shell command.
 	configPath := filepath.Join(fabRoot, "project", "config.yaml")
-	spawnCmd, provider := defaultRoleSpawnCommand(configPath)
+	spawnCmd, cli := defaultRoleSpawnCommand(configPath)
 	workers, workersSet := workersOverride(cmd)
 
 	// Process each change
@@ -138,12 +138,12 @@ func runBatchSwitch(cmd *cobra.Command, args []string, listFlag, allFlag, quietF
 		wtPath := strings.TrimSpace(wtOut)
 
 		// Open tmux window
-		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single(agent.SkillPrompt(provider, "fab-switch", match)))
+		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single(agent.SkillPrompt(cli, "fab-switch", match)))
 		shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
 		// Interactive spawn: the shell fallback keeps the pane (and its cwd)
 		// alive as the user's interactive shell after the agent exits; both it
 		// and the env prefix run INSIDE the interactive-shell wrap (rc-exported
-		// env such as provider auth tokens; see spawn.WithInteractiveShell).
+		// env such as CLI auth tokens; see spawn.WithInteractiveShell).
 		shellCmd = spawn.WithInteractiveShell(spawn.WithShellFallback(shellCmd))
 		exec.Command("tmux", "new-window", "-n", match, "-c", wtPath, shellCmd).Run()
 	}

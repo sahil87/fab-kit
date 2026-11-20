@@ -11,13 +11,14 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/atomicfile"
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configref"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configscope"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/configvalue"
 )
 
 // The scanner accepts ordinary plain keys plus quoted string keys emitted for
-// dynamic path segments such as numeric provider names. Quoting belongs to the
+// dynamic path segments such as numeric CLI names. Quoting belongs to the
 // YAML file only; the dotted command grammar remains canonical and unquoted.
 var liveKeyLineRe = regexp.MustCompile(`^( *)((?:"(?:[^"\\]|\\.)*"|'(?:[^']|'')*')|(?:[^ \t:#"'\\][^ \t:"'\\]*)):(.*)$`)
 
@@ -53,6 +54,7 @@ const legacySystemScaffoldHeader = `# ~/.fab-kit/config.yaml — system-level fa
 // renderMutation; it never marshals the whole document or performs Upgrade-only
 // reconciliation of unrelated keys.
 func Set(path, key, rawValue, kitVersion string) (Result, error) {
+	key, _ = config.CanonicalKey(key) // deprecated spellings write/remove the canonical key
 	match, ok, err := configref.ResolveKey(key)
 	if err != nil {
 		return Result{}, err
@@ -84,6 +86,9 @@ func Set(path, key, rawValue, kitVersion string) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("setting config key %q: %w", key, err)
 	}
+	if mutated, err = dropTwinPath(mutated, key); err != nil {
+		return Result{}, fmt.Errorf("setting config key %q: %w", key, err)
+	}
 	rendered, report := renderMutation(mutated, parked, fields, ProjectTarget(path), kitVersion)
 	if err := validateYAML(rendered); err != nil {
 		return Result{}, fmt.Errorf("configupgrade: refusing to write %s — setting %q produced invalid YAML (%w); the file was left unchanged", path, key, err)
@@ -95,6 +100,7 @@ func Set(path, key, rawValue, kitVersion string) (Result, error) {
 // That deliberate asymmetry makes unset the repair path for a malformed or
 // wrong-kind override. An absent known path is an exit-zero byte-preserving no-op.
 func Unset(path, key, kitVersion string) (Result, error) {
+	key, _ = config.CanonicalKey(key) // deprecated spellings write/remove the canonical key
 	if _, ok, err := configref.ResolveKey(key); err != nil {
 		return Result{}, err
 	} else if !ok {
@@ -110,7 +116,7 @@ func Unset(path, key, kitVersion string) (Result, error) {
 		return Result{}, err
 	}
 	live, parked := mutationLiveArea(original)
-	mutated, changed, err := unsetLivePath(live, key)
+	mutated, changed, err := unsetBothSpellings(live, key)
 	if err != nil {
 		return Result{}, fmt.Errorf("unsetting config key %q: %w", key, err)
 	}
@@ -127,6 +133,7 @@ func Unset(path, key, kitVersion string) (Result, error) {
 // SetSystem writes one system-visible override above the managed system fence.
 // A missing file is created with the canonical fence-owned system header inside its fence.
 func SetSystem(path, key, rawValue, kitVersion string) (Result, error) {
+	key, _ = config.CanonicalKey(key) // deprecated spellings write/remove the canonical key
 	match, ok, err := configref.ResolveKey(key)
 	if err != nil {
 		return Result{}, err
@@ -161,6 +168,9 @@ func SetSystem(path, key, rawValue, kitVersion string) (Result, error) {
 	live = ensureRegistryMaterialization(live, key, match.Owner)
 	mutated, _, err := setLivePath(live, key, value.Text)
 	if err != nil {
+		return Result{}, fmt.Errorf("setting system config key %q: %w", key, err)
+	}
+	if mutated, err = dropTwinPath(mutated, key); err != nil {
 		return Result{}, fmt.Errorf("setting system config key %q: %w", key, err)
 	}
 	rendered, report := renderMutation(mutated, parked, fields, target, kitVersion)
@@ -239,6 +249,7 @@ func scalarKind(kind configvalue.Kind) bool {
 // UnsetSystem removes one system-visible override. Like project Unset it does
 // not parse the current value first, so it can repair a malformed override.
 func UnsetSystem(path, key, kitVersion string) (Result, error) {
+	key, _ = config.CanonicalKey(key) // deprecated spellings write/remove the canonical key
 	match, ok, err := configref.ResolveKey(key)
 	if err != nil {
 		return Result{}, err
@@ -263,7 +274,7 @@ func UnsetSystem(path, key, kitVersion string) (Result, error) {
 	target := SystemTarget(path)
 	live, parked := mutationLiveArea(original)
 	live = normalizeTargetPreamble(live, fields, target)
-	mutated, changed, err := unsetLivePath(live, key)
+	mutated, changed, err := unsetBothSpellings(live, key)
 	if err != nil {
 		return Result{}, fmt.Errorf("unsetting system config key %q: %w", key, err)
 	}
@@ -278,6 +289,39 @@ func UnsetSystem(path, key, kitVersion string) (Result, error) {
 		return Result{}, fmt.Errorf("configupgrade: writing %s: %w", path, err)
 	}
 	return Result{Changed: true, Report: report}, nil
+}
+
+// dropTwinPath removes the other spelling of key (the pre-2.31 `providers…` /
+// `.provider` twin of a canonical `clis…` / `.cli` key) from the live area, so a
+// file holds one spelling after a set. A key with no twin, or a twin that is not
+// live, leaves the document untouched.
+func dropTwinPath(live, key string) (string, error) {
+	for _, twin := range config.TwinKeys(key) {
+		var err error
+		if live, _, err = unsetLivePath(live, twin); err != nil {
+			return "", err
+		}
+	}
+	return live, nil
+}
+
+// unsetBothSpellings removes key AND its deprecated/canonical twins from the live
+// area and reports whether any was live. Unsetting only one spelling while another
+// stays live would silently leave the override in effect, since the resolver reads
+// every spelling.
+func unsetBothSpellings(live, key string) (string, bool, error) {
+	mutated, changed, err := unsetLivePath(live, key)
+	if err != nil {
+		return "", false, err
+	}
+	for _, twin := range config.TwinKeys(key) {
+		var twinChanged bool
+		if mutated, twinChanged, err = unsetLivePath(mutated, twin); err != nil {
+			return "", false, err
+		}
+		changed = changed || twinChanged
+	}
+	return mutated, changed, nil
 }
 
 func mutationLiveArea(original string) (string, []string) {

@@ -1067,8 +1067,8 @@ func wrapShells() map[string]string {
 // $SHELL the interactive-shell wrap can land on (bash, zsh, /bin/sh, and unset
 // → /bin/sh), with HOME pointed at an empty dir so no developer rc loads. It
 // pins the launch semantics the wrap must preserve: stdin redirection reaches
-// the provider, the exit file records the provider's own code, `timeout` still
-// kills the provider (124), a nested `sh -c '… "$(cat)"'` headless built-in
+// the CLI, the exit file records the CLI's own code, `timeout` still
+// kills the CLI (124), a nested `sh -c '… "$(cat)"'` headless built-in
 // (agy/kimi shape) still receives the prompt, and a pre-wrapped user command
 // (double wrap) still runs.
 func TestWrapperArgvLive(t *testing.T) {
@@ -1084,10 +1084,10 @@ func TestWrapperArgvLive(t *testing.T) {
 		wantExit string
 		wantLog  string
 	}{
-		{"stdin reaches the provider and its exit code is recorded", `wc -c; exit 7`, 0, "7", "13"},
-		{"timeout kills the provider", `sleep 30`, 1, "124", ""},
+		{"stdin reaches the CLI and its exit code is recorded", `wc -c; exit 7`, 0, "7", "13"},
+		{"timeout kills the CLI", `sleep 30`, 1, "124", ""},
 		{"nested sh -c built-in receives the prompt", `sh -c 'echo "got:$(cat)"'`, 0, "0", "got:hello prompt"},
-		{"double wrap still runs the provider", `${SHELL:-/bin/sh} -i -c 'wc -c; exit 5'`, 0, "5", "13"},
+		{"double wrap still runs the CLI", `${SHELL:-/bin/sh} -i -c 'wc -c; exit 5'`, 0, "5", "13"},
 	}
 	for shellName, shellPath := range shells {
 		for _, tc := range cases {

@@ -219,7 +219,7 @@ checklist:
     - performance
     - ux
 
-# Provider capability grammar (top-level). Each provider maps an opaque, user-chosen
+# CLI capability grammar (top-level). Each cli maps an opaque, user-chosen
 # name to independent interactive_command, headless_command, and native capabilities.
 # interactive_command opens an interactive agent
 # SESSION (rk operator / fab batch / fab agent — and `fab dispatch open`,
@@ -228,27 +228,27 @@ checklist:
 # command's STDIN). native:true records an Agent-tool seam. Capability presence
 # says HOW a rung runs, never WHICH rung to prefer; dispatch.mode below owns policy,
 # descends pane → native → headless, and never substitutes one command for another. fab-kit
-# ships FOUR built-in providers — claude (the default), codex, agy and kimi — each
+# ships FOUR built-in clis — claude (the default), codex, agy and kimi — each
 # with its command grammar, and (except kimi) a per-ROLE fill map,
 # profiles.<role>.{model, effort}, supplying the {model}/{effort} placeholders when
-# that provider plays that role (precedence: invocation flag > agent.profiles.<role>
+# that cli plays that role (precedence: invocation flag > agent.profiles.<role>
 # field > profiles.<role> > profiles.default > empty; the `default` entry is the
-# provider's cross-role fallback, so a sparse map such as agy's is well-defined for
+# cli's cross-role fallback, so a sparse map such as agy's is well-defined for
 # the roles it omits; claude's and codex's maps are dense).
-# So naming any built-in needs no providers: block at all. All four blocks below
+# So naming any built-in needs no clis: block at all. All four blocks below
 # render LIVE and uniformly (one `#` deep in a fence); hoisting one PINS its fills
 # against kit-release refreshes — prefer a single-field override.
 # Non-claude fills are refreshed at kit-release cadence and pass through unvalidated —
-# pin a newer model with providers.<name>.profiles.<role>.model. Claude ships
+# pin a newer model with clis.<name>.profiles.<role>.model. Claude ships
 # session, native, and headless capabilities; codex, agy, and kimi ship both command
 # fields without native capability. Under the default mode, claude resolves native
 # while the non-claude built-ins descend to headless.
 # (Automated PR reviewer toggles were retired outright in 2.29.0 with no destination — fab never requests reviews, so there is no knob to configure.)
-# Per-provider notes (kept out of the blocks below so uncommenting a whole block
+# Per-cli notes (kept out of the blocks below so uncommenting a whole block
 # stays valid YAML): claude -p and codex exec both read the prompt from stdin.
 # Codex carries --dangerously-bypass-approvals-and-sandbox; agy carries
 # --dangerously-skip-permissions. Both flags are deliberate because unattended stage
-# workers cannot answer approval prompts; override a provider command to restore
+# workers cannot answer approval prompts; override a cli command to restore
 # approvals. kimi's dispatch form carries no approval flag at all: kimi -p already
 # auto-approves tools and errors when combined with --yolo/--auto, so its full-auto
 # flag rides its interactive_command instead.
@@ -268,7 +268,7 @@ checklist:
 # fills — its -m takes a user-config model alias, so the empty model drops the flag
 # and its own default_model applies. This whole block is advertise:false — documented in
 # `fab config explain`, not scaffolded into every project's managed fence.
-providers:
+clis:
   claude:
     native: true
     interactive_command: claude --permission-mode bypassPermissions -n "$(basename "$(pwd)")" --model {model} --effort {effort}
@@ -290,7 +290,7 @@ providers:
     headless_command: sh -c 'kimi -m {model} -p "$(cat)"'   # no --yolo: kimi -p rejects it and already auto-approves
                                          # no profiles: fab ships no kimi fill (its -m takes a user-config alias)
 
-# agent.session / agent.workers are the TWO ADVERTISED KNOBS, selecting a provider
+# agent.session / agent.workers are the TWO ADVERTISED KNOBS, selecting a cli
 # by agent DEPTH: session = the Tier-1 roles you talk to (default, operator —
 # fab agent / rk operator / fab batch), workers = the Tier-2 roles pipeline stages
 # dispatch to (doing, review, hydrate, fast). Both default to claude, and both are
@@ -301,8 +301,8 @@ providers:
 # operator coordinator session) AND the role→depth partition above.
 #
 # agent.profiles (optional, advertise:false) is the SPARSE per-role escape hatch
-# beneath the knobs: {provider, model, effort} per role, every field optional, a set
-# field beating the knob (provider) or the provider's own fill (model/effort). There
+# beneath the knobs: {cli, model, effort} per role, every field optional, a set
+# field beating the knob (cli) or the cli's own fill (model/effort). There
 # is NO cross-role inheritance — agent.profiles.default is the `default` ROLE's own
 # override. Resolved per stage/role by `fab agent <stage|role> -o yaml` at sub-agent
 # dispatch time; see docs/specs/stage-models.md. (`agent.tiers` is the pre-2.17.0
@@ -313,7 +313,7 @@ agent:
   session: claude
   workers: claude
   profiles:
-    review: { provider: codex }   # example: shape only
+    review: { cli: codex }   # example: shape only
 
 # dispatch.mode (optional, default native) — the preference ceiling: pane, native,
 # or headless. Resolution starts there and descends only through pane → native →
@@ -398,7 +398,7 @@ The constitution is the **architectural DNA** of a Fab project. It defines immut
 - Constitution violations found during review are flagged as high-severity issues
 
 **Relationship to `config.yaml`**:
-- `config.yaml` holds **factual project context** (identity, source/test paths, independent provider capabilities — `interactive_command`, `headless_command`, and `native` — plus per-role fills (`providers:`), the two agent depth knobs plus any `agent.profiles` overrides, and the `dispatch.mode` preference ceiling whose automatic selection descends `pane → native → headless`)
+- `config.yaml` holds **factual project context** (identity, source/test paths, independent CLI capabilities — `interactive_command`, `headless_command`, and `native` — plus per-role fills (`clis:`), the two agent depth knobs plus any `agent.profiles` overrides, and the `dispatch.mode` preference ceiling whose automatic selection descends `pane → native → headless`)
 - `constitution.md` holds **principles and constraints** (what MUST/SHOULD/MUST NOT happen)
 - Think: config says *what you use*, constitution says *how you use it*
 
@@ -568,7 +568,7 @@ Multi-change operations are `fab batch` subcommands (`fab batch <new|switch|arch
 | `fab batch switch` | Switch to existing changes | Worktree + tmux tab running rendered `fab-switch` with `<change>` |
 | `fab batch archive` | Archive completed changes (`hydrate: done\|skipped`) | Mechanical in-process archive (move, `.fab-dispatch/{id}/` deletion, index, backlog, pointer) — no worktree, no tmux tab, no spawned agent |
 
-Initial skill prompts are rendered by `internal/agent.SkillPrompt` for the receiving provider — `$` for Codex, `/` for every other or unknown provider (`internal/agent.SkillPrefix` owns the rule; `fab agent -o yaml` exposes it as `skill_prefix`); launch commands quote the complete prompt as one shell argument. The fallback operator launcher shares this renderer.
+Initial skill prompts are rendered by `internal/agent.SkillPrompt` for the receiving CLI — `$` for Codex, `/` for every other or unknown CLI (`internal/agent.SkillPrefix` owns the rule; `fab agent -o yaml` exposes it as `skill_prefix`); launch commands quote the complete prompt as one shell argument. The fallback operator launcher shares this renderer.
 
 ---
 

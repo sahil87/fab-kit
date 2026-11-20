@@ -88,13 +88,13 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 		ids = args
 	}
 
-	// Compose the worker spawn command from the default role's provider
+	// Compose the worker spawn command from the default role's CLI
 	// interactive_command with the default role's {model}/{effort} profile SUBSTITUTED
 	// (workers finally spawn WITH a profile). The composed command is interpolated
 	// into a tmux new-window shell command; substitution resolves all placeholders
 	// so no literal braces reach tmux.
 	configPath := filepath.Join(fabRoot, "project", "config.yaml")
-	spawnCmd, provider := defaultRoleSpawnCommand(configPath)
+	spawnCmd, cli := defaultRoleSpawnCommand(configPath)
 	workers, workersSet := workersOverride(cmd)
 
 	// Process each ID. Launch failures (wt create, tmux new-window) are
@@ -138,12 +138,12 @@ func runBatchNew(cmd *cobra.Command, args []string, listFlag, allFlag bool) erro
 
 		// Open tmux window. The worktree already exists at this point, so a
 		// launch failure names it as the recovery/cleanup hint.
-		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single(agent.SkillPrompt(provider, "fab-new", content)))
+		shellCmd := fmt.Sprintf("%s %s", spawnCmd, shellquote.Single(agent.SkillPrompt(cli, "fab-new", content)))
 		shellCmd = withWorkersEnv(shellCmd, workers, workersSet)
 		// Interactive spawn: the shell fallback keeps the pane (and its cwd)
 		// alive as the user's interactive shell after the agent exits; both it
 		// and the env prefix run INSIDE the interactive-shell wrap (rc-exported
-		// env such as provider auth tokens; see spawn.WithInteractiveShell).
+		// env such as CLI auth tokens; see spawn.WithInteractiveShell).
 		shellCmd = spawn.WithInteractiveShell(spawn.WithShellFallback(shellCmd))
 		if _, stderr, err := pane.RunCmd("tmux", "new-window", "-n", "fab-"+id, "-c", wtPath, shellCmd); err != nil {
 			fmt.Fprintf(errW, "  [%s] FAILED: tmux new-window: %v (worktree already created at %s)\n",

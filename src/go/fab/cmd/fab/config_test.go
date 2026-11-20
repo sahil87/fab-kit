@@ -46,27 +46,27 @@ func TestConfigReferenceRoundTrips(t *testing.T) {
 
 	// The live baseline keys populate their Config fields (sanity that the
 	// live/commented split landed as intended — not just that it parsed).
-	prov, ok := cfg.GetProvider("claude")
+	prov, ok := cfg.GetCLI("claude")
 	if !ok || prov.InteractiveCommand == "" {
-		t.Error("providers.claude.interactive_command should be a live key with a value in the reference")
+		t.Error("clis.claude.interactive_command should be a live key with a value in the reference")
 	}
 	if prov.HeadlessCommand != agent.DefaultHeadlessCommand || !prov.Native {
-		t.Errorf("providers.claude capabilities = %+v, want live dispatch command and native=true", prov)
+		t.Errorf("clis.claude capabilities = %+v, want live dispatch command and native=true", prov)
 	}
-	// codex, agy and kimi are Go BUILT-IN providers whose reference blocks render
+	// codex, agy and kimi are Go BUILT-IN CLIs whose reference blocks render
 	// LIVE like claude's — all four blocks uniform, so a fence hoist of any one
 	// yields exactly the built-in the block restates (a live copy PINS those
 	// fills against kit-release refreshes; presence=intent still holds because
 	// the reference file is documentation, not a project config).
 	for _, name := range []string{"codex", "agy", "kimi"} {
-		want, _ := agent.ResolveProvider(nil, name)
-		got, ok := cfg.GetProvider(name)
+		want, _ := agent.ResolveCLI(nil, name)
+		got, ok := cfg.GetCLI(name)
 		if !ok {
-			t.Errorf("providers.%s must be live in the reference (all four built-ins render uniformly)", name)
+			t.Errorf("clis.%s must be live in the reference (all four built-ins render uniformly)", name)
 			continue
 		}
 		if got.InteractiveCommand != want.InteractiveCommand || got.HeadlessCommand != want.HeadlessCommand {
-			t.Errorf("providers.%s = {%q, %q}, want the built-in {%q, %q}",
+			t.Errorf("clis.%s = {%q, %q}, want the built-in {%q, %q}",
 				name, got.InteractiveCommand, got.HeadlessCommand, want.InteractiveCommand, want.HeadlessCommand)
 		}
 	}
@@ -121,7 +121,7 @@ func TestConfigReferenceCoversBinaryKeys(t *testing.T) {
 	//
 	// The deprecated pre-2.19.0 spellings session_command/dispatch_command are NOT
 	// exempted either (260809-n1he): they are read-time aliases the write surface
-	// rejects, but the providers segment NAMES them in its deprecation note, so
+	// rejects, but the CLIs segment NAMES them in its deprecation note, so
 	// they earn coverage the same way `agent.tiers` does from the agent segment.
 	// Documenting a deprecated spelling is what makes it discoverable to a user
 	// reading an unmigrated config — the walker stays exemption-free.
@@ -643,7 +643,7 @@ func TestConfigExplainDocsIndexRootsNavNote(t *testing.T) {
 }
 
 // TestConfigReferenceMentionsCommandPlaceholders guards that the reference's
-// providers block documents the optional {model}/{effort} placeholders (the codex
+// CLIs block documents the optional {model}/{effort} placeholders (the codex
 // example command carries them, showing template-substitution mode).
 func TestConfigReferenceMentionsCommandPlaceholders(t *testing.T) {
 	out, err := configref.Render()
@@ -652,7 +652,7 @@ func TestConfigReferenceMentionsCommandPlaceholders(t *testing.T) {
 	}
 	for _, placeholder := range []string{"{model}", "{effort}"} {
 		if !strings.Contains(out, placeholder) {
-			t.Errorf("reference providers comment must document the optional %s placeholder", placeholder)
+			t.Errorf("reference CLIs comment must document the optional %s placeholder", placeholder)
 		}
 	}
 }
@@ -660,7 +660,7 @@ func TestConfigReferenceMentionsCommandPlaceholders(t *testing.T) {
 // TestConfigReferenceDocumentsBothSubstitutionSources is the nvad contract: the
 // interactive_command comment must name BOTH sources of the {model}/{effort}
 // substitution — the resolved role profile (role path) and the --model/--effort
-// flags on `fab agent --provider <name>`, which bypasses role resolution. This
+// flags on `fab agent --cli <name>`, which bypasses role resolution. This
 // literal renders into every project's config.yaml reference fence, so a
 // role-only claim there is a user-facing documentation inaccuracy.
 func TestConfigReferenceDocumentsBothSubstitutionSources(t *testing.T) {
@@ -673,7 +673,7 @@ func TestConfigReferenceDocumentsBothSubstitutionSources(t *testing.T) {
 	flat := unwrapComment(out)
 	for _, phrase := range []string{
 		"substituted from the resolved role profile, or from the",
-		"--model/--effort flags on `fab agent --provider <name>`",
+		"--model/--effort flags on `fab agent --cli <name>`",
 		"(which bypasses role resolution)",
 	} {
 		if !strings.Contains(flat, phrase) {
@@ -686,17 +686,17 @@ func TestConfigReferenceDocumentsBothSubstitutionSources(t *testing.T) {
 	}
 }
 
-// TestConfigReferenceDocumentsProviders guards that the generated reference
-// documents the providers table with both command fields, native capability, and
+// TestConfigReferenceDocumentsCLIs guards that the generated reference
+// documents the CLIs table with both command fields, native capability, and
 // the load-bearing no-substitution semantic.
-func TestConfigReferenceDocumentsProviders(t *testing.T) {
+func TestConfigReferenceDocumentsCLIs(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
 	}
-	for _, token := range []string{"providers:", "interactive_command", "headless_command", "native"} {
+	for _, token := range []string{"clis:", "interactive_command", "headless_command", "native"} {
 		if !strings.Contains(out, token) {
-			t.Errorf("reference must document %q in the providers block", token)
+			t.Errorf("reference must document %q in the CLIs block", token)
 		}
 	}
 	if !strings.Contains(out, "substitution between command fields") {
@@ -704,22 +704,22 @@ func TestConfigReferenceDocumentsProviders(t *testing.T) {
 	}
 }
 
-// TestConfigReferenceDocumentsBuiltInProviders is the j3cm contract (which
-// supersedes ho9y's starter-template contract): the providers block documents
-// fab-kit's FOUR BUILT-IN providers — claude (the default), codex, agy and kimi —
+// TestConfigReferenceDocumentsBuiltInCLIs is the j3cm contract (which
+// supersedes ho9y's starter-template contract): the CLIs block documents
+// fab-kit's FOUR BUILT-IN CLIs — claude (the default), codex, agy and kimi —
 // with every command string sourced from its canonical agent constant. agy carries
 // no {effort} placeholder (its model IDs embed the reasoning level), and kimi
 // deliberately ships no fills at all.
-func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
+func TestConfigReferenceDocumentsBuiltInCLIs(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
 	}
 
-	// All four provider names appear as text in the providers block.
-	for _, provider := range []string{"claude:", "codex:", "agy:", "kimi:"} {
-		if !strings.Contains(out, provider) {
-			t.Errorf("providers block must document the %q provider", provider)
+	// All four CLI names appear as text in the CLIs block.
+	for _, cli := range []string{"claude:", "codex:", "agy:", "kimi:"} {
+		if !strings.Contains(out, cli) {
+			t.Errorf("CLIs block must document the %q CLI", cli)
 		}
 	}
 
@@ -739,7 +739,7 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 	} {
 		quoted := configref.YAMLSingleQuoted(cmd)
 		if !strings.Contains(out, quoted) {
-			t.Errorf("providers block must document the built-in command %q (as the YAML scalar %s)", cmd, quoted)
+			t.Errorf("CLIs block must document the built-in command %q (as the YAML scalar %s)", cmd, quoted)
 		}
 	}
 	for _, want := range []string{
@@ -748,7 +748,7 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 		"unattended stage workers cannot answer approval",
 	} {
 		if !strings.Contains(out, want) {
-			t.Errorf("providers block must document the built-in full-auto policy with %q", want)
+			t.Errorf("CLIs block must document the built-in full-auto policy with %q", want)
 		}
 	}
 
@@ -765,7 +765,7 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 		"kimi --auto -m {model} -p",
 	} {
 		if strings.Contains(out, bad) {
-			t.Errorf("rendered provider commands must not contain %q", bad)
+			t.Errorf("rendered CLI commands must not contain %q", bad)
 		}
 	}
 
@@ -781,12 +781,12 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 	// The prose carries the corrected capability model and agy's gate behavior.
 	for _, phrase := range []string{"Every supported agent", "HEADLESS prompt grammar", "ordinary readiness-gate judgment round", "settings.json"} {
 		if !strings.Contains(out, phrase) {
-			t.Errorf("providers block must explain pane-by-default capability with %q", phrase)
+			t.Errorf("CLIs block must explain pane-by-default capability with %q", phrase)
 		}
 	}
 
 	if !strings.Contains(out, agent.DefaultHeadlessCommand) || !strings.Contains(out, "native: true") {
-		t.Error("providers block must document claude's headless and native capabilities")
+		t.Error("CLIs block must document claude's headless and native capabilities")
 	}
 
 	// The superseded ho9y framing must not survive: the non-claude built-ins are no longer
@@ -794,13 +794,13 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 	// claude-only. These literals render into every project's config fence, so a
 	// stale claim there is a user-facing documentation inaccuracy.
 	for _, retired := range []string{
-		"No new built-in providers are added in Go",
+		"No new built-in CLIs are added in Go",
 		"template text only until you uncomment them",
-		"uncomment and adapt a block to add that provider",
+		"uncomment and adapt a block to add that CLI",
 		"starter\n# TEMPLATE",
 	} {
 		if strings.Contains(out, retired) {
-			t.Errorf("providers block still carries the retired ho9y claim %q", retired)
+			t.Errorf("CLIs block still carries the retired ho9y claim %q", retired)
 		}
 	}
 
@@ -809,20 +809,20 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 	// family aliases that track the tool, codex's and agy's are concrete IDs
 	// refreshed at kit-release cadence, and any fill is overridable in one line.
 	for _, phrase := range []string{
-		"FOUR built-in providers",
+		"FOUR built-in CLIs",
 		"the family ALIASES (opus / sonnet)",
 		"fills are concrete IDs, refreshed at KIT-RELEASE cadence",
-		"providers.<name>.profiles.<role>.model",
-		// Every provider renders its `profiles:` map, claude's included — the prose
+		"clis.<name>.profiles.<role>.model",
+		// Every CLI renders its `profiles:` map, claude's included — the prose
 		// must say so, since the whole point is that a reader never has to reach for
-		// --json to see what the default provider resolves.
-		"EVERY provider's fill map is printed below, claude's included",
+		// --json to see what the default CLI resolves.
+		"EVERY CLI's fill map is printed below, claude's included",
 		// kimi's empty fill map is a deliberate design point, not an omission, so
 		// the reference has to say so where a reader would otherwise see a gap.
 		"kimi deliberately ships NO fills",
 	} {
 		if !strings.Contains(out, phrase) {
-			t.Errorf("providers block must state %q (claude's fills are aliases; codex's and agy's are concrete IDs refreshed at kit cadence)", phrase)
+			t.Errorf("CLIs block must state %q (claude's fills are aliases; codex's and agy's are concrete IDs refreshed at kit cadence)", phrase)
 		}
 	}
 	// The superseded j3cm framing must not survive either — it renders into
@@ -837,12 +837,12 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 		"resolves today with an EMPTY model",
 	} {
 		if strings.Contains(out, retired) {
-			t.Errorf("providers block still carries the retired grammar-only claim %q", retired)
+			t.Errorf("CLIs block still carries the retired grammar-only claim %q", retired)
 		}
 	}
 }
 
-// TestConfigReferenceProviderBlocksParse is the promise the providers segment
+// TestConfigReferenceCLIBlocksParse is the promise the CLIs segment
 // makes in its own prose: the four built-in blocks render LIVE and uniformly, and
 // what you read is exactly what the built-in table resolves — so a reader who
 // hoists a block out of their fence (strip the leading '# ' from every line)
@@ -853,22 +853,22 @@ func TestConfigReferenceDocumentsBuiltInProviders(t *testing.T) {
 // single-quoted scalar; without doubling them the scalar closes early and a user
 // who follows the documented instruction gets a parse error instead of a working
 // override.
-func TestConfigReferenceProviderBlocksParse(t *testing.T) {
+func TestConfigReferenceCLIBlocksParse(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
 	}
 
 	var parsed struct {
-		Providers map[string]config.ProviderConfig `yaml:"providers"`
+		CLIs map[string]config.CLIConfig `yaml:"clis"`
 	}
 	if err := yaml.Unmarshal([]byte(out), &parsed); err != nil {
 		t.Fatalf("the rendered reference must parse as valid YAML: %v", err)
 	}
 
-	for _, name := range agent.ProviderNames(nil) {
-		want, _ := agent.ResolveProvider(nil, name)
-		got, ok := parsed.Providers[name]
+	for _, name := range agent.CLINames(nil) {
+		want, _ := agent.ResolveCLI(nil, name)
+		got, ok := parsed.CLIs[name]
 		if !ok {
 			t.Errorf("no live `%s:` block found in the rendered reference", name)
 			continue
@@ -880,15 +880,15 @@ func TestConfigReferenceProviderBlocksParse(t *testing.T) {
 	}
 }
 
-// TestConfigReferenceDocumentsProviderFill is the fill contract, reshaped by
-// 260806-j9nh and completed by 260806-ywkx: the providers block documents the
+// TestConfigReferenceDocumentsCLIFill is the fill contract, reshaped by
+// 260806-j9nh and completed by 260806-ywkx: the CLIs block documents the
 // PER-ROLE `profiles` fill map and the fill precedence, and the registry row's
 // Default exposes EVERY built-in's fills — claude's six roles (moved off the agent
 // side by j9nh) plus codex's dense map and agy's sparse one (shipped by ywkx,
 // codex densified by 260908-wcib). kimi ships no
 // fills at all, so it must project none. What the projection still refuses is the
-// DEPRECATED flat pair, on every provider.
-func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
+// DEPRECATED flat pair, on every CLI.
+func TestConfigReferenceDocumentsCLIFill(t *testing.T) {
 	out, err := configref.Render()
 	if err != nil {
 		t.Fatalf("Render returned an error: %v", err)
@@ -899,40 +899,40 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 		"flag > agent.profiles.<role> field > profiles.<role> >",
 	} {
 		if !strings.Contains(unwrapComment(out), phrase) {
-			t.Errorf("providers block must document %q (the per-role fill map and its precedence)", phrase)
+			t.Errorf("CLIs block must document %q (the per-role fill map and its precedence)", phrase)
 		}
 	}
 	// The retired flat-fill surface must not be advertised as the fill any more —
 	// it survives only as the documented deprecated alias.
 	if strings.Contains(out, "DEFAULT FILL") {
-		t.Error("providers block still advertises the retired flat providers.<name>.model/.effort fill")
+		t.Error("CLIs block still advertises the retired flat clis.<name>.model/.effort fill")
 	}
 
 	// The RENDERED reference must carry EVERY built-in's shipped fills, not just
 	// the JSON projection below: those fill lines ARE the user-facing half of
-	// R7, and without this assertion they can be dropped from providersSegment with
-	// the whole suite staying green. Expectations are DERIVED from ResolveProvider,
+	// R7, and without this assertion they can be dropped from clisSegment with
+	// the whole suite staying green. Expectations are DERIVED from ResolveCLI,
 	// shaped by the same omitempty rule the renderer applies — so codex's dense
 	// model+effort rows and agy's model-only rows are both pinned, a fill bump in
 	// defaults.yaml moves both sides together, and no model ID is written as a
 	// literal here.
 	//
 	// claude is in this list as of 260829. It was previously excluded — the rendered
-	// block showed its commands but not its fills — which left the DEFAULT provider
+	// block showed its commands but not its fills — which left the DEFAULT CLI
 	// as the only one whose resolved models a reader could not see without --json.
 	for _, name := range []string{"claude", "codex", "agy"} {
-		prov, ok := agent.ResolveProvider(nil, name)
+		prov, ok := agent.ResolveCLI(nil, name)
 		if !ok {
-			t.Errorf("built-in provider %q does not resolve", name)
+			t.Errorf("built-in CLI %q does not resolve", name)
 			continue
 		}
 		if len(prov.Profiles) == 0 {
-			t.Errorf("built-in provider %q resolves no per-role fills for the reference to render", name)
+			t.Errorf("built-in CLI %q resolves no per-role fills for the reference to render", name)
 		}
 		for _, role := range agent.RoleNames() {
 			fill, ok := prov.Profiles[role]
 			if !ok {
-				continue // sparse map: an omitted role takes this provider's `default`
+				continue // sparse map: an omitted role takes this CLI's `default`
 			}
 			var set []string
 			if fill.Model != "" {
@@ -943,7 +943,7 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 			}
 			want := "      " + role + ": { " + strings.Join(set, ", ") + " }"
 			if !strings.Contains(out, want) {
-				t.Errorf("providers block must render %s's %s fill as %q", name, role, want)
+				t.Errorf("CLIs block must render %s's %s fill as %q", name, role, want)
 			}
 		}
 	}
@@ -953,7 +953,7 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RenderJSON returned an error: %v", err)
 	}
-	// Decode leniently (row defaults have per-field shapes) and pick the providers
+	// Decode leniently (row defaults have per-field shapes) and pick the CLIs
 	// row out of the array.
 	var rows []map[string]any
 	if err := json.Unmarshal([]byte(jsonOut), &rows); err != nil {
@@ -961,22 +961,22 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 	}
 	var row map[string]any
 	for _, r := range rows {
-		if r["key"] == "providers" {
+		if r["key"] == "clis" {
 			row = r
 			break
 		}
 	}
 	if row == nil {
-		t.Fatal("--json output has no `providers` row")
+		t.Fatal("--json output has no `clis` row")
 	}
 	defaults, ok := row["default"].(map[string]any)
 	if !ok {
-		t.Fatalf("providers row default = %v, want an object of built-in providers", row["default"])
+		t.Fatalf("CLIs row default = %v, want an object of built-in CLIs", row["default"])
 	}
 	for _, name := range []string{"claude", "codex", "agy", "kimi"} {
 		entry, ok := defaults[name].(map[string]any)
 		if !ok {
-			t.Errorf("providers default must advertise the built-in %q, got %v", name, defaults[name])
+			t.Errorf("CLIs default must advertise the built-in %q, got %v", name, defaults[name])
 			continue
 		}
 		// The flat fill is gone from the shipped surface for EVERY built-in.
@@ -1009,7 +1009,7 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 				t.Errorf("built-in %q's registry default carries a fill for %q, which is not a role name", name, role)
 			}
 		}
-		if name != agent.DefaultProviderName {
+		if name != agent.DefaultCLIName {
 			continue
 		}
 		// claude is the one built-in whose map is EXHAUSTIVE. Derived from
@@ -1022,26 +1022,26 @@ func TestConfigReferenceDocumentsProviderFill(t *testing.T) {
 		}
 	}
 	desc, _ := row["description"].(string)
-	for _, phrase := range []string{"per-role fills", "four built-in providers", "kit-release cadence"} {
+	for _, phrase := range []string{"per-role fills", "four built-in CLIs", "kit-release cadence"} {
 		if !strings.Contains(desc, phrase) {
-			t.Errorf("providers row description must mention %q, got %q", phrase, desc)
+			t.Errorf("CLIs row description must mention %q, got %q", phrase, desc)
 		}
 	}
 }
 
-// TestConfigReferenceProvidersDefaultTracksAgentTable is the DERIVATION contract:
-// the providers row's registry default is built by walking agent.ProviderNames(nil)
-// and resolving each name through agent.ResolveProvider(nil, …) — it is NOT a
+// TestConfigReferenceCLIsDefaultTracksAgentTable is the DERIVATION contract:
+// the CLIs row's registry default is built by walking agent.CLINames(nil)
+// and resolving each name through agent.ResolveCLI(nil, …) — it is NOT a
 // hand-maintained list of built-in names. Asserting the key set EQUALS the agent
 // table (rather than merely contains the three names known today) is what makes a
 // built-in added or renamed in defaults.yaml surface here automatically instead of
 // silently drifting out of `fab config explain --json`.
 //
 // It also pins the projection: the two command fields and the per-role fill map
-// cross over verbatim from ResolveProvider, while the DEPRECATED flat pair never
+// cross over verbatim from ResolveCLI, while the DEPRECATED flat pair never
 // does — the contract that keeps a nonexistent model/effort fill from being
-// asserted (see configref.providerDefault).
-func TestConfigReferenceProvidersDefaultTracksAgentTable(t *testing.T) {
+// asserted (see configref.cliDefault).
+func TestConfigReferenceCLIsDefaultTracksAgentTable(t *testing.T) {
 	jsonOut, err := configref.RenderJSON()
 	if err != nil {
 		t.Fatalf("RenderJSON returned an error: %v", err)
@@ -1052,41 +1052,41 @@ func TestConfigReferenceProvidersDefaultTracksAgentTable(t *testing.T) {
 	}
 	var row map[string]any
 	for _, r := range rows {
-		if r["key"] == "providers" {
+		if r["key"] == "clis" {
 			row = r
 			break
 		}
 	}
 	if row == nil {
-		t.Fatal("--json output has no `providers` row")
+		t.Fatal("--json output has no `clis` row")
 	}
 	defaults, ok := row["default"].(map[string]any)
 	if !ok {
-		t.Fatalf("providers row default = %v, want an object of built-in providers", row["default"])
+		t.Fatalf("CLIs row default = %v, want an object of built-in CLIs", row["default"])
 	}
 
 	// Key set must EQUAL the agent table's built-in set (nil cfg = no project
 	// overrides), not merely overlap it.
-	want := agent.ProviderNames(nil)
+	want := agent.CLINames(nil)
 	got := make([]string, 0, len(defaults))
 	for name := range defaults {
 		got = append(got, name)
 	}
 	sort.Strings(got)
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("providers default keys = %v, want agent.ProviderNames(nil) = %v", got, want)
+		t.Errorf("CLIs default keys = %v, want agent.CLINames(nil) = %v", got, want)
 	}
 
-	// Each entry's commands and native capability must be ResolveProvider's verbatim.
+	// Each entry's commands and native capability must be ResolveCLI's verbatim.
 	for _, name := range want {
-		p, ok := agent.ResolveProvider(nil, name)
+		p, ok := agent.ResolveCLI(nil, name)
 		if !ok {
-			t.Errorf("agent.ProviderNames reported %q but ResolveProvider does not resolve it", name)
+			t.Errorf("agent.CLINames reported %q but ResolveCLI does not resolve it", name)
 			continue
 		}
 		entry, ok := defaults[name].(map[string]any)
 		if !ok {
-			t.Errorf("providers default is missing the built-in %q, got %v", name, defaults[name])
+			t.Errorf("CLIs default is missing the built-in %q, got %v", name, defaults[name])
 			continue
 		}
 		for field, wantCmd := range map[string]string{
@@ -1096,20 +1096,20 @@ func TestConfigReferenceProvidersDefaultTracksAgentTable(t *testing.T) {
 			raw, present := entry[field]
 			if wantCmd == "" {
 				if present {
-					t.Errorf("provider %q: %s must be absent when ResolveProvider carries none, got %v", name, field, raw)
+					t.Errorf("CLI %q: %s must be absent when ResolveCLI carries none, got %v", name, field, raw)
 				}
 				continue
 			}
 			if !present {
-				t.Errorf("provider %q: %s missing, want %q", name, field, wantCmd)
+				t.Errorf("CLI %q: %s missing, want %q", name, field, wantCmd)
 				continue
 			}
 			if raw != wantCmd {
-				t.Errorf("provider %q: %s = %v, want ResolveProvider's %q", name, field, raw, wantCmd)
+				t.Errorf("CLI %q: %s = %v, want ResolveCLI's %q", name, field, raw, wantCmd)
 			}
 		}
 		if gotNative, _ := entry["native"].(bool); gotNative != p.Native {
-			t.Errorf("provider %q: native = %v, want %v", name, gotNative, p.Native)
+			t.Errorf("CLI %q: native = %v, want %v", name, gotNative, p.Native)
 		}
 
 		// The per-role fill map must cross over VERBATIM too — every shipped role,
@@ -1117,7 +1117,7 @@ func TestConfigReferenceProvidersDefaultTracksAgentTable(t *testing.T) {
 		// a rewritten value, or an asserted-but-unshipped field fail here; the
 		// command assertions above would pass regardless. `want` is built with the
 		// same omitempty rule the JSON shape uses, so agy's model-only rows assert
-		// no empty effort, and a provider carrying no fills asserts no `profiles` key.
+		// no empty effort, and a CLI carrying no fills asserts no `profiles` key.
 		var wantProfiles map[string]any
 		if len(p.Profiles) > 0 {
 			wantProfiles = make(map[string]any, len(p.Profiles))
@@ -1134,14 +1134,14 @@ func TestConfigReferenceProvidersDefaultTracksAgentTable(t *testing.T) {
 		}
 		gotProfiles, _ := entry["profiles"].(map[string]any)
 		if !reflect.DeepEqual(gotProfiles, wantProfiles) {
-			t.Errorf("provider %q: profiles = %v, want ResolveProvider's %v (verbatim, per role and per field)", name, gotProfiles, wantProfiles)
+			t.Errorf("CLI %q: profiles = %v, want ResolveCLI's %v (verbatim, per role and per field)", name, gotProfiles, wantProfiles)
 		}
 	}
 }
 
 // TestConfigReferenceRetiresLegacyKeys guards that the removed keys no longer
 // appear in the reference: review_tools (retired to code-review.md § Review Tools),
-// agent.spawn_command (relocated to providers.claude.interactive_command), and
+// agent.spawn_command (relocated to clis.claude.interactive_command), and
 // branch_prefix (retired outright — `fab batch switch` names branches by the
 // change folder name, the one convention /git-branch and naming.md share).
 func TestConfigReferenceRetiresLegacyKeys(t *testing.T) {
@@ -1210,7 +1210,7 @@ func TestConfigReferenceJSONIsValidAndByteStable(t *testing.T) {
 // `""`). This is the single "cascade falls back to absent" signal Change 2's
 // resolver consumes; a typed empty would leak a Go-side implementation detail with
 // no cascade meaning. Conversely, a non-null `default` must denote a real built-in
-// value (the four built-in providers, the six role profiles, and
+// value (the four built-in CLIs, the six role profiles, and
 // dispatch.mode's `native` today). The forbidden shapes are the ones that could
 // stand in for "nothing" (`[]`, `{}`, `""`).
 func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
@@ -1227,7 +1227,7 @@ func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
 	// "no built-in default" and MUST render as JSON null (not [], {}, or "").
 	hasDefault := map[string]bool{
 		"docs_index.roots":      true, // implicit memory root is a real built-in default
-		"providers":             true,
+		"clis":                  true,
 		"agent.profiles":        true,
 		"agent.session":         true, // the knob's built-in value IS claude, not "absent"
 		"agent.workers":         true,
@@ -1336,19 +1336,19 @@ func TestConfigReferenceRegistryLint(t *testing.T) {
 }
 
 // wantRenamedFrom is the registry's complete rename ledger. agent.tiers →
-// agent.profiles (260806-j9nh) was the first; providers' nested command fields
-// (session_command/dispatch_command → interactive_command/headless_command,
-// 2.19.0) carry the metadata informationally — the mechanical carry is
-// top-level only, so their on-disk rewrite ships as the 2.18.1-to-2.19.0
-// migration. Every other row must leave RenamedFrom empty so `renamed_from`
-// stays omitted from --json.
+// agent.profiles (260806-j9nh) was the first; providers → clis (261120-f2ly) is a
+// genuine top-level rename that `fab config upgrade` carries mechanically. The
+// older NESTED command-field renames (session_command/dispatch_command →
+// interactive_command/headless_command, 2.19.0) ship as the 2.18.1-to-2.19.0
+// migration and live in the clis row's description. Every other row must leave
+// RenamedFrom empty so `renamed_from` stays omitted from --json.
 var wantRenamedFrom = map[string]string{
 	"agent.profiles": "agent.tiers",
-	"providers":      "providers.<name>.session_command, providers.<name>.dispatch_command",
+	"clis":           "providers",
 }
 
 // TestConfigReferenceScopeAssignments pins the decision-6 scope taxonomy: the
-// preference-class fields (agent.profiles, providers) are `both`; the
+// preference-class fields (agent.profiles, CLIs) are `both`; the
 // semantics-class fields and the one unenumerated field (stage_hooks) are
 // `project`. (fab_version left config.yaml in 260708-j0qm and no longer carries a
 // scope.) Enforcement landed in Change 2; the assignments are consumed as data, so
@@ -1371,7 +1371,7 @@ func TestConfigReferenceScopeAssignments(t *testing.T) {
 		"true_impact_exclude":        configref.ScopeProject,
 		"checklist.extra_categories": configref.ScopeProject,
 		"consolidate.detectors":      configref.ScopeProject,
-		"providers":                  configref.ScopeBoth,
+		"clis":                       configref.ScopeBoth,
 		"agent.session":              configref.ScopeBoth,
 		"agent.workers":              configref.ScopeBoth,
 		"agent.profiles":             configref.ScopeBoth,
@@ -2003,13 +2003,13 @@ func TestConfigSetToolDefaultModel(t *testing.T) {
 			wantSource: "agent.profiles.review",
 		},
 		{
-			name: "provider role fill in project config",
+			name: "CLI role fill in project config",
 			projectYAML: `agent:
   profiles:
-    review: { provider: codex }
+    review: { cli: codex }
 `,
-			args:       []string{"set", "providers.codex.profiles.review.model", agent.ToolDefaultModel},
-			wantSource: "providers.codex.profiles.review",
+			args:       []string{"set", "clis.codex.profiles.review.model", agent.ToolDefaultModel},
+			wantSource: "clis.codex.profiles.review",
 		},
 	}
 	for _, tc := range cases {

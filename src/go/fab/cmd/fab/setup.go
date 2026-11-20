@@ -43,12 +43,12 @@ func setupCmd() *cobra.Command {
 //
 // It coexists with fab-kit's `fab doctor` by distinct job: doctor checks
 // system prerequisites (git/bash/yq/…, "good enough to use fab-kit"), while
-// this checks fab's own setup state (config viability, provider roster,
+// this checks fab's own setup state (config viability, CLI roster,
 // dispatch mode, version skew).
 func setupCheckCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "check",
-		Short: "Read-only environment doctor — probe providers, config viability, and version skew",
+		Short: "Read-only environment doctor — probe CLIs, config viability, and version skew",
 		Args:  cobra.NoArgs,
 		Example: "  fab setup check\n" +
 			"  fab setup check || echo 'real problems found'  # CI gate: exit 1 only on failures",
@@ -91,7 +91,7 @@ func readProjectPin(fabRoot string) (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-// renderSetupCheck writes the report: the provider roster as a table, then the
+// renderSetupCheck writes the report: the CLI roster as a table, then the
 // findings in probe order, each prefixed with its severity marker (✓ ok /
 // ! warning / i info / ✗ failure), then a summary line. All of it goes to stdout — it IS the data the caller
 // asked for (toolkit principle №2); stderr carries only the run() ERROR line
@@ -100,11 +100,11 @@ func renderSetupCheck(w io.Writer, report *setupcheck.Report) {
 	fmt.Fprintln(w, "fab setup check — environment doctor (read-only)")
 	fmt.Fprintln(w)
 
-	if len(report.Providers) > 0 {
-		fmt.Fprintln(w, "Providers:")
+	if len(report.CLIs) > 0 {
+		fmt.Fprintln(w, "CLIs:")
 		tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(tw, "  provider\tbinary\tinteractive\theadless\tnative")
-		for _, p := range report.Providers {
+		fmt.Fprintln(tw, "  CLI\tbinary\tinteractive\theadless\tnative")
+		for _, p := range report.CLIs {
 			fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\n",
 				p.Name, renderBinary(p), yesNo(p.Interactive), yesNo(p.Headless), yesNo(p.Native))
 		}
@@ -124,7 +124,7 @@ func renderSetupCheck(w io.Writer, report *setupcheck.Report) {
 
 // renderBinary renders the roster's binary cell: the resolved path summary,
 // or the missing executables.
-func renderBinary(p setupcheck.ProviderProbe) string {
+func renderBinary(p setupcheck.CLIProbe) string {
 	if len(p.Executables) == 0 {
 		return "(no commands)"
 	}

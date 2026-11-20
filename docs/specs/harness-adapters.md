@@ -34,7 +34,7 @@
 > recorded as the pane counterpart of tv3g's native continuation (superseding that amendment's statement
 > that it would be a separate follow-up), and **reap timing becomes stage-aware** in the wiring. The
 > earlier rationale that embedding the pointer at spawn "sidesteps the printed-prompt trap entirely" is
-> **superseded**: verified delivery and the decoupling of pane capability from a provider's
+> **superseded**: verified delivery and the decoupling of pane capability from a CLI's
 > positional-prompt grammar outweigh the boot race, which the choreography now handles explicitly with a
 > readiness precondition and a retry. Same explicit-amendment route as above.
 >
@@ -63,15 +63,15 @@ observed via files. A third recovers what that detached process cannot offer —
 
 An *adapter* is the mechanism that turns "run stage S as a worker" into an actual launched worker and,
 later, an observed result. The resolution that precedes dispatch (stage → role →
-`{provider, model, effort}`, via `fab agent <stage> -o yaml`; the invocation command lives on the resolved
-provider) is **provider-neutral and adapter-independent** — see
+`{cli, model, effort}`, via `fab agent <stage> -o yaml`; the invocation command lives on the resolved
+CLI) is **CLI-neutral and adapter-independent** — see
 [`stage-models.md`](stage-models.md). Only the launch+observe step is adapter-specific.
 
 | Adapter | Launch | Prompt delivery | Completion observed via | States it can report |
 |---------|--------|-----------------|-------------------------|----------------------|
 | **1. Native Agent-tool** | in-harness sub-agent (Claude Code Agent tool) | the dispatched prompt itself | the held sub-agent handle (structural) | all five |
 | **2. Headless CLI** (`fab dispatch start`) | detached `sh -c` wrapper, `setsid` semantics | prompt file on the command's **stdin** | `{stage}.exit` + pid liveness + result file | all five |
-| **3. Interactive pane** (`fab dispatch open`) | a tmux pane running the provider's `interactive_command` — split into the dispatching agent's own window, or a new window when there is no pane to split | prompt **file** + a one-line **pointer** to it, **delivered post-spawn** by the verified send-keys choreography (`fab dispatch deliver`), behind an agent-driven readiness gate | **result file** + pane liveness | `running` / `done` / `orphaned` |
+| **3. Interactive pane** (`fab dispatch open`) | a tmux pane running the CLI's `interactive_command` — split into the dispatching agent's own window, or a new window when there is no pane to split | prompt **file** + a one-line **pointer** to it, **delivered post-spawn** by the verified send-keys choreography (`fab dispatch deliver`), behind an agent-driven readiness gate | **result file** + pane liveness | `running` / `done` / `orphaned` |
 
 Adapters 2 and 3 are two **modes of the same command family** (`fab dispatch`), sharing its resolution,
 `.fab-dispatch/{id}/` state directory, refuse-if-running concurrency, and the status/kill/reap/clean
@@ -79,7 +79,7 @@ surfaces — plus the `restart` recovery verb, which relaunches either mode from
 re-derives its mode from the current environment (see § Recovery is orchestrator policy over these states). `logs` is the one verb that is **not** shared: it reads the headless wrapper's redirected
 stream, so against a pane record it refuses and names the pane-mode equivalent, `fab pane capture
 <pane>` (carrying the recorded socket as `-L <server>` when there is one). They differ in which of the
-provider's two command fields they compose — `headless_command`
+CLI's two command fields they compose — `headless_command`
 for headless, `interactive_command` for pane — and in how completion is observed. The two fields are never
 merged and **never fall back to each other in either direction**.
 
@@ -113,7 +113,7 @@ dispatch fresh. `_preamble.md` § Worker Continuation owns the mechanics.
 **Adapter 3 carries the same capability through a different mechanism; adapter 2 carries none.**
 
 - **Headless CLI (adapter 2) is deliberately non-resumable.** Resuming a detached CLI worker would
-  require session-ID persistence and a provider `resume_command` grammar, which the contract does not
+  require session-ID persistence and a CLI `resume_command` grammar, which the contract does not
   define and no adapter may improvise.
 - **Interactive pane (adapter 3) IS resumable** (amendment, `260809-3oz7`). A pane worker never exits on
   completion — it sits at its prompt — so the worker the native adapter keeps in memory is, here, simply
@@ -136,7 +136,7 @@ The headless path: the worker is a **detached CLI process** (e.g. `claude …` o
 launched and observed via `fab dispatch` (see [`_cli-fab-pane.md`](../../src/kit/skills/_cli-fab-pane.md)
 § fab dispatch). It exists because the native path is **tmux/in-harness-bound** and cannot drive a
 stage on a CI box, a remote host, or a different agent CLI. `fab dispatch start` launches the resolved
-provider `headless_command` detached via `sh -c '${SHELL:-/bin/sh} -i -c '\''<cmd>'\'' < prompt > log 2>&1; echo $? > exit'` (`--timeout` prefixes `timeout -s HUP N`) launched with
+CLI `headless_command` detached via `sh -c '${SHELL:-/bin/sh} -i -c '\''<cmd>'\'' < prompt > log 2>&1; echo $? > exit'` (`--timeout` prefixes `timeout -s HUP N`) launched with
 `setsid` semantics (the shell is the supervisor — no Go process remains, so the dispatch survives the
 orchestrator dying), tracks it
 under `.fab-dispatch/{id}/`, and the orchestrator observes all five states **via `fab dispatch status` /
@@ -155,9 +155,9 @@ The **watch-and-steer** path: the worker is an **interactive agent session in a 
 can read and type into mid-stage. It exists because a detached headless worker is a black box —
 `fab dispatch logs --tail` recovers *watching*, but **steering is impossible**: a detached process in its
 own session is nobody's conversation partner. That asymmetry against the native adapter's
-peek-and-converse richness is the largest capability loss when running a stage cross-provider, and an
+peek-and-converse richness is the largest capability loss when running a stage cross-CLI, and an
 interactive pane is the one interface every agent CLI supports natively, so it recovers both with no
-per-provider integration work.
+per-CLI integration work.
 
 **This adapter's entry is `fab dispatch open`, not `fab dispatch start`.** Spawning the pane and handing
 the worker its prompt are two separate events with a decision between them, so they are two verbs:
@@ -188,10 +188,10 @@ judgment a binary cannot supply.
 
 Mechanics, all fixed by this spec:
 
-- **Command composed**: the resolved provider's **`interactive_command`** — the same string `fab agent`
+- **Command composed**: the resolved CLI's **`interactive_command`** — the same string `fab agent`
   composes — with `{model}`/`{effort}` substituted through the shared `internal/spawn` resolution. This is
-  why pane mode needs **no new provider config field**: the interactive invocation is already in the
-  provider table. It MUST NOT read or fall back to `headless_command`. Interactive **human-facing** spawns
+  why pane mode needs **no new CLI config field**: the interactive invocation is already in the
+  CLI table. It MUST NOT read or fall back to `headless_command`. Interactive **human-facing** spawns
   (HexoKit-spawned agent windows and `fab batch new`/`switch`) carry a shell fallback
   (`; exec "$SHELL"`) so the pane survives the agent's exit; dispatch pane workers do **not**, because this
   adapter's `running`/`done`/`orphaned` subset treats pane death as the worker's terminal event.
@@ -260,8 +260,8 @@ Mechanics, all fixed by this spec:
   multi-thousand-token prompt cannot ride `send-keys` or argv reliably — and the worker is later typed a
   **one-line pointer** to that path. The composed `interactive_command` reaches tmux with nothing
   appended to it — only wrapped as `${SHELL:-/bin/sh} -i -c '<cmd>'` so the worker inherits the env the
-  user's interactive rc exports (provider auth tokens, PATH). Every dispatch, pane, and batch
-  provider launch carries that wrap (`fab agent`, which runs in the caller's own shell, does not); without it a worker boots at a login wall, and a provider whose login state
+  user's interactive rc exports (CLI auth tokens, PATH). Every dispatch, pane, and batch
+  CLI launch carries that wrap (`fab agent`, which runs in the caller's own shell, does not); without it a worker boots at a login wall, and a CLI whose login state
   still draws its ordinary input box (observed: claude's "Not logged in") reads as `ready` to the
   text-free readiness gate, so the delivered prompt goes nowhere.
 
@@ -280,12 +280,12 @@ Mechanics, all fixed by this spec:
   creation "sidesteps the printed-prompt trap entirely". Two costs outweighed that: a positional argument
   is **unverifiable** — a CLI that silently discards it strands a worker at an empty prompt while the
   dispatch reads `running` — and requiring one made pane capability hostage to an accident of a
-  provider's CLI grammar, so a CLI that parses a bare positional as a subcommand could not have an
+  CLI's CLI grammar, so a CLI that parses a bare positional as a subcommand could not have an
   `interactive_command` at all. The boot race the old rationale avoided is now handled explicitly, by the
   readiness gate below and the retry above.
 - **The readiness gate stands between `open` and `deliver`, and it is MECHANICAL in the runtime and
   JUDGMENT in the orchestrator.** `fab dispatch ready` first checks who owns the pane: while the
-  pane's foreground command (`#{pane_current_command}`) is still a shell, the provider binary has not
+  pane's foreground command (`#{pane_current_command}`) is still a shell, the CLI binary has not
   taken the tty, and a cooked-mode shell echoes typed characters by itself — so the gate MUST report
   `booting` and MUST type NOTHING, because the sentinel would echo for a reason that has nothing to do
   with an agent being ready. This takeover precondition runs fab-side AHEAD of both classification
@@ -314,7 +314,7 @@ Mechanics, all fixed by this spec:
   reserved for real errors. The gate's budget, escalation classes, and login-wall rule are skill-side
   policy in `_preamble.md` § CLI-Adapter Dispatch, exactly as the recovery policy is.
 - **The pane path has TWO prerequisites — a reachable tmux server and an `interactive_command` on the
-  resolved provider.** `open` selects pane EXPLICITLY, so either missing prerequisite is a hard error
+  resolved CLI.** `open` selects pane EXPLICITLY, so either missing prerequisite is a hard error
   with no launch or state write — never a silent descent to headless, which would be the opposite of what
   that verb's caller asked for. Under `restart`'s automatic selection, a missing prerequisite skips pane
   and the fixed ladder continues to native, then headless. Pane command composition is deferred until validation;
@@ -506,7 +506,7 @@ at all.
 An adapter reports a state; deciding what to *do* about a non-`done` one is the orchestrator's. This
 matters because the two `fab dispatch` adapters have no in-harness supervision: a native sub-agent is
 retried on 5xx and its death is reported by the harness, while a CLI or pane worker that exhausts its
-provider's internal retry simply stops, and one wedged at an error banner reads `running` forever.
+CLI's internal retry simply stops, and one wedged at an error banner reads `running` forever.
 
 The protocol therefore fixes **nothing new** here — no state is added, renamed, or re-tabled; the
 result-file contract and the dispatch-prompt obligations are untouched — and instead names what an
@@ -516,7 +516,7 @@ orchestrator MAY and MUST NOT do over the existing states:
   conversational state (fab checkpoints stage state into artifacts, so a relaunched worker resumes from
   the last completed task), which makes relaunch-from-the-persisted-prompt cheap and deterministic —
   `fab dispatch restart <change> <stage>`. An orchestrator SHOULD spend at most **one** automatic restart
-  per stage dispatch and MUST escalate rather than loop: an unbounded restart against a provider that is
+  per stage dispatch and MUST escalate rather than loop: an unbounded restart against a CLI that is
   5xx-ing platform-wide only burns tokens. The budget is the orchestrator's own bookkeeping — **the
   protocol defines no on-disk attempt counter or history**, and `restart` is a fresh attempt under the
   same last-attempt-only overwrite semantics as `start`, so nothing distinguishes it in the state dir.
@@ -653,36 +653,36 @@ authority.
 ## Relationship to `stage-models.md`
 
 [`stage-models.md`](stage-models.md) owns the **resolution** layer (stage → role →
-`{provider, model, effort}`, the top-level `providers:` capability grammar, `fab agent -o yaml`, verbatim
-pass-through, provider neutrality) and describes the
+`{cli, model, effort}`, the top-level `clis:` capability grammar, `fab agent -o yaml`, verbatim
+pass-through, CLI neutrality) and describes the
 **native Agent-tool adapter** as its harness-specific injection layer. This spec catalogs that native
 adapter as **one of three** dispatch adapters and adds the two `fab dispatch` modes — **headless CLI** and
 **interactive pane** — alongside it, plus the cross-adapter protocol all three share. The optional YAML
-`dispatch:` mapping is the adapter seam: `fab agent <stage> -o yaml` resolves `dispatch.mode` against the provider's independent
+`dispatch:` mapping is the adapter seam: `fab agent <stage> -o yaml` resolves `dispatch.mode` against the CLI's independent
 capabilities and `$TMUX`; native omits the key, while pane/headless emit their labelled rung and substituted command.
 `stage-models.md` § Harness-adapter boundary points here for the runtime that RUNS it.
 
 Resolution stays **adapter-independent** across all three, while the configured preference and capability
 ladder select the adapter. What selects it is therefore the **config** a dispatch resolves from —
 `dispatch.mode`, a depth knob (`agent.workers`/`agent.session`) or
-`agent.profiles.<role>.provider`, plus the `providers:` capability table — not command presence or an
-invocation flag. An invocation-time `fab agent <stage> -o yaml --provider <name>` override
+`agent.profiles.<role>.cli`, plus the `clis:` capability table — not command presence or an
+invocation flag. An invocation-time `fab agent <stage> -o yaml --cli <name>` override
 (`260805-j3cm`) binds the **native adapter only**: `fab dispatch start`/`open` accept no override flags
 and re-resolve the stage from config themselves, so an overridden profile never reaches either
 `fab dispatch` mode (the headless mode would compose — or fail on the absence of — the *unoverridden*
-provider's `headless_command`, and `open` the unoverridden provider's `interactive_command`). Dispatch sites still
+CLI's `headless_command`, and `open` the unoverridden CLI's `interactive_command`). Dispatch sites still
 re-read the resolved `dispatch:` key after an override — the branch rule is unchanged (it keys
 on key presence) — but a `dispatch:` mapping that appears *only* because of an override is **not
 actionable**, and the two remedies are **not interchangeable**: dispatching that stage natively with the
 overridden model/effort is executable only for a **within-claude** `--model`/`--effort` override, since
 the native adapter's model seam is the Agent tool's `model` param — a Claude-alias enum
-(`opus`/`sonnet`/`haiku`/`fable`) with no room for a non-Claude ID. So for a **cross-provider
-`--provider` override** the **sole executable path** is a config override — a depth knob (`agent.workers`/`agent.session`) or
-`agent.profiles.<role>.provider` — that `dispatch start`'s
-own re-resolution will see. Nothing else moves: pane composes the resolved provider's existing
+(`opus`/`sonnet`/`haiku`/`fable`) with no room for a non-Claude ID. So for a **cross-CLI
+`--cli` override** the **sole executable path** is a config override — a depth knob (`agent.workers`/`agent.session`) or
+`agent.profiles.<role>.cli` — that `dispatch start`'s
+own re-resolution will see. Nothing else moves: pane composes the resolved CLI's existing
 `interactive_command` (the same field `fab agent` composes) through the same
 `internal/spawn` substitution. Mode selection is **per invocation**: explicit flags first, otherwise the
 configured descending ladder (§ 3's *Mode selection*), never a property inferred from command presence.
-A provider whose **pane-dispatch** grammar genuinely diverges from the interactive command it shares
+A CLI whose **pane-dispatch** grammar genuinely diverges from the interactive command it shares
 with `fab agent` would be the trigger to add a dedicated pane field
 (distinct from `interactive_command`) later — a data-only config addition, not a protocol change.

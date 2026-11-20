@@ -52,22 +52,22 @@ func TestResolveDefaults(t *testing.T) {
 // expectations from the maps without any of them pinning the values.
 //
 // These are ALSO the byte-identical-defaults guard for the 260806-j9nh reshape:
-// the six values moved from agent.tiers onto providers.claude.profiles, and every
+// the six values moved from agent.tiers onto clis.claude.profiles, and every
 // resolved stage profile must be unchanged by that move.
 //
 // When you bump a default: edit defaults.yaml, then update this table to match.
 // The one doc mirror that spells these IDs (docs/specs/stage-models.md § Default
 // role profiles) is guarded separately by TestDocTablesMatchAgentMaps; the rendered
-// config reference derives its fill lines from ResolveProvider and is guarded by
-// TestConfigReferenceDocumentsProviderFill in cmd/fab.
+// config reference derives its fill lines from ResolveCLI and is guarded by
+// TestConfigReferenceDocumentsCLIFill in cmd/fab.
 func TestDefaultRoleProfilesArePinned(t *testing.T) {
 	pinned := map[string]Profile{
-		RoleDefault:  {Provider: "claude", Model: "opus", Effort: "high"},
-		RoleOperator: {Provider: "claude", Model: "sonnet", Effort: "medium"},
-		RoleDoing:    {Provider: "claude", Model: "sonnet", Effort: "high"},
-		RoleReview:   {Provider: "claude", Model: "opus", Effort: "high"},
-		RoleHydrate:  {Provider: "claude", Model: "sonnet", Effort: "high"},
-		RoleFast:     {Provider: "claude", Model: "sonnet", Effort: "medium"},
+		RoleDefault:  {CLI: "claude", Model: "opus", Effort: "high"},
+		RoleOperator: {CLI: "claude", Model: "sonnet", Effort: "medium"},
+		RoleDoing:    {CLI: "claude", Model: "sonnet", Effort: "high"},
+		RoleReview:   {CLI: "claude", Model: "opus", Effort: "high"},
+		RoleHydrate:  {CLI: "claude", Model: "sonnet", Effort: "high"},
+		RoleFast:     {CLI: "claude", Model: "sonnet", Effort: "medium"},
 	}
 	if len(pinned) != len(RoleNames()) {
 		t.Fatalf("pinned table covers %d roles, but %d roles exist — add the new role here", len(pinned), len(RoleNames()))
@@ -84,7 +84,7 @@ func TestDefaultRoleProfilesArePinned(t *testing.T) {
 	}
 }
 
-// TestNonClaudeProviderFillsArePinned is the deliberate-change pin for the
+// TestNonClaudeCLIFillsArePinned is the deliberate-change pin for the
 // non-claude fills fab-kit ships (260806-ywkx). It is the non-claude sibling of
 // TestDefaultRoleProfilesArePinned: those fills never reach DefaultProfile (which
 // resolves through the claude-defaulted depth knobs), so without this table a
@@ -94,21 +94,21 @@ func TestDefaultRoleProfilesArePinned(t *testing.T) {
 // absent there — so the shape itself is what a bump reviews, not an accident of
 // enumeration. codex's map is DENSE by policy (260908-wcib): every role pins its own
 // model, so a `default` bump never silently repoints doing/review/hydrate the way
-// the earlier effort-only rows did (TestDefaultsFileProviders enforces the
+// the earlier effort-only rows did (TestDefaultsFileCLIs enforces the
 // density). agy's map stays sparse (its non-`fast` roles fall back to `default`),
 // and kimi's EMPTY table is pinned for the same reason (260808-rpsr): shipping it a
 // fill is the change that must be deliberate, not the change that slips through.
 //
 // When you bump a fill: edit defaults.yaml, then update this table to match. The
-// spec's inline providers sample is shape-only (IDs elided) and unguarded by
+// spec's inline CLIs sample is shape-only (IDs elided) and unguarded by
 // design; the rendered config reference is guarded by
-// TestConfigReferenceDocumentsProviderFill in cmd/fab.
-func TestNonClaudeProviderFillsArePinned(t *testing.T) {
-	pinned := map[string]map[string]config.ProviderProfile{
+// TestConfigReferenceDocumentsCLIFill in cmd/fab.
+func TestNonClaudeCLIFillsArePinned(t *testing.T) {
+	pinned := map[string]map[string]config.CLIProfile{
 		// codex: concrete catalog slugs read from the installed CLI's cache
 		// (~/.codex/models_cache.json). Author (doing) and critic (review) run
 		// DIFFERENT models on purpose; no row ships `ultra`.
-		providerCodex: {
+		cliCodex: {
 			RoleDefault:  {Model: "gpt-6-astra", Effort: "high"},
 			RoleDoing:    {Model: "gpt-6-astra", Effort: "high"},
 			RoleReview:   {Model: "gpt-5.6-sol", Effort: "xhigh"},
@@ -120,18 +120,18 @@ func TestNonClaudeProviderFillsArePinned(t *testing.T) {
 		// (…-high / …-low), so there is no separate effort to fill. These are
 		// concrete IDs from `agy models` and are the rows to bump when that
 		// catalog moves.
-		providerAgy: {
+		cliAgy: {
 			RoleDefault: {Model: "gemini-3.1-pro-high"},
 			RoleFast:    {Model: "gemini-3.6-flash-low"},
 		},
 		// kimi ships NOTHING, deliberately: its -m takes a user-config model alias
 		// rather than a catalog ID, so a pinned value breaks non-managed installs.
-		providerKimi: nil,
+		cliKimi: nil,
 	}
 	for name, want := range pinned {
-		prov, ok := ResolveProvider(nil, name)
+		prov, ok := ResolveCLI(nil, name)
 		if !ok {
-			t.Errorf("built-in provider %q must resolve", name)
+			t.Errorf("built-in CLI %q must resolve", name)
 			continue
 		}
 		if !reflect.DeepEqual(prov.Profiles, want) {
@@ -174,10 +174,10 @@ func TestRoleDepthPartition(t *testing.T) {
 	}
 }
 
-// TestDepthKnobSelectsProvider is the headline behavior: `agent.workers: <name>`
+// TestDepthKnobSelectsCLI is the headline behavior: `agent.workers: <name>`
 // moves exactly the four Tier-2 roles and leaves the two session roles alone, and
 // vice versa. Neither knob touches the other's partition.
-func TestDepthKnobSelectsProvider(t *testing.T) {
+func TestDepthKnobSelectsCLI(t *testing.T) {
 	workers := &config.Config{Agent: config.AgentConfig{Workers: "agy"}}
 	for _, role := range RoleNames() {
 		want := "claude"
@@ -188,8 +188,8 @@ func TestDepthKnobSelectsProvider(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveRole(%s): %v", role, err)
 		}
-		if got.Provider != want {
-			t.Errorf("with agent.workers=agy, role %q resolved provider %q, want %q", role, got.Provider, want)
+		if got.CLI != want {
+			t.Errorf("with agent.workers=agy, role %q resolved CLI %q, want %q", role, got.CLI, want)
 		}
 	}
 
@@ -203,31 +203,31 @@ func TestDepthKnobSelectsProvider(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveRole(%s): %v", role, err)
 		}
-		if got.Provider != want {
-			t.Errorf("with agent.session=codex, role %q resolved provider %q, want %q", role, got.Provider, want)
+		if got.CLI != want {
+			t.Errorf("with agent.session=codex, role %q resolved CLI %q, want %q", role, got.CLI, want)
 		}
 	}
 }
 
 // TestWorkersKnobResolvesBuiltInFills is the flagship UX (260806-ywkx): ONE knob
-// line moves every Tier-2 stage onto another provider AND gives each role that
-// provider's own per-role model — role differentiation survives the swap instead of
+// line moves every Tier-2 stage onto another CLI AND gives each role that
+// CLI's own per-role model — role differentiation survives the swap instead of
 // collapsing to an empty model for all four. The Tier-1 roles stay on claude.
 //
-// Expectations are DERIVED from ResolveProvider (with its cross-role fallback
-// through the provider's `default` entry), never restated, so a fill bump touches
-// defaults.yaml and TestNonClaudeProviderFillsArePinned only.
+// Expectations are DERIVED from ResolveCLI (with its cross-role fallback
+// through the CLI's `default` entry), never restated, so a fill bump touches
+// defaults.yaml and TestNonClaudeCLIFillsArePinned only.
 //
 // kimi is deliberately NOT in this loop — it ships no fills, so it has no role
 // differentiation to preserve. Its opposite property (an empty model resolves for
 // every workers role) is asserted by TestWorkersKnobOnNoFillsBuiltIn below.
 func TestWorkersKnobResolvesBuiltInFills(t *testing.T) {
-	for _, provider := range []string{providerCodex, providerAgy} {
-		t.Run(provider, func(t *testing.T) {
-			cfg := &config.Config{Agent: config.AgentConfig{Workers: provider}}
-			prov, ok := ResolveProvider(nil, provider)
+	for _, cli := range []string{cliCodex, cliAgy} {
+		t.Run(cli, func(t *testing.T) {
+			cfg := &config.Config{Agent: config.AgentConfig{Workers: cli}}
+			prov, ok := ResolveCLI(nil, cli)
 			if !ok {
-				t.Fatalf("built-in %s must resolve", provider)
+				t.Fatalf("built-in %s must resolve", cli)
 			}
 
 			for _, stage := range StageNames() {
@@ -247,17 +247,17 @@ func TestWorkersKnobResolvesBuiltInFills(t *testing.T) {
 
 				fill := prov.Profiles[role]
 				want := Profile{
-					Provider: provider,
-					Model:    firstNonEmpty(fill.Model, prov.Profiles[RoleDefault].Model),
-					Effort:   firstNonEmpty(fill.Effort, prov.Profiles[RoleDefault].Effort),
+					CLI:    cli,
+					Model:  firstNonEmpty(fill.Model, prov.Profiles[RoleDefault].Model),
+					Effort: firstNonEmpty(fill.Effort, prov.Profiles[RoleDefault].Effort),
 				}
 				if got != want {
-					t.Errorf("Resolve(%s) = %+v, want %s's %s fill %+v", stage, got, provider, role, want)
+					t.Errorf("Resolve(%s) = %+v, want %s's %s fill %+v", stage, got, cli, role, want)
 				}
 				if got.Model == "" {
-					t.Errorf("Resolve(%s) resolved an EMPTY model — a knob pointed at %s must resolve a real model for every role", stage, provider)
+					t.Errorf("Resolve(%s) resolved an EMPTY model — a knob pointed at %s must resolve a real model for every role", stage, cli)
 				}
-				if provider == providerAgy && got.Effort != "" {
+				if cli == cliAgy && got.Effort != "" {
 					t.Errorf("Resolve(%s) = %+v, want no effort — agy's model IDs embed the reasoning level instead", stage, got)
 				}
 			}
@@ -266,7 +266,7 @@ func TestWorkersKnobResolvesBuiltInFills(t *testing.T) {
 
 	// The headline differentiation: the two heavyweight roles and the cheap one do
 	// NOT resolve the same profile.
-	cfg := &config.Config{Agent: config.AgentConfig{Workers: providerCodex}}
+	cfg := &config.Config{Agent: config.AgentConfig{Workers: cliCodex}}
 	apply, _ := Resolve(cfg, "apply") // doing
 	ship, _ := Resolve(cfg, "ship")   // fast
 	if apply == ship {
@@ -277,12 +277,12 @@ func TestWorkersKnobResolvesBuiltInFills(t *testing.T) {
 // TestWorkersKnobOnNoFillsBuiltIn is the counterpart for kimi, the one built-in
 // that deliberately ships NO fills (260808-rpsr). `agent.workers: kimi` must move
 // every Tier-2 stage onto kimi with an EMPTY model — the inherit-the-CLI's-own-
-// default_model signal — rather than silently borrowing another provider's ID.
+// default_model signal — rather than silently borrowing another CLI's ID.
 // kimi's -m takes a user-config alias, so an empty model is the only value that is
 // correct for every install shape; the token-drop in internal/spawn is what turns
 // it into a command with no -m flag.
 func TestWorkersKnobOnNoFillsBuiltIn(t *testing.T) {
-	cfg := &config.Config{Agent: config.AgentConfig{Workers: providerKimi}}
+	cfg := &config.Config{Agent: config.AgentConfig{Workers: cliKimi}}
 
 	for _, stage := range StageNames() {
 		role, _ := RoleForStage(stage)
@@ -299,31 +299,31 @@ func TestWorkersKnobOnNoFillsBuiltIn(t *testing.T) {
 			continue
 		}
 
-		if want := (Profile{Provider: providerKimi}); got != want {
+		if want := (Profile{CLI: cliKimi}); got != want {
 			t.Errorf("Resolve(%s) = %+v, want %+v — kimi ships no fills, so model and effort must resolve EMPTY", stage, got, want)
 		}
 	}
 }
 
-// TestResolveFullOverride: an agent.profiles entry sets provider, model, and effort.
+// TestResolveFullOverride: an agent.profiles entry sets CLI, model, and effort.
 func TestResolveFullOverride(t *testing.T) {
 	cfg := cfgWithProfiles(map[string]config.RoleProfile{
-		"doing": {Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"},
+		"doing": {CLI: "claude", Model: "claude-sonnet-5", Effort: "medium"},
 	})
 	got, err := Resolve(cfg, "apply") // apply ∈ doing
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	want := Profile{Provider: "claude", Model: "claude-sonnet-5", Effort: "medium"}
+	want := Profile{CLI: "claude", Model: "claude-sonnet-5", Effort: "medium"}
 	if got != want {
 		t.Errorf("Resolve(apply) = %+v, want %+v", got, want)
 	}
 }
 
-// TestResolvePerFieldMerge: an override that sets only effort keeps the provider's
+// TestResolvePerFieldMerge: an override that sets only effort keeps the CLI's
 // own per-role model fill (per-field), and vice versa.
 func TestResolvePerFieldMerge(t *testing.T) {
-	// Only effort overridden → the provider's hydrate fill supplies provider+model.
+	// Only effort overridden → the CLI's hydrate fill supplies CLI+model.
 	hydrateDefault, _ := DefaultProfile(RoleHydrate)
 	cfg := cfgWithProfiles(map[string]config.RoleProfile{
 		"hydrate": {Effort: "medium"},
@@ -332,8 +332,8 @@ func TestResolvePerFieldMerge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if got.Provider != hydrateDefault.Provider || got.Model != hydrateDefault.Model || got.Effort != "medium" {
-		t.Errorf("Resolve(hydrate) = %+v, want default provider+model (%s/%s) + medium effort", got, hydrateDefault.Provider, hydrateDefault.Model)
+	if got.CLI != hydrateDefault.CLI || got.Model != hydrateDefault.Model || got.Effort != "medium" {
+		t.Errorf("Resolve(hydrate) = %+v, want default CLI+model (%s/%s) + medium effort", got, hydrateDefault.CLI, hydrateDefault.Model)
 	}
 
 	// Only model overridden → the fast fill's effort survives. ship ∈ fast
@@ -353,7 +353,7 @@ func TestResolvePerFieldMerge(t *testing.T) {
 // TestNoAgentSideDefaultRoleInheritance (260806-j9nh): agent.profiles.default is
 // the `default` ROLE's own override, NOT a fallback source for the other five. The
 // old agent.tiers map re-based every unset field from its `default` tier; that
-// second fallback chain is deleted, leaving only the provider-side one.
+// second fallback chain is deleted, leaving only the CLI-side one.
 func TestNoAgentSideDefaultRoleInheritance(t *testing.T) {
 	doingDefault, _ := DefaultProfile(RoleDoing)
 
@@ -378,81 +378,81 @@ func TestNoAgentSideDefaultRoleInheritance(t *testing.T) {
 		t.Errorf("ResolveRole(default) = %+v, want the configured fable-5/low", got)
 	}
 
-	// And a provider named on the default role does not leak onto another role
+	// And a CLI named on the default role does not leak onto another role
 	// either — the other role falls to its depth knob.
 	cfg = cfgWithProfiles(map[string]config.RoleProfile{
-		"default": {Provider: "codex"},
+		"default": {CLI: "codex"},
 	})
 	got, err = Resolve(cfg, "apply")
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
 	if got != doingDefault {
-		t.Errorf("Resolve(apply) = %+v, want %+v — a default-role provider must not re-base doing", got, doingDefault)
+		t.Errorf("Resolve(apply) = %+v, want %+v — a default-role CLI must not re-base doing", got, doingDefault)
 	}
 }
 
-// TestProviderPerRoleFills: a provider's profiles map supplies model/effort per
+// TestCLIPerRoleFills: a CLI's profiles map supplies model/effort per
 // role, with its `default` entry acting as the cross-role fallback and an explicit
 // agent.profiles field beating both.
 //
-// It uses a provider name fab-kit does NOT ship, so the per-role/per-field merge
+// It uses a CLI name fab-kit does NOT ship, so the per-role/per-field merge
 // with a built-in table is out of the picture and the precedence under test is the
-// only thing the expectations depend on (TestPartialProviderFillMergesOverBuiltIn
+// only thing the expectations depend on (TestPartialCLIFillMergesOverBuiltIn
 // covers the merge itself).
-func TestProviderPerRoleFills(t *testing.T) {
-	myagent := map[string]config.ProviderConfig{
-		"myagent": {Profiles: map[string]config.ProviderProfile{
+func TestCLIPerRoleFills(t *testing.T) {
+	myagent := map[string]config.CLIConfig{
+		"myagent": {Profiles: map[string]config.CLIProfile{
 			"default": {Model: "gpt-5.3-codex", Effort: "medium"},
 			"doing":   {Model: "gpt-5.3-codex-max", Effort: "high"},
 		}},
 	}
 
 	cases := []struct {
-		name      string
-		agentCfg  config.AgentConfig
-		providers map[string]config.ProviderConfig
-		stage     string
-		want      Profile
+		name     string
+		agentCfg config.AgentConfig
+		clis     map[string]config.CLIConfig
+		stage    string
+		want     Profile
 	}{
 		{
-			name:      "the role's own fill wins",
-			agentCfg:  config.AgentConfig{Workers: "myagent"},
-			providers: myagent,
-			stage:     "apply", // doing
-			want:      Profile{Provider: "myagent", Model: "gpt-5.3-codex-max", Effort: "high"},
+			name:     "the role's own fill wins",
+			agentCfg: config.AgentConfig{Workers: "myagent"},
+			clis:     myagent,
+			stage:    "apply", // doing
+			want:     Profile{CLI: "myagent", Model: "gpt-5.3-codex-max", Effort: "high"},
 		},
 		{
-			name:      "a role with no fill falls to the provider's default entry",
-			agentCfg:  config.AgentConfig{Workers: "myagent"},
-			providers: myagent,
-			stage:     "review",
-			want:      Profile{Provider: "myagent", Model: "gpt-5.3-codex", Effort: "medium"},
+			name:     "a role with no fill falls to the CLI's default entry",
+			agentCfg: config.AgentConfig{Workers: "myagent"},
+			clis:     myagent,
+			stage:    "review",
+			want:     Profile{CLI: "myagent", Model: "gpt-5.3-codex", Effort: "medium"},
 		},
 		{
-			name: "an explicit agent.profiles field beats the provider fill",
+			name: "an explicit agent.profiles field beats the CLI fill",
 			agentCfg: config.AgentConfig{
 				Workers:  "myagent",
 				Profiles: map[string]config.RoleProfile{"doing": {Model: "gpt-5.2-codex"}},
 			},
-			providers: myagent,
-			stage:     "apply",
-			want:      Profile{Provider: "myagent", Model: "gpt-5.2-codex", Effort: "high"},
+			clis:  myagent,
+			stage: "apply",
+			want:  Profile{CLI: "myagent", Model: "gpt-5.2-codex", Effort: "high"},
 		},
 		{
-			name: "a per-role provider: override picks that provider's fills",
+			name: "a per-role cli: override picks that CLI's fills",
 			agentCfg: config.AgentConfig{
-				Profiles: map[string]config.RoleProfile{"review": {Provider: "myagent"}},
+				Profiles: map[string]config.RoleProfile{"review": {CLI: "myagent"}},
 			},
-			providers: myagent,
-			stage:     "review",
-			want:      Profile{Provider: "myagent", Model: "gpt-5.3-codex", Effort: "medium"},
+			clis:  myagent,
+			stage: "review",
+			want:  Profile{CLI: "myagent", Model: "gpt-5.3-codex", Effort: "medium"},
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			cfg := &config.Config{Agent: c.agentCfg, Providers: c.providers}
+			cfg := &config.Config{Agent: c.agentCfg, CLIs: c.clis}
 			got, err := Resolve(cfg, c.stage)
 			if err != nil {
 				t.Fatalf("Resolve(%s): %v", c.stage, err)
@@ -464,12 +464,12 @@ func TestProviderPerRoleFills(t *testing.T) {
 	}
 }
 
-// TestPartialProviderFillMergesOverBuiltIn: overriding ONE role's fill on the
-// built-in claude provider leaves the other five (and the overridden role's other
+// TestPartialCLIFillMergesOverBuiltIn: overriding ONE role's fill on the
+// built-in claude CLI leaves the other five (and the overridden role's other
 // field) on the shipped values — the per-role, per-field merge.
-func TestPartialProviderFillMergesOverBuiltIn(t *testing.T) {
-	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
-		"claude": {Profiles: map[string]config.ProviderProfile{
+func TestPartialCLIFillMergesOverBuiltIn(t *testing.T) {
+	cfg := &config.Config{CLIs: map[string]config.CLIConfig{
+		"claude": {Profiles: map[string]config.CLIProfile{
 			"review": {Model: "claude-fable-5"},
 		}},
 	}}
@@ -497,19 +497,19 @@ func TestPartialProviderFillMergesOverBuiltIn(t *testing.T) {
 	}
 }
 
-// TestResolveProviderDoesNotMutateBuiltIns: the resolved Profiles map is a fresh
+// TestResolveCLIDoesNotMutateBuiltIns: the resolved Profiles map is a fresh
 // copy, so a caller writing through it cannot poison the shipped defaults for the
 // rest of the process.
-func TestResolveProviderDoesNotMutateBuiltIns(t *testing.T) {
-	prov, ok := ResolveProvider(nil, "claude")
+func TestResolveCLIDoesNotMutateBuiltIns(t *testing.T) {
+	prov, ok := ResolveCLI(nil, "claude")
 	if !ok {
 		t.Fatal("built-in claude must resolve")
 	}
-	prov.Profiles[RoleDoing] = config.ProviderProfile{Model: "poisoned"}
+	prov.Profiles[RoleDoing] = config.CLIProfile{Model: "poisoned"}
 
 	want, _ := DefaultProfile(RoleDoing)
 	if want.Model == "poisoned" {
-		t.Fatal("mutating a resolved provider's Profiles map corrupted the built-in table")
+		t.Fatal("mutating a resolved CLI's Profiles map corrupted the built-in table")
 	}
 }
 
@@ -551,14 +551,14 @@ func TestLegacyAgentTiersAlias(t *testing.T) {
 	}
 }
 
-// TestLegacyFlatProviderFill (260806-j9nh): the pre-2.17.0 flat
-// providers.<name>.model/.effort is still read, as an alias for
+// TestLegacyFlatCLIFill (260806-j9nh): the pre-2.17.0 flat
+// clis.<name>.model/.effort is still read, as an alias for
 // profiles.default — so a config that has not yet run the migration keeps
 // resolving. profiles.default wins when both are present.
-func TestLegacyFlatProviderFill(t *testing.T) {
+func TestLegacyFlatCLIFill(t *testing.T) {
 	cfg := &config.Config{
 		Agent: config.AgentConfig{Workers: "myagent"},
-		Providers: map[string]config.ProviderConfig{
+		CLIs: map[string]config.CLIConfig{
 			"myagent": {Model: "gpt-5.3-codex", Effort: "high"},
 		},
 	}
@@ -566,15 +566,15 @@ func TestLegacyFlatProviderFill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	want := Profile{Provider: "myagent", Model: "gpt-5.3-codex", Effort: "high"}
+	want := Profile{CLI: "myagent", Model: "gpt-5.3-codex", Effort: "high"}
 	if got != want {
 		t.Errorf("Resolve(apply) = %+v, want %+v (legacy flat fill still read)", got, want)
 	}
 
 	// profiles.default is the modern spelling and outranks it.
-	cfg.Providers["myagent"] = config.ProviderConfig{
+	cfg.CLIs["myagent"] = config.CLIConfig{
 		Model:    "gpt-5.3-codex",
-		Profiles: map[string]config.ProviderProfile{"default": {Model: "gpt-5.4-codex"}},
+		Profiles: map[string]config.CLIProfile{"default": {Model: "gpt-5.4-codex"}},
 	}
 	got, err = Resolve(cfg, "apply")
 	if err != nil {
@@ -585,30 +585,30 @@ func TestLegacyFlatProviderFill(t *testing.T) {
 	}
 }
 
-// TestResolveProvider_CommandFieldsAlias (260809-n1he): a config still carrying the
+// TestResolveCLI_CommandFieldsAlias (260809-n1he): a config still carrying the
 // pre-2.19.0 `session_command`/`dispatch_command` spellings keeps resolving, PER
-// FIELD — so a half-migrated provider (one field renamed, one not) resolves both
+// FIELD — so a half-migrated CLI (one field renamed, one not) resolves both
 // commands — and the new spelling wins wherever both are present, independently per
 // field. Driven through yaml.Unmarshal rather than struct literals because the
-// deprecated `yaml:` tags on config.ProviderConfig are half of what makes the alias
+// deprecated `yaml:` tags on config.CLIConfig are half of what makes the alias
 // work; a struct-literal test would keep passing with the tags dropped.
-func TestResolveProvider_CommandFieldsAlias(t *testing.T) {
+func TestResolveCLI_CommandFieldsAlias(t *testing.T) {
 	cases := []struct {
 		name            string
-		providerYAML    string
+		cliYAML         string
 		wantInteractive string
 		wantHeadless    string
 	}{
 		{
 			name: "only the old spellings — both fields resolve",
-			providerYAML: "    session_command: myagent\n" +
+			cliYAML: "    session_command: myagent\n" +
 				"    dispatch_command: myagent -p\n",
 			wantInteractive: "myagent",
 			wantHeadless:    "myagent -p",
 		},
 		{
 			name: "both spellings on both fields — the new one wins on each",
-			providerYAML: "    interactive_command: myagent --new\n" +
+			cliYAML: "    interactive_command: myagent --new\n" +
 				"    session_command: myagent --old\n" +
 				"    headless_command: myagent -p --new\n" +
 				"    dispatch_command: myagent -p --old\n",
@@ -617,14 +617,14 @@ func TestResolveProvider_CommandFieldsAlias(t *testing.T) {
 		},
 		{
 			name: "half-migrated — new interactive_command beside an old dispatch_command",
-			providerYAML: "    interactive_command: myagent --new\n" +
+			cliYAML: "    interactive_command: myagent --new\n" +
 				"    dispatch_command: myagent -p --old\n",
 			wantInteractive: "myagent --new",
 			wantHeadless:    "myagent -p --old",
 		},
 		{
 			name: "per-field independence — new wins the field that carries both, old still resolves the field it alone carries",
-			providerYAML: "    interactive_command: myagent --new\n" +
+			cliYAML: "    interactive_command: myagent --new\n" +
 				"    session_command: myagent --old\n" +
 				"    dispatch_command: myagent -p --old\n",
 			wantInteractive: "myagent --new",
@@ -636,12 +636,12 @@ func TestResolveProvider_CommandFieldsAlias(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var cfg config.Config
-			if err := yaml.Unmarshal([]byte("providers:\n  myagent:\n"+tc.providerYAML), &cfg); err != nil {
+			if err := yaml.Unmarshal([]byte("clis:\n  myagent:\n"+tc.cliYAML), &cfg); err != nil {
 				t.Fatalf("yaml.Unmarshal: %v", err)
 			}
-			prov, ok := ResolveProvider(&cfg, "myagent")
+			prov, ok := ResolveCLI(&cfg, "myagent")
 			if !ok {
-				t.Fatal("a provider carrying deprecated command spellings must still resolve as known")
+				t.Fatal("a CLI carrying deprecated command spellings must still resolve as known")
 			}
 			if prov.InteractiveCommand != tc.wantInteractive {
 				t.Errorf("interactive_command = %q, want %q", prov.InteractiveCommand, tc.wantInteractive)
@@ -694,7 +694,7 @@ func captureStderr(t *testing.T) func() string {
 	}
 }
 
-// TestFlatProviderFillBeatsBuiltInDefault (260806-ywkx) is the regression guard for
+// TestFlatCLIFillBeatsBuiltInDefault (260806-ywkx) is the regression guard for
 // shipping non-claude fills: the flat spelling is an ALIAS for the user's own
 // profiles.default, so it must outrank the BUILT-IN profiles.default it is trying to
 // replace. Were it read as a rung below profiles.default instead — its shape before
@@ -706,16 +706,16 @@ func captureStderr(t *testing.T) func() string {
 // fill outranks the folded value, exactly as a hand-written profiles.default would
 // be outranked. Both halves are asserted: the alias wins on `default`, and a role
 // fill wins over it on apply/hydrate (the upgrade note in stage-models.md).
-func TestFlatProviderFillBeatsBuiltInDefault(t *testing.T) {
-	builtin, _ := ResolveProvider(nil, providerCodex)
+func TestFlatCLIFillBeatsBuiltInDefault(t *testing.T) {
+	builtin, _ := ResolveCLI(nil, cliCodex)
 	if builtin.Profiles[RoleDefault].Model == "" {
 		t.Fatal("this guard is meaningless unless the codex built-in ships a profiles.default")
 	}
 
 	// A pre-migration config carrying ONLY the flat spelling.
 	cfg := &config.Config{
-		Agent:     config.AgentConfig{Session: providerCodex, Workers: providerCodex},
-		Providers: map[string]config.ProviderConfig{providerCodex: {Model: "my-pinned-model"}},
+		Agent: config.AgentConfig{Session: cliCodex, Workers: cliCodex},
+		CLIs:  map[string]config.CLIConfig{cliCodex: {Model: "my-pinned-model"}},
 	}
 	got, err := Resolve(cfg, "intake") // intake → the `default` role, the alias's target
 	if err != nil {
@@ -743,11 +743,11 @@ func TestFlatProviderFillBeatsBuiltInDefault(t *testing.T) {
 	}
 
 	// The user's OWN profiles.default still beats their flat fill — the modern
-	// spelling wins over its alias, exactly as TestLegacyFlatProviderFill asserts
-	// for a provider fab-kit ships nothing for.
-	cfg.Providers[providerCodex] = config.ProviderConfig{
+	// spelling wins over its alias, exactly as TestLegacyFlatCLIFill asserts
+	// for a CLI fab-kit ships nothing for.
+	cfg.CLIs[cliCodex] = config.CLIConfig{
 		Model:    "my-pinned-model",
-		Profiles: map[string]config.ProviderProfile{RoleDefault: {Model: "my-modern-model"}},
+		Profiles: map[string]config.CLIProfile{RoleDefault: {Model: "my-modern-model"}},
 	}
 	got, err = Resolve(cfg, "intake")
 	if err != nil {
@@ -790,38 +790,38 @@ func TestResolveRoleWithSourceCollapsesToolDefaultAfterPrecedence(t *testing.T) 
 		wantSource string
 	}{
 		{
-			name: "agent profile beats provider fill",
+			name: "agent profile beats CLI fill",
 			cfg: &config.Config{
 				Agent: config.AgentConfig{Profiles: map[string]config.RoleProfile{
-					RoleReview: {Provider: providerCodex, Model: ToolDefaultModel},
+					RoleReview: {CLI: cliCodex, Model: ToolDefaultModel},
 				}},
-				Providers: map[string]config.ProviderConfig{
-					providerCodex: {Profiles: map[string]config.ProviderProfile{
-						RoleReview: {Model: "provider-fill"},
+				CLIs: map[string]config.CLIConfig{
+					cliCodex: {Profiles: map[string]config.CLIProfile{
+						RoleReview: {Model: "CLI-fill"},
 					}},
 				},
 			},
 			wantSource: "agent.profiles.review",
 		},
 		{
-			name: "provider role fill",
-			cfg: &config.Config{Providers: map[string]config.ProviderConfig{
-				providerCodex: {Profiles: map[string]config.ProviderProfile{
+			name: "CLI role fill",
+			cfg: &config.Config{CLIs: map[string]config.CLIConfig{
+				cliCodex: {Profiles: map[string]config.CLIProfile{
 					RoleReview: {Model: ToolDefaultModel},
 				}},
 			}},
-			overrides:  Overrides{Provider: providerCodex, ProviderSet: true},
-			wantSource: "providers.codex.profiles.review",
+			overrides:  Overrides{CLI: cliCodex, CLISet: true},
+			wantSource: "clis.codex.profiles.review",
 		},
 		{
-			name: "provider default fill",
-			cfg: &config.Config{Providers: map[string]config.ProviderConfig{
-				"custom": {Profiles: map[string]config.ProviderProfile{
+			name: "CLI default fill",
+			cfg: &config.Config{CLIs: map[string]config.CLIConfig{
+				"custom": {Profiles: map[string]config.CLIProfile{
 					RoleDefault: {Model: ToolDefaultModel},
 				}},
 			}},
-			overrides:  Overrides{Provider: "custom", ProviderSet: true},
-			wantSource: "providers.custom.profiles.default",
+			overrides:  Overrides{CLI: "custom", CLISet: true},
+			wantSource: "clis.custom.profiles.default",
 		},
 		{
 			name:       "model flag",
@@ -846,21 +846,21 @@ func TestResolveRoleWithSourceCollapsesToolDefaultAfterPrecedence(t *testing.T) 
 }
 
 // TestResolveRoleWithOverrides: the top rung of the fill precedence. Each flag
-// applies only when SUPPLIED (its Set companion); a provider SWAP re-derives the
-// unoverridden model/effort from the NEW provider's own per-role fills (never
-// retaining the old provider's); and an explicit agent.profiles pin survives a swap,
+// applies only when SUPPLIED (its Set companion); a CLI SWAP re-derives the
+// unoverridden model/effort from the NEW CLI's own per-role fills (never
+// retaining the old CLI's); and an explicit agent.profiles pin survives a swap,
 // because a value the user wrote is not inheritance.
 func TestResolveRoleWithOverrides(t *testing.T) {
 	base, _ := DefaultProfile(RoleDoing)
-	agy, _ := ResolveProvider(nil, providerAgy)
+	agy, _ := ResolveCLI(nil, cliAgy)
 	agyDoing := Profile{
-		Provider: providerAgy,
+		CLI: cliAgy,
 		// agy ships no `doing` fill, so the role falls through to its `default`
 		// entry — derived, not restated, so a fill bump does not touch this table.
 		Model: agy.Profiles[RoleDefault].Model,
 	}
-	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
-		"codex": {Profiles: map[string]config.ProviderProfile{
+	cfg := &config.Config{CLIs: map[string]config.CLIConfig{
+		"codex": {Profiles: map[string]config.CLIProfile{
 			"doing": {Model: "gpt-5.3-codex", Effort: "high"},
 		}},
 	}}
@@ -878,83 +878,83 @@ func TestResolveRoleWithOverrides(t *testing.T) {
 			want: base,
 		},
 		{
-			name: "model only (no --provider) is a within-role override",
+			name: "model only (no --cli) is a within-role override",
 			cfg:  cfg,
 			o:    Overrides{Model: "claude-sonnet-5", ModelSet: true},
-			want: Profile{Provider: "claude", Model: "claude-sonnet-5", Effort: base.Effort},
+			want: Profile{CLI: "claude", Model: "claude-sonnet-5", Effort: base.Effort},
 		},
 		{
-			name: "effort only (no --provider) is a within-role override",
+			name: "effort only (no --cli) is a within-role override",
 			cfg:  cfg,
 			o:    Overrides{Effort: "medium", EffortSet: true},
-			want: Profile{Provider: "claude", Model: base.Model, Effort: "medium"},
+			want: Profile{CLI: "claude", Model: base.Model, Effort: "medium"},
 		},
 		{
-			name: "provider swap re-derives from the new provider's per-role fill",
+			name: "CLI swap re-derives from the new CLI's per-role fill",
 			cfg:  cfg,
-			o:    Overrides{Provider: "codex", ProviderSet: true},
-			want: Profile{Provider: "codex", Model: "gpt-5.3-codex", Effort: "high"},
+			o:    Overrides{CLI: "codex", CLISet: true},
+			want: Profile{CLI: "codex", Model: "gpt-5.3-codex", Effort: "high"},
 		},
 		{
 			// agy carries no `doing` fill of its own, so the swap lands on that
-			// provider's `default` entry — never on claude's model, and (since
+			// CLI's `default` entry — never on claude's model, and (since
 			// 260806-ywkx ships the fills) never on an empty one.
-			name: "provider swap with no per-role fill falls to that provider's default entry",
+			name: "CLI swap with no per-role fill falls to that CLI's default entry",
 			cfg:  cfg,
-			o:    Overrides{Provider: "agy", ProviderSet: true},
+			o:    Overrides{CLI: "agy", CLISet: true},
 			want: agyDoing,
 		},
 		{
 			// kimi ships no fills at all, so a swap onto it resolves an EMPTY model
 			// — the deliberate inherit-the-CLI's-own-default_model signal, which the
 			// empty-value token-drop turns into a command with no -m flag.
-			name: "provider swap onto the no-fills built-in resolves an empty model",
+			name: "CLI swap onto the no-fills built-in resolves an empty model",
 			cfg:  cfg,
-			o:    Overrides{Provider: "kimi", ProviderSet: true},
-			want: Profile{Provider: "kimi"},
+			o:    Overrides{CLI: "kimi", CLISet: true},
+			want: Profile{CLI: "kimi"},
 		},
 		{
-			name: "explicit flags beat the swapped provider's fill",
+			name: "explicit flags beat the swapped CLI's fill",
 			cfg:  cfg,
 			o: Overrides{
-				Provider: "codex", ProviderSet: true,
+				CLI: "codex", CLISet: true,
 				Model: "gpt-5.4-codex", ModelSet: true,
 				Effort: "xhigh", EffortSet: true,
 			},
-			want: Profile{Provider: "codex", Model: "gpt-5.4-codex", Effort: "xhigh"},
+			want: Profile{CLI: "codex", Model: "gpt-5.4-codex", Effort: "xhigh"},
 		},
 		{
-			name: "swapping to the already-resolved provider changes nothing",
+			name: "swapping to the already-resolved CLI changes nothing",
 			cfg:  cfg,
-			o:    Overrides{Provider: "claude", ProviderSet: true},
+			o:    Overrides{CLI: "claude", CLISet: true},
 			want: base,
 		},
 		{
-			name: "an unknown provider is not an error here (lookup is the caller's)",
+			name: "an unknown CLI is not an error here (lookup is the caller's)",
 			cfg:  cfg,
-			o:    Overrides{Provider: "bogus", ProviderSet: true},
-			want: Profile{Provider: "bogus"},
+			o:    Overrides{CLI: "bogus", CLISet: true},
+			want: Profile{CLI: "bogus"},
 		},
 		{
-			name: "an explicitly-empty --provider resolves empty, never the depth knob",
+			name: "an explicitly-empty --cli resolves empty, never the depth knob",
 			cfg:  cfg,
-			o:    Overrides{ProviderSet: true},
+			o:    Overrides{CLISet: true},
 			want: Profile{},
 		},
 		{
 			name: "an explicitly-empty --model clears the model (supplied-ness, not emptiness)",
 			cfg:  cfg,
 			o:    Overrides{ModelSet: true},
-			want: Profile{Provider: "claude", Model: "", Effort: base.Effort},
+			want: Profile{CLI: "claude", Model: "", Effort: base.Effort},
 		},
 		{
-			name: "an explicit agent.profiles model survives a provider swap",
+			name: "an explicit agent.profiles model survives a CLI swap",
 			cfg: &config.Config{
-				Agent:     config.AgentConfig{Profiles: map[string]config.RoleProfile{"doing": {Model: "pinned-by-hand"}}},
-				Providers: cfg.Providers,
+				Agent: config.AgentConfig{Profiles: map[string]config.RoleProfile{"doing": {Model: "pinned-by-hand"}}},
+				CLIs:  cfg.CLIs,
 			},
-			o:    Overrides{Provider: "codex", ProviderSet: true},
-			want: Profile{Provider: "codex", Model: "pinned-by-hand", Effort: "high"},
+			o:    Overrides{CLI: "codex", CLISet: true},
+			want: Profile{CLI: "codex", Model: "pinned-by-hand", Effort: "high"},
 		},
 	}
 	for _, c := range cases {
@@ -985,15 +985,15 @@ func TestResolveVerbatimNoValidation(t *testing.T) {
 		t.Errorf("effort = %q, want verbatim %q", got.Effort, "xhigh")
 	}
 
-	// A non-Claude provider's vocabulary passes through untouched too.
+	// A non-Claude CLI's vocabulary passes through untouched too.
 	cfg = cfgWithProfiles(map[string]config.RoleProfile{
-		"review": {Provider: "codex", Model: "gpt-5", Effort: "reasoning_effort:high"},
+		"review": {CLI: "codex", Model: "gpt-5", Effort: "reasoning_effort:high"},
 	})
 	got, err = Resolve(cfg, "review")
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if got.Provider != "codex" || got.Model != "gpt-5" || got.Effort != "reasoning_effort:high" {
+	if got.CLI != "codex" || got.Model != "gpt-5" || got.Effort != "reasoning_effort:high" {
 		t.Errorf("Resolve(review) = %+v, want verbatim non-Claude profile", got)
 	}
 }
@@ -1076,14 +1076,14 @@ func TestIsRoleName(t *testing.T) {
 	}
 }
 
-// TestResolveProvider: the built-in claude provider resolves with all three
+// TestResolveCLI: the built-in claude CLI resolves with all three
 // capabilities; a project override per-field merges;
-// an unknown provider reports ok=false.
-func TestResolveProvider(t *testing.T) {
+// an unknown CLI reports ok=false.
+func TestResolveCLI(t *testing.T) {
 	// Built-in claude, no project config.
-	prov, ok := ResolveProvider(nil, "claude")
+	prov, ok := ResolveCLI(nil, "claude")
 	if !ok {
-		t.Fatal("built-in claude provider must resolve")
+		t.Fatal("built-in claude CLI must resolve")
 	}
 	if prov.InteractiveCommand != DefaultInteractiveCommand {
 		t.Errorf("claude.InteractiveCommand = %q, want the built-in default", prov.InteractiveCommand)
@@ -1094,12 +1094,12 @@ func TestResolveProvider(t *testing.T) {
 
 	// Project override replaces headless_command; the session/native capability inherits the
 	// built-in (per-field merge).
-	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
+	cfg := &config.Config{CLIs: map[string]config.CLIConfig{
 		"claude": {HeadlessCommand: "claude -p", ModelsCommand: "claude models --json"},
 	}}
-	prov, ok = ResolveProvider(cfg, "claude")
+	prov, ok = ResolveCLI(cfg, "claude")
 	if !ok {
-		t.Fatal("claude provider must resolve with a project override")
+		t.Fatal("claude CLI must resolve with a project override")
 	}
 	if prov.InteractiveCommand != DefaultInteractiveCommand {
 		t.Errorf("interactive_command = %q, want the inherited built-in", prov.InteractiveCommand)
@@ -1113,8 +1113,8 @@ func TestResolveProvider(t *testing.T) {
 	if prov.ModelsCommand != "claude models --json" {
 		t.Errorf("models_command = %q, want the override", prov.ModelsCommand)
 	}
-	for _, name := range ProviderNames(nil) {
-		builtin, _ := ResolveProvider(nil, name)
+	for _, name := range CLINames(nil) {
+		builtin, _ := ResolveCLI(nil, name)
 		if builtin.ModelsCommand != "" {
 			t.Errorf("built-in %s models_command = %q, want empty", name, builtin.ModelsCommand)
 		}
@@ -1123,10 +1123,10 @@ func TestResolveProvider(t *testing.T) {
 	// YAML presence distinguishes an explicit false from absent, so users can
 	// disable a built-in capability rather than only enabling one.
 	var disableNative config.Config
-	if err := yaml.Unmarshal([]byte("providers:\n  claude:\n    native: false\n"), &disableNative); err != nil {
+	if err := yaml.Unmarshal([]byte("clis:\n  claude:\n    native: false\n"), &disableNative); err != nil {
 		t.Fatal(err)
 	}
-	prov, _ = ResolveProvider(&disableNative, "claude")
+	prov, _ = ResolveCLI(&disableNative, "claude")
 	if prov.Native {
 		t.Error("an explicit native:false override must disable the built-in capability")
 	}
@@ -1136,10 +1136,10 @@ func TestResolveProvider(t *testing.T) {
 	}
 
 	// A project override of a non-claude built-in per-field merges too.
-	cfg = &config.Config{Providers: map[string]config.ProviderConfig{
+	cfg = &config.Config{CLIs: map[string]config.CLIConfig{
 		"codex": {HeadlessCommand: "codex exec --json"},
 	}}
-	prov, ok = ResolveProvider(cfg, "codex")
+	prov, ok = ResolveCLI(cfg, "codex")
 	if !ok || prov.HeadlessCommand != "codex exec --json" {
 		t.Errorf("codex headless_command = %q, ok=%v, want the project override", prov.HeadlessCommand, ok)
 	}
@@ -1147,24 +1147,24 @@ func TestResolveProvider(t *testing.T) {
 		t.Errorf("codex interactive_command = %q, want the inherited built-in", prov.InteractiveCommand)
 	}
 
-	// A project-only provider (in neither the built-in table nor a knob) resolves
+	// A project-only CLI (in neither the built-in table nor a knob) resolves
 	// as known off the project entry alone.
-	cfg = &config.Config{Providers: map[string]config.ProviderConfig{
+	cfg = &config.Config{CLIs: map[string]config.CLIConfig{
 		"myagent": {InteractiveCommand: "myagent", HeadlessCommand: "myagent run"},
 	}}
-	prov, ok = ResolveProvider(cfg, "myagent")
+	prov, ok = ResolveCLI(cfg, "myagent")
 	if !ok || prov.HeadlessCommand != "myagent run" {
-		t.Errorf("myagent provider = %+v, ok=%v, want the project entry", prov, ok)
+		t.Errorf("myagent CLI = %+v, ok=%v, want the project entry", prov, ok)
 	}
 
-	// An unknown provider reports ok=false.
-	if _, ok := ResolveProvider(nil, "bogus"); ok {
-		t.Error("unknown provider must report ok=false")
+	// An unknown CLI reports ok=false.
+	if _, ok := ResolveCLI(nil, "bogus"); ok {
+		t.Error("unknown CLI must report ok=false")
 	}
 }
 
-// TestResolveProvider_NonClaudeBuiltIns: every non-claude built-in is resolvable
-// with NO providers: config at all, carries the command fields that define it,
+// TestResolveCLI_NonClaudeBuiltIns: every non-claude built-in is resolvable
+// with NO clis: config at all, carries the command fields that define it,
 // ships a full-auto posture on the form that needs one, and never the DEPRECATED
 // flat pair (which exists only as a read-time alias for a user's profiles.default).
 //
@@ -1172,10 +1172,10 @@ func TestResolveProvider(t *testing.T) {
 // codex and agy ship per-role fills so a knob pointed at them resolves a real model
 // per role, while kimi ships none on purpose (its -m takes a user-config alias).
 //
-// Every built-in carries interactive launch grammar. Provider first-run walls do
+// Every built-in carries interactive launch grammar. CLI first-run walls do
 // not remove pane capability: the generic readiness gate classifies them and gives
 // the dispatcher bounded judgment rounds before prompt delivery.
-func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
+func TestResolveCLI_NonClaudeBuiltIns(t *testing.T) {
 	cases := []struct {
 		name              string
 		session, dispatch string
@@ -1209,9 +1209,9 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		prov, ok := ResolveProvider(nil, c.name)
+		prov, ok := ResolveCLI(nil, c.name)
 		if !ok {
-			t.Fatalf("built-in %s provider must resolve with no config", c.name)
+			t.Fatalf("built-in %s CLI must resolve with no config", c.name)
 		}
 		if prov.InteractiveCommand != c.session {
 			t.Errorf("%s.InteractiveCommand = %q, want %q", c.name, prov.InteractiveCommand, c.session)
@@ -1272,12 +1272,12 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 		}
 	}
 
-	// agy is pane-eligible at the same resolved-provider seam the dispatcher reads.
+	// agy is pane-eligible at the same resolved-cli seam the dispatcher reads.
 	// Its trust prompt is a readiness-gate concern, not a reason to remove launch
-	// grammar from the provider.
-	agy, ok := ResolveProvider(nil, "agy")
+	// grammar from the CLI.
+	agy, ok := ResolveCLI(nil, "agy")
 	if !ok {
-		t.Fatalf("built-in agy provider must resolve with no config")
+		t.Fatalf("built-in agy CLI must resolve with no config")
 	}
 	if agy.InteractiveCommand != DefaultAgyInteractiveCommand {
 		t.Errorf("agy.InteractiveCommand = %q, want pane-capable grammar %q", agy.InteractiveCommand, DefaultAgyInteractiveCommand)
@@ -1287,9 +1287,9 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 	// exactly what makes it pane-ELIGIBLE, which is the whole point of the probe
 	// that closed. Its {model} must stay droppable — kimi ships no fills, so a
 	// pinned model here would be a value no install is guaranteed to accept.
-	kimi, ok := ResolveProvider(nil, "kimi")
+	kimi, ok := ResolveCLI(nil, "kimi")
 	if !ok {
-		t.Fatalf("built-in kimi provider must resolve with no config")
+		t.Fatalf("built-in kimi CLI must resolve with no config")
 	}
 	if kimi.InteractiveCommand == "" {
 		t.Error("kimi must be eligible for pane dispatch — its interactive first run and input echo were probed on 2026-08-10")
@@ -1299,17 +1299,17 @@ func TestResolveProvider_NonClaudeBuiltIns(t *testing.T) {
 	}
 }
 
-// TestResolveProvider_ProfilesMerge: the per-role fill map merges over the built-in
+// TestResolveCLI_ProfilesMerge: the per-role fill map merges over the built-in
 // per ROLE and per FIELD — so a config supplying only fills inherits the built-in
 // grammar, and a partial fill leaves the other field empty (no cross-field
 // invention).
-func TestResolveProvider_ProfilesMerge(t *testing.T) {
-	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
-		"codex": {Profiles: map[string]config.ProviderProfile{
+func TestResolveCLI_ProfilesMerge(t *testing.T) {
+	cfg := &config.Config{CLIs: map[string]config.CLIConfig{
+		"codex": {Profiles: map[string]config.CLIProfile{
 			"default": {Model: "gpt-5.3-codex", Effort: "high"},
 		}},
 	}}
-	prov, ok := ResolveProvider(cfg, "codex")
+	prov, ok := ResolveCLI(cfg, "codex")
 	if !ok {
 		t.Fatal("codex must resolve")
 	}
@@ -1323,55 +1323,55 @@ func TestResolveProvider_ProfilesMerge(t *testing.T) {
 	// A partial fill leaves the other field empty. agy is the natural case: its
 	// built-in fills are model-only, so a user pinning a newer ID must not acquire
 	// an invented effort.
-	cfg = &config.Config{Providers: map[string]config.ProviderConfig{
-		"agy": {Profiles: map[string]config.ProviderProfile{
+	cfg = &config.Config{CLIs: map[string]config.CLIConfig{
+		"agy": {Profiles: map[string]config.CLIProfile{
 			"default": {Model: "gemini-3.1-pro-low"},
 		}},
 	}}
-	prov, _ = ResolveProvider(cfg, "agy")
+	prov, _ = ResolveCLI(cfg, "agy")
 	if got := prov.Profiles["default"]; got.Model != "gemini-3.1-pro-low" || got.Effort != "" {
 		t.Errorf("partial fill = %+v, want {gemini-3.1-pro-low, \"\"}", got)
 	}
 
 	// Overriding one FIELD of one ROLE on claude leaves the rest of that role's
 	// built-in fill intact.
-	cfg = &config.Config{Providers: map[string]config.ProviderConfig{
-		"claude": {Profiles: map[string]config.ProviderProfile{
+	cfg = &config.Config{CLIs: map[string]config.CLIConfig{
+		"claude": {Profiles: map[string]config.CLIProfile{
 			"doing": {Effort: "medium"},
 		}},
 	}}
-	prov, _ = ResolveProvider(cfg, "claude")
+	prov, _ = ResolveCLI(cfg, "claude")
 	builtinDoing, _ := DefaultProfile(RoleDoing)
 	if got := prov.Profiles[RoleDoing]; got.Effort != "medium" || got.Model != builtinDoing.Model {
 		t.Errorf("claude doing fill = %+v, want the overridden effort with the built-in model %q", got, builtinDoing.Model)
 	}
 }
 
-// TestProviderNames: the resolvable provider set is the union of fab-kit's
-// built-in table and the project's providers: block, sorted and de-duplicated —
-// the set `fab agent --provider <unknown>` names in its lookup-failure error.
-func TestProviderNames(t *testing.T) {
+// TestCLINames: the resolvable CLI set is the union of fab-kit's
+// built-in table and the project's clis: block, sorted and de-duplicated —
+// the set `fab agent --cli <unknown>` names in its lookup-failure error.
+func TestCLINames(t *testing.T) {
 	assertNames := func(t *testing.T, got, want []string) {
 		t.Helper()
 		if len(got) != len(want) {
-			t.Fatalf("ProviderNames = %v, want %v", got, want)
+			t.Fatalf("CLINames = %v, want %v", got, want)
 		}
 		for i := range want {
 			if got[i] != want[i] {
-				t.Fatalf("ProviderNames = %v, want %v (sorted, de-duplicated)", got, want)
+				t.Fatalf("CLINames = %v, want %v (sorted, de-duplicated)", got, want)
 			}
 		}
 	}
-	assertNames(t, ProviderNames(nil), []string{"agy", "claude", "codex", "kimi"})
+	assertNames(t, CLINames(nil), []string{"agy", "claude", "codex", "kimi"})
 
-	// Project providers union the built-in, de-duplicating shared keys and sorting
+	// Project CLIs union the built-in, de-duplicating shared keys and sorting
 	// for stable error output.
-	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
-		"codex":   {Profiles: map[string]config.ProviderProfile{"default": {Model: "gpt-5.3-codex"}}},
+	cfg := &config.Config{CLIs: map[string]config.CLIConfig{
+		"codex":   {Profiles: map[string]config.CLIProfile{"default": {Model: "gpt-5.3-codex"}}},
 		"claude":  {HeadlessCommand: "claude -p"},
 		"myagent": {InteractiveCommand: "myagent"},
 	}}
-	assertNames(t, ProviderNames(cfg), []string{"agy", "claude", "codex", "kimi", "myagent"})
+	assertNames(t, CLINames(cfg), []string{"agy", "claude", "codex", "kimi", "myagent"})
 }
 
 // TestResolveUnknownStage: an unknown stage is the only Resolve-side error.
@@ -1515,34 +1515,34 @@ func TestStageRoleCollisionsAreFixedPoints(t *testing.T) {
 	}
 }
 
-// TestBuiltinProvider pins the unmerged-table contract of BuiltinProvider: it
+// TestBuiltinCLI pins the unmerged-table contract of BuiltinCLI: it
 // returns the embedded defaults.yaml entry BEFORE user-override merge (so an
 // override present in cfg must NOT leak in), and reports ok=false for names the
 // embedded table does not define. This is the lookup the `fab setup check`
 // override-masking skew check compares user tiers against — returning merged
 // data instead would make a load-bearing override invisible (the #573 shape).
-func TestBuiltinProvider(t *testing.T) {
+func TestBuiltinCLI(t *testing.T) {
 	cfg := &config.Config{
-		Providers: map[string]config.ProviderConfig{
-			// A user override that MUST NOT appear in BuiltinProvider's answer.
+		CLIs: map[string]config.CLIConfig{
+			// A user override that MUST NOT appear in BuiltinCLI's answer.
 			"claude": {InteractiveCommand: "user-claude-override"},
 		},
 	}
-	_ = cfg // BuiltinProvider takes no config — the override cannot leak by construction.
+	_ = cfg // BuiltinCLI takes no config — the override cannot leak by construction.
 
-	builtIn, ok := BuiltinProvider("claude")
+	builtIn, ok := BuiltinCLI("claude")
 	if !ok {
-		t.Fatal("BuiltinProvider(claude) ok = false, want true (claude is a built-in)")
+		t.Fatal("BuiltinCLI(claude) ok = false, want true (claude is a built-in)")
 	}
 	if builtIn.InteractiveCommand != DefaultInteractiveCommand {
-		t.Errorf("BuiltinProvider(claude).InteractiveCommand = %q, want the embedded default %q (unmerged)",
+		t.Errorf("BuiltinCLI(claude).InteractiveCommand = %q, want the embedded default %q (unmerged)",
 			builtIn.InteractiveCommand, DefaultInteractiveCommand)
 	}
 	if !builtIn.Native {
-		t.Error("BuiltinProvider(claude).Native = false, want true (embedded defaults declare it)")
+		t.Error("BuiltinCLI(claude).Native = false, want true (embedded defaults declare it)")
 	}
 
-	if _, ok := BuiltinProvider("not-a-provider"); ok {
-		t.Error("BuiltinProvider(not-a-provider) ok = true, want false")
+	if _, ok := BuiltinCLI("not-a-cli"); ok {
+		t.Error("BuiltinCLI(not-a-cli) ok = true, want false")
 	}
 }

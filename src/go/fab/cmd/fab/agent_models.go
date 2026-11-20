@@ -15,18 +15,18 @@ func agentModelsCmd() *cobra.Command {
 	var jsonOutput bool
 	var repo string
 	cmd := &cobra.Command{
-		Use:   "models [provider]",
-		Short: "List models offered by agent CLI tools and provider fills",
+		Use:   "models [cli]",
+		Short: "List models offered by agent CLI tools and CLI fills",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadRepoConfig(repo)
 			if err != nil {
 				return err
 			}
-			names := agent.ProviderNames(cfg)
+			names := agent.CLINames(cfg)
 			if len(args) == 1 {
-				if _, known := agent.ResolveProvider(cfg, args[0]); !known {
-					return unknownProviderError(cfg, args[0])
+				if _, known := agent.ResolveCLI(cfg, args[0]); !known {
+					return unknownCLIError(cfg, args[0])
 				}
 				names = []string{args[0]}
 			}

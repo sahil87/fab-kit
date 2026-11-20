@@ -9,8 +9,8 @@ import (
 func TestCommand_WithInteractiveCommand(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
-	// The `default` role's provider (claude by default) supplies the session command.
-	os.WriteFile(configPath, []byte(`providers:
+	// The `default` role's CLI (claude by default) supplies the session command.
+	os.WriteFile(configPath, []byte(`clis:
   claude:
     interactive_command: "custom-claude --model opus"
 `), 0o644)
@@ -21,17 +21,17 @@ func TestCommand_WithInteractiveCommand(t *testing.T) {
 	}
 }
 
-// TestCommand_CustomDefaultProvider: the `default` role can point at a non-claude
-// provider; Command then reads THAT provider's session command.
-func TestCommand_CustomDefaultProvider(t *testing.T) {
+// TestCommand_CustomDefaultCLI: the `default` role can point at a non-claude
+// CLI; Command then reads THAT CLI's session command.
+func TestCommand_CustomDefaultCLI(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
-	os.WriteFile(configPath, []byte(`providers:
+	os.WriteFile(configPath, []byte(`clis:
   codex:
     interactive_command: "codex --tui"
 agent:
   profiles:
-    default: { provider: codex }
+    default: { cli: codex }
 `), 0o644)
 
 	got := Command(configPath)
@@ -43,7 +43,7 @@ agent:
 func TestCommand_EmptyInteractiveCommand(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
-	os.WriteFile(configPath, []byte(`providers:
+	os.WriteFile(configPath, []byte(`clis:
   claude:
     interactive_command: ""
 `), 0o644)
@@ -54,7 +54,7 @@ func TestCommand_EmptyInteractiveCommand(t *testing.T) {
 	}
 }
 
-func TestCommand_NoProvidersSection(t *testing.T) {
+func TestCommand_NoCLIsSection(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	os.WriteFile(configPath, []byte(`project:
