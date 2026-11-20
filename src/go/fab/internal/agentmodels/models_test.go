@@ -53,10 +53,10 @@ func TestDiscoverFillsAlwaysPresentAndSorted(t *testing.T) {
 	if len(warnings) != 0 {
 		t.Fatal(warnings)
 	}
-	if len(rows) != 2 || rows[0].ID != "a-fill" || rows[1].ID != "z-fill" {
+	if len(rows) != 3 || rows[0].ID != agent.ToolDefaultModel || rows[1].ID != "a-fill" || rows[2].ID != "z-fill" {
 		t.Fatalf("rows = %+v", rows)
 	}
-	for _, row := range rows {
+	for _, row := range rows[1:] {
 		if row.CLI != "custom" || row.Source != SourceFill {
 			t.Errorf("row = %+v", row)
 		}
@@ -74,7 +74,10 @@ func TestDiscoverAgyAndUserProviderWithoutAdapter(t *testing.T) {
 			t.Errorf("agy fill %q missing", id)
 		}
 	}
-	for _, row := range rows {
+	if rows[0].Source != SourceReserved || rows[0].Label != "tool default" || rows[0].Efforts == nil || len(rows[0].Efforts) != 0 {
+		t.Errorf("agy reserved row = %+v", rows[0])
+	}
+	for _, row := range rows[1:] {
 		if row.Source != SourceFill {
 			t.Errorf("agy row = %+v", row)
 		}
@@ -84,8 +87,38 @@ func TestDiscoverAgyAndUserProviderWithoutAdapter(t *testing.T) {
 		"custom": {Profiles: map[string]config.ProviderProfile{"default": {Model: "custom-model"}}},
 	}}
 	rows, warnings = discoverWith(cfg, "custom", defaultEnvironment())
-	if len(warnings) != 0 || len(rows) != 1 || rows[0].Source != SourceFill {
+	if len(warnings) != 0 || len(rows) != 2 || rows[1].Source != SourceFill {
 		t.Fatalf("custom rows=%+v warnings=%v", rows, warnings)
+	}
+}
+
+func TestDiscoverToolDefaultRowUsesDiscoveredDefault(t *testing.T) {
+	rows, warnings := discoverWith(commandTestConfig(`printf '[{"id":"m1","efforts":["high"],"default":true}]'`), "mytool", defaultEnvironment())
+	if len(warnings) != 0 {
+		t.Fatal(warnings)
+	}
+	want := Row{CLI: "mytool", ID: agent.ToolDefaultModel, Label: "tool default (m1)", Efforts: []string{"high"}, Source: SourceReserved}
+	if len(rows) == 0 {
+		t.Fatal("no rows returned")
+	}
+	if !reflect.DeepEqual(rows[0], want) {
+		t.Fatalf("first row = %+v, want %+v", rows[0], want)
+	}
+	if rows[1].ID != "m1" || !rows[1].Default {
+		t.Errorf("real default row = %+v, want default preserved", rows[1])
+	}
+}
+
+func TestDiscoverClaudeToolDefaultRowUsesKnownEfforts(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	rows, warnings := discoverWith(nil, "claude", defaultEnvironment())
+	if len(warnings) != 0 {
+		t.Fatal(warnings)
+	}
+	row := rows[0]
+	if row.Label != "tool default" || !reflect.DeepEqual(row.Efforts, claudeEfforts) {
+		t.Errorf("claude reserved row = %+v", row)
 	}
 }
 

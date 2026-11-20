@@ -333,6 +333,90 @@ func TestAgentOutputYAMLNonClaudeModelHasNoAlias(t *testing.T) {
 	}
 }
 
+func TestAgentOutputYAMLToolDefaultModel(t *testing.T) {
+	t.Run("role pin wins over codex fill", func(t *testing.T) {
+		agentTestRepo(t, `agent:
+  profiles:
+    review: { provider: codex, model: tool-default }
+`)
+		out, err := runAgentYAML(t, "yaml", "review")
+		if err != nil {
+			t.Fatalf("agent review -o yaml: %v", err)
+		}
+		var doc agent.Resolution
+		if err := yaml.Unmarshal([]byte(out), &doc); err != nil {
+			t.Fatalf("parse -o yaml: %v\n%s", err, out)
+		}
+		if doc.Model != "" || doc.Source.Model != "agent.profiles.review" {
+			t.Errorf("model/source.model = %q/%q, want empty/agent.profiles.review", doc.Model, doc.Source.Model)
+		}
+		for _, command := range []string{doc.Command, doc.Dispatch.Command} {
+			if strings.Contains(command, " -m ") || strings.Contains(command, agent.ToolDefaultModel) || strings.Contains(command, "{model}") {
+				t.Errorf("command must drop the model flag pair, got %q", command)
+			}
+		}
+	})
+
+	t.Run("provider-only flag collapses identically", func(t *testing.T) {
+		agentTestRepo(t, "project:\n  name: test\n")
+		out, err := runAgentYAML(t, "yaml", "--provider", "codex", "--model", agent.ToolDefaultModel)
+		if err != nil {
+			t.Fatalf("agent --provider codex --model tool-default -o yaml: %v", err)
+		}
+		var doc agent.Resolution
+		if err := yaml.Unmarshal([]byte(out), &doc); err != nil {
+			t.Fatalf("parse -o yaml: %v\n%s", err, out)
+		}
+		if doc.Model != "" || doc.Source.Model != "flag" {
+			t.Errorf("model/source.model = %q/%q, want empty/flag", doc.Model, doc.Source.Model)
+		}
+		for _, command := range []string{doc.Command, doc.Dispatch.Command} {
+			if strings.Contains(command, " -m ") || strings.Contains(command, agent.ToolDefaultModel) || strings.Contains(command, "{model}") {
+				t.Errorf("command must drop the model flag pair, got %q", command)
+			}
+		}
+	})
+}
+
+func TestAgentOutputYAMLToolDefaultNativeAndHeadless(t *testing.T) {
+	for _, mode := range []string{"native", "headless"} {
+		t.Run(mode, func(t *testing.T) {
+			agentTestRepo(t, `dispatch:
+  mode: `+mode+`
+agent:
+  profiles:
+    doing: { model: tool-default }
+`)
+			out, err := runAgentYAML(t, "yaml", "apply")
+			if err != nil {
+				t.Fatalf("agent apply -o yaml: %v", err)
+			}
+			var doc agent.Resolution
+			if err := yaml.Unmarshal([]byte(out), &doc); err != nil {
+				t.Fatalf("parse -o yaml: %v\n%s", err, out)
+			}
+			if doc.Model != "" || doc.ModelAlias != "" || doc.Source.Model != "agent.profiles.doing" {
+				t.Errorf("model/alias/source = %q/%q/%q, want empty/empty/agent.profiles.doing", doc.Model, doc.ModelAlias, doc.Source.Model)
+			}
+			if strings.Contains(doc.Command, "--model") || strings.Contains(doc.Command, agent.ToolDefaultModel) {
+				t.Errorf("interactive command must drop --model, got %q", doc.Command)
+			}
+			if mode == "native" {
+				if doc.Dispatch != nil {
+					t.Errorf("native resolution must omit dispatch, got %+v", doc.Dispatch)
+				}
+			} else {
+				if doc.Dispatch == nil {
+					t.Fatal("headless resolution must carry dispatch")
+				}
+				if strings.Contains(doc.Dispatch.Command, "--model") || strings.Contains(doc.Dispatch.Command, agent.ToolDefaultModel) {
+					t.Errorf("dispatch command must drop --model, got %q", doc.Dispatch.Command)
+				}
+			}
+		})
+	}
+}
+
 func TestAgentOutputYAMLBareProviderForm(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 	out, err := runAgentYAML(t, "yaml", "--provider", "kimi")

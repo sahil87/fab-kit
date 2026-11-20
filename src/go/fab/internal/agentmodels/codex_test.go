@@ -162,7 +162,10 @@ func assertFailureFills(t *testing.T, rows []Row, warnings []string) {
 	if len(rows) == 0 {
 		t.Fatal("kit fills disappeared")
 	}
-	for _, row := range rows {
+	if rows[0].ID != "tool-default" || rows[0].Label != "tool default" || rows[0].Source != SourceReserved || rows[0].Default || rows[0].Efforts == nil {
+		t.Errorf("reserved row = %+v", rows[0])
+	}
+	for _, row := range rows[1:] {
 		if row.Source != SourceFill {
 			t.Errorf("row = %+v, want fill", row)
 		}

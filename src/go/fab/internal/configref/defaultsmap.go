@@ -125,7 +125,13 @@ func resolveDerivedRole(cfg *config.Config, role string) (roleProfileDefault, Ro
 	if fs.Effort != "" {
 		sources.Effort = fs.Effort + ".effort"
 	}
-	return roleProfileDefault{Provider: kp.Provider, Model: fp.Model, Effort: fp.Effort}, sources, nil
+	model := fp.Model
+	if model == "" && fs.Model != "" {
+		// A fill holding the reserved tool-default value resolves to an empty model;
+		// the default tier shows the value the holding key actually carries.
+		model = agent.ToolDefaultModel
+	}
+	return roleProfileDefault{Provider: kp.Provider, Model: model, Effort: fp.Effort}, sources, nil
 }
 
 // agentBuiltinSource is agent.Source's spelling for "supplied by the built-in

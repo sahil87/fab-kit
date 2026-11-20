@@ -758,6 +758,93 @@ func TestFlatProviderFillBeatsBuiltInDefault(t *testing.T) {
 	}
 }
 
+func TestEffectiveModel(t *testing.T) {
+	if ToolDefaultModel != "tool-default" {
+		t.Fatalf("ToolDefaultModel = %q, want %q", ToolDefaultModel, "tool-default")
+	}
+	cases := []struct {
+		model string
+		want  string
+	}{
+		{model: ToolDefaultModel, want: ""},
+		{model: "Tool-Default", want: "Tool-Default"},
+		{model: " tool-default", want: " tool-default"},
+		{model: "gpt-5.6-sol", want: "gpt-5.6-sol"},
+		{model: "opus", want: "opus"},
+		{model: "", want: ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.model, func(t *testing.T) {
+			if got := EffectiveModel(tc.model); got != tc.want {
+				t.Errorf("EffectiveModel(%q) = %q, want %q", tc.model, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestResolveRoleWithSourceCollapsesToolDefaultAfterPrecedence(t *testing.T) {
+	cases := []struct {
+		name       string
+		cfg        *config.Config
+		overrides  Overrides
+		wantSource string
+	}{
+		{
+			name: "agent profile beats provider fill",
+			cfg: &config.Config{
+				Agent: config.AgentConfig{Profiles: map[string]config.RoleProfile{
+					RoleReview: {Provider: providerCodex, Model: ToolDefaultModel},
+				}},
+				Providers: map[string]config.ProviderConfig{
+					providerCodex: {Profiles: map[string]config.ProviderProfile{
+						RoleReview: {Model: "provider-fill"},
+					}},
+				},
+			},
+			wantSource: "agent.profiles.review",
+		},
+		{
+			name: "provider role fill",
+			cfg: &config.Config{Providers: map[string]config.ProviderConfig{
+				providerCodex: {Profiles: map[string]config.ProviderProfile{
+					RoleReview: {Model: ToolDefaultModel},
+				}},
+			}},
+			overrides:  Overrides{Provider: providerCodex, ProviderSet: true},
+			wantSource: "providers.codex.profiles.review",
+		},
+		{
+			name: "provider default fill",
+			cfg: &config.Config{Providers: map[string]config.ProviderConfig{
+				"custom": {Profiles: map[string]config.ProviderProfile{
+					RoleDefault: {Model: ToolDefaultModel},
+				}},
+			}},
+			overrides:  Overrides{Provider: "custom", ProviderSet: true},
+			wantSource: "providers.custom.profiles.default",
+		},
+		{
+			name:       "model flag",
+			overrides:  Overrides{Model: ToolDefaultModel, ModelSet: true},
+			wantSource: "flag",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, source, err := ResolveRoleWithSource(tc.cfg, RoleReview, tc.overrides)
+			if err != nil {
+				t.Fatalf("ResolveRoleWithSource: %v", err)
+			}
+			if got.Model != "" {
+				t.Errorf("Model = %q, want empty", got.Model)
+			}
+			if source.Model != tc.wantSource {
+				t.Errorf("source.Model = %q, want %q", source.Model, tc.wantSource)
+			}
+		})
+	}
+}
+
 // TestResolveRoleWithOverrides: the top rung of the fill precedence. Each flag
 // applies only when SUPPLIED (its Set companion); a provider SWAP re-derives the
 // unoverridden model/effort from the NEW provider's own per-role fills (never

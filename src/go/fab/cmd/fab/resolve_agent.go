@@ -164,7 +164,7 @@ func resolveAgentCmd() *cobra.Command {
 // rungs the preference can actually reach — suggesting interactive_command under a
 // `headless` preference would point at a capability the ladder would skip. When
 // native was skipped for an alias-less model, the error names that cause and
-// offers an alias/empty model instead of suggesting native capability again.
+// offers an alias, empty model, or ToolDefaultModel instead of suggesting native capability again.
 func noDispatchCapabilityError(profile agent.Profile, native dispatch.NativeAvailability, preference string, cause error) error {
 	provider := profile.Provider
 	var remedies []string
@@ -176,7 +176,7 @@ func noDispatchCapabilityError(profile agent.Profile, native dispatch.NativeAvai
 	}
 	remedies = append(remedies, fmt.Sprintf("providers.%s.headless_command for headless", provider))
 	if native == dispatch.NativeNoAlias && preference != string(dispatch.ModeHeadless) {
-		remedies = append(remedies, "set the model to an alias (opus/sonnet/haiku/fable) or leave it empty to inherit")
+		remedies = append(remedies, "set the model to an alias (opus/sonnet/haiku/fable), leave it empty to inherit, or set it to "+agent.ToolDefaultModel)
 		return fmt.Errorf("provider %q has no dispatch capability at or below dispatch.mode %q: model %q has no native Agent-tool alias; configure %s: %w",
 			provider, preference, profile.Model, joinRemedies(remedies), cause)
 	}

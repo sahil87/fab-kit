@@ -241,3 +241,30 @@ func TestProvidersDocumentModelsCommand(t *testing.T) {
 		}
 	}
 }
+
+func TestAgentModelRowsDocumentToolDefault(t *testing.T) {
+	fields, err := Fields()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := make(map[string]Field, len(fields))
+	for _, field := range fields {
+		rows[field.Key] = field
+	}
+	for _, key := range []string{"agent.profiles", "providers"} {
+		row, ok := rows[key]
+		if !ok {
+			t.Fatalf("registry row %s missing", key)
+		}
+		for _, want := range []string{"tool-default", "wins over lower tiers", "empty model", "native inherits the session model"} {
+			if !strings.Contains(row.Description, want) {
+				t.Errorf("%s description missing %q:\n%s", key, want, row.Description)
+			}
+		}
+	}
+	for _, want := range []string{"tool-default", "beats lower tiers", "native inherits the"} {
+		if !strings.Contains(rows["providers"].Segment, want) {
+			t.Errorf("providers segment missing %q", want)
+		}
+	}
+}

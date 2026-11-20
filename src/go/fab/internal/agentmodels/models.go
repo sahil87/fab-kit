@@ -26,6 +26,8 @@ const (
 	SourceAlias = "alias"
 	// SourceFill marks a model supplied by the resolved provider's role fills.
 	SourceFill = "fill"
+	// SourceReserved marks the reserved tool-default value, not a discovered model.
+	SourceReserved = "reserved"
 )
 
 // Row is one model offered by a tool or supplied by a provider fill. Efforts is
@@ -98,7 +100,11 @@ func discoverWith(cfg *config.Config, name string, env environment) ([]Row, []st
 			}
 		}
 	}
+	normalized := rows[:0]
 	for i := range rows {
+		if rows[i].ID == agent.ToolDefaultModel {
+			continue
+		}
 		rows[i].CLI = name
 		if rows[i].Label == "" {
 			rows[i].Label = rows[i].ID
@@ -106,8 +112,33 @@ func discoverWith(cfg *config.Config, name string, env environment) ([]Row, []st
 		if rows[i].Efforts == nil {
 			rows[i].Efforts = []string{}
 		}
+		normalized = append(normalized, rows[i])
 	}
-	return rows, warnings
+	return append([]Row{toolDefaultRow(name, normalized)}, normalized...), warnings
+}
+
+// toolDefaultRow builds the reserved tool-default row: labelled with the tool's
+// reported default model when one exists, carrying that model's efforts, else
+// claude's known effort set, else none.
+func toolDefaultRow(name string, rows []Row) Row {
+	row := Row{
+		CLI:     name,
+		ID:      agent.ToolDefaultModel,
+		Label:   "tool default",
+		Efforts: []string{},
+		Source:  SourceReserved,
+	}
+	for _, candidate := range rows {
+		if candidate.Default {
+			row.Label = "tool default (" + candidate.ID + ")"
+			row.Efforts = append(row.Efforts, candidate.Efforts...)
+			break
+		}
+	}
+	if len(row.Efforts) == 0 && name == "claude" {
+		row.Efforts = append(row.Efforts, claudeEfforts...)
+	}
+	return row
 }
 
 func providerFills(provider config.ProviderConfig) []Row {

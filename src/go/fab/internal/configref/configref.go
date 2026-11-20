@@ -637,7 +637,7 @@ checklist:
 			Key:         "agent.profiles",
 			Default:     roleProfileDefaults(roles),
 			Kind:        configvalue.KindMapping,
-			Description: "Sparse per-role override beneath the two depth knobs. Keyed by role (default/operator/doing/review/hydrate/fast), each value a {provider, model, effort} with every field optional: a set provider beats the role's depth knob, a set model/effort beats the provider's own fill. There is no cross-role inheritance — agent.profiles.default is the default role's override, not a fallback for the others. The stage→role mapping and the role→depth partition are fixed and fab-owned.",
+			Description: "Sparse per-role override beneath the two depth knobs. Keyed by role (default/operator/doing/review/hydrate/fast), each value a {provider, model, effort} with every field optional: a set provider beats the role's depth knob, a set model/effort beats the provider's own fill. The reserved model value `tool-default` is a real value that wins over lower tiers and resolves to an empty model: CLI rungs use the tool's own default, while native inherits the session model. There is no cross-role inheritance — agent.profiles.default is the default role's override, not a fallback for the others. The stage→role mapping and the role→depth partition are fixed and fab-owned.",
 			Scope:       ScopeBoth,
 			// Demoted from the managed fence (260806-j9nh): the advertised agent
 			// surface is the two knobs, and scaffolding the six role profiles into
@@ -653,7 +653,7 @@ checklist:
 			Key:         "providers",
 			Default:     providers,
 			Kind:        configvalue.KindMapping,
-			Description: "Named agent capability grammars: four built-in providers with per-role fills on the kit-release cadence. Each provider MAY carry interactive_command (pane/session), headless_command (headless stage task), optional models_command (JSON model rows for fab agent models, replacing its built-in adapter), and native (native Agent-tool capability); presence describes how and never selects dispatch mode. Command fields are never merged or substituted for one another. profiles supplies {model}/{effort} placeholders with precedence invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty. Fill roster: claude and codex ship all six role fills (dense maps), agy a sparse map whose `default` entry is the cross-role fallback, and kimi NO fills at all (its -m takes a user-config model alias, so the empty model drops the flag and the CLI's own default_model applies). Provider names are opaque, user-chosen strings.",
+			Description: "Named agent capability grammars: four built-in providers with per-role fills on the kit-release cadence. Each provider MAY carry interactive_command (pane/session), headless_command (headless stage task), optional models_command (JSON model rows for fab agent models, replacing its built-in adapter), and native (native Agent-tool capability); presence describes how and never selects dispatch mode. Command fields are never merged or substituted for one another. profiles supplies {model}/{effort} placeholders with precedence invocation flag > agent.profiles.<role> field > providers.<p>.profiles.<role> > providers.<p>.profiles.default > empty. The reserved model value `tool-default` is a real value that wins over lower tiers and resolves to an empty model: CLI rungs use the tool's own default, while native inherits the session model. Fill roster: claude and codex ship all six role fills (dense maps), agy a sparse map whose `default` entry is the cross-role fallback, and kimi NO fills at all (its -m takes a user-config model alias, so the empty model drops the flag and the CLI's own default_model applies). Provider names are opaque, user-chosen strings.",
 			Scope:       ScopeBoth,
 			// Demoted from the managed fence (260806-j9nh) for the same reason as
 			// agent.profiles: naming a built-in in a knob needs no providers: block at
@@ -779,7 +779,10 @@ func providersSegment(providers map[string]providerDefault, roleOrder []string) 
 		"#                         invocation flag > agent.profiles.<role> field >\n" +
 		"#                         profiles.<role> > profiles.default > empty (empty\n" +
 		"#                         drops the placeholder's token, so the CLI's own\n" +
-		"#                         default applies). Scope `both`, so a machine-wide fill\n" +
+		"#                         default applies). The reserved model value tool-default\n" +
+		"#                         is a real value that beats lower tiers, then resolves to\n" +
+		"#                         empty: CLI rungs use the tool default; native inherits the\n" +
+		"#                         session model. Scope `both`, so a machine-wide fill\n" +
 		"#                         is settable once in ~/.fab-kit/config.yaml, where it\n" +
 		"#                         outranks the project file. (The pre-2.17.0 flat\n" +
 		"#                         providers.<name>.model / .effort is still read as an\n" +
