@@ -665,6 +665,36 @@ func TestModeCommand_KimiComposesBothModes(t *testing.T) {
 	}
 }
 
+func TestDispatchStart_NativeWithoutAliasDescendsHeadless(t *testing.T) {
+	repoRoot, id := setupDispatchRepo(t, "")
+	appendProjectConfig(t, repoRoot, `providers:
+  claude:
+    headless_command: "sh -c 'exit 0'"
+agent:
+  profiles:
+    doing: { model: "glm-latest[1m]" }
+`)
+
+	_, stderr, err := runStartCapturingStderr(t, "prompt", "abcd", "apply")
+	if err != nil {
+		t.Fatalf("alias-less native resolution must descend to headless: %v", err)
+	}
+	dir := dispatch.DirFor(repoRoot, id)
+	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
+
+	want := "dispatch selection: mode: headless (descended: native unavailable: model has no native alias)"
+	if !strings.Contains(stderr, want) {
+		t.Errorf("stderr = %q, want %q", stderr, want)
+	}
+	rec, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if rec.Mode() != dispatch.ModeHeadless || !strings.HasPrefix(rec.SpawnCmd, "sh -c 'exit 0'") {
+		t.Errorf("record = %+v, want a headless launch using headless_command", *rec)
+	}
+}
+
 // TestDispatchStart_RefusesAnAutomaticPaneLanding: when the ladder lands on pane,
 // `start` stops before any state write and names the verb that owns pane mode.
 // Silently launching headless instead would ignore the configured preference, and

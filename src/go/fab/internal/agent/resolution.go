@@ -26,6 +26,7 @@ type Source struct {
 type DispatchResolution struct {
 	Rung    string `yaml:"rung"`
 	Command string `yaml:"command"`
+	Reason  string `yaml:"reason,omitempty"`
 }
 
 // Resolution is the complete result shared by fab agent and fab resolve-agent.

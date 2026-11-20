@@ -84,8 +84,8 @@ func TestAgentPreRefactorSinkGoldens(t *testing.T) {
     interactive_command: "oracle tui -m {model} -e {effort}"
     native: true
     profiles:
-      default: { model: oracle-default, effort: low }
-      doing: { model: oracle-doing, effort: high }
+      default: { model: claude-opus-5, effort: low }
+      doing: { model: claude-sonnet-5, effort: high }
 agent:
   profiles:
     doing: { provider: oracle }
@@ -96,7 +96,7 @@ agent:
 		if err != nil {
 			t.Fatalf("agent apply --print: %v", err)
 		}
-		want := "oracle tui -m oracle-doing -e high\n"
+		want := "oracle tui -m claude-sonnet-5 -e high\n"
 		if got != want {
 			t.Errorf("stdout = %q, want exact bytes %q", got, want)
 		}
@@ -121,7 +121,7 @@ agent:
 		{
 			name: "stage YAML",
 			args: []string{"yaml", "apply"},
-			want: "selector: apply\nkind: stage\nrole: doing\nprovider: oracle\nmodel: oracle-doing\neffort: high\ncommand: oracle tui -m oracle-doing -e high\n",
+			want: "selector: apply\nkind: stage\nrole: doing\nprovider: oracle\nmodel: claude-sonnet-5\neffort: high\ncommand: oracle tui -m claude-sonnet-5 -e high\n",
 		},
 		{
 			name: "bare-provider YAML",
@@ -131,7 +131,7 @@ agent:
 		{
 			name: "selector-provider YAML",
 			args: []string{"yaml", "apply", "--provider", "oracle"},
-			want: "selector: apply\nkind: stage\nrole: doing\nprovider: oracle\nmodel: oracle-doing\neffort: high\ncommand: oracle tui -m oracle-doing -e high\n",
+			want: "selector: apply\nkind: stage\nrole: doing\nprovider: oracle\nmodel: claude-sonnet-5\neffort: high\ncommand: oracle tui -m claude-sonnet-5 -e high\n",
 		},
 	}
 	for _, tc := range tests {

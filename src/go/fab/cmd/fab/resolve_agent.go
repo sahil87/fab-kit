@@ -162,16 +162,24 @@ func resolveAgentCmd() *cobra.Command {
 // dispatch.mode preference is reachable for this provider. Selection descends
 // pane → native → headless and never ascends, so the remedies name only the
 // rungs the preference can actually reach — suggesting interactive_command under a
-// `headless` preference would point at a capability the ladder would skip.
-func noDispatchCapabilityError(provider, preference string, cause error) error {
+// `headless` preference would point at a capability the ladder would skip. When
+// native was skipped for an alias-less model, the error names that cause and
+// offers an alias/empty model instead of suggesting native capability again.
+func noDispatchCapabilityError(profile agent.Profile, native dispatch.NativeAvailability, preference string, cause error) error {
+	provider := profile.Provider
 	var remedies []string
 	if preference == string(dispatch.ModePane) {
 		remedies = append(remedies, fmt.Sprintf("providers.%s.interactive_command for pane", provider))
 	}
-	if preference == string(dispatch.ModePane) || preference == string(dispatch.ModeNative) {
+	if native != dispatch.NativeNoAlias && (preference == string(dispatch.ModePane) || preference == string(dispatch.ModeNative)) {
 		remedies = append(remedies, fmt.Sprintf("providers.%s.native for native", provider))
 	}
 	remedies = append(remedies, fmt.Sprintf("providers.%s.headless_command for headless", provider))
+	if native == dispatch.NativeNoAlias && preference != string(dispatch.ModeHeadless) {
+		remedies = append(remedies, "set the model to an alias (opus/sonnet/haiku/fable) or leave it empty to inherit")
+		return fmt.Errorf("provider %q has no dispatch capability at or below dispatch.mode %q: model %q has no native Agent-tool alias; configure %s: %w",
+			provider, preference, profile.Model, joinRemedies(remedies), cause)
+	}
 	return fmt.Errorf("provider %q has no dispatch capability at or below dispatch.mode %q; configure %s: %w",
 		provider, preference, joinRemedies(remedies), cause)
 }

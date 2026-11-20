@@ -430,6 +430,14 @@ func IsModelAlias(model string) bool {
 	return false
 }
 
+// HasNativeModel reports whether the native Agent-tool rung can carry model:
+// either it is empty (inherit the session model) or ModelAlias maps it to a
+// supported alias. A future "use the tool's default" token resolves to empty
+// before this predicate runs, so it retains the same inherit behavior.
+func HasNativeModel(model string) bool {
+	return model == "" || IsModelAlias(ModelAlias(model))
+}
+
 // Overrides is an invocation-time {provider, model, effort} override set — the
 // top rung of the fill precedence, supplied by flags rather than config
 // (`fab resolve-agent <stage|role> [--provider] [--model] [--effort]`). Each field

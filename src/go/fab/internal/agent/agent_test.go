@@ -1349,6 +1349,26 @@ func TestIsModelAlias(t *testing.T) {
 	}
 }
 
+func TestHasNativeModel(t *testing.T) {
+	cases := map[string]bool{
+		"":                          true,
+		"opus":                      true,
+		"sonnet":                    true,
+		"haiku":                     true,
+		"fable":                     true,
+		"claude-opus-5-5":           true,
+		"claude-haiku-4-5-20251001": true,
+		"glm-latest[1m]":            false,
+		"gpt-5.6-sol":               false,
+		"auto[1m]":                  false,
+	}
+	for in, want := range cases {
+		if got := HasNativeModel(in); got != want {
+			t.Errorf("HasNativeModel(%q) = %v, want %v", in, got, want)
+		}
+	}
+}
+
 // TestTablesExhaustive: every stage's role has a default profile, and the stage
 // set is exactly the six pipeline stages.
 func TestTablesExhaustive(t *testing.T) {

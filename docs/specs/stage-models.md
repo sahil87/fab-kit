@@ -621,7 +621,8 @@ pipeline skills consume the YAML surface above.
    skill-invocation prefix).
    `model_alias` carries the native Agent-tool alias for recognized Claude IDs and is empty for
    non-Claude IDs. `dispatch:` is derived by the `dispatch.mode` descent ladder: native omits the key;
-   pane/headless include a labelled `rung` and their composed `command`. Key presence remains the only
+   pane/headless include a labelled `rung` and their composed `command`, plus `reason` with the
+   semicolon-joined descent causes when any rung was skipped. Key presence remains the only
    skill-side branch, and skills never execute `dispatch.command`. The command's
    `{model}`/`{effort}` placeholders are substituted via
    `internal/spawn`'s template resolution (reused, not reimplemented), using the role's own resolved
@@ -639,7 +640,7 @@ pipeline skills consume the YAML surface above.
 `pane → native → headless`, selecting the first possible adapter:
 
 - **Pane** requires tmux (`$TMUX` at the resolver seam; a real probe at `fab dispatch open`) and `interactive_command`.
-- **Native** requires `native: true`.
+- **Native** requires `native: true` and a resolved model that is empty (session-model inherit) or maps to an Agent-tool alias. A non-empty alias-less model descends with `native unavailable: model has no native alias`; a future "use the tool's default" token resolves to empty before this check.
 - **Headless** requires `headless_command`.
 - Missing prerequisites skip rungs; no selection ever ascends. Thus `pane` is the watchable preference,
   `native` is quiet/in-context, and `headless` is detached-only.
@@ -648,7 +649,8 @@ pipeline skills consume the YAML surface above.
 - **Skill branch:** `dispatch:` absent iff native, present for pane/headless; branch on key presence and
   never execute the value. `fab dispatch start` re-resolves internally from current config/environment.
 - **Aliasing is arm-specific:** YAML `model_alias` supplies the native seam; `dispatch.command` always
-  embeds the resolved model verbatim.
+  embeds the resolved model verbatim. `dispatch.reason` carries the semicolon-joined skip list whenever
+  selection descended, including `native unavailable: model has no native alias`.
 - If start-time re-resolution lands on native (for example tmux died after pane resolution),
   `fab dispatch` errors before writing state and tells the caller to re-run `fab agent <stage> -o yaml`.
 
@@ -705,7 +707,7 @@ dispatch is visible in output rather than silent, the available stand-in for an 
 since dispatch is harness-internal), and apply the resolved **model AND effort** through their two
 seams:
 
-- **Model → the Agent tool's `model` param.** The Agent `model` param is a hard enum of short aliases (`opus`/`sonnet`/`haiku`/`fable`) that rejects full IDs, so the native arm reads the YAML `model_alias` key. Empty alias for an empty Claude profile means omit the parameter and inherit; an empty alias beside a non-Claude `model` means there is no native seam (see § Harness-adapter boundary).
+- **Model → the Agent tool's `model` param.** The Agent `model` param is a hard enum of short aliases (`opus`/`sonnet`/`haiku`/`fable`) that rejects full IDs, so the native arm reads the YAML `model_alias` key. Empty alias for an empty resolved model means omit the parameter and inherit. A non-empty model with no alias never reaches this arm: resolution descends to a supported CLI rung and records why in `dispatch.reason` (see § Harness-adapter boundary).
 - **Effort → an explicit instruction in the subagent prompt.** The Agent tool has no `effort` param, so the YAML `effort` value is injected as an imperative line in the dispatched prompt (e.g., ``Operate at `high` reasoning effort for this task.``) and the sub-agent self-selects. Empty effort → omit the instruction. See § Effort asymmetry for how far that actually carries.
 
 ### Effort asymmetry — the two arms are not equally reliable
@@ -803,7 +805,8 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
   so dated variants like `claude-haiku-4-5-20251001` resolve to `haiku`), carries a model that already
   is an alias — the built-in Claude fills `opus`/`sonnet` — through as itself, and keeps an empty
   Claude profile as the empty inherit signal; for a non-Claude ID, `model` retains the ID while
-  `model_alias` is empty, so there is no native Agent-tool seam). This replaces the earlier prompt-side hand-mapping
+  `model_alias` is empty, and resolution descends instead of selecting the native Agent-tool rung).
+  This replaces the earlier prompt-side hand-mapping
   instruction (where the orchestrator was told to translate the id by hand on every dispatch — brittle
   and easy to fumble) with a Go-side translation that cannot be skipped. **The effort rides an
   instruction in the subagent prompt** (the Agent tool exposes no effort parameter) — with the
@@ -828,7 +831,7 @@ Per-stage selection is **provider-neutral by construction**, not Claude-locked:
 - *Cross-harness stage dispatch (the optional `dispatch:` mapping):* the resolved `dispatch.mode` + capability
   ladder is the seam for handing one stage to a native Agent-tool, pane, or headless CLI adapter.
   Pane/headless resolution emits `dispatch.rung` plus `dispatch.command` with `{model}`/`{effort}` substituted via
-  `internal/spawn`; native resolution omits the mapping. This adapter is
+  `internal/spawn`, and `dispatch.reason` when selection descended; native resolution omits the mapping. This adapter is
   the **inverse aliasing rule** from the Agent-tool `model` param: `dispatch.command` **ALWAYS
   embeds the resolved model verbatim and never translates a versioned ID to an alias**, because an
   external CLI's model flag may take only concrete IDs — CLI dispatch never aliases. (For the built-in

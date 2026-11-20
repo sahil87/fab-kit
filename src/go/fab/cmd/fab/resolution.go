@@ -90,14 +90,15 @@ func composeAgentResolution(cfg *config.Config, request resolutionRequest) (agen
 	}
 	// A versioned Claude ID maps to its alias, and a bare alias (the built-in
 	// fills) passes through as itself; anything else has no native alias.
-	if alias := agent.ModelAlias(profile.Model); agent.IsModelAlias(alias) {
-		resolution.ModelAlias = alias
+	if agent.HasNativeModel(profile.Model) {
+		resolution.ModelAlias = agent.ModelAlias(profile.Model)
 	}
 
 	if request.Dispatch {
 		resolution.Dispatch, err = dispatchResolutionFor(prov, profile, cfg.GetDispatchMode(), request.TmuxEnv)
 		if err != nil {
-			return agent.Resolution{}, noDispatchCapabilityError(profile.Provider, cfg.GetDispatchMode(), err)
+			native := dispatch.NativeAvailabilityFor(prov.Native, agent.HasNativeModel(profile.Model))
+			return agent.Resolution{}, noDispatchCapabilityError(profile, native, cfg.GetDispatchMode(), err)
 		}
 	}
 	return resolution, nil
@@ -111,8 +112,9 @@ func dispatchResolutionFor(prov config.ProviderConfig, profile agent.Profile, pr
 	if tmuxEnv != "" {
 		tmux = dispatch.TmuxAvailable
 	}
-	mode, _, err := dispatch.SelectMode(false, false, false, false, preference,
-		prov.Native, prov.InteractiveCommand != "", prov.HeadlessCommand != "", tmux)
+	native := dispatch.NativeAvailabilityFor(prov.Native, agent.HasNativeModel(profile.Model))
+	mode, reason, err := dispatch.SelectMode(false, false, false, false, preference,
+		native, prov.InteractiveCommand != "", prov.HeadlessCommand != "", tmux)
 	if err != nil {
 		return nil, err
 	}
@@ -131,5 +133,6 @@ func dispatchResolutionFor(prov config.ProviderConfig, profile agent.Profile, pr
 	return &agent.DispatchResolution{
 		Rung:    string(mode),
 		Command: spawn.WithProfile(template, profile.Model, profile.Effort),
+		Reason:  reason.DescentReason(),
 	}, nil
 }

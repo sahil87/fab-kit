@@ -1,0 +1,57 @@
+id: 3ms2
+name: 261117-3ms2-native-rung-descends-without-alias
+created: 2026-11-17T20:00:29Z
+created_by: sahil-noon
+change_type: fix
+issues: []
+progress:
+    intake: done
+    apply: done
+    review: done
+    hydrate: done
+    ship: done
+    review-pr: pending
+plan:
+    generated: true
+    task_count: 8
+    acceptance_count: 20
+    acceptance_completed: 20
+confidence:
+    certain: 8
+    confident: 2
+    tentative: 0
+    unresolved: 0
+    score: 4.8
+    fuzzy: true
+    dimensions:
+        signal: 84.5
+        reversibility: 83.0
+        competence: 88.0
+        disambiguation: 84.0
+stage_metrics:
+    intake: {started_at: "2026-11-17T20:00:29Z", driver: fab-new, iterations: 1, completed_at: "2026-11-17T20:03:59Z"}
+    apply: {started_at: "2026-11-17T20:03:59Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-17T20:17:08Z"}
+    review: {started_at: "2026-11-17T20:17:08Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-17T20:23:45Z"}
+    hydrate: {started_at: "2026-11-17T20:23:45Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-17T20:25:54Z"}
+    ship: {started_at: "2026-11-17T20:25:54Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-17T20:27:58Z"}
+prs:
+    - https://github.com/sahil87/fab-kit/pull/707
+base_branch: main
+true_impact:
+    added: 4190
+    deleted: 231
+    net: 3959
+    excluding:
+        added: 2388
+        deleted: 146
+        net: 2242
+    tests:
+        added: 1249
+        deleted: 66
+        net: 1183
+    computed_at: "2026-11-17T20:27:59Z"
+    computed_at_stage: ship
+summary: Native dispatch rung now requires an empty or Agent-tool-aliased model; alias-less models descend to headless, with dispatch.reason in fab agent -o yaml
+# base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
+# true_impact: lazily created on first stage-finish that computes it (no placeholder here).
+last_updated: 2026-11-17T20:27:59Z

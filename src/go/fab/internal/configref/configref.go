@@ -547,7 +547,7 @@ checklist:
 			Key:          "dispatch.mode",
 			Default:      config.DefaultDispatchMode,
 			Kind:         configvalue.KindString,
-			Description:  "Preferred stage-dispatch mode: pane, native, or headless. Resolution starts at the preference and descends pane → native → headless without ascending, choosing the first mode supported by the provider and environment. Scope both — settable once machine-wide, where it outranks the project file. Default native.",
+			Description:  "Preferred stage-dispatch mode: pane, native, or headless. Resolution starts at the preference and descends pane → native → headless without ascending, choosing the first mode supported by the provider, resolved model, and environment. Native requires native: true and an empty or Agent-tool-aliasable model. Scope both — settable once machine-wide, where it outranks the project file. Default native.",
 			Scope:        ScopeBoth,
 			Advertise:    true,
 			Segment:      dispatchSegment(),
@@ -987,9 +987,11 @@ func agentSegment(roles []roleRow) string {
 func dispatchSegment() string {
 	return "# dispatch.mode — preferred stage-worker adapter: pane, native, or headless.\n" +
 		"# Resolution starts at the preference and DESCENDS pane → native → headless,\n" +
-		"# never ascending, until provider capability + environment make a rung possible:\n" +
-		"# pane needs tmux + interactive_command; native needs native: true; headless needs\n" +
-		"# headless_command. Command fields are pure capability grammar — presence says\n" +
+		"# never ascending, until provider capability + resolved model + environment allow a rung:\n" +
+		"# pane needs tmux + interactive_command; native needs native: true plus an empty\n" +
+		"# or Agent-tool-aliasable resolved model; headless needs headless_command. A\n" +
+		"# non-empty model without an alias descends (empty keeps session-model inherit).\n" +
+		"# Command fields are pure capability grammar — presence says\n" +
 		"# HOW, never WHETHER. `pane` is the watchable preference (no `auto` value):\n" +
 		"# outside tmux it descends to native or headless. Default native reproduces the\n" +
 		"# shipped behavior (claude native; codex/agy/kimi headless). Scope `both`, so it\n" +

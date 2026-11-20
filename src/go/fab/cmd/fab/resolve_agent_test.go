@@ -306,7 +306,8 @@ func TestResolveAgentEmptyOverrideEffortInheritsDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	want := "model=some-model\neffort=high\nprovider=claude\n"
+	want := "model=some-model\neffort=high\nprovider=claude\n" +
+		"dispatch=claude -p --permission-mode bypassPermissions --model some-model --effort high\n"
 	if out != want {
 		t.Errorf("output = %q, want overridden model + default effort", out)
 	}
@@ -883,7 +884,8 @@ agent:
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
-	want := "model=project-new-spelling\neffort=" + wantRoleEffort(t, agent.RoleDoing) + "\nprovider=claude\n"
+	want := "model=project-new-spelling\neffort=" + wantRoleEffort(t, agent.RoleDoing) + "\nprovider=claude\n" +
+		"dispatch=claude -p --permission-mode bypassPermissions --model project-new-spelling --effort " + wantRoleEffort(t, agent.RoleDoing) + "\n"
 	if out != want {
 		t.Errorf("output = %q, want %q\n(the agent.tiers alias resolves AFTER the cascade, so a project-layer "+
 			"agent.profiles.<role> beats a system-layer agent.tiers.<role> — run the 2.16.19-to-2.17.0 "+
@@ -901,7 +903,8 @@ agent:
 	if err != nil {
 		t.Fatalf("resolve-agent apply (control): %v", err)
 	}
-	want = "model=system-new-spelling\neffort=" + wantRoleEffort(t, agent.RoleDoing) + "\nprovider=claude\n"
+	want = "model=system-new-spelling\neffort=" + wantRoleEffort(t, agent.RoleDoing) + "\nprovider=claude\n" +
+		"dispatch=claude -p --permission-mode bypassPermissions --model system-new-spelling --effort " + wantRoleEffort(t, agent.RoleDoing) + "\n"
 	if out != want {
 		t.Errorf("control output = %q, want %q (same spelling in both scopes ⇒ system wins)", out, want)
 	}
@@ -920,20 +923,26 @@ func TestDispatchResolutionFor_Matrix(t *testing.T) {
 		prov       config.ProviderConfig
 		preference string
 		tmux       string
+		model      string
 		want       string
 		wantErr    bool
 	}{
-		{"pane direct", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp, Native: true}, "pane", "/tmp/tmux-1000/default,1,0", sess, false},
-		{"pane descends native outside tmux", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp, Native: true}, "pane", "", "", false},
-		{"pane descends headless outside tmux", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp}, "pane", "", disp, false},
-		{"native direct", config.ProviderConfig{HeadlessCommand: disp, Native: true}, "native", "", "", false},
-		{"native descends headless", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp}, "native", "/tmp/tmux-1000/default,1,0", disp, false},
-		{"headless never ascends", config.ProviderConfig{InteractiveCommand: sess, Native: true}, "headless", "/tmp/tmux-1000/default,1,0", "", true},
-		{"no capabilities", config.ProviderConfig{}, "pane", "", "", true},
+		{"pane direct", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp, Native: true}, "pane", "/tmp/tmux-1000/default,1,0", "", sess, false},
+		{"pane descends native outside tmux", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp, Native: true}, "pane", "", "claude-opus-5", "", false},
+		{"pane descends headless outside tmux", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp}, "pane", "", "", disp, false},
+		{"native direct", config.ProviderConfig{HeadlessCommand: disp, Native: true}, "native", "", "claude-opus-5", "", false},
+		{"native descends headless", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp}, "native", "/tmp/tmux-1000/default,1,0", "", disp, false},
+		{"native without alias descends headless", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp, Native: true}, "native", "", "", disp, false},
+		{"headless never ascends", config.ProviderConfig{InteractiveCommand: sess, Native: true}, "headless", "/tmp/tmux-1000/default,1,0", "", "", true},
+		{"no capabilities", config.ProviderConfig{}, "pane", "", "", "", true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			gotResolution, err := dispatchResolutionFor(tc.prov, agent.Profile{Model: "test-model"}, tc.preference, tc.tmux)
+			model := tc.model
+			if model == "" {
+				model = "test-model"
+			}
+			gotResolution, err := dispatchResolutionFor(tc.prov, agent.Profile{Model: model}, tc.preference, tc.tmux)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("expected no-rung error")
@@ -947,7 +956,7 @@ func TestDispatchResolutionFor_Matrix(t *testing.T) {
 			if gotResolution != nil {
 				got = gotResolution.Command
 			}
-			want := strings.ReplaceAll(tc.want, "{model}", "test-model")
+			want := strings.ReplaceAll(tc.want, "{model}", model)
 			if got != want {
 				t.Errorf("dispatchResolutionFor command = %q, want %q", got, want)
 			}
@@ -1124,6 +1133,33 @@ func TestResolveAgentNoCapabilityErrors(t *testing.T) {
 	}
 }
 
+func TestResolveAgentNativeOnlyProviderWithoutAliasNamesCause(t *testing.T) {
+	resolveAgentTestRepo(t, `dispatch:
+  mode: native
+providers:
+  p:
+    native: true
+agent:
+  profiles:
+    doing: { provider: p, model: "glm-latest[1m]" }
+`)
+	_, err := runResolveAgentCmd(t, "apply")
+	if err == nil {
+		t.Fatal("native-only provider with an alias-less model must fail")
+	}
+	for _, want := range []string{"glm-latest[1m]", "no native Agent-tool alias", "providers.p.headless_command"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want it to contain %q", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "providers.p.native") {
+		t.Errorf("error = %q must not suggest enabling native again", err)
+	}
+	if !errors.Is(err, dispatch.ErrNoMode) {
+		t.Errorf("error = %v, want it to wrap ErrNoMode", err)
+	}
+}
+
 // TestNoDispatchCapabilityErrorRemediesRespectCeiling: the preference is a
 // ceiling and selection never ascends, so the remedies must name only the rungs
 // at or below it. Offering interactive_command under a `headless` preference would
@@ -1150,7 +1186,7 @@ func TestNoDispatchCapabilityErrorRemediesRespectCeiling(t *testing.T) {
 		},
 	} {
 		t.Run(tc.preference, func(t *testing.T) {
-			err := noDispatchCapabilityError("void", tc.preference, dispatch.ErrNoMode)
+			err := noDispatchCapabilityError(agent.Profile{Provider: "void"}, dispatch.NativeNoCapability, tc.preference, dispatch.ErrNoMode)
 			got := err.Error()
 			if !strings.Contains(got, tc.want) {
 				t.Errorf("error = %q, want it to contain %q", got, tc.want)
