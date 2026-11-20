@@ -8,8 +8,8 @@ progress:
     intake: done
     apply: done
     review: done
-    hydrate: active
-    ship: pending
+    hydrate: done
+    ship: active
     review-pr: pending
 plan:
     generated: true
@@ -32,24 +32,26 @@ stage_metrics:
     intake: {started_at: "2026-11-20T06:46:20Z", driver: fab-new, iterations: 1, completed_at: "2026-11-20T06:51:14Z"}
     apply: {started_at: "2026-11-20T07:34:40Z", driver: fab-fff, iterations: 3, completed_at: "2026-11-20T07:36:39Z"}
     review: {started_at: "2026-11-20T07:36:39Z", driver: fab-fff, iterations: 3, completed_at: "2026-11-20T07:40:14Z"}
-    hydrate: {started_at: "2026-11-20T07:40:14Z", driver: fab-fff, iterations: 1}
+    hydrate: {started_at: "2026-11-20T07:40:14Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-20T07:47:39Z"}
+    ship: {started_at: "2026-11-20T07:47:39Z", driver: fab-fff, iterations: 1}
 prs: []
 change_type_source: explicit
 base_branch: main
 true_impact:
-    added: 5018
-    deleted: 2614
-    net: 2404
+    added: 5226
+    deleted: 2611
+    net: 2615
     excluding:
-        added: 4040
-        deleted: 2347
-        net: 1693
+        added: 4219
+        deleted: 2344
+        net: 1875
     tests:
-        added: 2236
+        added: 2402
         deleted: 1324
-        net: 912
-    computed_at: "2026-11-20T07:36:39Z"
-    computed_at_stage: apply
+        net: 1078
+    computed_at: "2026-11-20T07:47:39Z"
+    computed_at_stage: hydrate
+summary: 'Rename provider → CLI in memory: clis-and-profiles (renamed), clis:/FAB_CLIS/--cli/cli: vocabulary, one-minor deprecation window and compatibility seams, 2.30.1-to-2.31.0 migration'
 # base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-11-20T07:40:14Z
+last_updated: 2026-11-20T07:47:39Z

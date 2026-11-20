@@ -16,8 +16,8 @@ The operator — the long-lived coordination session that tracks agents across t
 
 | Surface | What the operator uses it for |
 |---------|-------------------------------|
-| `fab agent operator -o yaml [--headless]` | Resolves the **operator** role (Tier 1, session depth) — provider, model, effort, composed command — so `rk operator` launches the session with the project's configured profile. The role is one of six fixed slots; see [providers-and-profiles.md](/runtime/providers-and-profiles.md) |
-| `fab pane map`, `fab pane capture`, `fab pane open/ready/deliver` | Pane observation and provider-generic spawn/deliver primitives; see [pane-commands.md](/runtime/pane-commands.md) and [agent-primitives.md](/runtime/agent-primitives.md) |
+| `fab agent operator -o yaml [--headless]` | Resolves the **operator** role (Tier 1, session depth) — CLI, model, effort, composed command — so `rk operator` launches the session with the project's configured profile. The role is one of six fixed slots; see [clis-and-profiles.md](/runtime/clis-and-profiles.md) |
+| `fab pane map`, `fab pane capture`, `fab pane open/ready/deliver` | Pane observation and CLI-generic spawn/deliver primitives; see [pane-commands.md](/runtime/pane-commands.md) and [agent-primitives.md](/runtime/agent-primitives.md) |
 | `fab dispatch *` | The stage-dispatch machinery the operator's spawned agents run on; see [dispatch.md](/runtime/dispatch.md) |
 | `fab status set-base-branch <change> <branch>` | Records a change's dependency branch (stacked-PR topology) in `.status.yaml`; see [pipeline/schemas.md](/pipeline/schemas.md) |
 | `.status.yaml` reads, `/fab-new` and `/fab-proceed` spawn prompts | The per-change state and the prompts the operator hands the agents it spawns |
