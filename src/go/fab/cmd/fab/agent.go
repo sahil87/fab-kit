@@ -167,6 +167,7 @@ func agentCmd() *cobra.Command {
 	cmd.Flags().StringVar(&model, "model", "", "final model override (empty: on the bare --provider form the provider command's model token is dropped, so its CLI default applies)")
 	cmd.Flags().StringVar(&effort, "effort", "", "final effort override (empty: on the bare --provider form the effort token is dropped)")
 	cmd.Flags().String("workers", "", "set FAB_AGENT_WORKERS for the launched agent session")
+	cmd.AddCommand(agentModelsCmd())
 	return cmd
 }
 

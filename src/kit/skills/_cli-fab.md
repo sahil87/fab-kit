@@ -448,6 +448,27 @@ Provider-form specifics (the bare `--provider <name>` form — selector forms' o
 
 The procedural knowledge for *using* the composed command — opening it in a tmux window, delivering a prompt reliably, peeking, awaiting — plus the per-provider invocation grammar and model-discovery recipes live in the `_cli-agents` helper (`helpers: [_cli-agents]`).
 
+### fab agent models
+
+```
+fab agent models [provider] [--json] [--repo <path>]
+```
+
+Read-only model discovery. With no positional, covers every resolvable provider in sorted order; one positional selects that provider. `--json` emits one array of `{cli, id, label, efforts, default, source}` rows (`efforts` is always an array); otherwise stdout is an aligned table with `*` in `DEFAULT` for the tool's own default. `--repo` has the same config-loading semantics as the parent. The command works without a fab project and writes no cache.
+
+Per provider, discovered rows come first in tool order, followed by sorted, distinct models from the resolved provider's `profiles.*` fills, then an unlisted reported default. Rows dedupe by `id` without moving the first occurrence: source precedence is `tool > alias > fill`, `default` is OR-ed, and an empty label/effort list on the winning row is backfilled from a duplicate. Labels fall back to `id`. Claude rows use the known effort set `low, medium, high, xhigh, max`; other fills without tool-reported efforts use `[]`.
+
+Built-in discovery:
+
+- **codex** — bounded `codex debug models`; keeps `visibility == "list"`, reads per-model `supported_reasoning_levels[].effort`, and takes the default from `$CODEX_HOME/config.toml` (`~/.codex` by default). The debug surface is intentionally parsed by those pinned fields only.
+- **claude** — aliases `opus`, `sonnet`, `haiku`, `fable`, plus `modelPicker.options[]` from `$CLAUDE_CONFIG_DIR/settings.json` (`~/.claude` by default). `settings.local.json` replaces top-level `model` and `modelPicker` when present; `replaceBuiltInOptions: true` omits aliases. Top-level `model` is the default.
+- **kimi** — quoted or bare `[models.<alias>]` tables in `~/.kimi-code/config.toml`, including `display_name` and `support_efforts`; top-level `default_model` is the default. Other tables are ignored.
+- **agy** and user providers without discovery configuration — fills only, with no warning.
+
+Optional `providers.<name>.models_command` replaces any built-in adapter. It runs via `sh -c` under the same timeout and prints a JSON array of `{id, label?, efforts?, default?}`; fab sets `cli` and `source: tool` and drops empty IDs.
+
+Discovery fails open: process/file errors, malformed data, and timeouts produce fills (plus Claude's built-in aliases where readable settings permit) and one stderr line per provider, `warning: <provider>: <reason>`, without changing exit 0. Missing optional config files are silent. Non-zero exits are reserved for usage errors, unknown providers (the error lists available names), and config-load failures.
+
 ---
 
 

@@ -1,0 +1,14 @@
+{"action":"enter","driver":"fab-new","event":"stage-transition","stage":"intake","ts":"2026-11-17T19:15:19Z"}
+{"args":"Execute step D1 (fab agent models: ask each tool for its models) of the plan at /home/sahil/code/sahil87/fab-kit/fab/plans/sahil/26-11-16-model-pins.md. Read the whole plan first (Decisions and Rules bind you), then implement only the D1 Brief.","cmd":"fab-new","event":"command","ts":"2026-11-17T19:15:19Z"}
+{"delta":"+0.0","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-11-17T19:17:32Z"}
+{"delta":"+0.0","event":"confidence","score":3.2,"trigger":"calc-score","ts":"2026-11-17T19:17:42Z"}
+{"cmd":"fab-fff","event":"command","ts":"2026-11-17T19:19:18Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-11-17T19:19:22Z"}
+{"cmd":"fab-continue","event":"command","ts":"2026-11-17T19:22:24Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-11-17T19:38:51Z"}
+{"event":"review","result":"failed","ts":"2026-11-17T19:43:11Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"apply","ts":"2026-11-17T19:43:11Z"}
+{"action":"re-entry","driver":"fab-fff","event":"stage-transition","stage":"review","ts":"2026-11-17T19:47:44Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"hydrate","ts":"2026-11-17T19:51:46Z"}
+{"event":"review","result":"passed","ts":"2026-11-17T19:51:46Z"}
+{"action":"enter","driver":"fab-fff","event":"stage-transition","stage":"ship","ts":"2026-11-17T19:54:27Z"}

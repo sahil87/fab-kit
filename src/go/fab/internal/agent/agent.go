@@ -637,7 +637,7 @@ func ProviderNames(cfg *config.Config) []string {
 	return names
 }
 
-// ResolveProvider returns the {interactive_command, headless_command, native, profiles} for a
+// ResolveProvider returns the {interactive_command, headless_command, models_command, native, profiles} for a
 // provider name: the project's providers.<name> override PER-FIELD merged over
 // fab-kit's built-in provider table (an override field that is set wins; an omitted
 // field inherits the built-in). The profiles map merges per ROLE and then per FIELD,
@@ -678,6 +678,7 @@ func ResolveProvider(cfg *config.Config, name string) (config.ProviderConfig, bo
 			headless = override.DispatchCommand
 		}
 		mergeField(&resolved.HeadlessCommand, headless)
+		mergeField(&resolved.ModelsCommand, override.ModelsCommand)
 		if override.NativeSet || override.Native {
 			resolved.Native = override.Native
 		}

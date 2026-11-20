@@ -39,6 +39,7 @@ func TestResolveKey(t *testing.T) {
 		{key: "agent.workers", wantOK: true, wantField: "agent.workers", wantOwner: "agent.session", wantKind: configvalue.KindString},
 		{key: "agent.profiles.review.model", wantOK: true, wantField: "agent.profiles", wantOwner: "agent.session", wantKind: configvalue.KindString},
 		{key: "providers.codex.headless_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
+		{key: "providers.codex.models_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
 		{key: "providers.codex.profiles.review.effort", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
 		{key: "stage_hooks.apply.pre", wantOK: true, wantField: "stage_hooks", wantOwner: "stage_hooks", wantKind: configvalue.KindString},
 		{key: "source_paths", wantOK: true, wantField: "source_paths", wantOwner: "source_paths", wantKind: configvalue.KindSequence},
@@ -217,5 +218,26 @@ func TestDocsIndexRootsRowDocumentsExclude(t *testing.T) {
 	}
 	if !strings.Contains(row.Segment, "#     #   exclude:") {
 		t.Errorf("segment must carry a commented exclude example:\n%s", row.Segment)
+	}
+}
+
+func TestProvidersDocumentModelsCommand(t *testing.T) {
+	fields, err := FieldsForKey("providers")
+	if err != nil || len(fields) != 1 {
+		t.Fatalf("FieldsForKey: %v (%d rows)", err, len(fields))
+	}
+	row := fields[0]
+	for _, text := range []string{row.Description, row.Segment} {
+		for _, want := range []string{"models_command", "fab agent models", "JSON"} {
+			if !strings.Contains(text, want) {
+				t.Errorf("providers reference missing %q:\n%s", want, text)
+			}
+		}
+	}
+	defaults := row.Default.(map[string]providerDefault)
+	for name, provider := range defaults {
+		if provider.ModelsCommand != "" {
+			t.Errorf("built-in %s models_command = %q, want omitted", name, provider.ModelsCommand)
+		}
 	}
 }

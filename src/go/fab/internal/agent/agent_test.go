@@ -1008,7 +1008,7 @@ func TestResolveProvider(t *testing.T) {
 	// Project override replaces headless_command; the session/native capability inherits the
 	// built-in (per-field merge).
 	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
-		"claude": {HeadlessCommand: "claude -p"},
+		"claude": {HeadlessCommand: "claude -p", ModelsCommand: "claude models --json"},
 	}}
 	prov, ok = ResolveProvider(cfg, "claude")
 	if !ok {
@@ -1022,6 +1022,15 @@ func TestResolveProvider(t *testing.T) {
 	}
 	if !prov.Native {
 		t.Error("native capability must survive a command-only override")
+	}
+	if prov.ModelsCommand != "claude models --json" {
+		t.Errorf("models_command = %q, want the override", prov.ModelsCommand)
+	}
+	for _, name := range ProviderNames(nil) {
+		builtin, _ := ResolveProvider(nil, name)
+		if builtin.ModelsCommand != "" {
+			t.Errorf("built-in %s models_command = %q, want empty", name, builtin.ModelsCommand)
+		}
 	}
 
 	// YAML presence distinguishes an explicit false from absent, so users can

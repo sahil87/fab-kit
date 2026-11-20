@@ -357,7 +357,9 @@ using stdlib `encoding/json` only (no new dependencies). Each element is a per-f
   profile; the first-level `default` key is the *default role*, not a wrapper. Likewise
   `providers.default` is keyed by provider name (four entries — claude/codex/agy/kimi), each carrying
   its independent `interactive_command`, `headless_command`, and `native` capabilities (omitted when
-  unavailable, so each block shows exactly what it ships): claude all three; codex, `agy`, and `kimi`
+  unavailable, so each block shows exactly what it ships). An optional `models_command` supplies JSON
+  rows to `fab agent models` in place of the built-in adapter; no built-in ships one, so it is omitted
+  from the default projection. Claude ships all three launch capabilities; codex, `agy`, and `kimi`
   both commands without native. agy's interactive grammar is
   `agy --dangerously-skip-permissions --model {model}`; its exact-path trust wall is handled as an
   ordinary readiness-gate judgment round, with live verification retained in backlog `[agik]` until
