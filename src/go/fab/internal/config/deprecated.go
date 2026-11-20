@@ -13,7 +13,7 @@ import (
 // `clis:` table and `agent.profiles.<role>.cli`; the old `providers:` table and
 // `.provider` leaf stay readable, and settable through `fab config set`/`unset`,
 // for ONE minor release after the one that ships the rename, then are removed in a
-// separate change. Reads are silent; only set/unset, `fab config validate`, the
+// separate change. Reads are silent; only set/unset, `fab setup check`, the
 // hidden `fab agent --provider` flag and the migration warn.
 //
 // The compatibility lives at two seams so no other package carries dual-spelling
@@ -160,7 +160,8 @@ func foldRoleProviders(roles map[string]any) map[string]any {
 // `agent.tiers.<role>.provider`) → `agent.profiles.<role>.cli`. It reports whether
 // the key was deprecated; a canonical or unrelated key comes back unchanged with
 // false. It is the ONE key-mapping helper shared by `fab config set`/`unset`,
-// `fab config validate` and `fab config explain`.
+// and `fab config explain`/`show`. (`fab setup check` lists live old spellings through
+// DeprecatedUses instead.)
 func CanonicalKey(key string) (string, bool) {
 	parts := strings.Split(key, ".")
 	switch {
@@ -176,28 +177,32 @@ func CanonicalKey(key string) (string, bool) {
 	return key, false
 }
 
-// TwinKey returns the other spelling of a canonical or deprecated key — the old
-// spelling for a canonical `clis…`/`agent.profiles.<role>.cli` key, and the new one
-// for a deprecated key — or "" when the key has no twin. `set` and `unset` use it
-// to keep one spelling per file.
-func TwinKey(key string) string {
+// TwinKeys returns the other spellings of a canonical or deprecated key: the old
+// spellings for a canonical `clis…` / `agent.profiles.<role>.cli` key (for the role
+// leaf both `agent.profiles.<role>.provider` and the legacy
+// `agent.tiers.<role>.provider`), and the canonical key for a deprecated one. It
+// returns nil when the key has no twin. `set` and `unset` use it to keep one
+// spelling per file — a live twin left behind would keep an override in effect.
+func TwinKeys(key string) []string {
 	if canonical, deprecated := CanonicalKey(key); deprecated {
-		return canonical
+		return []string{canonical}
 	}
 	parts := strings.Split(key, ".")
 	switch {
 	case parts[0] == canonicalCLIsKey:
 		parts[0] = deprecatedCLIsKey
-		return strings.Join(parts, ".")
+		return []string{strings.Join(parts, ".")}
 	case len(parts) == 4 && parts[0] == agentKey && parts[1] == agentProfilesKey && parts[3] == canonicalRoleCLILeaf:
-		parts[3] = deprecatedRoleCLILeaf
-		return strings.Join(parts, ".")
+		return []string{
+			strings.Join([]string{agentKey, agentProfilesKey, parts[2], deprecatedRoleCLILeaf}, "."),
+			strings.Join([]string{agentKey, deprecatedAgentTiersKey, parts[2], deprecatedRoleCLILeaf}, "."),
+		}
 	}
-	return ""
+	return nil
 }
 
 // DeprecatedUses lists the live deprecated spellings in one RAW (un-normalized)
-// config layer, sorted by old key. `fab config validate` warns on each. The legacy
+// config layer, sorted by old key. `fab setup check` warns on each. The legacy
 // `agent.tiers` spelling is a separate, older deprecation and is not reported here.
 func DeprecatedUses(layer map[string]any) []DeprecatedUse {
 	var uses []DeprecatedUse

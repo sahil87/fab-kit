@@ -325,7 +325,15 @@ func configShowCmd() *cobra.Command {
 				return err
 			}
 			if len(args) == 1 {
-				out, err := renderShowKey(layers, defaults, args[0], withOrigin, asJSON)
+				// A deprecated spelling answers for its canonical key (the layers are
+				// already normalized, so only the new shape exists); the note is
+				// stderr-only so stdout keeps its shape.
+				key := args[0]
+				if canonical, deprecated := config.CanonicalKey(key); deprecated {
+					fmt.Fprintln(cmd.ErrOrStderr(), "fab: note: "+deprecatedKeyNote(key, canonical))
+					key = canonical
+				}
+				out, err := renderShowKey(layers, defaults, key, withOrigin, asJSON)
 				if err != nil {
 					return err
 				}

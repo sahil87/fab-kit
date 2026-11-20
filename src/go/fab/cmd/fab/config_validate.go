@@ -71,7 +71,7 @@ func validateIntRange(key string, value any, lo, hi int) error {
 	return fmt.Errorf("invalid value %v for %s — must be an integer from %d to %d", value, key, lo, hi)
 }
 
-// isCLIKey reports whether key names a cli: the two depth knobs and any
+// isCLIKey reports whether key names a CLI: the two depth knobs and any
 // role's CLI override.
 func isCLIKey(key string) bool {
 	if key == "agent.session" || key == "agent.workers" {

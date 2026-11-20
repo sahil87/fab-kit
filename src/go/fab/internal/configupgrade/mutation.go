@@ -296,32 +296,32 @@ func UnsetSystem(path, key, kitVersion string) (Result, error) {
 // file holds one spelling after a set. A key with no twin, or a twin that is not
 // live, leaves the document untouched.
 func dropTwinPath(live, key string) (string, error) {
-	twin := config.TwinKey(key)
-	if twin == "" {
-		return live, nil
+	for _, twin := range config.TwinKeys(key) {
+		var err error
+		if live, _, err = unsetLivePath(live, twin); err != nil {
+			return "", err
+		}
 	}
-	mutated, _, err := unsetLivePath(live, twin)
-	return mutated, err
+	return live, nil
 }
 
-// unsetBothSpellings removes key AND its deprecated/canonical twin from the live
-// area and reports whether either was live. Unsetting only one spelling while the
-// other stays live would silently leave the override in effect, since the resolver
-// reads either spelling.
+// unsetBothSpellings removes key AND its deprecated/canonical twins from the live
+// area and reports whether any was live. Unsetting only one spelling while another
+// stays live would silently leave the override in effect, since the resolver reads
+// every spelling.
 func unsetBothSpellings(live, key string) (string, bool, error) {
 	mutated, changed, err := unsetLivePath(live, key)
 	if err != nil {
 		return "", false, err
 	}
-	twin := config.TwinKey(key)
-	if twin == "" {
-		return mutated, changed, nil
+	for _, twin := range config.TwinKeys(key) {
+		var twinChanged bool
+		if mutated, twinChanged, err = unsetLivePath(mutated, twin); err != nil {
+			return "", false, err
+		}
+		changed = changed || twinChanged
 	}
-	mutated, twinChanged, err := unsetLivePath(mutated, twin)
-	if err != nil {
-		return "", false, err
-	}
-	return mutated, changed || twinChanged, nil
+	return mutated, changed, nil
 }
 
 func mutationLiveArea(original string) (string, []string) {

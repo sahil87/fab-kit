@@ -258,7 +258,7 @@ func ProbeDispatchMode(cfg *config.Config, tmuxEnv string) []Finding {
 	if err != nil {
 		return []Finding{{
 			Check: "dispatch", Severity: Warn, Subject: "dispatch.mode",
-			Detail: fmt.Sprintf("could not resolve the workers-depth cli: %v", err),
+			Detail: fmt.Sprintf("could not resolve the workers-depth CLI: %v", err),
 		}}
 	}
 	prov, known := agent.ResolveCLI(cfg, profile.CLI)

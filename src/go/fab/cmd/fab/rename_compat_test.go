@@ -350,3 +350,74 @@ func TestConfigExplainAnswersDeprecatedKeys(t *testing.T) {
 		t.Errorf("--json note belongs on stderr, got %q", jsonErr)
 	}
 }
+
+func TestConfigShowKeyedAnswersDeprecatedKeys(t *testing.T) {
+	const project = "providers:\n  codex:\n    headless_command: codex-exec\nagent:\n  profiles:\n    review:\n      provider: codex\n"
+	cases := []struct {
+		oldKey, newKey string
+	}{
+		{"providers", "clis"},
+		{"providers.codex", "clis.codex"},
+		{"agent.profiles.review.provider", "agent.profiles.review.cli"},
+	}
+	for _, tc := range cases {
+		for _, extra := range [][]string{nil, {"--origin"}, {"--json"}, {"--origin", "--json"}} {
+			name := tc.oldKey + " " + strings.Join(extra, " ")
+			t.Run(name, func(t *testing.T) {
+				setupConfigRepo(t, project)
+				want, wantErr, err := runConfigSplit(t, append([]string{"show", tc.newKey}, extra...)...)
+				if err != nil {
+					t.Fatalf("show %s: %v", tc.newKey, err)
+				}
+				if wantErr != "" {
+					t.Errorf("canonical key must not note, stderr = %q", wantErr)
+				}
+				got, gotErr, err := runConfigSplit(t, append([]string{"show", tc.oldKey}, extra...)...)
+				if err != nil {
+					t.Fatalf("show %s must keep working: %v", tc.oldKey, err)
+				}
+				if got != want {
+					t.Errorf("stdout differs from the canonical key's:\n%s\nvs\n%s", got, want)
+				}
+				if wantNote := "fab: note: " + tc.oldKey + " is the deprecated spelling of " + tc.newKey; !strings.Contains(gotErr, wantNote) {
+					t.Errorf("stderr = %q, want it to contain %q", gotErr, wantNote)
+				}
+			})
+		}
+	}
+
+	t.Run("values come from the old-spelling file", func(t *testing.T) {
+		setupConfigRepo(t, project)
+		out, _, err := runConfigSplit(t, "show", "agent.profiles.review.provider")
+		if err != nil || strings.TrimSpace(out) != "codex" {
+			t.Errorf("out = %q, err = %v, want codex", out, err)
+		}
+	})
+}
+
+func TestConfigUnsetSystemRemovesBothSpellings(t *testing.T) {
+	for _, tc := range []struct{ name, file, key string }{
+		{"old key against a new-spelling file", "agent:\n  profiles:\n    review:\n      cli: codex\n      model: m\n", "agent.profiles.review.provider"},
+		{"new key against an old-spelling file", "agent:\n  profiles:\n    review:\n      provider: codex\n      model: m\n", "agent.profiles.review.cli"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, home := setupConfigRepo(t, "")
+			writeSystemConfig(t, home, tc.file)
+			stdout, stderr, err := runConfigSplit(t, "unset", "--system", tc.key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(stdout, "Unset agent.profiles.review.cli") {
+				t.Errorf("stdout = %q, want the unset reported on the canonical key", stdout)
+			}
+			if strings.HasSuffix(tc.key, ".provider") != strings.Contains(stderr, tc.key+" is deprecated") {
+				t.Errorf("stderr = %q: the warning belongs to the old key only", stderr)
+			}
+			data, _ := os.ReadFile(filepath.Join(home, ".fab-kit", "config.yaml"))
+			live := liveLines(string(data))
+			if strings.Contains(live, "provider") || strings.Contains(live, "cli:") || !strings.Contains(live, "model: m") {
+				t.Errorf("both spellings must go and the sibling stay, got:\n%s", live)
+			}
+		})
+	}
+}

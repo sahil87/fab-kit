@@ -169,22 +169,22 @@ var knownGeneratedSystemParagraphDigests = map[string]struct{}{
 	// Current dispatch advert with the column_width 45 / min_cols 50 defaults
 	// (260909-tdij).
 	"e4a2622f4043fb0f0c459f51eab6711005c273fd711a89e415ad359e42aec582": {},
-	// providers advert with the claude Opus rows on claude-opus-5 (260908-wcib
+	// Providers advert with the claude Opus rows on claude-opus-5 (260908-wcib
 	// through v2.28.3).
 	"1890978e77061f64dddd12fc7c19759b5fee1c3196f061ce1b13d5bd1a35107f": {},
-	// providers advert with the claude default/doing/review/hydrate fills on
+	// Providers advert with the claude default/doing/review/hydrate fills on
 	// claude-opus-5-5 and the operator/fast fills still on claude-sonnet-5
 	// (260923-vvdv).
 	"b40b5eca67d75dc524c8baf01e0357a9784c48b7e6b6cb552327582b92454acd": {},
-	// providers advert with all six claude fills on the 5.5 generation —
+	// Providers advert with all six claude fills on the 5.5 generation —
 	// default/doing/review/hydrate on claude-opus-5-5, operator/fast on
 	// claude-sonnet-5-5 (260929-9dwn).
 	"ab93e3cc8204e7179344b8497fbfa089a83c3943ce4c72b0821b5cadfc084d59": {},
-	// providers advert with the claude doing/hydrate fills moved to
+	// Providers advert with the claude doing/hydrate fills moved to
 	// claude-sonnet-5-5 (effort high), leaving default/review on
 	// claude-opus-5-5 (261030-lc7k).
 	"2f55e041d31fb0a03cd59b73feeef8759f78662c1276b2d5e83f4082c8ed1ec5": {},
-	// providers advert (as of 2.30.1): the claude fills on the family aliases — opus for
+	// Providers advert (as of 2.30.1): the claude fills on the family aliases — opus for
 	// default/review, sonnet for doing/hydrate/operator/fast — with the prose
 	// naming codex's and agy's as the concrete-ID fills (261117-vyrt).
 	"39ee61eb68d3f3b4cc5b6c9124499f9557cec4b8145b5fbf18d266c43162bc5b": {},

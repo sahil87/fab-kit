@@ -234,28 +234,28 @@ func TestEnvDeprecatedProvidersAlias(t *testing.T) {
 	})
 }
 
-func TestCanonicalKeyAndTwin(t *testing.T) {
+func TestCanonicalKeyAndTwins(t *testing.T) {
 	for _, tt := range []struct {
 		key, canonical string
 		deprecated     bool
-		twin           string
+		twins          []string
 	}{
-		{"providers", "clis", true, "clis"},
-		{"providers.codex.profiles.review.model", "clis.codex.profiles.review.model", true, "clis.codex.profiles.review.model"},
-		{"agent.profiles.review.provider", "agent.profiles.review.cli", true, "agent.profiles.review.cli"},
-		{"agent.tiers.review.provider", "agent.profiles.review.cli", true, "agent.profiles.review.cli"},
-		{"clis.codex.native", "clis.codex.native", false, "providers.codex.native"},
-		{"agent.profiles.review.cli", "agent.profiles.review.cli", false, "agent.profiles.review.provider"},
-		{"agent.profiles.review.model", "agent.profiles.review.model", false, ""},
-		{"agent.session", "agent.session", false, ""},
-		{"agent.profiles.review", "agent.profiles.review", false, ""},
+		{"providers", "clis", true, []string{"clis"}},
+		{"providers.codex.profiles.review.model", "clis.codex.profiles.review.model", true, []string{"clis.codex.profiles.review.model"}},
+		{"agent.profiles.review.provider", "agent.profiles.review.cli", true, []string{"agent.profiles.review.cli"}},
+		{"agent.tiers.review.provider", "agent.profiles.review.cli", true, []string{"agent.profiles.review.cli"}},
+		{"clis.codex.native", "clis.codex.native", false, []string{"providers.codex.native"}},
+		{"agent.profiles.review.cli", "agent.profiles.review.cli", false, []string{"agent.profiles.review.provider", "agent.tiers.review.provider"}},
+		{"agent.profiles.review.model", "agent.profiles.review.model", false, nil},
+		{"agent.session", "agent.session", false, nil},
+		{"agent.profiles.review", "agent.profiles.review", false, nil},
 	} {
 		got, dep := CanonicalKey(tt.key)
 		if got != tt.canonical || dep != tt.deprecated {
 			t.Errorf("CanonicalKey(%q) = %q,%v want %q,%v", tt.key, got, dep, tt.canonical, tt.deprecated)
 		}
-		if twin := TwinKey(tt.key); twin != tt.twin {
-			t.Errorf("TwinKey(%q) = %q, want %q", tt.key, twin, tt.twin)
+		if twins := TwinKeys(tt.key); !reflect.DeepEqual(twins, tt.twins) {
+			t.Errorf("TwinKeys(%q) = %q, want %q", tt.key, twins, tt.twins)
 		}
 	}
 }

@@ -588,18 +588,19 @@ are removed no earlier than the minor after that, in a separate change. During t
   `fab agent models` — sees only the new shape. `FAB_PROVIDERS` is read as an alias of `FAB_CLIS`
   (`FAB_CLIS` wins per field; `EnvOrigins` names the variable actually used).
 - **Writes accept the old key.** `fab config set` maps `providers.…` → `clis.…` and `….provider` →
-  `….cli` *before* the value gate, writes the new key (removing a same-path old twin, so a file
+  `….cli` *before* the value gate, writes the new key (removing a same-path old twin — for the role leaf also a live legacy `agent.tiers.<role>.provider` — so a file
   holds one spelling), and warns on stderr `<old> is deprecated, wrote <new>`; `fab config unset`
-  with either spelling removes **both** at that path (leaving the old one live would silently keep the
-  override in effect). One key-mapping helper (`config.CanonicalKey`) serves set, unset and `explain`,
-  which answers `providers` with the `clis` explanation plus `providers is the deprecated spelling of
-  clis`. Released HexoKit still writes the old keys, which is why `set`/`unset` accept them (2.19.0's
+  with either spelling removes **both** at that path, the legacy tiers twin included (leaving the old one live would silently keep the
+  override in effect). One key-mapping helper (`config.CanonicalKey`) serves set, unset, `explain` and keyed `show`.
+  `explain providers` answers with the `clis` explanation plus `providers is the deprecated spelling of
+  clis`, and keyed `show <old key>` (also `--origin`/`--json`) prints the canonical key's stdout with a
+  stderr-only `fab: note:` naming the new spelling. Released HexoKit still writes the old keys, which is why `set`/`unset` accept them (2.19.0's
   `session_command` rename did not need to).
 - **`fab agent --provider`** stays registered but hidden: it behaves as `--cli`, prints
   `--provider is deprecated, use --cli` on stderr, and giving both with different values is a usage
   error. `-o yaml` carries `cli:` in the slot `provider:` occupied followed by a duplicate `provider:`
   (same for `source`). `fab resolve-agent`'s frozen `provider=<name>` line is unchanged.
-- **Diagnostics warn.** `fab setup` reports each live old spelling in either config file (and
+- **Diagnostics warn.** `fab setup check` reports each live old spelling in either config file (and
   `FAB_PROVIDERS`) as a warning naming the new key; there is no per-read warning because skills parse
   `fab agent` output. `fab config upgrade` carries a live `providers:` key to `clis:`; the
   `2.30.1-to-2.31.0` migration rewrites both config files (including the nested `.provider` leaf).
