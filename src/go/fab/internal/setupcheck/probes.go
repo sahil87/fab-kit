@@ -122,16 +122,16 @@ func ProbeVersions(binaryVersion, kitDir, projectPin string) []Finding {
 
 // ProbeOverrideMasking runs the behavioral bottle-skew check: for each
 // capability-bearing override (interactive_command / headless_command /
-// native) under providers.<name> in the system or project config tier, it
+// native) under clis.<name> in the system or project config tier, it
 // introspects the binary's OWN embedded defaults (internal/agent's
-// BuiltinProvider — the go:embed'd defaults.yaml, never the kit cache) and
-// flags any override on a provider+key the embedded defaults do not define.
+// BuiltinCLI — the go:embed'd defaults.yaml, never the kit cache) and
+// flags any override on a CLI+key the embedded defaults do not define.
 // Such an override is LOAD-BEARING against the installed binary: unsetting it
 // silently changes behavior — the exact 2026-08-10 #573 incident shape (a
 // system-tier agy interactive_command masking a bottle built without it).
 // Findings are Warn: the doctor reports the mask rather than calling it an
-// error. Providers absent from the embedded table entirely are skipped — a
-// user-defined provider is a definition, not a mask.
+// error. CLIs absent from the embedded table entirely are skipped — a
+// user-defined CLI is a definition, not a mask.
 //
 // The tiers are raw decoded layer maps (config.LoadLayers' System/Project), so
 // the check sees what EACH tier sets independently of the merged cascade.
@@ -151,21 +151,21 @@ func ProbeOverrideMasking(system, project map[string]any) []Finding {
 		if err != nil {
 			continue // the cascade loader already reported the malformed tier
 		}
-		names := tierCfg.ProviderNames()
+		names := tierCfg.CLINames()
 		sort.Strings(names)
 		for _, name := range names {
-			embedded, ok := agent.BuiltinProvider(name)
+			embedded, ok := agent.BuiltinCLI(name)
 			if !ok {
-				continue // user-defined provider — a definition, not a mask
+				continue // user-defined CLI — a definition, not a mask
 			}
-			override, _ := tierCfg.GetProvider(name)
+			override, _ := tierCfg.GetCLI(name)
 			masked := maskedCapabilities(override, embedded)
 			for _, key := range masked {
 				findings = append(findings, Finding{
 					Check:    "config",
 					Severity: Warn,
-					Subject:  fmt.Sprintf("providers.%s.%s", name, key),
-					Detail: fmt.Sprintf("%s-tier override providers.%s.%s is load-bearing against your installed binary — the embedded defaults do not define it, so unsetting the override changes behavior (bottle-skew shape)",
+					Subject:  fmt.Sprintf("clis.%s.%s", name, key),
+					Detail: fmt.Sprintf("%s-tier override clis.%s.%s is load-bearing against your installed binary — the embedded defaults do not define it, so unsetting the override changes behavior (bottle-skew shape)",
 						tier.label, name, key),
 				})
 			}
@@ -174,11 +174,52 @@ func ProbeOverrideMasking(system, project map[string]any) []Finding {
 	return findings
 }
 
+// ProbeDeprecatedSpellings warns on every live pre-2.31 CLI spelling — the
+// top-level `providers:` table and `agent.profiles.<role>.provider` in the project
+// and system files, and the FAB_PROVIDERS environment variable — naming the
+// spelling that replaces it. Findings are Warn, never Fail: the binary keeps
+// reading the old spellings for one minor release, so nothing is broken, but the
+// /fab-setup migrations step rewrites the files. Ordinary config reads stay silent
+// (skills parse their output); this diagnostic is the read-side warning seam.
+// projectUses/systemUses come from config.RawDeprecatedUses (an un-normalized
+// read — the cascade loaders fold the old spellings away); lookupEnv is os.LookupEnv
+// in production.
+func ProbeDeprecatedSpellings(projectPath string, projectUses, systemUses []config.DeprecatedUse, systemPath string, lookupEnv func(string) (string, bool)) []Finding {
+	var findings []Finding
+	for _, file := range []struct {
+		path string
+		uses []config.DeprecatedUse
+	}{
+		{projectPath, projectUses},
+		{systemPath, systemUses},
+	} {
+		for _, use := range file.uses {
+			findings = append(findings, Finding{
+				Check:    "config",
+				Severity: Warn,
+				Subject:  use.Old,
+				Detail:   fmt.Sprintf("%s is deprecated; rename to %s in %s (fab-setup migrations)", use.Old, use.New, file.path),
+			})
+		}
+	}
+	if lookupEnv != nil {
+		if v, set := lookupEnv("FAB_PROVIDERS"); set && v != "" {
+			findings = append(findings, Finding{
+				Check:    "config",
+				Severity: Warn,
+				Subject:  "FAB_PROVIDERS",
+				Detail:   "FAB_PROVIDERS is deprecated; rename the environment variable to FAB_CLIS",
+			})
+		}
+	}
+	return findings
+}
+
 // maskedCapabilities returns the capability keys the override SETS that the
 // embedded defaults leave undefined — the mask condition. The deprecated
 // spellings (session_command / dispatch_command) count as their modern
-// equivalents, matching ResolveProvider's read-time aliases.
-func maskedCapabilities(override, embedded config.ProviderConfig) []string {
+// equivalents, matching ResolveCLI's read-time aliases.
+func maskedCapabilities(override, embedded config.CLIConfig) []string {
 	var masked []string
 	interactive := override.InteractiveCommand
 	if interactive == "" {
@@ -201,14 +242,14 @@ func maskedCapabilities(override, embedded config.ProviderConfig) []string {
 }
 
 // ProbeDispatchMode reports whether the configured dispatch.mode preference is
-// viable against the environment and the resolved workers-depth provider's
+// viable against the environment and the resolved workers-depth CLI's
 // capabilities, reusing internal/dispatch.SelectMode itself so the descent
 // reasons are the EXACT strings a real dispatch would produce ("pane
 // unavailable: no tmux", "pane unavailable: no interactive_command", "native
 // unavailable", "native unavailable: model has no native alias"). A working
 // descent is Warn (the config will silently not do
 // what was asked); no reachable rung at all is Fail. The workers-depth
-// (agent.workers) provider is the probe subject because stage dispatch is
+// (agent.workers) CLI is the probe subject because stage dispatch is
 // where the ladder runs.
 func ProbeDispatchMode(cfg *config.Config, tmuxEnv string) []Finding {
 	preference := cfg.GetDispatchMode()
@@ -217,14 +258,14 @@ func ProbeDispatchMode(cfg *config.Config, tmuxEnv string) []Finding {
 	if err != nil {
 		return []Finding{{
 			Check: "dispatch", Severity: Warn, Subject: "dispatch.mode",
-			Detail: fmt.Sprintf("could not resolve the workers-depth provider: %v", err),
+			Detail: fmt.Sprintf("could not resolve the workers-depth cli: %v", err),
 		}}
 	}
-	prov, known := agent.ResolveProvider(cfg, profile.Provider)
+	prov, known := agent.ResolveCLI(cfg, profile.CLI)
 	if !known {
 		return []Finding{{
-			Check: "dispatch", Severity: Fail, Subject: profile.Provider,
-			Detail: fmt.Sprintf("provider %q (resolved for workers-depth roles) is not defined — no built-in or configured providers entry matches", profile.Provider),
+			Check: "dispatch", Severity: Fail, Subject: profile.CLI,
+			Detail: fmt.Sprintf("CLI %q (resolved for workers-depth roles) is not defined — no built-in or configured CLIs entry matches", profile.CLI),
 		}}
 	}
 
@@ -239,7 +280,7 @@ func ProbeDispatchMode(cfg *config.Config, tmuxEnv string) []Finding {
 	case err != nil:
 		return []Finding{{
 			Check: "dispatch", Severity: Fail, Subject: "dispatch.mode",
-			Detail: fmt.Sprintf("dispatch.mode %q has no reachable rung for provider %q: %v", preference, profile.Provider, err),
+			Detail: fmt.Sprintf("dispatch.mode %q has no reachable rung for CLI %q: %v", preference, profile.CLI, err),
 		}}
 	case string(mode) != preference:
 		return []Finding{{

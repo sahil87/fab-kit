@@ -202,16 +202,31 @@ func configReferenceCmd() *cobra.Command {
 			"row(s). `reference` remains a compatibility alias. Pure query — writes no file.",
 		Example: `  fab config explain
   fab config explain agent.workers
-  fab config explain providers.codex.interactive_command --json`,
+  fab config explain clis.codex.interactive_command --json`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key := ""
 			if len(args) == 1 {
 				key = args[0]
 			}
+			// A deprecated spelling (`providers`, `…profiles.<role>.provider`) answers
+			// like its canonical key plus a one-line note, so keyed lookups of the
+			// old name keep working through the deprecation window. The note is a
+			// leading comment on the YAML rendering and a stderr line on --json, whose
+			// stdout must stay a valid JSON document.
+			note := ""
+			if canonical, deprecated := config.CanonicalKey(key); key != "" && deprecated {
+				note = deprecatedKeyNote(key, canonical)
+				key = canonical
+			}
 			out, err := renderReference(asJSON, key)
 			if err != nil {
 				return err
+			}
+			if note != "" && asJSON {
+				fmt.Fprintln(cmd.ErrOrStderr(), "fab: note: "+note)
+			} else if note != "" {
+				out = "# " + note + "\n" + out
 			}
 			fmt.Fprint(cmd.OutOrStdout(), out)
 			return nil
@@ -219,6 +234,12 @@ func configReferenceCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Emit the field metadata table as a JSON array (instead of commented YAML)")
 	return cmd
+}
+
+// deprecatedKeyNote is the one-line explanation shared by `fab config explain`
+// for a key spelled with a deprecated name.
+func deprecatedKeyNote(old, canonical string) string {
+	return old + " is the deprecated spelling of " + canonical
 }
 
 // renderReference selects the reference rendering: the machine-readable JSON
@@ -248,7 +269,7 @@ func renderReference(asJSON bool, key ...string) (string, error) {
 // registry field, the effective value alongside its provenance (the git config
 // --show-origin precedent): environment variable, `system` file path, `project`
 // file path, or `default` — with per-key drill-down for map-valued fields
-// (agent.profiles, providers), since maps merge per-key. --origin surfaces a
+// (agent.profiles, CLIs), since maps merge per-key. --origin surfaces a
 // typo'd override: the field the user meant to set shows `default` when their file
 // was expected to win. KEYED --origin goes further and lists the key's whole
 // stack, so a shadowed override is visible rather than having to be inferred.
@@ -267,7 +288,7 @@ func configShowCmd() *cobra.Command {
 			"map when a key is supplied. With --origin, prints each field's effective " +
 			"value and its provenance (environment variable / system path / project " +
 			"path / default), drilling down per-key for map-valued fields " +
-			"(agent.profiles, providers). With a KEY and --origin, prints the key's " +
+			"(agent.profiles, CLIs). With a KEY and --origin, prints the key's " +
 			"full stack instead — " +
 			"one line per tier that defines it, the winner marked (effective) and the " +
 			"rest (shadowed). With --json, prints the same data as one machine-readable " +
@@ -343,8 +364,8 @@ func loadReadLayers() (*config.Layers, error) {
 
 // readModelDefaults projects the registry's built-in defaults into the bottom
 // tier of the read model, composed against the LIVE config so the derived
-// agent.profiles rows report the provider a depth knob actually selects (they are
-// resolved from the knob + the provider's fills, not stored anywhere). It takes
+// agent.profiles rows report the CLI a depth knob actually selects (they are
+// resolved from the knob + the CLI's fills, not stored anywhere). It takes
 // the ALREADY-LOADED layers rather than re-running the cascade: a second load
 // would re-read the system file and re-emit every fail-open `fab: warning:`. A
 // merged tree that will not unmarshal leaves the projection knob-blind rather
@@ -783,7 +804,7 @@ type pathDescent struct {
 	// ancestor is nil.
 	tiers []cascadeTier
 	// ancestor is the tier whose NON-MAP value replaces the requested node's whole
-	// subtree (`FAB_PROVIDERS=oops` over a project providers block), with
+	// subtree (`FAB_CLIS=oops` over a project CLIs block), with
 	// ancestorKey its dotted path — the granularity its env origin is recorded at.
 	ancestor    *cascadeTier
 	ancestorKey string
@@ -868,7 +889,7 @@ func stackLines(prefix string, tiers []cascadeTier, envOrigins map[string]string
 // no variable is recorded for it (unreachable in practice — the overlay and the
 // origin map are written together). Origins are stored at registry-row
 // granularity, so leaves beneath a map-valued row use the longest matching
-// dotted-key prefix (agent.profiles.review.provider → $FAB_AGENT_PROFILES).
+// dotted-key prefix (agent.profiles.review.cli → $FAB_AGENT_PROFILES).
 func envOrigin(key string, origins map[string]string) string {
 	bestKey, bestVar := "", ""
 	for registryKey, variable := range origins {
@@ -948,8 +969,8 @@ func configSetCmd() *cobra.Command {
 			"override. On `.model` keys, `fab config set <key> " + agent.ToolDefaultModel + "` requests " +
 			"the tool's own default model. A value outside the key's accepted set or range is refused before " +
 			"anything is written (dispatch.mode, dispatch.column_width, dispatch.min_cols, " +
-			"dispatch.min_rows, and the provider keys agent.session, " +
-			"agent.workers, agent.profiles.<role>.provider). When a higher-precedence tier " +
+			"dispatch.min_rows, and the CLI keys agent.session, " +
+			"agent.workers, agent.profiles.<role>.cli). When a higher-precedence tier " +
 			"already defines the key, the write succeeds (exit 0) with a warning naming the " +
 			"tier that wins. Use --system for ~/.fab-kit/config.yaml; project-scoped keys " +
 			"are refused there.",
@@ -959,6 +980,14 @@ func configSetCmd() *cobra.Command {
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key, rawValue := args[0], args[1]
+			// A deprecated spelling (`providers.…`, `….provider`) is mapped to its
+			// canonical key BEFORE the empty-value refusal, the value gate, the write
+			// and the shadow notice, so all of them speak about the key actually
+			// written. The deprecation warning follows a successful write.
+			oldKey := ""
+			if canonical, deprecated := config.CanonicalKey(key); deprecated {
+				oldKey, key = key, canonical
+			}
 			if isEmptySetValue(rawValue) {
 				message := fmt.Sprintf("refusing to set %q to an empty value: an empty leaf (null, \"\", [], {}) "+
 					"falls through to the next config tier and can never be effective — "+
@@ -996,6 +1025,9 @@ func configSetCmd() *cobra.Command {
 			}
 			for _, line := range result.Report {
 				fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", line)
+			}
+			if oldKey != "" {
+				fmt.Fprintf(cmd.ErrOrStderr(), "fab: warning: %s is deprecated, wrote %s\n", oldKey, key)
 			}
 			warnIfShadowed(cmd, key, mutationTier(system), layers)
 			return nil
@@ -1131,6 +1163,10 @@ func configUnsetCmd() *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key := args[0]
+			oldKey := ""
+			if canonical, deprecated := config.CanonicalKey(key); deprecated {
+				oldKey, key = key, canonical
+			}
 			path, err := configMutationPath(system)
 			if err != nil {
 				return err
@@ -1157,6 +1193,9 @@ func configUnsetCmd() *cobra.Command {
 				} else {
 					fmt.Fprintln(cmd.OutOrStdout(), line)
 				}
+			}
+			if oldKey != "" {
+				fmt.Fprintf(cmd.ErrOrStderr(), "fab: warning: %s is deprecated, unset %s (both spellings are removed)\n", oldKey, key)
 			}
 			if !result.Changed {
 				if notice := liveTierNotice(key, mutationTier(system)); notice != "" {
@@ -1207,7 +1246,7 @@ func configInitCmd() *cobra.Command {
 		Short: "Generate a project config, or a system scaffold with --system",
 		Long: "With --system, writes a ~/.fab-kit/config.yaml scaffold containing ONLY " +
 			"the fields overridable at the system layer (scope system/both — today " +
-			"the agent: block and providers), all commented, generated from the same " +
+			"the agent: block and CLIs), all commented, generated from the same " +
 			"per-field metadata table as `fab config explain` so it cannot drift. " +
 			"With --project, generates a fresh fab/project/config.yaml from the registry: " +
 			"the A-class identity fields (--name, --description, --source-path, --test-path) " +

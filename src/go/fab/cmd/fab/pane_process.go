@@ -47,7 +47,7 @@ type processJSON struct {
 }
 
 // agentBinaryNames returns the process basenames that identify a live agent.
-// The provider table is the merged resolvable set (built-ins plus project
+// The CLI table is the merged resolvable set (built-ins plus project
 // overrides); interactive_command is the relevant grammar because operator
 // panes use the interactive spawn shape. Shell names are deliberately excluded
 // so a configured shell wrapper can never become positive liveness evidence.
@@ -56,12 +56,12 @@ func agentBinaryNames(cfg *config.Config) map[string]bool {
 		"claude":      true,
 		"claude-code": true,
 	}
-	for _, providerName := range agent.ProviderNames(cfg) {
-		provider, ok := agent.ResolveProvider(cfg, providerName)
+	for _, cliName := range agent.CLINames(cfg) {
+		cli, ok := agent.ResolveCLI(cfg, cliName)
 		if !ok {
 			continue
 		}
-		name := interactiveCommandBinary(provider.InteractiveCommand)
+		name := interactiveCommandBinary(cli.InteractiveCommand)
 		if name != "" && !pane.IsShellCommand(name) {
 			names[name] = true
 		}
@@ -71,7 +71,7 @@ func agentBinaryNames(cfg *config.Config) map[string]bool {
 
 // interactiveCommandBinary returns the basename of the quote-aware leading
 // command word, skipping only true POSIX NAME=value assignment prefixes.
-// Provider command strings are document-don't-validate data, so an empty or
+// CLI command strings are document-don't-validate data, so an empty or
 // assignment-only string simply contributes no name.
 func interactiveCommandBinary(command string) string {
 	return processBinaryName(shellparse.LeadingCommand(command))
@@ -115,7 +115,7 @@ func classifyProcess(comm, cmdline string, agents map[string]bool) string {
 
 // loadAgentBinaryNames resolves project config when available and otherwise
 // falls back to the project-free cascade (env > system > built-ins), so
-// system-layer provider definitions still count outside a project. A config
+// system-layer CLI definitions still count outside a project. A config
 // read failure is best-effort and silent: built-in names still provide useful
 // classification.
 func loadAgentBinaryNames() map[string]bool {
@@ -203,7 +203,7 @@ func runPaneProcess(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("get pane PID: %w", err)
 	}
 
-	// Discover process tree (platform-specific) with the same provider-aware
+	// Discover process tree (platform-specific) with the same CLI-aware
 	// classifier the operator tick uses for liveness confirmation.
 	tree, err := discoverProcessTree(pid, loadAgentBinaryNames())
 	if err != nil {

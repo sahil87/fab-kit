@@ -24,6 +24,7 @@ func isolateSystemConfig(t *testing.T) string {
 	for _, key := range configscope.DottedKeys() {
 		t.Setenv(envNameForKey(key), "")
 	}
+	t.Setenv("FAB_PROVIDERS", "") // the deprecated alias of FAB_CLIS
 	return home
 }
 
@@ -121,7 +122,7 @@ func TestLoad_WidenedKeys(t *testing.T) {
 	dir := t.TempDir()
 	fabRoot := filepath.Join(dir, "fab")
 	os.MkdirAll(filepath.Join(fabRoot, "project"), 0o755)
-	content := `providers:
+	content := `clis:
   claude:
     interactive_command: "claude --effort high"
 project:
@@ -140,9 +141,9 @@ project:
 	if got := cfg.GetFabVersion(); got != "1.2.3" {
 		t.Errorf("GetFabVersion = %q, want %q", got, "1.2.3")
 	}
-	prov, ok := cfg.GetProvider("claude")
+	prov, ok := cfg.GetCLI("claude")
 	if !ok {
-		t.Fatal("expected a 'claude' provider entry")
+		t.Fatal("expected a 'claude' CLI entry")
 	}
 	if prov.InteractiveCommand != "claude --effort high" {
 		t.Errorf("claude.interactive_command = %q, want %q", prov.InteractiveCommand, "claude --effort high")
@@ -196,17 +197,17 @@ func TestLoad_FabVersionConfigKeyIgnored(t *testing.T) {
 	}
 }
 
-// TestLoad_WithProviders: the top-level providers table round-trips both command
+// TestLoad_WithCLIs: the top-level CLIs table round-trips both command
 // fields and the native capability independently. The accessor is a pure
 // pass-through; the built-in merge is internal/agent's job.
-func TestLoad_WithProviders(t *testing.T) {
+func TestLoad_WithCLIs(t *testing.T) {
 	isolateSystemConfig(t)
 	dir := t.TempDir()
 	projectDir := filepath.Join(dir, "project")
 	os.MkdirAll(projectDir, 0o755)
 
 	configYAML := `
-providers:
+clis:
   claude:
     native: true
     interactive_command: 'claude --dangerously-skip-permissions'
@@ -221,9 +222,9 @@ providers:
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	claude, ok := cfg.GetProvider("claude")
+	claude, ok := cfg.GetCLI("claude")
 	if !ok {
-		t.Fatal("expected a 'claude' provider")
+		t.Fatal("expected a 'claude' CLI")
 	}
 	if claude.InteractiveCommand != "claude --dangerously-skip-permissions" {
 		t.Errorf("claude.InteractiveCommand = %q", claude.InteractiveCommand)
@@ -235,9 +236,9 @@ providers:
 		t.Error("claude.Native = false, want true")
 	}
 
-	codex, ok := cfg.GetProvider("codex")
+	codex, ok := cfg.GetCLI("codex")
 	if !ok {
-		t.Fatal("expected a 'codex' provider")
+		t.Fatal("expected a 'codex' CLI")
 	}
 	if codex.InteractiveCommand != "codex -m {model} -c model_reasoning_effort={effort}" {
 		t.Errorf("codex.InteractiveCommand = %q", codex.InteractiveCommand)
@@ -249,26 +250,26 @@ providers:
 		t.Error("codex.Native = true, want false when omitted")
 	}
 
-	// An unconfigured provider reports no entry — including a BUILT-IN name, since
+	// An unconfigured CLI reports no entry — including a BUILT-IN name, since
 	// this layer parses the file and knows nothing of the built-in table (merging
-	// that in is internal/agent.ResolveProvider's job).
-	if _, ok := cfg.GetProvider("agy"); ok {
-		t.Error("expected no entry for the unconfigured 'agy' provider")
+	// that in is internal/agent.ResolveCLI's job).
+	if _, ok := cfg.GetCLI("agy"); ok {
+		t.Error("expected no entry for the unconfigured 'agy' CLI")
 	}
 }
 
-// TestLoad_WithProviderFill (260805-j3cm): the per-provider default-fill fields
-// `model`/`effort` parse off a provider entry, independently of the command fields
-// (a provider entry MAY carry fill only — the commands then inherit the built-in in
+// TestLoad_WithCLIFill (260805-j3cm): the per-CLI default-fill fields
+// `model`/`effort` parse off a CLI entry, independently of the command fields
+// (a CLI entry MAY carry fill only — the commands then inherit the built-in in
 // internal/agent's merge).
-func TestLoad_WithProviderFill(t *testing.T) {
+func TestLoad_WithCLIFill(t *testing.T) {
 	isolateSystemConfig(t)
 	dir := t.TempDir()
 	projectDir := filepath.Join(dir, "project")
 	os.MkdirAll(projectDir, 0o755)
 
 	configYAML := `
-providers:
+clis:
   codex:
     model: gpt-5.3-codex
     effort: high
@@ -282,9 +283,9 @@ providers:
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	codex, ok := cfg.GetProvider("codex")
+	codex, ok := cfg.GetCLI("codex")
 	if !ok {
-		t.Fatal("expected a 'codex' provider entry (fill-only is a valid entry)")
+		t.Fatal("expected a 'codex' CLI entry (fill-only is a valid entry)")
 	}
 	if codex.Model != "gpt-5.3-codex" || codex.Effort != "high" {
 		t.Errorf("codex fill = {%q, %q}, want {gpt-5.3-codex, high}", codex.Model, codex.Effort)
@@ -295,29 +296,29 @@ providers:
 
 	// Effort may be omitted independently (agy's model IDs embed the reasoning
 	// level, so its fills carry no effort of their own).
-	agy, ok := cfg.GetProvider("agy")
+	agy, ok := cfg.GetCLI("agy")
 	if !ok {
-		t.Fatal("expected an 'agy' provider entry")
+		t.Fatal("expected an 'agy' CLI entry")
 	}
 	if agy.Model != "gemini-3.1-pro-low" || agy.Effort != "" {
 		t.Errorf("agy fill = {%q, %q}, want {gemini-3.1-pro-low, \"\"}", agy.Model, agy.Effort)
 	}
 }
 
-// TestCascade_ProviderFillFromSystemLayer (260805-j3cm): `providers` is scope
+// TestCascade_CLIFillFromSystemLayer (260805-j3cm): `clis` is scope
 // `both`, so a machine-wide fill set once in ~/.fab-kit/config.yaml reaches every
 // repo — and a project entry per-key deep-merges over it (the fill value survives a
 // project entry that only sets a command).
-func TestCascade_ProviderFillFromSystemLayer(t *testing.T) {
+func TestCascade_CLIFillFromSystemLayer(t *testing.T) {
 	home := isolateSystemConfig(t)
 	writeSystemConfig(t, home, `
-providers:
+clis:
   codex:
     model: gpt-5.3-codex
     effort: high
 `)
 	fabRoot := writeProjectConfig(t, `
-providers:
+clis:
   codex:
     headless_command: 'codex exec --json'
 `)
@@ -325,9 +326,9 @@ providers:
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	codex, ok := cfg.GetProvider("codex")
+	codex, ok := cfg.GetCLI("codex")
 	if !ok {
-		t.Fatal("expected a merged 'codex' provider entry")
+		t.Fatal("expected a merged 'codex' CLI entry")
 	}
 	if codex.Model != "gpt-5.3-codex" || codex.Effort != "high" {
 		t.Errorf("codex fill = {%q, %q}, want the system layer's {gpt-5.3-codex, high}", codex.Model, codex.Effort)
@@ -337,14 +338,14 @@ providers:
 	}
 }
 
-func TestGetProvider_NilAndEmptyConfig(t *testing.T) {
+func TestGetCLI_NilAndEmptyConfig(t *testing.T) {
 	var nilCfg *Config
-	if _, ok := nilCfg.GetProvider("claude"); ok {
-		t.Error("nil-config GetProvider must report no entry")
+	if _, ok := nilCfg.GetCLI("claude"); ok {
+		t.Error("nil-config GetCLI must report no entry")
 	}
 	empty := &Config{}
-	if _, ok := empty.GetProvider("claude"); ok {
-		t.Error("empty-config GetProvider must report no entry")
+	if _, ok := empty.GetCLI("claude"); ok {
+		t.Error("empty-config GetCLI must report no entry")
 	}
 }
 
@@ -355,12 +356,12 @@ func TestLoad_WithAgentProfiles(t *testing.T) {
 	os.MkdirAll(projectDir, 0o755)
 
 	configYAML := `
-providers:
+clis:
   claude:
     interactive_command: "claude --effort high"
 agent:
   profiles:
-    doing: { provider: claude, model: claude-sonnet-5, effort: medium }
+    doing: { cli: claude, model: claude-sonnet-5, effort: medium }
     fast: { effort: low }
 `
 	os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(configYAML), 0o644)
@@ -374,18 +375,18 @@ agent:
 	if !ok {
 		t.Fatal("expected a 'doing' role override")
 	}
-	if doing.Provider != "claude" || doing.Model != "claude-sonnet-5" || doing.Effort != "medium" {
+	if doing.CLI != "claude" || doing.Model != "claude-sonnet-5" || doing.Effort != "medium" {
 		t.Errorf("doing = %+v, want {claude claude-sonnet-5 medium}", doing)
 	}
 
-	// A partial override (only effort set) round-trips with empty provider/model —
+	// A partial override (only effort set) round-trips with empty CLI/model —
 	// continuing down the fill precedence is internal/agent's job, not the
 	// accessor's.
 	fast, ok := cfg.GetAgentProfile("fast")
 	if !ok {
 		t.Fatal("expected a 'fast' role override")
 	}
-	if fast.Provider != "" || fast.Model != "" || fast.Effort != "low" {
+	if fast.CLI != "" || fast.Model != "" || fast.Effort != "low" {
 		t.Errorf("fast = %+v, want {<empty> <empty> low}", fast)
 	}
 
@@ -394,10 +395,10 @@ agent:
 		t.Error("expected no override for the unconfigured 'review' role")
 	}
 
-	// providers still parse alongside the profiles block.
-	prov, ok := cfg.GetProvider("claude")
+	// CLIs still parse alongside the profiles block.
+	prov, ok := cfg.GetCLI("claude")
 	if !ok || prov.InteractiveCommand != "claude --effort high" {
-		t.Errorf("claude provider = %+v, ok=%v, want interactive_command 'claude --effort high'", prov, ok)
+		t.Errorf("claude CLI = %+v, ok=%v, want interactive_command 'claude --effort high'", prov, ok)
 	}
 }
 
@@ -465,18 +466,18 @@ agent:
 	}
 }
 
-// TestLoad_ProviderProfiles: `providers.<name>.profiles.<role>` parses as a
+// TestLoad_CLIProfiles: `clis.<name>.profiles.<role>` parses as a
 // per-role fill map, and the DEPRECATED flat `model`/`effort` fill still parses
 // alongside it (the pre-2.17.0 spelling internal/agent reads below
 // profiles.default).
-func TestLoad_ProviderProfiles(t *testing.T) {
+func TestLoad_CLIProfiles(t *testing.T) {
 	isolateSystemConfig(t)
 	dir := t.TempDir()
 	projectDir := filepath.Join(dir, "project")
 	os.MkdirAll(projectDir, 0o755)
 
 	configYAML := `
-providers:
+clis:
   codex:
     interactive_command: "codex"
     profiles:
@@ -493,9 +494,9 @@ providers:
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	codex, ok := cfg.GetProvider("codex")
+	codex, ok := cfg.GetCLI("codex")
 	if !ok {
-		t.Fatal("expected a codex provider entry")
+		t.Fatal("expected a codex CLI entry")
 	}
 	if got := codex.Profiles["review"]; got.Model != "codex-review" || got.Effort != "high" {
 		t.Errorf("codex.profiles.review = %+v, want {codex-review high}", got)
@@ -505,11 +506,11 @@ providers:
 	}
 
 	// The deprecated flat fill still parses into its own fields at load time; the
-	// ALIAS semantics are applied downstream, where internal/agent.ResolveProvider
+	// ALIAS semantics are applied downstream, where internal/agent.ResolveCLI
 	// folds it into this override's profiles.default per field.
-	kimi, ok := cfg.GetProvider("kimi")
+	kimi, ok := cfg.GetCLI("kimi")
 	if !ok {
-		t.Fatal("expected a kimi provider entry")
+		t.Fatal("expected a kimi CLI entry")
 	}
 	if kimi.Model != "flat-model" || kimi.Effort != "flat-effort" {
 		t.Errorf("kimi flat fill = {%s %s}, want {flat-model flat-effort}", kimi.Model, kimi.Effort)
@@ -525,7 +526,7 @@ func TestLoad_NoAgentProfiles(t *testing.T) {
 	// A config with no agent block must load cleanly (yaml ignores unknown keys;
 	// widening AgentConfig is free for existing configs).
 	configYAML := `
-providers:
+clis:
   claude:
     interactive_command: "claude"
 project:
@@ -567,8 +568,8 @@ func TestAccessors_NilConfig(t *testing.T) {
 	if cfg.GetFabVersion() != "" || cfg.GetLinearWorkspace() != "" {
 		t.Error("nil-config accessors must all return empty strings")
 	}
-	if _, ok := cfg.GetProvider("claude"); ok {
-		t.Error("nil-config GetProvider must report no entry")
+	if _, ok := cfg.GetCLI("claude"); ok {
+		t.Error("nil-config GetCLI must report no entry")
 	}
 }
 
@@ -577,8 +578,8 @@ func TestAccessors_EmptyConfig(t *testing.T) {
 	if cfg.GetFabVersion() != "" || cfg.GetLinearWorkspace() != "" {
 		t.Error("empty-config accessors must all return empty strings")
 	}
-	if _, ok := cfg.GetProvider("claude"); ok {
-		t.Error("empty-config GetProvider must report no entry")
+	if _, ok := cfg.GetCLI("claude"); ok {
+		t.Error("empty-config GetCLI must report no entry")
 	}
 }
 
@@ -588,8 +589,8 @@ func TestLoadPath_MissingFileReturnsEmptyConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("missing file must not error, got: %v", err)
 	}
-	if _, ok := cfg.GetProvider("claude"); ok {
-		t.Error("missing file must yield empty config (no providers)")
+	if _, ok := cfg.GetCLI("claude"); ok {
+		t.Error("missing file must yield empty config (no CLIs)")
 	}
 }
 
@@ -602,10 +603,10 @@ func TestLoadPath_MalformedCoupledFailure(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	// test_paths has a type error (mapping where a sequence is expected);
-	// providers is perfectly fine — but the single Unmarshal fails.
+	// CLIs is perfectly fine — but the single Unmarshal fails.
 	content := `test_paths:
   oops: true
-providers:
+clis:
   claude:
     interactive_command: "claude"
 `
@@ -619,7 +620,7 @@ providers:
 		t.Fatal("malformed config must return nil *Config")
 	}
 	// Nil-safe accessors deliver the documented fallbacks.
-	if _, ok := cfg.GetProvider("claude"); ok {
+	if _, ok := cfg.GetCLI("claude"); ok {
 		t.Error("nil-safe accessor must report no entry")
 	}
 }
@@ -676,7 +677,7 @@ func TestCascade_MapsMergePerKey(t *testing.T) {
 	writeSystemConfig(t, home, `
 agent:
   profiles:
-    doing: { provider: claude, model: system-model }
+    doing: { cli: claude, model: system-model }
     sysonly: { model: sys-only-model }
 `)
 	fabRoot := writeProjectConfig(t, `
@@ -691,7 +692,7 @@ agent:
 		t.Fatalf("Load: %v", err)
 	}
 
-	// doing.model: SYSTEM wins (system-model); doing.provider is a system-only
+	// doing.model: SYSTEM wins (system-model); doing.cli is a system-only
 	// leaf; doing.effort is a PROJECT-only leaf that survives the per-key merge.
 	doing, ok := cfg.GetAgentProfile("doing")
 	if !ok {
@@ -703,8 +704,8 @@ agent:
 	if doing.Effort != "low" {
 		t.Errorf("doing.effort = %q, want low (project-layer leaf composes in)", doing.Effort)
 	}
-	if doing.Provider != "claude" {
-		t.Errorf("doing.provider = %q, want claude (system-layer leaf)", doing.Provider)
+	if doing.CLI != "claude" {
+		t.Errorf("doing.cli = %q, want claude (system-layer leaf)", doing.CLI)
 	}
 
 	// A system-only role survives (per-key merge, not whole-map replacement).
@@ -719,22 +720,22 @@ agent:
 
 // TestCascade_ScalarReplaceSystemWins: a scalar set in both layers takes the
 // SYSTEM value — the machine-wide preference outranks the repo's committed
-// suggestion (providers.claude.interactive_command is `both`-scoped, so it is a
-// valid system-file override to exercise end-to-end). A system-only provider
+// suggestion (clis.claude.interactive_command is `both`-scoped, so it is a
+// valid system-file override to exercise end-to-end). A system-only CLI
 // entry survives alongside it (per-key map merge). The list-replace rule is
 // exercised separately in TestCascade_ListReplace (lists are project-scoped, so
 // the generic rule is asserted on the merge helper directly).
 func TestCascade_ScalarReplaceSystemWins(t *testing.T) {
 	home := isolateSystemConfig(t)
 	writeSystemConfig(t, home, `
-providers:
+clis:
   claude:
     interactive_command: system-session
   codex:
     headless_command: codex exec
 `)
 	fabRoot := writeProjectConfig(t, `
-providers:
+clis:
   claude:
     interactive_command: project-session
 `)
@@ -743,13 +744,13 @@ providers:
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	claude, ok := cfg.GetProvider("claude")
+	claude, ok := cfg.GetCLI("claude")
 	if !ok || claude.InteractiveCommand != "system-session" {
 		t.Errorf("claude.interactive_command = %q ok=%v, want system-session (scalar: system wins)", claude.InteractiveCommand, ok)
 	}
-	// System-only provider survives (per-key map merge).
-	if codex, ok := cfg.GetProvider("codex"); !ok || codex.HeadlessCommand != "codex exec" {
-		t.Errorf("system-only codex provider lost: %+v ok=%v", codex, ok)
+	// System-only CLI survives (per-key map merge).
+	if codex, ok := cfg.GetCLI("codex"); !ok || codex.HeadlessCommand != "codex exec" {
+		t.Errorf("system-only codex CLI lost: %+v ok=%v", codex, ok)
 	}
 }
 
@@ -864,7 +865,7 @@ func TestCascade_AbsentSystemFile(t *testing.T) {
 	fabRoot := writeProjectConfig(t, `
 true_impact_exclude:
   - docs/
-providers:
+clis:
   claude:
     interactive_command: only-project
 `)
@@ -875,7 +876,7 @@ providers:
 	if len(cfg.TrueImpactExclude) != 1 || cfg.TrueImpactExclude[0] != "docs/" {
 		t.Errorf("true_impact_exclude = %v, want [docs/]", cfg.TrueImpactExclude)
 	}
-	if claude, ok := cfg.GetProvider("claude"); !ok || claude.InteractiveCommand != "only-project" {
+	if claude, ok := cfg.GetCLI("claude"); !ok || claude.InteractiveCommand != "only-project" {
 		t.Errorf("claude.interactive_command = %+v ok=%v, want only-project", claude, ok)
 	}
 	if w := warnings(); w != "" {
@@ -891,7 +892,7 @@ func TestCascade_MalformedSystemFileFailsOpen(t *testing.T) {
 	warnings := captureWarnings(t)
 	writeSystemConfig(t, home, "this: is: not: valid: yaml: [[[\n")
 	fabRoot := writeProjectConfig(t, `
-providers:
+clis:
   claude:
     interactive_command: project-wins
 `)
@@ -899,7 +900,7 @@ providers:
 	if err != nil {
 		t.Fatalf("malformed system file must be fail-open (no error), got: %v", err)
 	}
-	if claude, ok := cfg.GetProvider("claude"); !ok || claude.InteractiveCommand != "project-wins" {
+	if claude, ok := cfg.GetCLI("claude"); !ok || claude.InteractiveCommand != "project-wins" {
 		t.Errorf("project layer must survive a skipped system layer: %+v ok=%v", claude, ok)
 	}
 	if w := warnings(); !strings.Contains(w, "fab: warning:") || !strings.Contains(w, "malformed system config") {
@@ -925,7 +926,7 @@ func TestCascade_MalformedProjectFileStillErrors(t *testing.T) {
 func TestCascade_ProjectAbsentSystemPresent(t *testing.T) {
 	home := isolateSystemConfig(t)
 	writeSystemConfig(t, home, `
-providers:
+clis:
   claude:
     interactive_command: from-system
 `)
@@ -934,7 +935,7 @@ providers:
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if claude, ok := cfg.GetProvider("claude"); !ok || claude.InteractiveCommand != "from-system" {
+	if claude, ok := cfg.GetCLI("claude"); !ok || claude.InteractiveCommand != "from-system" {
 		t.Errorf("system layer must apply with no project file: %+v ok=%v", claude, ok)
 	}
 }
@@ -949,7 +950,7 @@ func TestParseYAMLValue(t *testing.T) {
 		}
 	})
 	t.Run("flow map", func(t *testing.T) {
-		got, err := ParseYAMLValue("{review: {provider: codex}}")
+		got, err := ParseYAMLValue("{review: {cli: codex}}")
 		if err != nil {
 			t.Fatalf("ParseYAMLValue flow map: %v", err)
 		}
@@ -958,7 +959,7 @@ func TestParseYAMLValue(t *testing.T) {
 			t.Fatalf("flow map type = %T, want map[string]any", got)
 		}
 		review, _ := outer["review"].(map[string]any)
-		if review["provider"] != "codex" {
+		if review["cli"] != "codex" {
 			t.Errorf("flow map = %#v, want review.provider=codex", got)
 		}
 	})
@@ -1002,7 +1003,7 @@ agent:
     doing: { effort: high }
 `)
 	t.Setenv("FAB_AGENT_WORKERS", "codex")
-	t.Setenv("FAB_AGENT_PROFILES", "{review: {provider: codex}}")
+	t.Setenv("FAB_AGENT_PROFILES", "{review: {cli: codex}}")
 
 	cfg, err := Load(fabRoot)
 	if err != nil {
@@ -1015,8 +1016,8 @@ agent:
 	if !ok {
 		t.Fatal("merged review profile missing")
 	}
-	if review.Provider != "codex" || review.Model != "system-review" || review.Effort != "low" {
-		t.Errorf("review profile = %+v, want env provider + system model + system effort", review)
+	if review.CLI != "codex" || review.Model != "system-review" || review.Effort != "low" {
+		t.Errorf("review profile = %+v, want env CLI + system model + system effort", review)
 	}
 	if doing, ok := cfg.GetAgentProfile("doing"); !ok || doing.Effort != "high" {
 		t.Errorf("project-only doing profile lost under env map merge: %+v ok=%v", doing, ok)
@@ -1093,21 +1094,21 @@ func TestEnvCascade_BlockStyleCollectionResolves(t *testing.T) {
 	isolateSystemConfig(t)
 	warnings := captureWarnings(t)
 	fabRoot := writeProjectConfig(t, "agent:\n  workers: claude\n")
-	t.Setenv("FAB_PROVIDERS", "custom:\n  interactive_command: tool")
+	t.Setenv("FAB_CLIS", "custom:\n  interactive_command: tool")
 
 	layers, err := LoadLayers(filepath.Join(fabRoot, "project", "config.yaml"))
 	if err != nil {
 		t.Fatalf("LoadLayers: %v", err)
 	}
-	if got := layers.EnvOrigins["providers"]; got != "FAB_PROVIDERS" {
-		t.Errorf("providers origin = %q, want FAB_PROVIDERS", got)
+	if got := layers.EnvOrigins["clis"]; got != "FAB_CLIS" {
+		t.Errorf("CLIs origin = %q, want FAB_CLIS", got)
 	}
 
 	cfg, err := Load(fabRoot)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if custom, ok := cfg.GetProvider("custom"); !ok || custom.InteractiveCommand != "tool" {
+	if custom, ok := cfg.GetCLI("custom"); !ok || custom.InteractiveCommand != "tool" {
 		t.Errorf("block-style env collection did not resolve: %+v ok=%v", custom, ok)
 	}
 	if w := warnings(); w != "" {
@@ -1350,7 +1351,7 @@ func TestScope_PruneAllProjectScopedFields(t *testing.T) {
 		"stage_hooks":         map[string]any{"apply": map[string]any{"pre": "x"}},
 		"fab_version":         "1.0.0", // not a config key — an inert unknown key
 		"agent":               map[string]any{"tiers": map[string]any{}},
-		"providers":           map[string]any{"claude": map[string]any{}},
+		"clis":                map[string]any{"claude": map[string]any{}},
 	}
 	pruneProjectScoped(m, "/fake/system.yaml")
 
@@ -1363,7 +1364,7 @@ func TestScope_PruneAllProjectScopedFields(t *testing.T) {
 			t.Errorf("expected pruning warning %q, got %q", wantWarn, warnings())
 		}
 	}
-	for _, kept := range []string{"agent", "providers"} {
+	for _, kept := range []string{"agent", "clis"} {
 		if _, ok := m[kept]; !ok {
 			t.Errorf("both-scoped key %q must survive in the system layer", kept)
 		}
@@ -1924,17 +1925,17 @@ func TestLoadNoProject_IncompatibleSystemLayerKeepsEnv(t *testing.T) {
 	}
 }
 
-func TestLoadProviderModelsCommand(t *testing.T) {
+func TestLoadCLIModelsCommand(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	if err := os.WriteFile(path, []byte("providers:\n  mytool:\n    models_command: 'mytool models --json'\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("clis:\n  mytool:\n    models_command: 'mytool models --json'\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := LoadPath(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	provider, ok := cfg.GetProvider("mytool")
-	if !ok || provider.ModelsCommand != "mytool models --json" {
-		t.Fatalf("models_command = %q, ok=%v", provider.ModelsCommand, ok)
+	cli, ok := cfg.GetCLI("mytool")
+	if !ok || cli.ModelsCommand != "mytool models --json" {
+		t.Fatalf("models_command = %q, ok=%v", cli.ModelsCommand, ok)
 	}
 }

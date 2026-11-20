@@ -327,7 +327,7 @@ func TestSetupWizard_NonTTYWithoutDefaultsFails(t *testing.T) {
 	}
 }
 
-func TestSetupWizard_ProviderOptionsFilterToDetected(t *testing.T) {
+func TestSetupWizard_CLIOptionsFilterToDetected(t *testing.T) {
 	// Only claude's binary is on PATH: codex/agy/kimi are dropped outright,
 	// and claude carries its capability annotation.
 	setupCheckFixture(t, "", "claude")
@@ -343,7 +343,7 @@ func TestSetupWizard_ProviderOptionsFilterToDetected(t *testing.T) {
 	}
 	for _, absent := range []string{"codex", "agy", "kimi"} {
 		if strings.Contains(q1, absent) {
-			t.Errorf("Q1 must drop undetected provider %q, got:\n%s", absent, q1)
+			t.Errorf("Q1 must drop undetected CLI %q, got:\n%s", absent, q1)
 		}
 	}
 }
@@ -381,8 +381,8 @@ func TestSetupWizard_AdvancedOptInAsksAllKeys(t *testing.T) {
 		t.Fatalf("run error = %v; output:\n%s", err, out)
 	}
 	for _, prompt := range []string{
-		"agent.profiles.operator.provider [(inherit agent.session)]:",
-		"agent.profiles.review.provider [(inherit agent.workers)]:",
+		"agent.profiles.operator.cli [(inherit agent.session)]:",
+		"agent.profiles.review.cli [(inherit agent.workers)]:",
 		"dispatch.column_width [45]:",
 		"dispatch.reap_done [true]:",
 	} {
@@ -418,8 +418,8 @@ func TestSetupWizard_StdinReadErrorAbortsWrite(t *testing.T) {
 	}
 }
 
-func TestSetupWizard_NoDetectedProvidersFailsFast(t *testing.T) {
-	// No provider executable on PATH: Q1/Q2's option set would be empty and
+func TestSetupWizard_NoDetectedCLIsFailsFast(t *testing.T) {
+	// No CLI executable on PATH: Q1/Q2's option set would be empty and
 	// the questions would degrade to unvalidated free-form input — the wizard
 	// must refuse up front instead, pointing at the read-only doctor.
 	setupCheckFixture(t, "")
@@ -427,18 +427,18 @@ func TestSetupWizard_NoDetectedProvidersFailsFast(t *testing.T) {
 
 	err, _, _ := runSetupWizardCmd(t, "")
 	if err == nil {
-		t.Fatal("zero detected providers must fail fast")
+		t.Fatal("zero detected CLIs must fail fast")
 	}
-	if !strings.Contains(err.Error(), "no agent providers detected") || !strings.Contains(err.Error(), "fab setup check") {
+	if !strings.Contains(err.Error(), "no agent CLIs detected") || !strings.Contains(err.Error(), "fab setup check") {
 		t.Errorf("error must state the cause and point at the doctor, got: %v", err)
 	}
 }
 
 func TestSetupWizard_NoViableDispatchModeFailsFast(t *testing.T) {
-	// Only an interactive-only custom provider is detected and the fixture
+	// Only an interactive-only custom CLI is detected and the fixture
 	// scrubs $TMUX: pane, native, and headless are all unviable, so Q3's
 	// option set would be empty — the wizard must refuse up front.
-	setupCheckFixture(t, "providers:\n  soloui:\n    interactive_command: soloui\n", "soloui")
+	setupCheckFixture(t, "clis:\n  soloui:\n    interactive_command: soloui\n", "soloui")
 	forceTTY(t, true)
 
 	err, _, _ := runSetupWizardCmd(t, "")
@@ -465,8 +465,8 @@ func TestSetupWizard_AdvancedOverriddenKeyIsAsked(t *testing.T) {
 		t.Errorf("the overridden key must be asked with its current value as default, got:\n%s", out)
 	}
 	for _, prompt := range []string{
-		"agent.profiles.operator.provider [(inherit agent.session)]:",
-		"agent.profiles.review.provider [(inherit agent.workers)]:",
+		"agent.profiles.operator.cli [(inherit agent.session)]:",
+		"agent.profiles.review.cli [(inherit agent.workers)]:",
 		"dispatch.reap_done [true]:",
 	} {
 		if !strings.Contains(out, prompt) {
@@ -476,7 +476,7 @@ func TestSetupWizard_AdvancedOverriddenKeyIsAsked(t *testing.T) {
 }
 
 func TestSetupWizard_AdvancedFirstTimeProfileWriteLandsSystemTier(t *testing.T) {
-	// A never-set profile key answered with a detected provider: the diff
+	// A never-set profile key answered with a detected cli: the diff
 	// summary renders the inherit indication as the old side, and the
 	// confirmed write lands exactly that key in the system tier.
 	setupCheckFixture(t, "", "claude", "codex")
@@ -487,14 +487,14 @@ func TestSetupWizard_AdvancedFirstTimeProfileWriteLandsSystemTier(t *testing.T) 
 	if err != nil {
 		t.Fatalf("run error = %v; output:\n%s", err, out)
 	}
-	if !strings.Contains(out, "agent.profiles.operator.provider: (inherit agent.session) → codex") {
+	if !strings.Contains(out, "agent.profiles.operator.cli: (inherit agent.session) → codex") {
 		t.Errorf("diff summary must render the inherit indication as the old side, got:\n%s", out)
 	}
 	data, readErr := os.ReadFile(filepath.Join(os.Getenv("HOME"), ".fab-kit", "config.yaml"))
 	if readErr != nil {
 		t.Fatalf("confirmed write must land in the system tier: %v\noutput:\n%s", readErr, out)
 	}
-	if !strings.Contains(string(data), "operator") || !strings.Contains(string(data), "provider: codex") {
+	if !strings.Contains(string(data), "operator") || !strings.Contains(string(data), "cli: codex") {
 		t.Errorf("system config must carry the operator profile write, got:\n%s", string(data))
 	}
 	live := strings.SplitN(string(data), "# >>> fab reference", 2)[0]
@@ -526,7 +526,7 @@ func TestSetupCheck_WarningsOnlyExits0(t *testing.T) {
 	if code != 0 {
 		t.Errorf("warnings-only report exit = %d, want 0; output:\n%s", code, out)
 	}
-	for _, want := range []string{"Providers:", "claude", "Checks:", "Summary:", "project pin"} {
+	for _, want := range []string{"CLIs:", "claude", "Checks:", "Summary:", "project pin"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("report missing %q, got:\n%s", want, out)
 		}
@@ -542,7 +542,7 @@ func TestSetupCheck_FailureFindingExits1(t *testing.T) {
 		t.Errorf("failure-finding report exit = %d, want 1; output:\n%s", code, out)
 	}
 	if !strings.Contains(out, "agy") {
-		t.Errorf("report should name the missing provider, got:\n%s", out)
+		t.Errorf("report should name the missing CLI, got:\n%s", out)
 	}
 	if !strings.Contains(errOut, "ERROR:") {
 		t.Errorf("exit-1 path should carry the run() ERROR line on stderr, got %q", errOut)

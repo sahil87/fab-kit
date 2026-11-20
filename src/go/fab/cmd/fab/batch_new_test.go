@@ -338,8 +338,8 @@ func TestRunBatchNew_LaunchFailures(t *testing.T) {
 }
 
 // writeBatchNewConfig writes fab/project/config.yaml under an existing fixture
-// root (from chdirBatchNewFixture) with the given providers.claude.interactive_command
-// (the `default` role's provider), so defaultRoleSpawnCommand reads it instead of
+// root (from chdirBatchNewFixture) with the given clis.claude.interactive_command
+// (the `default` role's CLI), so defaultRoleSpawnCommand reads it instead of
 // falling back to DefaultSpawnCommand.
 func writeBatchNewConfig(t *testing.T, root, interactiveCommand string) {
 	t.Helper()
@@ -347,7 +347,7 @@ func writeBatchNewConfig(t *testing.T, root, interactiveCommand string) {
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := "providers:\n  claude:\n    interactive_command: \"" + interactiveCommand + "\"\n"
+	body := "clis:\n  claude:\n    interactive_command: \"" + interactiveCommand + "\"\n"
 	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}

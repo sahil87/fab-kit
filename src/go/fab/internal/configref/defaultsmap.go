@@ -18,9 +18,9 @@ import (
 // merge beneath the file and environment layers. The LOADER does not consume it:
 // internal/config cannot import this package (configref → agent → config would
 // close an import cycle), and the registry's agent.profiles default is a DERIVED
-// value — merging it into the loader's tree would land a full {provider, model,
+// value — merging it into the loader's tree would land a full {CLI, model,
 // effort} in Config.Agent.Profiles, which the resolver reads as a user override
-// outranking the provider's own fills. Built-in values reach consumers through
+// outranking the CLI's own fills. Built-in values reach consumers through
 // the retained point-of-use seams instead; this map is the read model's view of
 // that same tier.
 func DefaultsMap() (map[string]any, error) {
@@ -34,23 +34,23 @@ func DefaultsMap() (map[string]any, error) {
 // DefaultsMapFor is DefaultsMap with the DERIVED per-role rows resolved against
 // the LIVE config instead of against a nil one. The agent.profiles default is
 // composed from agent.DefaultProfile — resolution against a nil *Config — so
-// every role's provider row reads `claude` even when a depth knob names another
-// provider; composing against cfg reports the provider (and its fills) honestly.
+// every role's CLI row reads `claude` even when a depth knob names another
+// CLI; composing against cfg reports the CLI (and its fills) honestly.
 //
 // The composition never echoes a tier above it — this map is the DEFAULTS tier,
 // so a user's per-role model/effort overrides are stripped before resolving (an
 // `agent.profiles.review.model` override would otherwise be reported as its own
 // built-in, on the `default (shadowed)` line as well as the project one). A
-// per-role PROVIDER override is different: it is KEPT for the model/effort
-// derivation, because the built-in fill for a role is a function of the provider
+// per-role CLI override is different: it is KEPT for the model/effort
+// derivation, because the built-in fill for a role is a function of the CLI
 // the role actually dispatches to — the same honesty argument as the depth knobs,
-// and no echo, since the derived values come from that provider's own fill map,
-// which no higher tier states. The provider leaf's own default stays knobs-only
-// so keyed --origin still shows the override shadowing the knob's provider.
+// and no echo, since the derived values come from that CLI's own fill map,
+// which no higher tier states. The CLI leaf's own default stays knobs-only
+// so keyed --origin still shows the override shadowing the knob's CLI.
 //
-// Resolution stays provider-neutral: a knob naming a provider fab knows nothing
+// Resolution stays CLI-neutral: a knob naming a CLI fab knows nothing
 // about passes through verbatim (Constitution Principle I — fab validates no
-// provider name), which is the honest report of what that role would dispatch to.
+// CLI name), which is the honest report of what that role would dispatch to.
 //
 // A nil cfg yields the same map as DefaultsMap.
 func DefaultsMapFor(cfg *config.Config) (map[string]any, error) {
@@ -71,17 +71,17 @@ func DefaultsMapFor(cfg *config.Config) (map[string]any, error) {
 }
 
 // agentProfilesKey is the one registry row whose Default is DERIVED from the
-// resolved provider fills rather than being a literal built-in, and therefore the
+// resolved CLI fills rather than being a literal built-in, and therefore the
 // one row DefaultsMapFor recomposes.
 const agentProfilesKey = "agent.profiles"
 
 // liveRoleProfiles resolves every role through agent.ResolveRole twice — the two
-// leaves have different honesty requirements. The PROVIDER leaf resolves against
+// leaves have different honesty requirements. The CLI leaf resolves against
 // knobsOnly (per-role overrides fully stripped): it must report the built-in a
-// user's provider override SHADOWS. The MODEL/EFFORT leaves resolve against
-// fillsOnly (per-role provider overrides kept, model/effort cleared): the
-// built-in fill is a function of the provider the role actually dispatches to,
-// so deriving it from the knob's provider when an override redirects the role
+// user's CLI override SHADOWS. The MODEL/EFFORT leaves resolve against
+// fillsOnly (per-role CLI overrides kept, model/effort cleared): the
+// built-in fill is a function of the CLI the role actually dispatches to,
+// so deriving it from the knob's CLI when an override redirects the role
 // composes a chimera row no resolution path produces. Like roleRows it fails
 // loud on role-map drift: a role agent.RoleNames reports must resolve (an
 // unknown role name is ResolveRole's only error).
@@ -99,7 +99,7 @@ func liveRoleProfiles(cfg *config.Config) (map[string]roleProfileDefault, error)
 }
 
 // resolveDerivedRole is the one derivation of a role's default-tier row: the
-// provider leaf from the knobs-only config, model/effort from the fills-only one,
+// CLI leaf from the knobs-only config, model/effort from the fills-only one,
 // plus the config key each leaf was derived from. liveRoleProfiles and
 // DerivedRoleSources both read it, so a reported source can never name a key that
 // did not produce the shown value.
@@ -112,12 +112,12 @@ func resolveDerivedRole(cfg *config.Config, role string) (roleProfileDefault, Ro
 	if err != nil {
 		return roleProfileDefault{}, RoleSources{}, err
 	}
-	sources := RoleSources{Provider: ks.Provider}
-	if sources.Provider == agentBuiltinSource {
-		sources.Provider = "" // no user config involved: the default tier is the whole truth
+	sources := RoleSources{CLI: ks.CLI}
+	if sources.CLI == agentBuiltinSource {
+		sources.CLI = "" // no user config involved: the default tier is the whole truth
 	}
-	// A deprecated flat providers.<p>.model/.effort is folded into profiles.default by
-	// ResolveProvider, so its reported source key (providers.<p>.profiles.default.model)
+	// A deprecated flat clis.<p>.model/.effort is folded into profiles.default by
+	// ResolveCLI, so its reported source key (clis.<p>.profiles.default.model)
 	// is defined by no tier and derived_from is omitted for that legacy spelling.
 	if fs.Model != "" {
 		sources.Model = fs.Model + ".model"
@@ -131,7 +131,7 @@ func resolveDerivedRole(cfg *config.Config, role string) (roleProfileDefault, Ro
 		// the default tier shows the value the holding key actually carries.
 		model = agent.ToolDefaultModel
 	}
-	return roleProfileDefault{Provider: kp.Provider, Model: model, Effort: fp.Effort}, sources, nil
+	return roleProfileDefault{CLI: kp.CLI, Model: model, Effort: fp.Effort}, sources, nil
 }
 
 // agentBuiltinSource is agent.Source's spelling for "supplied by the built-in
@@ -140,12 +140,12 @@ const agentBuiltinSource = "built-in"
 
 // RoleSources names, per derived `agent.profiles.<role>.*` leaf, the dotted config
 // key the default-tier value was derived from — `agent.workers`/`agent.session` for
-// the provider, `providers.<p>.profiles.<role|default>.model|effort` for the
+// the CLI, `clis.<p>.profiles.<role|default>.model|effort` for the
 // fills. A leaf is "" when it came from the built-in defaults alone (or nothing).
 type RoleSources struct {
-	Provider string
-	Model    string
-	Effort   string
+	CLI    string
+	Model  string
+	Effort string
 }
 
 // DerivedRoleSources reports, for every role, where each derived default-tier leaf
@@ -166,7 +166,7 @@ func DerivedRoleSources(cfg *config.Config) (map[string]RoleSources, error) {
 
 // knobsOnly copies cfg with the per-role override maps (agent.profiles and its
 // pre-2.17.0 spelling agent.tiers) CLEARED, leaving the depth knobs and the
-// providers table — the inputs the derived PROVIDER leaf legitimately depends
+// CLIs table — the inputs the derived CLI leaf legitimately depends
 // on. The copy is shallow, and neither the original nor its remaining maps are
 // mutated.
 func knobsOnly(cfg *config.Config) *config.Config {
@@ -179,10 +179,10 @@ func knobsOnly(cfg *config.Config) *config.Config {
 	return &stripped
 }
 
-// fillsOnly copies cfg with each per-role override reduced to its {provider}
+// fillsOnly copies cfg with each per-role override reduced to its {CLI}
 // field (model/effort cleared, both the agent.profiles and legacy agent.tiers
 // spellings) — the input set the derived MODEL/EFFORT leaves depend on: the
-// provider selection (knob or per-role override) and the providers table, never
+// CLI selection (knob or per-role override) and the CLIs table, never
 // the user's own pinned fills. The per-role maps are copied entry-by-entry;
 // neither the original config nor its maps are mutated.
 func fillsOnly(cfg *config.Config) *config.Config {
@@ -190,20 +190,20 @@ func fillsOnly(cfg *config.Config) *config.Config {
 		return nil
 	}
 	stripped := *cfg
-	stripped.Agent.Profiles = providerOnlyRoles(cfg.Agent.Profiles)
-	stripped.Agent.Tiers = providerOnlyRoles(cfg.Agent.Tiers)
+	stripped.Agent.Profiles = cliOnlyRoles(cfg.Agent.Profiles)
+	stripped.Agent.Tiers = cliOnlyRoles(cfg.Agent.Tiers)
 	return &stripped
 }
 
-// providerOnlyRoles maps each role entry to {Provider: entry.Provider} — the
+// cliOnlyRoles maps each role entry to {CLI: entry.CLI} — the
 // reduction fillsOnly applies to one per-role override map.
-func providerOnlyRoles(m map[string]config.RoleProfile) map[string]config.RoleProfile {
+func cliOnlyRoles(m map[string]config.RoleProfile) map[string]config.RoleProfile {
 	if m == nil {
 		return nil
 	}
 	out := make(map[string]config.RoleProfile, len(m))
 	for role, p := range m {
-		out[role] = config.RoleProfile{Provider: p.Provider}
+		out[role] = config.RoleProfile{CLI: p.CLI}
 	}
 	return out
 }
@@ -231,8 +231,8 @@ func defaultsMapFromFields(fields []Field) map[string]any {
 
 // normalizeToGeneric round-trips a typed registry default into the generic shape
 // the layer maps use. It marshals via JSON, NOT YAML: the registry default structs
-// (providerDefault, roleProfileDefault) carry `json:` tags whose names match the
-// real config keys (interactive_command, provider, model, effort), whereas they carry
+// (cliDefault, roleProfileDefault) carry `json:` tags whose names match the
+// real config keys (interactive_command, CLI, model, effort), whereas they carry
 // no `yaml:` tags — a YAML marshal would emit lowercased Go field names
 // (sessioncommand) that would not line up with the layer maps' snake_case keys,
 // producing phantom leaves. Config values are strings/lists/maps, so JSON's

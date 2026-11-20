@@ -128,7 +128,7 @@ func addLaunchFlags(cmd *cobra.Command, role paneRole) *launchFlags {
 // Resolving both here is also what gives `restart` and `open` the split behavior
 // for free — they share this method, so the subcommands cannot drift on either
 // decision.
-func (f *launchFlags) resolveMode(cmd *cobra.Command, cfg *config.Config, prov config.ProviderConfig, native dispatch.NativeAvailability) (dispatch.Mode, dispatch.AutoReason, paneTarget, error) {
+func (f *launchFlags) resolveMode(cmd *cobra.Command, cfg *config.Config, prov config.CLIConfig, native dispatch.NativeAvailability) (dispatch.Mode, dispatch.AutoReason, paneTarget, error) {
 	serverSet := cmd.Flags().Changed("server")
 
 	if f.role == paneRejected {
@@ -180,9 +180,9 @@ func paneFlagRetiredError(flag string) error {
 // paneDispatchError is the pane counterpart of nativeDispatchError: `start`'s
 // automatic resolution landed on a rung this subcommand cannot launch, so it
 // stops before any state write and names the verb that can.
-func paneDispatchError(stage, provider string) error {
-	return fmt.Errorf("stage %q resolves to pane mode for provider %q, but `fab dispatch start` launches only the headless arm; run `fab dispatch open <change> %s` (then `fab dispatch ready` and `fab dispatch deliver`) to open a pane worker, or pass --headless to force this launch headless",
-		stage, provider, stage)
+func paneDispatchError(stage, cli string) error {
+	return fmt.Errorf("stage %q resolves to pane mode for CLI %q, but `fab dispatch start` launches only the headless arm; run `fab dispatch open <change> %s` (then `fab dispatch ready` and `fab dispatch deliver`) to open a pane worker, or pass --headless to force this launch headless",
+		stage, cli, stage)
 }
 
 // paneTarget carries the pane-placement inputs to launchPane: WHICH shape the
@@ -217,13 +217,13 @@ func dispatchStartCmd() *cobra.Command {
 		Use:   "start <change> <stage>",
 		Short: "Launch a HEADLESS stage worker (pane mode's entry is `fab dispatch open`)",
 		Long: "Launch a detached headless stage worker from the prompt on stdin.\n\n" +
-			"`start` composes only the resolved provider's headless_command. Pane mode has\n" +
+			"`start` composes only the resolved CLI's headless_command. Pane mode has\n" +
 			"its own entry — `fab dispatch open`, followed by `fab dispatch ready` and\n" +
 			"`fab dispatch deliver` — because a pane worker is spawned and delivered to in\n" +
 			"two steps with an agent-driven readiness gate between them. A configuration\n" +
 			"that resolves to pane therefore stops here with that route instead of\n" +
 			"launching.",
-		Example: `  # Resolve automatically from dispatch.mode and provider capability
+		Example: `  # Resolve automatically from dispatch.mode and CLI capability
   fab dispatch start b91h apply < prompt.md
 
   # Force headless for an unattended run that happens to live inside a tmux tab
@@ -271,14 +271,14 @@ func promptFromStdin(cmd *cobra.Command, _, _ string) ([]byte, bool, error) {
 	return prompt, true, nil
 }
 
-// runDispatchLaunch resolves the stage's role → provider, refuses if a dispatch
+// runDispatchLaunch resolves the stage's role → CLI, refuses if a dispatch
 // for this (change, stage) is already running, obtains the prompt from the given
 // promptSource, resolves the mode, then launches the worker and persists
 // {stage}.yaml:
 //
-//	dispatch.ModeHeadless — the provider's headless_command, detached via the
+//	dispatch.ModeHeadless — the CLI's headless_command, detached via the
 //	                        `sh -c` wrapper; tmux-independent (launchHeadless)
-//	dispatch.ModePane     — the provider's interactive_command, interactive in a tmux
+//	dispatch.ModePane     — the CLI's interactive_command, interactive in a tmux
 //	                        pane the user can watch and steer — split into the
 //	                        dispatching agent's own window, or in a new window
 //	                        when the dispatcher has no pane to split (launchPane)
@@ -289,13 +289,13 @@ func promptFromStdin(cmd *cobra.Command, _, _ string) ([]byte, bool, error) {
 // output/record shape — so there is deliberately no restart-specific branch here
 // and no new state string, attempt counter, or `restarted:` marker anywhere.
 //
-// Mode selection uses dispatch.SelectMode after config/provider resolution. Its
+// Mode selection uses dispatch.SelectMode after config/cli resolution. Its
 // reason governs output and the pane-probe asymmetry: explicit pane propagates a
 // probe error, while automatic pane re-runs the shared descent with tmux marked
 // unreachable and may land on native or headless.
 //
 // Everything up to the launch is shared: the two launchable modes differ only in
-// which provider command they compose and how they start it. The ladder changes
+// which CLI command they compose and how they start it. The ladder changes
 // modes; a command field never substitutes for another.
 func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launchFlags, prompt promptSource) error {
 	fabRoot, err := resolve.FabRoot()
@@ -313,8 +313,8 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 	repoRoot := filepath.Dir(fabRoot)
 	dir := dispatch.DirFor(repoRoot, id)
 
-	// Resolve the stage's role → provider, substituting {model}/{effort} via
-	// internal/spawn — the same path fab resolve-agent uses. Provider fields are
+	// Resolve the stage's role → CLI, substituting {model}/{effort} via
+	// internal/spawn — the same path fab resolve-agent uses. CLI fields are
 	// independent capability data; SelectMode applies the configured policy.
 	cfg, err := config.Load(fabRoot)
 	if err != nil {
@@ -324,14 +324,14 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 	if err != nil {
 		return err
 	}
-	prov, _ := agent.ResolveProvider(cfg, profile.Provider)
+	prov, _ := agent.ResolveCLI(cfg, profile.CLI)
 	native := dispatch.NativeAvailabilityFor(prov.Native, agent.HasNativeModel(profile.Model))
 	mode, reason, target, err := flags.resolveMode(cmd, cfg, prov, native)
 	if err != nil {
 		// Only a genuinely empty ladder gets the capability framing. resolveMode's
 		// other refusals — a retired pane flag, the --pane/--timeout conflict — are
 		// already actionable on their own, and wrapping them in "configure
-		// providers.X.…" would point the caller at a config key that has nothing to
+		// clis.X.…" would point the caller at a config key that has nothing to
 		// do with what they typed.
 		if errors.Is(err, dispatch.ErrNoMode) {
 			return noDispatchCapabilityError(profile, native, cfg.GetDispatchMode(), err)
@@ -342,7 +342,7 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 		fmt.Fprintf(cmd.ErrOrStderr(), "dispatch selection: %s\n", reason)
 	}
 	if mode == dispatch.ModeNative {
-		return nativeDispatchError(stage, profile.Provider)
+		return nativeDispatchError(stage, profile.CLI)
 	}
 
 	// The placement inputs from CONFIG (the others are env-derived, resolved in
@@ -357,7 +357,7 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 	// under automatic selection, can still descend against the failed probe.
 	// Composition is deferred until the final rung is known.
 	if mode == dispatch.ModePane {
-		if fallback := validatePane(prov, flags.server, stage, profile.Provider); fallback != nil {
+		if fallback := validatePane(prov, flags.server, stage, profile.CLI); fallback != nil {
 			// Asymmetric by selection source: explicit pane propagates the error;
 			// automatic pane descends again with the current probe result.
 			if reason == dispatch.ReasonExplicit {
@@ -375,7 +375,7 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 			}
 			fmt.Fprintf(cmd.ErrOrStderr(), "dispatch selection: %s\n", reason)
 			if mode == dispatch.ModeNative {
-				return nativeDispatchError(stage, profile.Provider)
+				return nativeDispatchError(stage, profile.CLI)
 			}
 		}
 	}
@@ -388,11 +388,11 @@ func runDispatchLaunch(cmd *cobra.Command, changeArg, stage string, flags *launc
 	// route to the verb that opens one. `restart` and `open` accept it instead and
 	// land on the spawn-only path.
 	if mode == dispatch.ModePane && flags.role == paneRejected {
-		return paneDispatchError(stage, profile.Provider)
+		return paneDispatchError(stage, profile.CLI)
 	}
 
 	// The mode is final now, so exactly one mode-specific command is composed.
-	baseCmd, err := modeCommand(mode, prov, stage, profile.Provider)
+	baseCmd, err := modeCommand(mode, prov, stage, profile.CLI)
 	if err != nil {
 		return err
 	}
@@ -513,13 +513,13 @@ type paneFallback struct {
 //
 //	(a) the tmux server does not answer — a stale $TMUX inherited from a killed
 //	    server, or no tmux at all (ServerReachable's actionable error).
-//	(b) tmux answered, but the resolved provider carries no interactive_command —
+//	(b) tmux answered, but the resolved CLI carries no interactive_command —
 //	    there is no interactive invocation to open a window on.
 //
 // Shape (b) is normally filtered by SelectMode for automatic selection, but is
 // checked here for explicit pane and as a defensive invariant. Headless performs
 // no tmux probe.
-func validatePane(prov config.ProviderConfig, server, stage, providerName string) *paneFallback {
+func validatePane(prov config.CLIConfig, server, stage, cliName string) *paneFallback {
 	if probeErr := pane.ServerReachable(server); probeErr != nil {
 		return &paneFallback{
 			tmuxUnavailable: true,
@@ -528,18 +528,18 @@ func validatePane(prov config.ProviderConfig, server, stage, providerName string
 	}
 	if prov.InteractiveCommand == "" {
 		return &paneFallback{
-			err: missingCommandError(stage, providerName, "interactive_command"),
+			err: missingCommandError(stage, cliName, "interactive_command"),
 		}
 	}
 	return nil
 }
 
-func nativeDispatchError(stage, provider string) error {
-	return fmt.Errorf("stage %q resolves to native mode for provider %q, but `fab dispatch` cannot launch the native Agent-tool adapter; re-run `fab agent %s -o yaml` and dispatch natively when the `dispatch:` key is absent",
-		stage, provider, stage)
+func nativeDispatchError(stage, cli string) error {
+	return fmt.Errorf("stage %q resolves to native mode for CLI %q, but `fab dispatch` cannot launch the native Agent-tool adapter; re-run `fab agent %s -o yaml` and dispatch natively when the `dispatch:` key is absent",
+		stage, cli, stage)
 }
 
-// modeCommand picks the provider command field the requested mode composes and
+// modeCommand picks the CLI command field the requested mode composes and
 // errors with the matching config-key hint when it is absent.
 //
 // Under `dispatch start` the pane branch's absent-field error is diagnosed EARLIER
@@ -549,30 +549,30 @@ func nativeDispatchError(stage, provider string) error {
 // paths share one message so they cannot drift.
 //
 // The two fields are deliberately NOT merged and never fall back to each other
-// (they are different invocations of the same binary — see the `providers:`
+// (they are different invocations of the same binary — see the `clis:`
 // contract): headless runs ONE headless task via headless_command, pane mode
 // opens an interactive SESSION via interactive_command — the same string `fab agent`
-// composes, which is why pane mode needs no new provider config field.
-func modeCommand(mode dispatch.Mode, prov config.ProviderConfig, stage, providerName string) (string, error) {
+// composes, which is why pane mode needs no new CLI config field.
+func modeCommand(mode dispatch.Mode, prov config.CLIConfig, stage, cliName string) (string, error) {
 	field, cmdStr := "headless_command", prov.HeadlessCommand
 	if mode == dispatch.ModePane {
 		field, cmdStr = "interactive_command", prov.InteractiveCommand
 	}
 	if cmdStr == "" {
-		return "", missingCommandError(stage, providerName, field)
+		return "", missingCommandError(stage, cliName, field)
 	}
 	return cmdStr, nil
 }
 
-// missingCommandError renders the actionable "this provider cannot dispatch this
-// stage" error naming the stage, its resolved role, the provider, and the exact
+// missingCommandError renders the actionable "this CLI cannot dispatch this
+// stage" error naming the stage, its resolved role, the CLI, and the exact
 // config key to set. It lives in one place because two callers raise it —
 // modeCommand (at composition) and validatePane (shape (b), which must diagnose
 // the missing interactive_command before composition) — and the two must not drift.
-func missingCommandError(stage, providerName, field string) error {
+func missingCommandError(stage, cliName, field string) error {
 	role, _ := agent.RoleForStage(stage)
-	return fmt.Errorf("stage %q resolves to role %q (provider %q), which has no %s; configure providers.%s.%s to dispatch this stage",
-		stage, role, providerName, field, providerName, field)
+	return fmt.Errorf("stage %q resolves to role %q (CLI %q), which has no %s; configure clis.%s.%s to dispatch this stage",
+		stage, role, cliName, field, cliName, field)
 }
 
 // launchPane opens the interactive worker in a tmux pane and records the pane
@@ -582,9 +582,9 @@ func missingCommandError(stage, providerName, field string) error {
 //
 // Prompt delivery is a separate, VERIFIED step (`fab dispatch deliver`, behind
 // the readiness gate). Appending the pointer as a spawn argument — the previous
-// behavior — was fire-and-forget: a provider CLI that silently drops a positional
+// behavior — was fire-and-forget: a CLI tool that silently drops a positional
 // prompt left the worker at an empty prompt while the dispatch read `running`,
-// and requiring one tied pane capability to whether a provider's CLI happens to
+// and requiring one tied pane capability to whether a CLI's CLI happens to
 // accept a positional prompt at all. See docs/specs/harness-adapters.md § 3.
 //
 // WHERE the pane opens is dispatch.SelectPaneShape's decision, resolved in the
@@ -612,8 +612,8 @@ func missingCommandError(stage, providerName, field string) error {
 // pane ID afterwards, so status/kill/capture need no shape awareness.
 func launchPane(cmd *cobra.Command, rec *dispatch.Dispatch, resolvedCmd, repoRoot, id, stage, server string, target paneTarget) (string, error) {
 	title := dispatch.WindowName(id, stage)
-	// Every creator below receives the provider command under the user's
-	// interactive shell, so rc-exported env (provider auth tokens, PATH) is
+	// Every creator below receives the CLI command under the user's
+	// interactive shell, so rc-exported env (CLI auth tokens, PATH) is
 	// present. Wrapped once, before the shape branch, so no creator can miss it;
 	// no shell fallback — pane death is the worker's terminal event. The record's
 	// SpawnCmd keeps the unwrapped command.

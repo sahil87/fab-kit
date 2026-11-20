@@ -98,7 +98,7 @@ func TestRender_FenceOmitsOverriddenFields(t *testing.T) {
 
 // TestRender_FenceDemotesAgentMachinery pins the 260806-j9nh fence-slimming
 // requirement: the advertised agent surface is exactly the two depth knobs, so an
-// un-overridden project's fence carries `agent: session/workers` and NO `providers:`
+// un-overridden project's fence carries `agent: session/workers` and NO `clis:`
 // or `agent.profiles` scaffold. Those rows keep their registry entries and their
 // `fab config explain` segments — they are demoted from the per-project fence
 // only.
@@ -113,9 +113,9 @@ func TestRender_FenceDemotesAgentMachinery(t *testing.T) {
 		}
 	}
 	// The machinery keys must not be SCAFFOLDED. Their segments open with a
-	// `# providers:` / `#   profiles:` block line, which is what a scaffold looks
+	// `# clis:` / `#   profiles:` block line, which is what a scaffold looks
 	// like; the knob segment's prose may still NAME them in a pointer line.
-	for _, absent := range []string{"# providers:", "#   profiles:"} {
+	for _, absent := range []string{"# clis:", "#   profiles:"} {
 		if strings.Contains(fenceBody, absent) {
 			t.Errorf("fence must not scaffold %q (demoted to advertise:false).\n--- fence ---\n%s", absent, fenceBody)
 		}
@@ -139,9 +139,9 @@ func TestRender_FenceFullyComments(t *testing.T) {
 			t.Errorf("fence body must be fully commented; found live line %q", ln)
 		}
 	}
-	// A parent key must appear only in commented form (never a live `providers:`).
-	if strings.Contains(fenceBody, "\nproviders:") {
-		t.Error("fence must not carry a LIVE providers: parent key (must be commented)")
+	// A parent key must appear only in commented form (never a live `clis:`).
+	if strings.Contains(fenceBody, "\nclis:") {
+		t.Error("fence must not carry a LIVE clis: parent key (must be commented)")
 	}
 }
 
@@ -197,10 +197,10 @@ func TestCommentOutSegment_ShippedRegistryAlignment(t *testing.T) {
 }
 
 // TestCommentOutSegment_BlockStripRestoresSegment: the reverse operation
-// `configref.providersSegment`'s prose promises — "strip the leading '# ' from every
+// `configref.clisSegment`'s prose promises — "strip the leading '# ' from every
 // line of a block" — restores the segment's YAML block BYTE-EXACTLY, so a user who
-// uncomments a whole block gets valid YAML (the providers block restores to all
-// four built-in provider blocks LIVE at their original indent). Verified over the
+// uncomments a whole block gets valid YAML (the CLIs block restores to all
+// four built-in CLI blocks LIVE at their original indent). Verified over the
 // shipped registry; the fence-level prose lines (already column-0) are unchanged by
 // the commenting and so are not part of the strip. Both renderings are walked:
 // the long Segment (explain) and the file-bound ShortSegment (260809-wll4 R6/R7).
@@ -356,19 +356,19 @@ func TestRender_InteriorColumn0CommentInLiveBlock(t *testing.T) {
 
 // TestRender_BHygieneFlagsEqualsDefault (SF-d): a live field whose value equals the
 // built-in default is flagged in the advisory report — but never removed
-// (presence=intent). Uses providers, whose default is fab-kit's FOUR built-in
-// providers (claude's session command; the non-claude command pairs) — so the live
+// (presence=intent). Uses CLIs, whose default is fab-kit's FOUR built-in
+// CLIs (claude's session command; the non-claude command pairs) — so the live
 // fixture must restate all four to be an equals-default case.
 func TestRender_BHygieneFlagsEqualsDefault(t *testing.T) {
 	fields := fieldsForTest(t)
 	// Most built-ins ship per-role fills (260806-ywkx), so an equals-default
-	// fixture must restate every one. They are DERIVED from agent.ResolveProvider
+	// fixture must restate every one. They are DERIVED from agent.ResolveCLI
 	// rather than typed out, so a model bump does not turn this into a false
 	// negative that silently stops exercising the equals-default path — and a fill
-	// added to any provider is picked up here automatically.
-	src := "providers:\n"
-	for _, name := range agent.ProviderNames(nil) {
-		prov, _ := agent.ResolveProvider(nil, name)
+	// added to any CLI is picked up here automatically.
+	src := "clis:\n"
+	for _, name := range agent.CLINames(nil) {
+		prov, _ := agent.ResolveCLI(nil, name)
 		src += "    " + name + ":\n"
 		// Single-quoted with interior quotes DOUBLED: the nested-shell dispatch
 		// commands (`sh -c '… -p "$(cat)"'`) contain single quotes, and naive
@@ -406,11 +406,11 @@ func TestRender_BHygieneFlagsEqualsDefault(t *testing.T) {
 	}
 	out, report := render(src, fields, ProjectTarget(""), "2.15.0")
 
-	if !strings.Contains(out, "providers:") {
-		t.Error("the live providers field must be kept (presence=intent — never auto-removed)")
+	if !strings.Contains(out, "clis:") {
+		t.Error("the live CLIs field must be kept (presence=intent — never auto-removed)")
 	}
 	joined := strings.Join(report, "\n")
-	if !strings.Contains(joined, "providers") || !strings.Contains(joined, "equals the current default") {
+	if !strings.Contains(joined, "clis") || !strings.Contains(joined, "equals the current default") {
 		t.Errorf("B-hygiene must flag providers==default, got %v", report)
 	}
 }
@@ -419,7 +419,7 @@ func TestRender_BHygieneFlagsEqualsDefault(t *testing.T) {
 // flagged (no false positive).
 func TestRender_BHygieneSilentOnRealOverride(t *testing.T) {
 	fields := fieldsForTest(t)
-	src := "providers:\n    claude:\n        interactive_command: 'my-custom-agent --flag'\n"
+	src := "clis:\n    claude:\n        interactive_command: 'my-custom-agent --flag'\n"
 	_, report := render(src, fields, ProjectTarget(""), "2.15.0")
 	if strings.Contains(strings.Join(report, "\n"), "equals the current default") {
 		t.Errorf("a real override must not be flagged as equals-default, got %v", report)
@@ -799,7 +799,7 @@ func TestMutationRegression_BlockFormLeafKeepsSiblings(t *testing.T) {
 	path := writeMutationFixture(t, `agent:
     profiles:
         review:
-            provider: claude
+            cli: claude
             model: old-model
             effort: xhigh
 `)
@@ -809,7 +809,7 @@ func TestMutationRegression_BlockFormLeafKeepsSiblings(t *testing.T) {
 	}
 	got := readMutationFixture(t, path)
 	for _, want := range []string{
-		"provider: claude",
+		"cli: claude",
 		"model: new-model",
 		"effort: xhigh",
 	} {
@@ -1046,7 +1046,7 @@ agent:
 // and the system-upgrade command spelling intact.
 func TestSystemMutation_ScopeScaffoldAndManagedFence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".fab-kit", "config.yaml")
-	if _, err := SetSystem(path, "providers", "{custom: {interactive_command: tool}}", "test"); err == nil || !strings.Contains(err.Error(), "scalar leaf") {
+	if _, err := SetSystem(path, "clis", "{custom: {interactive_command: tool}}", "test"); err == nil || !strings.Contains(err.Error(), "scalar leaf") {
 		t.Fatalf("SetSystem collection key error = %v, want scalar-leaf refusal", err)
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -1207,7 +1207,7 @@ func TestSystemUpgrade_AdoptsReleasedHistoricalScaffoldsAfterRegistryDrift(t *te
 				t.Fatalf("historical claude command survived above the regenerated fence\n--- got ---\n%s", got)
 			}
 			if count := strings.Count(got, "#     interactive_command:"); count != 4 {
-				t.Fatalf("historical provider commands were duplicated: got %d interactive commands, want 4\n--- got ---\n%s", count, got)
+				t.Fatalf("historical CLI commands were duplicated: got %d interactive commands, want 4\n--- got ---\n%s", count, got)
 			}
 		})
 	}
@@ -1215,7 +1215,7 @@ func TestSystemUpgrade_AdoptsReleasedHistoricalScaffoldsAfterRegistryDrift(t *te
 
 func TestSystemUpgrade_LineCompleteAccountingPreservesMixedAndEditedParagraphs(t *testing.T) {
 	t.Run("note appended without blank separator", func(t *testing.T) {
-		const note = "# user: keep this provider note"
+		const note = "# user: keep this CLI note"
 		original := legacySystemScaffoldHeader + "\n\n" + legacyV2198ToV2220ProvidersAdvert + "\n" + note + "\n"
 		path := writeMutationFixture(t, original)
 
@@ -1227,8 +1227,10 @@ func TestSystemUpgrade_LineCompleteAccountingPreservesMixedAndEditedParagraphs(t
 		if !strings.Contains(got, preserved) {
 			t.Fatalf("mixed paragraph was not preserved whole\n--- got ---\n%s", got)
 		}
-		if count := strings.Count(got, "# Full prose: fab config explain providers"); count != 2 {
-			t.Fatalf("mixed paragraph should remain beside the regenerated advert: got %d copies, want 2\n--- got ---\n%s", count, got)
+		// The preserved historical copy still spells the key `providers`; the regenerated
+		// advert spells it `clis` — one of each.
+		if old, cur := strings.Count(got, "# Full prose: fab config explain providers"), strings.Count(got, "# Full prose: fab config explain clis"); old != 1 || cur != 1 {
+			t.Fatalf("mixed paragraph should remain beside the regenerated advert: got %d historical + %d regenerated copies, want 1 + 1\n--- got ---\n%s", old, cur, got)
 		}
 	})
 
@@ -1245,8 +1247,10 @@ func TestSystemUpgrade_LineCompleteAccountingPreservesMixedAndEditedParagraphs(t
 		if !strings.Contains(got, edited) || !strings.Contains(got, editedValue) {
 			t.Fatalf("edited advert was not preserved as user content\n--- got ---\n%s", got)
 		}
-		if count := strings.Count(got, "# Full prose: fab config explain providers"); count != 2 {
-			t.Fatalf("edited paragraph should remain beside the regenerated advert: got %d copies, want 2\n--- got ---\n%s", count, got)
+		// The preserved historical copy still spells the key `providers`; the regenerated
+		// advert spells it `clis` — one of each.
+		if old, cur := strings.Count(got, "# Full prose: fab config explain providers"), strings.Count(got, "# Full prose: fab config explain clis"); old != 1 || cur != 1 {
+			t.Fatalf("edited paragraph should remain beside the regenerated advert: got %d historical + %d regenerated copies, want 1 + 1\n--- got ---\n%s", old, cur, got)
 		}
 	})
 
@@ -1326,8 +1330,10 @@ func TestSystemMutation_LineCompleteAccountingPreservesWholeParagraph(t *testing
 			if !strings.Contains(got, legacyV2198ToV2220ProvidersAdvert+"\n"+note) {
 				t.Fatalf("mutation did not preserve the mixed paragraph whole\n--- got ---\n%s", got)
 			}
-			if count := strings.Count(got, "# Full prose: fab config explain providers"); count != 2 {
-				t.Fatalf("mixed paragraph should remain beside the regenerated advert: got %d copies, want 2\n--- got ---\n%s", count, got)
+			// The preserved historical copy spells the key `providers`; the regenerated
+			// advert spells it `clis` — one of each.
+			if old, cur := strings.Count(got, "# Full prose: fab config explain providers"), strings.Count(got, "# Full prose: fab config explain clis"); old != 1 || cur != 1 {
+				t.Fatalf("mixed paragraph should remain beside the regenerated advert: got %d historical + %d regenerated copies, want 1 + 1\n--- got ---\n%s", old, cur, got)
 			}
 		})
 	}
@@ -1362,7 +1368,7 @@ agent:
 	if strings.Count(got, ">>> fab reference") != 1 || strings.Count(got, "<<< end fab reference") != 1 {
 		t.Fatalf("adoption must emit exactly one fence\n--- got ---\n%s", got)
 	}
-	for _, advert := range []string{"# dispatch:", "# providers:"} {
+	for _, advert := range []string{"# dispatch:", "# clis:"} {
 		if count := strings.Count(got, advert); count != 1 {
 			t.Errorf("adoption emitted %d copies of %q, want 1\n--- got ---\n%s", count, advert, got)
 		}
@@ -1643,12 +1649,12 @@ func TestMutation_SetAdvertisesOnlyMissingSiblingField(t *testing.T) {
 	}
 }
 
-func TestMutation_OpaqueProviderNamesSetUnset(t *testing.T) {
+func TestMutation_OpaqueCLINamesSetUnset(t *testing.T) {
 	for _, name := range []string{"123", "true", "on", "-local", "测试"} {
 		t.Run(name, func(t *testing.T) {
 			original, _ := render("", fieldsForTest(t), ProjectTarget(""), "test")
 			path := writeMutationFixture(t, original)
-			key := "providers." + name + ".interactive_command"
+			key := "clis." + name + ".interactive_command"
 			if _, err := Set(path, key, "tool", "test"); err != nil {
 				t.Fatalf("Set(%q): %v", key, err)
 			}
@@ -1658,15 +1664,15 @@ func TestMutation_OpaqueProviderNamesSetUnset(t *testing.T) {
 				serializedName = strconv.Quote(name)
 			}
 			if !strings.Contains(got, serializedName+":") || !strings.Contains(got, "interactive_command: tool") {
-				t.Fatalf("Set(%q) did not materialize the provider\n--- got ---\n%s", key, got)
+				t.Fatalf("Set(%q) did not materialize the CLI\n--- got ---\n%s", key, got)
 			}
 			cfg, err := config.LoadPath(path)
 			if err != nil {
 				t.Fatalf("LoadPath after Set(%q): %v", key, err)
 			}
-			provider, ok := cfg.GetProvider(name)
-			if !ok || provider.InteractiveCommand != "tool" {
-				t.Fatalf("Set(%q) was not effective after load: provider=%+v ok=%v", key, provider, ok)
+			cli, ok := cfg.GetCLI(name)
+			if !ok || cli.InteractiveCommand != "tool" {
+				t.Fatalf("Set(%q) was not effective after load: provider=%+v ok=%v", key, cli, ok)
 			}
 
 			if _, err := Unset(path, key, "test"); err != nil {
@@ -1679,13 +1685,13 @@ func TestMutation_OpaqueProviderNamesSetUnset(t *testing.T) {
 	}
 }
 
-func TestMutation_UnencodableProviderNamesRefuseWithoutWrite(t *testing.T) {
+func TestMutation_UnencodableCLINamesRefuseWithoutWrite(t *testing.T) {
 	for _, key := range []string{
-		"providers.#local.interactive_command",
-		"providers.local:dev.interactive_command",
-		"providers. local.interactive_command",
-		"providers.local .interactive_command",
-		"providers.local\nname.interactive_command",
+		"clis.#local.interactive_command",
+		"clis.local:dev.interactive_command",
+		"clis. local.interactive_command",
+		"clis.local .interactive_command",
+		"clis.local\nname.interactive_command",
 	} {
 		t.Run(key, func(t *testing.T) {
 			const original = "agent:\n    workers: claude\n"
@@ -1694,7 +1700,7 @@ func TestMutation_UnencodableProviderNamesRefuseWithoutWrite(t *testing.T) {
 				t.Fatalf("Set(%q) error = %v, want dotted-key-grammar refusal", key, err)
 			}
 			if got := readMutationFixture(t, path); got != original {
-				t.Fatalf("rejected provider name changed the file\n--- got ---\n%s\n--- want ---\n%s", got, original)
+				t.Fatalf("rejected CLI name changed the file\n--- got ---\n%s\n--- want ---\n%s", got, original)
 			}
 		})
 	}

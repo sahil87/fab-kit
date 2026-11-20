@@ -10,7 +10,7 @@ import (
 
 // dispatchRestartCmd relaunches a NON-RUNNING dispatch from the prompt `start`
 // already persisted — the pipeline's bounded recovery verb for a worker that died
-// or was killed (post-retry provider exhaustion, OOM, a closed tmux window).
+// or was killed (post-retry CLI exhaustion, OOM, a closed tmux window).
 //
 // It relaunches through `start`'s shared path with TWO differences. First, the
 // prompt comes from .fab-dispatch/{id}/{stage}-prompt.md instead of stdin,

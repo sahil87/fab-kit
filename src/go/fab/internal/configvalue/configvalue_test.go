@@ -18,7 +18,7 @@ func TestParse(t *testing.T) {
 		{name: "flow sequence", input: "[a, b]", want: KindSequence},
 		{name: "flow mapping", input: "{a: b}", want: KindMapping},
 		// Block collections parse here so that a both-scoped environment override
-		// (e.g. FAB_PROVIDERS=$'custom:\n  interactive_command: tool') still resolves.
+		// (e.g. FAB_CLIS=$'custom:\n  interactive_command: tool') still resolves.
 		// `fab config set` refuses them through its own gates, not through Parse.
 		{name: "block sequence", input: "- a\n- b", want: KindSequence},
 		{name: "block mapping", input: "a: b", want: KindMapping},

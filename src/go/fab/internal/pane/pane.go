@@ -374,7 +374,7 @@ func CurrentCommandArgs(server, paneID string) []string {
 
 // CurrentCommand returns a pane's foreground command, trimmed. It is the
 // readiness gate's agent-takeover precondition (a shell foreground means the
-// provider binary has not taken the tty yet, so there is no agent to probe)
+// CLI binary has not taken the tty yet, so there is no agent to probe)
 // and the operator's trigger for process-tree liveness confirmation.
 // Server-first, matching
 // Capture/SendLiteral (see Capture on why the pairs share one order). On

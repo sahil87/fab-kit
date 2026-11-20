@@ -71,7 +71,7 @@ type wizardAnswer struct {
 // (the sparse agent.profiles keys — readModelDefaults resolves them from the
 // depth knobs, they are never stored): a value still at the derived default is
 // presented as this inherit indication over an empty baseline, so Enter keeps
-// the inherit and even typing the currently-inherited provider is an explicit
+// the inherit and even typing the currently-inherited CLI is an explicit
 // pin that writes.
 type wizardQuestion struct {
 	key       string
@@ -82,7 +82,7 @@ type wizardQuestion struct {
 }
 
 // wizardOption is one selectable answer, with an optional trailing annotation
-// (e.g. a provider's capability list).
+// (e.g. a CLI's capability list).
 type wizardOption struct {
 	value      string
 	annotation string
@@ -125,11 +125,11 @@ func runSetupWizard(cmd *cobra.Command, opts wizardOptions) error {
 	// empty option set would silently degrade a question to unvalidated
 	// free-form input, contradicting "capability is detected, never asked".
 	// Refuse up front with the read-only doctor as the remediation.
-	if len(w.providerOptions()) == 0 {
-		return fmt.Errorf("no agent providers detected on PATH — install a provider CLI first, then re-run (see `fab setup check` for the roster)")
+	if len(w.cliOptions()) == 0 {
+		return fmt.Errorf("no agent CLIs detected on PATH — install an agent CLI first, then re-run (see `fab setup check` for the roster)")
 	}
 	if len(w.dispatchModeOptions()) == 0 {
-		return fmt.Errorf("no viable dispatch mode detected — not inside tmux, and no detected provider is native- or headless-capable (see `fab setup check`)")
+		return fmt.Errorf("no viable dispatch mode detected — not inside tmux, and no detected CLI is native- or headless-capable (see `fab setup check`)")
 	}
 
 	w.printBanner()
@@ -229,7 +229,7 @@ func (w *setupWizard) ask(q wizardQuestion) string {
 		// built-in default, or the key resolves to no value at all (a knob
 		// the derivation could not fill). Present the inherit indication over
 		// an empty baseline: Enter records "" (== current, no write), while
-		// any typed provider — including the currently-inherited one — is a
+		// any typed CLI — including the currently-inherited one — is a
 		// real change.
 		current = ""
 		origin = ""
@@ -348,11 +348,11 @@ func optionNames(options []wizardOption) string {
 	return strings.Join(names, ", ")
 }
 
-// detectedProviders returns the roster rows whose executables are all on PATH
-// — undetected providers are dropped outright, never offered.
-func (w *setupWizard) detectedProviders() []setupcheck.ProviderProbe {
-	var found []setupcheck.ProviderProbe
-	for _, p := range w.report.Providers {
+// detectedCLIs returns the roster rows whose executables are all on PATH
+// — undetected CLIs are dropped outright, never offered.
+func (w *setupWizard) detectedCLIs() []setupcheck.CLIProbe {
+	var found []setupcheck.CLIProbe
+	for _, p := range w.report.CLIs {
 		if p.Found() {
 			found = append(found, p)
 		}
@@ -360,11 +360,11 @@ func (w *setupWizard) detectedProviders() []setupcheck.ProviderProbe {
 	return found
 }
 
-// providerOptions renders the detected providers as annotated options, e.g.
+// cliOptions renders the detected CLIs as annotated options, e.g.
 // `claude (interactive, headless, native)`.
-func (w *setupWizard) providerOptions() []wizardOption {
+func (w *setupWizard) cliOptions() []wizardOption {
 	var options []wizardOption
-	for _, p := range w.detectedProviders() {
+	for _, p := range w.detectedCLIs() {
 		var caps []string
 		if p.Interactive {
 			caps = append(caps, "interactive")
@@ -386,7 +386,7 @@ func (w *setupWizard) providerOptions() []wizardOption {
 
 // dispatchModeOptions filters the ladder rungs by viability: pane only when
 // the probe's tmux signal is present, native/headless only when some DETECTED
-// provider declares the capability (offering an unrunnable rung would
+// CLI declares the capability (offering an unrunnable rung would
 // contradict "capability is detected, never asked").
 func (w *setupWizard) dispatchModeOptions() []wizardOption {
 	var options []wizardOption
@@ -394,7 +394,7 @@ func (w *setupWizard) dispatchModeOptions() []wizardOption {
 		options = append(options, wizardOption{value: "pane"})
 	}
 	native, headless := false, false
-	for _, p := range w.detectedProviders() {
+	for _, p := range w.detectedCLIs() {
 		native = native || p.Native
 		headless = headless || p.Headless
 	}
@@ -410,16 +410,16 @@ func (w *setupWizard) dispatchModeOptions() []wizardOption {
 // askDefaultPath runs the 4-question default path: agent.session,
 // agent.workers, dispatch.mode, and the advanced-section opt-in.
 func (w *setupWizard) askDefaultPath() {
-	providers := w.providerOptions()
+	clis := w.cliOptions()
 	w.ask(wizardQuestion{
 		key:     "agent.session",
-		text:    "Q1: agent.session — provider for the session tier (the agents you talk to).",
-		options: providers,
+		text:    "Q1: agent.session — CLI for the session tier (the agents you talk to).",
+		options: clis,
 	})
 	w.ask(wizardQuestion{
 		key:     "agent.workers",
-		text:    "Q2: agent.workers — provider for the workers tier (the agents stages dispatch to).",
-		options: providers,
+		text:    "Q2: agent.workers — CLI for the workers tier (the agents stages dispatch to).",
+		options: clis,
 	})
 	w.ask(wizardQuestion{
 		key: "dispatch.mode",
@@ -440,10 +440,10 @@ func (w *setupWizard) askAdvanced() {
 	if !w.confirm("Q4: Configure advanced options (agent.profiles.operator/review, dispatch.column_width, dispatch.reap_done)?", false) {
 		return
 	}
-	providers := w.providerOptions()
+	clis := w.cliOptions()
 	questions := []wizardQuestion{
-		{key: "agent.profiles.operator.provider", text: "agent.profiles.operator.provider — provider override for the operator role.", options: providers, inheritAs: "(inherit agent.session)"},
-		{key: "agent.profiles.review.provider", text: "agent.profiles.review.provider — provider override for the review role.", options: providers, inheritAs: "(inherit agent.workers)"},
+		{key: "agent.profiles.operator.cli", text: "agent.profiles.operator.cli — CLI override for the operator role.", options: clis, inheritAs: "(inherit agent.session)"},
+		{key: "agent.profiles.review.cli", text: "agent.profiles.review.cli — CLI override for the review role.", options: clis, inheritAs: "(inherit agent.workers)"},
 		{key: "dispatch.column_width", text: "dispatch.column_width — pane-worker column width, in percent of the window.", validate: func(s string) bool {
 			n, err := strconv.Atoi(s)
 			return err == nil && n >= config.MinDispatchColumnWidth && n <= config.MaxDispatchColumnWidth

@@ -20,7 +20,7 @@ import (
 // verb, and the central assertion CHANGED: the spawned pane must receive NO
 // prompt. Delivery is now a separate, verified step (`fab dispatch deliver`,
 // covered in dispatch_deliver_test.go), which is what decouples pane capability
-// from whether a provider's CLI accepts a positional prompt.
+// from whether a CLI's CLI accepts a positional prompt.
 
 // runOpenCapturingStderr executes `fab dispatch open` with a prompt piped on
 // stdin, returning stdout, stderr, and the error.
@@ -79,7 +79,7 @@ func TestDispatchOpen_WithoutTmuxServerErrors(t *testing.T) {
 // persists the pane identity without pid/pgid.
 //
 // THE CENTRAL ASSERTION: the pane receives NOTHING. The composed
-// interactive_command reaches tmux verbatim, so a provider CLI's positional-prompt
+// interactive_command reaches tmux verbatim, so a CLI tool's positional-prompt
 // grammar is irrelevant to whether it can host a pane worker — and the record
 // reads as UNDELIVERED, which is what lets `deliver` tell an empty pane from a
 // mid-stage one. Skipped when tmux is unavailable.
@@ -346,7 +346,7 @@ func TestDispatchOpen_AliasedPriorPaneIsOverwritten(t *testing.T) {
 }
 
 // TestDispatchOpen_WithoutInteractiveCommandPersistsNothing: `open` selects pane
-// EXPLICITLY, so a provider with no interactive_command is a hard error with
+// EXPLICITLY, so a CLI with no interactive_command is a hard error with
 // nothing launched and nothing persisted — never a silent descent to headless,
 // which is the opposite of what this verb's caller asked for. tmux is deliberately
 // REACHABLE here (an ephemeral server), so the missing interactive_command is the
@@ -375,9 +375,9 @@ func TestDispatchOpen_WithoutInteractiveCommandPersistsNothing(t *testing.T) {
 
 	_, stderr, err := runOpenCapturingStderr(t, "prompt", "abcd", "apply", "--server", server)
 	if err == nil {
-		t.Fatal("open must hard-error when the provider has no interactive_command")
+		t.Fatal("open must hard-error when the CLI has no interactive_command")
 	}
-	if !strings.Contains(err.Error(), "providers.cli.interactive_command") {
+	if !strings.Contains(err.Error(), "clis.cli.interactive_command") {
 		t.Errorf("error = %q, want the interactive_command config-key hint", err.Error())
 	}
 	if !strings.Contains(err.Error(), "doing") {
@@ -540,9 +540,9 @@ func TestDispatchOpen_SplitPanesStackInTheRightColumn(t *testing.T) {
 
 	// A DIFFERENT stage, so this is a second concurrent worker rather than an
 	// overwrite of the first. It must be the OTHER `doing`-role stage (review-pr):
-	// the fixture points only the doing role at the `cli` provider, so a stage
+	// the fixture points only the doing role at the `cli` CLI, so a stage
 	// outside it (e.g. review → the review role) resolves the BUILT-IN claude
-	// provider and launches the real `claude` CLI — alive on a dev box where
+	// CLI and launches the real `claude` CLI — alive on a dev box where
 	// claude exists (a false local pass, plus a stray real agent session in the
 	// test server), dead instantly on CI where it doesn't.
 	if _, err := runOpen(t, "review-pr prompt", "abcd", "review-pr"); err != nil {

@@ -169,25 +169,32 @@ var knownGeneratedSystemParagraphDigests = map[string]struct{}{
 	// Current dispatch advert with the column_width 45 / min_cols 50 defaults
 	// (260909-tdij).
 	"e4a2622f4043fb0f0c459f51eab6711005c273fd711a89e415ad359e42aec582": {},
-	// Providers advert with the claude Opus rows on claude-opus-5 (260908-wcib
+	// providers advert with the claude Opus rows on claude-opus-5 (260908-wcib
 	// through v2.28.3).
 	"1890978e77061f64dddd12fc7c19759b5fee1c3196f061ce1b13d5bd1a35107f": {},
-	// Providers advert with the claude default/doing/review/hydrate fills on
+	// providers advert with the claude default/doing/review/hydrate fills on
 	// claude-opus-5-5 and the operator/fast fills still on claude-sonnet-5
 	// (260923-vvdv).
 	"b40b5eca67d75dc524c8baf01e0357a9784c48b7e6b6cb552327582b92454acd": {},
-	// Providers advert with all six claude fills on the 5.5 generation —
+	// providers advert with all six claude fills on the 5.5 generation —
 	// default/doing/review/hydrate on claude-opus-5-5, operator/fast on
 	// claude-sonnet-5-5 (260929-9dwn).
 	"ab93e3cc8204e7179344b8497fbfa089a83c3943ce4c72b0821b5cadfc084d59": {},
-	// Providers advert with the claude doing/hydrate fills moved to
+	// providers advert with the claude doing/hydrate fills moved to
 	// claude-sonnet-5-5 (effort high), leaving default/review on
 	// claude-opus-5-5 (261030-lc7k).
 	"2f55e041d31fb0a03cd59b73feeef8759f78662c1276b2d5e83f4082c8ed1ec5": {},
-	// Current providers advert: the claude fills on the family aliases — opus for
+	// providers advert (as of 2.30.1): the claude fills on the family aliases — opus for
 	// default/review, sonnet for doing/hydrate/operator/fast — with the prose
 	// naming codex's and agy's as the concrete-ID fills (261117-vyrt).
 	"39ee61eb68d3f3b4cc5b6c9124499f9557cec4b8145b5fbf18d266c43162bc5b": {},
+	// The 2.30.1 agent.session / agent.workers advert (the 3b6df3c6… identity above)
+	// and providers advert (39ee61eb… above) were the last renderings spelled
+	// "provider"; the 261120-f2ly rename moved both to "CLI" (clis:, `{ cli: codex }`),
+	// so the renamed advert paragraphs join the catalog here while the earlier
+	// identities stay recognised as generated.
+	"cd13baad3f3c48c2efc4d37746f3d0675eaa6bb302f43a744665bf44f237c4f3": {},
+	"855d97f392e831bf8c8a6dc3748957b0eeda4f0a4800ab0c5fdc6f80a4acbbdf": {},
 }
 
 // fenceHeaderComment returns the explanatory preamble emitted at the top of a
@@ -1146,7 +1153,7 @@ func anchorLine(prefix string) string {
 //     column 0. These are already comments at the fence's own level and are left
 //     as-is.
 //   - CONTENT level — YAML the segment deliberately ships commented INSIDE a live
-//     block (the agent block's `  # profiles:` / `  #   review: { provider: codex }`
+//     block (the agent block's `  # profiles:` / `  #   review: { cli: codex }`
 //     example lines), where the `#` is INDENTED because it belongs to the
 //     YAML structure, not to the fence.
 //
@@ -1155,7 +1162,7 @@ func anchorLine(prefix string) string {
 // see in a generated config reference. Prefixing them instead puts every fence
 // line's marker at column 0 and makes the reverse operation exact: stripping the
 // leading `# ` from every line of a block restores the segment BYTE-EXACTLY —
-// which is precisely what `configref.providersSegment`'s prose instructs the
+// which is precisely what `configref.clisSegment`'s prose instructs the
 // reader to do.
 //
 // It is the SINGLE comment-out helper shared by the managed fence (here) and
@@ -1234,7 +1241,7 @@ const parkedVersionPlaceholder = "an earlier release"
 // top-level keys whose value equals the current built-in default — a field the user
 // could remove and inherit the same value. It is ADVISORY ONLY: the upgrader never
 // removes or mutates a live field, so a false positive here costs nothing. Only
-// registry fields carrying a non-nil Default (today `providers`, `agent.profiles`, and the two depth knobs)
+// registry fields carrying a non-nil Default (today `clis`, `agent.profiles`, and the two depth knobs)
 // can match; every other field has no built-in default, so a live value there is
 // always a genuine override and is never flagged.
 //

@@ -30,7 +30,7 @@ func TestLeadingExecutable(t *testing.T) {
 		{"", ""},
 		{"claude --dangerously-skip-permissions -n \"$(basename \"$(pwd)\")\" --model {model}", "claude"},
 		{"codex exec --dangerously-bypass-approvals-and-sandbox -m {model}", "codex"},
-		// The nested-shell stdin idioms must resolve the PROVIDER's binary, not sh.
+		// The nested-shell stdin idioms must resolve the CLI's binary, not sh.
 		{`sh -c 'agy --dangerously-skip-permissions --print-timeout 120m --model {model} -p "$(cat)"'`, "agy"},
 		{`sh -c 'kimi -m {model} -p "$(cat)"'`, "kimi"},
 		{`bash -c "mytool --flag"`, "mytool"},
@@ -43,13 +43,13 @@ func TestLeadingExecutable(t *testing.T) {
 	}
 }
 
-func TestProbeProviders_MissingConfiguredProviderFails(t *testing.T) {
+func TestProbeCLIs_MissingConfiguredCLIFails(t *testing.T) {
 	cfg := &config.Config{
 		Agent: config.AgentConfig{Workers: "agy"}, // session stays default claude
 	}
-	probes, findings := ProbeProviders(cfg, stubLookPath("claude", "kimi"))
+	probes, findings := ProbeCLIs(cfg, stubLookPath("claude", "kimi"))
 
-	var agy ProviderProbe
+	var agy CLIProbe
 	seen := make(map[string]bool)
 	for _, p := range probes {
 		seen[p.Name] = true
@@ -59,7 +59,7 @@ func TestProbeProviders_MissingConfiguredProviderFails(t *testing.T) {
 	}
 	for _, name := range []string{"claude", "codex", "agy", "kimi"} {
 		if !seen[name] {
-			t.Errorf("roster missing built-in provider %q", name)
+			t.Errorf("roster missing built-in CLI %q", name)
 		}
 	}
 	if !agy.Configured {
@@ -71,7 +71,7 @@ func TestProbeProviders_MissingConfiguredProviderFails(t *testing.T) {
 
 	var failFound, infoFound bool
 	for _, f := range findings {
-		if f.Check != "providers" {
+		if f.Check != "clis" {
 			continue
 		}
 		if f.Subject == "agy" && f.Severity == Fail && strings.Contains(f.Detail, "agent role(s)") {
@@ -83,7 +83,7 @@ func TestProbeProviders_MissingConfiguredProviderFails(t *testing.T) {
 		}
 		// claude is configured (session knob) and present → OK finding.
 		if f.Subject == "codex" && f.Severity == Fail {
-			t.Error("unconfigured provider absence must not be failure-severity")
+			t.Error("unconfigured CLI absence must not be failure-severity")
 		}
 	}
 	if !failFound {
@@ -94,13 +94,13 @@ func TestProbeProviders_MissingConfiguredProviderFails(t *testing.T) {
 	}
 }
 
-func TestProbeProviders_UserDefinedProviderInRoster(t *testing.T) {
+func TestProbeCLIs_UserDefinedCLIInRoster(t *testing.T) {
 	cfg := &config.Config{
-		Providers: map[string]config.ProviderConfig{
+		CLIs: map[string]config.CLIConfig{
 			"mytool": {HeadlessCommand: "mytool run --batch"},
 		},
 	}
-	probes, _ := ProbeProviders(cfg, stubLookPath("claude", "mytool"))
+	probes, _ := ProbeCLIs(cfg, stubLookPath("claude", "mytool"))
 	var found bool
 	for _, p := range probes {
 		if p.Name == "mytool" {
@@ -115,29 +115,29 @@ func TestProbeProviders_UserDefinedProviderInRoster(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Error("user-defined provider missing from the roster")
+		t.Error("user-defined CLI missing from the roster")
 	}
 }
 
-func TestProbeProviders_ConfiguredNativeOnlyProviderOKDetail(t *testing.T) {
-	// A configured provider with no commands (native-only) has no executables
+func TestProbeCLIs_ConfiguredNativeOnlyCLIOKDetail(t *testing.T) {
+	// A configured CLI with no commands (native-only) has no executables
 	// to resolve; its OK finding must say so rather than render an empty list
 	// ("…:  on PATH").
 	cfg := &config.Config{
 		Agent: config.AgentConfig{Workers: "mytool"},
-		Providers: map[string]config.ProviderConfig{
+		CLIs: map[string]config.CLIConfig{
 			"mytool": {Native: true},
 		},
 	}
-	_, findings := ProbeProviders(cfg, stubLookPath("claude"))
+	_, findings := ProbeCLIs(cfg, stubLookPath("claude"))
 	var ok *Finding
 	for i, f := range findings {
-		if f.Subject == "mytool" && f.Check == "providers" {
+		if f.Subject == "mytool" && f.Check == "clis" {
 			ok = &findings[i]
 		}
 	}
 	if ok == nil || ok.Severity != OK {
-		t.Fatalf("configured native-only provider should earn an OK finding, got %+v", findings)
+		t.Fatalf("configured native-only CLI should earn an OK finding, got %+v", findings)
 	}
 	if !strings.Contains(ok.Detail, "no commands declared") || strings.Contains(ok.Detail, ":  on PATH") {
 		t.Errorf("no-commands OK detail must not render an empty executable list, got %q", ok.Detail)
@@ -264,35 +264,35 @@ func TestProbeOverrideMasking(t *testing.T) {
 		// The #573 shape: agy's embedded defaults historically lacked
 		// interactive_command; a system-tier override supplying one is
 		// load-bearing against such a binary. kimi currently SHIPS an
-		// interactive_command, so use a provider+key the embedded table leaves
+		// interactive_command, so use a CLI+key the embedded table leaves
 		// undefined regardless of fixture drift: agy.native.
-		system := parse("providers:\n  agy:\n    native: true\n")
+		system := parse("clis:\n  agy:\n    native: true\n")
 		findings := ProbeOverrideMasking(system, nil)
 		var flagged bool
 		for _, f := range findings {
-			if f.Severity == Warn && f.Subject == "providers.agy.native" &&
+			if f.Severity == Warn && f.Subject == "clis.agy.native" &&
 				strings.Contains(f.Detail, "load-bearing") && strings.Contains(f.Detail, "system") {
 				flagged = true
 			}
 		}
 		if !flagged {
-			t.Errorf("expected a load-bearing warning for providers.agy.native, got %+v", findings)
+			t.Errorf("expected a load-bearing warning for clis.agy.native, got %+v", findings)
 		}
 	})
 
 	t.Run("override matching the embedded default is not flagged", func(t *testing.T) {
 		// claude's embedded defaults define interactive_command — overriding
 		// its VALUE is ordinary configuration, not a mask.
-		system := parse("providers:\n  claude:\n    interactive_command: 'claude --custom'\n")
+		system := parse("clis:\n  claude:\n    interactive_command: 'claude --custom'\n")
 		for _, f := range ProbeOverrideMasking(system, nil) {
 			t.Errorf("unexpected finding for an embedded-defined key: %+v", f)
 		}
 	})
 
-	t.Run("user-defined provider is a definition, not a mask", func(t *testing.T) {
-		system := parse("providers:\n  mytool:\n    interactive_command: 'mytool -i'\n")
+	t.Run("user-defined CLI is a definition, not a mask", func(t *testing.T) {
+		system := parse("clis:\n  mytool:\n    interactive_command: 'mytool -i'\n")
 		for _, f := range ProbeOverrideMasking(system, nil) {
-			t.Errorf("user-defined provider must be skipped, got %+v", f)
+			t.Errorf("user-defined CLI must be skipped, got %+v", f)
 		}
 	})
 }
@@ -331,21 +331,21 @@ func TestProbeDispatchMode(t *testing.T) {
 		cfg := &config.Config{
 			Dispatch: config.DispatchConfig{Mode: "headless"},
 			Agent:    config.AgentConfig{Workers: "mytool"},
-			Providers: map[string]config.ProviderConfig{
+			CLIs: map[string]config.CLIConfig{
 				"mytool": {InteractiveCommand: "mytool -i"}, // no headless_command
 			},
 		}
 		findings := ProbeDispatchMode(cfg, "")
 		if len(findings) != 1 || findings[0].Severity != Fail {
-			t.Errorf("headless preference with a headless-less provider should fail, got %+v", findings)
+			t.Errorf("headless preference with a headless-less CLI should fail, got %+v", findings)
 		}
 	})
 
-	t.Run("undefined knob provider fails", func(t *testing.T) {
+	t.Run("undefined knob CLI fails", func(t *testing.T) {
 		cfg := &config.Config{Agent: config.AgentConfig{Workers: "ghost"}}
 		findings := ProbeDispatchMode(cfg, "")
 		if len(findings) != 1 || findings[0].Severity != Fail || findings[0].Subject != "ghost" {
-			t.Errorf("undefined workers provider should be a Fail finding naming it, got %+v", findings)
+			t.Errorf("undefined workers CLI should be a Fail finding naming it, got %+v", findings)
 		}
 	})
 }
@@ -361,8 +361,8 @@ func TestRun_AggregatesAndDegradesOutsideRepo(t *testing.T) {
 		LookPath:      stubLookPath("claude", "gh", "yq"),
 		KitDir:        t.TempDir(), // no VERSION file → Info, not failure
 	})
-	if report == nil || len(report.Providers) == 0 {
-		t.Fatal("Run outside a repo must still produce the provider roster")
+	if report == nil || len(report.CLIs) == 0 {
+		t.Fatal("Run outside a repo must still produce the CLI roster")
 	}
 	if report.HasFailures() {
 		var fails []string
@@ -372,5 +372,83 @@ func TestRun_AggregatesAndDegradesOutsideRepo(t *testing.T) {
 			}
 		}
 		t.Errorf("a clean default environment must not fail, got %v", fails)
+	}
+}
+
+func TestProbeDeprecatedSpellings(t *testing.T) {
+	uses := []config.DeprecatedUse{
+		{Old: "agent.profiles.review.provider", New: "agent.profiles.review.cli"},
+		{Old: "providers", New: "clis"},
+	}
+	env := func(set bool, v string) func(string) (string, bool) {
+		return func(name string) (string, bool) {
+			if name != "FAB_PROVIDERS" {
+				return "", false
+			}
+			return v, set
+		}
+	}
+
+	findings := ProbeDeprecatedSpellings("/repo/fab/project/config.yaml", uses[:1], uses[1:], "/home/u/.fab-kit/config.yaml", env(true, "{x: {}}"))
+	if len(findings) != 3 {
+		t.Fatalf("want three warnings (project key, system key, env var), got %+v", findings)
+	}
+	for _, f := range findings {
+		if f.Severity != Warn || f.Check != "config" {
+			t.Errorf("deprecated spellings are warnings in the config check, got %+v", f)
+		}
+	}
+	for i, want := range []string{
+		"agent.profiles.review.provider is deprecated; rename to agent.profiles.review.cli in /repo/fab/project/config.yaml (fab-setup migrations)",
+		"providers is deprecated; rename to clis in /home/u/.fab-kit/config.yaml (fab-setup migrations)",
+		"FAB_PROVIDERS is deprecated; rename the environment variable to FAB_CLIS",
+	} {
+		if findings[i].Detail != want {
+			t.Errorf("finding %d detail = %q, want %q", i, findings[i].Detail, want)
+		}
+	}
+
+	if got := ProbeDeprecatedSpellings("p", nil, nil, "s", env(false, "")); len(got) != 0 {
+		t.Errorf("clean config must report nothing, got %+v", got)
+	}
+	if got := ProbeDeprecatedSpellings("p", nil, nil, "s", env(true, "")); len(got) != 0 {
+		t.Errorf("an empty FAB_PROVIDERS is unset, got %+v", got)
+	}
+}
+
+func TestRun_WarnsOnDeprecatedProjectSpelling(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("FAB_PROVIDERS", "")
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte("providers:\n  mytool:\n    headless_command: mytool run\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	report := Run(Input{
+		BinaryVersion:     "dev",
+		ProjectConfigPath: cfgPath,
+		LookPath:          stubLookPath("claude", "gh", "yq"),
+		KitDir:            t.TempDir(),
+	})
+	var warned bool
+	for _, f := range report.Findings {
+		if f.Subject == "providers" && f.Severity == Warn && strings.Contains(f.Detail, "rename to clis") {
+			warned = true
+		}
+	}
+	if !warned {
+		t.Errorf("Run must warn on a live providers: key, findings = %+v", report.Findings)
+	}
+	if report.HasFailures() {
+		t.Errorf("a deprecated spelling must warn, never fail: %+v", report.Findings)
+	}
+	var sawMyTool bool
+	for _, p := range report.CLIs {
+		if p.Name == "mytool" {
+			sawMyTool = true
+		}
+	}
+	if !sawMyTool {
+		t.Errorf("the old-spelling table must still feed the CLI roster, got %+v", report.CLIs)
 	}
 }

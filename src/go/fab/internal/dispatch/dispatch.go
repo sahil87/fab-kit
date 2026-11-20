@@ -217,16 +217,16 @@ func DirFor(repoRoot, id string) string {
 //
 //	sh -c 'timeout -s HUP <secs> ${SHELL:-/bin/sh} -i -c '\''<cmd>'\'' < {prompt} > {log} 2>&1; echo $? > {exit}'
 //
-// The resolved provider command runs under the user's interactive shell
+// The resolved CLI command runs under the user's interactive shell
 // (spawn.WithInteractiveShell) so env exported only by interactive-shell
-// startup (provider auth tokens, PATH additions) is present — the plain
+// startup (CLI auth tokens, PATH additions) is present — the plain
 // `sh -c` supervisor sources no rc files. The `< {prompt}` redirection is
 // applied by the outer sh to the interactive shell, which execs (bash, zsh) or
-// forks and waits on (dash) the `-c` command, so stdin reaches the provider
-// unchanged and the recorded exit code is the provider's. The timeout signal is
+// forks and waits on (dash) the `-c` command, so stdin reaches the CLI
+// unchanged and the recorded exit code is the CLI's. The timeout signal is
 // SIGHUP, not timeout's default SIGTERM: interactive shells ignore SIGTERM, so
 // with a compound command (`a; b`) a TERM would kill `a` and leave the shell
-// alive to run `b`; HUP ends the shell and the provider alike (exit 124). Shell startup
+// alive to run `b`; HUP ends the shell and the CLI alike (exit 124). Shell startup
 // noise (bash's "no job control in this shell", rc-file output) can land in
 // {stage}.log — acceptable: the result file, not the log, is the success token.
 //

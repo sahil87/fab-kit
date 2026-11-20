@@ -43,7 +43,7 @@ func launchWrappedWorker(t *testing.T, shellPath, rcDelay, cmd string, timeout i
 // TestKillGroupStopsAnRcLoadingWorker pins KillGroup against the
 // interactive-shell launch: interactive shells ignore SIGTERM, so a kill that
 // lands while the worker's shell is still loading its rc must not let the shell
-// go on to start the provider afterwards.
+// go on to start the CLI afterwards.
 func TestKillGroupStopsAnRcLoadingWorker(t *testing.T) {
 	for name, shellPath := range wrapShells() {
 		t.Run(name, func(t *testing.T) {
@@ -54,14 +54,14 @@ func TestKillGroupStopsAnRcLoadingWorker(t *testing.T) {
 			}
 			time.Sleep(1500 * time.Millisecond) // past the rc delay
 			if _, err := os.Stat(filepath.Join(dir, "started")); err == nil {
-				t.Error("the provider started after the kill — the interactive shell survived it")
+				t.Error("the CLI started after the kill — the interactive shell survived it")
 			}
 		})
 	}
 }
 
 // TestWrapperArgvTimeoutLeavesNoSurvivor pins R4's timeout clause on the real
-// setsid launch: `timeout` kills the wrapped provider (exit 124) and nothing it
+// setsid launch: `timeout` kills the wrapped CLI (exit 124) and nothing it
 // started outlives it.
 func TestWrapperArgvTimeoutLeavesNoSurvivor(t *testing.T) {
 	if _, err := exec.LookPath("timeout"); err != nil {
@@ -72,7 +72,7 @@ func TestWrapperArgvTimeoutLeavesNoSurvivor(t *testing.T) {
 			dir, _ := launchWrappedWorker(t, shellPath, "0", "sleep 2; touch late", 1)
 			time.Sleep(3 * time.Second)
 			if _, err := os.Stat(filepath.Join(dir, "late")); err == nil {
-				t.Error("the provider outlived its timeout")
+				t.Error("the CLI outlived its timeout")
 			}
 			exit, _ := os.ReadFile(filepath.Join(dir, "e.exit"))
 			if got := strings.TrimSpace(string(exit)); got != "124" {

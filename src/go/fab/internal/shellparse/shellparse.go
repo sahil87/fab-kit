@@ -1,5 +1,5 @@
 // Package shellparse provides the small shell-token parsing subset needed to
-// identify leading executables in fab's provider command templates.
+// identify leading executables in fab's CLI command templates.
 package shellparse
 
 import "strings"
@@ -10,7 +10,7 @@ type word struct {
 }
 
 // Words splits a command template into words, honoring single- and
-// double-quoted spans (no escape processing — the provider grammars ship
+// double-quoted spans (no escape processing — the CLI grammars ship
 // none). Quote characters are stripped. This is deliberately not a full shell
 // lexer: it exists to find a command's leading executable, and nested
 // `sh -c '<inner>'` forms keep their inner command as one quoted word.

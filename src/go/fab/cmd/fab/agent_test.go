@@ -79,7 +79,7 @@ func runAgentPrint(t *testing.T, args ...string) (string, error) {
 // seven keys and their bytes must remain first and unchanged when later keys are
 // appended additively.
 func TestAgentPreRefactorSinkGoldens(t *testing.T) {
-	agentTestRepo(t, `providers:
+	agentTestRepo(t, `clis:
   oracle:
     interactive_command: "oracle tui -m {model} -e {effort}"
     native: true
@@ -88,7 +88,7 @@ func TestAgentPreRefactorSinkGoldens(t *testing.T) {
       doing: { model: claude-sonnet-5, effort: high }
 agent:
   profiles:
-    doing: { provider: oracle }
+    doing: { cli: oracle }
 `)
 
 	t.Run("print", func(t *testing.T) {
@@ -121,17 +121,17 @@ agent:
 		{
 			name: "stage YAML",
 			args: []string{"yaml", "apply"},
-			want: "selector: apply\nkind: stage\nrole: doing\nprovider: oracle\nmodel: claude-sonnet-5\neffort: high\ncommand: oracle tui -m claude-sonnet-5 -e high\n",
+			want: "selector: apply\nkind: stage\nrole: doing\ncli: oracle\nprovider: oracle\nmodel: claude-sonnet-5\neffort: high\ncommand: oracle tui -m claude-sonnet-5 -e high\n",
 		},
 		{
-			name: "bare-provider YAML",
-			args: []string{"yaml", "--provider", "oracle"},
-			want: "selector: \"\"\nkind: provider\nrole: \"\"\nprovider: oracle\nmodel: \"\"\neffort: \"\"\ncommand: oracle tui\n",
+			name: "bare-cli YAML",
+			args: []string{"yaml", "--cli", "oracle"},
+			want: "selector: \"\"\nkind: cli\nrole: \"\"\ncli: oracle\nprovider: oracle\nmodel: \"\"\neffort: \"\"\ncommand: oracle tui\n",
 		},
 		{
-			name: "selector-provider YAML",
-			args: []string{"yaml", "apply", "--provider", "oracle"},
-			want: "selector: apply\nkind: stage\nrole: doing\nprovider: oracle\nmodel: claude-sonnet-5\neffort: high\ncommand: oracle tui -m claude-sonnet-5 -e high\n",
+			name: "selector-cli YAML",
+			args: []string{"yaml", "apply", "--cli", "oracle"},
+			want: "selector: apply\nkind: stage\nrole: doing\ncli: oracle\nprovider: oracle\nmodel: claude-sonnet-5\neffort: high\ncommand: oracle tui -m claude-sonnet-5 -e high\n",
 		},
 	}
 	for _, tc := range tests {
@@ -141,14 +141,14 @@ agent:
 				t.Fatalf("agent -o %v: %v", tc.args, err)
 			}
 			if !strings.HasPrefix(got, tc.want) {
-				t.Errorf("stdout prefix = %q, want exact seven-key prefix %q", got, tc.want)
+				t.Errorf("stdout prefix = %q, want exact eight-key prefix (cli followed by its deprecated provider duplicate) %q", got, tc.want)
 			}
 		})
 	}
 }
 
 func TestAgentWorkersOverride(t *testing.T) {
-	agentTestRepo(t, `providers:
+	agentTestRepo(t, `clis:
   claude:
     interactive_command: "claude"
 `)
@@ -194,7 +194,7 @@ func TestAgentWorkersOverride(t *testing.T) {
 	// shadowed by a second entry: syscall.Exec passes the slice through verbatim and
 	// duplicate resolution is unspecified (a direct exec's getenv takes the first
 	// match). The `default` role resolves off agent.session, so the parent value
-	// cannot perturb the provider this test resolves.
+	// cannot perturb the CLI this test resolves.
 	t.Run("an inherited value is replaced, not duplicated", func(t *testing.T) {
 		t.Setenv(agentWorkersEnv, "inherited")
 
@@ -226,11 +226,11 @@ func TestAgentWorkersOverride(t *testing.T) {
 	})
 
 	t.Run("print output remains the resolved command only", func(t *testing.T) {
-		out, err := runAgentPrint(t, "--workers", "unregistered-provider")
+		out, err := runAgentPrint(t, "--workers", "unregistered-cli")
 		if err != nil {
 			t.Fatalf("agent --print --workers: %v", err)
 		}
-		if strings.Contains(out, agentWorkersEnv) || strings.Contains(out, "unregistered-provider") {
+		if strings.Contains(out, agentWorkersEnv) || strings.Contains(out, "unregistered-cli") {
 			t.Errorf("--workers leaked into --print output: %q", out)
 		}
 	})
@@ -240,7 +240,7 @@ func TestAgentWorkersOverride(t *testing.T) {
 // `default` role and appends that profile to the non-templated claude session
 // command.
 func TestAgentPrintDefaultRole(t *testing.T) {
-	agentTestRepo(t, `providers:
+	agentTestRepo(t, `clis:
   claude:
     interactive_command: "claude --dangerously-skip-permissions"
 `)
@@ -258,7 +258,7 @@ func TestAgentPrintDefaultRole(t *testing.T) {
 // TestAgentPrintOperatorRole: `fab agent operator --print` resolves the `operator`
 // role's shipped fill.
 func TestAgentPrintOperatorRole(t *testing.T) {
-	agentTestRepo(t, `providers:
+	agentTestRepo(t, `clis:
   claude:
     interactive_command: "claude"
 `)
@@ -276,15 +276,15 @@ func TestAgentPrintOperatorRole(t *testing.T) {
 // TestAgentPrintTemplatedInteractiveCommand: a templated interactive_command has the
 // resolved profile substituted (not appended); no literal braces survive. The role
 // profile pins the model/effort because `codex` supplies no per-role fills of its
-// own (260806-j9nh) — model/effort come from the role profile, that provider's
+// own (260806-j9nh) — model/effort come from the role profile, that CLI's
 // fills, or a flag.
 func TestAgentPrintTemplatedInteractiveCommand(t *testing.T) {
-	agentTestRepo(t, `providers:
+	agentTestRepo(t, `clis:
   codex:
     interactive_command: "codex -m {model} -c model_reasoning_effort={effort}"
 agent:
   profiles:
-    default: { provider: codex, model: gpt-5.3-codex, effort: high }
+    default: { cli: codex, model: gpt-5.3-codex, effort: high }
 `)
 	out, err := runAgentPrint(t)
 	if err != nil {
@@ -296,19 +296,19 @@ agent:
 	}
 }
 
-// TestAgentPrintProviderFillSuppliesTemplate: a role profile that pins no
-// model/effort takes them from the named provider's DEFAULT FILL (the deprecated
-// flat `providers.<name>.model`/`.effort` spelling of `profiles.default`) — the
+// TestAgentPrintCLIFillSuppliesTemplate: a role profile that pins no
+// model/effort takes them from the named CLI's DEFAULT FILL (the deprecated
+// flat `clis.<name>.model`/`.effort` spelling of `profiles.default`) — the
 // "extra set of config that fills the templates". This is the fill-precedence rung
 // between an explicit `agent.profiles.<role>` field and empty.
-func TestAgentPrintProviderFillSuppliesTemplate(t *testing.T) {
-	agentTestRepo(t, `providers:
+func TestAgentPrintCLIFillSuppliesTemplate(t *testing.T) {
+	agentTestRepo(t, `clis:
   codex:
     model: gpt-5.3-codex
     effort: high
 agent:
   profiles:
-    default: { provider: codex }
+    default: { cli: codex }
 `)
 	out, err := runAgentPrint(t)
 	if err != nil {
@@ -318,21 +318,21 @@ agent:
 	// overrides only its deprecated flat fill.
 	want := "codex --dangerously-bypass-approvals-and-sandbox -m gpt-5.3-codex -c model_reasoning_effort=high\n"
 	if out != want {
-		t.Errorf("output = %q, want the built-in codex grammar filled from providers.codex %q", out, want)
+		t.Errorf("output = %q, want the built-in codex grammar filled from clis.codex %q", out, want)
 	}
 }
 
 // TestAgentPrintBuiltinCodexTakesItsOwnFill: pointing the `default` role at the
-// codex BUILT-IN with no providers: config composes codex's own shipped fill
+// codex BUILT-IN with no clis: config composes codex's own shipped fill
 // (260806-ywkx) — and crucially does NOT leak claude's `default`-role model across
-// the provider switch: model/effort come only from the RESOLVED provider's own
+// the CLI switch: model/effort come only from the RESOLVED CLI's own
 // fills (260806-j9nh).
 func TestAgentPrintBuiltinCodexTakesItsOwnFill(t *testing.T) {
 	agentTestRepo(t, `agent:
   profiles:
-    default: { provider: codex }
+    default: { cli: codex }
 `)
-	codex, _ := agent.ResolveProvider(nil, "codex")
+	codex, _ := agent.ResolveCLI(nil, "codex")
 	fill := codex.Profiles[agent.RoleDefault]
 
 	out, err := runAgentPrint(t)
@@ -344,12 +344,12 @@ func TestAgentPrintBuiltinCodexTakesItsOwnFill(t *testing.T) {
 		t.Errorf("output = %q, want codex's own default-role fill %q", out, want)
 	}
 	if strings.Contains(out, "claude") {
-		t.Errorf("output = %q — no claude model may be inherited across the provider switch", out)
+		t.Errorf("output = %q — no claude model may be inherited across the CLI switch", out)
 	}
 }
 
-// TestAgentPrintBuiltinFallback: with no providers config, the built-in claude
-// provider supplies the templated default session command, into which the
+// TestAgentPrintBuiltinFallback: with no CLIs config, the built-in claude
+// CLI supplies the templated default session command, into which the
 // `default`-role profile is substituted (the constant is a {model}/{effort}
 // template, so this path resolves via substitution, not append).
 func TestAgentPrintBuiltinFallback(t *testing.T) {
@@ -379,40 +379,40 @@ func TestAgentPrintUnknownRoleErrors(t *testing.T) {
 	}
 }
 
-// TestAgentPrintNoInteractiveCommandErrors: a resolved provider with no
+// TestAgentPrintNoInteractiveCommandErrors: a resolved CLI with no
 // interactive_command errors with a config-key hint. The fixture is a project-defined
-// headless-only provider (`myagent`); every built-in ships interactive launch grammar.
-// TestAgentProviderNoInteractiveCommandErrors covers the provider-addressed path.
+// headless-only CLI (`myagent`); every built-in ships interactive launch grammar.
+// TestAgentCLINoInteractiveCommandErrors covers the CLI-addressed path.
 func TestAgentPrintNoInteractiveCommandErrors(t *testing.T) {
-	agentTestRepo(t, `providers:
+	agentTestRepo(t, `clis:
   myagent:
     headless_command: "myagent run"
 agent:
   profiles:
-    default: { provider: myagent }
+    default: { cli: myagent }
 `)
 	_, err := runAgentPrint(t)
 	if err == nil {
-		t.Fatal("expected an error when the resolved provider has no interactive_command")
+		t.Fatal("expected an error when the resolved CLI has no interactive_command")
 	}
-	if !strings.Contains(err.Error(), "providers.myagent.interactive_command") {
+	if !strings.Contains(err.Error(), "clis.myagent.interactive_command") {
 		t.Errorf("error = %q, want the config-key hint", err.Error())
 	}
 }
 
-// --- provider-addressed form (`fab agent --provider <name>`) ---
+// --- CLI-addressed form (`fab agent --cli <name>`) ---
 
-// TestAgentPrintProviderExplicitProfile: --provider bypasses role resolution and
-// substitutes the explicitly supplied --model/--effort into the provider's
+// TestAgentPrintCLIExplicitProfile: --cli bypasses role resolution and
+// substitutes the explicitly supplied --model/--effort into the CLI's
 // templated interactive_command.
-func TestAgentPrintProviderExplicitProfile(t *testing.T) {
-	agentTestRepo(t, `providers:
+func TestAgentPrintCLIExplicitProfile(t *testing.T) {
+	agentTestRepo(t, `clis:
   codex:
     interactive_command: "codex -m {model} -c model_reasoning_effort={effort}"
 `)
-	out, err := runAgentPrint(t, "--provider", "codex", "--model", "gpt-5.3-codex", "--effort", "high")
+	out, err := runAgentPrint(t, "--cli", "codex", "--model", "gpt-5.3-codex", "--effort", "high")
 	if err != nil {
-		t.Fatalf("agent --provider codex --print: %v", err)
+		t.Fatalf("agent --cli codex --print: %v", err)
 	}
 	want := "codex -m gpt-5.3-codex -c model_reasoning_effort=high\n"
 	if out != want {
@@ -420,74 +420,74 @@ func TestAgentPrintProviderExplicitProfile(t *testing.T) {
 	}
 }
 
-// TestAgentPrintProviderEmptyProfileDropsTokens: with --model/--effort omitted,
+// TestAgentPrintCLIEmptyProfileDropsTokens: with --model/--effort omitted,
 // the empty-value token-drop rule strips each placeholder token AND its preceding
 // `-`-flag, so a bare `codex` invocation is composed and the CLI's own default
-// model applies. This is the documented reason the provider form is usable without
+// model applies. This is the documented reason the CLI form is usable without
 // knowing the installed CLI's model IDs.
 //
-// The provider form BYPASSES role resolution, so codex's shipped per-role fills
+// The CLI form BYPASSES role resolution, so codex's shipped per-role fills
 // (260806-ywkx) are deliberately not consulted here — only the explicit flags are.
 // The role path is covered by TestAgentPrintBuiltinCodexTakesItsOwnFill.
-func TestAgentPrintProviderEmptyProfileDropsTokens(t *testing.T) {
-	agentTestRepo(t, `providers:
+func TestAgentPrintCLIEmptyProfileDropsTokens(t *testing.T) {
+	agentTestRepo(t, `clis:
   codex:
     interactive_command: "codex -m {model} -c model_reasoning_effort={effort}"
 `)
-	out, err := runAgentPrint(t, "--provider", "codex")
+	out, err := runAgentPrint(t, "--cli", "codex")
 	if err != nil {
-		t.Fatalf("agent --provider codex --print: %v", err)
+		t.Fatalf("agent --cli codex --print: %v", err)
 	}
 	if out != "codex\n" {
 		t.Errorf("output = %q, want %q", out, "codex\n")
 	}
 }
 
-// TestAgentPrintProviderEmptyProfileAppendsNothing: on a NON-templated
+// TestAgentPrintCLIEmptyProfileAppendsNothing: on a NON-templated
 // interactive_command the append-mode empty-value rule omits both flags, so the
 // command passes through unchanged (the append-mode counterpart of the test above).
-func TestAgentPrintProviderEmptyProfileAppendsNothing(t *testing.T) {
-	agentTestRepo(t, `providers:
+func TestAgentPrintCLIEmptyProfileAppendsNothing(t *testing.T) {
+	agentTestRepo(t, `clis:
   myagent:
     interactive_command: "myagent"
 `)
-	out, err := runAgentPrint(t, "--provider", "myagent")
+	out, err := runAgentPrint(t, "--cli", "myagent")
 	if err != nil {
-		t.Fatalf("agent --provider myagent --print: %v", err)
+		t.Fatalf("agent --cli myagent --print: %v", err)
 	}
 	if out != "myagent\n" {
 		t.Errorf("output = %q, want %q (no --model/--effort appended)", out, "myagent\n")
 	}
 }
 
-// TestAgentPrintProviderBypassesRole: the provider form ignores role resolution
+// TestAgentPrintCLIBypassesRole: the CLI form ignores role resolution
 // entirely — the `default` role's model/effort must NOT leak into the composed
 // command (the role path would have substituted the `default` role's fill).
-func TestAgentPrintProviderBypassesRole(t *testing.T) {
-	agentTestRepo(t, `providers:
+func TestAgentPrintCLIBypassesRole(t *testing.T) {
+	agentTestRepo(t, `clis:
   claude:
     interactive_command: "claude --model {model} --effort {effort}"
 `)
-	out, err := runAgentPrint(t, "--provider", "claude")
+	out, err := runAgentPrint(t, "--cli", "claude")
 	if err != nil {
-		t.Fatalf("agent --provider claude --print: %v", err)
+		t.Fatalf("agent --cli claude --print: %v", err)
 	}
 	if out != "claude\n" {
-		t.Errorf("output = %q, want %q — the `default` role's profile must not leak into the provider path", out, "claude\n")
+		t.Errorf("output = %q, want %q — the `default` role's profile must not leak into the CLI path", out, "claude\n")
 	}
 }
 
-// TestAgentPrintProviderBuiltinClaude: the built-in claude provider resolves on
-// the provider path with no providers: block configured at all.
+// TestAgentPrintCLIBuiltinClaude: the built-in claude CLI resolves on
+// the CLI path with no clis: block configured at all.
 //
 // The flag values are deliberately BOTH off the `default` role's fill, so the
 // assertion discriminates the explicit-flag path from role resolution on each half
 // independently. Keep them that way if a bump ever makes one of them the default.
-func TestAgentPrintProviderBuiltinClaude(t *testing.T) {
+func TestAgentPrintCLIBuiltinClaude(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
-	out, err := runAgentPrint(t, "--provider", "claude", "--model", "claude-haiku-4-5", "--effort", "xhigh")
+	out, err := runAgentPrint(t, "--cli", "claude", "--model", "claude-haiku-4-5", "--effort", "xhigh")
 	if err != nil {
-		t.Fatalf("agent --provider claude --print: %v", err)
+		t.Fatalf("agent --cli claude --print: %v", err)
 	}
 	want := builtinClaudeCommand("claude-haiku-4-5", "xhigh")
 	if out != want {
@@ -495,31 +495,31 @@ func TestAgentPrintProviderBuiltinClaude(t *testing.T) {
 	}
 }
 
-// TestAgentRoleAndProviderReResolve: supplying both the [role] positional and
-// --provider ceased to be a usage error — the role's profile re-resolves from
-// the named provider's own fills (kimi ships no fills, so its {model} drops the
+// TestAgentRoleAndCLIReResolve: supplying both the [role] positional and
+// --cli ceased to be a usage error — the role's profile re-resolves from
+// the named CLI's own fills (kimi ships no fills, so its {model} drops the
 // -m pair and the CLI's own default applies). The former mutual-exclusion test
 // pinned the usage error; the re-resolve path is the conformance.
-func TestAgentRoleAndProviderReResolve(t *testing.T) {
-	agentTestRepo(t, `providers:
+func TestAgentRoleAndCLIReResolve(t *testing.T) {
+	agentTestRepo(t, `clis:
   kimi:
     interactive_command: "kimi --auto -m {model}"
 `)
-	out, err := runAgentPrint(t, "doing", "--provider", "kimi")
+	out, err := runAgentPrint(t, "doing", "--cli", "kimi")
 	if err != nil {
-		t.Fatalf("agent doing --provider kimi --print: %v", err)
+		t.Fatalf("agent doing --cli kimi --print: %v", err)
 	}
 	if !strings.Contains(out, `kimi --auto`) {
-		t.Errorf("selector + --provider must re-resolve fills (kimi's empty {model} drops its -m pair), got %q", out)
+		t.Errorf("selector + --cli must re-resolve fills (kimi's empty {model} drops its -m pair), got %q", out)
 	}
 	if strings.Contains(out, "-m ") {
 		t.Errorf("kimi's empty fill must drop its -m pair, got %q", out)
 	}
 }
 
-// TestAgentModelEffortResolvesOnRolePath: --model/--effort without --provider
+// TestAgentModelEffortResolvesOnRolePath: --model/--effort without --cli
 // ceased to be a usage error — the role path applies them as final verbatim
-// overrides over the resolved role fill. The former requires-provider test
+// overrides over the resolved role fill. The former requires-cli test
 // pinned the usage error; the override path is the conformance.
 func TestAgentModelEffortResolvesOnRolePath(t *testing.T) {
 	for _, flag := range []string{"--model", "--effort"} {
@@ -536,64 +536,64 @@ func TestAgentModelEffortResolvesOnRolePath(t *testing.T) {
 	}
 }
 
-// TestAgentEmptyProviderStillErrorsWithPlaceholder: an EXPLICITLY EMPTY
-// `--provider=` is still a supplied flag — on the selector path that resolves
-// an empty provider, so its error substitutes the `<name>` placeholder (the
-// same path unknownProviderError uses) rather than naming the malformed
-// `providers.` key. Supplanted: the formerly-flagged mutual exclusion has
+// TestAgentEmptyCLIStillErrorsWithPlaceholder: an EXPLICITLY EMPTY
+// `--cli=` is still a supplied flag — on the selector path that resolves
+// an empty CLI, so its error substitutes the `<name>` placeholder (the
+// same path unknownCLIError uses) rather than naming the malformed
+// `clis.` key. Supplanted: the formerly-flagged mutual exclusion has
 // become the conformance.
-func TestAgentEmptyProviderStillErrorsWithPlaceholder(t *testing.T) {
-	agentTestRepo(t, `providers:
+func TestAgentEmptyCLIStillErrorsWithPlaceholder(t *testing.T) {
+	agentTestRepo(t, `clis:
   claude:
     interactive_command: "claude --dangerously-skip-permissions"
 `)
-	_, err := runAgentPrint(t, "doing", "--provider=")
+	_, err := runAgentPrint(t, "doing", "--cli=")
 	if err == nil {
-		t.Fatal("expected an error for [role] plus an explicitly-empty --provider=")
+		t.Fatal("expected an error for [role] plus an explicitly-empty --cli=")
 	}
 	msg := err.Error()
-	if !strings.Contains(msg, "providers.<name>") {
-		t.Errorf("selector-path slot error should use the <name> placeholder on an empty provider, got: %v", err)
+	if !strings.Contains(msg, "clis.<name>") {
+		t.Errorf("selector-path slot error should use the <name> placeholder on an empty CLI, got: %v", err)
 	}
 }
 
-// TestAgentEmptyProviderAloneIsLookupFailure: a bare `--provider=` (no role) takes
-// the PROVIDER path — the empty name resolves to nothing, so it is the
-// unknown-provider lookup failure, never a silent fallback to the `default` role.
+// TestAgentEmptyCLIAloneIsLookupFailure: a bare `--cli=` (no role) takes
+// the CLI path — the empty name resolves to nothing, so it is the
+// unknown-cli lookup failure, never a silent fallback to the `default` role.
 // The error's config-key hint substitutes a `<name>` placeholder for the empty
-// name, so it never suggests the malformed `providers.` path.
-func TestAgentEmptyProviderAloneIsLookupFailure(t *testing.T) {
-	agentTestRepo(t, `providers:
+// name, so it never suggests the malformed `clis.` path.
+func TestAgentEmptyCLIAloneIsLookupFailure(t *testing.T) {
+	agentTestRepo(t, `clis:
   claude:
     interactive_command: "claude --dangerously-skip-permissions"
 `)
-	out, err := runAgentPrint(t, "--provider=")
+	out, err := runAgentPrint(t, "--cli=")
 	if err == nil {
-		t.Fatal("expected a lookup error for an explicitly-empty --provider=")
+		t.Fatal("expected a lookup error for an explicitly-empty --cli=")
 	}
 	msg := err.Error()
-	if !strings.Contains(msg, "unknown provider") {
-		t.Errorf("error should be the unknown-provider lookup failure, got: %v", err)
+	if !strings.Contains(msg, "unknown CLI") {
+		t.Errorf("error should be the unknown-cli lookup failure, got: %v", err)
 	}
-	if !strings.Contains(msg, "providers.<name>") {
-		t.Errorf("hint should name the placeholder key path providers.<name>, got: %v", err)
+	if !strings.Contains(msg, "clis.<name>") {
+		t.Errorf("hint should name the placeholder key path clis.<name>, got: %v", err)
 	}
-	if strings.Contains(msg, "providers. ") {
-		t.Errorf("hint must not suggest the malformed path %q, got: %v", "providers.", err)
+	if strings.Contains(msg, "clis. ") {
+		t.Errorf("hint must not suggest the malformed path %q, got: %v", "clis.", err)
 	}
 	if strings.Contains(out, "--dangerously-skip-permissions") {
-		t.Errorf("the role path must not run for --provider=, got %q", out)
+		t.Errorf("the role path must not run for --cli=, got %q", out)
 	}
 }
 
 // TestAgentEmptyModelEffortResolvesOnRolePath: an explicitly empty `--model=` /
 // `--effort=` is still a supplied flag — it simply clears the resolved field
 // (the token-drop rule leaves a clean command). Supplanted: the formerly-flagged
-// requires-provider usage error has become the conformance.
+// requires-cli usage error has become the conformance.
 func TestAgentEmptyModelEffortResolvesOnRolePath(t *testing.T) {
 	for _, arg := range []string{"--model=", "--effort="} {
 		t.Run(arg, func(t *testing.T) {
-			agentTestRepo(t, `providers:
+			agentTestRepo(t, `clis:
   claude:
     interactive_command: "claude --dangerously-skip-permissions"
 `)
@@ -608,108 +608,108 @@ func TestAgentEmptyModelEffortResolvesOnRolePath(t *testing.T) {
 	}
 }
 
-// TestAgentUnknownProviderNamesAvailable: an unknown provider name exits non-zero
-// and the error lists the resolvable providers (project block ∪ built-in table).
-func TestAgentUnknownProviderNamesAvailable(t *testing.T) {
-	agentTestRepo(t, `providers:
+// TestAgentUnknownCLINamesAvailable: an unknown CLI name exits non-zero
+// and the error lists the resolvable CLIs (project block ∪ built-in table).
+func TestAgentUnknownCLINamesAvailable(t *testing.T) {
+	agentTestRepo(t, `clis:
   codex:
     interactive_command: "codex"
 `)
-	_, err := runAgentPrint(t, "--provider", "bogus")
+	_, err := runAgentPrint(t, "--cli", "bogus")
 	if err == nil {
-		t.Fatal("expected an error for an unknown provider name")
+		t.Fatal("expected an error for an unknown CLI name")
 	}
 	msg := err.Error()
 	if !strings.Contains(msg, "bogus") {
-		t.Errorf("error should name the unknown provider, got: %v", err)
+		t.Errorf("error should name the unknown CLI, got: %v", err)
 	}
 	// Both the project-configured codex and the built-in claude are resolvable.
 	for _, want := range []string{"claude", "codex"} {
 		if !strings.Contains(msg, want) {
-			t.Errorf("error should list available provider %q, got: %v", want, err)
+			t.Errorf("error should list available CLI %q, got: %v", want, err)
 		}
 	}
 }
 
-// TestAgentProviderNoInteractiveCommandErrors: a provider that resolves but carries no
-// interactive_command errors with the config-key hint (the provider-path counterpart of
+// TestAgentCLINoInteractiveCommandErrors: a CLI that resolves but carries no
+// interactive_command errors with the config-key hint (the CLI-path counterpart of
 // TestAgentPrintNoInteractiveCommandErrors). Uses a project-defined headless-only
-// provider; every built-in ships interactive launch grammar.
-func TestAgentProviderNoInteractiveCommandErrors(t *testing.T) {
-	agentTestRepo(t, `providers:
+// CLI; every built-in ships interactive launch grammar.
+func TestAgentCLINoInteractiveCommandErrors(t *testing.T) {
+	agentTestRepo(t, `clis:
   myagent:
     headless_command: "myagent run"
 `)
-	_, err := runAgentPrint(t, "--provider", "myagent")
+	_, err := runAgentPrint(t, "--cli", "myagent")
 	if err == nil {
-		t.Fatal("expected an error when the named provider has no interactive_command")
+		t.Fatal("expected an error when the named CLI has no interactive_command")
 	}
-	if !strings.Contains(err.Error(), "providers.myagent.interactive_command") {
+	if !strings.Contains(err.Error(), "clis.myagent.interactive_command") {
 		t.Errorf("error = %q, want the config-key hint", err.Error())
 	}
 }
 
-// TestAgentProviderBuiltinCodexNoConfig (260805-j3cm): `fab agent --provider codex`
-// works with NO providers: block at all — codex is a built-in. With no --model the
+// TestAgentCLIBuiltinCodexNoConfig (260805-j3cm): `fab agent --cli codex`
+// works with NO clis: block at all — codex is a built-in. With no --model the
 // composition drops both placeholder tokens while preserving the fixed bypass
-// flag, so the installed CLI's own default model applies. The provider form bypasses role
+// flag, so the installed CLI's own default model applies. The CLI form bypasses role
 // resolution, so codex's shipped per-role fills (260806-ywkx) do not apply on this
 // path — see TestAgentPrintBuiltinCodexTakesItsOwnFill for the role path.
-func TestAgentProviderBuiltinCodexNoConfig(t *testing.T) {
+func TestAgentCLIBuiltinCodexNoConfig(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 
-	out, err := runAgentPrint(t, "--provider", "codex")
+	out, err := runAgentPrint(t, "--cli", "codex")
 	if err != nil {
-		t.Fatalf("agent --provider codex --print: %v", err)
+		t.Fatalf("agent --cli codex --print: %v", err)
 	}
 	if out != "codex --dangerously-bypass-approvals-and-sandbox\n" {
 		t.Errorf("output = %q, want the model-free built-in codex grammar with its bypass flag", out)
 	}
 }
 
-// TestAgentProviderBuiltinAgyNoConfig: agy ships pane launch grammar, so the direct
-// provider path works with no providers: block. With no --model the composition
+// TestAgentCLIBuiltinAgyNoConfig: agy ships pane launch grammar, so the direct
+// CLI path works with no clis: block. With no --model the composition
 // drops the model pair while preserving the fixed full-auto flag. A fresh
 // workspace's trust wall is handled after launch by the generic readiness gate.
-func TestAgentProviderBuiltinAgyNoConfig(t *testing.T) {
+func TestAgentCLIBuiltinAgyNoConfig(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 
-	out, err := runAgentPrint(t, "--provider", "agy")
+	out, err := runAgentPrint(t, "--cli", "agy")
 	if err != nil {
-		t.Fatalf("agent --provider agy --print: %v", err)
+		t.Fatalf("agent --cli agy --print: %v", err)
 	}
 	if out != "agy --dangerously-skip-permissions\n" {
 		t.Errorf("output = %q, want the model-free built-in agy grammar with its full-auto flag", out)
 	}
 }
 
-// TestAgentProviderBuiltinKimiNoConfig is the other half of the same rule since
+// TestAgentCLIBuiltinKimiNoConfig is the other half of the same rule since
 // 260810-ki9v: kimi's interactive first run and input echo WERE probed (2026-08-10,
-// kimi 0.34.0), so it ships an interactive_command and `fab agent --provider kimi`
+// kimi 0.34.0), so it ships an interactive_command and `fab agent --cli kimi`
 // composes a session rather than erroring.
 //
 // The composed form is the shipped grammar minus the model pair: kimi ships no fills
-// and the provider form supplies no --model, so the empty {model} drops `-m` with it
+// and the CLI form supplies no --model, so the empty {model} drops `-m` with it
 // while the fixed --auto survives — the same token-drop the codex case pins, over the
 // one built-in for which an empty model is the SHIPPED resolution rather than an edge
 // case (its -m takes a user-config alias, so kimi's own default_model is the honest
 // value).
-func TestAgentProviderBuiltinKimiNoConfig(t *testing.T) {
+func TestAgentCLIBuiltinKimiNoConfig(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
 
-	out, err := runAgentPrint(t, "--provider", "kimi")
+	out, err := runAgentPrint(t, "--cli", "kimi")
 	if err != nil {
-		t.Fatalf("agent --provider kimi --print: %v", err)
+		t.Fatalf("agent --cli kimi --print: %v", err)
 	}
 	if out != "kimi --auto\n" {
 		t.Errorf("output = %q, want the model-free built-in kimi grammar with its full-auto flag", out)
 	}
 }
 
-// TestAgentPrintProviderWithRepoFlag: --provider composes with --repo, reading the
-// TARGET repo's providers: table (not the current repo's).
-func TestAgentPrintProviderWithRepoFlag(t *testing.T) {
-	agentTestRepo(t, `providers:
+// TestAgentPrintCLIWithRepoFlag: --cli composes with --repo, reading the
+// TARGET repo's clis: table (not the current repo's).
+func TestAgentPrintCLIWithRepoFlag(t *testing.T) {
+	agentTestRepo(t, `clis:
   codex:
     interactive_command: "current-codex"
 `)
@@ -720,13 +720,13 @@ func TestAgentPrintProviderWithRepoFlag(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"),
-		[]byte("providers:\n  codex:\n    interactive_command: \"target-codex -m {model}\"\n"), 0o644); err != nil {
+		[]byte("clis:\n  codex:\n    interactive_command: \"target-codex -m {model}\"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	out, err := runAgentPrint(t, "--provider", "codex", "--model", "some-model", "--repo", target)
+	out, err := runAgentPrint(t, "--cli", "codex", "--model", "some-model", "--repo", target)
 	if err != nil {
-		t.Fatalf("agent --provider codex --print --repo: %v", err)
+		t.Fatalf("agent --cli codex --print --repo: %v", err)
 	}
 	want := "target-codex -m some-model\n"
 	if out != want {
@@ -736,7 +736,7 @@ func TestAgentPrintProviderWithRepoFlag(t *testing.T) {
 
 // TestAgentPrintRepoFlag: --repo reads a different repo's config.
 func TestAgentPrintRepoFlag(t *testing.T) {
-	// The current repo has no providers; the target repo does.
+	// The current repo has no CLIs; the target repo does.
 	agentTestRepo(t, "project:\n  name: current\n")
 
 	target := t.TempDir()
@@ -745,7 +745,7 @@ func TestAgentPrintRepoFlag(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"),
-		[]byte("providers:\n  claude:\n    interactive_command: \"target-claude\"\n"), 0o644); err != nil {
+		[]byte("clis:\n  claude:\n    interactive_command: \"target-claude\"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

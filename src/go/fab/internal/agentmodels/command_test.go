@@ -9,10 +9,10 @@ import (
 )
 
 func TestModelsCommandValidRowsAndOverrides(t *testing.T) {
-	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
+	cfg := &config.Config{CLIs: map[string]config.CLIConfig{
 		"mytool": {
 			ModelsCommand: `printf '[{"id":"m1","cli":"x","source":"fill"},{"id":""}]'`,
-			Profiles:      map[string]config.ProviderProfile{"default": {Model: "fill-model"}},
+			Profiles:      map[string]config.CLIProfile{"default": {Model: "fill-model"}},
 		},
 	}}
 	rows, warnings := discoverWith(cfg, "mytool", defaultEnvironment())
@@ -86,10 +86,10 @@ func TestModelsCommandFailures(t *testing.T) {
 }
 
 func commandTestConfig(command string) *config.Config {
-	return &config.Config{Providers: map[string]config.ProviderConfig{
+	return &config.Config{CLIs: map[string]config.CLIConfig{
 		"mytool": {
 			ModelsCommand: command,
-			Profiles:      map[string]config.ProviderProfile{"default": {Model: "fill-model"}},
+			Profiles:      map[string]config.CLIProfile{"default": {Model: "fill-model"}},
 		},
 	}}
 }

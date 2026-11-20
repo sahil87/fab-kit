@@ -1,5 +1,5 @@
 // Package agentmodels discovers the models offered by agent CLI tools and merges
-// them with fab-kit's provider fills.
+// them with fab-kit's CLI fills.
 package agentmodels
 
 import (
@@ -24,13 +24,13 @@ const (
 	SourceTool = "tool"
 	// SourceAlias marks a built-in Claude family alias.
 	SourceAlias = "alias"
-	// SourceFill marks a model supplied by the resolved provider's role fills.
+	// SourceFill marks a model supplied by the resolved CLI's role fills.
 	SourceFill = "fill"
 	// SourceReserved marks the reserved tool-default value, not a discovered model.
 	SourceReserved = "reserved"
 )
 
-// Row is one model offered by a tool or supplied by a provider fill. Efforts is
+// Row is one model offered by a tool or supplied by a CLI fill. Efforts is
 // normalized to an empty array when the tool reports no per-model set.
 type Row struct {
 	CLI     string   `json:"cli"`
@@ -50,7 +50,7 @@ type environment struct {
 
 type adapter func(environment) ([]Row, string, error)
 
-// Discover returns one provider's discovered rows, resolved fills, and any
+// Discover returns one CLI's discovered rows, resolved fills, and any
 // fail-open discovery warnings.
 func Discover(cfg *config.Config, name string) ([]Row, []string) {
 	return discoverWith(cfg, name, defaultEnvironment())
@@ -66,10 +66,10 @@ func defaultEnvironment() environment {
 }
 
 func discoverWith(cfg *config.Config, name string, env environment) ([]Row, []string) {
-	provider, _ := agent.ResolveProvider(cfg, name)
+	cli, _ := agent.ResolveCLI(cfg, name)
 	var discover adapter
-	if provider.ModelsCommand != "" {
-		discover = commandAdapter(provider.ModelsCommand)
+	if cli.ModelsCommand != "" {
+		discover = commandAdapter(cli.ModelsCommand)
 	} else {
 		switch name {
 		case "codex":
@@ -91,7 +91,7 @@ func discoverWith(cfg *config.Config, name string, env environment) ([]Row, []st
 			warnings = append(warnings, err.Error())
 		}
 	}
-	rows = append(rows, providerFills(provider)...)
+	rows = append(rows, cliFills(cli)...)
 	rows = mergeRows(rows, defaultID)
 	if name == "claude" {
 		for i := range rows {
@@ -141,9 +141,9 @@ func toolDefaultRow(name string, rows []Row) Row {
 	return row
 }
 
-func providerFills(provider config.ProviderConfig) []Row {
+func cliFills(cli config.CLIConfig) []Row {
 	unique := make(map[string]struct{})
-	for _, profile := range provider.Profiles {
+	for _, profile := range cli.Profiles {
 		if profile.Model != "" {
 			unique[profile.Model] = struct{}{}
 		}

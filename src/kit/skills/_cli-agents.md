@@ -1,6 +1,6 @@
 ---
 name: _cli-agents
-description: "Agent-CLI interaction reference — the generic spawn / pre-send-validation / peek / await procedures for driving another agent CLI in a tmux pane (extracted from the retired fab-operator skill), plus a four-provider operational dictionary (claude, codex, agy, kimi) carrying stable invocation grammar and model-discovery recipes rather than volatile model catalogs. Opt-in via `helpers:`; not part of the always-load layer."
+description: "Agent-CLI interaction reference — the generic spawn / pre-send-validation / peek / await procedures for driving another agent CLI in a tmux pane (extracted from the retired fab-operator skill), plus a four-CLI operational dictionary (claude, codex, agy, kimi) carrying stable invocation grammar and model-discovery recipes rather than volatile model catalogs. Opt-in via `helpers:`; not part of the always-load layer."
 user-invocable: false
 disable-model-invocation: true
 metadata:
@@ -20,7 +20,7 @@ metadata:
   - Delivery Probe (the printed-prompt trap)
   - Peek
   - Await
-- Half B — Provider Dictionary
+- Half B — CLI Dictionary
   - Dictionary Discipline
   - claude
   - codex
@@ -49,15 +49,15 @@ An interactive agent session command is **never hand-assembled**. Ask `fab agent
 Two addressing forms — both print a fully **profile-resolved** command (`{model}`/`{effort}` substituted, or Claude-style flags appended for a non-templated `interactive_command`). The positional also accepts a **stage** name (`apply`, `review`, `hydrate`, `ship`, `intake`, `review-pr`), which maps to its fixed role; `-t` prints the raw template, `--headless` picks the `headless_command` slot, `-o yaml` emits the resolution as a structured document:
 
 ```sh
-# Selector-addressed — the resolved role (or stage→role) supplies {provider, model, effort}.
+# Selector-addressed — the resolved role (or stage→role) supplies {cli, model, effort}.
 fab agent --print                       # the default role, this repo
 fab agent operator --print              # a named role
 fab agent apply --print                 # a stage → its mapped role (byte-identical to `fab agent doing --print`)
 fab agent --print --repo <target-repo>  # another repo's config (never your own)
 
-# Provider-addressed — bypasses role resolution entirely.
-fab agent --provider codex --print                                  # bare invocation: the CLI's own default model
-fab agent --provider codex --model <id> --effort <level> --print     # explicit profile
+# CLI-addressed — bypasses role resolution entirely.
+fab agent --cli codex --print                                  # bare invocation: the CLI's own default model
+fab agent --cli codex --model <id> --effort <level> --print     # explicit profile
 
 # Inspection taps.
 fab agent apply -t                    # the unsubstituted template (placeholders intact)
@@ -65,21 +65,21 @@ fab agent doing --headless --print    # the headless_command slot instead of int
 fab agent apply -o yaml               # full structured resolution; schema: _cli-fab.md § fab agent
 ```
 
-> **Every built-in provider has a session form.** Composition needs an `interactive_command`, and `claude`, `codex`, `agy`, and `kimi` all ship one. A wholly user-defined provider may deliberately omit the field; either form then errors actionably, naming the `providers.<name>.interactive_command` key to set.
+> **Every built-in CLI has a session form.** Composition needs an `interactive_command`, and `claude`, `codex`, `agy`, and `kimi` all ship one. A wholly user-defined CLI may deliberately omit the field; either form then errors actionably, naming the `clis.<name>.interactive_command` key to set.
 
-**Which form to use.** Use the **selector** form when the spawn should inherit fab's role/budget policy (a pipeline-shaped worker, a named coordinator role) — including which provider the `agent.session` knob points Tier-1 agents at; a stage name is just shorthand for its mapped role. Use the **provider** form when the question is mechanical — "give me a codex session right here" — with no role to speak of. `--model`/`--effort` are legal on ANY form as final post-refill overrides (a selector combined with `--provider` re-resolves the role's fills from that provider instead — see `_cli-fab.md` § fab agent). **No `providers:` block is needed for either form**: `claude`, `codex`, `agy`, and `kimi` are built-in providers.
+**Which form to use.** Use the **selector** form when the spawn should inherit fab's role/budget policy (a pipeline-shaped worker, a named coordinator role) — including which CLI the `agent.session` knob points Tier-1 agents at; a stage name is just shorthand for its mapped role. Use the **CLI** form when the question is mechanical — "give me a codex session right here" — with no role to speak of. `--model`/`--effort` are legal on ANY form as final post-refill overrides (a selector combined with `--cli` re-resolves the role's fills from that CLI instead — see `_cli-fab.md` § fab agent). **No `clis:` block is needed for either form**: `claude`, `codex`, `agy`, and `kimi` are built-in CLIs.
 
-**Empty model/effort is a feature.** Omitting `--model`/`--effort` on the provider form leaves the value empty, and the composition rule drops the placeholder's token *and* a preceding `-`-flag while retaining fixed flags — so `fab agent --provider codex --print` against `codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}` yields `codex --dangerously-bypass-approvals-and-sandbox`. The installed CLI's own default model applies while the built-in's deliberate full-auto posture remains. This is how you spawn a provider whose current model IDs you do not know.
+**Empty model/effort is a feature.** Omitting `--model`/`--effort` on the CLI form leaves the value empty, and the composition rule drops the placeholder's token *and* a preceding `-`-flag while retaining fixed flags — so `fab agent --cli codex --print` against `codex --dangerously-bypass-approvals-and-sandbox -m {model} -c model_reasoning_effort={effort}` yields `codex --dangerously-bypass-approvals-and-sandbox`. The installed CLI's own default model applies while the built-in's deliberate full-auto posture remains. This is how you spawn a CLI whose current model IDs you do not know.
 
-**Provider-form caveat:** the bare `fab agent --provider <name>` form bypasses role resolution and both per-role fill sources, so its profile is exactly the passed flags; when fills should apply, use a selector (optionally with `--provider` to re-resolve them from the named provider) or pass `--model` explicitly. See `_cli-fab.md` § fab agent for the fill ladder and model-free Codex example.
+**CLI-form caveat:** the bare `fab agent --cli <name>` form bypasses role resolution and both per-role fill sources, so its profile is exactly the passed flags; when fills should apply, use a selector (optionally with `--cli` to re-resolve them from the named CLI) or pass `--model` explicitly. See `_cli-fab.md` § fab agent for the fill ladder and model-free Codex example.
 
 **Open it in a pane** — the mechanized form composes *and* spawns in one step, with **no prompt attached**:
 
 ```sh
-fab pane open --provider <name> [--role <role>] [-c <dir>]
+fab pane open --cli <name> [--role <role>] [-c <dir>]
 ```
 
-It resolves the fills through the standard precedence with the provider pinned (unlike `fab agent --provider`'s bypass), spawns a plain split of your window inside tmux (an unnamed new window otherwise), prints the new pane id, and writes no dispatch state. The prompt goes in afterwards, verified: loop `fab pane ready %N` until it reports `ready` — answering any wall the non-`ready` report's snippet shows between probes — then `fab pane deliver %N --text "<prompt>"`. This 3-command flow is also the **provider-probe recipe** (a pre-ship probe, a first-run wall discovery — the rpsr/ki9v flow): open, probe, answer walls, deliver a probe prompt, and record what the walls turned out to be.
+It resolves the fills through the standard precedence with the CLI pinned (unlike `fab agent --cli`'s bypass), spawns a plain split of your window inside tmux (an unnamed new window otherwise), prints the new pane id, and writes no dispatch state. The prompt goes in afterwards, verified: loop `fab pane ready %N` until it reports `ready` — answering any wall the non-`ready` report's snippet shows between probes — then `fab pane deliver %N --text "<prompt>"`. This 3-command flow is also the **CLI-probe recipe** (a pre-ship probe, a first-run wall discovery — the rpsr/ki9v flow): open, probe, answer walls, deliver a probe prompt, and record what the walls turned out to be.
 
 The raw form — for when the prompt should ride the spawn itself:
 
@@ -87,23 +87,23 @@ The raw form — for when the prompt should ride the spawn itself:
 rk tab new [--session =<session>] --cwd <dir> --name <name> --ready --json -- <composed-argv…> ["<initial-prompt>"]
 ```
 
-- The composed command goes after `--` as **argv tokens, never a composed shell string** — each token is its own argv element, so no shell quoting, escaping, or `;`-chaining is applied (or needed). An initial prompt the provider's interactive command accepts rides as one trailing argv token.
+- The composed command goes after `--` as **argv tokens, never a composed shell string** — each token is its own argv element, so no shell quoting, escaping, or `;`-chaining is applied (or needed). An initial prompt the CLI's interactive command accepts rides as one trailing argv token.
 - **rk resolves the landing session** — its role-aware default (an `_rk-*` caller never gets the window beside itself; `--session =S` overrides) — and reports it as `session`/`session_rung` in the `--json` result; `--cwd` and `--name` still pin directory and name.
 - **`--ready` makes rk probe readiness before returning**; read the `--json` report's `ready:` verdict — the report is the `result` object of run-kit's `{"ok":true,"result":{…}}` envelope, and its `session`/`session_rung`/`window_id`/`pane_id` live there too. A non-ready verdict is an ordinary judgment round — answer the wall the snippet shows, then probe again — the same loop `fab pane ready` mechanizes (§ Delivery Probe).
 - **rk appends the interactive shell fallback itself**: when the agent exits for any reason (`/exit`, crash, a `C-c` too many), a fresh interactive shell takes over the tab — same cwd, scrollback and position survive. Never append your own `; exec …`; a composed shell string is exactly what the argv form exists to prevent. **Scope rule: interactive spawns only.** `fab dispatch open` pane workers and `fab pane open` are excluded — their `running`/`done`/`orphaned` state machine treats pane death as the worker's terminal event, so a surviving fallback shell would read as a live worker. The full `rk tab new` contract is tool-owned (`rk skill`).
 - **One prompt, one leading command.** The embedded prompt token is delivered as a single prompt to the agent, where `&&` is *not* a shell operator and a skill prompt carries one leading invocation rendered per § Skill Prompts — so an `&&`-joined pair of skill invocations does not run two commands; the tail is swallowed into the first command's argument. Embed exactly one command; if a second step is genuinely required, run it as a synchronous CLI call before opening the tab, or as a separate Enter-terminated send afterwards.
 - **Embedding at spawn also sidesteps the printed-prompt trap** (§ Delivery Probe): the trap needs a *pre-existing* input buffer to mistake printed output for, and a tab created with its prompt already attached has none. Prefer spawn-embedding over "open the tab, then send the prompt" whenever the prompt is known up front **and the send is one you can afford not to verify** — a one-shot argument either is or is not ingested, and you cannot tell which. Where that matters, verify instead of embedding: `fab pane ready` → `fab pane deliver --text` mechanizes exactly that sequence (echo-checked send, submit, screen-advance confirm — § Delivery Probe), with the manual recipe as the fallback for non-fab driving. That is exactly the trade the pane dispatch adapter makes (below).
 
-> **Pipeline consumer**: `fab dispatch open <change> <stage>` (the interactive-pane dispatch adapter — `_cli-fab-pane.md` § fab dispatch, contract in `_preamble.md` § CLI-Adapter Dispatch) is built on this procedure's LAUNCH half only. It composes the resolved provider's `interactive_command` and opens it with **no prompt attached** (launched under the user's interactive shell — `_cli-fab-pane.md` § Interactive-shell launch) — because a multi-thousand-token stage prompt cannot ride argv, and a positional one-shot cannot be verified. The prompt arrives afterwards as a **one-line pointer** typed by `fab dispatch deliver` behind the `fab dispatch ready` gate, which is the adapter's own answer to the printed-prompt trap: an echo-checked send beats an unverifiable spawn argument. Since 260810-1lah the dispatch verbs are thin record-keeping bindings over this section's own primitives — `fab pane open`/`ready`/`deliver` — so adapter and procedure share one gate and one delivery choreography. Completion detection follows § Await's "prefer asking for an artifact over a screen pattern" rule (the worker's `{stage}-result.yaml`).
+> **Pipeline consumer**: `fab dispatch open <change> <stage>` (the interactive-pane dispatch adapter — `_cli-fab-pane.md` § fab dispatch, contract in `_preamble.md` § CLI-Adapter Dispatch) is built on this procedure's LAUNCH half only. It composes the resolved CLI's `interactive_command` and opens it with **no prompt attached** (launched under the user's interactive shell — `_cli-fab-pane.md` § Interactive-shell launch) — because a multi-thousand-token stage prompt cannot ride argv, and a positional one-shot cannot be verified. The prompt arrives afterwards as a **one-line pointer** typed by `fab dispatch deliver` behind the `fab dispatch ready` gate, which is the adapter's own answer to the printed-prompt trap: an echo-checked send beats an unverifiable spawn argument. Since 260810-1lah the dispatch verbs are thin record-keeping bindings over this section's own primitives — `fab pane open`/`ready`/`deliver` — so adapter and procedure share one gate and one delivery choreography. Completion detection follows § Await's "prefer asking for an artifact over a screen pattern" rule (the worker's `{stage}-result.yaml`).
 
 #### Skill Prompts
 
-An explicit skill invocation is `<prefix><skill>[ <arguments>]`, where the prefix belongs to the **receiving** harness: `codex` ⇒ `$`, every other or unknown provider ⇒ `/`. `internal/agent.SkillPrefix` owns the rule; `fab agent … -o yaml` exposes it as `skill_prefix` (`_cli-fab.md` § fab agent). This applies to initial prompts and to skill commands routed into existing panes.
+An explicit skill invocation is `<prefix><skill>[ <arguments>]`, where the prefix belongs to the **receiving** harness: `codex` ⇒ `$`, every other or unknown CLI ⇒ `/`. `internal/agent.SkillPrefix` owns the rule; `fab agent … -o yaml` exposes it as `skill_prefix` (`_cli-fab.md` § fab agent). This applies to initial prompts and to skill commands routed into existing panes.
 
 1. **Identify the receiver.**
-   - *Fresh default-role spawn*: resolve the target repo once with `fab agent default -o yaml --repo <target-repo>` and read both `command` (the session command — byte-identical to what `--print` would emit) and `skill_prefix` from that one document. Do not run `--print` separately or resolve the provider a second way.
+   - *Fresh default-role spawn*: resolve the target repo once with `fab agent default -o yaml --repo <target-repo>` and read both `command` (the session command — byte-identical to what `--print` would emit) and `skill_prefix` from that one document. Do not run `--print` separately or resolve the CLI a second way.
    - *Other fresh roles*: the `skill_prefix` of the resolution already made for that launch (`fab agent <role> -o yaml`).
-   - *Existing pane*: the live agent process per § Peek's process-tree command; the interactive harness executable — including a child beneath a wrapper shell — is the receiver. Never identify it from prompt text, a nested tool worker, the launcher's provider, a model ID, or the repo's current default. Unknown ⇒ `/`. This does not bypass the caller's state/confirmation gate.
+   - *Existing pane*: the live agent process per § Peek's process-tree command; the interactive harness executable — including a child beneath a wrapper shell — is the receiver. Never identify it from prompt text, a nested tool worker, the launcher's CLI, a model ID, or the repo's current default. Unknown ⇒ `/`. This does not bypass the caller's state/confirmation gate.
 2. **Compose and quote once.** Render `<prefix><skill>[ <arguments>]` with the arguments verbatim, then deliver the whole prompt as **one token** exactly like any other initial prompt — one trailing argv token for a new tab (§ Spawn Composition's spawn-embedding rule, no shell quoting), the normal send mechanism (`rk mux send <pane> "<prompt>"`) plus the pre-send gate for an existing pane. Never embed a literal `$`-prefixed skill inside an outer double-quoted shell string.
 3. **Keep message types distinct.** Only explicit skill invocations take a prefix. Ordinary prompts, answers, keys, `Read <path> and execute it.` pointers, and native TUI controls such as `/loop` or `/clear` use their own contracts and are not transformed.
 
@@ -147,7 +147,7 @@ Two independent axes, read separately:
 
 ### Await
 
-There is **no cross-provider completion notification.** The Agent-tool style "sub-agent finished, here is its result" callback has no equivalent when you drive a CLI in a pane. The available signals are:
+There is **no cross-CLI completion notification.** The Agent-tool style "sub-agent finished, here is its result" callback has no equivalent when you drive a CLI in a pane. The available signals are:
 
 1. **`rk mux await`** — `rk mux await <pane> [--until <states>] [--file <path>] [--timeout <dur>]` is the preferred mechanized wait, and the composed `rk mux send --await` covers send-then-wait. It reports one of `idle`/`waiting`/`file`/`running`/`gone` — `gone` = exit 1 (rk's toolkit codes, not fab's old 2/3 scheme); the full contract is tool-owned (`rk skill`).
 2. **Poll** (when no `await` signal fits — e.g. a completion signal that is a screen pattern) — loop `capture` (+ the state read, where instrumented) on an interval until a completion signal appears. Use a fixed, unhurried cadence; a completion signal is a *pattern you defined*, e.g. the agent's own summary line, a sentinel string you asked for in the prompt, or a file the worker was told to write.
@@ -157,21 +157,21 @@ Prefer asking for an **artifact** (a file at a path you name) over a screen patt
 
 ---
 
-## Half B — Provider Dictionary
+## Half B — CLI Dictionary
 
 ### Dictionary Discipline
 
 Each entry below carries only **stable invocation grammar** and **discovery recipes**:
 
 - **Grammar is stable** — whether a CLI's headless mode is a flag or a subcommand, whether it reads the prompt from stdin or an argument, what its structured-output flag is called. These change on major-version boundaries, not weekly.
-- **Model IDs are NOT recorded *here*.** Model catalogs rot in weeks, and this dictionary is read by an agent that may be reasoning about an uninstalled CLI. Instead each entry carries a *discovery recipe*: what to run against the **installed** binary to learn which models it accepts. Never assume a model ID from memory; run the recipe. *(fab-kit does ship per-role model fills in the binary — `providers.<name>.profiles` — but those are DATA refreshed at kit-release cadence and overridden by one config line, not knowledge an agent should carry. The recipe is still how you verify one.)*
+- **Model IDs are NOT recorded *here*.** Model catalogs rot in weeks, and this dictionary is read by an agent that may be reasoning about an uninstalled CLI. Instead each entry carries a *discovery recipe*: what to run against the **installed** binary to learn which models it accepts. Never assume a model ID from memory; run the recipe. *(fab-kit does ship per-role model fills in the binary — `clis.<name>.profiles` — but those are DATA refreshed at kit-release cadence and overridden by one config line, not knowledge an agent should carry. The recipe is still how you verify one.)*
 - **Quirks accrete from real encounters only.** An entry records an interactive quirk (first-run trust prompt, submit-key behavior) only once it has actually been hit and confirmed. Speculating about an uninstalled CLI's behavior is worse than silence — it reads as verified.
 
-- **Built-ins:** `claude`, `codex`, `agy`, and `kimi` use the independent `interactive_command` / `headless_command` / `native` capability grammar in the module-root embedded `defaults.yaml`; all resolve without a `providers:` block. Claude ships all three capabilities; codex, agy, and kimi are non-native (pane + headless). `dispatch.mode` chooses the starting rung of the descending `pane → native → headless` ladder.
-- **Exec contract** (the owner statement — point here, never restate): a provider's `interactive_command` MUST **exec its binary**, so the binary — not a wrapper shell — owns the pane's foreground; all four built-ins already do. The readiness gate requires exactly that takeover (a shell foreground reports `booting` and is typed into never), so a wrapper that keeps a shell in the foreground is **unsupported by design** and fails OBSERVABLY, never silently: every probe reports `booting` with the shell prompt in the snippet until the wiring's consecutive-booting allowance is spent and the run escalates. No time bound, no `spawn_cmd` comparison — the contract is the command's shape.
-- **Fill-consuming paths:** depth knobs (`agent.session` / `agent.workers`), `agent.profiles.<role>.provider`, and selector-addressed `fab agent <role|stage> --provider <name> -o yaml` consume the built-in per-role fills and resolve a real model for every role — except on `kimi`, which ships none deliberately and resolves an empty model so the CLI's own `default_model` applies.
-- **Provider-addressed sessions:** `fab agent --provider` bypasses both fill sources and stays bare unless `--model`/`--effort` is passed.
-- **Freshness and overrides:** non-Claude fills are release-cadence, unvalidated data. Discover current IDs with each entry's recipe; override with `providers.<name>.profiles.<role>.{model,effort}` (including in `~/.fab-kit/config.yaml`) or invocation flags. A `providers:` block overrides capabilities/fills; it does not register built-ins.
+- **Built-ins:** `claude`, `codex`, `agy`, and `kimi` use the independent `interactive_command` / `headless_command` / `native` capability grammar in the module-root embedded `defaults.yaml`; all resolve without a `clis:` block. Claude ships all three capabilities; codex, agy, and kimi are non-native (pane + headless). `dispatch.mode` chooses the starting rung of the descending `pane → native → headless` ladder.
+- **Exec contract** (the owner statement — point here, never restate): a CLI's `interactive_command` MUST **exec its binary**, so the binary — not a wrapper shell — owns the pane's foreground; all four built-ins already do. The readiness gate requires exactly that takeover (a shell foreground reports `booting` and is typed into never), so a wrapper that keeps a shell in the foreground is **unsupported by design** and fails OBSERVABLY, never silently: every probe reports `booting` with the shell prompt in the snippet until the wiring's consecutive-booting allowance is spent and the run escalates. No time bound, no `spawn_cmd` comparison — the contract is the command's shape.
+- **Fill-consuming paths:** depth knobs (`agent.session` / `agent.workers`), `agent.profiles.<role>.cli`, and selector-addressed `fab agent <role|stage> --cli <name> -o yaml` consume the built-in per-role fills and resolve a real model for every role — except on `kimi`, which ships none deliberately and resolves an empty model so the CLI's own `default_model` applies.
+- **CLI-addressed sessions:** `fab agent --cli` bypasses both fill sources and stays bare unless `--model`/`--effort` is passed.
+- **Freshness and overrides:** non-Claude fills are release-cadence, unvalidated data. Discover current IDs with each entry's recipe; override with `clis.<name>.profiles.<role>.{model,effort}` (including in `~/.fab-kit/config.yaml`) or invocation flags. A `clis:` block overrides capabilities/fills; it does not register built-ins.
 
 ### claude
 
@@ -185,7 +185,7 @@ Each entry below carries only **stable invocation grammar** and **discovery reci
 | Session naming | `-n <name>` names the session (the built-in `interactive_command` uses `-n "$(basename "$(pwd)")"`) |
 | Model discovery | Start with `fab agent models claude` for aliases, configured `modelPicker` options, the tool default, and kit fills. The installed CLI's own help is authoritative for accepted `--model` forms: `claude --help`. fab's own `model_alias` mapping (`opus`/`sonnet`/`haiku`/`fable`) is an Agent-tool adapter, not a claude-CLI constraint — see `_cli-fab.md` § fab agent |
 
-**Agent-state instrumentation.** Claude Code is one of the harnesses `rk agent setup` instruments (alongside Codex, Copilot, Gemini, and OpenCode); instrumentation is an environment property, not a provider guarantee.
+**Agent-state instrumentation.** Claude Code is one of the harnesses `rk agent setup` instruments (alongside Codex, Copilot, Gemini, and OpenCode); instrumentation is an environment property, not a CLI guarantee.
 
 ### codex
 
@@ -196,9 +196,9 @@ Each entry below carries only **stable invocation grammar** and **discovery reci
 | Structured output | `codex exec --json` |
 | Profile flags | `-m <id>` for the model; reasoning effort rides a config override: `-c model_reasoning_effort=<level>` |
 | MCP server mode | `codex mcp-server` — starts codex AS a stdio MCP server (distinct from `codex mcp`, which *manages* the external MCP servers codex itself connects to); see § Codex MCP Bridge below |
-| Model discovery | Start with `fab agent models codex` for the bounded `codex debug models` rows, per-model efforts, `$CODEX_HOME` default, and kit fills. Capability-probe the installed binary with `codex --version`, then `codex --help` / `codex exec --help` for the `-m` flag's accepted values; the installed CLI also caches its live catalog at `~/.codex/models_cache.json` (per model: slug, priority, description, supported reasoning levels, visibility) — the verified source the shipped fills were read from. fab ships per-role codex fills for all six roles (`default`, `operator`, `doing`, `review`, `hydrate`, `fast`) and validates none of them, so the recipe is how you verify one. Pin a discovered ID as `providers.codex.profiles.<role>.model` — the modern spelling — or pass `--model` per invocation. The flat `providers.codex.model` is an **alias for `profiles.default`** and is outranked by the shipped role fills, so it reaches only the `default` role |
+| Model discovery | Start with `fab agent models codex` for the bounded `codex debug models` rows, per-model efforts, `$CODEX_HOME` default, and kit fills. Capability-probe the installed binary with `codex --version`, then `codex --help` / `codex exec --help` for the `-m` flag's accepted values; the installed CLI also caches its live catalog at `~/.codex/models_cache.json` (per model: slug, priority, description, supported reasoning levels, visibility) — the verified source the shipped fills were read from. fab ships per-role codex fills for all six roles (`default`, `operator`, `doing`, `review`, `hydrate`, `fast`) and validates none of them, so the recipe is how you verify one. Pin a discovered ID as `clis.codex.profiles.<role>.model` — the modern spelling — or pass `--model` per invocation. The flat `clis.codex.model` is an **alias for `profiles.default`** and is outranked by the shipped role fills, so it reaches only the `default` role |
 
-**Why independent provider capabilities matter here.** `codex` (TUI) and `codex exec` (headless) are different invocations of the same binary, which is exactly why `providers.<name>` carries unmerged `interactive_command` and `headless_command` fields; the separate `native` boolean records an Agent-tool seam when one exists. These fields say how a rung runs, never which dispatch mode to prefer.
+**Why independent CLI capabilities matter here.** `codex` (TUI) and `codex exec` (headless) are different invocations of the same binary, which is exactly why `clis.<name>` carries unmerged `interactive_command` and `headless_command` fields; the separate `native` boolean records an Agent-tool seam when one exists. These fields say how a rung runs, never which dispatch mode to prefer.
 
 ### agy
 
@@ -212,11 +212,11 @@ The Antigravity CLI. Verified against v1.1.11.
 | Timeout | `--print-timeout <dur>` — the 5m default kills long stage workers, so the built-in `headless_command` raises it to `120m` |
 | Profile flags | `--model <id>`. **No effort flag is used** — agy's model IDs *embed* the reasoning level as a suffix (`gemini-3.1-pro-high`), so a separate `--effort` would fight the suffix; the built-in grammar omits `{effort}` entirely |
 | Approvals | `--dangerously-skip-permissions` on both forms — unattended stage workers cannot answer approval prompts |
-| Model discovery | Start with `fab agent models agy`; it returns agy's kit fills only until a discovery adapter exists. `agy models` on the installed binary lists the accepted `--model` values (effort-suffixed families plus cross-vendor entries). fab ships per-role agy fills (`default`/`fast`) and validates neither, so the recipe is how you verify one. Pin a discovered ID as `providers.agy.profiles.<role>.model` — the modern spelling — or pass `--model` per invocation. The flat `providers.agy.model` is an **alias for `profiles.default`** and is outranked by the shipped `fast` role fill |
+| Model discovery | Start with `fab agent models agy`; it returns agy's kit fills only until a discovery adapter exists. `agy models` on the installed binary lists the accepted `--model` values (effort-suffixed families plus cross-vendor entries). fab ships per-role agy fills (`default`/`fast`) and validates neither, so the recipe is how you verify one. Pin a discovered ID as `clis.agy.profiles.<role>.model` — the modern spelling — or pass `--model` per invocation. The flat `clis.agy.model` is an **alias for `profiles.default`** and is outranked by the shipped `fast` role fill |
 
-**Template consequence.** Because the agy grammar carries no `{effort}` placeholder, the substitution is all-or-nothing per placeholder present: a resolved effort simply has nowhere to go and is not injected. That is the intended behavior — provider grammar is the provider's, and fab never appends a flag the CLI does not have.
+**Template consequence.** Because the agy grammar carries no `{effort}` placeholder, the substitution is all-or-nothing per placeholder present: a resolved effort simply has nowhere to go and is not injected. That is the intended behavior — CLI grammar is the CLI's, and fab never appends a flag the CLI does not have.
 
-**First-run trust wall.** agy ships both command fields, so it is eligible for interactive sessions and pane-mode dispatch. A fresh workspace can park at agy's interactive trust prompt even under `--dangerously-skip-permissions`; treat that as an ordinary readiness-gate judgment round, answer it, then probe again before delivery. The answer is remembered for the exact workspace path. Operators may pre-seed that exact path in `trustedWorkspaces` in `~/.gemini/antigravity-cli/settings.json`; fab neither guesses paths nor writes the provider's trust store. Backlog `[agik]` retains the live open → ready → deliver verification after the current agy quota resets; the command grammar and gate behavior are fixture-pinned meanwhile.
+**First-run trust wall.** agy ships both command fields, so it is eligible for interactive sessions and pane-mode dispatch. A fresh workspace can park at agy's interactive trust prompt even under `--dangerously-skip-permissions`; treat that as an ordinary readiness-gate judgment round, answer it, then probe again before delivery. The answer is remembered for the exact workspace path. Operators may pre-seed that exact path in `trustedWorkspaces` in `~/.gemini/antigravity-cli/settings.json`; fab neither guesses paths nor writes the CLI's trust store. Backlog `[agik]` retains the live open → ready → deliver verification after the current agy quota resets; the command grammar and gate behavior are fixture-pinned meanwhile.
 
 **Skill discovery.** agy reads `<workspace>/.agents/skills/<skill>/SKILL.md` natively — which is why `fab sync` deploys **one** skill set to `.agents/skills/` and no `.agy/skills/` directory. One target per skill set is what makes duplicate-skill conflicts impossible.
 
@@ -231,7 +231,7 @@ The kimi-code CLI (Moonshot's Kimi K3 agent). Verified against v0.34.0.
 | Approvals | `-p` is **already** non-interactive and auto-approves tool calls. It **REJECTS** `--yolo`/`--auto` (`Cannot combine --prompt with --yolo`), so the built-in `headless_command` carries no approval flag at all — the full-auto flag is meaningful only on an interactive invocation, which is why the built-in `interactive_command` is the one carrying `--auto` |
 | Profile flags | `-m <alias>` — note this is a **user-config model alias**, not a vendor catalog ID |
 | Fills | **fab ships NONE**, deliberately: the `-m` alias set differs per install (managed installs expose `kimi-code`/`k3`; custom providers differ), so a pinned value would break non-managed setups. The empty `{model}` drops `-m` entirely and kimi falls back to the user's configured `default_model` |
-| Model discovery | Start with `fab agent models kimi` for the aliases in `~/.kimi-code/config.toml`, their per-model efforts, and `default_model`. The installed CLI's own configuration / `kimi --help` remains authoritative for the aliases *that install* accepts — there is no portable catalog to quote. Pin one per role with `providers.kimi.profiles.<role>.model` if you want role differentiation; otherwise every role inherits `default_model` |
+| Model discovery | Start with `fab agent models kimi` for the aliases in `~/.kimi-code/config.toml`, their per-model efforts, and `default_model`. The installed CLI's own configuration / `kimi --help` remains authoritative for the aliases *that install* accepts — there is no portable catalog to quote. Pin one per role with `clis.kimi.profiles.<role>.model` if you want role differentiation; otherwise every role inherits `default_model` |
 
 **Pane-capable.** kimi ships **both** command fields, so it is eligible for interactive sessions and for pane-mode dispatch. Its lack of an interactive-initial-prompt flag (`-p` is non-interactive; upstream issue #2240 tracks the gap) does not matter: delivery moved off the launch command, and fab types the pointer into the running TUI itself. The two things that had to be established were probed live on 2026-08-10 against v0.34.0:
 
@@ -244,7 +244,7 @@ The kimi-code CLI (Moonshot's Kimi K3 agent). Verified against v0.34.0.
 
 ### Codex MCP Bridge (recipe)
 
-For tool-mediated, multi-turn cross-provider conversation (rather than one-shot output scraping), register the codex CLI as an **MCP server** inside a claude session. This is **session configuration, not fab machinery** — fab ships nothing for it.
+For tool-mediated, multi-turn cross-CLI conversation (rather than one-shot output scraping), register the codex CLI as an **MCP server** inside a claude session. This is **session configuration, not fab machinery** — fab ships nothing for it.
 
 Recipe:
 

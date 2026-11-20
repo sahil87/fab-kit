@@ -13,15 +13,15 @@ import (
 // two CLI surfaces. Cobra owns environment reads and flag supplied-ness; this
 // composer owns every profile-to-resolution assembly step.
 type resolutionRequest struct {
-	Selector     string
-	Kind         string
-	Role         string
-	ProviderOnly bool
-	Overrides    agent.Overrides
-	Headless     bool
-	Passthrough  []string
-	Dispatch     bool
-	TmuxEnv      string
+	Selector    string
+	Kind        string
+	Role        string
+	CLIOnly     bool
+	Overrides   agent.Overrides
+	Headless    bool
+	Passthrough []string
+	Dispatch    bool
+	TmuxEnv     string
 }
 
 // composeAgentResolution is the single assembly site for agent.Resolution.
@@ -33,13 +33,13 @@ func composeAgentResolution(cfg *config.Config, request resolutionRequest) (agen
 		source  agent.Source
 		err     error
 	)
-	if request.ProviderOnly {
+	if request.CLIOnly {
 		profile = agent.Profile{
-			Provider: request.Overrides.Provider,
-			Model:    agent.EffectiveModel(request.Overrides.Model),
-			Effort:   request.Overrides.Effort,
+			CLI:    request.Overrides.CLI,
+			Model:  agent.EffectiveModel(request.Overrides.Model),
+			Effort: request.Overrides.Effort,
 		}
-		source.Provider = "flag"
+		source.CLI = "flag"
 		if request.Overrides.ModelSet {
 			source.Model = "flag"
 		}
@@ -53,12 +53,12 @@ func composeAgentResolution(cfg *config.Config, request resolutionRequest) (agen
 		}
 	}
 
-	prov, known := agent.ResolveProvider(cfg, profile.Provider)
-	if request.ProviderOnly && !known {
-		return agent.Resolution{}, unknownProviderError(cfg, profile.Provider)
+	prov, known := agent.ResolveCLI(cfg, profile.CLI)
+	if request.CLIOnly && !known {
+		return agent.Resolution{}, unknownCLIError(cfg, profile.CLI)
 	}
-	if !request.ProviderOnly && request.Overrides.ProviderSet && !known {
-		return agent.Resolution{}, unknownProviderError(cfg, profile.Provider)
+	if !request.CLIOnly && request.Overrides.CLISet && !known {
+		return agent.Resolution{}, unknownCLIError(cfg, profile.CLI)
 	}
 
 	template := prov.InteractiveCommand
@@ -78,7 +78,7 @@ func composeAgentResolution(cfg *config.Config, request resolutionRequest) (agen
 		Selector: request.Selector,
 		Kind:     request.Kind,
 		Role:     request.Role,
-		Provider: profile.Provider,
+		CLI:      profile.CLI,
 		Model:    profile.Model,
 		Effort:   profile.Effort,
 		Command:  command,
@@ -86,7 +86,7 @@ func composeAgentResolution(cfg *config.Config, request resolutionRequest) (agen
 		Template:    template,
 		FillMode:    fillMode,
 		Source:      source,
-		SkillPrefix: agent.SkillPrefix(profile.Provider),
+		SkillPrefix: agent.SkillPrefix(profile.CLI),
 	}
 	// A versioned Claude ID maps to its alias, and a bare alias (the built-in
 	// fills) passes through as itself; anything else has no native alias.
@@ -107,7 +107,7 @@ func composeAgentResolution(cfg *config.Config, request resolutionRequest) (agen
 // dispatchResolutionFor selects and composes the non-native dispatch projection.
 // A nil result is native. tmuxEnv is supplied by the cobra layer, keeping the
 // selector pure and deterministic in tests.
-func dispatchResolutionFor(prov config.ProviderConfig, profile agent.Profile, preference, tmuxEnv string) (*agent.DispatchResolution, error) {
+func dispatchResolutionFor(prov config.CLIConfig, profile agent.Profile, preference, tmuxEnv string) (*agent.DispatchResolution, error) {
 	tmux := dispatch.TmuxAbsent
 	if tmuxEnv != "" {
 		tmux = dispatch.TmuxAvailable

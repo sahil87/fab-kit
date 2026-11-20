@@ -17,7 +17,7 @@ import (
 )
 
 // agentCmd implements
-// `fab agent [role|stage] [--provider <name>] [--model <id>] [--effort <level>] [--headless] [-t|--template] [-o <format>] [--workers <provider>] [-p|--print] [--repo <path>] [-- <agent-args>...]`
+// `fab agent [role|stage] [--cli <name>] [--model <id>] [--effort <level>] [--headless] [-t|--template] [-o <format>] [--workers <cli>] [-p|--print] [--repo <path>] [-- <agent-args>...]`
 // — launch (or print) the resolved agent session command in the current shell. It
 // replaces `fab spawn-command`, with a semantic upgrade: the printed/exec'd command
 // is profile-resolved (model/effort substituted), not placeholder-stripped.
@@ -28,22 +28,22 @@ import (
 //     as the positional, defaulting to the `default` role: resolves the role
 //     profile (role-first via agent.RoleForName — the review/hydrate stage↔role
 //     collisions are fixed points, so kind affects only the `-o yaml` kind key)
-//     and composes providers.<profile.provider>.interactive_command with the
+//     and composes clis.<profile.cli>.interactive_command with the
 //     role's {model}/{effort}.
-//   - `--provider <name>` with NO selector: BYPASSES role resolution and looks up
-//     providers.<name> directly (project config per-field merged over fab-kit's
+//   - `--cli <name>` with NO selector: BYPASSES role resolution and looks up
+//     clis.<name> directly (project config per-field merged over fab-kit's
 //     built-in table), composing its interactive_command with the `--model`/
 //     `--effort` values. Omitted values are empty and follow spawn.WithProfile's
 //     documented empty-value rule (template mode drops the placeholder's token
 //     plus a preceding `-`-flag; append mode omits the flag) — so
-//     `fab agent --provider codex --print` composes a bare `codex` invocation.
-//   - A selector WITH `--provider`: re-resolves the role's profile from the named
-//     provider's own fills (agent.ResolveRoleWith with Overrides.Provider) —
+//     `fab agent --cli codex --print` composes a bare `codex` invocation.
+//   - A selector WITH `--cli`: re-resolves the role's profile from the named
+//     CLI's own fills (agent.ResolveRoleWith with Overrides.CLI) —
 //     unnamed flags then apply verbatim over the refilled values.
 //
-// `--model`/`--effort` are general (not provider-mode-only): wherever they are
+// `--model`/`--effort` are general (not CLI-mode-only): wherever they are
 // legal they are applied as verbatim final overrides after role resolution /
-// provider refill — verbatim pass-through, no validation (document-don't-validate).
+// CLI refill — verbatim pass-through, no validation (document-don't-validate).
 //
 // Output modes, one sink per invocation:
 //
@@ -52,35 +52,35 @@ import (
 //     guard — exec-and-let-the-agent-CLI-handle-it (document-don't-validate).
 //   - `-p, --print`: prints the fully-resolved command instead of executing (the
 //     `fab spawn-command` replacement — profile-resolved, not stripped).
-//   - `-t, --template`: prints the selected provider's command template
+//   - `-t, --template`: prints the selected CLI's command template
 //     UNsubstituted (a tap BEFORE the fill step — `{model}`/`{effort}` placeholders
 //     intact). Implies print; rejects `--model`/`--effort` with a usage error
 //     (they feed a step that never runs).
 //   - `-o, --output yaml`: prints the complete structured resolution, including
 //     the addressing/profile/command fields, alias, template/fill mode,
 //     provenance, and the selected non-native dispatch rung when present.
-//   - `--headless` selects the provider's `headless_command` instead of
+//   - `--headless` selects the CLI's `headless_command` instead of
 //     `interactive_command`, valid only on the three print-family sinks; exec of a
-//     headless command is a usage error. A provider with no headless_command
+//     headless command is a usage error. A CLI with no headless_command
 //     hard-errors naming the config key.
 //
 // `--model`/`--effort` legality and every other guard still keys on cobra's
 // Flag.Changed — whether the flag was SUPPLIED — rather than on its value being
-// non-empty. Explicitly-empty `--provider=` / `--model=` still resolves/errors the
+// non-empty. Explicitly-empty `--cli=` / `--model=` still resolves/errors the
 // same as a supplied flag; an explicitly-empty `--model=` clears the model field
 // on the selector paths.
 //
-// An unknown `--provider` name is a LOOKUP failure (non-zero exit naming the
-// available providers), not validation of the command's content — resolved command
+// An unknown `--cli` name is a LOOKUP failure (non-zero exit naming the
+// available CLIs), not validation of the command's content — resolved command
 // strings still pass through verbatim (document-don't-validate). The error's
 // config-key hint substitutes a `<name>` placeholder when the supplied name is
-// empty (`--provider=`), so the suggested `providers.<key>` path is never malformed.
+// empty (`--cli=`), so the suggested `clis.<key>` path is never malformed.
 //
 // Common to all modes:
 //
 //   - `--repo <path>`: reads <path>/fab/project/config.yaml instead of the current
 //     repo (the operator's fetch-another-repo's-command use case).
-//   - `--workers <provider>`: sets FAB_AGENT_WORKERS=<provider> in the exec
+//   - `--workers <cli>`: sets FAB_AGENT_WORKERS=<cli> in the exec
 //     environment, REPLACING any entry inherited from the parent rather than
 //     appending a second one (duplicate resolution is unspecified). It does not
 //     alter `--print` output or validate the value.
@@ -92,7 +92,7 @@ func agentCmd() *cobra.Command {
 	var headless bool
 	var output string
 	var repo string
-	var provider string
+	var cli, provider string
 	var model string
 	var effort string
 	cmd := &cobra.Command{
@@ -126,7 +126,10 @@ func agentCmd() *cobra.Command {
 				selector = args[0]
 			}
 
-			providerSet := cmd.Flags().Changed("provider")
+			cli, cliSet, err := resolveCLIFlag(cmd, cli, provider)
+			if err != nil {
+				return err
+			}
 
 			// Template is implied print-mode; --model/--effort feed the fill step
 			// that it skips, so they are rejected rather than silently ignored.
@@ -155,17 +158,17 @@ func agentCmd() *cobra.Command {
 				return fmt.Errorf("--headless is valid only in the print-family modes (--print, -t, -o yaml); exec of a headless command is not supported")
 			}
 
-			return runAgent(cmd, selector, provider, providerSet, model, effort, printOnly, template, headless, output, repo, passthrough)
+			return runAgent(cmd, selector, cli, cliSet, model, effort, printOnly, template, headless, output, repo, passthrough)
 		},
 	}
 	cmd.Flags().BoolVarP(&printOnly, "print", "p", false, "print the fully-resolved command instead of executing it")
-	cmd.Flags().BoolVarP(&template, "template", "t", false, "print the selected provider's command template un-substituted (placeholders intact); implies --print")
-	cmd.Flags().BoolVar(&headless, "headless", false, "resolve the provider's headless_command instead of interactive_command (print-family modes only)")
+	cmd.Flags().BoolVarP(&template, "template", "t", false, "print the selected CLI's command template un-substituted (placeholders intact); implies --print")
+	cmd.Flags().BoolVar(&headless, "headless", false, "resolve the CLI's headless_command instead of interactive_command (print-family modes only)")
 	cmd.Flags().StringVarP(&output, "output", "o", "", `print the resolution as a structured document; only "yaml" is accepted`)
 	cmd.Flags().StringVar(&repo, "repo", "", "repo root to read the config from (default: current repo)")
-	cmd.Flags().StringVar(&provider, "provider", "", "provider override: with a [role|stage] selector, re-resolve from that provider's fills; alone, address the provider directly (bypasses role resolution)")
-	cmd.Flags().StringVar(&model, "model", "", "final model override (empty: on the bare --provider form the provider command's model token is dropped, so its CLI default applies)")
-	cmd.Flags().StringVar(&effort, "effort", "", "final effort override (empty: on the bare --provider form the effort token is dropped)")
+	addCLIFlag(cmd, &cli, &provider, "CLI override: with a [role|stage] selector, re-resolve from that CLI's fills; alone, address the CLI directly (bypasses role resolution)")
+	cmd.Flags().StringVar(&model, "model", "", "final model override (empty: on the bare --cli form the CLI command's model token is dropped, so its CLI default applies)")
+	cmd.Flags().StringVar(&effort, "effort", "", "final effort override (empty: on the bare --cli form the effort token is dropped)")
 	cmd.Flags().String("workers", "", "set FAB_AGENT_WORKERS for the launched agent session")
 	cmd.AddCommand(agentModelsCmd())
 	return cmd
@@ -173,10 +176,10 @@ func agentCmd() *cobra.Command {
 
 // runAgent selects the addressing + output modes the user's flags picked and
 // delegates to resolveAgentInvocation for the composition.
-func runAgent(cmd *cobra.Command, selector, provider string, providerSet bool, model, effort string, printOnly, template, headless bool, output string, repo string, passthrough []string) error {
+func runAgent(cmd *cobra.Command, selector, cli string, cliSet bool, model, effort string, printOnly, template, headless bool, output string, repo string, passthrough []string) error {
 	m := agentMode{
-		Provider:    provider,
-		ProviderSet: providerSet,
+		CLI:         cli,
+		CLISet:      cliSet,
 		Model:       model,
 		ModelSet:    cmd.Flags().Changed("model"),
 		Effort:      effort,
@@ -197,13 +200,13 @@ func runAgent(cmd *cobra.Command, selector, provider string, providerSet bool, m
 // semantic; normalize them here ONCE so resolution reads a struct instead of a
 // bare field list.
 type agentMode struct {
-	Provider    string
-	ProviderSet bool // cobra's Flag.Changed for --provider (an explicitly-empty --provider= is still a supplied flag)
+	CLI         string
+	CLISet      bool // cobra's Flag.Changed for --cli (an explicitly-empty --cli= is still a supplied flag)
 	Model       string
 	ModelSet    bool
 	Effort      string
 	EffortSet   bool
-	Selector    string // a role or stage name; empty = default role (unless ProviderSet)
+	Selector    string // a role or stage name; empty = default role (unless CLISet)
 	Print       bool
 	Template    bool
 	Headless    bool
@@ -218,9 +221,9 @@ func resolveAgentInvocation(cmd *cobra.Command, m agentMode) error {
 		return err
 	}
 
-	providerOnly := m.ProviderSet && m.Selector == ""
-	selector, kind, role := m.Selector, "provider", ""
-	if !providerOnly {
+	cliOnly := m.CLISet && m.Selector == ""
+	selector, kind, role := m.Selector, "cli", ""
+	if !cliOnly {
 		if selector == "" {
 			selector = agent.RoleDefault
 		}
@@ -236,17 +239,17 @@ func resolveAgentInvocation(cmd *cobra.Command, m agentMode) error {
 	}
 
 	resolution, err := composeAgentResolution(cfg, resolutionRequest{
-		Selector:     selector,
-		Kind:         kind,
-		Role:         role,
-		ProviderOnly: providerOnly,
+		Selector: selector,
+		Kind:     kind,
+		Role:     role,
+		CLIOnly:  cliOnly,
 		Overrides: agent.Overrides{
-			Provider:    m.Provider,
-			ProviderSet: m.ProviderSet,
-			Model:       m.Model,
-			ModelSet:    m.ModelSet,
-			Effort:      m.Effort,
-			EffortSet:   m.EffortSet,
+			CLI:       m.CLI,
+			CLISet:    m.CLISet,
+			Model:     m.Model,
+			ModelSet:  m.ModelSet,
+			Effort:    m.Effort,
+			EffortSet: m.EffortSet,
 		},
 		Headless:    m.Headless,
 		Passthrough: m.Passthrough,
@@ -262,15 +265,15 @@ func resolveAgentInvocation(cmd *cobra.Command, m agentMode) error {
 		slotName = "headless_command"
 	}
 	if resolution.Template == "" {
-		if providerOnly {
-			return fmt.Errorf("provider %q has no %s; configure providers.%s.%s", resolution.Provider, slotName, resolution.Provider, slotName)
+		if cliOnly {
+			return fmt.Errorf("CLI %q has no %s; configure clis.%s.%s", resolution.CLI, slotName, resolution.CLI, slotName)
 		}
-		hintName := resolution.Provider
+		hintName := resolution.CLI
 		if hintName == "" {
 			hintName = "<name>"
 		}
-		return fmt.Errorf("role %q resolves to provider %q, which has no %s; configure providers.%s.%s",
-			selector, resolution.Provider, slotName, hintName, slotName)
+		return fmt.Errorf("role %q resolves to CLI %q, which has no %s; configure clis.%s.%s",
+			selector, resolution.CLI, slotName, hintName, slotName)
 	}
 
 	if m.Template || m.Print || m.Output != "" {
@@ -312,36 +315,36 @@ func roleForKind(selector string, isRole bool) (string, bool) {
 	return role, ok
 }
 
-// unknownProviderError is the shared `--provider <name>` LOOKUP failure for the
-// two commands that accept the flag (`fab agent`'s provider-addressed mode and
+// unknownCLIError is the shared `--cli <name>` LOOKUP failure for the
+// two commands that accept the flag (`fab agent`'s CLI-addressed mode and
 // `fab resolve-agent`'s invocation-time override). Both need byte-identical
 // phrasing — the error is a user-facing contract documented once in
 // `_cli-fab.md` — so it lives here rather than being restated at each call site.
 //
 // It is a lookup failure, NOT validation of the resolved command's content
-// (document-don't-validate stands). The `providers.<name>` hint names a config key
-// path, so an explicitly-empty `--provider=` would otherwise render the malformed
-// `providers.` — a `<name>` placeholder is substituted so the suggested path is
+// (document-don't-validate stands). The `clis.<name>` hint names a config key
+// path, so an explicitly-empty `--cli=` would otherwise render the malformed
+// `clis.` — a `<name>` placeholder is substituted so the suggested path is
 // always a valid key.
 //
 // Callers gate on cobra's Flag.Changed (the flag was SUPPLIED) together with a
-// failed agent.ResolveProvider lookup; this helper only formats the error.
-func unknownProviderError(cfg *config.Config, name string) error {
+// failed agent.ResolveCLI lookup; this helper only formats the error.
+func unknownCLIError(cfg *config.Config, name string) error {
 	hintName := name
 	if hintName == "" {
 		hintName = "<name>"
 	}
-	return fmt.Errorf("unknown provider %q (available: %s); configure it under providers.%s in fab/project/config.yaml",
-		name, strings.Join(agent.ProviderNames(cfg), ", "), hintName)
+	return fmt.Errorf("unknown CLI %q (available: %s); configure it under clis.%s in fab/project/config.yaml",
+		name, strings.Join(agent.CLINames(cfg), ", "), hintName)
 }
 
 // roleSessionCommand composes the interactive session command for ROLE: the
-// role's provider's interactive_command with the role's {model, effort}
+// role's CLI's interactive_command with the role's {model, effort}
 // substituted. It is the ONE implementation of that resolution chain — both
 // `fab agent <role>` and the operator's tmux-tab launcher go through it.
 //
-// It returns an EMPTY command (and a nil error) when the role's provider cannot
-// supply one — either the provider NAME does not resolve at all, or it resolves
+// It returns an EMPTY command (and a nil error) when the role's CLI cannot
+// supply one — either the CLI NAME does not resolve at all, or it resolves
 // but carries no interactive_command. The two are deliberately one signal: from
 // a caller's view both mean "this role names no launchable session", and both
 // have always produced the same outcome. That is deliberately not an error here,
@@ -350,9 +353,9 @@ func unknownProviderError(cfg *config.Config, name string) error {
 // whole reason this helper exists:
 //
 //   - `fab agent` surfaces it as an actionable error naming the role and the
-//     provider: a session the user explicitly asked for cannot be composed.
+//     cli: a session the user explicitly asked for cannot be composed.
 //   - the operator falls back to spawn.DefaultSpawnCommand — it must always
-//     launch, so a broken provider entry cannot strand the coordinator.
+//     launch, so a broken CLI entry cannot strand the coordinator.
 //
 // The resolved profile comes back alongside so a falling-back caller can still
 // substitute the role's {model, effort} into whatever command it picks.
@@ -369,7 +372,7 @@ func roleSessionCommand(cfg *config.Config, role string) (string, agent.Profile,
 	if err != nil {
 		return "", agent.Profile{}, err
 	}
-	prov, known := agent.ResolveProvider(cfg, profile.Provider)
+	prov, known := agent.ResolveCLI(cfg, profile.CLI)
 	if !known || prov.InteractiveCommand == "" {
 		return "", profile, nil
 	}
@@ -397,7 +400,7 @@ func appendPassthrough(command string, args []string) string {
 // loadRepoConfig loads the config from an explicit repo root (--repo) or the
 // current repo's fab/ (upward search). The path-based load mirrors the former
 // `fab spawn-command --repo` behavior; a missing file yields an empty config (the
-// built-in provider table then supplies the default session command).
+// built-in CLI table then supplies the default session command).
 func loadRepoConfig(repo string) (*config.Config, error) {
 	if repo != "" {
 		return config.LoadPath(filepath.Join(repo, "fab", "project", "config.yaml"))
@@ -410,7 +413,7 @@ func loadRepoConfig(repo string) (*config.Config, error) {
 			return nil, err
 		}
 		// No fab/ project anywhere up the tree. `fab agent` is a CONFIG-ONLY
-		// command — it needs a resolved {provider, model, effort}, not change
+		// command — it needs a resolved {cli, model, effort}, not change
 		// state — so it degrades to the project-free cascade (env > system >
 		// built-in defaults) rather than failing closed. That is what makes
 		// `fab agent` usable as a plain session launcher from any directory,

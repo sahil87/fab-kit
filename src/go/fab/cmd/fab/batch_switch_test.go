@@ -175,8 +175,8 @@ func TestBatchSwitchCmd_Structure(t *testing.T) {
 }
 
 // batchSwitchFixture creates a fab root with one change folder and a
-// fab/project/config.yaml carrying the given providers.claude.interactive_command
-// (the default tier's provider), chdirs into it (via chdirTestEnv, TMUX set), and
+// fab/project/config.yaml carrying the given clis.claude.interactive_command
+// (the default tier's CLI), chdirs into it (via chdirTestEnv, TMUX set), and
 // returns the resolvable change name.
 func batchSwitchFixture(t *testing.T, interactiveCommand string) (root, change string) {
 	t.Helper()
@@ -189,7 +189,7 @@ func batchSwitchFixture(t *testing.T, interactiveCommand string) (root, change s
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := "providers:\n  claude:\n    interactive_command: \"" + interactiveCommand + "\"\n"
+	body := "clis:\n  claude:\n    interactive_command: \"" + interactiveCommand + "\"\n"
 	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}

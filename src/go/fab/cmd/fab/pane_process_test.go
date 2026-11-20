@@ -48,7 +48,7 @@ func TestClassifyProcess(t *testing.T) {
 }
 
 func TestAgentBinaryNames(t *testing.T) {
-	cfg := &config.Config{Providers: map[string]config.ProviderConfig{
+	cfg := &config.Config{CLIs: map[string]config.CLIConfig{
 		"custom":        {InteractiveCommand: "TOKEN='a b' /opt/agents/my-agent --model m"},
 		"path-equals":   {InteractiveCommand: "/opt/agents/my=agent --model m"},
 		"shell-wrapper": {InteractiveCommand: "FAB_TOKEN=x /bin/zsh -lc my-agent"},
@@ -69,7 +69,7 @@ func TestAgentBinaryNames(t *testing.T) {
 
 // TestLoadAgentBinaryNames_NoProjectAppliesSystemLayer: outside a fab project
 // the loader falls back to the project-free cascade rather than built-ins only,
-// so a system-layer (~/.fab-kit) provider definition still counts as liveness
+// so a system-layer (~/.fab-kit) CLI definition still counts as liveness
 // evidence.
 func TestLoadAgentBinaryNames_NoProjectAppliesSystemLayer(t *testing.T) {
 	home := t.TempDir()
@@ -77,7 +77,7 @@ func TestLoadAgentBinaryNames_NoProjectAppliesSystemLayer(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(home, ".fab-kit"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	system := "providers:\n  sysagent:\n    interactive_command: /opt/agents/sys-agent --auto\n"
+	system := "clis:\n  sysagent:\n    interactive_command: /opt/agents/sys-agent --auto\n"
 	if err := os.WriteFile(filepath.Join(home, ".fab-kit", "config.yaml"), []byte(system), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestLoadAgentBinaryNames_NoProjectAppliesSystemLayer(t *testing.T) {
 
 	names := loadAgentBinaryNames()
 	if !names["sys-agent"] {
-		t.Errorf("loadAgentBinaryNames() = %v, want the system-layer provider binary %q outside a project", names, "sys-agent")
+		t.Errorf("loadAgentBinaryNames() = %v, want the system-layer CLI binary %q outside a project", names, "sys-agent")
 	}
 }
 
@@ -170,7 +170,7 @@ func TestParsePSCmdlines(t *testing.T) {
 }
 
 func TestHasAgentInTree(t *testing.T) {
-	t.Run("provider extension drives has_agent", func(t *testing.T) {
+	t.Run("CLI extension drives has_agent", func(t *testing.T) {
 		agents := agentBinaryNames(nil)
 		nodes := []ProcessNode{
 			{
@@ -181,7 +181,7 @@ func TestHasAgentInTree(t *testing.T) {
 			},
 		}
 		if !hasAgentInTree(nodes) {
-			t.Error("expected provider-derived classification to set has_agent")
+			t.Error("expected CLI-derived classification to set has_agent")
 		}
 	})
 

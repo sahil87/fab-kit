@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// commandAdapter runs a provider's models_command and normalizes its JSON rows.
+// commandAdapter runs a CLI's models_command and normalizes its JSON rows.
 func commandAdapter(command string) adapter {
 	return func(env environment) ([]Row, string, error) {
 		stdout, err := runBounded(env, "sh", "-c", command)

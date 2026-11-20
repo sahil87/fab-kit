@@ -41,7 +41,7 @@ command = "also-ignored"
 		t.Errorf("bare model = %+v", rows[1])
 	}
 	if strings.Contains(fmt.Sprint(rows, defaultID, err), secret) {
-		t.Fatal("provider credential surfaced")
+		t.Fatal("CLI credential surfaced")
 	}
 }
 

@@ -30,7 +30,7 @@ func resolveAgentTestRepo(t *testing.T, configBody string) {
 
 // wantRoleBytes builds the expected three-line resolve-agent output for a role's
 // BUILT-IN default profile. Derived from agent.DefaultProfile so a model bump
-// touches only defaults.yaml's providers.claude.profiles — these tests assert the
+// touches only defaults.yaml's clis.claude.profiles — these tests assert the
 // output CONTRACT (which lines, what order, exact bytes), not which model is
 // current. The literals are pinned once, in agent.TestDefaultRoleProfilesArePinned.
 func wantRoleBytes(t *testing.T, role string) string {
@@ -39,7 +39,7 @@ func wantRoleBytes(t *testing.T, role string) string {
 	if !ok {
 		t.Fatalf("unknown role %q", role)
 	}
-	return "model=" + p.Model + "\neffort=" + p.Effort + "\nprovider=" + p.Provider + "\n"
+	return "model=" + p.Model + "\neffort=" + p.Effort + "\nprovider=" + p.CLI + "\n"
 }
 
 // wantRoleModel returns just the built-in default model ID for a role.
@@ -63,19 +63,19 @@ func wantRoleEffort(t *testing.T, role string) string {
 }
 
 // pinnedRoleLine renders an `agent.profiles` YAML line for `role` that points at
-// `provider` while PINNING the role's own built-in claude model/effort. Model and
-// effort otherwise come from the RESOLVED provider's own per-role fills, so a role
-// pointed at another provider would resolve THAT provider's values. Pinning claude's
+// `cli` while PINNING the role's own built-in claude model/effort. Model and
+// effort otherwise come from the RESOLVED CLI's own per-role fills, so a role
+// pointed at another CLI would resolve THAT CLI's values. Pinning claude's
 // keeps each test's expectation ("the resolved role profile rides the output") true
-// and independent of the other providers' fills, while staying DERIVED from the
+// and independent of the other CLIs' fills, while staying DERIVED from the
 // canonical defaults — so a model bump touches no test.
-func pinnedRoleLine(t *testing.T, role, provider string) string {
+func pinnedRoleLine(t *testing.T, role, cli string) string {
 	t.Helper()
 	p, ok := agent.DefaultProfile(role)
 	if !ok {
 		t.Fatalf("unknown role %q", role)
 	}
-	return "    " + role + ": { provider: " + provider + ", model: " + p.Model + ", effort: " + p.Effort + " }\n"
+	return "    " + role + ": { cli: " + cli + ", model: " + p.Model + ", effort: " + p.Effort + " }\n"
 }
 
 // runResolveAgentCmd executes a fresh resolveAgentCmd with the given args.
@@ -91,7 +91,7 @@ func runResolveAgentCmd(t *testing.T, args ...string) (string, error) {
 }
 
 func projectedResolutionLines(p agent.Profile, dispatchCommand string) string {
-	r := agent.Resolution{Provider: p.Provider, Model: p.Model, Effort: p.Effort}
+	r := agent.Resolution{CLI: p.CLI, Model: p.Model, Effort: p.Effort}
 	if dispatchCommand != "" {
 		r.Dispatch = &agent.DispatchResolution{Command: dispatchCommand}
 	}
@@ -116,12 +116,12 @@ func TestResolveAgentGoldenMatrix(t *testing.T) {
 			name: "native full ID",
 			config: `dispatch:
   mode: native
-providers:
+clis:
   oracle:
     native: true
 agent:
   profiles:
-    doing: { provider: oracle, model: claude-opus-5, effort: high }
+    doing: { cli: oracle, model: claude-opus-5, effort: high }
 `,
 			args: []string{"apply"},
 			want: "model=claude-opus-5\neffort=high\nprovider=oracle\n",
@@ -130,12 +130,12 @@ agent:
 			name: "native alias",
 			config: `dispatch:
   mode: native
-providers:
+clis:
   oracle:
     native: true
 agent:
   profiles:
-    doing: { provider: oracle, model: claude-opus-5, effort: high }
+    doing: { cli: oracle, model: claude-opus-5, effort: high }
 `,
 			args: []string{"apply", "--alias"},
 			want: "model=opus\neffort=high\nprovider=oracle\n",
@@ -144,12 +144,12 @@ agent:
 			name: "headless template non-Claude pass-through",
 			config: `dispatch:
   mode: headless
-providers:
+clis:
   oracle:
     headless_command: "oracle exec -m {model} -e {effort}"
 agent:
   profiles:
-    doing: { provider: oracle, model: gpt-5, effort: xhigh }
+    doing: { cli: oracle, model: gpt-5, effort: xhigh }
 `,
 			args: []string{"apply", "--alias"},
 			want: "model=gpt-5\neffort=xhigh\nprovider=oracle\ndispatch=oracle exec -m gpt-5 -e xhigh\n",
@@ -158,12 +158,12 @@ agent:
 			name: "headless append mode",
 			config: `dispatch:
   mode: headless
-providers:
+clis:
   oracle:
     headless_command: "oracle exec"
 agent:
   profiles:
-    doing: { provider: oracle, model: gpt-5, effort: high }
+    doing: { cli: oracle, model: gpt-5, effort: high }
 `,
 			args: []string{"apply"},
 			want: "model=gpt-5\neffort=high\nprovider=oracle\ndispatch=oracle exec --model gpt-5 --effort high\n",
@@ -172,7 +172,7 @@ agent:
 			name: "empty fills preserve inherit signal",
 			config: `dispatch:
   mode: headless
-providers:
+clis:
   oracle:
     headless_command: "oracle exec -m {model} -e {effort}"
 agent:
@@ -185,12 +185,12 @@ agent:
 			name: "pane dated Claude alias keeps full dispatch ID",
 			config: `dispatch:
   mode: pane
-providers:
+clis:
   oracle:
     interactive_command: "oracle tui -m {model} -e {effort}"
 agent:
   profiles:
-    doing: { provider: oracle, model: claude-haiku-4-5-20251001, effort: medium }
+    doing: { cli: oracle, model: claude-haiku-4-5-20251001, effort: medium }
 `,
 			tmux: "/tmp/tmux-1000/default,1,0",
 			args: []string{"apply", "--alias"},
@@ -300,7 +300,7 @@ func TestResolveAgentAcceptsRoleName(t *testing.T) {
 }
 
 // TestResolveAgentOverrideMerge: a per-field override (effort only) merges over
-// the default model/provider.
+// the default model/cli.
 func TestResolveAgentOverrideMerge(t *testing.T) {
 	resolveAgentTestRepo(t, `agent:
   profiles:
@@ -312,7 +312,7 @@ func TestResolveAgentOverrideMerge(t *testing.T) {
 	}
 	want := "model=" + wantRoleModel(t, agent.RoleDoing) + "\neffort=medium\nprovider=claude\n"
 	if out != want {
-		t.Errorf("output = %q, want default model/provider + medium effort", out)
+		t.Errorf("output = %q, want default model/cli + medium effort", out)
 	}
 }
 
@@ -368,15 +368,15 @@ func TestResolveAgentUnknownStageErrors(t *testing.T) {
 // TestResolveAgentPrintsEmptyLinesOmitted: the print contract omits the effort=
 // and provider= lines when those fields are empty, and emits an empty model= line
 // when the model is empty (the "inherit" signal). Tested at the formatter level
-// since today's defaults never resolve to an empty effort/provider.
+// since today's defaults never resolve to an empty effort/cli.
 func TestResolveAgentPrintsEmptyLinesOmitted(t *testing.T) {
 	if got := projectedResolutionLines(agent.Profile{Model: "some-model"}, ""); got != "model=some-model\n" {
-		t.Errorf("empty effort+provider = %q, want %q (both lines omitted)", got, "model=some-model\n")
+		t.Errorf("empty effort+CLI = %q, want %q (both lines omitted)", got, "model=some-model\n")
 	}
 	if got := projectedResolutionLines(agent.Profile{}, ""); got != "model=\n" {
 		t.Errorf("all-empty = %q, want %q (inherit signal)", got, "model=\n")
 	}
-	if got := projectedResolutionLines(agent.Profile{Provider: "claude", Model: "m", Effort: "high"}, ""); got != "model=m\neffort=high\nprovider=claude\n" {
+	if got := projectedResolutionLines(agent.Profile{CLI: "claude", Model: "m", Effort: "high"}, ""); got != "model=m\neffort=high\nprovider=claude\n" {
 		t.Errorf("full profile = %q, want %q", got, "model=m\neffort=high\nprovider=claude\n")
 	}
 }
@@ -386,13 +386,13 @@ func TestResolveAgentPrintsEmptyLinesOmitted(t *testing.T) {
 // dispatchLine is the already-substituted command — the formatter emits it
 // verbatim.
 func TestResolveAgentPrintsDispatchLine(t *testing.T) {
-	got := projectedResolutionLines(agent.Profile{Provider: "codex", Model: "claude-opus-4-8", Effort: "high"}, "codex exec -m claude-opus-4-8")
+	got := projectedResolutionLines(agent.Profile{CLI: "codex", Model: "claude-opus-4-8", Effort: "high"}, "codex exec -m claude-opus-4-8")
 	want := "model=claude-opus-4-8\neffort=high\nprovider=codex\ndispatch=codex exec -m claude-opus-4-8\n"
 	if got != want {
 		t.Errorf("with dispatch line = %q, want %q", got, want)
 	}
 	// Empty dispatchLine omits the dispatch= line (native Agent-tool dispatch).
-	if got := projectedResolutionLines(agent.Profile{Provider: "claude", Model: "m", Effort: "high"}, ""); got != "model=m\neffort=high\nprovider=claude\n" {
+	if got := projectedResolutionLines(agent.Profile{CLI: "claude", Model: "m", Effort: "high"}, ""); got != "model=m\neffort=high\nprovider=claude\n" {
 		t.Errorf("empty dispatch = %q, want the three-line contract", got)
 	}
 }
@@ -442,16 +442,16 @@ func TestResolveAgentAliasEmptyModelInheritSignal(t *testing.T) {
 	if got := agent.ModelAlias(""); got != "" {
 		t.Fatalf("ModelAlias(\"\") = %q, want empty (inherit signal preserved under --alias)", got)
 	}
-	if got := projectedResolutionLines(agent.Profile{Model: agent.ModelAlias(""), Effort: "high", Provider: "claude"}, ""); got != "model=\neffort=high\nprovider=claude\n" {
+	if got := projectedResolutionLines(agent.Profile{Model: agent.ModelAlias(""), Effort: "high", CLI: "claude"}, ""); got != "model=\neffort=high\nprovider=claude\n" {
 		t.Errorf("empty model under --alias = %q, want %q", got, "model=\neffort=high\nprovider=claude\n")
 	}
 }
 
 // TestResolveAgentNativeThreeLines: native selection emits exactly
-// model=/effort=/provider=. The provider may also carry command capabilities;
+// model=/effort=/provider=. The CLI may also carry command capabilities;
 // mode selection, not command absence, decides whether dispatch= is emitted.
 func TestResolveAgentNativeThreeLines(t *testing.T) {
-	resolveAgentTestRepo(t, `providers:
+	resolveAgentTestRepo(t, `clis:
   claude:
     interactive_command: claude --dangerously-skip-permissions
 `)
@@ -465,19 +465,19 @@ func TestResolveAgentNativeThreeLines(t *testing.T) {
 	}
 }
 
-// TestResolveAgentDispatchFourLines: a provider with a headless_command emits the
+// TestResolveAgentDispatchFourLines: a CLI with a headless_command emits the
 // fourth dispatch= line with {model}/{effort} substituted from the resolved
-// profile. The role profile must point its provider at that dispatch-carrying
-// provider.
+// profile. The role profile must point its CLI at that dispatch-carrying
+// CLI.
 func TestResolveAgentDispatchFourLines(t *testing.T) {
-	resolveAgentTestRepo(t, `providers:
+	resolveAgentTestRepo(t, `clis:
   codex:
     interactive_command: "codex -m {model}"
     headless_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
 agent:
   profiles:
 `+pinnedRoleLine(t, agent.RoleDoing, "codex"))
-	out, err := runResolveAgentCmd(t, "apply") // apply ∈ doing → provider codex
+	out, err := runResolveAgentCmd(t, "apply") // apply ∈ doing → CLI codex
 	if err != nil {
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
@@ -494,12 +494,12 @@ agent:
 // pinned to a versioned ID because the built-in fills are already aliases, which
 // would make the two lines indistinguishable.
 func TestResolveAgentAliasDispatchUsesFullModelID(t *testing.T) {
-	resolveAgentTestRepo(t, `providers:
+	resolveAgentTestRepo(t, `clis:
   codex:
     headless_command: "codex exec -m {model} -c model_reasoning_effort={effort}"
 agent:
   profiles:
-    doing: { provider: codex, model: claude-sonnet-5-5, effort: high }
+    doing: { cli: codex, model: claude-sonnet-5-5, effort: high }
 `)
 	out, err := runResolveAgentCmd(t, "apply", "--alias")
 	if err != nil {
@@ -516,13 +516,13 @@ agent:
 // (reused, not reimplemented) — non-empty values substitute in place, preserving
 // the author's whitespace runs (spawn's whitespace-preserving fast path).
 func TestResolveAgentDispatchSubstitutionReusesSpawnPackage(t *testing.T) {
-	resolveAgentTestRepo(t, `providers:
+	resolveAgentTestRepo(t, `clis:
   codex:
     headless_command: "codex  exec  -m {model}  -c reasoning={effort}"
 agent:
   profiles:
 `+pinnedRoleLine(t, agent.RoleFast, "codex"))
-	out, err := runResolveAgentCmd(t, "ship") // ship ∈ fast (sonnet/medium), provider codex
+	out, err := runResolveAgentCmd(t, "ship") // ship ∈ fast (sonnet/medium), CLI codex
 	if err != nil {
 		t.Fatalf("resolve-agent ship: %v", err)
 	}
@@ -537,7 +537,7 @@ agent:
 // TestResolveAgentDispatchByteStable: repeated resolution with a headless_command
 // is byte-identical (the dispatch= line participates in the byte-stable contract).
 func TestResolveAgentDispatchByteStable(t *testing.T) {
-	body := `providers:
+	body := `clis:
   codex:
     headless_command: "codex exec -m {model}"
 agent:
@@ -580,26 +580,26 @@ func TestResolveAgentByteStable(t *testing.T) {
 
 // --- Invocation-time overrides (260805-j3cm) ---
 
-// TestResolveAgentOverrideProviderBuiltInFill: `--provider codex` on a default
-// config swaps the provider, re-derives dispatch= from the codex BUILT-IN's
+// TestResolveAgentOverrideCLIBuiltInFill: `--cli codex` on a default
+// config swaps the CLI, re-derives dispatch= from the codex BUILT-IN's
 // headless_command, and — because a swap re-derives model/effort from the NEW
-// provider's own fills — resolves codex's shipped `doing` profile rather than
+// CLI's own fills — resolves codex's shipped `doing` profile rather than
 // retaining any claude value. Since 260806-ywkx that profile is a real one, so both
 // placeholder tokens are substituted rather than dropped.
 //
-// Expectations are DERIVED from ResolveProvider, so a fill bump touches
+// Expectations are DERIVED from ResolveCLI, so a fill bump touches
 // defaults.yaml and the pinned table in internal/agent only.
-func TestResolveAgentOverrideProviderBuiltInFill(t *testing.T) {
+func TestResolveAgentOverrideCLIBuiltInFill(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
 
-	codex, _ := agent.ResolveProvider(nil, "codex")
+	codex, _ := agent.ResolveCLI(nil, "codex")
 	// doing carries an effort of its own and inherits the model from `default`.
 	model := codex.Profiles[agent.RoleDefault].Model
 	effort := codex.Profiles[agent.RoleDoing].Effort
 
-	out, err := runResolveAgentCmd(t, "apply", "--provider", "codex")
+	out, err := runResolveAgentCmd(t, "apply", "--cli", "codex")
 	if err != nil {
-		t.Fatalf("resolve-agent apply --provider codex: %v", err)
+		t.Fatalf("resolve-agent apply --cli codex: %v", err)
 	}
 	want := "model=" + model + "\neffort=" + effort + "\nprovider=codex\n" +
 		"dispatch=codex exec --dangerously-bypass-approvals-and-sandbox -m " + model + " -c model_reasoning_effort=" + effort + "\n"
@@ -611,13 +611,13 @@ func TestResolveAgentOverrideProviderBuiltInFill(t *testing.T) {
 	}
 }
 
-// TestResolveAgentOverrideFullTriple: --provider + --model + --effort is the
+// TestResolveAgentOverrideFullTriple: --cli + --model + --effort is the
 // top precedence rung — each value lands verbatim on its line and in the
 // substituted dispatch= command.
 func TestResolveAgentOverrideFullTriple(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
 
-	out, err := runResolveAgentCmd(t, "apply", "--provider", "codex", "--model", "gpt-5.3-codex", "--effort", "high")
+	out, err := runResolveAgentCmd(t, "apply", "--cli", "codex", "--model", "gpt-5.3-codex", "--effort", "high")
 	if err != nil {
 		t.Fatalf("resolve-agent with overrides: %v", err)
 	}
@@ -628,8 +628,8 @@ func TestResolveAgentOverrideFullTriple(t *testing.T) {
 	}
 }
 
-// TestResolveAgentOverrideProviderTakesFill: an unoverridden model/effort on a
-// provider SWAP refills from that provider's fills — and a config carrying the
+// TestResolveAgentOverrideCLITakesFill: an unoverridden model/effort on a
+// CLI SWAP refills from that CLI's fills — and a config carrying the
 // pre-2.17.0 FLAT spelling still wins there, because the flat fill is folded into
 // the user's own `profiles.default` (260806-ywkx) rather than read as a rung below
 // the BUILT-IN one. Without that fold, shipping codex fills would silently shadow
@@ -641,17 +641,17 @@ func TestResolveAgentOverrideFullTriple(t *testing.T) {
 // below — the same precedence a user writing `profiles.default` by hand would get.
 // The effort still comes from the built-in fill: the flat spelling pinned only the
 // model.
-func TestResolveAgentOverrideProviderTakesFill(t *testing.T) {
-	resolveAgentTestRepo(t, `providers:
+func TestResolveAgentOverrideCLITakesFill(t *testing.T) {
+	resolveAgentTestRepo(t, `clis:
   codex:
     model: gpt-5.3-codex
 `)
-	codex, _ := agent.ResolveProvider(nil, "codex")
+	codex, _ := agent.ResolveCLI(nil, "codex")
 	effort := codex.Profiles[agent.RoleDefault].Effort
 
-	out, err := runResolveAgentCmd(t, "intake", "--provider", "codex")
+	out, err := runResolveAgentCmd(t, "intake", "--cli", "codex")
 	if err != nil {
-		t.Fatalf("resolve-agent intake --provider codex: %v", err)
+		t.Fatalf("resolve-agent intake --cli codex: %v", err)
 	}
 	want := "model=gpt-5.3-codex\neffort=" + effort + "\nprovider=codex\n" +
 		"dispatch=codex exec --dangerously-bypass-approvals-and-sandbox -m gpt-5.3-codex -c model_reasoning_effort=" + effort + "\n"
@@ -660,9 +660,9 @@ func TestResolveAgentOverrideProviderTakesFill(t *testing.T) {
 	}
 
 	doing := codex.Profiles[agent.RoleDoing]
-	out, err = runResolveAgentCmd(t, "apply", "--provider", "codex")
+	out, err = runResolveAgentCmd(t, "apply", "--cli", "codex")
 	if err != nil {
-		t.Fatalf("resolve-agent apply --provider codex: %v", err)
+		t.Fatalf("resolve-agent apply --cli codex: %v", err)
 	}
 	want = "model=" + doing.Model + "\neffort=" + doing.Effort + "\nprovider=codex\n" +
 		"dispatch=codex exec --dangerously-bypass-approvals-and-sandbox -m " + doing.Model + " -c model_reasoning_effort=" + doing.Effort + "\n"
@@ -671,10 +671,10 @@ func TestResolveAgentOverrideProviderTakesFill(t *testing.T) {
 	}
 }
 
-// TestResolveAgentOverrideModelWithoutProvider: --model/--effort are valid WITHOUT
-// --provider here (a within-role override) — `fab agent` accepts the same bare
+// TestResolveAgentOverrideModelWithoutCLI: --model/--effort are valid WITHOUT
+// --cli here (a within-role override) — `fab agent` accepts the same bare
 // overrides as a final post-refill layer, so the two commands agree on legality.
-func TestResolveAgentOverrideModelWithoutProvider(t *testing.T) {
+func TestResolveAgentOverrideModelWithoutCLI(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
 
 	out, err := runResolveAgentCmd(t, "apply", "--effort", "high")
@@ -683,7 +683,7 @@ func TestResolveAgentOverrideModelWithoutProvider(t *testing.T) {
 	}
 	want := "model=" + wantRoleModel(t, agent.RoleDoing) + "\neffort=high\nprovider=claude\n"
 	if out != want {
-		t.Errorf("output = %q, want the role's provider+model with the overridden effort %q", out, want)
+		t.Errorf("output = %q, want the role's CLI+model with the overridden effort %q", out, want)
 	}
 
 	out, err = runResolveAgentCmd(t, "apply", "--model", "claude-haiku-4-5")
@@ -703,10 +703,10 @@ func TestResolveAgentOverrideModelWithoutProvider(t *testing.T) {
 func TestResolveAgentOverrideAliasKeepsNonClaudeVerbatim(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
 
-	codex, _ := agent.ResolveProvider(nil, "codex")
+	codex, _ := agent.ResolveCLI(nil, "codex")
 	effort := codex.Profiles[agent.RoleDoing].Effort
 
-	out, err := runResolveAgentCmd(t, "apply", "--provider", "codex", "--model", "gpt-5.3-codex", "--alias")
+	out, err := runResolveAgentCmd(t, "apply", "--cli", "codex", "--model", "gpt-5.3-codex", "--alias")
 	if err != nil {
 		t.Fatalf("resolve-agent with overrides --alias: %v", err)
 	}
@@ -718,7 +718,7 @@ func TestResolveAgentOverrideAliasKeepsNonClaudeVerbatim(t *testing.T) {
 }
 
 // TestResolveAgentOverrideDispatchDisappearsOnNativeSwap: swapping TO a
-// native-capable provider drops the dispatch= line even when that provider also
+// native-capable CLI drops the dispatch= line even when that CLI also
 // has a headless_command. The QUERY reports the selected execution mode.
 // It is NOT an adapter move: `fab dispatch start` takes no override flags and
 // re-resolves the stage from config, so only a config/role override relocates a
@@ -738,9 +738,9 @@ func TestResolveAgentOverrideDispatchDisappearsOnNativeSwap(t *testing.T) {
 	}
 
 	// Swapping to native-capable claude drops it.
-	out, err = runResolveAgentCmd(t, "apply", "--provider", "claude", "--model", "claude-opus-5", "--effort", "xhigh")
+	out, err = runResolveAgentCmd(t, "apply", "--cli", "claude", "--model", "claude-opus-5", "--effort", "xhigh")
 	if err != nil {
-		t.Fatalf("resolve-agent apply --provider claude: %v", err)
+		t.Fatalf("resolve-agent apply --cli claude: %v", err)
 	}
 	want := "model=claude-opus-5\neffort=xhigh\nprovider=claude\n"
 	if out != want {
@@ -748,17 +748,17 @@ func TestResolveAgentOverrideDispatchDisappearsOnNativeSwap(t *testing.T) {
 	}
 }
 
-// TestResolveAgentOverrideUnknownProviderErrors: a supplied --provider that
+// TestResolveAgentOverrideUnknownCLIErrors: a supplied --cli that
 // resolves to nothing is a LOOKUP failure naming the resolvable set — mirroring
-// `fab agent`'s error. An explicitly-empty --provider= is the same failure (the
+// `fab agent`'s error. An explicitly-empty --cli= is the same failure (the
 // guard keys on supplied-ness), with a placeholder in the config-key hint so the
 // suggested path is never malformed.
-func TestResolveAgentOverrideUnknownProviderErrors(t *testing.T) {
+func TestResolveAgentOverrideUnknownCLIErrors(t *testing.T) {
 	resolveAgentTestRepo(t, "project:\n  name: test\n")
 
-	out, err := runResolveAgentCmd(t, "apply", "--provider", "bogus")
+	out, err := runResolveAgentCmd(t, "apply", "--cli", "bogus")
 	if err == nil {
-		t.Fatal("expected an error for an unknown provider")
+		t.Fatal("expected an error for an unknown CLI")
 	}
 	// No profile is emitted on the lookup failure. cobra prints its usage block to
 	// the same buffer (and that block's own prose mentions `model=`), so assert that
@@ -771,19 +771,19 @@ func TestResolveAgentOverrideUnknownProviderErrors(t *testing.T) {
 	}
 	msg := err.Error()
 	if !strings.Contains(msg, "bogus") {
-		t.Errorf("error should name the unknown provider, got: %v", err)
+		t.Errorf("error should name the unknown CLI, got: %v", err)
 	}
 	for _, want := range []string{"claude", "codex", "agy", "kimi"} {
 		if !strings.Contains(msg, want) {
-			t.Errorf("error should list the resolvable provider %q, got: %v", want, err)
+			t.Errorf("error should list the resolvable CLI %q, got: %v", want, err)
 		}
 	}
 
-	_, err = runResolveAgentCmd(t, "apply", "--provider=")
+	_, err = runResolveAgentCmd(t, "apply", "--cli=")
 	if err == nil {
-		t.Fatal("expected an error for an explicitly-empty --provider=")
+		t.Fatal("expected an error for an explicitly-empty --cli=")
 	}
-	if !strings.Contains(err.Error(), "providers.<name>") {
+	if !strings.Contains(err.Error(), "clis.<name>") {
 		t.Errorf("error = %q, want the placeholder config-key hint for an empty name", err.Error())
 	}
 }
@@ -793,20 +793,20 @@ func TestResolveAgentOverrideUnknownProviderErrors(t *testing.T) {
 // (~/.fab-kit/config.yaml) and the project layer PER KEY before internal/agent
 // resolves anything, so a role named in both scopes reaches resolution as ONE
 // merged `agent.profiles.<role>` map — here the system's model/effort beside the
-// project's provider.
+// project's CLI.
 //
 // The resolved bytes are what the fill precedence says they should be: an explicit
 // `agent.profiles.<role>.model` is a pin the USER wrote, so it outranks the
-// resolved provider's own fills and survives the project scope's provider switch
-// (260806-j9nh — there is no cross-provider cutoff rule any more, because with
-// model/effort otherwise sourced from the resolved provider's own per-role fills
-// nothing is inherited across providers in the first place).
+// resolved CLI's own fills and survives the project scope's CLI switch
+// (260806-j9nh — there is no cross-cli cutoff rule any more, because with
+// model/effort otherwise sourced from the resolved CLI's own per-role fills
+// nothing is inherited across CLIs in the first place).
 //
 // The sharp edge is worth pinning rather than merely documenting: the project
 // author sees only `{model: …, effort: …}` in their own file, yet the role runs on
 // the machine-wide layer's agy. The escape is the documented one — do not pin a
-// role's model in one scope and swap its provider in another; set the model in the
-// SAME scope as the switch, or leave it to the provider's fills. This test lives in
+// role's model in one scope and swap its CLI in another; set the model in the
+// SAME scope as the switch, or leave it to the CLI's fills. This test lives in
 // cmd/fab because that is the layer that can compose both scopes end-to-end
 // (TestMain already isolates HOME for the package; this test points it at its own
 // tree so it can WRITE a system config).
@@ -817,14 +817,14 @@ func TestResolveCrossScopeRoleProfileMerge(t *testing.T) {
 	if err := os.MkdirAll(sysDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// System scope: switch the doing role to agy, supplying only the provider.
-	systemConfig := `providers:
+	// System scope: switch the doing role to agy, supplying only the CLI.
+	systemConfig := `clis:
   agy:
     profiles:
       default: { model: gemini-3.1-pro-low }
 agent:
   profiles:
-    doing: { provider: agy }
+    doing: { cli: agy }
 `
 	if err := os.WriteFile(filepath.Join(sysDir, "config.yaml"), []byte(systemConfig), 0o644); err != nil {
 		t.Fatal(err)
@@ -835,7 +835,7 @@ agent:
 	// the new repo; it does not touch HOME, so the t.Setenv above stands.
 	resolveAgentTestRepo(t, `project:
   name: test
-providers:
+clis:
   codex:
     profiles:
       default: { model: gpt-5.3-codex, effort: high }
@@ -849,15 +849,15 @@ agent:
 		t.Fatalf("resolve-agent apply: %v", err)
 	}
 
-	// The merged role profile carries the system scope's provider and the project
+	// The merged role profile carries the system scope's CLI and the project
 	// scope's explicit model/effort, and an explicit role-level pin outranks the
-	// resolved provider's fills — so agy is invoked with the codex model ID
-	// rather than with providers.agy.profiles.default.model.
+	// resolved CLI's fills — so agy is invoked with the codex model ID
+	// rather than with clis.agy.profiles.default.model.
 	want := "model=gpt-5.3-codex\neffort=high\nprovider=agy\n" +
 		"dispatch=sh -c 'agy --dangerously-skip-permissions --print-timeout 120m --model gpt-5.3-codex -p \"$(cat)\"'\n"
 	if out != want {
 		t.Errorf("output = %q, want %q\n(the two scopes deep-merge into one agent.profiles.doing map "+
-			"before resolution, and an explicit role-level model/effort outranks the resolved provider's "+
+			"before resolution, and an explicit role-level model/effort outranks the resolved CLI's "+
 			"own fills — see docs/specs/stage-models.md § Fill precedence)", out, want)
 	}
 }
@@ -941,21 +941,21 @@ func TestDispatchResolutionFor_Matrix(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		prov       config.ProviderConfig
+		prov       config.CLIConfig
 		preference string
 		tmux       string
 		model      string
 		want       string
 		wantErr    bool
 	}{
-		{"pane direct", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp, Native: true}, "pane", "/tmp/tmux-1000/default,1,0", "", sess, false},
-		{"pane descends native outside tmux", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp, Native: true}, "pane", "", "claude-opus-5", "", false},
-		{"pane descends headless outside tmux", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp}, "pane", "", "", disp, false},
-		{"native direct", config.ProviderConfig{HeadlessCommand: disp, Native: true}, "native", "", "claude-opus-5", "", false},
-		{"native descends headless", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp}, "native", "/tmp/tmux-1000/default,1,0", "", disp, false},
-		{"native without alias descends headless", config.ProviderConfig{InteractiveCommand: sess, HeadlessCommand: disp, Native: true}, "native", "", "", disp, false},
-		{"headless never ascends", config.ProviderConfig{InteractiveCommand: sess, Native: true}, "headless", "/tmp/tmux-1000/default,1,0", "", "", true},
-		{"no capabilities", config.ProviderConfig{}, "pane", "", "", "", true},
+		{"pane direct", config.CLIConfig{InteractiveCommand: sess, HeadlessCommand: disp, Native: true}, "pane", "/tmp/tmux-1000/default,1,0", "", sess, false},
+		{"pane descends native outside tmux", config.CLIConfig{InteractiveCommand: sess, HeadlessCommand: disp, Native: true}, "pane", "", "claude-opus-5", "", false},
+		{"pane descends headless outside tmux", config.CLIConfig{InteractiveCommand: sess, HeadlessCommand: disp}, "pane", "", "", disp, false},
+		{"native direct", config.CLIConfig{HeadlessCommand: disp, Native: true}, "native", "", "claude-opus-5", "", false},
+		{"native descends headless", config.CLIConfig{InteractiveCommand: sess, HeadlessCommand: disp}, "native", "/tmp/tmux-1000/default,1,0", "", disp, false},
+		{"native without alias descends headless", config.CLIConfig{InteractiveCommand: sess, HeadlessCommand: disp, Native: true}, "native", "", "", disp, false},
+		{"headless never ascends", config.CLIConfig{InteractiveCommand: sess, Native: true}, "headless", "/tmp/tmux-1000/default,1,0", "", "", true},
+		{"no capabilities", config.CLIConfig{}, "pane", "", "", "", true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -988,7 +988,7 @@ func TestDispatchResolutionFor_Matrix(t *testing.T) {
 func TestResolveAgentPaneEmitsInteractiveCommandInTmux(t *testing.T) {
 	resolveAgentTestRepo(t, `dispatch:
   mode: pane
-providers:
+clis:
   claude:
     interactive_command: "claude -n {model} --effort {effort}"
 `)
@@ -1009,7 +1009,7 @@ providers:
 func TestResolveAgentPaneDescendsNativeOutsideTmux(t *testing.T) {
 	resolveAgentTestRepo(t, `dispatch:
   mode: pane
-providers:
+clis:
   claude:
     interactive_command: "claude -n {model} --effort {effort}"
 `)
@@ -1054,7 +1054,7 @@ func TestResolveAgentDefaultNativeDescendsHeadlessForCodex(t *testing.T) {
 func TestResolveAgentPaneAliasKeepsFullModelIDInDispatch(t *testing.T) {
 	resolveAgentTestRepo(t, `dispatch:
   mode: pane
-providers:
+clis:
   claude:
     interactive_command: "claude -n {model} --effort {effort}"
 `+pinnedDoingVersionedID)
@@ -1084,7 +1084,7 @@ func TestResolveAgentModeFromSystemConfig(t *testing.T) {
 	// resolveAgentTestRepo chdirs but does not touch HOME, so the t.Setenv stands.
 	resolveAgentTestRepo(t, `project:
   name: test
-providers:
+clis:
   claude:
     interactive_command: "claude -n {model} --effort {effort}"
 `)
@@ -1117,7 +1117,7 @@ func TestResolveAgentModeSystemOverridesProject(t *testing.T) {
 	}
 	resolveAgentTestRepo(t, `dispatch:
   mode: native
-providers:
+clis:
   claude:
     interactive_command: "claude -n {model} --effort {effort}"
 `)
@@ -1136,44 +1136,44 @@ providers:
 }
 
 func TestResolveAgentNoCapabilityErrors(t *testing.T) {
-	resolveAgentTestRepo(t, "agent:\n  workers: void\nproviders:\n  void: {}\n")
+	resolveAgentTestRepo(t, "agent:\n  workers: void\nclis:\n  void: {}\n")
 	_, err := runResolveAgentCmd(t, "apply")
-	if err == nil || !strings.Contains(err.Error(), `provider "void" has no dispatch capability`) {
+	if err == nil || !strings.Contains(err.Error(), `CLI "void" has no dispatch capability`) {
 		t.Fatalf("error = %v, want actionable no-capability error", err)
 	}
 
 	resolveAgentTestRepo(t, "agent:\n  workers: missing\n")
 	_, err = runResolveAgentCmd(t, "apply")
-	if err == nil || !strings.Contains(err.Error(), `provider "missing" has no dispatch capability`) {
-		t.Fatalf("unknown depth provider error = %v", err)
+	if err == nil || !strings.Contains(err.Error(), `CLI "missing" has no dispatch capability`) {
+		t.Fatalf("unknown depth CLI error = %v", err)
 	}
 
-	_, err = runResolveAgentCmd(t, "apply", "--provider", "missing")
-	if err == nil || !strings.Contains(err.Error(), "unknown provider") {
-		t.Fatalf("explicit unknown provider must retain lookup error, got %v", err)
+	_, err = runResolveAgentCmd(t, "apply", "--cli", "missing")
+	if err == nil || !strings.Contains(err.Error(), "unknown CLI") {
+		t.Fatalf("explicit unknown CLI must retain lookup error, got %v", err)
 	}
 }
 
-func TestResolveAgentNativeOnlyProviderWithoutAliasNamesCause(t *testing.T) {
+func TestResolveAgentNativeOnlyCLIWithoutAliasNamesCause(t *testing.T) {
 	resolveAgentTestRepo(t, `dispatch:
   mode: native
-providers:
+clis:
   p:
     native: true
 agent:
   profiles:
-    doing: { provider: p, model: "glm-latest[1m]" }
+    doing: { cli: p, model: "glm-latest[1m]" }
 `)
 	_, err := runResolveAgentCmd(t, "apply")
 	if err == nil {
-		t.Fatal("native-only provider with an alias-less model must fail")
+		t.Fatal("native-only CLI with an alias-less model must fail")
 	}
-	for _, want := range []string{"glm-latest[1m]", "no native Agent-tool alias", "providers.p.headless_command", agent.ToolDefaultModel} {
+	for _, want := range []string{"glm-latest[1m]", "no native Agent-tool alias", "clis.p.headless_command", agent.ToolDefaultModel} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error = %q, want it to contain %q", err, want)
 		}
 	}
-	if strings.Contains(err.Error(), "providers.p.native") {
+	if strings.Contains(err.Error(), "clis.p.native") {
 		t.Errorf("error = %q must not suggest enabling native again", err)
 	}
 	if !errors.Is(err, dispatch.ErrNoMode) {
@@ -1193,21 +1193,21 @@ func TestNoDispatchCapabilityErrorRemediesRespectCeiling(t *testing.T) {
 	}{
 		{
 			preference: "pane",
-			want:       "configure providers.void.interactive_command for pane, providers.void.native for native, or providers.void.headless_command for headless:",
+			want:       "configure clis.void.interactive_command for pane, clis.void.native for native, or clis.void.headless_command for headless:",
 		},
 		{
 			preference: "native",
-			want:       "configure providers.void.native for native or providers.void.headless_command for headless:",
+			want:       "configure clis.void.native for native or clis.void.headless_command for headless:",
 			absent:     []string{"interactive_command"},
 		},
 		{
 			preference: "headless",
-			want:       "configure providers.void.headless_command for headless:",
+			want:       "configure clis.void.headless_command for headless:",
 			absent:     []string{"interactive_command", ".native"},
 		},
 	} {
 		t.Run(tc.preference, func(t *testing.T) {
-			err := noDispatchCapabilityError(agent.Profile{Provider: "void"}, dispatch.NativeNoCapability, tc.preference, dispatch.ErrNoMode)
+			err := noDispatchCapabilityError(agent.Profile{CLI: "void"}, dispatch.NativeNoCapability, tc.preference, dispatch.ErrNoMode)
 			got := err.Error()
 			if !strings.Contains(got, tc.want) {
 				t.Errorf("error = %q, want it to contain %q", got, tc.want)

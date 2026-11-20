@@ -10,7 +10,7 @@ package fab
 import _ "embed"
 
 // DefaultsYAML is the raw bytes of defaults.yaml — fab-kit's built-in agent,
-// provider, and dispatch defaults, the bottom tier of the config
+// CLI, and dispatch defaults, the bottom tier of the config
 // cascade. It is deliberately EMBEDDED rather than read from the kit cache at
 // runtime: kit and binary release atomically, so an on-disk read would gain
 // nothing and add a binary↔kit version-skew failure mode to a resolution path

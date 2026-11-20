@@ -70,49 +70,49 @@ func TestAgentStageSelectorUnknownErrors(t *testing.T) {
 	}
 }
 
-// --- Selector + --provider re-resolve fills (R2) ---
+// --- Selector + --cli re-resolve fills (R2) ---
 
-func TestAgentSelectorProviderRefillsFromProvider(t *testing.T) {
-	agentTestRepo(t, `providers:
+func TestAgentSelectorCLIRefillsFromCLI(t *testing.T) {
+	agentTestRepo(t, `clis:
   kimi:
     interactive_command: "kimi --auto -m {model}"
 `)
-	out, err := runAgentPrint(t, "apply", "--provider", "kimi")
+	out, err := runAgentPrint(t, "apply", "--cli", "kimi")
 	if err != nil {
-		t.Fatalf("agent apply --provider kimi --print: %v", err)
+		t.Fatalf("agent apply --cli kimi --print: %v", err)
 	}
 	if strings.TrimSpace(out) != "kimi --auto" {
-		t.Errorf("selector + --provider must re-resolve fills from the named provider, got %q", out)
+		t.Errorf("selector + --cli must re-resolve fills from the named CLI, got %q", out)
 	}
 }
 
-func TestAgentSelectorProviderRefillKeepsPinningAgentProfile(t *testing.T) {
-	agentTestRepo(t, `providers:
+func TestAgentSelectorCLIRefillKeepsPinningAgentProfile(t *testing.T) {
+	agentTestRepo(t, `clis:
   kimi:
     interactive_command: "kimi --auto -m {model}"
 agent:
   profiles:
     doing: { model: claude-haiku-4-5 }
 `)
-	out, err := runAgentPrint(t, "doing", "--provider", "kimi")
+	out, err := runAgentPrint(t, "doing", "--cli", "kimi")
 	if err != nil {
-		t.Fatalf("agent doing --provider kimi --print: %v", err)
+		t.Fatalf("agent doing --cli kimi --print: %v", err)
 	}
 	if !strings.Contains(out, "claude-haiku-4-5") {
-		t.Errorf("an explicit agent.profiles.<role>.model pin still wins over the provider swap, got %q", out)
+		t.Errorf("an explicit agent.profiles.<role>.model pin still wins over the CLI swap, got %q", out)
 	}
 }
 
-// --- Bare-provider (no selector) fill-bypass preserved (R2) ---
+// --- Bare-cli (no selector) fill-bypass preserved (R2) ---
 
-func TestAgentBareProviderStillBypasses(t *testing.T) {
+func TestAgentBareCLIStillBypasses(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
-	out, err := runAgentPrint(t, "--provider", "kimi")
+	out, err := runAgentPrint(t, "--cli", "kimi")
 	if err != nil {
-		t.Fatalf("agent --provider kimi --print: %v", err)
+		t.Fatalf("agent --cli kimi --print: %v", err)
 	}
 	if strings.TrimSpace(out) != "kimi --auto" {
-		t.Errorf("bare --provider must still supply bypass fills (kimi's empty model drops -m), got %q", out)
+		t.Errorf("bare --cli must still supply bypass fills (kimi's empty model drops -m), got %q", out)
 	}
 }
 
@@ -178,16 +178,16 @@ func TestAgentTemplateStagePrintsRaw(t *testing.T) {
 	}
 }
 
-func TestAgentTemplateProviderPicksThatProvider(t *testing.T) {
+func TestAgentTemplateCLIPicksThatCLI(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
-	kimiProv, _ := agent.ResolveProvider(nil, "kimi")
+	kimiProv, _ := agent.ResolveCLI(nil, "kimi")
 	want := strings.TrimSpace(kimiProv.InteractiveCommand)
-	out, err := runAgentExec(t, "apply", "--provider", "kimi", "-t")
+	out, err := runAgentExec(t, "apply", "--cli", "kimi", "-t")
 	if err != nil {
-		t.Fatalf("agent apply --provider kimi -t: %v", err)
+		t.Fatalf("agent apply --cli kimi -t: %v", err)
 	}
 	if strings.TrimSpace(out) != want {
-		t.Errorf("-t with a provider must pick that provider's template, got %q want %q", out, want)
+		t.Errorf("-t with a CLI must pick that CLI's template, got %q want %q", out, want)
 	}
 }
 
@@ -221,15 +221,15 @@ func TestAgentHeadlessExecIsUsageError(t *testing.T) {
 }
 
 func TestAgentHeadlessMissingCapabilityHardErrors(t *testing.T) {
-	agentTestRepo(t, `providers:
+	agentTestRepo(t, `clis:
   myagent:
     interactive_command: "myagent"
 `)
-	_, err := runAgentPrint(t, "--headless", "--provider", "myagent")
+	_, err := runAgentPrint(t, "--headless", "--cli", "myagent")
 	if err == nil {
-		t.Fatal("expected a missing-capability error for --headless on a provider without headless_command")
+		t.Fatal("expected a missing-capability error for --headless on a CLI without headless_command")
 	}
-	if !strings.Contains(err.Error(), "providers.myagent.headless_command") {
+	if !strings.Contains(err.Error(), "clis.myagent.headless_command") {
 		t.Errorf("--headless must hard-error naming the config key, got: %v", err)
 	}
 }
@@ -257,7 +257,7 @@ func TestAgentOutputYAMLStageSelector(t *testing.T) {
 		"selector: apply",
 		"kind: stage",
 		"role: doing",
-		"provider: claude",
+		"cli: claude",
 		"model: " + model,
 		"effort: " + effort,
 	} {
@@ -269,8 +269,8 @@ func TestAgentOutputYAMLStageSelector(t *testing.T) {
 		t.Errorf("-o yaml document should carry a command key, got:\n%s", out)
 	}
 	keys := yamlKeys(t, out)
-	if len(keys) != 12 {
-		t.Errorf("-o yaml native resolution must emit the twelve non-dispatch keys, got %d: %v", len(keys), keys)
+	if len(keys) != 13 {
+		t.Errorf("-o yaml native resolution must emit the thirteen non-dispatch keys (twelve plus the deprecated provider duplicate), got %d: %v", len(keys), keys)
 	}
 }
 
@@ -285,7 +285,7 @@ func TestAgentOutputYAMLRoleSelector(t *testing.T) {
 		"selector: doing",
 		"kind: role",
 		"role: doing",
-		"provider: claude",
+		"cli: claude",
 		"model: " + model,
 		"effort: " + effort,
 	} {
@@ -294,8 +294,8 @@ func TestAgentOutputYAMLRoleSelector(t *testing.T) {
 		}
 	}
 	keys := yamlKeys(t, out)
-	if len(keys) != 12 {
-		t.Errorf("-o yaml native role resolution must emit the twelve non-dispatch keys, got %d: %v", len(keys), keys)
+	if len(keys) != 13 {
+		t.Errorf("-o yaml native role resolution must emit the thirteen non-dispatch keys (twelve plus the deprecated provider duplicate), got %d: %v", len(keys), keys)
 	}
 }
 
@@ -337,7 +337,7 @@ func TestAgentOutputYAMLToolDefaultModel(t *testing.T) {
 	t.Run("role pin wins over codex fill", func(t *testing.T) {
 		agentTestRepo(t, `agent:
   profiles:
-    review: { provider: codex, model: tool-default }
+    review: { cli: codex, model: tool-default }
 `)
 		out, err := runAgentYAML(t, "yaml", "review")
 		if err != nil {
@@ -357,11 +357,11 @@ func TestAgentOutputYAMLToolDefaultModel(t *testing.T) {
 		}
 	})
 
-	t.Run("provider-only flag collapses identically", func(t *testing.T) {
+	t.Run("CLI-only flag collapses identically", func(t *testing.T) {
 		agentTestRepo(t, "project:\n  name: test\n")
-		out, err := runAgentYAML(t, "yaml", "--provider", "codex", "--model", agent.ToolDefaultModel)
+		out, err := runAgentYAML(t, "yaml", "--cli", "codex", "--model", agent.ToolDefaultModel)
 		if err != nil {
-			t.Fatalf("agent --provider codex --model tool-default -o yaml: %v", err)
+			t.Fatalf("agent --cli codex --model tool-default -o yaml: %v", err)
 		}
 		var doc agent.Resolution
 		if err := yaml.Unmarshal([]byte(out), &doc); err != nil {
@@ -417,20 +417,20 @@ agent:
 	}
 }
 
-func TestAgentOutputYAMLBareProviderForm(t *testing.T) {
+func TestAgentOutputYAMLBareCLIForm(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
-	out, err := runAgentYAML(t, "yaml", "--provider", "kimi")
+	out, err := runAgentYAML(t, "yaml", "--cli", "kimi")
 	if err != nil {
-		t.Fatalf("agent --provider kimi -o yaml: %v", err)
+		t.Fatalf("agent --cli kimi -o yaml: %v", err)
 	}
-	for _, want := range []string{"kind: provider", "provider: kimi", `role: ""`, `selector: ""`} {
+	for _, want := range []string{"kind: cli", "cli: kimi", `role: ""`, `selector: ""`} {
 		if !strings.Contains(out, want) {
-			t.Errorf("-o yaml bare-provider document missing %q, got:\n%s", want, out)
+			t.Errorf("-o yaml bare-cli document missing %q, got:\n%s", want, out)
 		}
 	}
 	keys := yamlKeys(t, out)
-	if len(keys) != 13 {
-		t.Errorf("-o yaml non-native provider resolution must emit all thirteen keys, got %d: %v", len(keys), keys)
+	if len(keys) != 14 {
+		t.Errorf("-o yaml non-native CLI resolution must emit all fourteen keys (thirteen plus the deprecated provider duplicate), got %d: %v", len(keys), keys)
 	}
 }
 
@@ -446,7 +446,7 @@ func TestAgentOutputYAMLFullSchemaGoldens(t *testing.T) {
 			name: "native omits dispatch",
 			config: `dispatch:
   mode: native
-providers:
+clis:
   oracle:
     interactive_command: "oracle tui -m {model} -e {effort}"
     native: true
@@ -454,12 +454,13 @@ providers:
       doing: { model: claude-opus-5, effort: high }
 agent:
   profiles:
-    doing: { provider: oracle }
+    doing: { cli: oracle }
 `,
 			args: []string{"yaml", "apply"},
 			want: `selector: apply
 kind: stage
 role: doing
+cli: oracle
 provider: oracle
 model: claude-opus-5
 effort: high
@@ -468,9 +469,10 @@ model_alias: opus
 template: oracle tui -m {model} -e {effort}
 fill_mode: template
 source:
+    cli: agent.profiles.doing
     provider: agent.profiles.doing
-    model: providers.oracle.profiles.doing
-    effort: providers.oracle.profiles.doing
+    model: clis.oracle.profiles.doing
+    effort: clis.oracle.profiles.doing
 skill_prefix: /
 `,
 		},
@@ -478,7 +480,7 @@ skill_prefix: /
 			name: "headless labels rung and keeps non-Claude alias empty",
 			config: `dispatch:
   mode: native
-providers:
+clis:
   oracle:
     interactive_command: "oracle tui -m {model} -e {effort}"
     headless_command: "oracle exec -m {model} -e {effort}"
@@ -486,12 +488,13 @@ providers:
       doing: { model: gpt-5, effort: xhigh }
 agent:
   profiles:
-    doing: { provider: oracle }
+    doing: { cli: oracle }
 `,
 			args: []string{"yaml", "apply"},
 			want: `selector: apply
 kind: stage
 role: doing
+cli: oracle
 provider: oracle
 model: gpt-5
 effort: xhigh
@@ -500,9 +503,10 @@ model_alias: ""
 template: oracle tui -m {model} -e {effort}
 fill_mode: template
 source:
+    cli: agent.profiles.doing
     provider: agent.profiles.doing
-    model: providers.oracle.profiles.doing
-    effort: providers.oracle.profiles.doing
+    model: clis.oracle.profiles.doing
+    effort: clis.oracle.profiles.doing
 dispatch:
     rung: headless
     command: oracle exec -m gpt-5 -e xhigh
@@ -514,7 +518,7 @@ skill_prefix: /
 			name: "pane labels rung and aliases dated Claude ID",
 			config: `dispatch:
   mode: pane
-providers:
+clis:
   oracle:
     interactive_command: "oracle tui -m {model} -e {effort}"
     headless_command: "oracle exec -m {model} -e {effort}"
@@ -522,13 +526,14 @@ providers:
       doing: { model: claude-haiku-4-5-20251001, effort: medium }
 agent:
   profiles:
-    doing: { provider: oracle }
+    doing: { cli: oracle }
 `,
 			tmux: "/tmp/tmux-1000/default,1,0",
 			args: []string{"yaml", "apply"},
 			want: `selector: apply
 kind: stage
 role: doing
+cli: oracle
 provider: oracle
 model: claude-haiku-4-5-20251001
 effort: medium
@@ -537,9 +542,10 @@ model_alias: haiku
 template: oracle tui -m {model} -e {effort}
 fill_mode: template
 source:
+    cli: agent.profiles.doing
     provider: agent.profiles.doing
-    model: providers.oracle.profiles.doing
-    effort: providers.oracle.profiles.doing
+    model: clis.oracle.profiles.doing
+    effort: clis.oracle.profiles.doing
 dispatch:
     rung: pane
     command: oracle tui -m claude-haiku-4-5-20251001 -e medium
@@ -547,18 +553,19 @@ skill_prefix: /
 `,
 		},
 		{
-			name: "bare provider preserves empty inherit fields",
+			name: "bare CLI preserves empty inherit fields",
 			config: `dispatch:
   mode: headless
-providers:
+clis:
   oracle:
     interactive_command: "oracle tui -m {model} -e {effort}"
     headless_command: "oracle exec -m {model} -e {effort}"
 `,
-			args: []string{"yaml", "--provider", "oracle"},
+			args: []string{"yaml", "--cli", "oracle"},
 			want: `selector: ""
-kind: provider
+kind: cli
 role: ""
+cli: oracle
 provider: oracle
 model: ""
 effort: ""
@@ -567,6 +574,7 @@ model_alias: ""
 template: oracle tui -m {model} -e {effort}
 fill_mode: template
 source:
+    cli: flag
     provider: flag
     model: ""
     effort: ""
@@ -577,18 +585,19 @@ skill_prefix: /
 `,
 		},
 		{
-			name: "codex provider carries the dollar skill prefix",
+			name: "codex CLI carries the dollar skill prefix",
 			config: `dispatch:
   mode: native
-providers:
+clis:
   codex:
     interactive_command: "codex tui -m {model} -e {effort}"
     native: true
 `,
-			args: []string{"yaml", "--provider", "codex", "--model", "gpt-x", "--effort", "high"},
+			args: []string{"yaml", "--cli", "codex", "--model", "gpt-x", "--effort", "high"},
 			want: `selector: ""
-kind: provider
+kind: cli
 role: ""
+cli: codex
 provider: codex
 model: gpt-x
 effort: high
@@ -597,6 +606,7 @@ model_alias: ""
 template: codex tui -m {model} -e {effort}
 fill_mode: template
 source:
+    cli: flag
     provider: flag
     model: flag
     effort: flag
@@ -679,7 +689,7 @@ agent:
 		})
 	}
 
-	t.Run("non-native provider reports the capability reason", func(t *testing.T) {
+	t.Run("non-native CLI reports the capability reason", func(t *testing.T) {
 		agentTestRepo(t, "dispatch:\n  mode: native\nagent:\n  workers: codex\n")
 		got, err := runAgentYAML(t, "yaml", "apply")
 		if err != nil {
@@ -710,7 +720,7 @@ agent:
 func TestAgentOutputYAMLNoCapabilityMatchesResolveAgent(t *testing.T) {
 	agentTestRepo(t, `dispatch:
   mode: native
-providers:
+clis:
   void:
     interactive_command: void
 agent:
@@ -790,35 +800,35 @@ func TestAgentStageSelectorExecsRoleCommand(t *testing.T) {
 	}
 }
 
-// --- fills-less provider + --headless token-drop (A-014) ---
+// --- fills-less CLI + --headless token-drop (A-014) ---
 
-// TestAgentHeadlessFillslessProviderDropsTokens: --headless with a provider that
+// TestAgentHeadlessFillslessCLIDropsTokens: --headless with a CLI that
 // ships no fills drops the placeholder token per spawn.WithProfile's
 // empty-value rule (kimi's headless grammar carries {model} but no fill) — no
 // panic, no validation, verbatim pass-through holds.
-func TestAgentHeadlessFillslessProviderDropsTokens(t *testing.T) {
+func TestAgentHeadlessFillslessCLIDropsTokens(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
-	out, err := runAgentPrint(t, "--provider", "kimi", "--headless")
+	out, err := runAgentPrint(t, "--cli", "kimi", "--headless")
 	if err != nil {
-		t.Fatalf("agent --provider kimi --headless --print: %v", err)
+		t.Fatalf("agent --cli kimi --headless --print: %v", err)
 	}
 	if strings.Contains(out, "{model}") || strings.Contains(out, "-m ") {
 		t.Errorf("fills-less --headless must drop the {model} pair per the token-drop rule, got %q", out)
 	}
-	kimi, _ := agent.ResolveProvider(nil, "kimi")
+	kimi, _ := agent.ResolveCLI(nil, "kimi")
 	want := spawn.WithProfile(kimi.HeadlessCommand, "", "") + "\n"
 	if out != want {
 		t.Errorf("got %q, want the empty-fill substitution of kimi's headless grammar %q", out, want)
 	}
 }
 
-// --- -t with an unknown --provider (A-015) ---
+// --- -t with an unknown --cli (A-015) ---
 
-// TestAgentTemplateUnknownProviderErrors: -t still resolves the provider, so an
-// unknown one is the shared lookup failure (unknownProviderError's phrasing),
+// TestAgentTemplateUnknownCLIErrors: -t still resolves the CLI, so an
+// unknown one is the shared lookup failure (unknownCLIError's phrasing),
 // not a template-specific message.
-func TestAgentTemplateUnknownProviderErrors(t *testing.T) {
+func TestAgentTemplateUnknownCLIErrors(t *testing.T) {
 	agentTestRepo(t, "project:\n  name: test\n")
-	_, err := runAgentExec(t, "apply", "--provider", "bogus", "-t")
-	assertFlagUsageError(t, "", err, "unknown provider", "bogus", "configure it under providers.")
+	_, err := runAgentExec(t, "apply", "--cli", "bogus", "-t")
+	assertFlagUsageError(t, "", err, "unknown CLI", "bogus", "configure it under clis.")
 }

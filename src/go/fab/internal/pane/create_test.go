@@ -173,7 +173,7 @@ func TestPointerPromptNamesThePromptFile(t *testing.T) {
 	}
 }
 
-// TestPlainPaneArgs pins the provider-generic spawn's argv shapes: a plain
+// TestPlainPaneArgs pins the CLI-generic spawn's argv shapes: a plain
 // split carries no target, size, or title (placement is dispatch policy, and
 // tmux resolves the current pane from the invoking client), and the window
 // fallback is UNNAMED. Both print the pane id so no follow-up lookup can race

@@ -28,8 +28,8 @@ func TestDefaultsMap_ProjectsEveryDefaultBearingRow(t *testing.T) {
 	if _, ok := agentMap["profiles"].(map[string]any); !ok {
 		t.Errorf("agent.profiles default subtree missing: %#v", agentMap["profiles"])
 	}
-	if _, ok := defaults["providers"].(map[string]any); !ok {
-		t.Errorf("providers default subtree missing: %#v", defaults["providers"])
+	if _, ok := defaults["clis"].(map[string]any); !ok {
+		t.Errorf("CLIs default subtree missing: %#v", defaults["clis"])
 	}
 	// A row with no built-in default contributes nothing (the empty-default
 	// convention — its rendered example is not a default).
@@ -39,16 +39,16 @@ func TestDefaultsMap_ProjectsEveryDefaultBearingRow(t *testing.T) {
 }
 
 // TestDefaultsMapFor_IsKnobAware: the agent.profiles rows are DERIVED from the
-// resolved provider, so composing them against a nil config reports `claude` for
-// every role even when a depth knob names another provider. DefaultsMapFor
+// resolved CLI, so composing them against a nil config reports `claude` for
+// every role even when a depth knob names another CLI. DefaultsMapFor
 // composes against the live config instead — the knob-blind drill-down fix.
 func TestDefaultsMapFor_IsKnobAware(t *testing.T) {
 	nilDefaults, err := DefaultsMapFor(nil)
 	if err != nil {
 		t.Fatalf("DefaultsMapFor(nil): %v", err)
 	}
-	if got := roleProvider(t, nilDefaults, "doing"); got != "claude" {
-		t.Fatalf("nil-config doing provider = %q, want claude", got)
+	if got := roleCLI(t, nilDefaults, "doing"); got != "claude" {
+		t.Fatalf("nil-config doing CLI = %q, want claude", got)
 	}
 
 	cfg := &config.Config{Agent: config.AgentConfig{Workers: "codex"}}
@@ -57,27 +57,27 @@ func TestDefaultsMapFor_IsKnobAware(t *testing.T) {
 		t.Fatalf("DefaultsMapFor(cfg): %v", err)
 	}
 	// `doing` is a Tier-2 (worker) role, so agent.workers governs it.
-	if got := roleProvider(t, live, "doing"); got != "codex" {
-		t.Errorf("live doing provider = %q, want codex (the workers knob)", got)
+	if got := roleCLI(t, live, "doing"); got != "codex" {
+		t.Errorf("live doing CLI = %q, want codex (the workers knob)", got)
 	}
 	// `operator` is Tier-1, governed by agent.session, which the config leaves unset.
-	if got := roleProvider(t, live, "operator"); got != "claude" {
-		t.Errorf("live operator provider = %q, want claude (session knob unset)", got)
+	if got := roleCLI(t, live, "operator"); got != "claude" {
+		t.Errorf("live operator CLI = %q, want claude (session knob unset)", got)
 	}
 }
 
-// TestDefaultsMapFor_UnknownProviderPassesThrough: resolution is provider-neutral
-// (Constitution Principle I — fab validates no provider name), so a knob naming a
-// provider fab ships nothing for is reported verbatim rather than being hidden
+// TestDefaultsMapFor_UnknownCLIPassesThrough: resolution is CLI-neutral
+// (Constitution Principle I — fab validates no CLI name), so a knob naming a
+// CLI fab ships nothing for is reported verbatim rather than being hidden
 // behind the built-in. `fab config show --origin` stays usable either way.
-func TestDefaultsMapFor_UnknownProviderPassesThrough(t *testing.T) {
-	cfg := &config.Config{Agent: config.AgentConfig{Workers: "nope-not-a-provider"}}
+func TestDefaultsMapFor_UnknownCLIPassesThrough(t *testing.T) {
+	cfg := &config.Config{Agent: config.AgentConfig{Workers: "nope-not-a-cli"}}
 	defaults, err := DefaultsMapFor(cfg)
 	if err != nil {
-		t.Fatalf("DefaultsMapFor must not fail on an unknown provider name: %v", err)
+		t.Fatalf("DefaultsMapFor must not fail on an unknown CLI name: %v", err)
 	}
-	if got := roleProvider(t, defaults, "doing"); got != "nope-not-a-provider" {
-		t.Errorf("doing provider = %q, want the configured name reported verbatim", got)
+	if got := roleCLI(t, defaults, "doing"); got != "nope-not-a-cli" {
+		t.Errorf("doing CLI = %q, want the configured name reported verbatim", got)
 	}
 }
 
@@ -86,16 +86,16 @@ func TestDefaultsMapFor_UnknownProviderPassesThrough(t *testing.T) {
 // the live config through agent.ResolveRole unfiltered folds the override in,
 // which made `fab config show agent.profiles.review.model --origin` print the
 // user's pinned model on the `default  (shadowed)` line as well as the project
-// one. The pinned PROVIDER is kept for the model/effort derivation (see
-// TestDefaultsMapFor_RoleProviderOverrideDrivesFills) — here that provider has no
+// one. The pinned CLI is kept for the model/effort derivation (see
+// TestDefaultsMapFor_RoleCLIOverrideDrivesFills) — here that CLI has no
 // fills, so the derived model/effort are empty, and in particular never the
-// pinned values. The provider leaf itself stays knobs-only-resolved.
+// pinned values. The CLI leaf itself stays knobs-only-resolved.
 func TestDefaultsMapFor_IgnoresUserRoleOverrides(t *testing.T) {
 	builtin, err := DefaultsMapFor(nil)
 	if err != nil {
 		t.Fatalf("DefaultsMapFor(nil): %v", err)
 	}
-	pinned := config.RoleProfile{Provider: "pinned-provider", Model: "pinned-model", Effort: "pinned-effort"}
+	pinned := config.RoleProfile{CLI: "pinned-cli", Model: "pinned-model", Effort: "pinned-effort"}
 	for _, tc := range []struct {
 		name string
 		cfg  *config.Config
@@ -110,9 +110,9 @@ func TestDefaultsMapFor_IgnoresUserRoleOverrides(t *testing.T) {
 			if err != nil {
 				t.Fatalf("DefaultsMapFor: %v", err)
 			}
-			if want := roleField(t, builtin, "review", "provider"); roleField(t, got, "review", "provider") != want {
-				t.Errorf("default tier agent.profiles.review.provider = %q, want the built-in %q "+
-					"(the provider leaf stays knobs-only-resolved)", roleField(t, got, "review", "provider"), want)
+			if want := roleField(t, builtin, "review", "cli"); roleField(t, got, "review", "cli") != want {
+				t.Errorf("default tier agent.profiles.review.cli = %q, want the built-in %q "+
+					"(the CLI leaf stays knobs-only-resolved)", roleField(t, got, "review", "cli"), want)
 			}
 			for field, pinnedValue := range map[string]string{"model": pinned.Model, "effort": pinned.Effort} {
 				have := roleField(t, got, "review", field)
@@ -122,7 +122,7 @@ func TestDefaultsMapFor_IgnoresUserRoleOverrides(t *testing.T) {
 				}
 				if have != "" {
 					t.Errorf("default tier agent.profiles.review.%s = %q, want empty "+
-						"(pinned-provider ships no fills to derive from)", field, have)
+						"(pinned-cli ships no fills to derive from)", field, have)
 				}
 			}
 		})
@@ -138,19 +138,19 @@ func TestDefaultsMapFor_IgnoresUserRoleOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DefaultsMapFor: %v", err)
 	}
-	if have := roleField(t, got, "review", "provider"); have != "codex" {
-		t.Errorf("review provider = %q, want codex (the workers knob still governs the derived row)", have)
+	if have := roleField(t, got, "review", "cli"); have != "codex" {
+		t.Errorf("review CLI = %q, want codex (the workers knob still governs the derived row)", have)
 	}
 }
 
-// TestDefaultsMapFor_RoleProviderOverrideDrivesFills: the chimera regression. A
-// per-role provider override (agent.profiles.operator.provider: codex under a
+// TestDefaultsMapFor_RoleCLIOverrideDrivesFills: the chimera regression. A
+// per-role CLI override (agent.profiles.operator.cli: codex under a
 // claude session knob) used to be stripped with the rest of the entry, so the
-// derived model/effort came from CLAUDE's operator fill while the provider leaf
+// derived model/effort came from CLAUDE's operator fill while the CLI leaf
 // merged to codex — a composed row no resolution path produces. The override must
-// drive the fills derivation (same values the knob naming that provider would
-// derive — the oracle below), while the provider leaf itself stays knobs-only.
-func TestDefaultsMapFor_RoleProviderOverrideDrivesFills(t *testing.T) {
+// drive the fills derivation (same values the knob naming that CLI would
+// derive — the oracle below), while the CLI leaf itself stays knobs-only.
+func TestDefaultsMapFor_RoleCLIOverrideDrivesFills(t *testing.T) {
 	knobbed, err := DefaultsMapFor(&config.Config{Agent: config.AgentConfig{Session: "codex"}})
 	if err != nil {
 		t.Fatalf("DefaultsMapFor(session knob): %v", err)
@@ -161,7 +161,7 @@ func TestDefaultsMapFor_RoleProviderOverrideDrivesFills(t *testing.T) {
 		t.Fatalf("oracle broke: codex ships no operator fill (model %q, effort %q)", wantModel, wantEffort)
 	}
 
-	override := map[string]config.RoleProfile{"operator": {Provider: "codex"}}
+	override := map[string]config.RoleProfile{"operator": {CLI: "codex"}}
 	for _, tc := range []struct {
 		name string
 		cfg  *config.Config
@@ -174,22 +174,22 @@ func TestDefaultsMapFor_RoleProviderOverrideDrivesFills(t *testing.T) {
 			if err != nil {
 				t.Fatalf("DefaultsMapFor: %v", err)
 			}
-			if have := roleProvider(t, got, "operator"); have != "claude" {
-				t.Errorf("provider leaf = %q, want claude (knobs-only — the override's codex belongs to its own tier)", have)
+			if have := roleCLI(t, got, "operator"); have != "claude" {
+				t.Errorf("CLI leaf = %q, want claude (knobs-only — the override's codex belongs to its own tier)", have)
 			}
 			if have := roleField(t, got, "operator", "model"); have != wantModel {
-				t.Errorf("model = %q, want %q (the overridden provider's fill, not the knob provider's)", have, wantModel)
+				t.Errorf("model = %q, want %q (the overridden CLI's fill, not the knob CLI's)", have, wantModel)
 			}
 			if have := roleField(t, got, "operator", "effort"); have != wantEffort {
-				t.Errorf("effort = %q, want %q (the overridden provider's fill, not the knob provider's)", have, wantEffort)
+				t.Errorf("effort = %q, want %q (the overridden CLI's fill, not the knob CLI's)", have, wantEffort)
 			}
 		})
 	}
 }
 
-func roleProvider(t *testing.T, defaults map[string]any, role string) string {
+func roleCLI(t *testing.T, defaults map[string]any, role string) string {
 	t.Helper()
-	return roleField(t, defaults, role, "provider")
+	return roleField(t, defaults, role, "cli")
 }
 
 func roleField(t *testing.T, defaults map[string]any, role, field string) string {
@@ -211,16 +211,16 @@ func roleField(t *testing.T, defaults map[string]any, role, field string) string
 }
 
 // TestDerivedRoleSources: each derived default-tier leaf reports the config key it
-// was derived from — the depth knob for the provider, the provider fill for
+// was derived from — the depth knob for the CLI, the CLI fill for
 // model/effort — and "" when only built-ins were involved.
 func TestDerivedRoleSources(t *testing.T) {
-	t.Run("nil config is all built-in provider, fills still named", func(t *testing.T) {
+	t.Run("nil config is all built-in CLI, fills still named", func(t *testing.T) {
 		sources, err := DerivedRoleSources(nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := sources["doing"].Provider; got != "" {
-			t.Errorf("built-in provider must have no source key, got %q", got)
+		if got := sources["doing"].CLI; got != "" {
+			t.Errorf("built-in CLI must have no source key, got %q", got)
 		}
 	})
 
@@ -230,40 +230,40 @@ func TestDerivedRoleSources(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := sources["doing"].Provider; got != "agent.workers" {
-			t.Errorf("doing provider source = %q, want agent.workers", got)
+		if got := sources["doing"].CLI; got != "agent.workers" {
+			t.Errorf("doing CLI source = %q, want agent.workers", got)
 		}
-		if got := sources["operator"].Provider; got != "agent.session" {
-			t.Errorf("operator provider source = %q, want agent.session", got)
+		if got := sources["operator"].CLI; got != "agent.session" {
+			t.Errorf("operator CLI source = %q, want agent.session", got)
 		}
-		if got := sources["doing"].Model; got != "providers.agy.profiles.doing.model" && got != "providers.agy.profiles.default.model" {
-			t.Errorf("doing model source = %q, want a providers.agy.profiles.*.model path", got)
+		if got := sources["doing"].Model; got != "clis.agy.profiles.doing.model" && got != "clis.agy.profiles.default.model" {
+			t.Errorf("doing model source = %q, want a clis.agy.profiles.*.model path", got)
 		}
 	})
 
-	t.Run("per-role provider override is stripped from the provider leaf", func(t *testing.T) {
+	t.Run("per-role CLI override is stripped from the CLI leaf", func(t *testing.T) {
 		cfg := &config.Config{Agent: config.AgentConfig{
 			Workers:  "agy",
-			Profiles: map[string]config.RoleProfile{"review": {Provider: "codex"}},
+			Profiles: map[string]config.RoleProfile{"review": {CLI: "codex"}},
 		}}
 		sources, err := DerivedRoleSources(cfg)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := sources["review"].Provider; got != "agent.workers" {
-			t.Errorf("provider leaf derives from the knob, not the override, got %q", got)
+		if got := sources["review"].CLI; got != "agent.workers" {
+			t.Errorf("CLI leaf derives from the knob, not the override, got %q", got)
 		}
 	})
 }
 
-// TestDefaultsMapFor_ToolDefaultFillKeepsToken: a provider fill holding the
+// TestDefaultsMapFor_ToolDefaultFillKeepsToken: a CLI fill holding the
 // reserved tool-default value resolves to an empty model, but the derived
 // default tier still shows the token and names the key that holds it — an empty
 // derived model would read as "no tier defines this key".
 func TestDefaultsMapFor_ToolDefaultFillKeepsToken(t *testing.T) {
 	cfg := &config.Config{
-		Agent: config.AgentConfig{Profiles: map[string]config.RoleProfile{"review": {Provider: "codex"}}},
-		Providers: map[string]config.ProviderConfig{"codex": {Profiles: map[string]config.ProviderProfile{
+		Agent: config.AgentConfig{Profiles: map[string]config.RoleProfile{"review": {CLI: "codex"}}},
+		CLIs: map[string]config.CLIConfig{"codex": {Profiles: map[string]config.CLIProfile{
 			"review": {Model: agent.ToolDefaultModel},
 		}}},
 	}
@@ -278,7 +278,7 @@ func TestDefaultsMapFor_ToolDefaultFillKeepsToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := sources["review"].Model; got != "providers.codex.profiles.review.model" {
-		t.Errorf("review model source = %q, want providers.codex.profiles.review.model", got)
+	if got := sources["review"].Model; got != "clis.codex.profiles.review.model" {
+		t.Errorf("review model source = %q, want clis.codex.profiles.review.model", got)
 	}
 }

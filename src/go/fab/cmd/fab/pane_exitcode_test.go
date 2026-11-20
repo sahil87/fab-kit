@@ -72,7 +72,7 @@ func TestPaneVerbExitCodes(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = tmux("kill-server") })
 
-	// Children run outside any fab repo, so provider resolution rides the
+	// Children run outside any fab repo, so CLI resolution rides the
 	// built-in table (the empty-config posture `fab pane open` documents).
 	scratch := t.TempDir()
 	for _, tc := range []struct {
@@ -84,7 +84,7 @@ func TestPaneVerbExitCodes(t *testing.T) {
 		{"ready dead socket exits 3", []string{"ready", "%1", "-L", "nosuch-dead-sock"}, 3},
 		{"deliver missing pane exits 2", []string{"deliver", "%999", "-L", server, "--text", "hi"}, 2},
 		{"deliver dead socket exits 3", []string{"deliver", "%1", "-L", "nosuch-dead-sock", "--text", "hi"}, 3},
-		{"open dead socket exits 3", []string{"open", "--provider", "kimi", "-L", "nosuch-dead-sock"}, 3},
+		{"open dead socket exits 3", []string{"open", "--cli", "kimi", "-L", "nosuch-dead-sock"}, 3},
 		{"kill missing pane exits 2", []string{"kill", "%999", "-L", server}, 2},
 		{"kill dead socket exits 3", []string{"kill", "%1", "-L", "nosuch-dead-sock"}, 3},
 		{"process missing pane exits 2", []string{"process", "%999", "-L", server}, 2},

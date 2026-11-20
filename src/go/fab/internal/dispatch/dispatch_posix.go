@@ -61,7 +61,7 @@ func Alive(pid int) bool {
 // load-bearing: the worker runs under the user's interactive shell
 // (spawn.WithInteractiveShell), and interactive shells IGNORE SIGTERM — a kill
 // landing while that shell is still loading rc files would otherwise leave it
-// alive to start the provider afterwards, unsupervised. Known gap: under
+// alive to start the CLI afterwards, unsupervised. Known gap: under
 // --timeout, `timeout` moves itself into its own process group, so the group
 // signal reaches only the outer wrapper shell. It is idempotent: ESRCH
 // ("no such process" — the group is already gone) is a benign no-op, not an

@@ -9,16 +9,16 @@ import (
 
 // This file holds the PANE READINESS GATE and the VERIFIED DELIVERY
 // choreography — the shared, pane-addressed mechanics of the pane layer. The
-// provider-generic primitives (`fab pane ready` / `fab pane deliver`) run them
+// CLI-generic primitives (`fab pane ready` / `fab pane deliver`) run them
 // directly against a pane id, and `fab dispatch ready` / `fab dispatch
 // deliver` are thin record-keeping bindings over the same gate — the two
 // halves of how a pane-mode worker gets its prompt now that `fab dispatch
 // open` spawns the pane WITHOUT one.
 //
 // Why delivery moved off the spawn command: a spawn-time positional pointer is
-// fire-and-forget and unverifiable (a provider CLI that silently drops it leaves
+// fire-and-forget and unverifiable (a CLI tool that silently drops it leaves
 // a worker at an empty prompt while the dispatch reads `running`), and requiring
-// one made pane capability hostage to whether a provider's CLI happens to accept
+// one made pane capability hostage to whether a CLI's CLI happens to accept
 // a positional prompt. Typing the pointer through tmux and CHECKING that it
 // landed makes delivery observable, and the same engine serves both the initial
 // dispatch and a rework-cycle continuation. See docs/specs/harness-adapters.md
@@ -27,7 +27,7 @@ import (
 // Why the gate probes in two stages: the sentinel echo is only trustworthy
 // once an agent owns the pane. A tmux pane starts with a SHELL holding the
 // pty in COOKED mode, where the tty echoes typed characters by itself — so in
-// the window between the pane spawning and the provider binary putting the
+// the window between the pane spawning and the CLI binary putting the
 // pty into raw mode, the sentinel echoes for a reason that has nothing to do
 // with an agent being ready, and every downstream verification built on the
 // echo fails in the same direction (a "delivered" prompt the booting TUI
@@ -55,7 +55,7 @@ const (
 	// ReadyReady: the sentinel echoed — the pane accepts typed input.
 	ReadyReady Readiness = "ready"
 	// ReadyBooting: there is no agent to answer yet — either the pane's
-	// foreground command is still a shell (the provider binary has not taken
+	// foreground command is still a shell (the CLI binary has not taken
 	// the tty), or the sentinel did not echo on an empty or still-changing
 	// screen (the TUI is plausibly still starting).
 	ReadyBooting Readiness = "booting"
@@ -199,7 +199,7 @@ func DeriveReadiness(echoed bool, first, second string) Readiness {
 // non-`ready` answer, so the caller never needs a second capture call.
 //
 // AGENT TAKEOVER PRECONDITION: before anything is typed, the pane's
-// foreground command is read. While it is still a shell, the provider binary
+// foreground command is read. While it is still a shell, the CLI binary
 // has not taken the tty, so there is no agent to probe — and a cooked-mode
 // shell echoes typed characters by itself, so the sentinel would echo for a
 // reason that has nothing to do with readiness. That path reports `booting`

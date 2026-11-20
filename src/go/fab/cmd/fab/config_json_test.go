@@ -22,6 +22,7 @@ func setupProjectless(t *testing.T) (home string) {
 	for _, key := range configscope.DottedKeys() {
 		env["FAB_"+strings.ToUpper(strings.ReplaceAll(key, ".", "_"))] = ""
 	}
+	env["FAB_PROVIDERS"] = "" // deprecated alias of FAB_CLIS
 	chdirTestEnv(t, t.TempDir(), env)
 	return home
 }
@@ -126,7 +127,7 @@ func TestConfigShowJSON_MapKeyAndListValue(t *testing.T) {
 		t.Fatal(err)
 	}
 	var obj map[string]any
-	if err := json.Unmarshal([]byte(out), &obj); err != nil || obj["provider"] == nil {
+	if err := json.Unmarshal([]byte(out), &obj); err != nil || obj["cli"] == nil {
 		t.Errorf("a map key must encode as a JSON object, got %q (err %v)", out, err)
 	}
 }
@@ -192,13 +193,13 @@ func TestConfigShowOriginJSON_ProjectlessTierDetails(t *testing.T) {
 
 func TestConfigShowOriginJSON_MapLeafUnderEnvUsesRegistryVariable(t *testing.T) {
 	setupProjectless(t)
-	t.Setenv("FAB_AGENT_PROFILES", "{review: {provider: codex}}")
+	t.Setenv("FAB_AGENT_PROFILES", "{review: {cli: codex}}")
 
 	out, _, err := runConfigSplit(t, "show", "--origin", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	row := rowFor(t, jsonRows(t, out), "agent.profiles.review.provider")
+	row := rowFor(t, jsonRows(t, out), "agent.profiles.review.cli")
 	if rowString(t, row, "origin") != "env" || rowString(t, row, "origin_detail") != "FAB_AGENT_PROFILES" {
 		t.Errorf("a leaf beneath a map-valued env row names the registry-row variable: %s", compactJSON(t, row))
 	}
@@ -246,10 +247,10 @@ func TestConfigShowOriginJSON_UndefinedKeyIsEmptyArray(t *testing.T) {
 }
 
 func TestConfigShowOriginJSON_AncestorReplacedDescendantIsOneNullRow(t *testing.T) {
-	repo, _ := setupConfigRepo(t, "providers: oops\n")
+	repo, _ := setupConfigRepo(t, "clis: oops\n")
 	projectPath := filepath.Join(repo, "fab", "project", "config.yaml")
 
-	out, _, err := runConfigSplit(t, "show", "providers.claude.interactive_command", "--origin", "--json")
+	out, _, err := runConfigSplit(t, "show", "clis.claude.interactive_command", "--origin", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +258,7 @@ func TestConfigShowOriginJSON_AncestorReplacedDescendantIsOneNullRow(t *testing.
 	if len(rows) != 1 {
 		t.Fatalf("want exactly one row, got:\n%s", out)
 	}
-	want := `{"key":"providers.claude.interactive_command","value":null,"origin":"project","origin_detail":` + jsonQuote(projectPath) + `,"status":"effective"}`
+	want := `{"key":"clis.claude.interactive_command","value":null,"origin":"project","origin_detail":` + jsonQuote(projectPath) + `,"status":"effective"}`
 	if got := compactJSON(t, rows[0]); got != want {
 		t.Errorf("got %s\nwant %s", got, want)
 	}
@@ -286,9 +287,9 @@ func TestConfigShowOriginJSON_DerivedFrom(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		row := rowFor(t, jsonRows(t, out), "agent.profiles.doing.provider")
+		row := rowFor(t, jsonRows(t, out), "agent.profiles.doing.cli")
 		if rowString(t, row, "value") != "agy" || rowString(t, row, "origin") != "default" {
-			t.Fatalf("setup: doing.provider must be a derived default row: %s", compactJSON(t, row))
+			t.Fatalf("setup: doing.cli must be a derived default row: %s", compactJSON(t, row))
 		}
 		want := `{"key":"agent.workers","origin":"system","origin_detail":` + jsonQuote(systemPath) + `}`
 		if got := compactRaw(t, row["derived_from"]); got != want {
@@ -309,15 +310,15 @@ func TestConfigShowOriginJSON_DerivedFrom(t *testing.T) {
 		}
 	})
 
-	t.Run("a role's own provider override is a literal, not derived", func(t *testing.T) {
-		setupConfigRepo(t, "agent:\n  workers: agy\n  profiles:\n    review:\n      provider: codex\n")
+	t.Run("a role's own CLI override is a literal, not derived", func(t *testing.T) {
+		setupConfigRepo(t, "agent:\n  workers: agy\n  profiles:\n    review:\n      cli: codex\n")
 		out, _, err := runConfigSplit(t, "show", "--origin", "--json")
 		if err != nil {
 			t.Fatal(err)
 		}
-		row := rowFor(t, jsonRows(t, out), "agent.profiles.review.provider")
+		row := rowFor(t, jsonRows(t, out), "agent.profiles.review.cli")
 		if rowString(t, row, "origin") != "project" {
-			t.Fatalf("setup: review.provider must be won by the project tier: %s", compactJSON(t, row))
+			t.Fatalf("setup: review.cli must be won by the project tier: %s", compactJSON(t, row))
 		}
 		if _, ok := row["derived_from"]; ok {
 			t.Errorf("a row won by a user tier carries no derived_from: %s", compactJSON(t, row))
@@ -328,7 +329,7 @@ func TestConfigShowOriginJSON_DerivedFrom(t *testing.T) {
 		home := setupProjectless(t)
 		writeSystemConfig(t, home, "agent:\n  workers: agy\n")
 
-		out, _, err := runConfigSplit(t, "show", "agent.profiles.doing.provider", "--origin", "--json")
+		out, _, err := runConfigSplit(t, "show", "agent.profiles.doing.cli", "--origin", "--json")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -341,9 +342,9 @@ func TestConfigShowOriginJSON_DerivedFrom(t *testing.T) {
 		}
 	})
 
-	t.Run("a user-set provider fill drives model derivation", func(t *testing.T) {
+	t.Run("a user-set CLI fill drives model derivation", func(t *testing.T) {
 		home := setupProjectless(t)
-		writeSystemConfig(t, home, "agent:\n  workers: agy\nproviders:\n  agy:\n    profiles:\n      doing:\n        model: my-model\n")
+		writeSystemConfig(t, home, "agent:\n  workers: agy\nclis:\n  agy:\n    profiles:\n      doing:\n        model: my-model\n")
 		systemPath := filepath.Join(home, ".fab-kit", "config.yaml")
 
 		out, _, err := runConfigSplit(t, "show", "agent.profiles.doing.model", "--origin", "--json")
@@ -354,7 +355,7 @@ func TestConfigShowOriginJSON_DerivedFrom(t *testing.T) {
 		if len(rows) != 1 || rowString(t, rows[0], "value") != "my-model" || rowString(t, rows[0], "origin") != "default" {
 			t.Fatalf("setup: want the single derived default row, got:\n%s", out)
 		}
-		want := `{"key":"providers.agy.profiles.doing.model","origin":"system","origin_detail":` + jsonQuote(systemPath) + `}`
+		want := `{"key":"clis.agy.profiles.doing.model","origin":"system","origin_detail":` + jsonQuote(systemPath) + `}`
 		if got := compactRaw(t, rows[0]["derived_from"]); got != want {
 			t.Errorf("derived_from:\n got %s\nwant %s", got, want)
 		}
@@ -372,7 +373,7 @@ func TestConfigShowText_DerivedFromNeverAppears(t *testing.T) {
 	if strings.Contains(out, "derived_from") || strings.Contains(out, "via ") {
 		t.Errorf("text --origin must not change:\n%s", out)
 	}
-	if !strings.Contains(out, "agent.profiles.doing.provider = agy") {
+	if !strings.Contains(out, "agent.profiles.doing.cli = agy") {
 		t.Errorf("setup: expected the derived row in text output:\n%s", out)
 	}
 }
@@ -393,7 +394,7 @@ func TestConfigSet_RefusesOutOfDomainValuesWithoutWriting(t *testing.T) {
 		{"dispatch.min_cols", "9223372036854775808", []string{"dispatch.min_cols", "at least 1"}},
 		{"agent.workers", "bogus", []string{"agent.workers", "bogus", "agy, claude, codex, kimi"}},
 		{"agent.session", "bogus", []string{"agent.session", "bogus", "available:"}},
-		{"agent.profiles.review.provider", "bogus", []string{"agent.profiles.review.provider", "bogus", "available:"}},
+		{"agent.profiles.review.cli", "bogus", []string{"agent.profiles.review.cli", "bogus", "available:"}},
 	}
 	for _, c := range cases {
 		for _, system := range []bool{true, false} {
@@ -453,7 +454,7 @@ func TestConfigSet_AcceptsBoundaryAndValidValues(t *testing.T) {
 		{"dispatch.reap_done", "false"},
 		{"agent.workers", "codex"},
 		{"agent.session", "kimi"},
-		{"agent.profiles.review.provider", "agy"},
+		{"agent.profiles.review.cli", "agy"},
 	} {
 		t.Run(c[0]+"="+c[1], func(t *testing.T) {
 			home := setupProjectless(t)
@@ -488,51 +489,51 @@ func TestConfigSet_KindMismatchKeepsTheKindError(t *testing.T) {
 	}
 }
 
-func TestConfigSet_ProviderTableIncludesProjectProviders(t *testing.T) {
-	setupConfigRepo(t, "providers:\n  mytool:\n    headless_command: mytool run\n")
+func TestConfigSet_CLITableIncludesProjectCLIs(t *testing.T) {
+	setupConfigRepo(t, "clis:\n  mytool:\n    headless_command: mytool run\n")
 
-	if _, _, err := runConfigSplit(t, "set", "agent.profiles.review.provider", "mytool"); err != nil {
-		t.Fatalf("a provider defined in the project providers table must be accepted: %v", err)
+	if _, _, err := runConfigSplit(t, "set", "agent.profiles.review.cli", "mytool"); err != nil {
+		t.Fatalf("a CLI defined in the project CLIs table must be accepted: %v", err)
 	}
 	_, _, err := runConfigSplit(t, "set", "agent.workers", "othertool")
 	if err == nil || !strings.Contains(err.Error(), "mytool") {
-		t.Errorf("the refusal must list the project-defined provider among the available names: %v", err)
+		t.Errorf("the refusal must list the project-defined CLI among the available names: %v", err)
 	}
 }
 
-func TestConfigSet_ProviderTableIncludesSystemProvidersOutsideProject(t *testing.T) {
+func TestConfigSet_CLITableIncludesSystemCLIsOutsideProject(t *testing.T) {
 	home := setupProjectless(t)
-	writeSystemConfig(t, home, "providers:\n  mytool:\n    headless_command: mytool run\n")
+	writeSystemConfig(t, home, "clis:\n  mytool:\n    headless_command: mytool run\n")
 
 	if _, _, err := runConfigSplit(t, "set", "--system", "agent.workers", "mytool"); err != nil {
-		t.Fatalf("a system-defined provider must be accepted outside a project: %v", err)
+		t.Fatalf("a system-defined CLI must be accepted outside a project: %v", err)
 	}
 }
 
-// TestConfigSet_MalformedProjectStillAcceptsBuiltinProvider: when the read model
-// cannot be loaded the provider table falls back to the project-free cascade, so a
+// TestConfigSet_MalformedProjectStillAcceptsBuiltinCLI: when the read model
+// cannot be loaded the CLI table falls back to the project-free cascade, so a
 // built-in name is never refused for that reason alone.
-func TestConfigSet_MalformedProjectStillAcceptsBuiltinProvider(t *testing.T) {
+func TestConfigSet_MalformedProjectStillAcceptsBuiltinCLI(t *testing.T) {
 	setupConfigRepo(t, "this: is: not: valid: yaml: [[[\n")
 
 	if _, _, err := runConfigSplit(t, "set", "--system", "agent.workers", "codex"); err != nil {
-		t.Fatalf("a built-in provider must be accepted when the project file is malformed: %v", err)
+		t.Fatalf("a built-in CLI must be accepted when the project file is malformed: %v", err)
 	}
 	if _, _, err := runConfigSplit(t, "set", "--system", "agent.workers", "bogus"); err == nil {
-		t.Error("an unknown provider must still be refused under the fallback table")
+		t.Error("an unknown CLI must still be refused under the fallback table")
 	}
 }
 
-// TestConfigSet_IncompatibleSystemFileKeepsEnvProviders: a system file that is
+// TestConfigSet_IncompatibleSystemFileKeepsEnvCLIs: a system file that is
 // valid YAML but schema-incompatible is dropped by the fallback, and the env
-// overlay's providers survive it.
-func TestConfigSet_IncompatibleSystemFileKeepsEnvProviders(t *testing.T) {
+// overlay's CLIs survive it.
+func TestConfigSet_IncompatibleSystemFileKeepsEnvCLIs(t *testing.T) {
 	home := setupProjectless(t)
 	writeSystemConfig(t, home, "dispatch: oops\n")
-	t.Setenv("FAB_PROVIDERS", `{mytool: {headless_command: "mytool run"}}`)
+	t.Setenv("FAB_CLIS", `{mytool: {headless_command: "mytool run"}}`)
 
 	if _, _, err := runConfigSplit(t, "set", "--system", "agent.workers", "mytool"); err != nil {
-		t.Fatalf("an env-defined provider must be accepted when the system file is schema-incompatible: %v", err)
+		t.Fatalf("an env-defined CLI must be accepted when the system file is schema-incompatible: %v", err)
 	}
 }
 

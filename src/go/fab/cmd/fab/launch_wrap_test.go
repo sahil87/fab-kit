@@ -13,10 +13,10 @@ import (
 )
 
 // interactiveShellPrefix is the launch wrap spawn.WithInteractiveShell emits
-// ahead of the single-quoted provider command.
+// ahead of the single-quoted CLI command.
 const interactiveShellPrefix = `${SHELL:-/bin/sh} -i -c `
 
-// unwrapInteractiveShell asserts that launch is a provider command wrapped by
+// unwrapInteractiveShell asserts that launch is a CLI command wrapped by
 // spawn.WithInteractiveShell — with the interactive-spawn `; exec "$SHELL"`
 // fallback as the wrapped command's tail when withFallback is set (INSIDE the
 // wrap) — and returns the inner command with its single-quoting and the
@@ -43,12 +43,12 @@ func unwrapInteractiveShell(t *testing.T, launch string, withFallback bool) stri
 // assertWrappedPaneLaunch asserts a dispatch pane worker was STARTED under the
 // interactive-shell wrap (tmux's #{pane_start_command} — the creator's
 // shell-command argument, as tmux re-quotes it) while the record's SpawnCmd
-// keeps the unwrapped resolved provider command.
+// keeps the unwrapped resolved CLI command.
 func assertWrappedPaneLaunch(t *testing.T, tmuxScoped func(...string) (string, error), paneID, spawnCmd string) {
 	t.Helper()
 	start := paneFormat(t, tmuxScoped, paneID, "#{pane_start_command}")
 	if !strings.Contains(start, "SHELL:-/bin/sh} -i -c ") {
-		t.Errorf("pane start command = %q, want the provider launched under the interactive-shell wrap", start)
+		t.Errorf("pane start command = %q, want the CLI launched under the interactive-shell wrap", start)
 	}
 	if strings.Contains(start, `exec "$SHELL"`) || strings.Contains(start, `exec \"`) {
 		t.Errorf("pane start command = %q, a dispatch worker must carry NO shell fallback", start)

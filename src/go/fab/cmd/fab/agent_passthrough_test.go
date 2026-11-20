@@ -91,17 +91,17 @@ func TestAgentPassthrough_EscapesEmbeddedSingleQuote(t *testing.T) {
 	}
 }
 
-// TestAgentPassthrough_ProviderPathToo: passthrough is appended after BOTH
+// TestAgentPassthrough_CLIPathToo: passthrough is appended after BOTH
 // addressing modes, so the two cannot diverge on it.
-func TestAgentPassthrough_ProviderPathToo(t *testing.T) {
+func TestAgentPassthrough_CLIPathToo(t *testing.T) {
 	noProjectDir(t)
 
-	out, err := runAgentPrint(t, "--provider", "claude", "--model", "m", "--effort", "e", "--", "--resume")
+	out, err := runAgentPrint(t, "--cli", "claude", "--model", "m", "--effort", "e", "--", "--resume")
 	if err != nil {
-		t.Fatalf("agent --provider claude -- --resume: %v", err)
+		t.Fatalf("agent --cli claude -- --resume: %v", err)
 	}
 	if !strings.HasSuffix(out, " '--resume'\n") {
-		t.Errorf("output = %q, want the passthrough appended on the provider path too", out)
+		t.Errorf("output = %q, want the passthrough appended on the CLI path too", out)
 	}
 }
 

@@ -55,73 +55,73 @@ type StageHook struct {
 	Post string `yaml:"post"`
 }
 
-// ProviderProfile is the {model, effort} a provider supplies when it plays ONE
-// role — the `providers.<name>.profiles.<role>` entry. It carries no provider
-// field (the provider is the map it hangs off) and no command (that lives on the
-// ProviderConfig). Either field MAY be empty; an empty value falls through to the
-// provider's `default`-role profile and then to empty, whose established meaning
+// CLIProfile is the {model, effort} a CLI supplies when it plays ONE
+// role — the `clis.<name>.profiles.<role>` entry. It carries no CLI
+// field (the CLI is the map it hangs off) and no command (that lives on the
+// CLIConfig). Either field MAY be empty; an empty value falls through to the
+// CLI's `default`-role profile and then to empty, whose established meaning
 // is spawn.WithProfile's token-drop (so the CLI's own default applies) and, on a
 // resolve-agent `model=` line, "inherit the session model".
-type ProviderProfile struct {
+type CLIProfile struct {
 	Model  string `yaml:"model"`
 	Effort string `yaml:"effort"`
 }
 
-// ProviderConfig models one entry of the top-level `providers:` table: a named
-// invocation grammar for an agent harness, plus its per-role fills. Provider names
-// are opaque, user-chosen strings (fab never infers a provider from a model
+// CLIConfig models one entry of the top-level `clis:` table: a named
+// invocation grammar for an agent harness, plus its per-role fills. CLI names
+// are opaque, user-chosen strings (fab never infers a CLI from a model
 // string).
 //
 //   - InteractiveCommand opens an interactive agent SESSION (the relocated
 //     agent.spawn_command semantics — consumed by fab batch / fab agent).
 //   - HeadlessCommand runs ONE headless stage task via fab dispatch.
 //   - ModelsCommand prints model-discovery rows for fab agent models.
-//   - Native declares that the provider can run through the native Agent-tool
-//     adapter. Provider names are opaque, so this capability is shipped data.
+//   - Native declares that the CLI can run through the native Agent-tool
+//     adapter. CLI names are opaque, so this capability is shipped data.
 //
 // The two launch command fields are deliberately NOT merged into one: session and
 // dispatch are different invocations of the same binary (claude interactive `-n`
 // vs headless `-p`; codex TUI vs `codex exec`), and no single template expresses
 // both. Both strings pass through verbatim — fab applies NO validation against any
-// provider's accepted set (provider neutrality, Constitution Principle I). The
+// CLI's accepted set (CLI neutrality, Constitution Principle I). The
 // {model}/{effort} placeholders are substituted at resolve time via internal/spawn.
 //
-// Profiles is the provider's PER-ROLE FILL: "when this provider plays this role,
+// Profiles is the CLI's PER-ROLE FILL: "when this CLI plays this role,
 // use this model/effort". It is keyed by role name, and the `default` role doubles
-// as the provider's cross-role fallback. It is the only cross-role fallback chain
+// as the CLI's cross-role fallback. It is the only cross-role fallback chain
 // in the resolver — the agent side has none — and sits below an explicit
 // agent.profiles.<role> field in the fill precedence:
 //
 //	invocation flag  >  agent.profiles.<role>.<field>
-//	                 >  providers.<p>.profiles.<role>.<field>
-//	                 >  providers.<p>.profiles.default.<field>  >  empty
+//	                 >  clis.<p>.profiles.<role>.<field>
+//	                 >  clis.<p>.profiles.default.<field>  >  empty
 //
-// The deprecated flat providers.<p>.<field> is NOT a rung of its own — it is folded
+// The deprecated flat clis.<p>.<field> is NOT a rung of its own — it is folded
 // into that override's own profiles.default (see Model and Effort below).
 //
 // Model and Effort are the DEPRECATED FLAT FILL (pre-2.17.0
-// providers.<name>.model/.effort). They are still read, as an ALIAS for the
-// override's own Profiles["default"]: internal/agent.ResolveProvider folds them into
+// clis.<name>.model/.effort). They are still read, as an ALIAS for the
+// override's own Profiles["default"]: internal/agent.ResolveCLI folds them into
 // that entry per field before merging fab-kit's built-in table, so a config that has
 // not yet run the 2.16.19-to-2.17.0 migration keeps resolving AND keeps outranking
 // the built-in fill it is trying to replace. The override's own profiles.default wins
 // where it sets a field (the modern spelling beats its alias), and a built-in ROLE
 // fill still outranks the folded default exactly as it outranks a hand-written
-// profiles.default. New configs write providers.<name>.profiles.default instead. One
-// fill per provider resolved the same model for every role, which is exactly the role
+// profiles.default. New configs write clis.<name>.profiles.default instead. One
+// fill per CLI resolved the same model for every role, which is exactly the role
 // differentiation the nested map restores.
 //
 // The whole table is scope `both`, so a machine-wide fill is settable once in
 // ~/.fab-kit/config.yaml.
-type ProviderConfig struct {
+type CLIConfig struct {
 	InteractiveCommand string `yaml:"interactive_command"`
 	HeadlessCommand    string `yaml:"headless_command"`
 	ModelsCommand      string `yaml:"models_command"`
 	Native             bool   `yaml:"native"`
 	// NativeSet preserves YAML presence so an explicit `native: false` can
-	// override a built-in true value during the provider-table merge.
-	NativeSet bool                       `yaml:"-"`
-	Profiles  map[string]ProviderProfile `yaml:"profiles"`
+	// override a built-in true value during the CLI-table merge.
+	NativeSet bool                  `yaml:"-"`
+	Profiles  map[string]CLIProfile `yaml:"profiles"`
 
 	// Deprecated: pre-2.19 spellings, read-time alias only. Resolution prefers
 	// the new spelling PER FIELD, so a half-migrated config resolves everything.
@@ -129,22 +129,22 @@ type ProviderConfig struct {
 	DispatchCommand string `yaml:"dispatch_command"`
 
 	// Deprecated: the flat fill. Read as an ALIAS for Profiles["default"] — folded
-	// into it per field by internal/agent.ResolveProvider; see the type doc.
+	// into it per field by internal/agent.ResolveCLI; see the type doc.
 	// Removed from the documented surface in 2.17.0.
 	Model  string `yaml:"model"`
 	Effort string `yaml:"effort"`
 }
 
 // UnmarshalYAML preserves whether native was explicitly present. A plain bool
-// cannot distinguish absent from false, but provider overrides need that
+// cannot distinguish absent from false, but CLI overrides need that
 // distinction to disable a built-in native capability deliberately.
-func (p *ProviderConfig) UnmarshalYAML(value *yaml.Node) error {
-	type plain ProviderConfig
+func (p *CLIConfig) UnmarshalYAML(value *yaml.Node) error {
+	type plain CLIConfig
 	var decoded plain
 	if err := value.Decode(&decoded); err != nil {
 		return err
 	}
-	*p = ProviderConfig(decoded)
+	*p = CLIConfig(decoded)
 	if value.Kind == yaml.MappingNode {
 		for i := 0; i+1 < len(value.Content); i += 2 {
 			if value.Content[i].Value == "native" {
@@ -156,29 +156,29 @@ func (p *ProviderConfig) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
-// RoleProfile is a named `{provider, model, effort}` agent profile — one entry of
+// RoleProfile is a named `{cli, model, effort}` agent profile — one entry of
 // `agent.profiles`. Every field MAY be empty, and the map is deliberately SPARSE:
 // an unset field is simply not an override, and resolution continues down the fill
-// precedence (see ProviderConfig) rather than inheriting from another role. There
+// precedence (see CLIConfig) rather than inheriting from another role. There
 // is NO agent-side `default`-role inheritance — agent.profiles.default is the
 // `default` role's own override, not a fallback source for the other five.
 //
-// Provider names the entry in the top-level `providers:` table whose command
+// CLI names the entry in the top-level `clis:` table whose command
 // grammar this role's agents use; when unset, the role's depth knob
 // (agent.session or agent.workers) supplies it. The command itself lives on the
-// provider, NOT the role.
+// CLI, NOT the role.
 //
-// All strings are pass-through — fab applies NO validation (provider neutrality,
+// All strings are pass-through — fab applies NO validation (CLI neutrality,
 // Constitution Principle I). See internal/agent for resolution.
 type RoleProfile struct {
-	Provider string `yaml:"provider"`
-	Model    string `yaml:"model"`
-	Effort   string `yaml:"effort"`
+	CLI    string `yaml:"cli"`
+	Model  string `yaml:"model"`
+	Effort string `yaml:"effort"`
 }
 
 // AgentConfig models the `agent:` section of config.yaml.
 //
-// Session and Workers are the two ADVERTISED knobs, selecting a provider by agent
+// Session and Workers are the two ADVERTISED knobs, selecting a CLI by agent
 // DEPTH: Session covers the Tier-1 roles (the agents a user talks to — `default`,
 // `operator`), Workers the Tier-2 roles (the agents pipeline stages dispatch to —
 // `doing`, `review`, `hydrate`, `fast`). Both default to `claude`. The role→depth
@@ -187,8 +187,8 @@ type RoleProfile struct {
 // workers" and stop there.
 //
 // Profiles is the sparse per-role escape hatch beneath them: a map of role name
-// (default/operator/doing/review/hydrate/fast) → {provider, model, effort}, each
-// field optional and each set field beating the knob (provider) or the provider's
+// (default/operator/doing/review/hydrate/fast) → {cli, model, effort}, each
+// field optional and each set field beating the knob (CLI) or the CLI's
 // own fill (model/effort).
 //
 // Tiers is the DEPRECATED spelling of Profiles (pre-2.17.0 `agent.tiers`), read
@@ -218,7 +218,7 @@ type ProjectConfig struct {
 // covers every repo on the machine).
 //
 // Mode is the PREFERRED dispatch rung. Automatic resolution starts there and
-// descends pane → native → headless, never ascending, until provider capability
+// descends pane → native → headless, never ascending, until CLI capability
 // and environment make a rung possible. The default is native, which preserves
 // the shipped built-in behavior: claude runs natively while codex, agy, and kimi
 // descend to their headless commands.
@@ -352,11 +352,14 @@ type Config struct {
 	// name, so a stale `fab_version:` key in config.yaml is an inert unknown key.
 	// The field is populated only by Load's readDotFabVersion overlay and consumed
 	// by GetFabVersion → preflight's staleness check.
-	FabVersion string                    `yaml:"-"`
-	Providers  map[string]ProviderConfig `yaml:"providers"`
-	Agent      AgentConfig               `yaml:"agent"`
-	Project    ProjectConfig             `yaml:"project"`
-	Dispatch   DispatchConfig            `yaml:"dispatch"`
+	FabVersion string `yaml:"-"`
+	// CLIs is the canonical `clis:` table. The pre-2.31 `providers:` spelling is
+	// folded into it on every raw layer by NormalizeDeprecated (deprecated.go), so
+	// the typed config carries no deprecated twin.
+	CLIs     map[string]CLIConfig `yaml:"clis"`
+	Agent    AgentConfig          `yaml:"agent"`
+	Project  ProjectConfig        `yaml:"project"`
+	Dispatch DispatchConfig       `yaml:"dispatch"`
 }
 
 // Load reads fab/project/config.yaml from fabRoot and returns the parsed config.
@@ -408,7 +411,7 @@ func readDotFabVersion(fabRoot string) string {
 // MergeLayers (maps merge per-key recursively, lists and scalars replace, and an
 // EMPTY leaf — null, "", [], {} — falls through instead of shadowing); the
 // built-in-defaults tier stays where it lives today — the point-of-use fallbacks
-// (internal/agent's role/provider resolution, the nil-safe accessors) — which
+// (internal/agent's role/cli resolution, the nil-safe accessors) — which
 // composes to four-tier semantics with zero per-caller change. The registry-backed
 // projection of that tier (configref.DefaultsMap) is consumed by the read-model
 // surfaces in cmd/fab, which can import configref; this package cannot
@@ -484,7 +487,7 @@ func LoadNoProject() *Config {
 // decoded to nothing — leaves the merge empty and yields the zero Config, the
 // byte-identical result the pre-cascade missing-file path returned.
 func fromProjectMap(projectMap map[string]any) (*Config, error) {
-	return FromMap(MergeLayers(projectMap, loadSystemLayer(), envLayerMap()))
+	return FromMap(MergeLayers(NormalizeDeprecated(projectMap), loadSystemLayer(), envLayerMap()))
 }
 
 // envLayerMap is loadEnvLayer's map half — the origins map is provenance-only and
@@ -580,6 +583,7 @@ func LoadLayersNoProject() *Layers {
 // (or deliberately nil); system and env are loaded here so the two entry points
 // can never drift on which tiers they compose or in what order.
 func layersFrom(projectPath string, projectMap map[string]any) *Layers {
+	projectMap = NormalizeDeprecated(projectMap)
 	systemMap := loadSystemLayer()
 	envMap, envOrigins := loadEnvLayer()
 	sysPath, _ := systemConfigPath() // "" only if HOME is unresolvable (fail-open)
@@ -634,7 +638,7 @@ func loadSystemLayer() map[string]any {
 		return nil // absent or empty ⇒ byte-identical current behavior
 	}
 	pruneProjectScoped(m, path)
-	return m
+	return NormalizeDeprecated(m)
 }
 
 // ParseYAMLValue parses one environment override through the shared value
@@ -670,43 +674,71 @@ func loadEnvLayer() (map[string]any, map[string]string) {
 	var overlay map[string]any
 	var origins map[string]string
 	for _, key := range configscope.DottedKeys() {
-		envName := envNameForKey(key)
-		raw, set := os.LookupEnv(envName)
-		if !set || raw == "" {
-			continue
-		}
+		for _, src := range envSourcesForKey(key) {
+			raw, set := os.LookupEnv(src.name)
+			if !set || raw == "" {
+				continue
+			}
 
-		scope, known := configscope.ScopeFor(topLevel(key))
-		if !known {
-			continue // parity/lint tests make this unreachable; stay fail-open
-		}
-		if scope == configscope.ScopeProject {
-			warnf("fab: warning: ignoring project-scoped environment override $%s for %q (project-scoped fields belong in fab/project/config.yaml)\n", envName, key)
-			continue
-		}
+			scope, known := configscope.ScopeFor(topLevel(key))
+			if !known {
+				continue // parity/lint tests make this unreachable; stay fail-open
+			}
+			if scope == configscope.ScopeProject {
+				warnf("fab: warning: ignoring project-scoped environment override $%s for %q (project-scoped fields belong in fab/project/config.yaml)\n", src.name, key)
+				continue
+			}
 
-		value, err := ParseYAMLValue(raw)
-		if err != nil {
-			warnf("fab: warning: ignoring malformed environment override $%s for %q (%v)\n", envName, key, err)
-			continue
+			value, err := ParseYAMLValue(raw)
+			if err != nil {
+				warnf("fab: warning: ignoring malformed environment override $%s for %q (%v)\n", src.name, key, err)
+				continue
+			}
+			if IsEmptyValue(value) {
+				continue // an empty value is unset at every tier, environment included
+			}
+			// The probe always uses the canonical key: a deprecated alias carries
+			// the same value shape, and the typed Config only knows the new spelling.
+			probe := make(map[string]any)
+			setDotted(probe, key, value)
+			if err := validateConfigFragment(probe); err != nil {
+				warnf("fab: warning: ignoring malformed environment override $%s for %q (%v)\n", src.name, key, err)
+				continue
+			}
+			fragment := make(map[string]any)
+			setDotted(fragment, src.fragmentKey, value)
+			if overlay == nil {
+				overlay = make(map[string]any)
+				origins = make(map[string]string)
+			}
+			overlay = mergeOver(overlay, fragment)
+			if _, named := origins[key]; !named {
+				origins[key] = src.name // the canonical variable is listed first, so it names the origin when both are set
+			}
 		}
-		if IsEmptyValue(value) {
-			continue // an empty value is unset at every tier, environment included
-		}
-		fragment := make(map[string]any)
-		setDotted(fragment, key, value)
-		if err := validateConfigFragment(fragment); err != nil {
-			warnf("fab: warning: ignoring malformed environment override $%s for %q (%v)\n", envName, key, err)
-			continue
-		}
-		if overlay == nil {
-			overlay = make(map[string]any)
-			origins = make(map[string]string)
-		}
-		overlay = mergeOver(overlay, fragment)
-		origins[key] = envName
 	}
-	return overlay, origins
+	// A deprecated alias variable (FAB_PROVIDERS) landed under its old key; fold it
+	// per field beneath any canonical one.
+	return NormalizeDeprecated(overlay), origins
+}
+
+// envSource is one environment variable that can supply a registry key: its name
+// and the key its value is merged under before normalization.
+type envSource struct {
+	name        string
+	fragmentKey string
+}
+
+// envSourcesForKey lists the variables read for a registry key, canonical first.
+// Beyond the derived FAB_<KEY> name, the `clis` table also reads the deprecated
+// FAB_PROVIDERS alias (kit 2.31.0 rename; one-minor-release window), the new
+// variable winning per field when both are set.
+func envSourcesForKey(key string) []envSource {
+	sources := []envSource{{name: envNameForKey(key), fragmentKey: key}}
+	if key == canonicalCLIsKey {
+		sources = append(sources, envSource{name: "FAB_PROVIDERS", fragmentKey: deprecatedCLIsKey})
+	}
+	return sources
 }
 
 // validateConfigFragment checks one environment variable independently against
@@ -899,31 +931,31 @@ func (c *Config) GetFabVersion() string {
 	return c.FabVersion
 }
 
-// GetProvider returns the configured ProviderConfig for a provider name and
-// whether one was set. Nil-safe: a nil *Config, an absent providers block, or an
+// GetCLI returns the configured CLIConfig for a CLI name and
+// whether one was set. Nil-safe: a nil *Config, an absent clis block, or an
 // unconfigured name all report (zero, false). The bool lets a caller distinguish
-// "no provider entry" from "entry present but with empty fields" — the distinction
-// internal/agent relies on for per-field merge over fab-kit's built-in provider
+// "no CLI entry" from "entry present but with empty fields" — the distinction
+// internal/agent relies on for per-field merge over fab-kit's built-in CLI
 // table.
-func (c *Config) GetProvider(name string) (ProviderConfig, bool) {
-	if c == nil || c.Providers == nil {
-		return ProviderConfig{}, false
+func (c *Config) GetCLI(name string) (CLIConfig, bool) {
+	if c == nil || c.CLIs == nil {
+		return CLIConfig{}, false
 	}
-	p, ok := c.Providers[name]
+	p, ok := c.CLIs[name]
 	return p, ok
 }
 
-// ProviderNames returns the provider names configured in the project's
-// `providers:` block, in unspecified order (callers that need stability sort).
-// Nil-safe: a nil *Config or an absent providers block yields nil. Callers that
+// CLINames returns the CLI names configured in the project's
+// `clis:` block, in unspecified order (callers that need stability sort).
+// Nil-safe: a nil *Config or an absent clis block yields nil. Callers that
 // want the RESOLVABLE set (project ∪ fab-kit's built-in table) use
-// internal/agent.ProviderNames, which owns the built-in table.
-func (c *Config) ProviderNames() []string {
-	if c == nil || c.Providers == nil {
+// internal/agent.CLINames, which owns the built-in table.
+func (c *Config) CLINames() []string {
+	if c == nil || c.CLIs == nil {
 		return nil
 	}
-	names := make([]string, 0, len(c.Providers))
-	for name := range c.Providers {
+	names := make([]string, 0, len(c.CLIs))
+	for name := range c.CLIs {
 		names = append(names, name)
 	}
 	return names
@@ -965,10 +997,10 @@ func (c *Config) GetAgentProfile(role string) (RoleProfile, bool) {
 	return p, ok
 }
 
-// GetAgentSession returns agent.session — the provider knob for the Tier-1
+// GetAgentSession returns agent.session — the CLI knob for the Tier-1
 // (session) roles — or "" when unset (nil-safe). internal/agent supplies the
 // built-in fallback; an empty string here means "the knob is not configured", not
-// "no provider".
+// "no CLI".
 func (c *Config) GetAgentSession() string {
 	if c == nil {
 		return ""
@@ -976,7 +1008,7 @@ func (c *Config) GetAgentSession() string {
 	return c.Agent.Session
 }
 
-// GetAgentWorkers returns agent.workers — the provider knob for the Tier-2
+// GetAgentWorkers returns agent.workers — the CLI knob for the Tier-2
 // (dispatched worker) roles — or "" when unset (nil-safe). Same empty-means-unset
 // contract as GetAgentSession.
 func (c *Config) GetAgentWorkers() string {

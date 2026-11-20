@@ -16,9 +16,9 @@ import (
 )
 
 // setupDispatchRepo builds a repo with one active change and a config whose
-// `doing` role (apply's role) points at a provider carrying a headless_command,
+// `doing` role (apply's role) points at a CLI carrying a headless_command,
 // then chdirs into it so resolve.FabRoot() resolves. When dispatchCmd is empty,
-// the resolved provider is the native-capable built-in claude. Returns the repo
+// the resolved CLI is the native-capable built-in claude. Returns the repo
 // root and the 4-char change ID.
 func setupDispatchRepo(t *testing.T, dispatchCmd string) (repoRoot, id string) {
 	t.Helper()
@@ -26,11 +26,11 @@ func setupDispatchRepo(t *testing.T, dispatchCmd string) (repoRoot, id string) {
 }
 
 // setupDispatchRepoWithCommands is setupDispatchRepo with independent control of
-// the resolved provider's TWO command fields, so the pane path (interactive_command)
+// the resolved CLI's TWO command fields, so the pane path (interactive_command)
 // and the headless path (headless_command) can be exercised separately —
 // including the case that proves there is no cross-substitution in either direction
 // (one field set, the other empty). An empty pair leaves the built-in claude
-// provider resolved (which carries native and both command capabilities).
+// CLI resolved (which carries native and both command capabilities).
 func setupDispatchRepoWithCommands(t *testing.T, dispatchCmd, sessionCmd string) (repoRoot, id string) {
 	t.Helper()
 	// Neutralize $TMUX so pane-preference tests are HERMETIC: a test suite run from
@@ -47,7 +47,7 @@ func setupDispatchRepoWithCommands(t *testing.T, dispatchCmd, sessionCmd string)
 	// $HOME is the SYSTEM config layer (~/.fab-kit/config.yaml), which the cascade
 	// merges under the project file. Isolated for the same hermeticity reason as the
 	// two env signals above: a developer's own `dispatch:` block (a column width, a
-	// providers entry) would otherwise reach into these tests and change a resolved
+	// CLIs entry) would otherwise reach into these tests and change a resolved
 	// command or a pane's expected geometry.
 	t.Setenv("HOME", t.TempDir())
 	repoRoot = t.TempDir()
@@ -68,8 +68,8 @@ func setupDispatchRepoWithCommands(t *testing.T, dispatchCmd, sessionCmd string)
 		body += "dispatch:\n  mode: pane\n"
 	}
 	if dispatchCmd != "" || sessionCmd != "" {
-		// A cli provider carries the command field(s); the doing role points at it.
-		body += "providers:\n  cli:\n"
+		// A cli CLI carries the command field(s); the doing role points at it.
+		body += "clis:\n  cli:\n"
 		if dispatchCmd != "" {
 			body += "    headless_command: \"" + dispatchCmd + "\"\n"
 		}
@@ -77,14 +77,14 @@ func setupDispatchRepoWithCommands(t *testing.T, dispatchCmd, sessionCmd string)
 			body += "    interactive_command: \"" + sessionCmd + "\"\n"
 		}
 		// The role profile PINS the `doing` role's built-in model/effort explicitly.
-		// Model and effort come from the RESOLVED provider's own per-role fills, and
-		// `cli` is a project-defined provider with none, so an unpinned role would
+		// Model and effort come from the RESOLVED CLI's own per-role fills, and
+		// `cli` is a project-defined CLI with none, so an unpinned role would
 		// resolve them empty. Pinning the same values the built-in carries keeps
 		// every dispatch test's expectation ("the resolved `doing` profile rides the
 		// spawn command") true and still derived from the canonical defaults, so a
 		// model bump does not touch these tests.
 		doingDefault, _ := agent.DefaultProfile(agent.RoleDoing)
-		body += "agent:\n  profiles:\n    doing: { provider: cli, model: " + doingDefault.Model + ", effort: " + doingDefault.Effort + " }\n"
+		body += "agent:\n  profiles:\n    doing: { cli: cli, model: " + doingDefault.Model + ", effort: " + doingDefault.Effort + " }\n"
 	}
 	mustWrite(t, filepath.Join(projectDir, "config.yaml"), body)
 
@@ -346,7 +346,7 @@ func TestDispatchStart_PaneFlagsAreRetiredWithARoute(t *testing.T) {
 }
 
 // TestDispatchStart_HeadlessStillRequiresHeadlessCommand is the other half of the
-// no-cross-substitution rule: a provider carrying ONLY an interactive_command must not
+// no-cross-substitution rule: a CLI carrying ONLY an interactive_command must not
 // satisfy a headless start.
 func TestDispatchStart_HeadlessStillRequiresHeadlessCommand(t *testing.T) {
 	setupDispatchRepoWithCommands(t, "", "sh -c 'exit 0'")
@@ -355,7 +355,7 @@ func TestDispatchStart_HeadlessStillRequiresHeadlessCommand(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error: an interactive_command must not satisfy a headless start")
 	}
-	if !strings.Contains(err.Error(), "providers.cli.headless_command") {
+	if !strings.Contains(err.Error(), "clis.cli.headless_command") {
 		t.Errorf("error = %q, want the headless_command config-key hint", err.Error())
 	}
 }
@@ -392,7 +392,7 @@ func TestDispatchStart_HeadlessFlagOptsOutOfAutoPane(t *testing.T) {
 }
 
 // TestDispatchStart_NativePreferenceDescendsToHeadless pins the default-mode
-// descent when a custom provider has no native capability.
+// descent when a custom CLI has no native capability.
 func TestDispatchStart_NativePreferenceDescendsToHeadless(t *testing.T) {
 	repoRoot, id := setupDispatchRepo(t, "sh -c 'exit 0'") // clears $TMUX
 
@@ -469,7 +469,7 @@ func TestDispatchStart_PanePreferenceDescendsOnUnreachableTmux(t *testing.T) {
 // independent reasons at once (unreachable server AND no interactive_command), and
 // either way a pane preference must descend rather than error. The probe fires
 // first, so the shape-(a) notice is the one printed — what this test pins is that a
-// headless_command-only provider does not hard-error on composition before the
+// headless_command-only CLI does not hard-error on composition before the
 // descent decision point is even reached.
 func TestDispatchStart_PanePreferenceDescendsWithoutInteractiveCommand(t *testing.T) {
 	repoRoot, id := setupDispatchRepoWithCommands(t, "sh -c 'exit 0'", "") // no interactive_command
@@ -479,7 +479,7 @@ func TestDispatchStart_PanePreferenceDescendsWithoutInteractiveCommand(t *testin
 
 	out, stderr, err := runStartCapturingStderr(t, "prompt", "abcd", "apply")
 	if err != nil {
-		t.Fatalf("pane preference with a headless_command-only provider must descend, not error: %v", err)
+		t.Fatalf("pane preference with a headless_command-only CLI must descend, not error: %v", err)
 	}
 	dir := dispatch.DirFor(repoRoot, id)
 	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
@@ -506,7 +506,7 @@ func TestDispatchStart_PanePreferenceDescendsWithoutInteractiveCommand(t *testin
 // in isolation, against a LIVE tmux server: the reachability probe PASSES, so the
 // only reason the pane path cannot proceed is the missing interactive_command. This is
 // the regression the review found — before pane-command composition was deferred,
-// a headless_command-only provider that worked headless hard-errored inside live
+// a headless_command-only CLI that worked headless hard-errored inside live
 // tmux, demanding an interactive_command it never needed.
 //
 // SAFETY: this test issues UNSCOPED (no `-L`) tmux calls on purpose, because
@@ -547,7 +547,7 @@ func TestDispatchStart_PanePreferenceNoInteractiveCommand_Integration(t *testing
 
 	out, stderr, err := runStartCapturingStderr(t, "prompt", "abcd", "apply")
 	if err != nil {
-		t.Fatalf("a headless_command-only provider must still dispatch headless inside live tmux, got: %v", err)
+		t.Fatalf("a headless_command-only CLI must still dispatch headless inside live tmux, got: %v", err)
 	}
 	dir := dispatch.DirFor(repoRoot, id)
 	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
@@ -592,11 +592,11 @@ func TestDispatchStart_PanePreferenceNoInteractiveCommand_Integration(t *testing
 
 // TestModeCommand_AgyComposesBothModes pins the built-in at the dispatch seam.
 // Its first-run trust wall is handled between open and deliver by the readiness
-// gate, so both provider command forms are valid capabilities.
+// gate, so both CLI command forms are valid capabilities.
 func TestModeCommand_AgyComposesBothModes(t *testing.T) {
-	prov, ok := agent.ResolveProvider(nil, "agy")
+	prov, ok := agent.ResolveCLI(nil, "agy")
 	if !ok {
-		t.Fatal("built-in agy provider must resolve with no config")
+		t.Fatal("built-in agy CLI must resolve with no config")
 	}
 
 	for _, tc := range []struct {
@@ -626,13 +626,13 @@ func TestModeCommand_AgyComposesBothModes(t *testing.T) {
 // Asserted at the same seam as the agy case above, because this is where a
 // regression would show as a stage silently descending to headless again.
 //
-// modeCommand returns the provider's TEMPLATE — substitution is the caller's next
+// modeCommand returns the CLI's TEMPLATE — substitution is the caller's next
 // step (dispatchStart's spawn.WithProfile) — so the rung assertions compare against
 // the shipped grammar, and the launched form is checked through WithProfile after.
 func TestModeCommand_KimiComposesBothModes(t *testing.T) {
-	prov, ok := agent.ResolveProvider(nil, "kimi")
+	prov, ok := agent.ResolveCLI(nil, "kimi")
 	if !ok {
-		t.Fatal("built-in kimi provider must resolve with no config")
+		t.Fatal("built-in kimi CLI must resolve with no config")
 	}
 
 	for _, tc := range []struct {
@@ -667,7 +667,7 @@ func TestModeCommand_KimiComposesBothModes(t *testing.T) {
 
 func TestDispatchStart_NativeWithoutAliasDescendsHeadless(t *testing.T) {
 	repoRoot, id := setupDispatchRepo(t, "")
-	appendProjectConfig(t, repoRoot, `providers:
+	appendProjectConfig(t, repoRoot, `clis:
   claude:
     headless_command: "sh -c 'exit 0'"
 agent:

@@ -38,9 +38,9 @@ func TestResolveKey(t *testing.T) {
 	}{
 		{key: "agent.workers", wantOK: true, wantField: "agent.workers", wantOwner: "agent.session", wantKind: configvalue.KindString},
 		{key: "agent.profiles.review.model", wantOK: true, wantField: "agent.profiles", wantOwner: "agent.session", wantKind: configvalue.KindString},
-		{key: "providers.codex.headless_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
-		{key: "providers.codex.models_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
-		{key: "providers.codex.profiles.review.effort", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
+		{key: "clis.codex.headless_command", wantOK: true, wantField: "clis", wantOwner: "clis", wantKind: configvalue.KindString},
+		{key: "clis.codex.models_command", wantOK: true, wantField: "clis", wantOwner: "clis", wantKind: configvalue.KindString},
+		{key: "clis.codex.profiles.review.effort", wantOK: true, wantField: "clis", wantOwner: "clis", wantKind: configvalue.KindString},
 		{key: "stage_hooks.apply.pre", wantOK: true, wantField: "stage_hooks", wantOwner: "stage_hooks", wantKind: configvalue.KindString},
 		{key: "source_paths", wantOK: true, wantField: "source_paths", wantOwner: "source_paths", wantKind: configvalue.KindSequence},
 		{key: "dispatch.column_width", wantOK: true, wantField: "dispatch.column_width", wantOwner: "dispatch.mode", wantKind: configvalue.KindInt},
@@ -49,26 +49,26 @@ func TestResolveKey(t *testing.T) {
 		{key: "project", wantOK: true, wantField: "project.name", wantOwner: "project.name", wantKind: configvalue.KindMapping},
 		{key: "agent", wantOK: true, wantField: "agent.session", wantOwner: "agent.session", wantKind: configvalue.KindMapping},
 		{key: "agent.profiles.review", wantOK: true, wantField: "agent.profiles", wantOwner: "agent.session", wantKind: configvalue.KindMapping},
-		{key: "providers.codex", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindMapping},
-		{key: "providers.codex.profiles", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindMapping},
-		{key: "providers.codex.profiles.default", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindMapping},
+		{key: "clis.codex", wantOK: true, wantField: "clis", wantOwner: "clis", wantKind: configvalue.KindMapping},
+		{key: "clis.codex.profiles", wantOK: true, wantField: "clis", wantOwner: "clis", wantKind: configvalue.KindMapping},
+		{key: "clis.codex.profiles.default", wantOK: true, wantField: "clis", wantOwner: "clis", wantKind: configvalue.KindMapping},
 		{key: "stage_hooks.apply", wantOK: true, wantField: "stage_hooks", wantOwner: "stage_hooks", wantKind: configvalue.KindMapping},
 		{key: "agent.profile.review.model"},
 		{key: "dispatch.colum_width"},
 		{key: "agent.profiles.unknown.model"},
-		{key: "providers.codex.profiles.unknown.model"},
+		{key: "clis.codex.profiles.unknown.model"},
 		{key: "stage_hooks.unknown.pre"},
 		{key: `"agent".workers`},
-		{key: "providers.123.interactive_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
-		{key: "providers.true.interactive_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
-		{key: "providers.on.interactive_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
-		{key: "providers.-local.interactive_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
-		{key: "providers.测试.interactive_command", wantOK: true, wantField: "providers", wantOwner: "providers", wantKind: configvalue.KindString},
-		{key: "providers.#local.interactive_command", wantErr: true},
-		{key: "providers.local:dev.interactive_command", wantErr: true},
-		{key: "providers. local.interactive_command", wantErr: true},
-		{key: "providers.local\nname.interactive_command", wantErr: true},
-		{key: "providers.claude.v2.interactive_command"},
+		{key: "clis.123.interactive_command", wantOK: true, wantField: "clis", wantOwner: "clis", wantKind: configvalue.KindString},
+		{key: "clis.true.interactive_command", wantOK: true, wantField: "clis", wantOwner: "clis", wantKind: configvalue.KindString},
+		{key: "clis.on.interactive_command", wantOK: true, wantField: "clis", wantOwner: "clis", wantKind: configvalue.KindString},
+		{key: "clis.-local.interactive_command", wantOK: true, wantField: "clis", wantOwner: "clis", wantKind: configvalue.KindString},
+		{key: "clis.测试.interactive_command", wantOK: true, wantField: "clis", wantOwner: "clis", wantKind: configvalue.KindString},
+		{key: "clis.#local.interactive_command", wantErr: true},
+		{key: "clis.local:dev.interactive_command", wantErr: true},
+		{key: "clis. local.interactive_command", wantErr: true},
+		{key: "clis.local\nname.interactive_command", wantErr: true},
+		{key: "clis.claude.v2.interactive_command"},
 	}
 
 	for _, tt := range tests {
@@ -96,9 +96,9 @@ func TestResolveKey(t *testing.T) {
 	}
 }
 
-func TestKeyedRenderAcceptsOpaqueProviderNames(t *testing.T) {
+func TestKeyedRenderAcceptsOpaqueCLINames(t *testing.T) {
 	for _, name := range []string{"123", "true", "on", "-local", "测试"} {
-		key := "providers." + name + ".interactive_command"
+		key := "clis." + name + ".interactive_command"
 		if _, err := RenderKey(key); err != nil {
 			t.Errorf("RenderKey(%q): %v", key, err)
 		}
@@ -221,8 +221,8 @@ func TestDocsIndexRootsRowDocumentsExclude(t *testing.T) {
 	}
 }
 
-func TestProvidersDocumentModelsCommand(t *testing.T) {
-	fields, err := FieldsForKey("providers")
+func TestCLIsDocumentModelsCommand(t *testing.T) {
+	fields, err := FieldsForKey("clis")
 	if err != nil || len(fields) != 1 {
 		t.Fatalf("FieldsForKey: %v (%d rows)", err, len(fields))
 	}
@@ -230,14 +230,14 @@ func TestProvidersDocumentModelsCommand(t *testing.T) {
 	for _, text := range []string{row.Description, row.Segment} {
 		for _, want := range []string{"models_command", "fab agent models", "JSON"} {
 			if !strings.Contains(text, want) {
-				t.Errorf("providers reference missing %q:\n%s", want, text)
+				t.Errorf("CLIs reference missing %q:\n%s", want, text)
 			}
 		}
 	}
-	defaults := row.Default.(map[string]providerDefault)
-	for name, provider := range defaults {
-		if provider.ModelsCommand != "" {
-			t.Errorf("built-in %s models_command = %q, want omitted", name, provider.ModelsCommand)
+	defaults := row.Default.(map[string]cliDefault)
+	for name, cli := range defaults {
+		if cli.ModelsCommand != "" {
+			t.Errorf("built-in %s models_command = %q, want omitted", name, cli.ModelsCommand)
 		}
 	}
 }
@@ -251,7 +251,7 @@ func TestAgentModelRowsDocumentToolDefault(t *testing.T) {
 	for _, field := range fields {
 		rows[field.Key] = field
 	}
-	for _, key := range []string{"agent.profiles", "providers"} {
+	for _, key := range []string{"agent.profiles", "clis"} {
 		row, ok := rows[key]
 		if !ok {
 			t.Fatalf("registry row %s missing", key)
@@ -263,8 +263,8 @@ func TestAgentModelRowsDocumentToolDefault(t *testing.T) {
 		}
 	}
 	for _, want := range []string{"tool-default", "beats lower tiers", "native inherits the"} {
-		if !strings.Contains(rows["providers"].Segment, want) {
-			t.Errorf("providers segment missing %q", want)
+		if !strings.Contains(rows["clis"].Segment, want) {
+			t.Errorf("CLIs segment missing %q", want)
 		}
 	}
 }

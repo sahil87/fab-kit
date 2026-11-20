@@ -16,15 +16,15 @@ import (
 // window command is then parsed by a shell with fake agent functions, proving
 // its final argv retains the prompt's dollar sign and metacharacters.
 func TestSkillPromptLaunchers(t *testing.T) {
-	for _, provider := range []string{"codex", "claude", "agy", "kimi", "custom", "missing"} {
+	for _, cli := range []string{"codex", "claude", "agy", "kimi", "custom", "missing"} {
 		for _, launcher := range []string{"new", "switch"} {
-			t.Run(provider+"/"+launcher, func(t *testing.T) {
+			t.Run(cli+"/"+launcher, func(t *testing.T) {
 				root, change := batchSwitchFixture(t, "claude")
 				content := "Fix $HOME and $(printf EXPANDED) `printf EXPANDED` 'quotes'"
 				if err := os.WriteFile(filepath.Join(root, "fab", "backlog.md"), []byte("- [ ] [ab12] 2026-09-08: "+content+"\n"), 0o644); err != nil {
 					t.Fatal(err)
 				}
-				cfg := fmt.Sprintf("agent:\n  session: %s\nproviders:\n  custom:\n    interactive_command: custom\n", provider)
+				cfg := fmt.Sprintf("agent:\n  session: %s\nclis:\n  custom:\n    interactive_command: custom\n", cli)
 				if err := os.WriteFile(filepath.Join(root, "fab", "project", "config.yaml"), []byte(cfg), 0o644); err != nil {
 					t.Fatal(err)
 				}
@@ -63,7 +63,7 @@ func TestSkillPromptLaunchers(t *testing.T) {
 				// shell fallback inside it as its tail; evaluate the unwrapped command.
 				inner := unwrapInteractiveShell(t, string(windowCommand), true)
 				prefix := "/"
-				if provider == "codex" {
+				if cli == "codex" {
 					prefix = "$"
 				}
 				want := prefix + skill

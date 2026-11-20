@@ -90,7 +90,7 @@ func renderOriginJSON(lines []originLine) (string, error) {
 const roleLeafPrefix = "agent.profiles."
 
 // annotateDerived sets derived_from on every default-tier `agent.profiles.<role>.
-// provider|model|effort` row whose value was derived from user configuration (see
+// CLI|model|effort` row whose value was derived from user configuration (see
 // configref.RoleSources). The source key's winning tier is resolved over the
 // ALREADY-LOADED layers; the annotation is omitted when the source is built-in,
 // when no tier defines the source key, or when its winner is the default tier too.
@@ -130,7 +130,7 @@ func roleLeaf(key string) (role, leaf string, ok bool) {
 		return "", "", false
 	}
 	switch leaf {
-	case "provider", "model", "effort":
+	case "cli", "model", "effort":
 		return role, leaf, true
 	}
 	return "", "", false
@@ -138,8 +138,8 @@ func roleLeaf(key string) (role, leaf string, ok bool) {
 
 func sourceKeyFor(src configref.RoleSources, leaf string) string {
 	switch leaf {
-	case "provider":
-		return src.Provider
+	case "cli":
+		return src.CLI
 	case "model":
 		return src.Model
 	default:

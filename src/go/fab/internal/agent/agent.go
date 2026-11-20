@@ -1,45 +1,45 @@
 // Package agent owns fab-kit's per-stage model selection: the six agent ROLES and
-// their fixed depth partition, the FIXED stage→role mapping, the built-in provider
+// their fixed depth partition, the FIXED stage→role mapping, the built-in CLI
 // table with its per-role fills, and the resolution cascade consumed by
 // `fab resolve-agent <stage|role>`, `fab agent`, and the operator launcher.
 //
 // VOCABULARY. A ROLE is one of six fixed slot names (default, operator, doing,
-// review, hydrate, fast). A PROFILE is a concrete {provider, model, effort} value.
-// A PROVIDER carries independent session, headless, and native launch capabilities
+// review, hydrate, fast). A PROFILE is a concrete {cli, model, effort} value.
+// A CLI carries independent session, headless, and native launch capabilities
 // plus its per-role fills. TIER 1 / TIER 2 name
 // agent DEPTH — the agents a user talks to versus the agents pipeline stages
 // dispatch to — and that axis is what the two advertised knobs (agent.session,
-// agent.workers) select a provider by.
+// agent.workers) select a CLI by.
 //
 // The tables here are fab-kit's curated judgment, and they are split across two
-// files by whether a user can override them. The knobs and the provider table
-// (capability grammars plus every provider's per-role fills) are DATA: they live in defaults.yaml
+// files by whether a user can override them. The knobs and the CLI table
+// (capability grammars plus every CLI's per-role fills) are DATA: they live in defaults.yaml
 // (at the module root, embedded there by the root fab package and parsed below),
 // shaped as a config-file fragment, and defaults.yaml is the
 // single place to bump when a new top model lands (the "Model upgrade path"). The
 // stage→role mapping and the role→depth partition are POLICY: they stay Go maps
 // here and are NOT user-overridable (there is no stage_roles config and no
-// per-stage escape hatch). Users override only which provider each depth uses, via
+// per-stage escape hatch). Users override only which CLI each depth uses, via
 // agent.session/agent.workers; what a single role means, via the sparse
-// agent.profiles map; and which launch capabilities exist, via providers:.
+// agent.profiles map; and which launch capabilities exist, via clis:.
 //
 // THE FILL PRECEDENCE, implemented once here (ResolveRoleWith):
 //
-//	provider:  invocation --provider  >  agent.profiles.<role>.provider
+//	cli:  invocation --cli  >  agent.profiles.<role>.cli
 //	           >  the role's depth knob  >  the built-in claude
 //	model /    invocation flag  >  agent.profiles.<role>.<field>
-//	effort:    >  providers.<p>.profiles.<role>.<field>
-//	           >  providers.<p>.profiles.default.<field>  >  empty
+//	effort:    >  clis.<p>.profiles.<role>.<field>
+//	           >  clis.<p>.profiles.default.<field>  >  empty
 //
-// There is exactly ONE cross-role fallback chain and it lives on the PROVIDER side
-// (a provider's `default` role fill). The agent side has none: agent.profiles is
+// There is exactly ONE cross-role fallback chain and it lives on the CLI side
+// (a CLI's `default` role fill). The agent side has none: agent.profiles is
 // sparse, and agent.profiles.default is the `default` role's own override, never a
 // fallback source for another role. That single-chain shape is what retired the
-// cross-provider cutoff rule — with model/effort always sourced from the resolved
-// provider's own fills, no value can be foreign to the provider that will run it.
+// cross-cli cutoff rule — with model/effort always sourced from the resolved
+// CLI's own fills, no value can be foreign to the CLI that will run it.
 //
-// Resolution applies NO validation — it echoes the resolved {provider, model,
-// effort} verbatim, whatever they are (provider neutrality, Constitution
+// Resolution applies NO validation — it echoes the resolved {CLI, model,
+// effort} verbatim, whatever they are (CLI neutrality, Constitution
 // Principle I), except that the reserved ToolDefaultModel collapses to an empty
 // model. Compatibility is the runtime/harness's concern, not fab's.
 //
@@ -61,7 +61,7 @@ import (
 )
 
 // defaultsYAML is fab-kit's built-in agent defaults — the depth knobs and the
-// provider table (capability grammars plus every provider's per-role fills) — compiled into the
+// CLI table (capability grammars plus every CLI's per-role fills) — compiled into the
 // binary. The bytes are embedded by the module-root fab package (go:embed cannot
 // reach above the embedding package's directory, and the file lives at the module
 // root for visibility); this package owns all parsing and consumption. The
@@ -129,22 +129,22 @@ const (
 	RoleFast     = "fast"     // ship, the /fab-proceed prefix steps — speed on near-mechanical work
 )
 
-// Built-in provider names — the four keys defaults.yaml defines under
-// `providers:`. DefaultProviderName is the provider a role resolves to when
+// Built-in CLI names — the four keys defaults.yaml defines under
+// `clis:`. DefaultCLIName is the CLI a role resolves to when
 // neither an agent.profiles override nor the role's depth knob names one; the
 // other three are named here so the lookups below (and the validation test) carry
 // no bare string.
 const (
-	DefaultProviderName = "claude"
+	DefaultCLIName = "claude"
 
-	providerCodex = "codex"
-	providerAgy   = "agy"
-	providerKimi  = "kimi"
+	cliCodex = "codex"
+	cliAgy   = "agy"
+	cliKimi  = "kimi"
 )
 
-// DefaultInteractiveCommand is the built-in claude provider's interactive command — the
+// DefaultInteractiveCommand is the built-in claude CLI's interactive command — the
 // relocated agent.spawn_command default. Kept here (not internal/spawn) because
-// the provider table is agent-owned; internal/spawn re-exports the string for its
+// the CLI table is agent-owned; internal/spawn re-exports the string for its
 // own no-config fallback.
 //
 // It is a TEMPLATE: the trailing {model}/{effort} placeholders are substituted
@@ -158,23 +158,23 @@ const (
 // It is a var rather than a const because defaults.yaml owns the string: a const
 // here would mean the same command text lived in two places, which is the drift
 // the data file exists to make impossible.
-var DefaultInteractiveCommand = defaultProviders[DefaultProviderName].InteractiveCommand
+var DefaultInteractiveCommand = defaultCLIs[DefaultCLIName].InteractiveCommand
 
-// DefaultHeadlessCommand is the built-in claude provider's headless command.
+// DefaultHeadlessCommand is the built-in claude CLI's headless command.
 // Its presence describes capability only; dispatch.mode selects whether it runs.
-var DefaultHeadlessCommand = defaultProviders[DefaultProviderName].HeadlessCommand
+var DefaultHeadlessCommand = defaultCLIs[DefaultCLIName].HeadlessCommand
 
-// The non-claude built-in provider commands (260805-j3cm). These are the
+// The non-claude built-in CLI commands (260805-j3cm). These are the
 // invocation templates; the matching per-role fills ship alongside them in
 // defaults.yaml (260806-ywkx) for codex and agy, so naming either on a depth knob
 // resolves a real model for every role rather than an empty one. Grammar changes at
 // binary-release cadence; the non-claude FILLS are refreshed at kit-release cadence
-// and are corrected by one config line (providers.<name>.profiles.<role>.model) when
+// and are corrected by one config line (clis.<name>.profiles.<role>.model) when
 // a catalog moves — see docs/specs/stage-models.md § Refreshing the non-claude fills.
 // kimi is the deliberate no-fills built-in (its -m takes a user-config alias, not a
 // catalog ID), so it resolves an empty model and the -m pair drops out.
 //
-// All four providers carry a headless_command. Only claude also declares native
+// All four CLIs carry a headless_command. Only claude also declares native
 // capability; dispatch.mode resolves the adapter independently of command presence.
 //
 // All three non-claude built-ins carry an INTERACTIVE command and are pane-capable.
@@ -183,7 +183,7 @@ var DefaultHeadlessCommand = defaultProviders[DefaultProviderName].HeadlessComma
 // walls are handled by the generic readiness gate: agy and kimi both trust-prompt a
 // fresh workspace, and one bounded judgment round clears the wall. agy's trust store
 // is additionally user-seedable by exact workspace path; fab ships no
-// provider-specific seeding. See defaults.yaml's providers-block note.
+// CLI-specific seeding. See defaults.yaml's CLIs-block note.
 //
 // These are the canonical names internal/configref interpolates into the rendered
 // reference, so the reference text carries no literal copy (the same
@@ -191,80 +191,80 @@ var DefaultHeadlessCommand = defaultProviders[DefaultProviderName].HeadlessComma
 // every other string here, come from defaults.yaml.
 var (
 	// DefaultCodexInteractiveCommand opens an interactive codex TUI session.
-	DefaultCodexInteractiveCommand = defaultProviders[providerCodex].InteractiveCommand
+	DefaultCodexInteractiveCommand = defaultCLIs[cliCodex].InteractiveCommand
 	// DefaultCodexHeadlessCommand runs one headless codex task. `codex exec` is a
 	// SUBCOMMAND (not a flag) and reads the prompt from stdin, which is where
 	// `fab dispatch` pipes it.
-	DefaultCodexHeadlessCommand = defaultProviders[providerCodex].HeadlessCommand
+	DefaultCodexHeadlessCommand = defaultCLIs[cliCodex].HeadlessCommand
 	// DefaultAgyInteractiveCommand opens an interactive agy TUI session. The
 	// full-auto flag matches the headless form; agy's model IDs embed effort, so
 	// the grammar intentionally carries no {effort} placeholder.
-	DefaultAgyInteractiveCommand = defaultProviders[providerAgy].InteractiveCommand
+	DefaultAgyInteractiveCommand = defaultCLIs[cliAgy].InteractiveCommand
 	// DefaultAgyHeadlessCommand runs one headless agy task. `agy -p` takes the
 	// prompt as an ARGUMENT and ignores stdin, so the command NESTS a shell:
 	// POSIX expands `$(cat)` before applying `fab dispatch`'s stdin redirect, so
 	// the inner sh's stdin is the prompt. It carries NO {effort} placeholder —
 	// agy's model IDs embed the reasoning level (gemini-3.1-pro-high), so a
 	// separate effort flag would fight the suffix.
-	DefaultAgyHeadlessCommand = defaultProviders[providerAgy].HeadlessCommand
+	DefaultAgyHeadlessCommand = defaultCLIs[cliAgy].HeadlessCommand
 	// DefaultKimiHeadlessCommand runs one headless kimi task. Same nested-shell
 	// stdin idiom as agy, and deliberately NO approval flag: `kimi -p` already
 	// auto-approves tools and errors on `--yolo`/`--auto`.
-	DefaultKimiHeadlessCommand = defaultProviders[providerKimi].HeadlessCommand
+	DefaultKimiHeadlessCommand = defaultCLIs[cliKimi].HeadlessCommand
 	// DefaultKimiInteractiveCommand opens an interactive kimi TUI session. This is
 	// where kimi's full-auto flag belongs (`--auto`), since the headless form
 	// rejects it. Its {model} resolves empty — kimi ships no fills — so the -m pair
 	// drops out and the CLI's own default_model applies.
-	DefaultKimiInteractiveCommand = defaultProviders[providerKimi].InteractiveCommand
+	DefaultKimiInteractiveCommand = defaultCLIs[cliKimi].InteractiveCommand
 )
 
-// Profile is a concrete {provider, model, effort} triple. An empty Provider names
-// no provider (the caller decides whether that is a lookup failure); an empty Model
+// Profile is a concrete {cli, model, effort} triple. An empty CLI names
+// no CLI (the caller decides whether that is a lookup failure); an empty Model
 // signals "inherit the session/orchestrator model"; an empty Effort omits effort
 // entirely.
 type Profile struct {
-	Provider string
-	Model    string
-	Effort   string
+	CLI    string
+	Model  string
+	Effort string
 }
 
-// defaultProviders is fab-kit's built-in provider table: four providers, parsed
-// from the `providers:` block of defaults.yaml verbatim.
+// defaultCLIs is fab-kit's built-in CLI table: four CLIs, parsed
+// from the `clis:` block of defaults.yaml verbatim.
 //
 //   - claude — the default: interactive and headless commands, native capability,
 //     and the six per-role fills.
 //   - codex — interactive AND headless commands plus its own DENSE per-role fills
 //     (every role pins its own model; no row leans on the `default` fallback).
-//     Naming it resolves with zero providers config; it declares no native
+//     Naming it resolves with zero CLIs config; it declares no native
 //     capability, so mode resolution runs its stages on the CLI adapters.
 //   - agy — interactive AND headless commands plus its own SPARSE per-role fills (a
-//     role absent from the map resolves that provider's `default` entry). Naming it
-//     resolves with zero providers config; it declares no native capability, so
+//     role absent from the map resolves that CLI's `default` entry). Naming it
+//     resolves with zero CLIs config; it declares no native capability, so
 //     mode resolution runs its stages on the CLI adapters.
 //   - kimi — interactive AND headless commands, and deliberately NO fills: its -m
 //     takes a user-config model alias rather than a catalog ID, so the empty model
 //     drops the -m pair and the CLI's own default_model applies. It declares no
 //     native capability, so mode resolution runs its stages on the CLI adapters.
 //
-// A built-in provider is INERT until a knob, an agent.profiles entry, or a flag
+// A built-in CLI is INERT until a knob, an agent.profiles entry, or a flag
 // names it — adding a row changes no default behavior, which is why the
 // presence=intent rule that keeps behavior-changing config commented does not force
 // these rows out of the shipped binary.
 //
-// A project extends/overrides via its own providers: block, per-field merged over
+// A project extends/overrides via its own clis: block, per-field merged over
 // this (including a per-role, per-field merge of the profiles map).
-var defaultProviders = builtinDefaults.Providers
+var defaultCLIs = builtinDefaults.CLIs
 
 // depth is the TIER of agent a role belongs to — the axis the two advertised knobs
-// select a provider by.
+// select a CLI by.
 type depth int
 
 const (
 	// depthSession is Tier 1: agents the user talks to (`fab agent`, `rk operator`,
-	// `fab batch` worker sessions). Its provider comes from agent.session, and it
-	// applies at LAUNCH time — fab cannot switch a running session's provider.
+	// `fab batch` worker sessions). Its CLI comes from agent.session, and it
+	// applies at LAUNCH time — fab cannot switch a running session's CLI.
 	depthSession depth = iota
-	// depthWorkers is Tier 2: agents pipeline stages dispatch to. Its provider comes
+	// depthWorkers is Tier 2: agents pipeline stages dispatch to. Its CLI comes
 	// from agent.workers, and it applies at every stage dispatch (`fab resolve-agent`).
 	depthWorkers
 )
@@ -275,8 +275,8 @@ const (
 // overridable/fixed signal: everything in that file is user-overridable by writing
 // the same key in config.yaml, everything here is fab-owned policy.
 //
-// The split is mechanically real rather than cosmetic: a session role's provider is
-// fixed when the session launches, while a workers role's provider is re-resolved at
+// The split is mechanically real rather than cosmetic: a session role's CLI is
+// fixed when the session launches, while a workers role's CLI is re-resolved at
 // every dispatch. intake rides `default` and is a session role for exactly that
 // reason — it runs foreground in the user's own session.
 var roleDepth = map[string]depth{
@@ -343,8 +343,8 @@ func IsRoleName(name string) bool {
 }
 
 // IsSessionRole reports whether a role sits at the SESSION depth (Tier 1 — the
-// agents you talk to, provider from agent.session) rather than the WORKERS depth
-// (Tier 2 — provider from agent.workers). It is the exported read of the fixed
+// agents you talk to, CLI from agent.session) rather than the WORKERS depth
+// (Tier 2 — CLI from agent.workers). It is the exported read of the fixed
 // roleDepth partition, so no caller has to re-encode which roles are which — the
 // rendered `agent:` reference segment in internal/configref derives its
 // session/workers role lists from this. An unknown role reports false (it is not a
@@ -418,8 +418,8 @@ var modelAliasPrefixes = []struct{ prefix, alias string }{
 // Agent tool's `model` enum: opus/sonnet/haiku/fable). Returns the input VERBATIM
 // when no mapping applies — an empty string (preserving the "inherit the session
 // model" signal) or an unrecognized/non-Claude ID. This keeps the alias adapter
-// from becoming a Claude-only validator (provider neutrality): a role pointed at
-// another provider's model still gets its string through unchanged. Matched by
+// from becoming a Claude-only validator (CLI neutrality): a role pointed at
+// another CLI's model still gets its string through unchanged. Matched by
 // family prefix so claude-haiku-4-5-20251001 → haiku.
 func ModelAlias(model string) string {
 	for _, m := range modelAliasPrefixes {
@@ -452,58 +452,58 @@ func HasNativeModel(model string) bool {
 	return model == "" || IsModelAlias(ModelAlias(model))
 }
 
-// Overrides is an invocation-time {provider, model, effort} override set — the
+// Overrides is an invocation-time {cli, model, effort} override set — the
 // top rung of the fill precedence, supplied by flags rather than config
-// (`fab resolve-agent <stage|role> [--provider] [--model] [--effort]`). Each field
+// (`fab resolve-agent <stage|role> [--cli] [--model] [--effort]`). Each field
 // is applied only when its Set companion is true, so an explicitly-empty flag value
 // is distinguishable from an absent flag (the same Flag.Changed discipline
 // `fab agent` uses).
 type Overrides struct {
-	Provider    string
-	ProviderSet bool
-	Model       string
-	ModelSet    bool
-	Effort      string
-	EffortSet   bool
+	CLI       string
+	CLISet    bool
+	Model     string
+	ModelSet  bool
+	Effort    string
+	EffortSet bool
 }
 
-// ResolveRole resolves a role name → a concrete {provider, model, effort} profile
+// ResolveRole resolves a role name → a concrete {cli, model, effort} profile
 // from config alone (no invocation overrides). See ResolveRoleWith.
 func ResolveRole(cfg *config.Config, role string) (Profile, error) {
 	return ResolveRoleWith(cfg, role, Overrides{})
 }
 
-// ResolveRoleWith resolves a role name → a concrete {provider, model, effort}
+// ResolveRoleWith resolves a role name → a concrete {cli, model, effort}
 // profile, applying an invocation-time override set as the top rung. It is the
 // SINGLE implementation of the fill precedence documented in the package doc:
 //
-//	provider:  --provider  >  agent.profiles.<role>.provider  >  depth knob  >  claude
+//	cli:  --cli  >  agent.profiles.<role>.cli  >  depth knob  >  claude
 //	model /    flag  >  agent.profiles.<role>.<field>
-//	effort:    >  providers.<p>.profiles.<role>.<field>
-//	           >  providers.<p>.profiles.default.<field>  >  empty
+//	effort:    >  clis.<p>.profiles.<role>.<field>
+//	           >  clis.<p>.profiles.default.<field>  >  empty
 //
-// where <p> is the RESOLVED provider — so a --provider swap re-derives model and
-// effort from the new provider's own fills rather than carrying the old provider's
-// values. That is what makes a swap safe WITHOUT the retired cross-provider cutoff:
-// nothing is inherited across providers in the first place. An explicit
+// where <p> is the RESOLVED CLI — so a --cli swap re-derives model and
+// effort from the new CLI's own fills rather than carrying the old CLI's
+// values. That is what makes a swap safe WITHOUT the retired cross-cli cutoff:
+// nothing is inherited across CLIs in the first place. An explicit
 // agent.profiles.<role>.model still wins over the swap — a pin the user wrote is the
 // user's own escape hatch, not inheritance.
 //
-// The depth knob is applied only when the provider was NOT supplied on the command
-// line, so an explicitly-empty `--provider=` resolves an empty provider (a LOOKUP
+// The depth knob is applied only when the CLI was NOT supplied on the command
+// line, so an explicitly-empty `--cli=` resolves an empty CLI (a LOOKUP
 // failure for the caller to report) rather than falling through to the knob.
 //
 // NO validation: the resolved fields are returned verbatim (ToolDefaultModel
 // excepted — it collapses to an empty model). An unknown role is the
-// only role-resolution error; an unknown PROVIDER name is a lookup concern for the
-// caller (which lists ProviderNames and exits non-zero), not an error here.
+// only role-resolution error; an unknown CLI name is a lookup concern for the
+// caller (which lists CLINames and exits non-zero), not an error here.
 func ResolveRoleWith(cfg *config.Config, role string, o Overrides) (Profile, error) {
 	p, _, err := ResolveRoleWithSource(cfg, role, o)
 	return p, err
 }
 
 // ResolveRoleWithSource is ResolveRoleWith plus a per-field trace of the rung
-// that supplied provider/model/effort. This is the single implementation of the
+// that supplied CLI/model/effort. This is the single implementation of the
 // precedence: ResolveRoleWith delegates here and discards only the trace.
 func ResolveRoleWithSource(cfg *config.Config, role string, o Overrides) (Profile, Source, error) {
 	if !IsRoleName(role) {
@@ -512,28 +512,28 @@ func ResolveRoleWithSource(cfg *config.Config, role string, o Overrides) (Profil
 
 	override, _ := cfg.GetAgentProfile(role)
 
-	provider := override.Provider
-	providerSource := "agent.profiles." + role
-	if provider == "" {
-		provider, providerSource = depthProviderWithSource(cfg, role)
+	cli := override.CLI
+	cliSource := "agent.profiles." + role
+	if cli == "" {
+		cli, cliSource = depthCLIWithSource(cfg, role)
 	}
-	if o.ProviderSet {
-		provider = o.Provider
-		providerSource = "flag"
+	if o.CLISet {
+		cli = o.CLI
+		cliSource = "flag"
 	}
 
-	prov, _ := ResolveProvider(cfg, provider)
-	fillModel, fillEffort, fillSource := providerFillWithSource(prov, provider, role)
+	prov, _ := ResolveCLI(cfg, cli)
+	fillModel, fillEffort, fillSource := cliFillWithSource(prov, cli, role)
 
 	p := Profile{
-		Provider: provider,
-		Model:    firstNonEmpty(override.Model, fillModel),
-		Effort:   firstNonEmpty(override.Effort, fillEffort),
+		CLI:    cli,
+		Model:  firstNonEmpty(override.Model, fillModel),
+		Effort: firstNonEmpty(override.Effort, fillEffort),
 	}
 	source := Source{
-		Provider: providerSource,
-		Model:    fillSource.Model,
-		Effort:   fillSource.Effort,
+		CLI:    cliSource,
+		Model:  fillSource.Model,
+		Effort: fillSource.Effort,
 	}
 	if override.Model != "" {
 		source.Model = "agent.profiles." + role
@@ -553,7 +553,7 @@ func ResolveRoleWithSource(cfg *config.Config, role string, o Overrides) (Profil
 	return p, source, nil
 }
 
-// Resolve maps a stage → its fixed role → a concrete {provider, model, effort}
+// Resolve maps a stage → its fixed role → a concrete {cli, model, effort}
 // profile (via ResolveRole). An unknown stage is the only resolution-side error.
 func Resolve(cfg *config.Config, stage string) (Profile, error) {
 	role, ok := stageRoles[stage]
@@ -565,13 +565,13 @@ func Resolve(cfg *config.Config, stage string) (Profile, error) {
 	return ResolveRole(cfg, role)
 }
 
-// depthProviderWithSource returns the provider the role's DEPTH KNOB names: agent.session for
+// depthCLIWithSource returns the CLI the role's DEPTH KNOB names: agent.session for
 // a Tier-1 role, agent.workers for a Tier-2 one, then defaults.yaml's own knob
 // value, then the built-in claude. The last rung is belt-and-braces — defaults.yaml
 // ships both knobs — so a hand-trimmed defaults file can never resolve a role to no
-// provider at all. The latter two are one built-in provenance rung because neither
+// CLI at all. The latter two are one built-in provenance rung because neither
 // came from user configuration.
-func depthProviderWithSource(cfg *config.Config, role string) (string, string) {
+func depthCLIWithSource(cfg *config.Config, role string) (string, string) {
 	configured, builtin := cfg.GetAgentWorkers(), builtinDefaults.Agent.Workers
 	source := "agent.workers"
 	if roleDepth[role] == depthSession {
@@ -581,25 +581,25 @@ func depthProviderWithSource(cfg *config.Config, role string) (string, string) {
 	if configured != "" {
 		return configured, source
 	}
-	return firstNonEmpty(builtin, DefaultProviderName), "built-in"
+	return firstNonEmpty(builtin, DefaultCLIName), "built-in"
 }
 
-// providerFillWithSource returns the {model, effort} a resolved provider supplies
+// cliFillWithSource returns the {model, effort} a resolved CLI supplies
 // for a role: its own `profiles.<role>` entry, then its `profiles.default` entry
-// (the provider's cross-role fallback), then empty, per field. It records the
+// (the CLI's cross-role fallback), then empty, per field. It records the
 // literal rung path alongside each non-empty value.
 //
-// The DEPRECATED flat providers.<name>.model/.effort is NOT a rung here — it is
-// folded into the override's own profiles.default by ResolveProvider, which is the
+// The DEPRECATED flat clis.<name>.model/.effort is NOT a rung here — it is
+// folded into the override's own profiles.default by ResolveCLI, which is the
 // alias it is documented to be. So prov.Model/prov.Effort are deliberately not read:
-// this function's only call site passes ResolveProvider's output, where a non-empty
-// flat fill has already become Profiles[RoleDefault]. The provider table has already
+// this function's only call site passes ResolveCLI's output, where a non-empty
+// flat fill has already become Profiles[RoleDefault]. The CLI table has already
 // been merged, so this remains the only fill precedence implementation.
-func providerFillWithSource(prov config.ProviderConfig, provider, role string) (model, effort string, source Source) {
+func cliFillWithSource(prov config.CLIConfig, cli, role string) (model, effort string, source Source) {
 	forRole := prov.Profiles[role]
 	forDefault := prov.Profiles[RoleDefault]
-	roleSource := fmt.Sprintf("providers.%s.profiles.%s", provider, role)
-	defaultSource := fmt.Sprintf("providers.%s.profiles.default", provider)
+	roleSource := fmt.Sprintf("clis.%s.profiles.%s", cli, role)
+	defaultSource := fmt.Sprintf("clis.%s.profiles.default", cli)
 
 	if forRole.Model != "" {
 		model, source.Model = forRole.Model, roleSource
@@ -625,31 +625,31 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-// BuiltinProvider returns the built-in provider table entry for name EXACTLY as
+// BuiltinCLI returns the built-in CLI table entry for name EXACTLY as
 // parsed from the embedded defaults.yaml — BEFORE any user-override merge — and
-// whether the provider is built in at all. It exists for introspection surfaces
+// whether the CLI is built in at all. It exists for introspection surfaces
 // that need to compare user config against what the running binary actually
-// shipped (the `fab setup check` override-masking skew check): ResolveProvider
+// shipped (the `fab setup check` override-masking skew check): ResolveCLI
 // cannot serve that, since its output already has the overrides folded in.
 // The returned value carries the embedded table's own Profiles map; callers
-// MUST NOT mutate it (copy via mergeProviderProfiles if mutation is needed).
-func BuiltinProvider(name string) (config.ProviderConfig, bool) {
-	p, ok := defaultProviders[name]
+// MUST NOT mutate it (copy via mergeCLIProfiles if mutation is needed).
+func BuiltinCLI(name string) (config.CLIConfig, bool) {
+	p, ok := defaultCLIs[name]
 	return p, ok
 }
 
-// ProviderNames returns the provider names ResolveProvider can resolve for cfg:
-// the union of fab-kit's built-in provider table and the project's own providers:
+// CLINames returns the CLI names ResolveCLI can resolve for cfg:
+// the union of fab-kit's built-in CLI table and the project's own clis:
 // block, sorted (stable for error messages and tests). Exposed so a lookup failure
-// (`fab agent --provider <unknown>`) can name the available set rather than leaving
+// (`fab agent --cli <unknown>`) can name the available set rather than leaving
 // the caller to guess it. Listing the resolvable NAMES is not validation of any
 // command's CONTENT — the document-don't-validate contract is untouched.
-func ProviderNames(cfg *config.Config) []string {
-	seen := make(map[string]struct{}, len(defaultProviders))
-	for name := range defaultProviders {
+func CLINames(cfg *config.Config) []string {
+	seen := make(map[string]struct{}, len(defaultCLIs))
+	for name := range defaultCLIs {
 		seen[name] = struct{}{}
 	}
-	for _, name := range cfg.ProviderNames() {
+	for _, name := range cfg.CLINames() {
 		seen[name] = struct{}{}
 	}
 
@@ -661,18 +661,18 @@ func ProviderNames(cfg *config.Config) []string {
 	return names
 }
 
-// ResolveProvider returns the {interactive_command, headless_command, models_command, native, profiles} for a
-// provider name: the project's providers.<name> override PER-FIELD merged over
-// fab-kit's built-in provider table (an override field that is set wins; an omitted
+// ResolveCLI returns the {interactive_command, headless_command, models_command, native, profiles} for a
+// CLI name: the project's clis.<name> override PER-FIELD merged over
+// fab-kit's built-in CLI table (an override field that is set wins; an omitted
 // field inherits the built-in). The profiles map merges per ROLE and then per FIELD,
-// so overriding `providers.claude.profiles.review.model` leaves the other five roles
-// (and review's effort) on the built-in values. A provider present in neither the
-// project config nor the built-in table resolves to a zero ProviderConfig with
+// so overriding `clis.claude.profiles.review.model` leaves the other five roles
+// (and review's effort) on the built-in values. A CLI present in neither the
+// project config nor the built-in table resolves to a zero CLIConfig with
 // ok=false — the caller decides whether that is an error (a session with no
 // interactive_command, or a dispatch with no reachable capability at or below the
 // selected mode, are the two failure surfaces).
 //
-// The DEPRECATED flat providers.<name>.model/.effort is folded into the OVERRIDE's
+// The DEPRECATED flat clis.<name>.model/.effort is folded into the OVERRIDE's
 // own profiles.default before that merge, which is exactly the alias it is
 // documented to be — so a config that has not yet run the 2.16.19-to-2.17.0
 // migration keeps outranking the built-in fill it is trying to replace. Reading it
@@ -686,11 +686,11 @@ func ProviderNames(cfg *config.Config) []string {
 // so a caller cannot mutate the shipped defaults through it.
 //
 // NO validation: every string is returned verbatim.
-func ResolveProvider(cfg *config.Config, name string) (config.ProviderConfig, bool) {
-	resolved, known := defaultProviders[name]
-	resolved.Profiles = mergeProviderProfiles(resolved.Profiles, nil)
+func ResolveCLI(cfg *config.Config, name string) (config.CLIConfig, bool) {
+	resolved, known := defaultCLIs[name]
+	resolved.Profiles = mergeCLIProfiles(resolved.Profiles, nil)
 
-	if override, ok := cfg.GetProvider(name); ok {
+	if override, ok := cfg.GetCLI(name); ok {
 		known = true
 		interactive := override.InteractiveCommand
 		if interactive == "" {
@@ -708,7 +708,7 @@ func ResolveProvider(cfg *config.Config, name string) (config.ProviderConfig, bo
 		}
 		mergeField(&resolved.Model, override.Model)
 		mergeField(&resolved.Effort, override.Effort)
-		resolved.Profiles = mergeProviderProfiles(resolved.Profiles, withFlatFillAlias(override))
+		resolved.Profiles = mergeCLIProfiles(resolved.Profiles, withFlatFillAlias(override))
 	}
 
 	return resolved, known
@@ -720,11 +720,11 @@ func ResolveProvider(cfg *config.Config, name string) (config.ProviderConfig, bo
 // profiles.default wins where it sets a field; the flat value fills only what it
 // leaves empty. Returns the map unchanged when no flat fill is set, so the common
 // path allocates nothing.
-func withFlatFillAlias(override config.ProviderConfig) map[string]config.ProviderProfile {
+func withFlatFillAlias(override config.CLIConfig) map[string]config.CLIProfile {
 	if override.Model == "" && override.Effort == "" {
 		return override.Profiles
 	}
-	aliased := make(map[string]config.ProviderProfile, len(override.Profiles)+1)
+	aliased := make(map[string]config.CLIProfile, len(override.Profiles)+1)
 	for role, p := range override.Profiles {
 		aliased[role] = p
 	}
@@ -735,15 +735,15 @@ func withFlatFillAlias(override config.ProviderConfig) map[string]config.Provide
 	return aliased
 }
 
-// mergeProviderProfiles returns a FRESH per-role fill map: base copied, then over
+// mergeCLIProfiles returns a FRESH per-role fill map: base copied, then over
 // merged in per role and per field (a set field wins; an empty one inherits). A nil
-// `over` therefore yields a defensive copy of base — which is how ResolveProvider
+// `over` therefore yields a defensive copy of base — which is how ResolveCLI
 // detaches the built-in table's map before handing it out.
-func mergeProviderProfiles(base, over map[string]config.ProviderProfile) map[string]config.ProviderProfile {
+func mergeCLIProfiles(base, over map[string]config.CLIProfile) map[string]config.CLIProfile {
 	if len(base) == 0 && len(over) == 0 {
 		return nil
 	}
-	merged := make(map[string]config.ProviderProfile, len(base)+len(over))
+	merged := make(map[string]config.CLIProfile, len(base)+len(over))
 	for role, p := range base {
 		merged[role] = p
 	}
