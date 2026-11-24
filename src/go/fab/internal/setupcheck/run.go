@@ -56,7 +56,7 @@ func Run(in Input) *Report {
 		if err == nil {
 			systemLayer, projectLayer = layers.System, layers.Project
 			var loaded *config.Config
-			if loaded, err = config.FromMap(layers.Effective); err == nil {
+			if loaded, err = config.FromLayers(layers); err == nil {
 				cfg = loaded
 			}
 		}
@@ -71,7 +71,7 @@ func Run(in Input) *Report {
 		// machine-wide misconfiguration before any repo exists.
 		if layers, err := config.LoadLayers(""); err == nil {
 			systemLayer = layers.System
-			if merged, err := config.FromMap(layers.Effective); err == nil {
+			if merged, err := config.FromLayers(layers); err == nil {
 				cfg = merged
 			}
 		}

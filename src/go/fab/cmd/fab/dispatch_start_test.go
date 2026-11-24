@@ -861,3 +861,39 @@ func appendProjectConfig(t *testing.T, repoRoot, extra string) {
 	}
 	mustWrite(t, path, current+extra)
 }
+
+// TestDispatchStart_PicksUpPresetFromConfig: `fab dispatch start` re-resolves from
+// config, so an agent.preset reaches the headless worker — the property an
+// invocation flag cannot provide. codex-workers moves the worker roles to codex;
+// its headless_command is overridden with a benign shell so the detached launch
+// needs no codex binary, and the resolved codex fill rides the composed command.
+func TestDispatchStart_PicksUpPresetFromConfig(t *testing.T) {
+	repoRoot, id := setupDispatchRepo(t, "")
+	appendProjectConfig(t, repoRoot, `clis:
+  codex:
+    headless_command: "sh -c 'exit 0 # codex'"
+agent:
+  preset: codex-workers
+`)
+	out, err := runStart(t, "the stage prompt\n", "abcd", "apply")
+	if err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+	if !strings.Contains(out, "dispatched abcd/apply") {
+		t.Errorf("output = %q", out)
+	}
+	dir := dispatch.DirFor(repoRoot, id)
+	t.Cleanup(func() { waitDispatchDone(t, dir, "apply") })
+	rec, err := dispatch.Load(dir, "apply")
+	if err != nil {
+		t.Fatal(err)
+	}
+	prov, _ := agent.ResolveCLI(nil, "codex")
+	fill := prov.Profiles[agent.RoleDoing]
+	if !strings.HasPrefix(rec.SpawnCmd, "sh -c 'exit 0 # codex'") {
+		t.Errorf("spawn_cmd = %q, want the codex headless command", rec.SpawnCmd)
+	}
+	if fill.Model != "" && !strings.Contains(rec.SpawnCmd, fill.Model) {
+		t.Errorf("spawn_cmd = %q, want codex's doing fill %q", rec.SpawnCmd, fill.Model)
+	}
+}

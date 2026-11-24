@@ -88,6 +88,11 @@ func composeAgentResolution(cfg *config.Config, request resolutionRequest) (agen
 		Source:      source,
 		SkillPrefix: agent.SkillPrefix(profile.CLI),
 	}
+	// A preset only feeds role resolution; the bare --cli form never consults it, so
+	// the key is omitted there (and whenever no preset is active).
+	if !request.CLIOnly && cfg.GetPreset() != nil {
+		resolution.Preset = cfg.GetPreset().Name
+	}
 	// A versioned Claude ID maps to its alias, and a bare alias (the built-in
 	// fills) passes through as itself; anything else has no native alias.
 	if agent.HasNativeModel(profile.Model) {

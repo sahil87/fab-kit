@@ -17,6 +17,7 @@ func TestScopeFor(t *testing.T) {
 		"consolidate":         ScopeProject,
 		"clis":                ScopeBoth,
 		"agent":               ScopeBoth,
+		"agent_presets":       ScopeBoth,
 		"dispatch":            ScopeBoth,
 		"stage_hooks":         ScopeProject,
 		"docs_index":          ScopeProject,
@@ -59,8 +60,10 @@ func TestDottedKeys(t *testing.T) {
 		"dispatch.reap_done",
 		"agent.session",
 		"agent.workers",
+		"agent.preset",
 		"agent.profiles",
 		"clis",
+		"agent_presets",
 		"docs_index.roots",
 		"stage_hooks",
 	}

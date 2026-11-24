@@ -78,12 +78,22 @@ func renderOriginJSON(lines []originLine) (string, error) {
 			Key:          line.key,
 			Value:        jsonSafe(line.value),
 			Origin:       line.kind,
-			OriginDetail: line.detail,
+			OriginDetail: originDetailJSON(line),
 			Status:       line.status,
 			DerivedFrom:  line.derived,
 		})
 	}
 	return encodeConfigJSON(rows)
+}
+
+// originDetailJSON is the JSON origin_detail: the tier's concrete source, except a
+// preset-supplied leaf, whose detail is `preset <name>` (its origin stays the layer
+// that chose the preset).
+func originDetailJSON(line originLine) string {
+	if line.preset != "" {
+		return "preset " + line.preset
+	}
+	return line.detail
 }
 
 // roleLeafPrefix is the key prefix of the derived per-role rows.
@@ -103,7 +113,7 @@ func annotateDerived(lines []originLine, layers *config.Layers, defaults map[str
 			continue
 		}
 		if sources == nil {
-			cfg, err := config.FromMap(layers.Effective)
+			cfg, err := config.FromLayers(layers)
 			if err != nil {
 				return // knob-blind projection: nothing derived to attribute
 			}

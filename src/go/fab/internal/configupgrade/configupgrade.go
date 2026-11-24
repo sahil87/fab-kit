@@ -195,6 +195,11 @@ var knownGeneratedSystemParagraphDigests = map[string]struct{}{
 	// identities stay recognised as generated.
 	"cd13baad3f3c48c2efc4d37746f3d0675eaa6bb302f43a744665bf44f237c4f3": {},
 	"855d97f392e831bf8c8a6dc3748957b0eeda4f0a4800ab0c5fdc6f80a4acbbdf": {},
+	// The agent.session / agent.workers advert gained agent.preset (a commented
+	// example line, the machine-wide pointer and the prose sentence), and the new
+	// agent_presets advert joined the system scaffold (261124-e9nz).
+	"13d95293fd73f009a65025b22aa452c742ca3589781d61fa35913313f58237aa": {},
+	"424ea3f79640cc018143d5b66436b0cd03f835fd4c11e5d447c546e875fb1fdc": {},
 }
 
 // fenceHeaderComment returns the explanatory preamble emitted at the top of a

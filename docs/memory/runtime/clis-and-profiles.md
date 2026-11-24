@@ -1,6 +1,6 @@
 ---
 type: memory
-description: "CLI mechanics and role policy — session/workers depth knobs, environment and launch overrides, four pane-capable built-ins with independent interactive/native/headless grammar and per-role fills, six roles, precedence, stage mapping, `fab agent` YAML resolution, the reserved `tool-default` model value, `fab agent models` model discovery, deprecated `fab resolve-agent` compatibility, the deprecated pre-2.31 `provider` spellings and their one-minor window, dispatch-mode descent, and consumers."
+description: "CLI mechanics and role policy — session/workers depth knobs, environment and launch overrides, four pane-capable built-ins with independent interactive/native/headless grammar and per-role fills, six roles, precedence, stage mapping, `fab agent` YAML resolution, agent presets, the reserved `tool-default` model value, `fab agent models` discovery, deprecated `fab resolve-agent` compatibility, the deprecated pre-2.31 `provider` spellings, dispatch-mode descent, and consumers."
 ---
 # CLIs & Agent Profiles
 
@@ -60,6 +60,54 @@ A knob supplies only the **CLI** rung. Model and effort always come from the res
 - **GIVEN** a config with no `agent:` block
 - **WHEN** any role or stage is resolved
 - **THEN** the CLI is `claude` for every role, on fab-kit's shipped per-role models
+
+### Requirement: Agent presets — a named role assignment chosen by `agent.preset`
+
+A **preset** is a NAME for a **sparse** bundle of fields fab already has — `session`, `workers`, `profiles.<role>.{cli,model,effort}`, plus a display-only `description` — defined in the top-level `agent_presets` table and chosen by the scalar `agent.preset` (scope `both`; env `FAB_AGENT_PRESET` via the registry-driven env layer, no special-case env code). A preset adds fields to the `agent.*` tier and nothing else: no new role vocabulary, no change to the stage→role map, and the resolver and every consumer keep their existing semantics. Because selection is config (the env layer included), it reaches `fab dispatch start` in all three dispatch modes, which an invocation flag cannot.
+
+```yaml
+agent:
+  preset: codex-workers      # one name instead of two knobs plus per-role overrides
+agent_presets:
+  mine:
+    description: Codex workers, claude critic
+    workers: codex
+    profiles:
+      review: { cli: claude }
+```
+
+- **Built-ins.** The embedded `defaults.yaml` ships exactly `claude` (`session: claude`, `workers: claude`), `codex-workers` (`workers: codex`) and `codex-review` (`profiles.review.cli: codex`), each with a `description`. They are inert until selected, so with nothing set resolution is identical to the knobs-only result. `internal/agent`'s `init()` pushes the parsed table into `config.BuiltinAgentPresets`; the definitions merge per key, built-in < project < system < env. `codex-review` sets only the review CLI, so its model/effort re-derive from codex's own fills like any `agent.profiles.<role>.cli` override.
+- **One active preset, spliced at the choosing layer.** The active preset is the `agent.preset` value at the highest layer (env > system > project) with a non-empty value — exactly one, never merged with a lower layer's choice. Its fields enter **at that layer, directly below that layer's own explicit `agent.*` fields**: they beat every lower layer's explicit fields, lose to explicit fields at the same or a higher layer, and invocation flags stay on top. The splice is `applyPreset` in `internal/config`, called by both the typed loader and `layersFrom`, so `fab config show` prints the tree consumers resolve from.
+- **Reserved `none`.** `none` wins the selection like any name but activates nothing ("no preset here, even if a lower layer chose one"); it is never a definition (`config set` rejects `agent_presets.none[.…]`; a hand-written one is warned about and ignored). An empty value is unset.
+- **Unknown name.** At resolve time an unknown name emits `fab: warning: unknown agent preset "<name>" (agent.preset from <layer>); ignoring it` and resolves as if no preset were chosen (no fall-through to a lower layer's preset); a spawn never fails for a stale name. `fab config set [--system] agent.preset <name>` is the one place it is an error: a name that is neither defined (built-in ∪ system ∪ project ∪ env) nor `none` is a usage error naming the sorted defined set.
+- **Provenance.** `Config` carries the active preset's name, choosing layer and the set of `agent.*` leaves it actually supplied (a leaf is supplied only when no layer at or above the choosing layer sets it). `ResolveRoleWithSource` labels those fields `agent_presets.<name>` in `source.*`; fields re-derived from a preset-chosen CLI keep their `clis.<p>.profiles.<role>` label. `fab agent -o yaml` emits a top-level `preset: <name>` key only when a preset is active. `fab config show --origin` attributes each preset-supplied leaf to the choosing layer with detail `preset <name>`.
+- **`fab agent --preset <name>`** is equivalent to choosing the preset at the env layer for one resolution: it loses to explicit env `FAB_AGENT_*` fields, flags stay on top, `none` disables a configured preset, an unknown name warns. It is resolution-only — it does not export `FAB_AGENT_PRESET` into an exec'd session and does not reach `fab dispatch start` (set `agent.preset` or export the variable for that). Combined with a bare `--cli` (no selector) it is a usage error, since that form bypasses role resolution. It is not on `fab resolve-agent`.
+- **`fab agent presets [--repo <path>] [--json]`** lists every defined preset sorted by name (never `none`). Human output is a table of name, source, description and set fields. `--json` is an array of `{name, description, source, [session], [workers], [profiles]}` — sparse (unset fields omitted), with **no `active` flag**; `source` ∈ `built-in`|`system`|`project`|`env` is the highest layer contributing to the definition. This array is a cross-repo contract consumed by HexoKit.
+
+#### Scenario: an explicit field at the choosing layer beats the preset
+
+- **GIVEN** project `agent.preset: codex-workers` and project `agent.workers: agy`
+- **WHEN** a workers role resolves
+- **THEN** the CLI is `agy` — the explicit field at the choosing layer wins over the spliced preset
+
+#### Scenario: a preset beats lower layers' explicit fields
+
+- **GIVEN** env `FAB_AGENT_PRESET=codex-workers` and system `agent.workers: claude`
+- **WHEN** a workers role resolves
+- **THEN** the CLI is `codex` (`source.cli: agent_presets.codex-workers`), with model/effort from codex's own fills
+
+#### Scenario: the highest layer's choice shadows the rest
+
+- **GIVEN** project `agent.preset: codex-review` and system `agent.preset: codex-workers`
+- **WHEN** roles resolve
+- **THEN** only `codex-workers` applies; nothing from `codex-review` is merged
+- **AND** `FAB_AGENT_PRESET=none` in the environment cancels both
+
+#### Scenario: a stale name never fails a spawn
+
+- **GIVEN** `agent.preset: gone` in a config file and no definition named `gone`
+- **WHEN** `fab agent apply -o yaml` or `fab dispatch start` resolves
+- **THEN** a `fab: warning: unknown agent preset "gone"` line is written to stderr and resolution equals the no-preset result
 
 ### Requirement: Per-session CLI selection — environment and launch flags
 
@@ -382,7 +430,7 @@ Only the YAML sink on `fab agent` requests dispatch derivation. `--print`, exec,
 - **WHEN** the role is resolved
 - **THEN** `dispatch.command` carries claude's headless command because the selector never ascends
 
-### Requirement: `fab agent [role|stage] [--cli <name>] [--model <id>] [--effort <level>] [--headless] [-t|--template] [-o yaml] [--workers <cli>] [-p|--print] [--repo <path>] [-- <agent-args>...]` — session launcher
+### Requirement: `fab agent [role|stage] [--cli <name>] [--model <id>] [--effort <level>] [--headless] [-t|--template] [-o yaml] [--workers <cli>] [--preset <name>] [-p|--print] [--repo <path>] [-- <agent-args>...]` — session launcher
 
 `fab agent` SHALL compose an interactive session command through an **addressing form** and **exec it in the current shell** (or print it — one print-family sink per invocation):
 
@@ -394,11 +442,12 @@ All forms compose through the same `spawn.WithProfile` (template substitution or
 
 - `-p, --print` prints the fully-resolved command instead of executing — the output is **profile-resolved** (model/effort substituted), so callers that spawn from the printed command get the profile. `-p` is a pure shorthand, byte-identical to `--print`.
 - `-t, --template` prints the selected CLI's command template **unsubstituted** — a tap before the fill step, `{model}`/`{effort}` placeholders intact. It implies print, combines with any selector, `--cli`, and `--headless` (they pick which template), and rejects `--model`/`--effort` with a usage error (they feed the substitution step that `-t` skips).
-- `-o, --output yaml` emits the full resolution as structured YAML. `selector`, `kind`, `role`, `cli`, the deprecated duplicate `provider` (the same value as `cli`, emitted in the slot right after it), `model`, `effort`, and `command` appear first in that order, followed by `model_alias`, raw `template`, `fill_mode`, per-field `source`, optional labelled `dispatch`, and a trailing always-present `skill_prefix`. `model_alias` is the Agent-tool short alias for Claude IDs and empty otherwise (a non-empty model with an empty `model_alias` never resolves native, so an empty `model_alias` on the native branch always means an empty model); `source` names the actual CLI/model/effort precedence rung — `cli` followed by a deprecated duplicate `provider` with the same value, then `model` and `effort`; rung names that denote config keys use the `clis.` / `.cli` spellings (empty means inherit; when `model` collapsed from `tool-default`, `source.model` still names the rung that held the token); `dispatch` is absent exactly for native and otherwise contains `rung: pane|headless`, its substituted `command`, and an `omitempty` `reason` after `command` — the descent causes joined with `; ` (the skip list, without the `mode: … (descended: …)` wrapper), absent when the selected rung is the preferred one; `skill_prefix` is the receiving harness's explicit skill-invocation prefix (`$` for `codex`, `/` for every other CLI — `agent.SkillPrefix` owns the rule, see [agent-primitives.md](/runtime/agent-primitives.md) § Skill Prompt Rendering) and is the last key whether or not `dispatch` is present; the deprecated `fab resolve-agent` line protocol never carries it. YAML alone derives dispatch. It implies print, accepts exactly `yaml` (anything else is a usage error), and is mutually exclusive with `--print` and with `-t` — one output sink per invocation.
+- `-o, --output yaml` emits the full resolution as structured YAML. `selector`, `kind`, `role`, `cli`, the deprecated duplicate `provider` (the same value as `cli`, emitted in the slot right after it), `model`, `effort`, and `command` appear first in that order, followed by `model_alias`, raw `template`, `fill_mode`, per-field `source`, an optional `preset` (the active preset's name — present only when a preset is active and the form is role-resolved, so absent for the bare `--cli` form), optional labelled `dispatch`, and a trailing always-present `skill_prefix`. `model_alias` is the Agent-tool short alias for Claude IDs and empty otherwise (a non-empty model with an empty `model_alias` never resolves native, so an empty `model_alias` on the native branch always means an empty model); `source` names the actual CLI/model/effort precedence rung — a preset-supplied field is labelled `agent_presets.<name>`, and a field re-derived from a preset-chosen CLI keeps its `clis.<p>.profiles.<role>` label — `cli` followed by a deprecated duplicate `provider` with the same value, then `model` and `effort`; rung names that denote config keys use the `clis.` / `.cli` spellings (empty means inherit; when `model` collapsed from `tool-default`, `source.model` still names the rung that held the token); `dispatch` is absent exactly for native and otherwise contains `rung: pane|headless`, its substituted `command`, and an `omitempty` `reason` after `command` — the descent causes joined with `; ` (the skip list, without the `mode: … (descended: …)` wrapper), absent when the selected rung is the preferred one; `skill_prefix` is the receiving harness's explicit skill-invocation prefix (`$` for `codex`, `/` for every other CLI — `agent.SkillPrefix` owns the rule, see [agent-primitives.md](/runtime/agent-primitives.md) § Skill Prompt Rendering) and is the last key whether or not `dispatch` is present; the deprecated `fab resolve-agent` line protocol never carries it. YAML alone derives dispatch. It implies print, accepts exactly `yaml` (anything else is a usage error), and is mutually exclusive with `--print` and with `-t` — one output sink per invocation.
 - `--provider <name>` is the **hidden deprecated spelling of `--cli`** (`MarkHidden`, absent from `--help`): it behaves exactly as `--cli` and prints `--provider is deprecated, use --cli` on stderr; supplying both with different values is a usage error, equal values are accepted, and the explicit-empty `Flag.Changed` semantics carry over. One shared helper (`cmd/fab/cli_flag.go`) registers the pair on `fab agent`, `fab resolve-agent`, and `fab pane open`.
 - `--headless` resolves the CLI's `headless_command` instead of `interactive_command`. It is valid only in the print-family modes (`--print`, `-t`, `-o yaml`) — exec of a headless command is a usage error. A CLI with no `headless_command` hard-errors naming the config key (`configure clis.<name>.headless_command`).
 - `--repo <path>` reads the target repo's config (the operator's fetch-another-repo's-command use case). Composes with any addressing form.
 - `--workers <cli>` sets `FAB_AGENT_WORKERS=<cli>` in the environment passed to the exec seam without changing any addressing form's command resolution. An entry inherited from the parent environment is removed rather than shadowed, so the override is authoritative regardless of how a consumer resolves duplicate entries. It is accepted with `--print`, but printed output remains the command alone because no child process is executed.
+- `--preset <name>` chooses an agent preset for this one resolution, as if `FAB_AGENT_PRESET` were set — resolution-only (nothing is exported into the exec'd session) and rejected with a bare `--cli`; see § Agent presets. `fab agent presets [--json]` lists the defined presets.
 - `fab agent` exec does NOT TTY-guard — exec-and-let-the-CLI-fail is acceptable (the underlying agent CLI already handles no-TTY), matching the document-don't-validate contract.
 
 CLI-form rules (the **bare** `--cli <name>` form — selector forms take the fill rungs):
@@ -551,6 +600,12 @@ The read-time aliases are what make the rename safe on their own: `configupgrade
 **Why**: It is what makes "claude for tier 1, codex for tier 2" a two-word config while still letting each CLI keep sensible per-role models. A knob carrying a whole profile would name one model for every role it governs, flattening the role taxonomy and duplicating the per-role fills the CLI table already owns. Depth is the right axis because it is mechanically real: a session role's CLI is fixed when the session launches, a workers role's is re-resolved at every dispatch.
 **Rejected**: Making the knob a `{cli, model, effort}` object (one model for every role it governs — the role differentiation the per-role fills exist to provide, lost in the advertised surface); keying the partition off stage names (the partition is about *depth*, and `default`/`operator` are not stages); a user-overridable partition (fab-owned taxonomy, like the stage→role map).
 *Introduced by*: 260806-j9nh-agent-profiles-session-workers
+
+### A Preset Is a Rung Spliced at the Choosing Layer
+**Decision**: A preset is a sparse bundle of existing `agent.*` fields selected by one scalar (`agent.preset`), and exactly one is active — the highest layer's choice. Its fields are spliced in once, in the config loader, at the layer that chose it, directly below that layer's own explicit `agent.*` fields; provenance rides on `Config` so `internal/agent` can label `source.*`.
+**Why**: Layer identity (env/system/project) exists only in the loader — `internal/agent` receives an already-merged `*Config` — so the positional rule cannot be expressed downstream, and one implementation behind both the typed and the provenance load keeps `fab config show` and every consumer on the same tree. Selecting by config (env layer included) reaches `fab dispatch start` in all three dispatch modes, which a flag cannot; one scalar gives HexoKit a single per-tab value (`FAB_AGENT_PRESET`) without parsing or rewriting config.
+**Rejected**: Splicing in `internal/agent` (layers are gone); merging presets from several layers (an unpredictable union — one name wins whole); exporting `FAB_AGENT_PRESET` from `fab agent --preset` (it would leak into the launched session and imply it reaches dispatch); an `active` flag in `fab agent presets --json` (activeness is per-resolution context, not a property of a definition); storing a preset on a change.
+*Introduced by*: 261124-e9nz-agent-presets
 
 ### One Fallback Chain, on the CLI Side Only
 **Decision**: Cross-role fallback exists exactly once, as `clis.<p>.profiles.default`. The agent side has none — `agent.profiles` is sparse and `agent.profiles.default` is the `default` role's own override, never a fallback source for another role. Model/effort are always sourced from the **resolved** CLI's fills, so a CLI swap re-derives them.

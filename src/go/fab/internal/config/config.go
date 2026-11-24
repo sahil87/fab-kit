@@ -204,6 +204,13 @@ type AgentConfig struct {
 	Workers  string                 `yaml:"workers"`
 	Profiles map[string]RoleProfile `yaml:"profiles"`
 
+	// Preset selects ONE named bundle from the agent_presets table (the user-defined
+	// layers composed over the built-in tier). The selection is resolved at the
+	// loader (preset.go), which splices the chosen preset's fields into the merged
+	// tree; this field only echoes the winning raw value (a name, or the reserved
+	// `none`) so `fab config show` reports it like any other key.
+	Preset string `yaml:"preset"`
+
 	// Deprecated: the pre-2.17.0 spelling of Profiles. See the type doc.
 	Tiers map[string]RoleProfile `yaml:"tiers"`
 }
@@ -356,10 +363,19 @@ type Config struct {
 	// CLIs is the canonical `clis:` table. The pre-2.31 `providers:` spelling is
 	// folded into it on every raw layer by NormalizeDeprecated (deprecated.go), so
 	// the typed config carries no deprecated twin.
-	CLIs     map[string]CLIConfig `yaml:"clis"`
-	Agent    AgentConfig          `yaml:"agent"`
-	Project  ProjectConfig        `yaml:"project"`
-	Dispatch DispatchConfig       `yaml:"dispatch"`
+	CLIs map[string]CLIConfig `yaml:"clis"`
+	// AgentPresets is the user-defined `agent_presets:` table (file + env layers).
+	// Like CLIs it does NOT carry the built-in tier — use DefinedAgentPresets for
+	// the composed set (built-in < user layers).
+	AgentPresets map[string]AgentPreset `yaml:"agent_presets"`
+	Agent        AgentConfig            `yaml:"agent"`
+	Project      ProjectConfig          `yaml:"project"`
+	Dispatch     DispatchConfig         `yaml:"dispatch"`
+
+	// Preset records the active agent preset (nil when none applies). It is NOT
+	// parsed from YAML: the loader fills it after the splice (preset.go) so
+	// internal/agent can label `source.*` with the preset that supplied a field.
+	Preset *AppliedPreset `yaml:"-"`
 }
 
 // Load reads fab/project/config.yaml from fabRoot and returns the parsed config.
@@ -374,7 +390,14 @@ type Config struct {
 // with no repo-root context — so the .fab-version overlay lives here in Load, the
 // only seam that knows fabRoot.
 func Load(fabRoot string) (*Config, error) {
-	cfg, err := LoadPath(filepath.Join(fabRoot, "project", "config.yaml"))
+	return LoadWithPreset(fabRoot, "")
+}
+
+// LoadWithPreset is Load with an invocation-time preset (see LoadPathWithPreset).
+// It owns the body Load delegates to: the .fab-version overlay on top of
+// LoadPathWithPreset.
+func LoadWithPreset(fabRoot, preset string) (*Config, error) {
+	cfg, err := LoadPathWithPreset(filepath.Join(fabRoot, "project", "config.yaml"), preset)
 	if err != nil {
 		return nil, err
 	}
@@ -430,13 +453,19 @@ func readDotFabVersion(fabRoot string) string {
 // this directly; everyone else goes through Load. Returns an empty config (no
 // error) when neither file exists.
 func LoadPath(path string) (*Config, error) {
+	return LoadPathWithPreset(path, "")
+}
+
+// LoadPathWithPreset is LoadPath with an invocation-time preset choice applied at
+// the ENV layer (`fab agent --preset X` ≡ FAB_AGENT_PRESET=X for one resolution).
+// An empty name leaves the cascade untouched. It owns the body LoadPath delegates to.
+func LoadPathWithPreset(path, preset string) (*Config, error) {
 	projectMap, _, err := readYAMLMap(path)
 	if err != nil {
 		// A malformed PROJECT file keeps today's error behavior.
 		return nil, err
 	}
-
-	return fromProjectMap(projectMap)
+	return fromProjectMapOpts(projectMap, preset)
 }
 
 // LoadNoProject is the PROJECT-FREE counterpart of Load: the effective config with
@@ -464,21 +493,30 @@ func LoadPath(path string) (*Config, error) {
 // alongside the bad file. Only if the env layer is itself incompatible does this
 // fall all the way back to the zero Config.
 func LoadNoProject() *Config {
-	cfg, err := fromProjectMap(nil)
+	return LoadNoProjectWithPreset("")
+}
+
+// LoadNoProjectWithPreset is LoadNoProject with an invocation-time preset (see
+// LoadPathWithPreset). It owns the body LoadNoProject delegates to.
+func LoadNoProjectWithPreset(preset string) *Config {
+	cfg, err := fromProjectMapOpts(nil, preset)
 	if err == nil {
 		return cfg
 	}
 
 	// The system layer is Config-incompatible. Drop it (warning, like every other
-	// fail-open system-file path) and retry env-only.
+	// fail-open system-file path) and retry env-only — through applyPreset, so a
+	// FAB_AGENT_PRESET / --preset choice survives the dropped system file.
 	warnf("fab: warning: system config is incompatible with the config schema (%v); ignoring it\n", err)
-	if cfg, err := FromMap(MergeLayers(nil, envLayerMap())); err == nil {
+	spliced := applyPreset(nil, nil, envLayerMap(), preset)
+	if cfg, err := FromMap(MergeLayers(spliced.env)); err == nil {
+		cfg.Preset = spliced.applied
 		return cfg
 	}
 	return &Config{StageHooks: make(map[string]StageHook)}
 }
 
-// fromProjectMap is the shared tail of Load/LoadPath and LoadNoProject. Merge
+// fromProjectMapOpts is the shared tail of Load/LoadPath and LoadNoProject. Merge
 // order is lowest tier first: project, then system OVER it, then env OVER both.
 // A nil project map (file absent, or no project at all) still lets the system
 // layer through; a nil env map leaves the file merge untouched.
@@ -486,8 +524,20 @@ func LoadNoProject() *Config {
 // An absent system layer plus an absent project file — or a project file that
 // decoded to nothing — leaves the merge empty and yields the zero Config, the
 // byte-identical result the pre-cascade missing-file path returned.
-func fromProjectMap(projectMap map[string]any) (*Config, error) {
-	return FromMap(MergeLayers(NormalizeDeprecated(projectMap), loadSystemLayer(), envLayerMap()))
+//
+// It takes an optional invocation-time preset (envPreset, applied at the env layer
+// — see applyPreset). The preset splice runs
+// here AND in layersFrom through the same applyPreset, so the typed config
+// consumers resolve from and the tree `fab config show` prints can never differ.
+func fromProjectMapOpts(projectMap map[string]any, envPreset string) (*Config, error) {
+	project, system, env := NormalizeDeprecated(projectMap), loadSystemLayer(), envLayerMap()
+	spliced := applyPreset(project, system, env, envPreset)
+	cfg, err := FromMap(MergeLayers(spliced.project, spliced.system, spliced.env))
+	if err != nil {
+		return nil, err
+	}
+	cfg.Preset = spliced.applied
+	return cfg, nil
 }
 
 // envLayerMap is loadEnvLayer's map half — the origins map is provenance-only and
@@ -523,6 +573,19 @@ func FromMap(merged map[string]any) (*Config, error) {
 	return &cfg, nil
 }
 
+// FromLayers is FromMap over a Layers' spliced Effective tree PLUS the active-preset
+// provenance, which a bare map cannot carry. Callers that hold Layers and resolve
+// agents from the result (setup checks, the config read model) use it so their
+// Config labels preset-supplied fields like the loader's own does.
+func FromLayers(l *Layers) (*Config, error) {
+	cfg, err := FromMap(l.Effective)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Preset = l.Preset
+	return cfg, nil
+}
+
 // Layers holds the raw decoded config layers behind the effective config,
 // exposed for provenance queries (fab config show --origin). It is produced by
 // LoadLayers, which runs the SAME cascade LoadPath runs — same system-file
@@ -546,8 +609,13 @@ type Layers struct {
 	// supplied it (without the display-only '$' prefix).
 	Env        map[string]any
 	EnvOrigins map[string]string
+	// Preset is the active agent preset (nil when none applies). Effective already
+	// carries its spliced fields; Project/System/Env above stay RAW so provenance
+	// can still tell a preset-supplied leaf from an explicit one.
+	Preset *AppliedPreset
 	// Effective is MergeLayers(Project, System, Env) — the merged tree LoadPath
-	// unmarshals. The built-in defaults tier is deliberately NOT composed in here:
+	// unmarshals, with the chosen agent preset (if any) spliced in at its choosing
+	// layer. The built-in defaults tier is deliberately NOT composed in here:
 	// bare `fab config show` prints the file+env merge, and the defaults tier is
 	// projected from the registry by the caller (cmd/fab) for the surfaces that
 	// need it.
@@ -587,6 +655,7 @@ func layersFrom(projectPath string, projectMap map[string]any) *Layers {
 	systemMap := loadSystemLayer()
 	envMap, envOrigins := loadEnvLayer()
 	sysPath, _ := systemConfigPath() // "" only if HOME is unresolvable (fail-open)
+	spliced := applyPreset(projectMap, systemMap, envMap, "")
 	return &Layers{
 		ProjectPath: projectPath,
 		SystemPath:  sysPath,
@@ -594,7 +663,8 @@ func layersFrom(projectPath string, projectMap map[string]any) *Layers {
 		System:      systemMap,
 		Env:         envMap,
 		EnvOrigins:  envOrigins,
-		Effective:   MergeLayers(projectMap, systemMap, envMap),
+		Preset:      spliced.applied,
+		Effective:   MergeLayers(spliced.project, spliced.system, spliced.env),
 	}
 }
 
@@ -995,6 +1065,15 @@ func (c *Config) GetAgentProfile(role string) (RoleProfile, bool) {
 	}
 	p, ok := c.Agent.Tiers[role]
 	return p, ok
+}
+
+// GetPreset returns the active agent preset record, or nil when none applies
+// (nil-safe). internal/agent reads it to label `source.*` fields the preset supplied.
+func (c *Config) GetPreset() *AppliedPreset {
+	if c == nil {
+		return nil
+	}
+	return c.Preset
 }
 
 // GetAgentSession returns agent.session — the CLI knob for the Tier-1

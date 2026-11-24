@@ -38,6 +38,30 @@ agent:
   session: claude
   workers: claude
 
+# agent_presets — the built-in named role assignments a user selects with the
+# scalar `agent.preset` (FAB_AGENT_PRESET in the environment). Each is a SPARSE
+# bundle of fields fab already has (session, workers, profiles.<role>.{cli,
+# model,effort}); a preset only adds a rung to the fill precedence, spliced in at
+# the config layer that chose it, directly below that layer's own explicit
+# agent.* fields. They are INERT until selected (presence=intent), so a fresh
+# install resolves byte-identically to today. internal/agent's init() pushes this
+# table into internal/config (config cannot import agent), which composes it as
+# the lowest tier of the definitions merge. `none` is reserved ("no preset here")
+# and can never be defined. codex-review sets only the review role's cli, so its
+# model/effort re-derive from codex's own fills (clis.codex.profiles.review).
+agent_presets:
+  claude:
+    description: All roles on Claude (today's defaults)
+    session: claude
+    workers: claude
+  codex-workers:
+    description: Pipeline workers on Codex; session on Claude
+    workers: codex
+  codex-review:
+    description: Only the review role on Codex
+    profiles:
+      review: { cli: codex }
+
 # dispatch — the built-in stage-dispatch defaults, and the SINGLE VALUE SOURCE
 # for all five: internal/agent's init() pushes these parsed values into
 # internal/config's DefaultDispatchMode / DefaultDispatchColumnWidth /

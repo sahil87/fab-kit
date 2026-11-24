@@ -189,7 +189,7 @@ repo's suggestion" is the intended answer.
 
 | scope | Meaning | Fields |
 |-------|---------|--------|
-| `both` | Overridable in either the project or the system layer (preference-class). | `agent.session`, `agent.workers`, `agent.profiles`, `clis`, `dispatch.mode`, `dispatch.column_width`, `dispatch.min_cols`, `dispatch.min_rows`, `dispatch.reap_done` |
+| `both` | Overridable in either the project or the system layer (preference-class). | `agent.session`, `agent.workers`, `agent.preset`, `agent.profiles`, `clis`, `agent_presets`, `dispatch.mode`, `dispatch.column_width`, `dispatch.min_cols`, `dispatch.min_rows`, `dispatch.reap_done` |
 | `project` | Overridable only in the project file (semantics-class, repo-reproducible). | `project.*`, `source_paths`, `test_paths`, `true_impact_exclude`, `checklist.extra_categories`, `consolidate.detectors`, `docs_index.roots`, and (conservative default) `stage_hooks` |
 | `system` | Overridable only in the system layer. | *(none today; the value exists for completeness and [Change 2])* |
 
@@ -440,6 +440,44 @@ or a project-scoped environment override emits a `fab: warning:` and is ignored;
 `FAB_*` variable is never examined. The supported user-facing examples are `FAB_AGENT_WORKERS` and
 `FAB_AGENT_SESSION`; `FAB_AGENTS` (plural) is unrelated and has no config meaning.
 
+### Agent presets — a selector and a definitions table (261124-e9nz)
+
+`agent.preset` (scalar, scope `both`, advertised in the `agent:` fence segment) selects one named preset
+from the top-level `agent_presets` table (scope `both`, `advertise: false` like `clis`). A preset is a
+**sparse** bundle of fields fab already has — `session`, `workers`, `profiles.<role>.{cli,model,effort}`, plus
+a display-only `description` — so the resolver and its consumers keep their existing semantics; the preset only
+adds fields to the `agent.*` tier. Full resolution semantics live in
+[`stage-models.md`](stage-models.md) § Agent presets and the deployed restatement in `_cli-fab.md`
+§ Agent presets; the config-schema facts are:
+
+- **Definitions merge per key across layers** like every other map: built-in (the `agent_presets:` block of
+  the embedded `defaults.yaml`) < project < system < env (`FAB_AGENT_PRESETS`). A project can add a preset; a
+  system file can tweak one field of a built-in. The built-in tier reaches `internal/config` through an
+  `init()` push from `internal/agent` (the same cycle-forced direction as the `DefaultDispatch*` vars), and
+  `Config.AgentPresets` carries only the file+env layers, mirroring `Config.CLIs`.
+- **The precedence rule — the choosing-layer splice.** Exactly one preset is active: the winner of
+  `agent.preset` across env > system > project (first non-empty). Its fields enter **at the layer that chose
+  it, directly below that layer's own explicit `agent.*` fields** — the effective tree is
+  `MergeLayers(project', system', env')` where only the choosing layer is replaced by
+  `MergeLayers({agent: presetFields}, thatLayer)`. So the preset beats explicit `agent.*` fields in lower
+  layers, loses to explicit fields at the same or a higher layer, and invocation flags stay on top. The splice is
+  implemented once in the loader (`applyPreset`, called by both `fromProjectMap` and `layersFrom`) because layer
+  identity exists nowhere else; `fab config show` therefore prints the spliced tree consumers resolve from. The
+  `Config`/`Layers` carry an `AppliedPreset` record (name, choosing layer, the `agent.*` leaves the preset
+  actually supplied) that `internal/agent` reads to label `source.*`.
+- **Reserved `none`**: wins the selection like a name, activates nothing; a definition named `none` is warned
+  about and ignored.
+- **Set-time validation vs. resolve-time warning.** An unknown name at resolve time warns and is treated as
+  unset (config must never brick a spawn); `fab config set [--system] agent.preset <name>` rejects a name that
+  is not defined (built-in ∪ system ∪ project ∪ env) or `none`, with a non-zero usage error naming the sorted
+  defined set. `agent_presets.<name>.<field>` dotted leaves (`description`/`session`/`workers`,
+  `profiles.<role>.<cli|model|effort>`) are settable/unsettable following the `clis.<name>.<field>`
+  precedent; CLI names inside them are not validated at write time.
+- **`show --origin`**: `agent.preset` shows with its layer origin like any key; each `agent.*` leaf the
+  preset supplied is attributed to the choosing layer with origin detail `preset <name>` (text:
+  `<label> (preset <name>)`; JSON `origin_detail: "preset <name>"`). The preset is modelled as a synthetic tier
+  directly below the choosing layer's own tier, so a shadowed preset leaf still appears in the keyed stack.
+
 ### The defaults tier is materialized for the READ MODEL, not for the loader
 
 `configref.DefaultsMap()` projects every registry row's canonical `default` into one YAML-shaped map —
@@ -565,7 +603,8 @@ environment walk cannot drift from the reference schema.
   accepted set or range is refused, writing nothing: `dispatch.mode` (`pane`/`native`/`headless`),
   `dispatch.column_width` (1–99), `dispatch.min_cols`/`min_rows` (≥ 1), and the
   CLI keys (`agent.session`, `agent.workers`, `agent.profiles.<role>.cli`) against the effective
-  CLIs table — built-ins plus the `clis:` keys of the cascade visible from the cwd. The accepted
+  CLIs table — built-ins plus the `clis:` keys of the cascade visible from the cwd — and
+  `agent.preset` against the defined presets plus the reserved `none`. The accepted
   sets and bounds are exported once and shared with the read-path accessors. Validation stays at the
   write chokepoint: the read path is still fail-open and CLI-neutral (a hand-edited bad value
   degrades to the default with a warning — a malformed personal preference must not brick every repo),
