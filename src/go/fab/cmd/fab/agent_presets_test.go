@@ -413,3 +413,30 @@ func TestResolveAgentSeesPresetFromConfig(t *testing.T) {
 		t.Errorf("config-chosen preset not applied to the session command: %q", out)
 	}
 }
+
+// TestConfigRejectsReservedNonePresetKey: `none` can never be a definition, so a
+// set or unset of any agent_presets.none[.…] key fails before writing.
+func TestConfigRejectsReservedNonePresetKey(t *testing.T) {
+	repo, _ := setupConfigRepo(t, "project:\n  name: test\n")
+	path := filepath.Join(repo, "fab", "project", "config.yaml")
+	before, _ := os.ReadFile(path)
+	for _, args := range [][]string{
+		{"set", "agent_presets.none.workers", "codex"},
+		{"set", "agent_presets.none.profiles.review.cli", "codex"},
+		{"set", "agent_presets.none.workers", "codex", "--system"},
+		{"unset", "agent_presets.none.workers"},
+		{"unset", "agent_presets.none"},
+	} {
+		_, _, err := runConfigSplit(t, args...)
+		if err == nil || !strings.Contains(err.Error(), "reserved") {
+			t.Errorf("%v: want a reserved-name error, got %v", args, err)
+		}
+	}
+	if after, _ := os.ReadFile(path); string(after) != string(before) {
+		t.Errorf("a refused key modified the project config:\n%s", after)
+	}
+	// Names merely containing "none" stay legal.
+	if _, _, err := runConfigSplit(t, "set", "agent_presets.nonesuch.workers", "agy"); err != nil {
+		t.Errorf("agent_presets.nonesuch must be legal: %v", err)
+	}
+}

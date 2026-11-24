@@ -632,9 +632,11 @@ func topLevelKey(key string) string {
 // stack listing prints; the winner-only listing prints the tier's LABEL instead
 // (the git config --show-origin precedent).
 const (
-	tierEnv     = "env"
-	tierSystem  = "system"
-	tierProject = "project"
+	// The three file/env tiers share the loader's layer names, so a preset's
+	// choosing layer (config.AppliedPreset.Layer) compares against these directly.
+	tierEnv     = config.PresetLayerEnv
+	tierSystem  = config.PresetLayerSystem
+	tierProject = config.PresetLayerProject
 	tierDefault = "default"
 )
 
@@ -1037,6 +1039,9 @@ func configSetCmd() *cobra.Command {
 			if canonical, deprecated := config.CanonicalKey(key); deprecated {
 				oldKey, key = key, canonical
 			}
+			if err := rejectReservedPresetKey(key); err != nil {
+				return err
+			}
 			if isEmptySetValue(rawValue) {
 				message := fmt.Sprintf("refusing to set %q to an empty value: an empty leaf (null, \"\", [], {}) "+
 					"falls through to the next config tier and can never be effective — "+
@@ -1215,6 +1220,9 @@ func configUnsetCmd() *cobra.Command {
 			oldKey := ""
 			if canonical, deprecated := config.CanonicalKey(key); deprecated {
 				oldKey, key = key, canonical
+			}
+			if err := rejectReservedPresetKey(key); err != nil {
+				return err
 			}
 			path, err := configMutationPath(system)
 			if err != nil {

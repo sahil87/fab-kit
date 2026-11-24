@@ -390,7 +390,14 @@ type Config struct {
 // with no repo-root context — so the .fab-version overlay lives here in Load, the
 // only seam that knows fabRoot.
 func Load(fabRoot string) (*Config, error) {
-	cfg, err := LoadPath(filepath.Join(fabRoot, "project", "config.yaml"))
+	return LoadWithPreset(fabRoot, "")
+}
+
+// LoadWithPreset is Load with an invocation-time preset (see LoadPathWithPreset).
+// It owns the body Load delegates to: the .fab-version overlay on top of
+// LoadPathWithPreset.
+func LoadWithPreset(fabRoot, preset string) (*Config, error) {
+	cfg, err := LoadPathWithPreset(filepath.Join(fabRoot, "project", "config.yaml"), preset)
 	if err != nil {
 		return nil, err
 	}
@@ -446,49 +453,19 @@ func readDotFabVersion(fabRoot string) string {
 // this directly; everyone else goes through Load. Returns an empty config (no
 // error) when neither file exists.
 func LoadPath(path string) (*Config, error) {
+	return LoadPathWithPreset(path, "")
+}
+
+// LoadPathWithPreset is LoadPath with an invocation-time preset choice applied at
+// the ENV layer (`fab agent --preset X` ≡ FAB_AGENT_PRESET=X for one resolution).
+// An empty name leaves the cascade untouched. It owns the body LoadPath delegates to.
+func LoadPathWithPreset(path, preset string) (*Config, error) {
 	projectMap, _, err := readYAMLMap(path)
 	if err != nil {
 		// A malformed PROJECT file keeps today's error behavior.
 		return nil, err
 	}
-
-	return fromProjectMap(projectMap)
-}
-
-// LoadPathWithPreset is LoadPath with an invocation-time preset choice applied at
-// the ENV layer (`fab agent --preset X` ≡ FAB_AGENT_PRESET=X for one resolution).
-// An empty name leaves the cascade untouched.
-func LoadPathWithPreset(path, preset string) (*Config, error) {
-	projectMap, _, err := readYAMLMap(path)
-	if err != nil {
-		return nil, err
-	}
 	return fromProjectMapOpts(projectMap, preset)
-}
-
-// LoadWithPreset is Load with an invocation-time preset (see LoadPathWithPreset).
-func LoadWithPreset(fabRoot, preset string) (*Config, error) {
-	cfg, err := LoadPathWithPreset(filepath.Join(fabRoot, "project", "config.yaml"), preset)
-	if err != nil {
-		return nil, err
-	}
-	if v := readDotFabVersion(fabRoot); v != "" {
-		cfg.FabVersion = v
-	}
-	return cfg, nil
-}
-
-// LoadNoProjectWithPreset is LoadNoProject with an invocation-time preset.
-func LoadNoProjectWithPreset(preset string) *Config {
-	cfg, err := fromProjectMapOpts(nil, preset)
-	if err == nil {
-		return cfg
-	}
-	warnf("fab: warning: system config is incompatible with the config schema (%v); ignoring it\n", err)
-	if cfg, err := FromMap(MergeLayers(nil, envLayerMap())); err == nil {
-		return cfg
-	}
-	return &Config{StageHooks: make(map[string]StageHook)}
 }
 
 // LoadNoProject is the PROJECT-FREE counterpart of Load: the effective config with
@@ -516,21 +493,30 @@ func LoadNoProjectWithPreset(preset string) *Config {
 // alongside the bad file. Only if the env layer is itself incompatible does this
 // fall all the way back to the zero Config.
 func LoadNoProject() *Config {
-	cfg, err := fromProjectMap(nil)
+	return LoadNoProjectWithPreset("")
+}
+
+// LoadNoProjectWithPreset is LoadNoProject with an invocation-time preset (see
+// LoadPathWithPreset). It owns the body LoadNoProject delegates to.
+func LoadNoProjectWithPreset(preset string) *Config {
+	cfg, err := fromProjectMapOpts(nil, preset)
 	if err == nil {
 		return cfg
 	}
 
 	// The system layer is Config-incompatible. Drop it (warning, like every other
-	// fail-open system-file path) and retry env-only.
+	// fail-open system-file path) and retry env-only — through applyPreset, so a
+	// FAB_AGENT_PRESET / --preset choice survives the dropped system file.
 	warnf("fab: warning: system config is incompatible with the config schema (%v); ignoring it\n", err)
-	if cfg, err := FromMap(MergeLayers(nil, envLayerMap())); err == nil {
+	spliced := applyPreset(nil, nil, envLayerMap(), preset)
+	if cfg, err := FromMap(MergeLayers(spliced.env)); err == nil {
+		cfg.Preset = spliced.applied
 		return cfg
 	}
 	return &Config{StageHooks: make(map[string]StageHook)}
 }
 
-// fromProjectMap is the shared tail of Load/LoadPath and LoadNoProject. Merge
+// fromProjectMapOpts is the shared tail of Load/LoadPath and LoadNoProject. Merge
 // order is lowest tier first: project, then system OVER it, then env OVER both.
 // A nil project map (file absent, or no project at all) still lets the system
 // layer through; a nil env map leaves the file merge untouched.
@@ -538,12 +524,9 @@ func LoadNoProject() *Config {
 // An absent system layer plus an absent project file — or a project file that
 // decoded to nothing — leaves the merge empty and yields the zero Config, the
 // byte-identical result the pre-cascade missing-file path returned.
-func fromProjectMap(projectMap map[string]any) (*Config, error) {
-	return fromProjectMapOpts(projectMap, "")
-}
-
-// fromProjectMapOpts is fromProjectMap plus an optional invocation-time preset
-// (envPreset, applied at the env layer — see applyPreset). The preset splice runs
+//
+// It takes an optional invocation-time preset (envPreset, applied at the env layer
+// — see applyPreset). The preset splice runs
 // here AND in layersFrom through the same applyPreset, so the typed config
 // consumers resolve from and the tree `fab config show` prints can never differ.
 func fromProjectMapOpts(projectMap map[string]any, envPreset string) (*Config, error) {

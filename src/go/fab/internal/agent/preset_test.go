@@ -330,3 +330,30 @@ func TestAgentPresetDefinitionSources(t *testing.T) {
 		t.Errorf("per-leaf merge lost: %+v", defs["codex-review"])
 	}
 }
+
+// TestPresetSurvivesIncompatibleSystemFile: a system file that is valid YAML but
+// Config-incompatible is dropped (warned), and the env-only fallback must still honor
+// FAB_AGENT_PRESET and an invocation-time preset.
+func TestPresetSurvivesIncompatibleSystemFile(t *testing.T) {
+	presetEnv(t, "dispatch: oops\n", "{}\n")
+
+	t.Setenv("FAB_AGENT_PRESET", "codex-workers")
+	var viaEnv *config.Config
+	warn := captureWarnings(t, func() { viaEnv = config.LoadNoProject() })
+	if !strings.Contains(warn, "incompatible with the config schema") {
+		t.Fatalf("expected the incompatible-system-file warning, got %q", warn)
+	}
+	if got := resolveRoles(t, viaEnv)[RoleDoing].CLI; got != "codex" {
+		t.Errorf("FAB_AGENT_PRESET dropped on the env-only fallback: doing cli = %q", got)
+	}
+	if viaEnv.Preset == nil || viaEnv.Preset.Name != "codex-workers" {
+		t.Errorf("fallback config lost the preset provenance: %+v", viaEnv.Preset)
+	}
+
+	t.Setenv("FAB_AGENT_PRESET", "")
+	var viaFlag *config.Config
+	captureWarnings(t, func() { viaFlag = config.LoadNoProjectWithPreset("codex-review") })
+	if got := resolveRoles(t, viaFlag)[RoleReview].CLI; got != "codex" {
+		t.Errorf("--preset dropped on the env-only fallback: review cli = %q", got)
+	}
+}

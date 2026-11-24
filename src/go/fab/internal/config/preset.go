@@ -18,7 +18,7 @@ import (
 // this package's loader; internal/agent receives an already-merged *Config. The
 // rule is positional — the preset enters AT THE LAYER THAT CHOSE IT, directly below
 // that layer's own explicit agent.* fields — so it cannot be expressed anywhere
-// downstream. applyPreset is the one implementation, called from both fromProjectMap
+// downstream. applyPreset is the one implementation, called from both fromProjectMapOpts
 // (typed Config) and layersFrom (Layers for `fab config show`), so what `show` prints
 // is what consumers resolve.
 
@@ -68,16 +68,17 @@ func (p *AppliedPreset) Supplies(path string) bool {
 	return p != nil && p.Supplied[path]
 }
 
-// Layer names of the three file/env layers a preset can be chosen at, and the label
-// for the invocation flag.
+// Layer names of the three file/env layers a preset can be chosen at (exported so
+// cmd/fab's tier kinds are defined from them, not from equal string literals), and
+// the label for the invocation flag.
 const (
-	presetLayerEnv     = "env"
-	presetLayerSystem  = "system"
-	presetLayerProject = "project"
+	PresetLayerEnv     = "env"
+	PresetLayerSystem  = "system"
+	PresetLayerProject = "project"
 	presetFlagLabel    = "--preset flag"
 )
 
-// presetFields are the fields a definition may set beyond description.
+// presetRoleLeaves are the per-role leaves a definition's profiles.<role> may set.
 var presetRoleLeaves = []string{"cli", "model", "effort"}
 
 // splicedLayers is applyPreset's result: the three layers (the choosing one
@@ -118,37 +119,68 @@ func applyPreset(project, system, env map[string]any, envPreset string) splicedL
 	}
 
 	fields := presetAgentFields(rawDef)
-	chosen := map[string]map[string]any{presetLayerEnv: env, presetLayerSystem: system, presetLayerProject: project}[layer]
+	out = out.withLayer(layer, spliceAgentFields(layerOf(out, layer), fields))
+	out.applied = &AppliedPreset{
+		Name: name, Layer: layer, Fields: fields,
+		Supplied: suppliedLeaves(fields, layer, project, system, env),
+	}
+	return out
+}
+
+// layerOf returns the (unspliced) layer map named layer.
+func layerOf(l splicedLayers, layer string) map[string]any {
+	switch layer {
+	case PresetLayerEnv:
+		return l.env
+	case PresetLayerSystem:
+		return l.system
+	default:
+		return l.project
+	}
+}
+
+// withLayer returns l with the named layer replaced by m.
+func (l splicedLayers) withLayer(layer string, m map[string]any) splicedLayers {
+	switch layer {
+	case PresetLayerEnv:
+		l.env = m
+	case PresetLayerSystem:
+		l.system = m
+	default:
+		l.project = m
+	}
+	return l
+}
+
+// spliceAgentFields returns a copy of chosen whose `agent` subtree is the preset's
+// fields UNDER chosen's own explicit agent.* fields — the choosing-layer splice.
+func spliceAgentFields(chosen, fields map[string]any) map[string]any {
 	spliced := make(map[string]any, len(chosen)+1)
 	for k, v := range chosen {
 		spliced[k] = v
 	}
 	own, _ := asStringMap(chosen[agentKey])
 	spliced[agentKey] = mergeOver(fields, own)
+	return spliced
+}
 
-	switch layer {
-	case presetLayerEnv:
-		out.env = spliced
-	case presetLayerSystem:
-		out.system = spliced
-	default:
-		out.project = spliced
-	}
-
-	// The preset SUPPLIES a leaf only when nothing at or above the choosing layer
-	// sets it explicitly (those win the merge and keep their own label).
+// suppliedLeaves lists the preset leaves that actually reach the effective tree: a
+// leaf is SUPPLIED only when nothing at or above the choosing layer sets it
+// explicitly (those win the merge and keep their own label).
+func suppliedLeaves(fields map[string]any, layer string, project, system, env map[string]any) map[string]bool {
 	above := []map[string]any{env}
 	switch layer {
-	case presetLayerSystem:
+	case PresetLayerSystem:
 		above = []map[string]any{env, system}
-	case presetLayerProject:
+	case PresetLayerProject:
 		above = []map[string]any{env, system, project}
 	}
 	supplied := make(map[string]bool)
 	for _, path := range leafPaths(fields) {
+		parts := append([]string{agentKey}, strings.Split(path, ".")...)
 		explicit := false
 		for _, l := range above {
-			if v, ok := valueAt(l, append([]string{agentKey}, strings.Split(path, ".")...)); ok && !IsEmptyValue(v) {
+			if v, ok := valueAt(l, parts); ok && !IsEmptyValue(v) {
 				explicit = true
 				break
 			}
@@ -157,8 +189,7 @@ func applyPreset(project, system, env map[string]any, envPreset string) splicedL
 			supplied[path] = true
 		}
 	}
-	out.applied = &AppliedPreset{Name: name, Layer: layer, Supplied: supplied, Fields: fields}
-	return out
+	return supplied
 }
 
 // choosePresetLayer returns the layer holding the winning agent.preset value and
@@ -166,12 +197,12 @@ func applyPreset(project, system, env map[string]any, envPreset string) splicedL
 // the env layer's own value (fromFlag reports it).
 func choosePresetLayer(project, system, env map[string]any, envPreset string) (layer, name string, fromFlag bool) {
 	if envPreset != "" {
-		return presetLayerEnv, envPreset, true
+		return PresetLayerEnv, envPreset, true
 	}
 	for _, c := range []struct {
 		layer string
 		m     map[string]any
-	}{{presetLayerEnv, env}, {presetLayerSystem, system}, {presetLayerProject, project}} {
+	}{{PresetLayerEnv, env}, {PresetLayerSystem, system}, {PresetLayerProject, project}} {
 		if v := presetScalar(c.m); v != "" {
 			return c.layer, v, false
 		}
@@ -352,9 +383,9 @@ type PresetSource string
 
 const (
 	PresetSourceBuiltIn PresetSource = "built-in"
-	PresetSourceProject PresetSource = PresetSource(presetLayerProject)
-	PresetSourceSystem  PresetSource = PresetSource(presetLayerSystem)
-	PresetSourceEnv     PresetSource = PresetSource(presetLayerEnv)
+	PresetSourceProject PresetSource = PresetSource(PresetLayerProject)
+	PresetSourceSystem  PresetSource = PresetSource(PresetLayerSystem)
+	PresetSourceEnv     PresetSource = PresetSource(PresetLayerEnv)
 )
 
 // AgentPresetDefinitions returns every defined preset with its highest contributing

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sahil87/fab-kit/src/go/fab/internal/config"
 	"github.com/sahil87/fab-kit/src/go/fab/internal/lines"
 )
 
@@ -14,6 +15,7 @@ const (
 	stageModelsDocPath = "docs/specs/stage-models.md"
 	defaultRoleHeading = "### Default role profiles"
 	stageRoleHeading   = "## The fixed stage → role mapping"
+	presetHeading      = "### Agent presets"
 )
 
 // TestDocTablesMatchAgentMaps guards against drift between the canonical built-in
@@ -51,6 +53,78 @@ func TestDocTablesMatchAgentMaps(t *testing.T) {
 			}
 		})
 	}
+
+	// Direction 3 — the built-in preset table: { preset → fields it sets }, against
+	// config.BuiltinAgentPresets (pushed from defaults.yaml).
+	presetTable := parsePresetTable(t, docPath, presetHeading)
+	builtin := make([]string, 0, len(config.BuiltinAgentPresets))
+	for name := range config.BuiltinAgentPresets {
+		builtin = append(builtin, name)
+	}
+	assertCoversSet(t, "Built-in presets", mapKeys(presetTable), builtin)
+	for _, name := range builtin {
+		t.Run("preset/"+name, func(t *testing.T) {
+			want := presetFieldSet(config.BuiltinAgentPresets[name])
+			got := presetTable[name]
+			if len(got) != len(want) {
+				t.Errorf("stage-models.md preset[%s] sets %v, code sets %v (doc drifted)", name, got, want)
+				return
+			}
+			for k, v := range want {
+				if got[k] != v {
+					t.Errorf("stage-models.md preset[%s] %s = %q, code %q (doc drifted)", name, k, got[k], v)
+				}
+			}
+		})
+	}
+}
+
+// presetFieldSet flattens a preset to { dotted field → value } (description excluded:
+// the doc table lists only what a preset sets on the agent.* tier).
+func presetFieldSet(p config.AgentPreset) map[string]string {
+	out := map[string]string{}
+	if p.Session != "" {
+		out["session"] = p.Session
+	}
+	if p.Workers != "" {
+		out["workers"] = p.Workers
+	}
+	for role, rp := range p.Profiles {
+		for leaf, v := range map[string]string{"cli": rp.CLI, "model": rp.Model, "effort": rp.Effort} {
+			if v != "" {
+				out["profiles."+role+"."+leaf] = v
+			}
+		}
+	}
+	return out
+}
+
+// parsePresetTable reads the `| Preset | Sets |` table: the name from column one and
+// every backticked `field: value` token of column two.
+func parsePresetTable(t *testing.T, docPath, heading string) map[string]map[string]string {
+	t.Helper()
+	out := map[string]map[string]string{}
+	for _, row := range tableRowsUnder(t, docPath, heading) {
+		if len(row) < 2 {
+			continue
+		}
+		fields := map[string]string{}
+		for _, tok := range strings.Split(row[1], "`") {
+			if k, v, ok := strings.Cut(tok, ": "); ok {
+				fields[strings.TrimSpace(k)] = strings.TrimSpace(v)
+			}
+		}
+		out[cleanCell(row[0])] = fields
+	}
+	return out
+}
+
+func mapKeys[V any](m map[string]V) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }
 
 func keys(m map[string]Profile) []string {

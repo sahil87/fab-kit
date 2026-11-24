@@ -90,22 +90,22 @@ Reference fence/explain prose, `docs/specs/config.md`, `docs/specs/stage-models.
 
 ### Phase 2: Core Implementation
 
-- [x] T003 Implement the splice (selection, definitions merge, unknown/none handling, provenance) in new `src/go/fab/internal/config/preset.go`, wire into `fromProjectMap` and `layersFrom`, add `FromLayers` and an env-preset override entry point <!-- R4, R5, R6 -->
+- [x] T003 Implement the splice (selection, definitions merge, unknown/none handling, provenance) in new `src/go/fab/internal/config/preset.go`, wire into `fromProjectMap` and `layersFrom`, add `FromLayers` and an env-preset override entry point <!-- R4, R5, R6 --> <!-- rework: cycle 1 must-fix — make LoadPath/Load/LoadNoProject one-line delegations to the *WithPreset variants (config.go:461-492); route the env-only fallback (config.go:488,:527) through applyPreset so FAB_AGENT_PRESET/--preset survive a schema-incompatible system file; extract applyPreset supplied-leaf walk (preset.go:141-169) into a helper to get under 50 lines; fix preset.go:83 comment (presetFields → presetRoleLeaves); export the preset layer names so cmd/fab withPresetTier (config.go:743) compares against shared constants -->
 - [x] T004 `internal/agent/agent.go`: parse built-in presets in `init()` push; label preset-supplied fields `agent_presets.<name>` in `ResolveRoleWithSource`; add `Preset` to `Resolution` in `resolution.go` <!-- R2, R6, R10 -->
 - [x] T005 Registry rows, segments, fence line, explain prose and dynamic dotted keys in `src/go/fab/internal/configref/configref.go` (+ `defaultsmap.go` if needed) <!-- R3, R7, R11 -->
-- [x] T006 `fab config set` validation for `agent.preset`; `show --origin` preset tier; `FromLayers` use in `cmd/fab/config*.go` <!-- R7, R10 -->
+- [x] T006 `fab config set` validation for `agent.preset`; `show --origin` preset tier; `FromLayers` use in `cmd/fab/config*.go` <!-- R7, R10 --> <!-- rework: cycle 1 should-fix — config_validate.go:35 must reject set/unset of agent_presets.none[.…] (reserved name) at write time -->
 - [x] T007 `fab agent --preset` and `fab agent presets [--json]` in `cmd/fab/agent.go`, new `cmd/fab/agent_presets.go`, `-o yaml` `preset` key in `cmd/fab/resolution.go` <!-- R8, R9, R10 -->
 
 ### Phase 3: Tests and Integration
 
 - [x] T008 Config-loader/precedence table tests (7 required cases + `none`) in `src/go/fab/internal/config/preset_test.go` and `internal/agent` <!-- R4, R5, R6 -->
 - [x] T009 cmd tests: `agent_presets_test.go`, `--preset` equivalence + bare `--cli` rejection, `config set agent.preset`, `show --origin`, `dispatch_start_test.go` headless preset case <!-- R7, R8, R9, R10 -->
-- [x] T010 Drift guards: extend `internal/agent/defaults_test.go` (well-formed + pin), doc table guard if docs restate built-ins <!-- R11 -->
+- [x] T010 Drift guards: extend `internal/agent/defaults_test.go` (well-formed + pin), doc table guard if docs restate built-ins <!-- R11 --> <!-- rework: cycle 1 should-fix — extend TestDocTablesMatchAgentMaps (stagemodels_doc_test.go) to check docs/specs/stage-models.md § Agent presets table against config.BuiltinAgentPresets -->
 - [x] T011 Fix existing fixtures/goldens affected by the new registry rows and subcommand (help-dump, configref, configscope tests) <!-- R11 -->
 
 ### Phase 4: Polish
 
-- [x] T012 [P] Docs: `docs/specs/config.md`, `docs/specs/stage-models.md` <!-- R11 -->
+- [x] T012 [P] Docs: `docs/specs/config.md`, `docs/specs/stage-models.md` <!-- R11 --> <!-- rework: cycle 1 should-fix — add `fab agent presets` to the config-free command list in src/go/fab/cmd/fab/skill.md:22 and docs/site/skill.md:22 -->
 - [x] T013 [P] Kit: `src/kit/skills/_cli-fab.md` § fab agent (JSON contract; no docs/specs or src/go citations) <!-- R11 -->
 - [x] T014 Run `go test ./...` and `go vet ./...` <!-- R11 -->
 
@@ -118,41 +118,45 @@ Reference fence/explain prose, `docs/specs/config.md`, `docs/specs/stage-models.
 
 ### Functional Completeness
 
-- [ ] A-001 R1: `agent_presets` merges per key across built-in/project/system/env and `none` is not definable
-- [ ] A-002 R2: the three built-in presets ship with exact shapes and are inert when unselected
-- [ ] A-003 R3: `agent.preset` registered (scope both, fence line) and `FAB_AGENT_PRESET` works without special-case env code
-- [ ] A-004 R4: choosing-layer splice implemented once in the loader, identical in `fromProjectMap` and `layersFrom`
-- [ ] A-005 R5: unknown name warns with the specified text and resolves as unset
-- [ ] A-006 R6: `source.*` names `agent_presets.<name>` for preset-supplied fields; re-derived fills keep their `clis.*` label
-- [ ] A-007 R7: `config set agent.preset` rejects undefined names, accepts defined and `none`; dotted `agent_presets.*` leaves are settable
-- [ ] A-008 R8: `fab agent --preset` works, is resolution-only, rejects selector-less `--cli`, absent from `resolve-agent`
-- [ ] A-009 R9: `fab agent presets [--json]` emits the documented sparse sorted contract with `source`
-- [ ] A-010 R10: `-o yaml` carries `preset:` only when active; `show --origin` attributes preset leaves
-- [ ] A-011 R11: docs, `_cli-fab.md`, fixtures, drift guards updated
+- [x] A-001 R1: `agent_presets` merges per key across built-in/project/system/env and `none` is not definable
+- [x] A-002 R2: the three built-in presets ship with exact shapes and are inert when unselected
+- [x] A-003 R3: `agent.preset` registered (scope both, fence line) and `FAB_AGENT_PRESET` works without special-case env code
+- [x] A-004 R4: choosing-layer splice implemented once in the loader, identical in `fromProjectMap` and `layersFrom`
+- [x] A-005 R5: unknown name warns with the specified text and resolves as unset
+- [x] A-006 R6: `source.*` names `agent_presets.<name>` for preset-supplied fields; re-derived fills keep their `clis.*` label
+- [x] A-007 R7: `config set agent.preset` rejects undefined names, accepts defined and `none`; dotted `agent_presets.*` leaves are settable
+- [x] A-008 R8: `fab agent --preset` works, is resolution-only, rejects selector-less `--cli`, absent from `resolve-agent`
+- [x] A-009 R9: `fab agent presets [--json]` emits the documented sparse sorted contract with `source`
+- [x] A-010 R10: `-o yaml` carries `preset:` only when active; `show --origin` attributes preset leaves
+- [x] A-011 R11: docs, `_cli-fab.md`, fixtures, drift guards updated (well-formed check lives in the sibling `TestDefaultsFileBuiltinPresetsAreWellFormed`; `TestDocTablesMatchAgentMaps` now also checks the stage-models.md § Agent presets table against `config.BuiltinAgentPresets`)
 
 ### Behavioral Correctness
 
-- [ ] A-012 R4: with nothing set, resolution and all pre-existing tests are byte-identical to before
-- [ ] A-013 R4: all seven brief precedence cases plus reserved `none` pass as table tests
+- [x] A-012 R4: with nothing set, resolution and all pre-existing tests are byte-identical to before
+- [x] A-013 R4: all seven brief precedence cases plus reserved `none` pass as table tests
 
 ### Scenario Coverage
 
-- [ ] A-014 R4: `fab dispatch start` headless path picks the preset up from config (composed command uses codex)
-- [ ] A-015 R8: `--preset X` ≡ `FAB_AGENT_PRESET=X` for one resolution
+- [x] A-014 R4: `fab dispatch start` headless path picks the preset up from config (composed command uses codex)
+- [x] A-015 R8: `--preset X` ≡ `FAB_AGENT_PRESET=X` for one resolution
 
 ### Edge Cases & Error Handling
 
-- [ ] A-016 R3: empty `FAB_AGENT_PRESET=` is unset; `none` at a higher layer cancels a lower preset
-- [ ] A-017 R5: a stale name never fails a spawn
+- [x] A-016 R3: empty `FAB_AGENT_PRESET=` is unset; `none` at a higher layer cancels a lower preset
+- [x] A-017 R5: a stale name never fails a spawn
 
 ### Code Quality
 
-- [ ] A-018 Pattern consistency: New code follows naming and structural patterns of surrounding code
-- [ ] A-019 No unnecessary duplication: Existing utilities (MergeLayers, configvalue, dynamicMatch, agent_models template) reused
+- [x] A-018 Pattern consistency: New code follows naming and structural patterns of surrounding code
+- [x] A-019 No unnecessary duplication: Existing utilities (MergeLayers, configvalue, dynamicMatch, agent_models template) reused; `Load`/`LoadPath`/`LoadNoProject` are now one-line delegations to their `*WithPreset` variants (internal/config/config.go:393, :456, :496)
 
 ## Notes
 
 - Check items as you review: `- [x]`
+
+## Deletion Candidates
+
+- None — this change adds new functionality without making existing code redundant (the cycle-1 candidate — duplicated `Load*` bodies — was resolved by making the originals delegate to their `*WithPreset` twins)
 
 ## Assumptions
 

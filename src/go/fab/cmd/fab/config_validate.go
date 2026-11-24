@@ -138,3 +138,15 @@ func validatePresetName(key, name string, layers *config.Layers) error {
 	return fmt.Errorf("invalid value %q for %s — not a defined agent preset (defined: %s; or %q to select no preset)",
 		name, key, strings.Join(defined, ", "), config.NoPreset)
 }
+
+// rejectReservedPresetKey refuses any `agent_presets.none[.…]` key — `none` is the
+// reserved "no preset" selector value and can never be a definition (the loader
+// would warn and ignore it). It runs at set AND unset time, before anything is
+// written, so the reserved name never reaches a config file through the CLI.
+func rejectReservedPresetKey(key string) error {
+	parts := strings.Split(key, ".")
+	if len(parts) >= 2 && parts[0] == "agent_presets" && parts[1] == config.NoPreset {
+		return fmt.Errorf("invalid key %q — %q is a reserved agent preset name (it means \"no preset\") and cannot be defined", key, config.NoPreset)
+	}
+	return nil
+}
