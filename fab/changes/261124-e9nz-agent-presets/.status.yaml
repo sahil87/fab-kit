@@ -8,8 +8,8 @@ progress:
     intake: done
     apply: done
     review: done
-    hydrate: active
-    ship: pending
+    hydrate: done
+    ship: active
     review-pr: pending
 plan:
     generated: true
@@ -32,24 +32,26 @@ stage_metrics:
     intake: {started_at: "2026-11-24T02:47:08Z", driver: fab-new, iterations: 1, completed_at: "2026-11-24T02:57:38Z"}
     apply: {started_at: "2026-11-24T03:18:39Z", driver: fab-fff, iterations: 2, completed_at: "2026-11-24T03:22:48Z"}
     review: {started_at: "2026-11-24T03:22:48Z", driver: fab-fff, iterations: 2, completed_at: "2026-11-24T03:26:46Z"}
-    hydrate: {started_at: "2026-11-24T03:26:46Z", driver: fab-fff, iterations: 1}
+    hydrate: {started_at: "2026-11-24T03:26:46Z", driver: fab-fff, iterations: 1, completed_at: "2026-11-24T03:29:26Z"}
+    ship: {started_at: "2026-11-24T03:29:26Z", driver: fab-fff, iterations: 1}
 prs: []
 base_branch: main
 true_impact:
-    added: 2680
-    deleted: 49
-    net: 2631
+    added: 2866
+    deleted: 62
+    net: 2804
     excluding:
-        added: 1982
-        deleted: 45
-        net: 1937
+        added: 2156
+        deleted: 57
+        net: 2099
     tests:
-        added: 904
+        added: 1032
         deleted: 5
-        net: 899
-    computed_at: "2026-11-24T03:22:48Z"
-    computed_at_stage: apply
+        net: 1027
+    computed_at: "2026-11-24T03:29:26Z"
+    computed_at_stage: hydrate
 change_type_source: explicit
+summary: 'Agent presets: agent_presets table + built-ins, agent.preset selector with choosing-layer splice and reserved none, fab agent --preset / presets --json, preset provenance'
 # base_branch: written by /git-branch or /fab-new when the change's branch is created (no placeholder here).
 # true_impact: lazily created on first stage-finish that computes it (no placeholder here).
-last_updated: 2026-11-24T03:26:46Z
+last_updated: 2026-11-24T03:29:26Z
