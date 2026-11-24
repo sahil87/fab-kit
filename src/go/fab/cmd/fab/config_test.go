@@ -1228,6 +1228,7 @@ func TestConfigReferenceJSONEmptyDefaultConvention(t *testing.T) {
 	hasDefault := map[string]bool{
 		"docs_index.roots":      true, // implicit memory root is a real built-in default
 		"clis":                  true,
+		"agent_presets":         true, // the three built-in presets
 		"agent.profiles":        true,
 		"agent.session":         true, // the knob's built-in value IS claude, not "absent"
 		"agent.workers":         true,

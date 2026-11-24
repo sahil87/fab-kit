@@ -114,6 +114,9 @@ func init() {
 	if builtinDefaults.Dispatch.ReapDone != nil {
 		config.DefaultDispatchReapDone = *builtinDefaults.Dispatch.ReapDone
 	}
+	// The built-in agent_presets table is the lowest tier of the loader's preset
+	// definitions merge. Same cycle-forced push direction as the dispatch values.
+	config.BuiltinAgentPresets = builtinDefaults.AgentPresets
 }
 
 // Role names. Six roles with concrete referents. A role is stage-named only where
@@ -511,9 +514,13 @@ func ResolveRoleWithSource(cfg *config.Config, role string, o Overrides) (Profil
 	}
 
 	override, _ := cfg.GetAgentProfile(role)
+	preset := cfg.GetPreset()
 
 	cli := override.CLI
 	cliSource := "agent.profiles." + role
+	if cli != "" && preset.Supplies("profiles."+role+".cli") {
+		cliSource = presetSource(preset)
+	}
 	if cli == "" {
 		cli, cliSource = depthCLIWithSource(cfg, role)
 	}
@@ -537,9 +544,15 @@ func ResolveRoleWithSource(cfg *config.Config, role string, o Overrides) (Profil
 	}
 	if override.Model != "" {
 		source.Model = "agent.profiles." + role
+		if preset.Supplies("profiles." + role + ".model") {
+			source.Model = presetSource(preset)
+		}
 	}
 	if override.Effort != "" {
 		source.Effort = "agent.profiles." + role
+		if preset.Supplies("profiles." + role + ".effort") {
+			source.Effort = presetSource(preset)
+		}
 	}
 	if o.ModelSet {
 		p.Model = o.Model
@@ -573,15 +586,25 @@ func Resolve(cfg *config.Config, stage string) (Profile, error) {
 // came from user configuration.
 func depthCLIWithSource(cfg *config.Config, role string) (string, string) {
 	configured, builtin := cfg.GetAgentWorkers(), builtinDefaults.Agent.Workers
-	source := "agent.workers"
+	source, leaf := "agent.workers", "workers"
 	if roleDepth[role] == depthSession {
 		configured, builtin = cfg.GetAgentSession(), builtinDefaults.Agent.Session
-		source = "agent.session"
+		source, leaf = "agent.session", "session"
 	}
 	if configured != "" {
+		if preset := cfg.GetPreset(); preset.Supplies(leaf) {
+			source = presetSource(preset)
+		}
 		return configured, source
 	}
 	return firstNonEmpty(builtin, DefaultCLIName), "built-in"
+}
+
+// presetSource is the `source.*` label for a field an active agent preset supplied:
+// the dotted path to the definition, in the style of `agent.profiles.review` and
+// `clis.codex.profiles.review`.
+func presetSource(p *config.AppliedPreset) string {
+	return "agent_presets." + p.Name
 }
 
 // cliFillWithSource returns the {model, effort} a resolved CLI supplies

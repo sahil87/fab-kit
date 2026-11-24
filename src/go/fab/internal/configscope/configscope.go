@@ -71,6 +71,10 @@ var keyScopes = map[string]Scope{
 	"consolidate":         ScopeProject,
 	"clis":                ScopeBoth,
 	"agent":               ScopeBoth,
+	// agent_presets is the definitions table for the agent.preset selector — the same
+	// preference-class reasoning as agent/clis (a machine-wide or per-project
+	// preset is the whole point), so it is settable in the system file too.
+	"agent_presets": ScopeBoth,
 	// dispatch is preference-class (`both`): dispatch.mode expresses how the
 	// OPERATOR prefers to launch stage workers on THIS machine, not what the repo's
 	// pipeline means, so it must be settable once machine-wide in
@@ -106,8 +110,10 @@ var dottedKeys = []string{
 	"dispatch.reap_done",
 	"agent.session",
 	"agent.workers",
+	"agent.preset",
 	"agent.profiles",
 	"clis",
+	"agent_presets",
 	"docs_index.roots",
 	"stage_hooks",
 }

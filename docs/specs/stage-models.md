@@ -454,6 +454,22 @@ model / effort  invocation flag
                 >  empty
 ```
 
+**The preset rung.** An active agent preset (see [§ Agent presets](#agent-presets--agentpreset-and-agent_presets))
+adds fields to the `agent.*` tier — it is not a rung of its own. The preset's fields enter **at the config
+layer that chose it, directly below that layer's own explicit `agent.*` fields**, so in effect:
+
+```
+agent.* tier, per field:   explicit field in a layer ABOVE the choosing layer
+                            >  explicit field in the choosing layer
+                            >  the preset's field  (enters here)
+                            >  explicit field in a layer BELOW the choosing layer
+```
+
+Invocation flags stay on top of everything. A preset's `profiles.<role>.cli` lands in
+`agent.profiles.<role>.cli` and its `workers`/`session` land in the depth knobs, so the chain above is
+unchanged — and a CLI a preset names **re-derives model/effort from that CLI's own fills** exactly as an
+`agent.profiles.<role>.cli` override does (a preset that sets only `cli` never inherits the old CLI's model).
+
 `<p>` is the **resolved** CLI, so a CLI swap re-derives model and effort from the new
 CLI's own fills. `empty` keeps its existing meaning: an empty YAML `model` value is the "inherit the
 session model" signal, and on a command the placeholder's token (plus a preceding `-`-flag) is dropped
@@ -534,6 +550,8 @@ dispatch:
   mode: native              # preference ceiling: pane → native → headless
 ```
 
+- `agent.preset` (scalar, scope `both`) selects one named preset from the top-level `agent_presets:` table;
+  see § Agent presets. Both are optional and unset by default.
 - Keys under `agent.profiles:` are the six role names: `default`, `operator`, `doing`, `review`,
   `hydrate`, `fast`. Keys under `clis.<name>.profiles:` are the same six.
 - Each `agent.profiles` value is a `{cli, model, effort}` object (the command lives on the
@@ -547,6 +565,60 @@ dispatch:
   `dispatch:` mapping; the dispatch that RUNS a `headless_command` (`fab dispatch`) and the skill
   dispatch-seam wiring share the cross-adapter contract fixed by
   [`harness-adapters.md`](harness-adapters.md).*
+
+### Agent presets — `agent.preset` and `agent_presets`
+
+A **preset** is a NAME for a whole role assignment: a sparse bundle of fields fab already has —
+`session`, `workers`, and `profiles.<role>.{cli,model,effort}` — chosen by the scalar `agent.preset`
+(env `FAB_AGENT_PRESET`, which comes from the mechanical `FAB_` + uppercased-dotted-key env layer, no
+special case). It adds no role vocabulary and does not touch the stage→role mapping; it only supplies
+`agent.*` fields at one extra place in the cascade.
+
+```yaml
+agent:
+  preset: codex-review          # scope both: project file, system file, or FAB_AGENT_PRESET
+
+agent_presets:                  # definitions; scope both; merge per key: built-in < project < system < env
+  codex-review:
+    description: Only the review role on Codex     # optional, shown by `fab agent presets`
+    profiles:
+      review: { cli: codex }
+```
+
+**Built-in presets** (the `agent_presets:` block of `defaults.yaml`; inert until selected, so a fresh
+install resolves byte-identically):
+
+| Preset | Sets |
+|--------|------|
+| `claude` | `session: claude`, `workers: claude` |
+| `codex-workers` | `workers: codex` |
+| `codex-review` | `profiles.review.cli: codex` (review's model/effort re-derive from `clis.codex.profiles.review`) |
+
+**Selection and splice.** Exactly one preset is active: the value of `agent.preset` at the highest layer
+(env > system > project) that sets a non-empty one — a lower layer's preset is shadowed entirely, nothing
+from it is merged. Its fields are spliced in at that layer, directly below that layer's own explicit
+`agent.*` fields (§ Fill precedence). The splice lives once in the config loader (the only place layers are
+distinct), so `fab agent`, `fab dispatch start` (pane, native and headless), `fab batch`, the operator
+launcher and `fab config show` all see the same tree. A preset chosen by `fab agent --preset <name>` is
+equivalent to choosing it at the env layer for that one resolution; it is resolution-only and is not exported
+into a launched session or into `fab dispatch start` (flags never reach it — use config or
+`FAB_AGENT_PRESET`).
+
+**Reserved `none`.** `agent.preset: none` (or `FAB_AGENT_PRESET=none`) wins the selection like any name
+but activates nothing, so a tab or machine opts out of a lower layer's preset. A definition named `none` is
+ignored with a warning and never listed. An empty `FAB_AGENT_PRESET=` is unset.
+
+**Unknown name.** At resolve time: `fab: warning: unknown agent preset "<name>" (agent.preset from
+<layer>); ignoring it` on stderr, resolved as if unset — a spawn never fails for a stale name.
+`fab config set [--system] agent.preset <name>` is the one place it is an error (it rejects a name that is
+neither defined nor `none`, naming the defined set). `agent_presets.<name>.<field>` dotted leaves are
+settable/unsettable like `clis.<name>.<field>`.
+
+**Visibility.** `fab agent presets [--json]` lists the defined set (`--json` is a cross-repo contract:
+`{name, description, source, session?, workers?, profiles?}`, sparse, `source` = highest contributing layer
+`built-in|system|project|env`, no `active` flag). `fab agent -o yaml` gains a top-level `preset:` key when
+a preset is active and labels each preset-supplied `source.*` field `agent_presets.<name>`; `fab config show
+--origin` attributes each preset-supplied `agent.*` leaf to the choosing layer with detail `preset <name>`.
 
 ### Advertised surface vs. full schema
 
@@ -637,7 +709,7 @@ skill files if reasoned about in markdown. The YAML print sink returns the concr
 stage (or role); skills consume its keys and reason about nothing.
 
 ```
-fab agent <stage|role> -o yaml [--cli <name>] [--model <id>] [--effort <level>]
+fab agent <stage|role> -o yaml [--cli <name>] [--model <id>] [--effort <level>] [--preset <name>]
 ```
 
 The deprecated `fab resolve-agent <stage|role>` command remains a working, byte-stable line projection
@@ -677,7 +749,11 @@ pipeline skills consume the YAML surface above.
    exact `tool-default` collapse defined in § Fill precedence. Provenance is not cleared with it:
    `source.model` still names the rung that supplied the token.
 4. Output: structured YAML carrying `cli`, the resolved `model`, `model_alias`, `effort`, composed
-   `command`, `template`, `fill_mode`, per-field `source`, an optional `dispatch:` mapping, and a
+   `command`, `template`, `fill_mode`, per-field `source`, an optional `preset:` key (the active
+   preset's name — omitted when none is active; `source.cli`/`.model`/`.effort` then read
+   `agent_presets.<name>` for each field the preset itself supplied, while a model/effort re-derived
+   from the preset-chosen CLI's fills keeps its `clis.<p>.profiles.<role>` source),
+   an optional `dispatch:` mapping, and a
    trailing `skill_prefix` (`$` for `codex`, `/` otherwise — the receiving harness's explicit
    skill-invocation prefix).
    `model_alias` carries the native Agent-tool alias for recognized Claude IDs and is empty for
@@ -1036,6 +1112,10 @@ CLIs are **shape-only** (IDs elided) and deliberately unguarded — they show wh
 carries, not what the rows resolve to; the rendered `fab config explain CLIs` output derives its
 fill lines from `ResolveCLI` and is guarded by `TestConfigReferenceDocumentsCLIFill` in
 `cmd/fab`. The non-claude fill values themselves are pinned by `TestNonClaudeCLIFillsArePinned`.
+
+The built-in preset table in § Agent presets mirrors the `agent_presets:` block of `defaults.yaml`;
+`TestDefaultsFileBuiltinPresetsArePinned` pins the three shapes and `TestDefaultsFileBuiltinPresetsAreWellFormed`
+validates every built-in preset (known roles, built-in CLI names, only the allowed fields, `none` never defined).
 
 The embedded data file has its own guard: a YAML typo is no longer a compile error, so
 `TestDefaultsFileIsWellFormed` (and its siblings in `defaults_test.go`) parse `defaults.yaml`

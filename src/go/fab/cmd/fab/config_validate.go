@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/sahil87/fab-kit/src/go/fab/internal/agent"
@@ -31,6 +32,12 @@ func validateSetValue(key, rawValue string, layers *config.Layers) error {
 		return validateIntRange(key, value, config.MinDispatchColumnWidth, config.MaxDispatchColumnWidth)
 	case key == "dispatch.min_cols", key == "dispatch.min_rows":
 		return validateIntRange(key, value, config.MinDispatchFloor, 0)
+	case key == "agent.preset":
+		name, ok := value.(string)
+		if !ok {
+			return nil // kind mismatch: left to the writer
+		}
+		return validatePresetName(key, name, layers)
 	case isCLIKey(key):
 		name, ok := value.(string)
 		if !ok {
@@ -101,9 +108,33 @@ func validateCLIName(key, name string, layers *config.Layers) error {
 // CLIs are always acceptable.
 func effectiveCLIsConfig(layers *config.Layers) *config.Config {
 	if layers != nil {
-		if cfg, err := config.FromMap(layers.Effective); err == nil {
+		if cfg, err := config.FromLayers(layers); err == nil {
 			return cfg
 		}
 	}
 	return config.LoadNoProject()
+}
+
+// validatePresetName refuses an agent.preset value that names no DEFINED preset
+// (built-in ∪ project ∪ system ∪ env definitions as currently resolved) and is not
+// the reserved `none`. This is the one place an unknown preset name is an error —
+// at resolve time a stale name only warns, so a spawn never fails for it.
+func validatePresetName(key, name string, layers *config.Layers) error {
+	if name == config.NoPreset {
+		return nil
+	}
+	var defined []string
+	if layers != nil {
+		defined = config.DefinedAgentPresetNames(layers)
+	} else {
+		for n := range config.DefinedAgentPresets(nil) {
+			defined = append(defined, n)
+		}
+		sort.Strings(defined)
+	}
+	if slices.Contains(defined, name) {
+		return nil
+	}
+	return fmt.Errorf("invalid value %q for %s — not a defined agent preset (defined: %s; or %q to select no preset)",
+		name, key, strings.Join(defined, ", "), config.NoPreset)
 }

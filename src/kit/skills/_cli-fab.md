@@ -396,7 +396,7 @@ provider=claude
 ## fab agent
 
 ```
-fab agent [role|stage] [--cli <name>] [--model <id>] [--effort <level>] [--headless] [-t|--template] [-o yaml] [--workers <cli>] [-p|--print] [--repo <path>] [-- <agent-args>...]
+fab agent [role|stage] [--cli <name>] [--model <id>] [--effort <level>] [--preset <name>] [--headless] [-t|--template] [-o yaml] [--workers <cli>] [-p|--print] [--repo <path>] [-- <agent-args>...]
 ```
 
 Launch (or `--print`) the profile-resolved agent **session** command in the current shell, with model and effort substituted.
@@ -428,6 +428,7 @@ Common to all forms:
   | `template` | Raw selected CLI command slot with placeholders intact. |
   | `fill_mode` | `template` when placeholders are substituted, otherwise `append`. |
   | `source` | Nested `cli` (followed by a deprecated duplicate `provider` with the same value, for the same window), `model`, and `effort` provenance using the actual precedence-rung names; an empty value denotes inherit/no supplying rung. When `model` collapses from `tool-default`, `source.model` still names the rung that held the token. |
+  | `preset` | The active agent preset's name — **omitted when no preset is active** (and on the bare `--cli` form). When present, `source.cli`/`source.model`/`source.effort` name `agent_presets.<name>` for each field the preset itself supplied; a model/effort the preset did not set but that was re-derived from the preset-chosen CLI's fills keeps its `clis.<cli>.profiles.<role>` source. Sits right after `source`. |
   | `dispatch` | Omitted exactly when the native rung is selected; otherwise contains labelled `rung: pane\|headless` and its fully substituted `command`, followed by `reason` with the semicolon-joined descent causes when any rung was skipped. |
   | `skill_prefix` | Explicit-skill-invocation prefix for the resolved CLI: `$` for `codex`, `/` for every other CLI (built-in, custom, or unknown). Always present and always the last key (`dispatch` is omitted for native). Skill consumers compose `<skill_prefix><skill>[ <args>]`; `_cli-agents.md` § Skill Prompts owns receiver selection and quoting, `internal/agent.SkillPrefix` owns the rule. |
 
@@ -436,6 +437,7 @@ Common to all forms:
 - **`--provider <name>` (deprecated, hidden)**: the pre-2.31 spelling of `--cli`, kept for one minor release (see § fab config set / unset › Pre-2.31 spellings). It behaves exactly as `--cli` and prints `--provider is deprecated, use --cli` on stderr; supplying both flags with different values is a usage error (the same value is accepted). It is not listed in `--help`.
 - **`--model` / `--effort`** are **general final overrides**, valid with every addressing form (bare, selector, selector+`--cli`, CLI-alone): they apply AFTER role resolution / CLI refill, keyed on the flag being SUPPLIED (cobra's `Flag.Changed`), so an explicitly-empty `--model=` CLEARS the field rather than being ignored. `--model tool-default` then collapses to the same empty model on every form, with `source.model: flag`; other strings pass through verbatim, with no validation, enum, or pair correction. This matches `fab resolve-agent`'s bare-override semantics; the former launcher-side restriction is erased.
 - **`--repo <path>`**: reads `<path>/fab/project/config.yaml` instead of the current repo. Composes with any addressing form.
+- **`--preset <name>`**: chooses an **agent preset** for THIS resolution only — exactly as if `FAB_AGENT_PRESET=<name>` were set (the env layer: the preset beats system/project `agent.*` fields, loses to explicit `FAB_AGENT_*` fields, and `--cli`/`--model`/`--effort` still apply on top). `--preset none` disables a configured preset for this call; an unknown name prints `fab: warning: unknown agent preset "<name>" (...); ignoring it` on stderr and resolves as if no preset were chosen — never an error. **Resolution only**: unlike `--workers`, it does NOT export `FAB_AGENT_PRESET` into the launched session, and invocation flags never reach `fab dispatch start` (which re-resolves from config); to make a preset reach dispatched workers, set `agent.preset` in config (`fab config set agent.preset <name>`) or export `FAB_AGENT_PRESET`. The combination `--preset` + bare `--cli` (no selector) is a usage error — that form bypasses the role resolution a preset feeds. `fab resolve-agent` has no `--preset` flag (it honours a config- or env-chosen preset like every other consumer).
 
 **Passthrough args (`-- <agent-args>...`)**: everything after `--` is forwarded to the launched agent CLI, so `fab agent -- --resume` runs the resolved claude command with `--resume` appended, and `fab agent doing -- -p "two words"` does the same on the `doing` role's CLI. The split is cobra's `ArgsLenAtDash()` — the arg BEFORE the dash is still the role, and arity is validated on that half only (`fab agent a b -- x` errors; so does `fab agent a b`, with a hint pointing at the `--` form). Flags after the dash belong to the agent CLI, never to fab: `fab agent -- --repo /x` forwards `--repo /x` rather than re-pointing fab's config lookup. Each token is **shell-quoted** on the way in, because the composed line is executed via `sh -c` and printed verbatim by `--print` — that is what keeps `-p "two words"` one argument, and what makes a token containing `$(…)`, `;` or `>` inert data instead of script. Passthrough applies to BOTH addressing modes (role and `--cli`), and an invocation with no `--` is byte-identical to before.
 
@@ -450,6 +452,37 @@ CLI-form specifics (the bare `--cli <name>` form — selector forms' overrides a
 - **Error**: a resolved CLI with no `interactive_command` errors with a config-key hint (`configure clis.<name>.interactive_command`) on either path — reachable for a wholly user-defined, headless-only `clis:` entry. Every built-in ships one. A partial built-in override cannot reach this error: `ResolveCLI` per-field merges over the built-in row, so `clis.codex: {headless_command: …}` still inherits the built-in `interactive_command` and still launches a session. An unknown selector errors naming both valid sets (roles and stages).
 
 The procedural knowledge for *using* the composed command — opening it in a tmux window, delivering a prompt reliably, peeking, awaiting — plus the per-CLI invocation grammar and model-discovery recipes live in the `_cli-agents` helper (`helpers: [_cli-agents]`).
+
+### Agent presets
+
+A **preset** is a name for a whole role assignment — a sparse bundle of fields fab already has: `session`, `workers`, and `profiles.<role>.{cli,model,effort}` (roles: `default`, `operator`, `doing`, `review`, `hydrate`, `fast`). Definitions live in the top-level `agent_presets:` config table (scope `both`: project file, system file `~/.fab-kit/config.yaml`, or env `FAB_AGENT_PRESETS`), merged per key across layers (built-in < project < system < env). A definition may also carry a one-line `description`. Selection is the scalar `agent.preset` (scope `both`; env `FAB_AGENT_PRESET`).
+
+- **Built-in presets** (inert until selected — a fresh install resolves exactly as before): `claude` (session and workers on claude), `codex-workers` (workers on codex, session unchanged), `codex-review` (only the review role's CLI on codex; its model/effort come from codex's own fills).
+- **Precedence**: exactly one preset is active — the winner of `agent.preset` across env > system > project (the first non-empty value; an empty `FAB_AGENT_PRESET=` is unset). Its fields enter **at the layer that chose it, directly below that layer's own explicit `agent.*` fields**: it beats every explicit `agent.*` field in lower layers, an explicit `agent.*` field at the same or a higher layer still beats it, and invocation flags stay on top. A lower layer's preset is shadowed entirely — nothing is merged from it. A CLI a preset names re-derives model/effort from that CLI's own fills, exactly like an `agent.profiles.<role>.cli` override.
+- **Reserved `none`**: `agent.preset: none` (or `FAB_AGENT_PRESET=none`) wins the selection like any name but activates no preset — a tab or machine opts out of a lower layer's preset. A definition named `none` is ignored with a warning.
+- **Unknown name**: at resolve time a `fab: warning:` and the key is treated as unset — a spawn never fails for a stale name. `fab config set [--system] agent.preset <name>` is the one place it is an error: it rejects a name that is neither defined nor `none`, naming the defined set. `fab config set/unset agent_presets.<name>.<field>` (`description`, `session`, `workers`, `profiles.<role>.<cli|model|effort>`) edit definitions like `clis.<name>.<field>`.
+- **Reaches every dispatch mode**: because selection is config (env layer included), `fab dispatch start` in pane, native and headless modes all see it; `fab config show` prints the effective tree with the preset spliced in, and `--origin` attributes each preset-supplied `agent.*` leaf to the layer that chose the preset with detail `preset <name>`.
+
+```
+fab agent presets [--json] [--repo <path>]
+```
+
+Read-only: lists every defined preset (built-in ∪ system ∪ project ∪ env definitions, merged per key), sorted by name; `none` is never listed. Works without a fab project; `--repo` has the same config-loading semantics as the parent. Without `--json`, stdout is an aligned table (`NAME`, `SOURCE`, `DESCRIPTION`, `SETS` — a compact summary of the fields the preset sets).
+
+**`--json` is a cross-repo contract** (HexoKit reads it — keep it stable). One array, sorted by `name`, of objects:
+
+```json
+[
+  {"name": "codex-review", "description": "Only the review role on Codex", "source": "built-in",
+   "profiles": {"review": {"cli": "codex"}}},
+  {"name": "codex-workers", "description": "Pipeline workers on Codex; session on Claude", "source": "built-in",
+   "workers": "codex"}
+]
+```
+
+- `name`, `description` (an empty string when the definition has none), `source` are always present. `source` is the **highest layer that contributed** to the definition: `built-in`, `system`, `project`, or `env` (a system tweak of a built-in reports `system`; a definition supplied or tweaked via `FAB_AGENT_PRESETS` reports `env`).
+- `session`, `workers`, and `profiles` (role → object with only the set `cli`/`model`/`effort` keys) are **sparse**: a field the preset does not set is omitted, never emitted empty.
+- There is no `active` flag: which preset is selected is `agent.preset`'s business (`fab config show agent.preset`), not part of the definitions list.
 
 ### fab agent models
 

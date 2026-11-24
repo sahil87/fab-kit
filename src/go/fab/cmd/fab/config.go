@@ -379,7 +379,7 @@ func loadReadLayers() (*config.Layers, error) {
 // merged tree that will not unmarshal leaves the projection knob-blind rather
 // than failing the query.
 func readModelDefaults(layers *config.Layers) (map[string]any, error) {
-	cfg, err := config.FromMap(layers.Effective)
+	cfg, err := config.FromLayers(layers)
 	if err != nil {
 		return configref.DefaultsMap()
 	}
@@ -407,8 +407,10 @@ func renderShowKey(layers *config.Layers, defaults map[string]any, key string, w
 		return emitOriginLines(lines, layers, defaults, asJSON)
 	}
 
-	effective := config.MergeLayers(subtreeLayer(defaults, top), subtreeLayer(layers.Project, top),
-		subtreeLayer(layers.System, top), subtreeLayer(layers.Env, top))
+	// layers.Effective is MergeLayers(project, system, env) with the active agent
+	// preset spliced in — the tree consumers resolve from — so the keyed read agrees
+	// with bare `show` and with resolution.
+	effective := config.MergeLayers(subtreeLayer(defaults, top), subtreeLayer(layers.Effective, top))
 	value, present := valueAtPath(effective[top], parts[1:])
 	if !present {
 		value = nil
@@ -573,11 +575,15 @@ type originLine struct {
 	stacked bool
 	// derived is set only on JSON rows (annotateDerived); the text form never shows it.
 	derived *derivedFrom
+	// preset names the agent preset that supplied this leaf ("" otherwise). kind is
+	// the layer that CHOSE the preset; the text label appends `(preset <name>)` and
+	// the JSON origin_detail is `preset <name>`.
+	preset string
 }
 
 // newOriginLine builds the row for tier t at key.
 func newOriginLine(key string, value any, t cascadeTier, envOrigins map[string]string, status string, stacked bool) originLine {
-	return originLine{key: key, value: value, kind: t.kind, detail: t.detail(key, envOrigins), status: status, stacked: stacked}
+	return originLine{key: key, value: value, kind: t.kind, detail: t.detail(key, envOrigins), status: status, stacked: stacked, preset: t.preset}
 }
 
 func (o originLine) left() string {
@@ -598,14 +604,18 @@ func (o originLine) origin() string {
 	if o.kind == "" {
 		return "(no tier defines this key)"
 	}
+	suffix := ""
+	if o.preset != "" {
+		suffix = " (preset " + o.preset + ")"
+	}
 	if !o.stacked {
-		return originLabel(o.kind, o.detail)
+		return originLabel(o.kind, o.detail) + suffix
 	}
 	marker := "  (shadowed)"
 	if o.status == statusEffective {
 		marker = "  (effective)"
 	}
-	return stackLabel(o.kind, o.detail) + marker
+	return stackLabel(o.kind, o.detail) + suffix + marker
 }
 
 // topLevelKey collapses a dotted registry key to its top-level YAML key
@@ -636,6 +646,11 @@ type cascadeTier struct {
 	kind  string
 	label string // file path; empty for env (named per leaf) and for default
 	value any
+	// preset names the agent preset this tier carries (empty for an ordinary tier).
+	// A preset tier is synthetic: it has the KIND and label of the layer that chose
+	// the preset and sits directly below that layer's own tier, mirroring the
+	// loader's splice, so provenance cannot disagree with resolution.
+	preset string
 }
 
 func (t cascadeTier) defines() bool { return !config.IsEmptyValue(t.value) }
@@ -646,6 +661,10 @@ func (t cascadeTier) defines() bool { return !config.IsEmptyValue(t.value) }
 func (t cascadeTier) detail(key string, envOrigins map[string]string) string {
 	switch t.kind {
 	case tierEnv:
+		if t.preset != "" {
+			// The preset was chosen by FAB_AGENT_PRESET, whatever leaf it supplied.
+			return envOrigin(presetSelectorKey, envOrigins)
+		}
 		return envOrigin(key, envOrigins)
 	case tierDefault:
 		return ""
@@ -700,12 +719,34 @@ func (t cascadeTier) stackOrigin(key string, envOrigins map[string]string) strin
 // be "" (HOME unresolvable); it never defines a leaf in that case, so the label is
 // only ever printed for a genuine system-layer leaf.
 func cascadeTiers(defaults map[string]any, layers *config.Layers, top string) []cascadeTier {
-	return []cascadeTier{
+	tiers := []cascadeTier{
 		{kind: tierEnv, value: pruneEmpty(layers.Env[top])},
 		{kind: tierSystem, label: layers.SystemPath, value: pruneEmpty(layers.System[top])},
 		{kind: tierProject, label: layers.ProjectPath, value: pruneEmpty(layers.Project[top])},
 		{kind: tierDefault, value: pruneEmpty(defaults[top])},
 	}
+	if top == "agent" && layers.Preset != nil {
+		tiers = withPresetTier(tiers, layers.Preset)
+	}
+	return tiers
+}
+
+// presetSelectorKey is the dotted key a preset is chosen with.
+const presetSelectorKey = "agent.preset"
+
+// withPresetTier inserts the active preset's synthetic tier directly BELOW the tier
+// of the layer that chose it — the same position the loader splices it at — so an
+// explicit agent.* field at or above that layer still wins, and the preset beats
+// every lower layer's explicit field.
+func withPresetTier(tiers []cascadeTier, p *config.AppliedPreset) []cascadeTier {
+	out := make([]cascadeTier, 0, len(tiers)+1)
+	for _, t := range tiers {
+		out = append(out, t)
+		if t.kind == p.Layer && t.preset == "" {
+			out = append(out, cascadeTier{kind: t.kind, label: t.label, value: pruneEmpty(p.Fields), preset: p.Name})
+		}
+	}
+	return out
 }
 
 // pruneEmptyKey is the throwaway wrapper key pruneEmpty merges under; the merge
@@ -755,7 +796,7 @@ func mergeableTiers(tiers []cascadeTier) []cascadeTier {
 		if !isMap {
 			break
 		}
-		out = append(out, cascadeTier{kind: t.kind, label: t.label, value: m})
+		out = append(out, cascadeTier{kind: t.kind, label: t.label, value: m, preset: t.preset})
 	}
 	return out
 }
@@ -766,7 +807,7 @@ func childTiers(tiers []cascadeTier, key string) []cascadeTier {
 	out := make([]cascadeTier, 0, len(tiers))
 	for _, t := range tiers {
 		m, _ := asGenericMap(t.value)
-		out = append(out, cascadeTier{kind: t.kind, label: t.label, value: m[key]})
+		out = append(out, cascadeTier{kind: t.kind, label: t.label, value: m[key], preset: t.preset})
 	}
 	return out
 }

@@ -141,7 +141,7 @@ func TestKeyedRenderUsesOwningSegment(t *testing.T) {
 	for _, row := range rows {
 		keys = append(keys, row["key"].(string))
 	}
-	want := []string{"agent.session", "agent.workers", "agent.profiles"}
+	want := []string{"agent.session", "agent.workers", "agent.preset", "agent.profiles"}
 	if strings.Join(keys, ",") != strings.Join(want, ",") {
 		t.Fatalf("keyed JSON keys = %v, want %v", keys, want)
 	}

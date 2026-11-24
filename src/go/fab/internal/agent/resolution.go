@@ -50,11 +50,13 @@ type Resolution struct {
 	Effort   string `yaml:"effort"`
 	Command  string `yaml:"command"`
 
-	ModelAlias string              `yaml:"model_alias"`
-	Template   string              `yaml:"template"`
-	FillMode   string              `yaml:"fill_mode"`
-	Source     Source              `yaml:"source"`
-	Dispatch   *DispatchResolution `yaml:"dispatch,omitempty"`
+	ModelAlias string `yaml:"model_alias"`
+	Template   string `yaml:"template"`
+	FillMode   string `yaml:"fill_mode"`
+	Source     Source `yaml:"source"`
+	// Preset names the active agent preset (omitted when none is active).
+	Preset   string              `yaml:"preset,omitempty"`
+	Dispatch *DispatchResolution `yaml:"dispatch,omitempty"`
 	// SkillPrefix is SkillPrefix(CLI) — the receiving harness's explicit
 	// skill-invocation prefix. Always present and always last (dispatch is
 	// omitempty) so every consumer finds it at the same place; the Lines

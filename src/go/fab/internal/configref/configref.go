@@ -94,6 +94,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -635,6 +636,16 @@ checklist:
 			// and dispatch.column_width.
 		},
 		{
+			Key:         "agent.preset",
+			Default:     nil,
+			Kind:        configvalue.KindString,
+			Description: "Selects ONE named preset from the agent_presets table — a name for a whole role assignment (session, workers and per-role {cli, model, effort}) — so a group, a workspace or a single tab can say \"this runs on Codex workers\" with one value. Exactly one preset is active: the value of agent.preset at the highest layer that sets it (env FAB_AGENT_PRESET > system > project). Its fields enter AT THE LAYER THAT CHOSE IT, directly below that layer's own explicit agent.* fields, so it beats every agent.* field in lower layers while an explicit agent.* field in the same or a higher layer still beats it; invocation flags stay on top. The reserved value `none` participates like a name but activates no preset (opt a tab or a machine out of a lower layer's preset). An unknown name warns (`fab: warning:`) at resolve time and is treated as unset — a spawn never fails for a stale name — while `fab config set agent.preset <name>` rejects an undefined name. Built-in presets: " + builtinPresetNames() + ". Unset by default. Scope both — settable once machine-wide, where it outranks the project file.",
+			Scope:       ScopeBoth,
+			Advertise:   true,
+			// Rendered inline in the agent.session Segment (one `agent:` block); this
+			// row carries no Segment of its own, like agent.workers.
+		},
+		{
 			Key:         "agent.profiles",
 			Default:     roleProfileDefaults(roles),
 			Kind:        configvalue.KindMapping,
@@ -672,6 +683,16 @@ checklist:
 			RenamedFrom:  "providers",
 			Segment:      clisSegment(clis, roleOrder),
 			ShortSegment: clisShortSegment(clis, roleOrder),
+		},
+		{
+			Key:          "agent_presets",
+			Default:      presetDefaults(),
+			Kind:         configvalue.KindMapping,
+			Description:  "Definitions table for the agent.preset selector: a map of preset name → a SPARSE definition that may set only description (one line shown by `fab agent presets`), session and workers (the two depth-knob CLIs), and profiles.<role>.{cli, model, effort} for the six fixed roles. Definitions merge per key across layers (built-in < project < system < env), so a project can add a preset and a system file can tweak one field of a built-in. Built-in presets (inert until selected): " + builtinPresetNames() + ". A CLI a preset names re-derives model/effort from that CLI's own fills, exactly like an agent.profiles.<role>.cli override. The name `none` is reserved and cannot be defined. `fab agent presets [--json]` lists the defined set. Scope both.",
+			Scope:        ScopeBoth,
+			Advertise:    false,
+			Segment:      presetsSegment(),
+			ShortSegment: presetsShortSegment(),
 		},
 		{
 			Key:          "docs_index.roots",
@@ -963,6 +984,12 @@ func agentSegment(roles []roleRow) string {
 	fmt.Fprintf(&b, "#   session roles: %s\n", strings.Join(session, ", "))
 	fmt.Fprintf(&b, "#   workers roles: %s\n", strings.Join(workers, ", "))
 	b.WriteString("#\n")
+	b.WriteString("# agent.preset names ONE bundle from the `agent_presets:` table (built-in: " + builtinPresetNames() + ")\n")
+	b.WriteString("# — a whole role assignment in one value. It enters at the layer that chose it,\n")
+	b.WriteString("# below that layer's own explicit agent.* fields; FAB_AGENT_PRESET in the\n")
+	b.WriteString("# environment picks one per tab, and `none` opts out of a lower layer's preset.\n")
+	b.WriteString("# `fab agent presets` lists them. Unset by default.\n")
+	b.WriteString("#\n")
 	b.WriteString("# agent.profiles.<role> is the sparse per-role escape hatch beneath the knobs —\n")
 	b.WriteString("# {cli, model, effort}, every field optional, no cross-role inheritance.\n")
 	b.WriteString("# Reach for it only to dial ONE role; see `fab config explain --json` and\n")
@@ -972,11 +999,135 @@ func agentSegment(roles []roleRow) string {
 	b.WriteString("agent:\n")
 	b.WriteString("  session: " + agent.DefaultCLIName + "                    # Tier 1 — the agents you talk to\n")
 	b.WriteString("  workers: " + agent.DefaultCLIName + "                    # Tier 2 — the agents stages dispatch to\n")
+	b.WriteString("  # preset: codex-review         # example: one named role assignment\n")
 	b.WriteString("  # profiles:\n")
 	b.WriteString("  #   operator: { cli: codex }    # example: coordinate from another CLI\n")
 	b.WriteString("  #   review: { cli: codex }      # example: run just the critic elsewhere\n")
 	// Trim the trailing newline: Render() re-inserts the inter-field separator.
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// builtinPresetNames renders the built-in preset names, sorted, for the registry
+// prose. They come from config.BuiltinAgentPresets (pushed from defaults.yaml by
+// internal/agent's init), never a literal copy.
+func builtinPresetNames() string {
+	names := make([]string, 0, len(config.BuiltinAgentPresets))
+	for name := range config.BuiltinAgentPresets {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ", ")
+}
+
+// presetDefault is the structured canonical default for ONE built-in preset (the
+// agent_presets row's Default, and the JSON dump). Every field is omitempty — a
+// preset is sparse, and an unset field asserts nothing. The json names match the
+// real config keys so the defaults projection lines up with the layer maps.
+type presetDefault struct {
+	Description string                       `json:"description,omitempty"`
+	Session     string                       `json:"session,omitempty"`
+	Workers     string                       `json:"workers,omitempty"`
+	Profiles    map[string]presetRoleDefault `json:"profiles,omitempty"`
+}
+
+// presetRoleDefault is one preset's per-role entry — sparse like the preset itself.
+type presetRoleDefault struct {
+	CLI    string `json:"cli,omitempty"`
+	Model  string `json:"model,omitempty"`
+	Effort string `json:"effort,omitempty"`
+}
+
+// presetDefaults projects config.BuiltinAgentPresets onto the registry's typed
+// default shape.
+func presetDefaults() map[string]presetDefault {
+	out := make(map[string]presetDefault, len(config.BuiltinAgentPresets))
+	for name, p := range config.BuiltinAgentPresets {
+		d := presetDefault{Description: p.Description, Session: p.Session, Workers: p.Workers}
+		if len(p.Profiles) > 0 {
+			d.Profiles = make(map[string]presetRoleDefault, len(p.Profiles))
+			for role, rp := range p.Profiles {
+				d.Profiles[role] = presetRoleDefault{CLI: rp.CLI, Model: rp.Model, Effort: rp.Effort}
+			}
+		}
+		out[name] = d
+	}
+	return out
+}
+
+// presetsSegment renders the commented `agent_presets:` block: the prose, then each
+// built-in preset as a sparse commented definition, walked from
+// config.BuiltinAgentPresets (sorted) so no value is a literal copy.
+func presetsSegment() string {
+	var b strings.Builder
+	b.WriteString("# agent_presets — named, SPARSE role assignments selected with `agent.preset`\n")
+	b.WriteString("# (FAB_AGENT_PRESET in the environment). A definition may set only:\n")
+	b.WriteString("# description (one line, shown by `fab agent presets`), session and workers\n")
+	b.WriteString("# (the two depth-knob CLIs) and profiles.<role>.{cli, model, effort}. The chosen\n")
+	b.WriteString("# preset's fields enter at the layer that chose it, directly below that layer's\n")
+	b.WriteString("# own explicit agent.* fields; a CLI a preset names re-derives model/effort\n")
+	b.WriteString("# from that CLI's own fills. Definitions merge per key across layers (built-in <\n")
+	b.WriteString("# project < system < env). Built-in presets are inert until selected. `none` is\n")
+	b.WriteString("# reserved and cannot be defined. Scope `both`.\n")
+	b.WriteString("# agent_presets:\n")
+	b.WriteString(presetBlockLines("#   "))
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// presetsShortSegment is the file-bound short form of presetsSegment.
+func presetsShortSegment() string {
+	return shortAdvert(ScopeBoth,
+		"agent_presets — named, sparse role assignments (session, workers, per-role\n"+
+			"profiles) selected with agent.preset. Built-in: "+builtinPresetNames()+".",
+		"agent_presets",
+		"agent_presets.<name>.<field> <value>") +
+		"# agent_presets:\n" + strings.TrimRight(presetBlockLines("#   "), "\n")
+}
+
+// presetBlockLines renders every built-in preset as indented commented YAML, one
+// definition per block, sorted by name. prefix is the per-line comment indent.
+func presetBlockLines(prefix string) string {
+	names := make([]string, 0, len(config.BuiltinAgentPresets))
+	for name := range config.BuiltinAgentPresets {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var b strings.Builder
+	for _, name := range names {
+		p := config.BuiltinAgentPresets[name]
+		b.WriteString(prefix + name + ":\n")
+		if p.Description != "" {
+			b.WriteString(prefix + "  description: " + YAMLSingleQuoted(p.Description) + "\n")
+		}
+		if p.Session != "" {
+			b.WriteString(prefix + "  session: " + p.Session + "\n")
+		}
+		if p.Workers != "" {
+			b.WriteString(prefix + "  workers: " + p.Workers + "\n")
+		}
+		if len(p.Profiles) > 0 {
+			b.WriteString(prefix + "  profiles:\n")
+			roles := make([]string, 0, len(p.Profiles))
+			for role := range p.Profiles {
+				roles = append(roles, role)
+			}
+			sort.Strings(roles)
+			for _, role := range roles {
+				rp := p.Profiles[role]
+				var set []string
+				if rp.CLI != "" {
+					set = append(set, "cli: "+rp.CLI)
+				}
+				if rp.Model != "" {
+					set = append(set, "model: "+rp.Model)
+				}
+				if rp.Effort != "" {
+					set = append(set, "effort: "+rp.Effort)
+				}
+				b.WriteString(prefix + "    " + role + ": { " + strings.Join(set, ", ") + " }\n")
+			}
+		}
+	}
+	return b.String()
 }
 
 // dispatchSegment renders the whole `dispatch:` block — ALL FIVE keys under it,
@@ -1121,13 +1272,15 @@ func agentShortSegment() string {
 	return shortAdvert(ScopeBoth,
 		"agent.session / agent.workers — CLIs for the two agent DEPTHS: session is\n"+
 			"what you talk to (fab agent/operator/batch), workers is what stages dispatch\n"+
-			"to. agent.profiles.<role> is the sparse per-role escape hatch beneath the\n"+
-			"knobs. Default "+agent.DefaultCLIName+".",
+			"to. agent.preset names one bundle from the agent_presets table (a whole role\n"+
+			"assignment in one value). agent.profiles.<role> is the sparse per-role escape\n"+
+			"hatch beneath the knobs. Default "+agent.DefaultCLIName+".",
 		"agent.session",
-		"agent.session <cli>", "agent.workers <cli>") +
+		"agent.session <cli>", "agent.workers <cli>", "agent.preset <name>") +
 		"agent:\n" +
 		"  session: " + agent.DefaultCLIName + "\n" +
 		"  workers: " + agent.DefaultCLIName + "\n" +
+		"  # preset: codex-review         # example: one named role assignment\n" +
 		"  # profiles:\n" +
 		"  #   operator: { cli: codex }    # example: coordinate from another CLI\n" +
 		"  #   review: { cli: codex }      # example: run just the critic elsewhere"
@@ -1299,6 +1452,14 @@ func ResolveKey(key string) (KeyMatch, bool, error) {
 			)
 		}
 	}
+	if len(parts) >= 2 && parts[0] == "agent_presets" {
+		if reason := invalidCLIName(parts[1]); reason != "" {
+			return KeyMatch{}, false, fmt.Errorf(
+				"config key %q uses preset name %q, which cannot be represented by the dotted config-key grammar: %s",
+				key, parts[1], reason,
+			)
+		}
+	}
 	if !validDottedKey(key) {
 		return KeyMatch{}, false, nil
 	}
@@ -1342,6 +1503,23 @@ func ResolveKey(key string) (KeyMatch, bool, error) {
 	case len(parts) == 5 && parts[0] == "clis" && parts[2] == "profiles" &&
 		contains(agent.RoleNames(), parts[3]) && contains([]string{"model", "effort"}, parts[4]):
 		return dynamicMatch(fields, "clis", configvalue.KindString)
+
+	case len(parts) == 2 && parts[0] == "agent_presets":
+		return dynamicMatch(fields, "agent_presets", configvalue.KindMapping)
+
+	case len(parts) == 3 && parts[0] == "agent_presets" &&
+		contains([]string{"description", "session", "workers"}, parts[2]):
+		return dynamicMatch(fields, "agent_presets", configvalue.KindString)
+
+	case len(parts) == 3 && parts[0] == "agent_presets" && parts[2] == "profiles":
+		return dynamicMatch(fields, "agent_presets", configvalue.KindMapping)
+
+	case len(parts) == 4 && parts[0] == "agent_presets" && parts[2] == "profiles" && contains(agent.RoleNames(), parts[3]):
+		return dynamicMatch(fields, "agent_presets", configvalue.KindMapping)
+
+	case len(parts) == 5 && parts[0] == "agent_presets" && parts[2] == "profiles" &&
+		contains(agent.RoleNames(), parts[3]) && contains([]string{"cli", "model", "effort"}, parts[4]):
+		return dynamicMatch(fields, "agent_presets", configvalue.KindString)
 
 	case len(parts) == 2 && parts[0] == "stage_hooks" && contains(agent.StageNames(), parts[1]):
 		return dynamicMatch(fields, "stage_hooks", configvalue.KindMapping)
@@ -1391,7 +1569,7 @@ func validDottedKey(key string) bool {
 		// CLI names are user-defined map keys, not schema identifiers. Keep
 		// the surrounding CLIs/profiles/role/leaf axes strict while accepting
 		// any canonical unquoted segment on this one dynamic axis.
-		if len(parts) >= 2 && parts[0] == "clis" && index == 1 {
+		if len(parts) >= 2 && (parts[0] == "clis" || parts[0] == "agent_presets") && index == 1 {
 			if !validCLIName(part) {
 				return false
 			}

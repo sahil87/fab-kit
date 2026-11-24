@@ -80,6 +80,15 @@ import (
 //
 //   - `--repo <path>`: reads <path>/fab/project/config.yaml instead of the current
 //     repo (the operator's fetch-another-repo's-command use case).
+//   - `--preset <name>`: chooses an agent preset for THIS resolution only, as if
+//     FAB_AGENT_PRESET=<name> were set (the env layer: it beats system/project
+//     agent.* fields, loses to explicit FAB_AGENT_* fields; --cli/--model/--effort
+//     stay on top; `none` disables a configured preset; an unknown name warns and
+//     resolves as unset). Resolution only — it does NOT export FAB_AGENT_PRESET into
+//     an exec'd session (unlike --workers), and flags never reach `fab dispatch
+//     start`: to make a preset reach dispatched workers set agent.preset in config or
+//     export FAB_AGENT_PRESET. Rejected with the selector-less `--cli` form, which
+//     bypasses the role resolution a preset feeds.
 //   - `--workers <cli>`: sets FAB_AGENT_WORKERS=<cli> in the exec
 //     environment, REPLACING any entry inherited from the parent rather than
 //     appending a second one (duplicate resolution is unspecified). It does not
@@ -95,6 +104,7 @@ func agentCmd() *cobra.Command {
 	var cli, provider string
 	var model string
 	var effort string
+	var preset string
 	cmd := &cobra.Command{
 		Use:   "agent [role|stage] [-- <agent-args>...]",
 		Short: "Launch (or --print) the resolved agent session command in the current shell",
@@ -131,6 +141,12 @@ func agentCmd() *cobra.Command {
 				return err
 			}
 
+			// A preset feeds role resolution; the bare --cli form bypasses it, so the
+			// pair is rejected rather than silently ignoring the preset.
+			if cmd.Flags().Changed("preset") && cliSet && selector == "" {
+				return fmt.Errorf("--preset has no effect with a bare --cli (no [role|stage] selector): that form bypasses role resolution; add a selector or drop --preset")
+			}
+
 			// Template is implied print-mode; --model/--effort feed the fill step
 			// that it skips, so they are rejected rather than silently ignored.
 			if template && (cmd.Flags().Changed("model") || cmd.Flags().Changed("effort")) {
@@ -158,7 +174,7 @@ func agentCmd() *cobra.Command {
 				return fmt.Errorf("--headless is valid only in the print-family modes (--print, -t, -o yaml); exec of a headless command is not supported")
 			}
 
-			return runAgent(cmd, selector, cli, cliSet, model, effort, printOnly, template, headless, output, repo, passthrough)
+			return runAgent(cmd, selector, cli, cliSet, model, effort, printOnly, template, headless, output, repo, passthrough, preset)
 		},
 	}
 	cmd.Flags().BoolVarP(&printOnly, "print", "p", false, "print the fully-resolved command instead of executing it")
@@ -170,13 +186,17 @@ func agentCmd() *cobra.Command {
 	cmd.Flags().StringVar(&model, "model", "", "final model override (empty: on the bare --cli form the CLI command's model token is dropped, so its CLI default applies)")
 	cmd.Flags().StringVar(&effort, "effort", "", "final effort override (empty: on the bare --cli form the effort token is dropped)")
 	cmd.Flags().String("workers", "", "set FAB_AGENT_WORKERS for the launched agent session")
+	cmd.Flags().StringVar(&preset, "preset", "", "agent preset for this resolution only (as if FAB_AGENT_PRESET were set; `none` disables a configured one). "+
+		"Resolution only: it is not exported into the launched session, and flags do not reach `fab dispatch start` — "+
+		"to make a preset reach dispatched workers, set agent.preset in config or export FAB_AGENT_PRESET")
 	cmd.AddCommand(agentModelsCmd())
+	cmd.AddCommand(agentPresetsCmd())
 	return cmd
 }
 
 // runAgent selects the addressing + output modes the user's flags picked and
 // delegates to resolveAgentInvocation for the composition.
-func runAgent(cmd *cobra.Command, selector, cli string, cliSet bool, model, effort string, printOnly, template, headless bool, output string, repo string, passthrough []string) error {
+func runAgent(cmd *cobra.Command, selector, cli string, cliSet bool, model, effort string, printOnly, template, headless bool, output string, repo string, passthrough []string, preset string) error {
 	m := agentMode{
 		CLI:         cli,
 		CLISet:      cliSet,
@@ -191,6 +211,7 @@ func runAgent(cmd *cobra.Command, selector, cli string, cliSet bool, model, effo
 		Output:      output,
 		Repo:        repo,
 		Passthrough: passthrough,
+		Preset:      preset,
 	}
 	return resolveAgentInvocation(cmd, m)
 }
@@ -213,10 +234,11 @@ type agentMode struct {
 	Output      string
 	Repo        string
 	Passthrough []string
+	Preset      string // --preset: chosen at the env layer for this one resolution ("" = not supplied)
 }
 
 func resolveAgentInvocation(cmd *cobra.Command, m agentMode) error {
-	cfg, err := loadRepoConfig(m.Repo)
+	cfg, err := loadRepoConfigPreset(m.Repo, m.Preset)
 	if err != nil {
 		return err
 	}
@@ -402,8 +424,15 @@ func appendPassthrough(command string, args []string) string {
 // `fab spawn-command --repo` behavior; a missing file yields an empty config (the
 // built-in CLI table then supplies the default session command).
 func loadRepoConfig(repo string) (*config.Config, error) {
+	return loadRepoConfigPreset(repo, "")
+}
+
+// loadRepoConfigPreset is loadRepoConfig with an invocation-time agent preset (the
+// `fab agent --preset` choice, applied at the env layer for this one load). An empty
+// preset is the plain cascade.
+func loadRepoConfigPreset(repo, preset string) (*config.Config, error) {
 	if repo != "" {
-		return config.LoadPath(filepath.Join(repo, "fab", "project", "config.yaml"))
+		return config.LoadPathWithPreset(filepath.Join(repo, "fab", "project", "config.yaml"), preset)
 	}
 	fabRoot, err := resolve.FabRoot()
 	if err != nil {
@@ -420,7 +449,7 @@ func loadRepoConfig(repo string) (*config.Config, error) {
 		// and it keeps a machine-wide preference in ~/.fab-kit/config.yaml
 		// authoritative outside a project too. Project-state commands keep
 		// erroring here; see cmd/fab/skill.md's config-free-commands rule.
-		return config.LoadNoProject(), nil
+		return config.LoadNoProjectWithPreset(preset), nil
 	}
-	return config.Load(fabRoot)
+	return config.LoadWithPreset(fabRoot, preset)
 }

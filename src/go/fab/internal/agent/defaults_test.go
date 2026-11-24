@@ -194,9 +194,9 @@ func TestDefaultsFileCLIs(t *testing.T) {
 }
 
 // TestDefaultsFileDefinesOnlyItsSurface: defaults.yaml is layer 0 of the config
-// cascade in shape, but it defines only the three blocks internal/agent owns —
-// `agent` (the two depth knobs), `clis`, and `dispatch` (the stage-dispatch
-// defaults, 260809-wll4). Within `agent:` only the two depth knobs belong: the
+// cascade in shape, but it defines only the four blocks internal/agent owns —
+// `agent` (the two depth knobs), `agent_presets` (the built-in named role
+// assignments), `clis`, and `dispatch` (the stage-dispatch defaults, 260809-wll4). Within `agent:` only the two depth knobs belong: the
 // role→depth partition and the stage→role mapping are fab-owned POLICY and stay
 // in Go. yaml.v3 ignores unknown keys, so a key written at the wrong nesting
 // level (or a block this package does not read) would otherwise be silently inert.
@@ -210,7 +210,7 @@ func TestDefaultsFileDefinesOnlyItsSurface(t *testing.T) {
 	for key := range raw {
 		top = append(top, key)
 	}
-	assertSameKeys(t, "defaults.yaml top-level", top, []string{"clis", "agent", "dispatch"})
+	assertSameKeys(t, "defaults.yaml top-level", top, []string{"clis", "agent", "agent_presets", "dispatch"})
 
 	var agentBlock map[string]yaml.Node
 	node, ok := raw["agent"]
@@ -367,5 +367,117 @@ func assertSameKeys(t *testing.T, what string, got, want []string) {
 	sort.Strings(w)
 	if strings.Join(g, ",") != strings.Join(w, ",") {
 		t.Errorf("%s covers %v, want exactly %v", what, g, w)
+	}
+}
+
+// TestDefaultsFileBuiltinPresetsAreWellFormed validates every built-in agent
+// preset against the closed vocabulary a preset may use: the reserved name `none`
+// is never defined, depth knobs and per-role CLIs name built-in CLIs, profile keys
+// are the six known roles, and only the allowed leaves (cli/model/effort) are set.
+// The typed parse alone cannot catch a misspelled key (yaml.v3 ignores unknowns),
+// so the raw node tree is walked too.
+func TestDefaultsFileBuiltinPresetsAreWellFormed(t *testing.T) {
+	cfg := parseDefaultsFile(t)
+	if len(cfg.AgentPresets) == 0 {
+		t.Fatal("defaults.yaml defines no agent_presets")
+	}
+	if _, bad := cfg.AgentPresets[config.NoPreset]; bad {
+		t.Errorf("defaults.yaml defines the reserved preset name %q", config.NoPreset)
+	}
+	for name, p := range cfg.AgentPresets {
+		if p.Description == "" {
+			t.Errorf("preset %q has no description", name)
+		}
+		for _, knob := range []string{p.Session, p.Workers} {
+			if knob == "" {
+				continue
+			}
+			if _, ok := cfg.CLIs[knob]; !ok {
+				t.Errorf("preset %q names CLI %q, which is not a built-in CLI", name, knob)
+			}
+		}
+		for role, rp := range p.Profiles {
+			if !IsRoleName(role) {
+				t.Errorf("preset %q profiles.%s is not a known role (valid: %s)", name, role, strings.Join(RoleNames(), ", "))
+			}
+			if rp.CLI != "" {
+				if _, ok := cfg.CLIs[rp.CLI]; !ok {
+					t.Errorf("preset %q profiles.%s.cli %q is not a built-in CLI", name, role, rp.CLI)
+				}
+			}
+		}
+	}
+
+	var raw struct {
+		Presets map[string]map[string]yaml.Node `yaml:"agent_presets"`
+	}
+	if err := yaml.Unmarshal(defaultsYAML, &raw); err != nil {
+		t.Fatal(err)
+	}
+	for name, fields := range raw.Presets {
+		keys := make([]string, 0, len(fields))
+		for k := range fields {
+			keys = append(keys, k)
+		}
+		for _, k := range keys {
+			switch k {
+			case "description", "session", "workers", "profiles":
+			default:
+				t.Errorf("preset %q sets %q; allowed: description, session, workers, profiles", name, k)
+			}
+		}
+		if node, ok := fields["profiles"]; ok {
+			var roles map[string]map[string]yaml.Node
+			if err := node.Decode(&roles); err != nil {
+				t.Fatalf("preset %q profiles does not decode: %v", name, err)
+			}
+			for role, leaves := range roles {
+				for leaf := range leaves {
+					switch leaf {
+					case "cli", "model", "effort":
+					default:
+						t.Errorf("preset %q profiles.%s sets %q; allowed: cli, model, effort", name, role, leaf)
+					}
+				}
+			}
+		}
+	}
+}
+
+// TestDefaultsFileBuiltinPresetsArePinned pins the three shipped presets' exact
+// shapes (user-confirmed). Changing a built-in preset is a deliberate edit to
+// defaults.yaml, this table, and the docs table that restates it.
+func TestDefaultsFileBuiltinPresetsArePinned(t *testing.T) {
+	want := map[string]config.AgentPreset{
+		"claude":        {Description: "All roles on Claude (today's defaults)", Session: "claude", Workers: "claude"},
+		"codex-workers": {Description: "Pipeline workers on Codex; session on Claude", Workers: "codex"},
+		"codex-review":  {Description: "Only the review role on Codex", Profiles: map[string]config.RoleProfile{"review": {CLI: "codex"}}},
+	}
+	if got := parseDefaultsFile(t).AgentPresets; !reflect.DeepEqual(got, want) {
+		t.Errorf("defaults.yaml agent_presets = %+v, want %+v", got, want)
+	}
+}
+
+// TestBuiltinPresetsPushedToConfig guards the init() push that hands the parsed
+// built-in presets to internal/config (which cannot import this package).
+func TestBuiltinPresetsPushedToConfig(t *testing.T) {
+	if got, want := config.BuiltinAgentPresets, parseDefaultsFile(t).AgentPresets; !reflect.DeepEqual(got, want) {
+		t.Errorf("config.BuiltinAgentPresets = %+v, want %+v", got, want)
+	}
+}
+
+// TestBuiltinPresetsAreInert: with nothing selected, no preset changes any role's
+// resolution — presence=intent for a fresh install.
+func TestBuiltinPresetsAreInert(t *testing.T) {
+	cfg := &config.Config{}
+	for _, role := range RoleNames() {
+		got, err := ResolveRole(cfg, role)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, _ := DefaultProfile(role)
+		if got != want {
+			t.Errorf("role %s: %+v != built-in %+v", role, got, want)
+		}
 	}
 }
